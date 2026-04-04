@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle, Loader2, Trash2, XCircle } from 'lucide-react'
 import { api } from '@/api/client'
-import { NavBar } from '@/components/NavBar'
 import type { CreateNoteTypeResponse, KnownWord, Settings, VerifyNoteTypeResponse } from '@/api/types'
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
@@ -10,6 +9,12 @@ const AI_MODELS = [
   { value: 'sonnet', label: 'Claude Sonnet' },
   { value: 'opus', label: 'Claude Opus' },
 ]
+
+const INPUT_STYLE = {
+  background: 'var(--ibg)',
+  border: '1.5px solid var(--ib)',
+  color: 'var(--text)',
+} as const
 
 export function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -124,48 +129,50 @@ export function SettingsPage() {
 
   if (loading || !form) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <Loader2 size={20} className="animate-spin text-slate-500" />
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 size={20} className="animate-spin" style={{ color: 'var(--tm)' }} />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
-      <NavBar />
-
+    <div className="flex-1 overflow-y-auto">
       <main className="mx-auto max-w-lg px-4 py-8 flex flex-col gap-8">
 
         {/* Anki section */}
         <section className="flex flex-col gap-4">
-          <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wider">Anki</h2>
+          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>Anki</h2>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-300">Deck name</label>
+            <label htmlFor="deck-name" className="text-sm" style={{ color: 'var(--text)' }}>Deck name</label>
             <input
+              id="deck-name"
               type="text"
               value={form.anki_deck_name}
               onChange={(e) => setField('anki_deck_name', e.target.value)}
-              className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-indigo-700 focus:outline-none transition-colors"
+              className="rounded-lg px-4 py-2.5 text-sm transition-colors cosmic-input"
+              style={INPUT_STYLE}
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-300">Note type</label>
+            <label htmlFor="note-type" className="text-sm" style={{ color: 'var(--text)' }}>Note type</label>
             <input
+              id="note-type"
               type="text"
               value={form.anki_note_type}
               onChange={(e) => setField('anki_note_type', e.target.value)}
-              className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-indigo-700 focus:outline-none transition-colors"
+              className="rounded-lg px-4 py-2.5 text-sm transition-colors cosmic-input"
+              style={INPUT_STYLE}
             />
-            <p className="text-xs text-slate-600">
+            <p className="text-xs" style={{ color: 'var(--td)' }}>
               «AnythingToAnkiType» is created automatically. Use your own type for custom fields.
             </p>
           </div>
 
           <div className="flex flex-col gap-2">
-            <p className="text-sm text-slate-300">Field mapping</p>
-            <div className="rounded-lg border border-slate-800 bg-slate-900 divide-y divide-slate-800">
+            <p className="text-sm" style={{ color: 'var(--text)' }}>Field mapping</p>
+            <div className="glass-card rounded-xl divide-y" style={{ borderColor: 'var(--glass-b)' }}>
               {(
                 [
                   { key: 'anki_field_sentence', label: 'Sentence' },
@@ -175,13 +182,14 @@ export function SettingsPage() {
                 ] as { key: keyof Settings; label: string }[]
               ).map(({ key, label }) => (
                 <div key={key} className="flex items-center gap-3 px-4 py-2.5">
-                  <span className="text-xs text-slate-500 w-24 shrink-0">{label}</span>
+                  <span className="text-xs w-24 shrink-0" style={{ color: 'var(--td)' }}>{label}</span>
                   <input
                     type="text"
                     value={form[key] as string}
                     onChange={(e) => setField(key, e.target.value)}
                     placeholder="field name"
-                    className="flex-1 bg-transparent text-sm text-slate-200 placeholder:text-slate-700 focus:outline-none"
+                    className="flex-1 bg-transparent text-sm focus:outline-none"
+                    style={{ color: 'var(--text)' }}
                   />
                 </div>
               ))}
@@ -192,7 +200,8 @@ export function SettingsPage() {
             <button
               onClick={handleVerify}
               disabled={verifying || !form.anki_note_type}
-              className="flex items-center gap-1.5 rounded-md border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 hover:border-slate-600 disabled:opacity-50 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
+              style={{ border: '1px solid var(--glass-b)', color: 'var(--tm)', background: 'var(--glass)' }}
             >
               {verifying && <Loader2 size={11} className="animate-spin" />}
               Verify note type
@@ -200,7 +209,8 @@ export function SettingsPage() {
             <button
               onClick={handleCreate}
               disabled={creating || !form.anki_note_type}
-              className="flex items-center gap-1.5 rounded-md border border-indigo-800 px-3 py-1.5 text-xs font-medium text-indigo-400 hover:text-indigo-300 hover:border-indigo-700 disabled:opacity-50 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
+              style={{ border: '1px solid var(--glass-b)', color: 'var(--accent)', background: 'var(--abg)' }}
             >
               {creating && <Loader2 size={11} className="animate-spin" />}
               Create type
@@ -213,60 +223,60 @@ export function SettingsPage() {
                 }
               </span>
             )}
-            {verifyError && (
-              <span className="text-xs text-rose-400">{verifyError}</span>
-            )}
+            {verifyError && <span className="text-xs text-rose-400">{verifyError}</span>}
             {createResult && (
               <span className="flex items-center gap-1 text-xs text-emerald-400">
                 <CheckCircle size={13} />
                 {createResult.already_existed ? 'Already exists' : 'Created ✓'}
               </span>
             )}
-            {createError && (
-              <span className="text-xs text-rose-400">{createError}</span>
-            )}
+            {createError && <span className="text-xs text-rose-400">{createError}</span>}
           </div>
         </section>
 
         {/* Vocabulary section */}
         <section className="flex flex-col gap-4">
-          <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wider">Vocabulary</h2>
+          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>Vocabulary</h2>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-300">Target CEFR level</label>
+            <label htmlFor="cefr-level" className="text-sm" style={{ color: 'var(--text)' }}>Target CEFR level</label>
             <select
+              id="cefr-level"
               value={form.cefr_level}
               onChange={(e) => setField('cefr_level', e.target.value)}
-              className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm text-slate-200 focus:border-indigo-700 focus:outline-none transition-colors"
+              className="rounded-lg px-4 py-2.5 text-sm transition-colors cosmic-input"
+              style={INPUT_STYLE}
             >
               {CEFR_LEVELS.map((level) => (
                 <option key={level} value={level}>{level}</option>
               ))}
             </select>
-            <p className="text-xs text-slate-600">
+            <p className="text-xs" style={{ color: 'var(--td)' }}>
               Words at or above this level will be suggested as candidates.
             </p>
           </div>
         </section>
 
-        {/* AI Model section (scaffold) */}
+        {/* AI Model section */}
         <section className="flex flex-col gap-4">
-          <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wider">AI Model</h2>
-          <div className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 flex items-center justify-between">
-            <span className="text-sm text-slate-400">Provider</span>
-            <span className="text-sm text-slate-200">Claude</span>
+          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>AI Model</h2>
+          <div className="glass-card rounded-xl px-4 py-3 flex items-center justify-between">
+            <span className="text-sm" style={{ color: 'var(--tm)' }}>Provider</span>
+            <span className="text-sm" style={{ color: 'var(--text)' }}>Claude</span>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-300">Model</label>
+            <label htmlFor="ai-model" className="text-sm" style={{ color: 'var(--text)' }}>Model</label>
             <select
+              id="ai-model"
               value={form.ai_model}
               onChange={(e) => setField('ai_model', e.target.value)}
-              className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm text-slate-200 focus:border-indigo-700 focus:outline-none transition-colors"
+              className="rounded-lg px-4 py-2.5 text-sm transition-colors cosmic-input"
+              style={INPUT_STYLE}
             >
               {AI_MODELS.map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
-            <p className="text-xs text-slate-600">Reserved for future AI-powered features.</p>
+            <p className="text-xs" style={{ color: 'var(--td)' }}>Reserved for future AI-powered features.</p>
           </div>
         </section>
 
@@ -275,7 +285,8 @@ export function SettingsPage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors cursor-pointer"
+          className="flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50 transition-all hover:brightness-110 hover:-translate-y-px cursor-pointer"
+          style={{ background: 'var(--accent)', boxShadow: '0 4px 14px var(--ag)' }}
         >
           {saving && <Loader2 size={14} className="animate-spin" />}
           {saved ? 'Saved ✓' : 'Save settings'}
@@ -283,29 +294,36 @@ export function SettingsPage() {
 
         {/* Whitelist section */}
         <section className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wider">
-              Whitelist
-              {knownWords.length > 0 && <span className="ml-2 text-slate-600">({knownWords.length})</span>}
-            </h2>
-            </div>
+          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>
+            Whitelist
+            {knownWords.length > 0 && (
+              <span className="ml-2" style={{ color: 'var(--td)' }}>({knownWords.length})</span>
+            )}
+          </h2>
 
           {knownWords.length === 0 ? (
-            <p className="text-sm text-slate-600 italic">No known words yet.</p>
+            <p className="text-sm italic" style={{ color: 'var(--td)' }}>No known words yet.</p>
           ) : (
-            <div className="rounded-lg border border-slate-800 bg-slate-900 divide-y divide-slate-800 max-h-64 overflow-y-auto">
+            <div
+              className="glass-card rounded-xl divide-y max-h-64 overflow-y-auto"
+              style={{ borderColor: 'var(--glass-b)' }}
+            >
               {knownWords.map((w) => (
                 <div key={w.id} className="flex items-center justify-between px-4 py-2.5 gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm text-slate-200 truncate">{w.lemma}</span>
-                    <span className="shrink-0 text-xs text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded">
+                    <span className="text-sm truncate" style={{ color: 'var(--text)' }}>{w.lemma}</span>
+                    <span
+                      className="shrink-0 text-xs px-1.5 py-0.5 rounded"
+                      style={{ color: 'var(--td)', background: 'var(--glass)' }}
+                    >
                       {w.pos.toLowerCase()}
                     </span>
                   </div>
                   <button
                     onClick={() => handleDeleteWord(w.id)}
                     disabled={deletingId === w.id}
-                    className="shrink-0 text-slate-600 hover:text-rose-400 disabled:opacity-40 transition-colors cursor-pointer"
+                    className="shrink-0 disabled:opacity-40 transition-colors cursor-pointer hover:text-rose-400"
+                    style={{ color: 'var(--td)' }}
                     aria-label={`Remove ${w.lemma}`}
                   >
                     {deletingId === w.id
@@ -317,7 +335,7 @@ export function SettingsPage() {
               ))}
             </div>
           )}
-          <p className="text-xs text-slate-600">
+          <p className="text-xs" style={{ color: 'var(--td)' }}>
             Known words won't be suggested when processing new sources.
           </p>
         </section>

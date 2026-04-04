@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VocabMiner — Variant B: Developer Dark</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', sans-serif; background: #0F172A; color: #F8FAFC; }
+    .card { background: #1B2336; border: 1px solid #2a3550; transition: all 150ms ease; }
+    .card:hover { border-color: #334155; background: #1e2840; }
+    .card-active { background: #1B2336; border: 1px solid #22c55e33; }
+    .card-active:hover { border-color: #22c55e66; }
+    .btn-primary { background: #22c55e; color: #0F172A; transition: all 150ms ease; }
+    .btn-primary:hover { background: #16a34a; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(34,197,94,0.3); }
+    .btn-ghost { border: 1px solid #2a3550; color: #94a3b8; transition: all 150ms ease; }
+    .btn-ghost:hover { border-color: #22c55e44; color: #22c55e; background: #0d2318; }
+    textarea { background: #0d1526; border: 1px solid #2a3550; color: #e2e8f0; transition: all 150ms ease; }
+    textarea::placeholder { color: #475569; }
+    textarea:focus { outline: none; border-color: #22c55e66; box-shadow: 0 0 0 2px rgba(34,197,94,0.1); }
+    .badge-new        { background: #1e293b; color: #64748b; border: 1px solid #2a3550; }
+    .badge-processing { background: #0c2a4a; color: #60a5fa; border: 1px solid #1d4ed833; }
+    .badge-done       { background: #0d2318; color: #22c55e; border: 1px solid #22c55e33; }
+    .badge-reviewed   { background: #1a1040; color: #818cf8; border: 1px solid #818cf833; }
+    .badge-partial    { background: #2a1a04; color: #f59e0b; border: 1px solid #f59e0b33; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .dot-pulse { display: inline-flex; gap: 3px; align-items: center; }
+    .dot-pulse span { width: 4px; height: 4px; border-radius: 50%; background: #60a5fa; animation: pulse-anim 1.2s ease-in-out infinite; }
+    .dot-pulse span:nth-child(2) { animation-delay: 0.2s; }
+    .dot-pulse span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes pulse-anim { 0%,80%,100% { opacity:.25; transform: scale(.8); } 40% { opacity:1; transform: scale(1); } }
+    .progress-bar { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .term { font-family: 'JetBrains Mono', monospace; color: #22c55e; font-size: 11px; }
+    select { background: #0d1526; border: 1px solid #2a3550; color: #94a3b8; }
+    select:focus { outline: none; border-color: #22c55e66; }
+    .sidebar-stat { border-left: 2px solid #22c55e33; }
+    .sidebar-stat:hover { border-left-color: #22c55e; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Header -->
+  <header style="background:#131e32; border-bottom: 1px solid #1e2d47;" class="px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background: linear-gradient(135deg, #22c55e22, #22c55e11); border: 1px solid #22c55e33;">
+          <span class="term text-xs">vm</span>
+        </div>
+        <div>
+          <h1 class="text-sm font-600 text-slate-100 leading-none tracking-tight">VocabMiner</h1>
+          <p class="mono text-[10px] text-slate-600 mt-0.5 leading-none">v0.1.0 · local</p>
+        </div>
+      </div>
+      <div class="hidden md:flex items-center gap-1 text-xs text-slate-600">
+        <span class="text-slate-700">/</span>
+        <span class="text-slate-500">inbox</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-1.5 text-xs">
+        <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+        <span class="text-slate-500">API running</span>
+      </div>
+      <div class="mono px-2.5 py-1 rounded text-xs font-500" style="background:#0d2318; color:#22c55e; border: 1px solid #22c55e22;">B2</div>
+      <button class="btn-ghost p-1.5 rounded-lg">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5C3.96 1.5 1.5 3.96 1.5 7S3.96 12.5 7 12.5 12.5 10.04 12.5 7 10.04 1.5 7 1.5zm0 2a1.75 1.75 0 110 3.5A1.75 1.75 0 017 3.5zM7 11a4.25 4.25 0 01-3.5-1.84A4.49 4.49 0 017 7.75c1.35 0 2.56.6 3.5 1.41A4.25 4.25 0 017 11z" fill="currentColor"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
+
+    <!-- Left -->
+    <section class="flex flex-col gap-4">
+
+      <!-- Add source -->
+      <div class="card rounded-xl p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="term">// add_source</span>
+        </div>
+        <textarea
+          rows="7"
+          placeholder="# paste text, lyrics, or subtitles..."
+          class="w-full rounded-lg px-3 py-2.5 text-sm resize-none"
+        >She's relentless in her pursuit of excellence, sacrificing her well-being in the process. The overwhelming urge to overcommit often leads to burnout, yet she pretends it doesn't exist.</textarea>
+        <div class="mt-3 flex gap-2">
+          <select class="flex-1 rounded-lg px-2.5 py-2 text-xs">
+            <option>type: text</option>
+            <option>type: lyrics</option>
+            <option>type: subtitles</option>
+          </select>
+          <button class="btn-primary px-4 py-2 rounded-lg text-xs font-600 flex items-center gap-1.5">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            add
+          </button>
+        </div>
+      </div>
+
+      <!-- System info -->
+      <div class="card rounded-xl p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="term">// stats</span>
+        </div>
+        <div class="space-y-2">
+          <div class="sidebar-stat pl-3 py-1 transition-all">
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-slate-500">to_learn</span>
+              <span class="mono text-xs text-green-400">47</span>
+            </div>
+          </div>
+          <div class="sidebar-stat pl-3 py-1 transition-all">
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-slate-500">known_words</span>
+              <span class="mono text-xs text-slate-300">312</span>
+            </div>
+          </div>
+          <div class="sidebar-stat pl-3 py-1 transition-all">
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-slate-500">sources_total</span>
+              <span class="mono text-xs text-slate-300">8</span>
+            </div>
+          </div>
+          <div class="sidebar-stat pl-3 py-1 transition-all">
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-slate-500">user_level</span>
+              <span class="mono text-xs text-green-400">"B2"</span>
+            </div>
+          </div>
+        </div>
+        <div class="mt-3 pt-3" style="border-top: 1px solid #1e2d47;">
+          <div class="flex justify-between text-xs mb-1.5">
+            <span class="text-slate-600">b2_coverage</span>
+            <span class="mono text-green-400">62%</span>
+          </div>
+          <div class="h-1 rounded-full bg-slate-800 overflow-hidden">
+            <div class="h-full progress-bar rounded-full" style="width:62%"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right: Sources -->
+    <section>
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <span class="term">sources[]</span>
+          <span class="text-xs text-slate-600">4 items</span>
+        </div>
+        <button class="btn-ghost px-3 py-1.5 rounded-lg text-xs">process_all()</button>
+      </div>
+
+      <div class="flex flex-col gap-2.5">
+
+        <!-- Processing -->
+        <div class="card rounded-xl p-4" style="border-color: #1d4ed822;">
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <p class="text-sm text-slate-300 leading-snug line-clamp-1 font-400">
+              She's relentless in her pursuit of excellence…
+            </p>
+            <span class="badge-processing shrink-0 rounded-md px-2 py-0.5 text-xs font-500 mono">processing</span>
+          </div>
+          <div class="flex items-center justify-between text-xs text-slate-600 mb-3">
+            <span class="mono">type: text</span>
+            <span>just now</span>
+          </div>
+          <div class="rounded-lg px-3 py-2 text-xs flex items-center gap-2" style="background:#0c2a4a; color:#60a5fa; border: 1px solid #1d4ed822;">
+            <div class="dot-pulse"><span></span><span></span><span></span></div>
+            <span class="mono">spacy.pipeline.running…</span>
+          </div>
+        </div>
+
+        <!-- Done -->
+        <div class="card card-active rounded-xl p-4 cursor-pointer">
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <p class="text-sm text-slate-300 leading-snug line-clamp-1">Bohemian Rhapsody — Queen lyrics</p>
+            <span class="badge-done shrink-0 rounded-md px-2 py-0.5 text-xs font-500 mono">done</span>
+          </div>
+          <div class="flex items-center justify-between text-xs text-slate-600 mb-3">
+            <span class="mono">type: lyrics · 2h ago</span>
+            <span class="text-green-400 mono">14 candidates</span>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn-primary flex-1 rounded-lg py-2 text-xs font-600">review →</button>
+            <button class="btn-ghost rounded-lg px-3 py-2 text-xs">export</button>
+          </div>
+        </div>
+
+        <!-- Partial -->
+        <div class="card rounded-xl p-4 cursor-pointer" style="border-color: #f59e0b22;">
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <p class="text-sm text-slate-300 leading-snug line-clamp-1">The Great Gatsby — Chapter 1 excerpt</p>
+            <span class="badge-partial shrink-0 rounded-md px-2 py-0.5 text-xs font-500 mono">partial</span>
+          </div>
+          <div class="flex items-center justify-between text-xs text-slate-600 mb-3">
+            <span class="mono">type: text · yesterday</span>
+            <span class="mono text-slate-500">5/11 marked</span>
+          </div>
+          <div class="mb-3">
+            <div class="h-px rounded-full" style="background: #2a3550; overflow:hidden;">
+              <div class="h-full" style="width:45%; background:#f59e0b;"></div>
+            </div>
+          </div>
+          <button class="btn-ghost w-full rounded-lg py-2 text-xs" style="border-color: #f59e0b22; color: #f59e0b;">continue_review() →</button>
+        </div>
+
+        <!-- Exported -->
+        <div class="card rounded-xl p-4 opacity-60">
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <p class="text-sm text-slate-400 leading-snug line-clamp-1">Inception movie subtitles</p>
+            <span class="badge-reviewed shrink-0 rounded-md px-2 py-0.5 text-xs font-500 mono">exported</span>
+          </div>
+          <div class="flex items-center justify-between text-xs text-slate-600">
+            <span class="mono">type: subtitles · 3d ago</span>
+            <span class="mono text-green-400">✓ 8 cards</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <!-- Label -->
+  <div class="fixed bottom-4 right-4 text-xs font-600 px-3 py-1.5 rounded-lg shadow-lg mono" style="background:#0d2318; color:#22c55e; border: 1px solid #22c55e33;">
+    Variant B — Dev Dark (Green)
+  </div>
+
+</body>
+</html>

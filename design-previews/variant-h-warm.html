@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Variant H — Warm Reader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { transition: background-color 250ms ease, border-color 250ms ease, color 200ms ease, box-shadow 250ms ease; }
+
+    :root {
+      --bg:        #faf8f4;
+      --surface:   #fffefb;
+      --surface2:  #f5f0e8;
+      --border:    #e8e0d0;
+      --border2:   #d4c9b5;
+      --text:      #2c2416;
+      --text-m:    #6b5a3e;
+      --text-d:    #a89070;
+      --amber:     #b45309;
+      --amber-l:   #d97706;
+      --amber-bg:  #fffbeb;
+      --amber-border: #fde68a;
+      --green:     #15803d;
+      --green-bg:  #f0fdf4;
+      --green-border: #bbf7d0;
+      --blue:      #1e40af;
+      --blue-bg:   #eff6ff;
+      --blue-border: #bfdbfe;
+      --header-bg: #fffefb;
+    }
+
+    [data-theme="dark"] {
+      --bg:        #1a1612;
+      --surface:   #231e18;
+      --surface2:  #2c2620;
+      --border:    #3a3026;
+      --border2:   #4a3d2e;
+      --text:      #f5ede0;
+      --text-m:    #c4a882;
+      --text-d:    #7a6347;
+      --amber:     #f59e0b;
+      --amber-l:   #fbbf24;
+      --amber-bg:  rgba(245,158,11,0.08);
+      --amber-border: rgba(245,158,11,0.2);
+      --green:     #34d399;
+      --green-bg:  rgba(52,211,153,0.07);
+      --green-border: rgba(52,211,153,0.2);
+      --blue:      #60a5fa;
+      --blue-bg:   rgba(96,165,250,0.08);
+      --blue-border: rgba(96,165,250,0.2);
+      --header-bg: #1a1612;
+    }
+
+    html { font-family: 'Inter', sans-serif; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; }
+    .serif { font-family: 'Fraunces', serif; }
+
+    .header {
+      background: var(--header-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    [data-theme="dark"] .header { box-shadow: 0 1px 0 var(--border); }
+    [data-theme="light"] .header { box-shadow: 0 1px 12px rgba(180,83,9,0.04); }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 1px 4px rgba(44,36,22,0.04);
+      transition: all 220ms ease;
+    }
+    .card:hover {
+      border-color: var(--border2);
+      box-shadow: 0 4px 20px rgba(44,36,22,0.08);
+      transform: translateY(-1px);
+    }
+    [data-theme="dark"] .card { box-shadow: none; }
+    [data-theme="dark"] .card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+
+    textarea {
+      background: var(--bg);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      border-radius: 12px;
+      line-height: 1.7;
+    }
+    textarea::placeholder { color: var(--text-d); font-style: italic; }
+    textarea:focus {
+      outline: none;
+      border-color: var(--amber);
+      box-shadow: 0 0 0 3px var(--amber-bg);
+      background: var(--surface);
+    }
+
+    select {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      color: var(--text-m);
+      border-radius: 10px;
+      font-family: 'Inter', sans-serif;
+    }
+    select:focus { outline: none; border-color: var(--amber); }
+
+    .btn-amber {
+      background: var(--amber);
+      color: white;
+      font-weight: 600;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: all 150ms ease;
+    }
+    .btn-amber:hover {
+      background: var(--amber-l);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(180,83,9,0.3);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border2);
+      color: var(--text-m);
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: all 150ms ease;
+    }
+    .btn-ghost:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-bg); }
+
+    .status-dot-proc    { color: #3b82f6; }
+    .status-dot-done    { color: var(--green); }
+    .status-dot-partial { color: var(--amber); }
+    .status-dot-exp     { color: var(--text-d); }
+
+    .source-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 24px;
+      transition: all 200ms ease;
+      box-shadow: 0 1px 3px rgba(44,36,22,0.03);
+    }
+    .source-card:hover {
+      border-color: var(--border2);
+      box-shadow: 0 4px 16px rgba(44,36,22,0.07);
+      transform: translateY(-1px);
+    }
+    [data-theme="dark"] .source-card { box-shadow: none; }
+
+    .progress-track { background: var(--border); height: 5px; border-radius: 99px; overflow: hidden; }
+    .progress-fill  { background: var(--amber); height: 100%; border-radius: 99px; }
+
+    .toggle-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text-m);
+      border-radius: 10px;
+      padding: 7px 14px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .toggle-btn:hover { border-color: var(--amber); color: var(--amber); }
+
+    .dot-pulse { display:inline-flex; gap:3px; align-items:center; }
+    .dot-pulse span { width:5px; height:5px; border-radius:50%; background: #3b82f6; animation:dp 1.2s ease-in-out infinite; }
+    .dot-pulse span:nth-child(2){animation-delay:.2s}
+    .dot-pulse span:nth-child(3){animation-delay:.4s}
+    @keyframes dp{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <div>
+      <div class="serif" style="font-size:22px; font-weight:700; color: var(--text); letter-spacing:-.02em;">VocabMiner</div>
+      <div style="font-size:12px; color: var(--text-d); margin-top:1px;">Your personal vocabulary garden</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div style="font-size:12px; font-weight:500; padding:6px 14px; border-radius:20px; background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border);">
+        Level B2
+      </div>
+      <button class="toggle-btn" onclick="toggleTheme()">
+        <svg id="iconLight" width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 1v1.5M6.5 10.5V12M1 6.5h1.5M10.5 6.5H12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <svg id="iconDark" width="13" height="13" viewBox="0 0 13 13" fill="none" style="display:none"><path d="M11 7.5A5 5 0 015.5 2a5 5 0 100 9 5 5 0 005.5-3.5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span id="themeLabel">Dark</span>
+      </button>
+    </div>
+  </header>
+
+  <main style="max-width:1100px; margin:0 auto; padding:40px 40px; display:grid; grid-template-columns:400px 1fr; gap:48px;">
+
+    <!-- Left -->
+    <div>
+      <h2 class="serif" style="font-size:20px; font-weight:600; color: var(--text); margin-bottom:6px;">Add a new text</h2>
+      <p style="font-size:13px; color: var(--text-d); margin-bottom:20px; line-height:1.6;">Paste anything you've been reading, listening to, or watching — we'll find the words worth learning.</p>
+
+      <div class="card" style="padding:24px;">
+        <textarea rows="9" placeholder="Paste lyrics, an article excerpt, subtitles…" style="width:100%; padding:14px 16px; resize:none; display:block; font-size:13px; line-height:1.75;">She's relentless in her pursuit of excellence, sacrificing her well-being in the process. The overwhelming urge to overcommit often leads to burnout, yet she pretends it doesn't exist.</textarea>
+        <div style="display:flex; gap:8px; margin-top:12px;">
+          <select style="flex:1; padding:10px 14px; font-size:13px;">
+            <option>Plain text</option>
+            <option>Song lyrics</option>
+            <option>Subtitles</option>
+          </select>
+          <button class="btn-amber" style="padding:10px 22px; font-size:13px; display:flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+            Add
+          </button>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- Stats -->
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:24px;">
+        <div class="card" style="padding:16px; text-align:center;">
+          <div class="serif" style="font-size:32px; font-weight:700; color: var(--amber); line-height:1;">47</div>
+          <div style="font-size:11px; color: var(--text-d); margin-top:6px; line-height:1.4;">words to<br>learn</div>
+        </div>
+        <div class="card" style="padding:16px; text-align:center;">
+          <div class="serif" style="font-size:32px; font-weight:700; color: var(--green); line-height:1;">312</div>
+          <div style="font-size:11px; color: var(--text-d); margin-top:6px; line-height:1.4;">words<br>known</div>
+        </div>
+        <div class="card" style="padding:16px; text-align:center;">
+          <div class="serif" style="font-size:32px; font-weight:400; color: var(--text-m); line-height:1;">8</div>
+          <div style="font-size:11px; color: var(--text-d); margin-top:6px; line-height:1.4;">texts<br>added</div>
+        </div>
+      </div>
+
+      <div>
+        <div style="display:flex; justify-content:space-between; font-size:12px; color: var(--text-d); margin-bottom:8px;">
+          <span>B2 vocabulary progress</span>
+          <span style="font-weight:600; color: var(--amber);">62%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width:62%"></div>
+        </div>
+        <div style="font-size:11px; color: var(--text-d); margin-top:8px; font-style:italic; text-align:center;">
+          Keep going — you're building something
+        </div>
+      </div>
+    </div>
+
+    <!-- Right -->
+    <div>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
+        <h2 class="serif" style="font-size:20px; font-weight:600; color: var(--text);">Your texts</h2>
+        <button class="btn-ghost" style="padding:7px 16px; font-size:12px;">Process all pending</button>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:12px;">
+
+        <!-- Processing -->
+        <div class="source-card">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px;">
+            <div>
+              <div style="font-size:14px; font-weight:500; color: var(--text); line-height:1.5; margin-bottom:4px;">She's relentless in her pursuit of excellence…</div>
+              <div style="font-size:12px; color: var(--text-d);">Plain text · Just now</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px; flex-shrink:0; font-size:12px; color: #3b82f6; font-weight:500;">
+              <span>●</span> Processing
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; font-size:12px; color: var(--blue); background: var(--blue-bg); border: 1px solid var(--blue-border); border-radius:8px; padding:8px 12px;">
+            <div class="dot-pulse"><span></span><span></span><span></span></div>
+            Extracting vocabulary from your text…
+          </div>
+        </div>
+
+        <!-- Done -->
+        <div class="source-card" style="cursor:pointer;">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px;">
+            <div>
+              <div style="font-size:14px; font-weight:500; color: var(--text); line-height:1.5; margin-bottom:4px;">Bohemian Rhapsody — Queen lyrics</div>
+              <div style="font-size:12px; color: var(--text-d);">Lyrics · 2 hours ago · <span style="color: var(--green); font-weight:500;">14 words found</span></div>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px; flex-shrink:0; font-size:12px; color: var(--green); font-weight:500;">
+              <span>●</span> Ready to review
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-amber" style="flex:1; padding:9px 16px; font-size:13px;">Review words →</button>
+            <button class="btn-ghost" style="padding:9px 20px; font-size:13px;">Export</button>
+          </div>
+        </div>
+
+        <!-- Partial -->
+        <div class="source-card" style="cursor:pointer;">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px;">
+            <div>
+              <div style="font-size:14px; font-weight:500; color: var(--text); line-height:1.5; margin-bottom:4px;">The Great Gatsby — Chapter 1</div>
+              <div style="font-size:12px; color: var(--text-d);">Plain text · Yesterday</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px; flex-shrink:0; font-size:12px; color: var(--amber); font-weight:500;">
+              <span>●</span> In review
+            </div>
+          </div>
+          <div style="margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; font-size:12px; color: var(--text-d); margin-bottom:6px;">
+              <span>Progress</span>
+              <span style="color: var(--amber); font-weight:500;">5 of 11 marked</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width:45%"></div>
+            </div>
+          </div>
+          <button class="btn-ghost" style="width:100%; padding:9px 16px; font-size:13px;">Continue where you left off →</button>
+        </div>
+
+        <!-- Exported -->
+        <div class="source-card" style="opacity:.5;">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+            <div>
+              <div style="font-size:14px; font-weight:500; color: var(--text-m); margin-bottom:4px;">Inception movie subtitles</div>
+              <div style="font-size:12px; color: var(--text-d);">Subtitles · 3 days ago · <span style="color: var(--green); font-weight:500;">✓ 8 cards exported</span></div>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px; flex-shrink:0; font-size:12px; color: var(--text-d); font-weight:500;">
+              <span>●</span> Done
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <div style="position:fixed; bottom:16px; right:16px; background: var(--amber); color: white; font-size:12px; font-weight:600; padding:7px 14px; border-radius:20px; box-shadow: 0 4px 12px rgba(180,83,9,0.3);">
+    H — Warm Reader
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.getAttribute('data-theme') === 'dark';
+      html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      document.getElementById('themeLabel').textContent = isDark ? 'Dark' : 'Light';
+      document.getElementById('iconLight').style.display = isDark ? 'block' : 'none';
+      document.getElementById('iconDark').style.display = isDark ? 'none' : 'block';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VocabMiner — Cosmic × Sidebar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { transition: background-color 280ms ease, border-color 280ms ease, color 200ms ease, box-shadow 280ms ease; }
+    html { font-family: 'Inter', sans-serif; }
+
+    /* ── LIGHT ── */
+    [data-theme="light"] {
+      --mesh: radial-gradient(ellipse at 15% 20%, rgba(99,102,241,.18) 0%,transparent 50%),
+              radial-gradient(ellipse at 85% 75%, rgba(6,182,212,.14) 0%,transparent 50%),
+              radial-gradient(ellipse at 60% 10%, rgba(236,72,153,.10) 0%,transparent 45%);
+      --base:#f5f7ff;
+      --glass:rgba(255,255,255,.68); --glass-b:rgba(255,255,255,.55);
+      --blur:blur(24px) saturate(180%);
+      --text:#1e1b4b; --tm:#64748b; --td:#94a3b8;
+      --accent:#6366f1; --ag:rgba(99,102,241,.28); --abg:rgba(99,102,241,.10);
+      --header:rgba(245,247,255,.82); --ibg:rgba(255,255,255,.65); --ib:rgba(99,102,241,.22);
+      --grad:linear-gradient(135deg,#6366f1,#06b6d4);
+      --sh:0 8px 32px rgba(99,102,241,.09),0 2px 8px rgba(0,0,0,.05);
+      --sh2:0 20px 52px rgba(99,102,241,.20),0 4px 16px rgba(0,0,0,.07);
+      --bsh:0 4px 14px rgba(99,102,241,.35);
+      --sb-bg:rgba(245,247,255,.70);
+    }
+
+    /* ── DARK ── */
+    [data-theme="dark"] {
+      --mesh: radial-gradient(ellipse at 15% 20%, rgba(99,102,241,.28) 0%,transparent 50%),
+              radial-gradient(ellipse at 85% 75%, rgba(6,182,212,.22) 0%,transparent 50%),
+              radial-gradient(ellipse at 60% 10%, rgba(236,72,153,.14) 0%,transparent 45%);
+      --base:#0c0e18;
+      --glass:rgba(255,255,255,.06); --glass-b:rgba(255,255,255,.09);
+      --blur:blur(24px) saturate(140%);
+      --text:#eef0ff; --tm:#94a3b8; --td:#4a5568;
+      --accent:#818cf8; --ag:rgba(129,140,248,.32); --abg:rgba(129,140,248,.12);
+      --header:rgba(12,14,24,.84); --ibg:rgba(255,255,255,.05); --ib:rgba(129,140,248,.25);
+      --grad:linear-gradient(135deg,#818cf8,#67e8f9);
+      --sh:0 8px 32px rgba(0,0,0,.45),0 2px 8px rgba(0,0,0,.3);
+      --sh2:0 20px 52px rgba(129,140,248,.22),0 4px 16px rgba(0,0,0,.4);
+      --bsh:0 4px 14px rgba(129,140,248,.30);
+      --sb-bg:rgba(12,14,24,.80);
+    }
+
+    /* ── BASE ── */
+    body {
+      background: var(--mesh), var(--base);
+      background-attachment: fixed;
+      color: var(--text);
+      min-height: 100vh;
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── HEADER ── */
+    .app-header {
+      background: var(--header);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      backdrop-filter: blur(28px) saturate(180%);
+      border-bottom: 1px solid var(--glass-b);
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .app-name {
+      font-size: 18px; font-weight: 700; letter-spacing: -.4px; color: var(--text);
+    }
+    .app-name span {
+      background: var(--grad);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .theme-btn {
+      background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      border: 1px solid var(--glass-b); border-radius: 10px; color: var(--tm);
+      width: 34px; height: 34px; cursor: pointer; font-size: 15px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .theme-btn:hover { border-color: var(--accent); box-shadow: 0 0 12px var(--ag); }
+
+    /* ── BUTTONS ── */
+    .btn-primary {
+      background: var(--accent); color: white; border: none; font-weight: 600;
+      cursor: pointer; box-shadow: var(--bsh); transition: all 150ms ease; font-family: inherit;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 22px var(--ag); }
+    .btn-ghost {
+      background: var(--abg); color: var(--accent); border: 1px solid var(--glass-b);
+      font-weight: 500; cursor: pointer; transition: all 150ms ease; font-family: inherit;
+    }
+    .btn-ghost:hover { background: var(--accent); color: white; }
+
+    /* ── INPUTS ── */
+    .src-textarea {
+      width: 100%; background: var(--ibg); color: var(--text);
+      border: 1.5px solid var(--ib); font-family: inherit;
+      padding: 14px 16px; resize: none; outline: none; line-height: 1.65;
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      transition: border-color 150ms, box-shadow 150ms;
+    }
+    .src-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--abg); }
+    .src-textarea::placeholder { color: var(--td); font-style: italic; }
+    .src-select {
+      background: var(--ibg); color: var(--tm); border: 1.5px solid var(--ib);
+      font-family: inherit; padding: 10px 12px; outline: none; cursor: pointer;
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    }
+
+    /* ── BADGES & MISC ── */
+    .s-badge {
+      font-size: 11px; font-weight: 600; padding: 4px 10px;
+      border-radius: 99px; white-space: nowrap;
+    }
+    .s-badge.proc   { background: rgba(245,158,11,.13); color: rgba(245,158,11,.95); }
+    .s-badge.done   { background: rgba(16,185,129,.13);  color: rgba(16,185,129,.95); }
+    .s-badge.review { background: rgba(249,115,22,.13);  color: rgba(249,115,22,.95); }
+    .s-badge.exp    { background: rgba(148,163,184,.13); color: rgba(148,163,184,.9); }
+
+    .stat-num-grad {
+      background: var(--grad); -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent; background-clip: text;
+      font-weight: 700; letter-spacing: -1.5px; line-height: 1;
+    }
+    .prog-track { height: 4px; background: var(--glass-b); border-radius: 99px; overflow: hidden; margin-top: 10px; }
+    .prog-fill  { height: 100%; background: var(--grad); border-radius: 99px; box-shadow: 0 0 8px var(--ag); }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 14px; height: 14px; border: 2px solid rgba(245,158,11,.25);
+      border-top-color: rgba(245,158,11,.9); border-radius: 50%;
+      animation: spin .8s linear infinite; flex-shrink: 0;
+    }
+
+    /* ── SIDEBAR LAYOUT ── */
+    .shell { display: flex; height: calc(100vh - 56px); overflow: hidden; }
+
+    .sb {
+      width: 240px; flex-shrink: 0; padding: 20px 16px;
+      background: var(--sb-bg);
+      -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+      border-right: 1px solid var(--glass-b);
+      display: flex; flex-direction: column; gap: 4px; overflow-y: auto;
+    }
+    .sb-section-label {
+      font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em;
+      color: var(--td); padding: 0 10px; margin: 12px 0 4px;
+    }
+    .sb-nav-item {
+      padding: 9px 12px; border-radius: 10px; font-size: 13px; font-weight: 500;
+      color: var(--tm); cursor: pointer; display: flex; align-items: center; gap: 10px;
+      transition: all 140ms;
+    }
+    .sb-nav-item:hover { background: var(--abg); color: var(--text); }
+    .sb-nav-item.active {
+      background: var(--abg); color: var(--accent); font-weight: 600;
+      box-shadow: inset 0 0 0 1px var(--ag);
+    }
+    .sb-nav-item .icon { width: 16px; height: 16px; opacity: .7; flex-shrink: 0; }
+    .sb-nav-item.active .icon { opacity: 1; }
+
+    .sb-stat-row {
+      display: flex; gap: 8px; padding: 0 4px; margin-top: 4px;
+    }
+    .sb-stat {
+      flex: 1; padding: 14px 10px; border-radius: 12px; text-align: center;
+      background: var(--abg); border: 1px solid var(--glass-b);
+    }
+
+    .main-area { flex: 1; overflow-y: auto; padding: 24px 28px; }
+
+    .add-panel {
+      background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+      border: 1px solid var(--glass-b); border-radius: 16px; padding: 22px 24px;
+      margin-bottom: 24px; box-shadow: var(--sh);
+    }
+    .add-panel-title {
+      font-size: 13px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--tm); margin-bottom: 14px;
+    }
+
+    .row-card {
+      background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+      border: 1px solid var(--glass-b); border-radius: 12px; padding: 14px 18px;
+      margin-bottom: 8px; display: flex; align-items: center; gap: 14px;
+      box-shadow: var(--sh); transition: all 160ms ease;
+    }
+    .row-card:hover {
+      box-shadow: var(--sh2); transform: translateX(2px);
+      border-color: var(--accent);
+    }
+    .row-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+    }
+    .section-title { font-size: 16px; font-weight: 700; color: var(--text); }
+    .section-count { font-size: 13px; color: var(--tm); font-weight: 400; margin-left: 6px; }
+    .list-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .12em;
+      color: var(--td); margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="app-name">Vocab<span>Miner</span></div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:99px;background:var(--abg);color:var(--accent);border:1px solid var(--glass-b);">B2</div>
+      <button class="theme-btn" onclick="toggleTheme()" id="tbtn">☀</button>
+    </div>
+  </header>
+
+  <!-- SHELL -->
+  <div class="shell">
+
+    <!-- SIDEBAR -->
+    <div class="sb">
+      <div style="font-size:15px;font-weight:700;color:var(--text);padding:4px 8px 12px;">Menu</div>
+
+      <div class="sb-nav-item active">
+        <!-- inbox icon -->
+        <svg class="icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".8"/>
+          <rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".45"/>
+          <rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".45"/>
+          <rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".2"/>
+        </svg>
+        Inbox
+        <span style="margin-left:auto;font-size:11px;background:var(--accent);color:white;border-radius:99px;padding:1px 7px;font-weight:700;">3</span>
+      </div>
+      <div class="sb-nav-item">
+        <svg class="icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        All sources
+      </div>
+      <div class="sb-nav-item">
+        <svg class="icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.4 4.3 12.4l.7-4.1-3-2.9 4.2-.8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+        Review words
+      </div>
+      <div class="sb-nav-item">
+        <svg class="icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 10l2 2 2-2M5 12V4M13 6l-2-2-2 2M11 4v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Export to Anki
+      </div>
+
+      <div style="flex:1;"></div>
+
+      <!-- Stats block at bottom -->
+      <div class="sb-section-label">Progress</div>
+      <div class="sb-stat-row">
+        <div class="sb-stat">
+          <div class="stat-num-grad" style="font-size:26px;">47</div>
+          <div style="font-size:10px;color:var(--tm);margin-top:4px;font-weight:500;">to learn</div>
+        </div>
+        <div class="sb-stat">
+          <div class="stat-num-grad" style="font-size:26px;">312</div>
+          <div style="font-size:10px;color:var(--tm);margin-top:4px;font-weight:500;">known</div>
+        </div>
+      </div>
+      <div style="padding:0 4px;margin-top:8px;">
+        <div style="background:var(--abg);border:1px solid var(--glass-b);border-radius:12px;padding:14px 14px 12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:12px;font-weight:600;color:var(--text);">B2 progress</span>
+            <span style="font-size:12px;color:var(--tm);">62%</span>
+          </div>
+          <div class="prog-track" style="margin-top:0;"><div class="prog-fill" style="width:62%;"></div></div>
+        </div>
+      </div>
+      <div style="padding:0 4px;margin-top:8px;margin-bottom:4px;">
+        <div style="font-size:11px;color:var(--td);text-align:center;padding:8px 0;">VocabMiner v0.1</div>
+      </div>
+    </div>
+
+    <!-- MAIN AREA -->
+    <div class="main-area">
+
+      <!-- Add panel -->
+      <div class="add-panel">
+        <div class="add-panel-title">Add new source</div>
+        <textarea class="src-textarea" style="border-radius:10px;font-size:14px;" rows="4"
+          placeholder="Paste text, lyrics, or subtitles…">She's relentless in her pursuit of excellence, sacrificing her well-being in the process. The overwhelming urge to overcommit often leads to burnout.</textarea>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <select class="src-select" style="border-radius:8px;">
+            <option>Plain text</option>
+            <option>Song lyrics</option>
+            <option>Subtitles</option>
+          </select>
+          <button class="btn-primary" style="flex:1;border-radius:10px;font-size:14px;padding:10px 20px;">
+            Add source
+          </button>
+        </div>
+      </div>
+
+      <!-- Sources list -->
+      <div class="section-header">
+        <div>
+          <span class="section-title">Inbox</span>
+          <span class="section-count">4 sources</span>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-ghost" style="border-radius:8px;font-size:12px;padding:7px 13px;">Filter</button>
+          <button class="btn-primary" style="border-radius:10px;font-size:13px;padding:7px 16px;">Process all</button>
+        </div>
+      </div>
+
+      <!-- Processing -->
+      <div class="row-card" style="cursor:default;">
+        <div class="row-status-dot" style="background:rgba(245,158,11,.85);box-shadow:0 0 6px rgba(245,158,11,.5);"></div>
+        <div class="spinner"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            "She's relentless in her pursuit of excellence…"
+          </div>
+          <div style="font-size:12px;color:var(--tm);margin-top:3px;">Text · Processing now</div>
+        </div>
+        <span class="s-badge proc">Processing</span>
+      </div>
+
+      <!-- Ready -->
+      <div class="row-card" style="cursor:pointer;">
+        <div class="row-status-dot" style="background:rgba(16,185,129,.85);box-shadow:0 0 6px rgba(16,185,129,.5);"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:600;color:var(--text);">Bohemian Rhapsody — Queen lyrics</div>
+          <div style="font-size:12px;color:var(--tm);margin-top:3px;">
+            Lyrics · 2h ago · <span style="color:rgba(16,185,129,.9);font-weight:600;">14 words found</span>
+          </div>
+        </div>
+        <span class="s-badge done">Ready</span>
+        <button class="btn-ghost" style="border-radius:8px;font-size:12px;padding:5px 11px;">Review →</button>
+      </div>
+
+      <!-- In review -->
+      <div class="row-card" style="cursor:pointer;">
+        <div class="row-status-dot" style="background:rgba(249,115,22,.85);box-shadow:0 0 6px rgba(249,115,22,.5);"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:600;color:var(--text);">The Great Gatsby — Chapter 1</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+            <div style="height:3px;width:80px;border-radius:99px;background:rgba(249,115,22,.15);overflow:hidden;">
+              <div style="height:100%;width:45%;background:rgba(249,115,22,.8);border-radius:99px;"></div>
+            </div>
+            <span style="font-size:12px;color:rgba(249,115,22,.9);font-weight:600;">5 / 11 marked</span>
+          </div>
+        </div>
+        <span class="s-badge review">In Review</span>
+        <button class="btn-ghost" style="border-radius:8px;font-size:12px;padding:5px 11px;">Continue →</button>
+      </div>
+
+      <!-- Exported -->
+      <div class="row-card" style="opacity:.5;">
+        <div class="row-status-dot" style="background:rgba(148,163,184,.7);"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:600;color:var(--tm);">Inception movie subtitles</div>
+          <div style="font-size:12px;color:var(--td);margin-top:3px;">Subtitles · 3 days ago · ✓ 8 Anki cards created</div>
+        </div>
+        <span class="s-badge exp">Exported</span>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.getAttribute('data-theme') === 'dark';
+      html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      document.getElementById('tbtn').textContent = isDark ? '☀' : '☾';
+    }
+  </script>
+</body>
+</html>

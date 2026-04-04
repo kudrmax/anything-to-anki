@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VocabMiner — E: Brutalist</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { transition: background-color 200ms ease, border-color 200ms ease, color 150ms ease; }
+
+    :root {
+      --bg: #ffffff;
+      --surface: #ffffff;
+      --border: #000000;
+      --text: #000000;
+      --text-muted: #555555;
+      --accent: #f5c518;
+      --accent-text: #000000;
+      --status-processing: #f5c518;
+      --status-done: #00c853;
+      --status-review: #ff6d00;
+      --status-exported: #9e9e9e;
+    }
+
+    [data-theme="dark"] {
+      --bg: #111111;
+      --surface: #111111;
+      --border: #ffffff;
+      --text: #ffffff;
+      --text-muted: #aaaaaa;
+      --accent: #f5c518;
+      --accent-text: #000000;
+      --status-processing: #f5c518;
+      --status-done: #00c853;
+      --status-review: #ff6d00;
+      --status-exported: #757575;
+    }
+
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Header */
+    .app-header {
+      background: var(--surface);
+      border-bottom: 3px solid var(--border);
+      padding: 0 32px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .app-name {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      text-transform: uppercase;
+    }
+
+    .app-name span {
+      background: var(--accent);
+      color: var(--accent-text);
+      padding: 2px 6px;
+    }
+
+    /* Buttons */
+    .btn-primary {
+      background: var(--accent);
+      color: var(--accent-text);
+      border: 2px solid var(--border);
+      border-radius: 0;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+
+    .btn-primary:hover {
+      background: var(--text);
+      color: var(--bg);
+      border-color: var(--text);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      border: 2px solid var(--border);
+      border-radius: 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+      background: var(--text);
+      color: var(--bg);
+    }
+
+    .btn-icon {
+      background: transparent;
+      color: var(--text);
+      border: 2px solid var(--border);
+      border-radius: 0;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-icon:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #000;
+    }
+
+    /* Section label */
+    .section-label {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+      border-bottom: 3px solid var(--border);
+      padding-bottom: 8px;
+      margin-bottom: 16px;
+    }
+
+    /* Textarea */
+    .source-textarea {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 2px solid var(--border);
+      border-radius: 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      padding: 14px;
+      resize: vertical;
+      outline: none;
+      line-height: 1.6;
+    }
+
+    .source-textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .source-textarea::placeholder {
+      color: var(--text-muted);
+    }
+
+    /* Stats */
+    .stat-block {
+      text-align: center;
+      padding: 16px 20px;
+      border: 2px solid var(--border);
+      flex: 1;
+    }
+
+    .stat-number {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 40px;
+      font-weight: 800;
+      line-height: 1;
+      display: block;
+    }
+
+    .stat-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      display: block;
+      margin-top: 4px;
+    }
+
+    /* Source cards */
+    .source-card {
+      border: 2px solid var(--border);
+      border-radius: 0;
+      padding: 16px 20px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      position: relative;
+    }
+
+    .source-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+    }
+
+    .source-card.processing::before { background: var(--status-processing); }
+    .source-card.done::before { background: var(--status-done); }
+    .source-card.review::before { background: var(--status-review); }
+    .source-card.exported::before { background: var(--status-exported); }
+
+    .source-card:hover {
+      border-color: var(--accent);
+    }
+
+    .source-title {
+      font-weight: 700;
+      font-size: 14px;
+      line-height: 1.4;
+      flex: 1;
+    }
+
+    .source-preview {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    /* Status badge */
+    .status-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 3px 8px;
+      border: 2px solid currentColor;
+      border-radius: 0;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .status-badge.processing { color: var(--status-processing); }
+    .status-badge.done { color: var(--status-done); }
+    .status-badge.review { color: var(--status-review); }
+    .status-badge.exported { color: var(--status-exported); }
+
+    /* Layout */
+    .main-layout {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 0;
+      height: calc(100vh - 64px);
+    }
+
+    .left-panel {
+      border-right: 3px solid var(--border);
+      padding: 28px 28px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .right-panel {
+      padding: 28px 28px;
+      overflow-y: auto;
+    }
+
+    /* Progress bar */
+    .progress-bar-track {
+      height: 6px;
+      background: var(--border);
+      border-radius: 0;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 13%;
+    }
+
+    /* Source meta row */
+    .source-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .source-meta-item {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* Spinner animation for processing */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--status-processing);
+      border-top-color: transparent;
+      border-radius: 0;
+      animation: spin 1s linear infinite;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+
+    /* Variant label */
+    .variant-label {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      background: var(--accent);
+      color: #000000;
+      padding: 4px 10px;
+      border: 2px solid #000000;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="app-name">
+      Vocab<span>Miner</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <button class="btn-icon" onclick="toggleTheme()" title="Toggle theme" id="theme-btn">
+        ☀
+      </button>
+      <button class="btn-icon" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <!-- Main layout -->
+  <div class="main-layout">
+
+    <!-- Left Panel -->
+    <div class="left-panel">
+
+      <!-- Add source section -->
+      <div>
+        <div class="section-label">Add source</div>
+        <textarea
+          class="source-textarea"
+          rows="8"
+          placeholder="Paste text, lyrics, subtitles, or any content to mine vocabulary from…"
+        ></textarea>
+        <div style="margin-top: 12px; display:flex; gap:8px; align-items:center;">
+          <button class="btn-primary" style="flex:1;">+ Add source</button>
+          <select style="background:var(--bg); color:var(--text); border:2px solid var(--border); border-radius:0; padding:10px 12px; font-family:'JetBrains Mono',monospace; font-size:12px; outline:none; cursor:pointer;">
+            <option>TEXT</option>
+            <option>LYRICS</option>
+            <option>SUBTITLES</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div>
+        <div class="section-label">Progress</div>
+        <div style="display:flex; gap:0;">
+          <div class="stat-block" style="border-right: 0;">
+            <span class="stat-number" style="color: var(--accent)">47</span>
+            <span class="stat-label">To learn</span>
+          </div>
+          <div class="stat-block" style="border-right: 0;">
+            <span class="stat-number">312</span>
+            <span class="stat-label">Known</span>
+          </div>
+          <div class="stat-block">
+            <span class="stat-number">8</span>
+            <span class="stat-label">Sources</span>
+          </div>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:6px;">
+          <span class="mono" style="font-size:10px; color:var(--text-muted);">47 / 359 total</span>
+          <span class="mono" style="font-size:10px; color:var(--text-muted);">13%</span>
+        </div>
+      </div>
+
+      <!-- Level -->
+      <div style="border: 2px solid var(--accent); padding: 14px 16px; display:flex; align-items:center; justify-content:space-between;">
+        <span style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em;">Estimated Level</span>
+        <span class="mono" style="font-size:24px; font-weight:700; color:var(--accent);">B2</span>
+      </div>
+
+    </div>
+
+    <!-- Right Panel -->
+    <div class="right-panel">
+
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 20px;">
+        <div class="section-label" style="margin-bottom:0; border-bottom:none;">Sources (8)</div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-secondary">Filter</button>
+          <button class="btn-secondary">Sort</button>
+          <button class="btn-primary" style="padding:6px 14px; font-size:12px;">Process All</button>
+        </div>
+      </div>
+
+      <!-- Source cards -->
+
+      <!-- 1: Processing -->
+      <div class="source-card processing">
+        <div style="flex:1; min-width:0;">
+          <div class="source-title">
+            <span class="spinner"></span>
+            "She's relentless in her pursuit of excellence…"
+          </div>
+          <div class="source-preview">Paste text · Processing</div>
+          <div class="source-meta">
+            <span class="source-meta-item">TEXT</span>
+            <span class="source-meta-item">•</span>
+            <span class="source-meta-item">Analyzing vocabulary…</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex-shrink:0;">
+          <span class="status-badge processing">Processing</span>
+        </div>
+      </div>
+
+      <!-- 2: Ready -->
+      <div class="source-card done">
+        <div style="flex:1; min-width:0;">
+          <div class="source-title">Bohemian Rhapsody — Queen lyrics</div>
+          <div class="source-preview">Is this the real life? Is this just fantasy?…</div>
+          <div class="source-meta">
+            <span class="source-meta-item">LYRICS</span>
+            <span class="source-meta-item">•</span>
+            <span class="source-meta-item" style="color: var(--status-done); font-weight:700;">14 candidates</span>
+            <span class="source-meta-item">•</span>
+            <span class="source-meta-item">Today</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex-shrink:0;">
+          <span class="status-badge done">Ready</span>
+          <button class="btn-secondary" style="font-size:10px; padding:4px 8px;">Review →</button>
+        </div>
+      </div>
+
+      <!-- 3: In review -->
+      <div class="source-card review">
+        <div style="flex:1; min-width:0;">
+          <div class="source-title">The Great Gatsby — Chapter 1</div>
+          <div class="source-preview">In my younger and more vulnerable years…</div>
+          <div class="source-meta">
+            <span class="source-meta-item">BOOK</span>
+            <span class="source-meta-item">•</span>
+            <span class="source-meta-item" style="color: var(--status-review); font-weight:700;">5 / 11 marked</span>
+            <span class="source-meta-item">•</span>
+            <span class="source-meta-item">Yesterday</span>
+          </div>
+          <div style="margin-top:8px; height:4px; background:var(--border); position:relative; overflow:hidden;">
+            <div style="position:absolute; left:0; top:0; bottom:0; width:45%; background:var(--status-review);"></div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex-shrink:0;">
+          <span class="status-badge review">In Review</span>
+          <button class="btn-secondary" style="font-size:10px; padding:4px 8px;">Continue →</button>
+        </div>
+      </div>
+
+      <!-- 4: Exported -->
+      <div class="source-card exported">
+        <div style="flex:1; min-width:0;">
+          <div class="source-title">Inception movie subtitles</div>
+          <div class="source-preview">You mustn't be afraid to dream a little bigger, darling…</div>
+          <div class="source-meta">
+            <span class="source-meta-item">SUBTITLES</span>
+            <span class="source-meta-item">•</span>
+            <span class="source-meta-item" style="color: var(--status-exported); font-weight:700;">8 cards exported</span>
+            <span class="source-meta-item">•</span>
+            <span class="source-meta-item">Mar 28</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex-shrink:0;">
+          <span class="status-badge exported">Exported</span>
+          <button class="btn-secondary" style="font-size:10px; padding:4px 8px;">Re-export</button>
+        </div>
+      </div>
+
+      <!-- Empty state hint -->
+      <div style="border: 2px dashed var(--border); padding: 24px; text-align:center; margin-top:8px; opacity:0.5;">
+        <div class="mono" style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em;">+ Paste more text to mine vocabulary</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Variant label -->
+  <div class="variant-label">E — Brutalist</div>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.getAttribute('data-theme') === 'dark';
+      html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      document.getElementById('theme-btn').textContent = isDark ? '☀' : '☾';
+    }
+  </script>
+</body>
+</html>

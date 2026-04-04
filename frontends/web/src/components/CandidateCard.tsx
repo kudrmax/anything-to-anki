@@ -1,3 +1,4 @@
+import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, StoredCandidate } from '@/api/types'
 
@@ -67,31 +68,41 @@ export function CandidateCard({
       data-candidate-id={candidate.id}
       onMouseEnter={() => onHoverEnter(candidate.id)}
       onMouseLeave={onHoverLeave}
-      className={cn(
-        'rounded-lg border bg-slate-900 p-4 flex flex-col gap-3 transition-colors',
-        isHovered ? 'border-indigo-600' : 'border-slate-800',
-      )}
+      className={cn('glass-card rounded-xl p-4 flex flex-col gap-3')}
+      style={isHovered ? { borderColor: 'var(--accent)' } : undefined}
     >
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-base font-semibold text-slate-100">{candidate.lemma}</span>
-        <span className="rounded px-1.5 py-0.5 text-xs text-slate-500 bg-slate-800 border border-slate-700">
+        <span className="text-base font-semibold" style={{ color: 'var(--text)' }}>{candidate.lemma}</span>
+        <span className="rounded px-1.5 py-0.5 text-xs" style={{ color: 'var(--td)', background: 'var(--glass)', border: '1px solid var(--glass-b)' }}>
           {POS_LABEL[candidate.pos] ?? candidate.pos.toLowerCase()}
         </span>
         <span className={cn('rounded border px-1.5 py-0.5 text-xs font-medium', cefrCls)}>
           {candidate.cefr_level}
         </span>
-        <span className="ml-auto text-xs text-slate-500">{freqLabel(candidate.zipf_frequency)}</span>
+        <span className="ml-auto text-xs" style={{ color: 'var(--td)' }}>{freqLabel(candidate.zipf_frequency)}</span>
       </div>
 
-      <p className="text-xs italic text-slate-400 leading-relaxed">"{candidate.context_fragment}"</p>
+      <p className="text-xs italic leading-relaxed" style={{ color: 'var(--tm)' }}>"{candidate.context_fragment}"</p>
 
       <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-600">
-          {candidate.fragment_purity === 'clean' ? '✅ clean' : '⚠️ noisy'}
-          {candidate.occurrences > 1 && ` · ×${candidate.occurrences}`}
+        <span className="flex items-center gap-1 text-xs">
+          {candidate.fragment_purity === 'clean' ? (
+            <>
+              <CheckCircle2 size={11} style={{ color: 'rgba(16,185,129,.8)' }} />
+              <span style={{ color: 'rgba(16,185,129,.8)' }}>clean</span>
+            </>
+          ) : (
+            <>
+              <AlertTriangle size={11} style={{ color: 'rgba(245,158,11,.8)' }} />
+              <span style={{ color: 'rgba(245,158,11,.8)' }}>noisy</span>
+            </>
+          )}
+          {candidate.occurrences > 1 && (
+            <span style={{ color: 'var(--td)' }}>· ×{candidate.occurrences}</span>
+          )}
         </span>
         {candidate.is_sweet_spot && (
-          <span className="text-xs text-indigo-400">sweet spot</span>
+          <span className="text-xs" style={{ color: 'var(--accent)' }}>sweet spot</span>
         )}
       </div>
 
