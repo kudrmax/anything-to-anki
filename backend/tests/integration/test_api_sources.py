@@ -78,3 +78,29 @@ class TestSourcesAPI:
     def test_process_not_found(self, client: TestClient) -> None:
         response = client.post("/sources/999/process")
         assert response.status_code == 404
+
+    def test_update_status_to_partially_reviewed(self, client: TestClient) -> None:
+        create = client.post("/sources", json={"raw_text": "Some text"})
+        source_id = create.json()["id"]
+        response = client.patch(
+            f"/sources/{source_id}/status", json={"status": "partially_reviewed"}
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "partially_reviewed"
+
+    def test_update_status_to_reviewed(self, client: TestClient) -> None:
+        create = client.post("/sources", json={"raw_text": "Some text"})
+        source_id = create.json()["id"]
+        response = client.patch(f"/sources/{source_id}/status", json={"status": "reviewed"})
+        assert response.status_code == 200
+        assert response.json()["status"] == "reviewed"
+
+    def test_update_status_invalid_transition(self, client: TestClient) -> None:
+        create = client.post("/sources", json={"raw_text": "Some text"})
+        source_id = create.json()["id"]
+        response = client.patch(f"/sources/{source_id}/status", json={"status": "processing"})
+        assert response.status_code == 400
+
+    def test_update_status_not_found(self, client: TestClient) -> None:
+        response = client.patch("/sources/999/status", json={"status": "reviewed"})
+        assert response.status_code == 404

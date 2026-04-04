@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.infrastructure.api.dependencies import get_session_factory
-from backend.infrastructure.api.routes import candidates, known_words, settings, sources
+from backend.infrastructure.api.routes import anki, candidates, known_words, settings, sources
 from backend.infrastructure.persistence.database import create_tables, reset_stuck_processing
 
 
@@ -32,3 +32,4 @@ app.include_router(sources.router)
 app.include_router(candidates.router)
 app.include_router(known_words.router)
 app.include_router(settings.router)
+app.include_router(anki.router)

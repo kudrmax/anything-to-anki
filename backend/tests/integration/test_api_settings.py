@@ -43,15 +43,33 @@ class TestSettingsAPI:
     def test_get_default(self, client: TestClient) -> None:
         response = client.get("/settings")
         assert response.status_code == 200
-        assert response.json()["cefr_level"] == "B1"
+        data = response.json()
+        assert data["cefr_level"] == "B1"
+        assert data["anki_deck_name"] == "VocabMiner"
 
-    def test_update_and_get(self, client: TestClient) -> None:
+    def test_update_cefr_level(self, client: TestClient) -> None:
         response = client.patch("/settings", json={"cefr_level": "C1"})
         assert response.status_code == 200
         assert response.json()["cefr_level"] == "C1"
         response = client.get("/settings")
         assert response.json()["cefr_level"] == "C1"
 
+    def test_update_deck_name(self, client: TestClient) -> None:
+        response = client.patch("/settings", json={"anki_deck_name": "MyDeck"})
+        assert response.status_code == 200
+        assert response.json()["anki_deck_name"] == "MyDeck"
+
+    def test_update_both(self, client: TestClient) -> None:
+        response = client.patch("/settings", json={"cefr_level": "C2", "anki_deck_name": "Learning"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["cefr_level"] == "C2"
+        assert data["anki_deck_name"] == "Learning"
+
     def test_update_invalid_level(self, client: TestClient) -> None:
         response = client.patch("/settings", json={"cefr_level": "X9"})
+        assert response.status_code == 422
+
+    def test_update_no_fields_returns_422(self, client: TestClient) -> None:
+        response = client.patch("/settings", json={})
         assert response.status_code == 422

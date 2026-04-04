@@ -116,6 +116,37 @@ async def _process_background(
         bg_session.close()
 
 
+_REVIEW_STATUSES = frozenset({
+    SourceStatus.DONE,
+    SourceStatus.PARTIALLY_REVIEWED,
+    SourceStatus.REVIEWED,
+})
+
+
+@router.patch("/{source_id}/status")
+def update_source_status(
+    source_id: int,
+    body: dict[str, str],
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, Any]:
+    raw_status = body.get("status", "")
+    try:
+        new_status = SourceStatus(raw_status)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {raw_status}") from None
+    if new_status not in _REVIEW_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Status transition to '{raw_status}' not allowed") from None
+    from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
+    repo = SqlaSourceRepository(session)
+    source = repo.get_by_id(source_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail=f"Source not found: {source_id}")
+    repo.update_status(source_id, new_status)
+    session.commit()
+    return {"id": source_id, "status": new_status.value}
+
+
 @router.get("/{source_id}/candidates")
 def get_candidates(
     source_id: int,

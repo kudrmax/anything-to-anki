@@ -48,3 +48,18 @@ class InvalidCandidateStatusError(DomainError):
     def __init__(self, status: str) -> None:
         super().__init__(f"Invalid candidate status: {status}")
         self.status_value = status
+
+
+class AnkiNotAvailableError(DomainError):
+    """Raised when AnkiConnect is not reachable."""
+
+    def __init__(self) -> None:
+        super().__init__("AnkiConnect is not available. Make sure Anki is running with the AnkiConnect plugin.")
+
+
+class AnkiSyncError(DomainError):
+    """Raised when an Anki sync operation fails unexpectedly."""
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(f"Anki sync failed: {detail}")
+        self.detail = detail

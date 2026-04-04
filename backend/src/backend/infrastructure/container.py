@@ -4,12 +4,19 @@ from typing import TYPE_CHECKING
 
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.create_source import CreateSourceUseCase
+from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
+from backend.application.use_cases.get_source_cards import GetSourceCardsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
+from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
+from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
+from backend.infrastructure.adapters.cached_dictionary_api_provider import (
+    CachedDictionaryApiProvider,
+)
 from backend.infrastructure.adapters.cefrpy_classifier import CefrpyCEFRClassifier
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
@@ -41,6 +48,7 @@ class Container:
         self._text_analyzer = SpaCyTextAnalyzer()
         self._cefr_classifier = CefrpyCEFRClassifier()
         self._frequency_provider = WordfreqFrequencyProvider()
+        self._anki_connector = AnkiConnectConnector()
 
     def analyze_text_use_case(self) -> AnalyzeTextUseCase:
         return AnalyzeTextUseCase(
@@ -90,4 +98,21 @@ class Container:
     def manage_settings_use_case(self, session: Session) -> ManageSettingsUseCase:
         return ManageSettingsUseCase(
             settings_repo=SqlaSettingsRepository(session),
+        )
+
+    def get_anki_status_use_case(self) -> GetAnkiStatusUseCase:
+        return GetAnkiStatusUseCase(connector=self._anki_connector)
+
+    def sync_to_anki_use_case(self, session: Session) -> SyncToAnkiUseCase:
+        return SyncToAnkiUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            dictionary_provider=CachedDictionaryApiProvider(session),
+            anki_connector=self._anki_connector,
+            settings_repo=SqlaSettingsRepository(session),
+        )
+
+    def get_source_cards_use_case(self, session: Session) -> GetSourceCardsUseCase:
+        return GetSourceCardsUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            dictionary_provider=CachedDictionaryApiProvider(session),
         )

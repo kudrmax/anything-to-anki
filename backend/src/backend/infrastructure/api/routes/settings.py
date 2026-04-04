@@ -31,6 +31,6 @@ def update_settings(
     container: Container = Depends(get_container),  # noqa: B008
 ) -> SettingsDTO:
     use_case = container.manage_settings_use_case(session)
-    use_case.update_cefr_level(request.cefr_level)
+    result = use_case.update_settings(request)
     session.commit()
-    return use_case.get_settings()
+    return result

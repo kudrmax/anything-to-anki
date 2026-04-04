@@ -1,0 +1,19 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8080:8000"
+    volumes:
+      - ./vocabminer.db:/app/vocabminer.db
+
+  web:
+    build:
+      context: ./frontends/web
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8080
+    depends_on:
+      - api

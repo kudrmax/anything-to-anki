@@ -3,6 +3,7 @@ from backend.application.dto.analysis_dtos import (
     AnalyzeTextResponse,
     WordCandidateDTO,
 )
+from backend.application.dto.anki_dtos import AnkiStatusDTO, CardPreviewDTO, SyncResultDTO
 from backend.application.dto.candidate_dtos import MarkCandidateRequest
 from backend.application.dto.known_word_dtos import KnownWordDTO
 from backend.application.dto.settings_dtos import SettingsDTO, UpdateSettingsRequest
@@ -16,6 +17,8 @@ from backend.application.dto.source_dtos import (
 __all__ = [
     "AnalyzeTextRequest",
     "AnalyzeTextResponse",
+    "AnkiStatusDTO",
+    "CardPreviewDTO",
     "CreateSourceRequest",
     "KnownWordDTO",
     "MarkCandidateRequest",
@@ -23,6 +26,7 @@ __all__ = [
     "SourceDTO",
     "SourceDetailDTO",
     "StoredCandidateDTO",
+    "SyncResultDTO",
     "UpdateSettingsRequest",
     "WordCandidateDTO",
 ]

@@ -10,3 +10,5 @@ class SourceStatus(Enum):
     PROCESSING = "processing"
     DONE = "done"
     ERROR = "error"
+    PARTIALLY_REVIEWED = "partially_reviewed"
+    REVIEWED = "reviewed"
