@@ -164,21 +164,23 @@ export function ExportPage() {
 
 function CardPreviewItem({ card }: { card: CardPreview }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-4 flex flex-col gap-2">
+    <div className="glass-card rounded-xl p-4 flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-slate-100">{card.lemma}</span>
+        <span className="font-semibold" style={{ color: 'var(--text)' }}>{card.lemma}</span>
         {card.ipa && (
-          <span className="text-xs text-slate-500 font-mono shrink-0">{card.ipa}</span>
+          <span className="text-xs font-mono shrink-0" style={{ color: 'var(--td)' }}>{card.ipa}</span>
         )}
       </div>
       <p
-        className="text-sm text-slate-300 italic leading-relaxed [&_b]:not-italic [&_b]:font-semibold [&_b]:text-slate-100"
+        className="text-sm italic leading-relaxed"
+        style={{ color: 'var(--tm)' }}
+        // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: card.sentence }}
       />
       {card.meaning ? (
-        <p className="text-xs text-slate-400">{card.meaning}</p>
+        <p className="text-xs" style={{ color: 'var(--tm)' }}>{card.meaning}</p>
       ) : (
-        <p className="text-xs text-slate-600 italic">No definition available</p>
+        <p className="text-xs italic" style={{ color: 'var(--td)' }}>No definition available</p>
       )}
     </div>
   )

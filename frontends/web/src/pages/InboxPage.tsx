@@ -6,6 +6,47 @@ import type { SourceSummary } from '@/api/types'
 import { SourceCard } from '@/components/SourceCard'
 import { useSourcePolling } from '@/hooks/useSourcePolling'
 
+function StatWidget({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="glass-card rounded-2xl flex flex-col items-center justify-center py-4 px-2 text-center">
+      <div className="text-3xl font-bold grad-text leading-none">{value}</div>
+      <div className="text-[11px] font-medium mt-1.5" style={{ color: 'var(--tm)' }}>{label}</div>
+    </div>
+  )
+}
+
+function ProgressCard({
+  cefrLevel,
+  learnCount,
+  candidateCount,
+}: {
+  cefrLevel: string
+  learnCount: number
+  candidateCount: number
+}) {
+  const pct = candidateCount > 0 ? Math.round((learnCount / candidateCount) * 100) : 0
+  return (
+    <div className="glass-card rounded-2xl px-5 py-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{cefrLevel} progress</span>
+        <span className="text-xs" style={{ color: 'var(--tm)' }}>{pct}%</span>
+      </div>
+      <div className="h-[5px] rounded-full overflow-hidden" style={{ background: 'var(--glass-b)' }}>
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${pct}%`, background: 'var(--grad)' }}
+        />
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs" style={{ color: 'var(--tm)' }}>
+          {candidateCount} total · {learnCount} to learn
+        </span>
+        <span className="text-sm font-bold grad-text">{cefrLevel}</span>
+      </div>
+    </div>
+  )
+}
+
 export function InboxPage() {
   const navigate = useNavigate()
   const [sources, setSources] = useState<SourceSummary[]>([])
@@ -15,6 +56,7 @@ export function InboxPage() {
   const [processingIds, setProcessingIds] = useState<Set<number>>(new Set())
   const processingIdsRef = useRef(processingIds)
   processingIdsRef.current = processingIds
+  const [cefrLevel, setCefrLevel] = useState('B2')
 
   const loadSources = useCallback(async () => {
     try {
@@ -27,6 +69,7 @@ export function InboxPage() {
 
   useEffect(() => {
     void loadSources()
+    void api.getSettings().then((s) => setCefrLevel(s.cefr_level)).catch(() => {})
   }, [loadSources])
 
   const handleDone = useCallback(
@@ -123,6 +166,20 @@ export function InboxPage() {
             {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
             Add source
           </button>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-2">
+            <StatWidget label="To learn" value={sources.reduce((s, r) => s + r.learn_count, 0)} />
+            <StatWidget label="Candidates" value={sources.reduce((s, r) => s + r.candidate_count, 0)} />
+            <StatWidget label="Sources" value={sources.length} />
+          </div>
+
+          {/* Progress */}
+          <ProgressCard
+            cefrLevel={cefrLevel}
+            learnCount={sources.reduce((s, r) => s + r.learn_count, 0)}
+            candidateCount={sources.reduce((s, r) => s + r.candidate_count, 0)}
+          />
         </section>
 
         {/* Source list */}
