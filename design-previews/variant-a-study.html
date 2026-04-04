@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Variant A — Study App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { transition: background-color 200ms ease, border-color 200ms ease, color 150ms ease, box-shadow 200ms ease; }
+
+    /* ── Light ── */
+    :root {
+      --bg:          #F0F9FF;
+      --surface:     #ffffff;
+      --surface2:    #f8fafc;
+      --border:      #bae6fd;
+      --border2:     #7dd3fc;
+      --text:        #0f172a;
+      --text-m:      #475569;
+      --text-d:      #94a3b8;
+      --accent:      #2563eb;
+      --accent-l:    #3b82f6;
+      --accent-d:    #1d4ed8;
+      --accent-bg:   #eff6ff;
+      --accent-border: #bfdbfe;
+      --green:       #059669;
+      --green-bg:    #ecfdf5;
+      --green-border: #a7f3d0;
+      --amber:       #b45309;
+      --amber-bg:    #fffbeb;
+      --amber-border:#fde68a;
+      --red:         #dc2626;
+    }
+
+    /* ── Dark ── */
+    [data-theme="dark"] {
+      --bg:          #060d1a;
+      --surface:     #0d1829;
+      --surface2:    #111f36;
+      --border:      #1a2d4a;
+      --border2:     #243d60;
+      --text:        #e2e8f0;
+      --text-m:      #94a3b8;
+      --text-d:      #475569;
+      --accent:      #3b82f6;
+      --accent-l:    #60a5fa;
+      --accent-d:    #2563eb;
+      --accent-bg:   rgba(59,130,246,0.1);
+      --accent-border: rgba(59,130,246,0.25);
+      --green:       #34d399;
+      --green-bg:    rgba(52,211,153,0.08);
+      --green-border: rgba(52,211,153,0.2);
+      --amber:       #fbbf24;
+      --amber-bg:    rgba(251,191,36,0.08);
+      --amber-border:rgba(251,191,36,0.2);
+      --red:         #f87171;
+    }
+
+    html { font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; }
+    .card:hover { border-color: var(--border2); box-shadow: 0 4px 24px rgba(37,99,235,0.08); }
+
+    .btn-primary { background: var(--accent); color: white; font-weight: 600; border: none; }
+    .btn-primary:hover { background: var(--accent-d); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(37,99,235,0.35); }
+    .btn-ghost { background: transparent; border: 1.5px solid var(--border2); color: var(--accent); }
+    .btn-ghost:hover { background: var(--accent-bg); border-color: var(--accent); }
+
+    textarea, select {
+      background: var(--accent-bg);
+      border: 1.5px solid var(--border);
+      color: var(--text);
+    }
+    textarea::placeholder { color: var(--text-d); }
+    textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+      background: var(--surface);
+    }
+
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 8px rgba(37,99,235,0.06);
+    }
+    [data-theme="dark"] .header {
+      background: rgba(6,13,26,0.85);
+      backdrop-filter: blur(12px);
+    }
+
+    .badge-new        { background: var(--surface2); color: var(--text-d); border: 1px solid var(--border); }
+    .badge-processing { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+    .badge-done       { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+    .badge-reviewed   { background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); }
+    .badge-partial    { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+    [data-theme="dark"] .badge-processing { background: #0e1f3a; color: #60a5fa; border-color: rgba(59,130,246,0.2); }
+
+    .stat-num-accent { color: var(--accent); }
+    .stat-num-green  { color: var(--green); }
+
+    .progress-track { background: var(--border); }
+    .progress-fill  { background: var(--accent); }
+
+    .toggle-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-m);
+      border-radius: 10px;
+      padding: 6px 10px;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600;
+    }
+    .toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .dot-pulse { display: inline-flex; gap: 3px; align-items: center; }
+    .dot-pulse span { width: 4px; height: 4px; border-radius: 50%; background: #3b82f6; animation: dp 1.2s ease-in-out infinite; }
+    .dot-pulse span:nth-child(2) { animation-delay: .2s; }
+    .dot-pulse span:nth-child(3) { animation-delay: .4s; }
+    @keyframes dp { 0%,80%,100%{opacity:.25;transform:scale(.8)}40%{opacity:1;transform:scale(1)} }
+
+    .nav-link { color: var(--text-m); padding: 5px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; }
+    .nav-link:hover { color: var(--accent); background: var(--accent-bg); }
+    .nav-link.active { color: var(--accent); background: var(--accent-bg); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <header class="header px-6 py-3.5 flex items-center justify-between sticky top-0 z-10">
+    <div class="flex items-center gap-6">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl flex items-center justify-center" style="background: var(--accent);">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M4 13V7l4-4 4 4v6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="6" y="9" width="4" height="4" rx=".5" fill="white" opacity=".8"/>
+          </svg>
+        </div>
+        <div>
+          <div class="text-sm font-700" style="color: var(--text);">VocabMiner</div>
+          <div class="text-xs" style="color: var(--text-d);">Vocabulary from any text</div>
+        </div>
+      </div>
+      <nav class="hidden md:flex items-center gap-1">
+        <a class="nav-link active" href="#">Inbox</a>
+        <a class="nav-link" href="#">Review</a>
+        <a class="nav-link" href="#">Export</a>
+      </nav>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="text-xs font-600 px-3 py-1.5 rounded-full" style="background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border);">
+        Level: B2
+      </div>
+      <button class="toggle-btn" onclick="toggleTheme()" id="themeBtn">
+        <svg id="iconLight" width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 1v1.5M6.5 10.5V12M1 6.5h1.5M10.5 6.5H12M2.7 2.7l1 1M9.3 9.3l1 1M9.3 2.7l-1 1M3.7 9.3l-1 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <svg id="iconDark" width="13" height="13" viewBox="0 0 13 13" fill="none" style="display:none"><path d="M11 7.5A5 5 0 015.5 2a5 5 0 100 9 5 5 0 005.5-3.5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span id="themeLabel">Dark</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-8">
+
+    <!-- Left -->
+    <section class="flex flex-col gap-4">
+      <div class="card p-5">
+        <div class="text-sm font-700 mb-1" style="color: var(--text);">Add new source</div>
+        <div class="text-xs mb-4" style="color: var(--text-d);">Paste any text and we'll extract vocabulary for you</div>
+        <textarea rows="7" placeholder="Paste text, song lyrics, or subtitles here…" class="w-full rounded-xl px-4 py-3 text-sm resize-none">She's relentless in her pursuit of excellence, sacrificing her well-being in the process. The overwhelming urge to overcommit often leads to burnout, yet she pretends it doesn't exist.</textarea>
+        <div class="mt-3 flex gap-2">
+          <select class="flex-1 rounded-xl px-3 py-2.5 text-sm">
+            <option>Plain text</option>
+            <option>Song lyrics</option>
+            <option>Subtitles</option>
+          </select>
+          <button class="btn-primary px-5 py-2.5 rounded-xl text-sm flex items-center gap-1.5" style="transition: all 150ms ease;">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+            Add
+          </button>
+        </div>
+      </div>
+
+      <div class="card p-5">
+        <div class="text-xs font-600 uppercase tracking-wider mb-4" style="color: var(--text-d);">Your stats</div>
+        <div class="grid grid-cols-3 gap-3 mb-5">
+          <div class="text-center">
+            <div class="text-2xl font-800 stat-num-accent">47</div>
+            <div class="text-xs mt-1" style="color: var(--text-d);">to learn</div>
+          </div>
+          <div class="text-center" style="border-left: 1px solid var(--border); border-right: 1px solid var(--border);">
+            <div class="text-2xl font-800 stat-num-green">312</div>
+            <div class="text-xs mt-1" style="color: var(--text-d);">known</div>
+          </div>
+          <div class="text-center">
+            <div class="text-2xl font-800" style="color: var(--text-m);">8</div>
+            <div class="text-xs mt-1" style="color: var(--text-d);">sources</div>
+          </div>
+        </div>
+        <div>
+          <div class="flex justify-between text-xs mb-1.5">
+            <span style="color: var(--text-d);">B2 progress</span>
+            <span class="font-700" style="color: var(--accent);">62%</span>
+          </div>
+          <div class="h-2 rounded-full progress-track overflow-hidden">
+            <div class="h-full rounded-full progress-fill" style="width:62%"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right -->
+    <section>
+      <div class="flex items-center justify-between mb-5">
+        <div class="flex items-center gap-2">
+          <div class="text-sm font-700" style="color: var(--text);">Sources</div>
+          <span class="text-xs font-600 px-2 py-0.5 rounded-full" style="background: var(--accent-bg); color: var(--accent);">4</span>
+        </div>
+        <button class="text-xs font-500" style="color: var(--text-d);">Process all →</button>
+      </div>
+
+      <div class="flex flex-col gap-3">
+
+        <!-- Processing -->
+        <div class="card p-4">
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <p class="text-sm leading-snug line-clamp-1 font-500" style="color: var(--text);">She's relentless in her pursuit of excellence…</p>
+            <span class="badge-processing shrink-0 rounded-full px-2.5 py-1 text-xs font-600">Processing</span>
+          </div>
+          <div class="text-xs mb-3" style="color: var(--text-d);">Plain text · just now</div>
+          <div class="flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs" style="background: var(--accent-bg); color: var(--accent-l); border: 1px solid var(--accent-border);">
+            <div class="dot-pulse"><span></span><span></span><span></span></div>
+            Extracting vocabulary…
+          </div>
+        </div>
+
+        <!-- Done -->
+        <div class="card p-4 cursor-pointer">
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <div>
+              <p class="text-sm font-600 line-clamp-1 mb-1" style="color: var(--text);">Bohemian Rhapsody — Queen lyrics</p>
+              <div class="flex items-center gap-2 text-xs" style="color: var(--text-d);">
+                <span>Lyrics</span><span>·</span><span>2h ago</span><span>·</span>
+                <span class="font-600" style="color: var(--accent);">14 words found</span>
+              </div>
+            </div>
+            <span class="badge-done shrink-0 rounded-full px-2.5 py-1 text-xs font-600">Ready</span>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn-primary flex-1 rounded-xl py-2.5 text-sm" style="transition:all 150ms ease;">Review words →</button>
+            <button class="btn-ghost rounded-xl px-4 py-2.5 text-sm" style="transition:all 150ms ease;">Export</button>
+          </div>
+        </div>
+
+        <!-- Partial -->
+        <div class="card p-4 cursor-pointer" style="border-color: var(--amber-border);">
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <div>
+              <p class="text-sm font-600 line-clamp-1 mb-1" style="color: var(--text);">The Great Gatsby — Chapter 1</p>
+              <div class="flex items-center gap-2 text-xs" style="color: var(--text-d);">
+                <span>Plain text</span><span>·</span><span>Yesterday</span>
+              </div>
+            </div>
+            <span class="badge-partial shrink-0 rounded-full px-2.5 py-1 text-xs font-600">In review</span>
+          </div>
+          <div class="mb-3">
+            <div class="flex justify-between text-xs mb-1.5">
+              <span style="color: var(--text-d);">Progress</span>
+              <span class="font-600" style="color: var(--amber);">5 of 11 marked</span>
+            </div>
+            <div class="h-2 rounded-full progress-track overflow-hidden">
+              <div class="h-full rounded-full" style="width:45%; background: var(--amber);"></div>
+            </div>
+          </div>
+          <button class="btn-ghost w-full rounded-xl py-2.5 text-sm" style="border-color: var(--amber-border); color: var(--amber); transition:all 150ms ease;">Continue reviewing →</button>
+        </div>
+
+        <!-- Exported -->
+        <div class="card p-4" style="opacity:.55;">
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <p class="text-sm font-500 line-clamp-1" style="color: var(--text-m);">Inception movie subtitles</p>
+            <span class="badge-reviewed shrink-0 rounded-full px-2.5 py-1 text-xs font-600">Exported</span>
+          </div>
+          <div class="flex items-center gap-2 text-xs" style="color: var(--text-d);">
+            <span>Subtitles · 3 days ago</span>
+            <span class="font-600" style="color: var(--green);">✓ 8 cards</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <div class="fixed bottom-4 right-4 text-xs font-700 px-3 py-1.5 rounded-full shadow-lg" style="background: var(--accent); color: white;">
+    A — Study App
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.getAttribute('data-theme') === 'dark';
+      html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      document.getElementById('themeLabel').textContent = isDark ? 'Dark' : 'Light';
+      document.getElementById('iconLight').style.display = isDark ? 'block' : 'none';
+      document.getElementById('iconDark').style.display = isDark ? 'none' : 'block';
+    }
+  </script>
+</body>
+</html>

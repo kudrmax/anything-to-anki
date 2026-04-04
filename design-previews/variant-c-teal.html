@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Variant C — Clean Teal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { transition: background-color 200ms ease, border-color 200ms ease, color 150ms ease, box-shadow 200ms ease; }
+
+    :root {
+      --bg:            #F0FDFA;
+      --surface:       #ffffff;
+      --surface2:      #f8fffe;
+      --border:        #99f6e4;
+      --border2:       #5eead4;
+      --text:          #0f2d28;
+      --text-m:        #2d6a62;
+      --text-d:        #5eada4;
+      --teal:          #0d9488;
+      --teal-l:        #14b8a6;
+      --teal-d:        #0f766e;
+      --teal-bg:       #f0fdfa;
+      --teal-border:   #99f6e4;
+      --orange:        #ea580c;
+      --orange-d:      #c2410c;
+      --orange-bg:     #fff7ed;
+      --orange-border: #fed7aa;
+      --green:         #059669;
+      --green-bg:      #ecfdf5;
+      --green-border:  #a7f3d0;
+      --amber:         #b45309;
+      --amber-bg:      #fffbeb;
+      --amber-border:  #fde68a;
+      --header-bg:     #ffffff;
+      --proc-bg:       #eff6ff;
+      --proc-fg:       #2563eb;
+      --proc-border:   #bfdbfe;
+    }
+
+    [data-theme="dark"] {
+      --bg:            #051a17;
+      --surface:       #0a2520;
+      --surface2:      #0e2e29;
+      --border:        #144d46;
+      --border2:       #1a6058;
+      --text:          #d1faf4;
+      --text-m:        #5eada4;
+      --text-d:        #2d6a62;
+      --teal:          #2dd4bf;
+      --teal-l:        #5eead4;
+      --teal-d:        #14b8a6;
+      --teal-bg:       rgba(45,212,191,0.08);
+      --teal-border:   rgba(45,212,191,0.2);
+      --orange:        #fb923c;
+      --orange-d:      #f97316;
+      --orange-bg:     rgba(251,146,60,0.08);
+      --orange-border: rgba(251,146,60,0.2);
+      --green:         #34d399;
+      --green-bg:      rgba(52,211,153,0.08);
+      --green-border:  rgba(52,211,153,0.2);
+      --amber:         #fbbf24;
+      --amber-bg:      rgba(251,191,36,0.08);
+      --amber-border:  rgba(251,191,36,0.2);
+      --header-bg:     rgba(5,26,23,0.85);
+      --proc-bg:       rgba(37,99,235,0.1);
+      --proc-fg:       #60a5fa;
+      --proc-border:   rgba(59,130,246,0.2);
+    }
+
+    html { font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; transition: all 180ms ease; }
+    .card:hover { border-color: var(--border2); box-shadow: 0 4px 20px rgba(13,148,136,0.1); transform: translateY(-1px); }
+
+    .header { background: var(--header-bg); border-bottom: 1px solid var(--border); }
+    [data-theme="dark"] .header { backdrop-filter: blur(12px); box-shadow: 0 1px 0 var(--border); }
+    [data-theme="light"] .header { box-shadow: 0 1px 8px rgba(13,148,136,0.07); }
+
+    .btn-orange { background: var(--orange); color: white; font-weight: 700; border: none; transition: all 150ms ease; }
+    .btn-orange:hover { background: var(--orange-d); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(234,88,12,0.35); }
+    .btn-teal { background: var(--teal); color: white; font-weight: 600; border: none; transition: all 150ms ease; }
+    .btn-teal:hover { background: var(--teal-d); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(13,148,136,0.3); }
+    .btn-ghost { background: transparent; border: 1.5px solid var(--teal-border); color: var(--teal); transition: all 150ms ease; }
+    .btn-ghost:hover { background: var(--teal-bg); border-color: var(--teal); }
+
+    textarea, select {
+      background: var(--teal-bg);
+      border: 1.5px solid var(--border);
+      color: var(--text);
+    }
+    textarea::placeholder { color: var(--text-d); }
+    textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(13,148,136,0.12);
+      background: var(--surface);
+    }
+
+    .badge-done    { background: var(--teal-bg); color: var(--teal); border: 1px solid var(--teal-border); }
+    .badge-proc    { background: var(--proc-bg); color: var(--proc-fg); border: 1px solid var(--proc-border); }
+    .badge-partial { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-border); }
+    .badge-exp     { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+    .badge-new     { background: var(--surface2); color: var(--text-d); border: 1px solid var(--border); }
+
+    .nav-link { color: var(--text-m); padding: 5px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; }
+    .nav-link:hover { color: var(--teal); background: var(--teal-bg); }
+    .nav-link.active { color: var(--teal); background: var(--teal-bg); font-weight: 600; }
+
+    .toggle-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text-m);
+      border-radius: 10px;
+      padding: 6px 10px;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600;
+    }
+    .toggle-btn:hover { border-color: var(--teal); color: var(--teal); }
+
+    .dot-pulse { display:inline-flex; gap:3px; align-items:center; }
+    .dot-pulse span { width:4px; height:4px; border-radius:50%; background: var(--proc-fg); animation:dp 1.2s ease-in-out infinite; }
+    .dot-pulse span:nth-child(2){animation-delay:.2s}
+    .dot-pulse span:nth-child(3){animation-delay:.4s}
+    @keyframes dp{0%,80%,100%{opacity:.25;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+  </style>
+</head>
+<body>
+
+  <header class="header px-6 py-3.5 flex items-center justify-between sticky top-0 z-10">
+    <div class="flex items-center gap-6">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl flex items-center justify-center" style="background: linear-gradient(135deg, var(--teal), var(--teal-d));">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M4 13V7l4-4 4 4v6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="6" y="9" width="4" height="4" rx=".5" fill="white" opacity=".8"/>
+          </svg>
+        </div>
+        <span class="text-sm font-700" style="color: var(--text);">VocabMiner</span>
+      </div>
+      <nav class="hidden md:flex items-center gap-1">
+        <a class="nav-link active" href="#">Inbox</a>
+        <a class="nav-link" href="#">Review</a>
+        <a class="nav-link" href="#">Export</a>
+      </nav>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="text-xs font-700 px-3 py-1.5 rounded-full" style="background: var(--teal-bg); color: var(--teal); border: 1px solid var(--teal-border);">
+        Level: B2
+      </div>
+      <button class="toggle-btn" onclick="toggleTheme()" id="themeBtn">
+        <svg id="iconLight" width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 1v1.5M6.5 10.5V12M1 6.5h1.5M10.5 6.5H12M2.7 2.7l1 1M9.3 9.3l1 1M9.3 2.7l-1 1M3.7 9.3l-1 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <svg id="iconDark" width="13" height="13" viewBox="0 0 13 13" fill="none" style="display:none"><path d="M11 7.5A5 5 0 015.5 2a5 5 0 100 9 5 5 0 005.5-3.5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span id="themeLabel">Dark</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-8">
+
+    <section class="flex flex-col gap-5">
+
+      <div class="card p-5">
+        <div class="text-sm font-700 mb-1" style="color: var(--text);">Add a new source</div>
+        <div class="text-xs mb-4" style="color: var(--text-d);">Paste any text and we'll extract vocabulary for you</div>
+        <textarea rows="7" placeholder="Paste text, song lyrics, or subtitles here…" class="w-full rounded-xl px-4 py-3 text-sm resize-none">She's relentless in her pursuit of excellence, sacrificing her well-being in the process. The overwhelming urge to overcommit often leads to burnout, yet she pretends it doesn't exist.</textarea>
+        <div class="mt-3 flex gap-2">
+          <select class="flex-1 rounded-xl px-3 py-2.5 text-sm">
+            <option>Plain text</option>
+            <option>Song lyrics</option>
+            <option>Subtitles</option>
+          </select>
+          <button class="btn-orange px-5 py-2.5 rounded-xl text-sm flex items-center gap-1.5">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+            Add
+          </button>
+        </div>
+      </div>
+
+      <div class="card p-5">
+        <div class="text-xs font-600 uppercase tracking-wider mb-4" style="color: var(--text-d);">Your stats</div>
+        <div class="grid grid-cols-3 gap-3 mb-5">
+          <div class="text-center">
+            <div class="text-2xl font-800" style="color: var(--orange);">47</div>
+            <div class="text-xs mt-1" style="color: var(--text-d);">to learn</div>
+          </div>
+          <div class="text-center" style="border-left: 1px solid var(--border); border-right: 1px solid var(--border);">
+            <div class="text-2xl font-800" style="color: var(--teal);">312</div>
+            <div class="text-xs mt-1" style="color: var(--text-d);">known</div>
+          </div>
+          <div class="text-center">
+            <div class="text-2xl font-800" style="color: var(--text-m);">8</div>
+            <div class="text-xs mt-1" style="color: var(--text-d);">sources</div>
+          </div>
+        </div>
+        <div class="mb-4">
+          <div class="flex justify-between text-xs mb-1.5">
+            <span style="color: var(--text-d);">B2 progress</span>
+            <span class="font-700" style="color: var(--teal);">62%</span>
+          </div>
+          <div class="h-2.5 rounded-full overflow-hidden" style="background: var(--border);">
+            <div class="h-full rounded-full" style="width:62%; background: linear-gradient(90deg, var(--teal), var(--teal-l));"></div>
+          </div>
+        </div>
+        <button class="btn-teal w-full rounded-xl py-2.5 text-sm flex items-center justify-center gap-2">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5h9M7.5 3l3 3.5-3 3.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Process all pending
+        </button>
+      </div>
+    </section>
+
+    <section>
+      <div class="flex items-center justify-between mb-5">
+        <div class="flex items-center gap-2">
+          <div class="text-sm font-700" style="color: var(--text);">Sources</div>
+          <span class="text-xs font-700 px-2 py-0.5 rounded-full" style="background: var(--teal-bg); color: var(--teal);">4</span>
+        </div>
+        <select class="rounded-lg px-2 py-1 text-xs" style="border: 1px solid var(--border);">
+          <option>Latest first</option>
+          <option>By status</option>
+        </select>
+      </div>
+
+      <div class="flex flex-col gap-3">
+
+        <div class="card p-4">
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <div>
+              <p class="text-sm font-500 line-clamp-1 mb-1" style="color: var(--text);">She's relentless in her pursuit of excellence…</p>
+              <div class="flex items-center gap-2 text-xs" style="color: var(--text-d);">
+                <span>Plain text</span><span>·</span><span>Just now</span>
+              </div>
+            </div>
+            <span class="badge-proc shrink-0 rounded-full px-2.5 py-1 text-xs font-600">Processing</span>
+          </div>
+          <div class="flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs" style="background: var(--proc-bg); color: var(--proc-fg); border: 1px solid var(--proc-border);">
+            <div class="dot-pulse"><span></span><span></span><span></span></div>
+            Extracting vocabulary…
+          </div>
+        </div>
+
+        <div class="card p-4 cursor-pointer">
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <div>
+              <p class="text-sm font-600 line-clamp-1 mb-1" style="color: var(--text);">Bohemian Rhapsody — Queen lyrics</p>
+              <div class="flex items-center gap-2 text-xs" style="color: var(--text-d);">
+                <span>Lyrics</span><span>·</span><span>2h ago</span><span>·</span>
+                <span class="font-600" style="color: var(--teal);">14 words found</span>
+              </div>
+            </div>
+            <span class="badge-done shrink-0 rounded-full px-2.5 py-1 text-xs font-600">Ready</span>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn-orange flex-1 rounded-xl py-2.5 text-sm">Review words →</button>
+            <button class="btn-ghost rounded-xl px-4 py-2.5 text-sm">Export</button>
+          </div>
+        </div>
+
+        <div class="card p-4 cursor-pointer" style="border-color: var(--orange-border);">
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <div>
+              <p class="text-sm font-600 line-clamp-1 mb-1" style="color: var(--text);">The Great Gatsby — Chapter 1</p>
+              <div class="flex items-center gap-2 text-xs" style="color: var(--text-d);">
+                <span>Plain text</span><span>·</span><span>Yesterday</span>
+              </div>
+            </div>
+            <span class="badge-partial shrink-0 rounded-full px-2.5 py-1 text-xs font-600">In review</span>
+          </div>
+          <div class="mb-3">
+            <div class="flex justify-between text-xs mb-1.5">
+              <span style="color: var(--text-d);">Progress</span>
+              <span class="font-600" style="color: var(--orange);">5 of 11 marked</span>
+            </div>
+            <div class="h-2 rounded-full overflow-hidden" style="background: var(--orange-bg); border: 1px solid var(--orange-border);">
+              <div class="h-full rounded-full" style="width:45%; background: var(--orange);"></div>
+            </div>
+          </div>
+          <button class="btn-ghost w-full rounded-xl py-2.5 text-sm" style="border-color: var(--orange-border); color: var(--orange);">Continue reviewing →</button>
+        </div>
+
+        <div class="card p-4" style="opacity:.55;">
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <p class="text-sm font-500 line-clamp-1" style="color: var(--text-m);">Inception movie subtitles</p>
+            <span class="badge-exp shrink-0 rounded-full px-2.5 py-1 text-xs font-600">Exported</span>
+          </div>
+          <div class="text-xs" style="color: var(--text-d);">
+            Subtitles · 3 days ago
+            <span class="ml-2 font-600" style="color: var(--green);">✓ 8 cards created</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <div class="fixed bottom-4 right-4 text-xs font-700 px-3 py-1.5 rounded-full shadow-lg" style="background: var(--teal); color: white;">
+    C — Clean Teal
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.getAttribute('data-theme') === 'dark';
+      html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      document.getElementById('themeLabel').textContent = isDark ? 'Dark' : 'Light';
+      document.getElementById('iconLight').style.display = isDark ? 'block' : 'none';
+      document.getElementById('iconDark').style.display = isDark ? 'none' : 'block';
+    }
+  </script>
+</body>
+</html>

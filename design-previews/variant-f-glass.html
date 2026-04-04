@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VocabMiner — F: Glass</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { transition: background-color 200ms ease, border-color 200ms ease, color 150ms ease; }
+
+    :root {
+      --bg: radial-gradient(ellipse at 20% 20%, rgba(99,102,241,0.15) 0%, transparent 50%),
+            radial-gradient(ellipse at 80% 80%, rgba(6,182,212,0.12) 0%, transparent 50%),
+            radial-gradient(ellipse at 60% 30%, rgba(236,72,153,0.08) 0%, transparent 40%),
+            #f8fafc;
+      --glass-bg: rgba(255,255,255,0.65);
+      --glass-border: rgba(255,255,255,0.5);
+      --glass-blur: blur(20px) saturate(180%);
+      --text: #1e1b4b;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
+      --accent: #6366f1;
+      --accent-light: rgba(99,102,241,0.12);
+      --accent-glow: rgba(99,102,241,0.25);
+      --card-shadow: 0 8px 32px rgba(99,102,241,0.08), 0 2px 8px rgba(0,0,0,0.06);
+      --card-hover-shadow: 0 16px 48px rgba(99,102,241,0.18), 0 4px 16px rgba(0,0,0,0.08);
+      --status-processing: rgba(245,158,11,0.9);
+      --status-processing-bg: rgba(245,158,11,0.12);
+      --status-done: rgba(16,185,129,0.9);
+      --status-done-bg: rgba(16,185,129,0.12);
+      --status-review: rgba(249,115,22,0.9);
+      --status-review-bg: rgba(249,115,22,0.12);
+      --status-exported: rgba(148,163,184,0.9);
+      --status-exported-bg: rgba(148,163,184,0.12);
+      --header-bg: rgba(255,255,255,0.75);
+      --input-bg: rgba(255,255,255,0.7);
+      --input-border: rgba(99,102,241,0.2);
+    }
+
+    [data-theme="dark"] {
+      --bg: radial-gradient(ellipse at 20% 20%, rgba(99,102,241,0.25) 0%, transparent 50%),
+            radial-gradient(ellipse at 80% 80%, rgba(6,182,212,0.2) 0%, transparent 50%),
+            radial-gradient(ellipse at 60% 30%, rgba(236,72,153,0.12) 0%, transparent 40%),
+            #0f1117;
+      --glass-bg: rgba(255,255,255,0.06);
+      --glass-border: rgba(255,255,255,0.1);
+      --glass-blur: blur(20px) saturate(150%);
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-light: #475569;
+      --accent: #818cf8;
+      --accent-light: rgba(129,140,248,0.15);
+      --accent-glow: rgba(129,140,248,0.3);
+      --card-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.3);
+      --card-hover-shadow: 0 16px 48px rgba(129,140,248,0.2), 0 4px 16px rgba(0,0,0,0.4);
+      --status-processing: rgba(251,191,36,0.95);
+      --status-processing-bg: rgba(251,191,36,0.12);
+      --status-done: rgba(52,211,153,0.95);
+      --status-done-bg: rgba(52,211,153,0.1);
+      --status-review: rgba(251,146,60,0.95);
+      --status-review-bg: rgba(251,146,60,0.1);
+      --status-exported: rgba(100,116,139,0.95);
+      --status-exported-bg: rgba(100,116,139,0.1);
+      --header-bg: rgba(15,17,23,0.8);
+      --input-bg: rgba(255,255,255,0.05);
+      --input-border: rgba(129,140,248,0.25);
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      background-attachment: fixed;
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Glass card */
+    .glass {
+      background: var(--glass-bg);
+      -webkit-backdrop-filter: var(--glass-blur);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--card-shadow);
+      border-radius: 20px;
+    }
+
+    .glass:hover {
+      box-shadow: var(--card-hover-shadow);
+    }
+
+    /* Header */
+    .app-header {
+      background: var(--header-bg);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      backdrop-filter: blur(24px) saturate(180%);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 0 28px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .app-name {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      color: var(--text);
+    }
+
+    .app-name span {
+      background: linear-gradient(135deg, var(--accent), rgba(6,182,212,0.9));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Buttons */
+    .btn-primary {
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      border-radius: 12px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 10px 20px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px var(--accent-glow);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px var(--accent-glow);
+    }
+
+    .btn-ghost {
+      background: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 10px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      font-size: 13px;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+
+    .btn-ghost:hover {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-icon {
+      background: var(--glass-bg);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      color: var(--text-muted);
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-icon:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    /* Section label */
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    /* Textarea */
+    .source-textarea {
+      width: 100%;
+      background: var(--input-bg);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      color: var(--text);
+      border: 1.5px solid var(--input-border);
+      border-radius: 14px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      padding: 14px 16px;
+      resize: none;
+      outline: none;
+      line-height: 1.6;
+    }
+
+    .source-textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-light), 0 4px 12px var(--accent-glow);
+    }
+
+    .source-textarea::placeholder {
+      color: var(--text-light);
+    }
+
+    /* Stat pills */
+    .stat-pill {
+      background: var(--glass-bg);
+      -webkit-backdrop-filter: var(--glass-blur);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 16px 20px;
+      text-align: center;
+      flex: 1;
+      box-shadow: var(--card-shadow);
+    }
+
+    .stat-number {
+      font-size: 34px;
+      font-weight: 700;
+      line-height: 1;
+      display: block;
+      letter-spacing: -1px;
+      background: linear-gradient(135deg, var(--accent), rgba(6,182,212,0.8));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      display: block;
+      margin-top: 4px;
+    }
+
+    /* Source card */
+    .source-card {
+      background: var(--glass-bg);
+      -webkit-backdrop-filter: var(--glass-blur);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 18px 20px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      box-shadow: var(--card-shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .source-card:hover {
+      box-shadow: var(--card-hover-shadow);
+      transform: translateY(-1px);
+      border-color: rgba(99,102,241,0.3);
+    }
+
+    /* Gradient line accent */
+    .source-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 20%;
+      bottom: 20%;
+      width: 2px;
+      border-radius: 99px;
+    }
+
+    .source-card.processing::before {
+      background: linear-gradient(to bottom, rgba(245,158,11,0.8), rgba(251,191,36,0.3));
+      box-shadow: 0 0 8px rgba(245,158,11,0.4);
+    }
+
+    .source-card.done::before {
+      background: linear-gradient(to bottom, rgba(16,185,129,0.8), rgba(52,211,153,0.3));
+      box-shadow: 0 0 8px rgba(16,185,129,0.4);
+    }
+
+    .source-card.review::before {
+      background: linear-gradient(to bottom, rgba(249,115,22,0.8), rgba(251,146,60,0.3));
+      box-shadow: 0 0 8px rgba(249,115,22,0.4);
+    }
+
+    .source-card.exported::before {
+      background: linear-gradient(to bottom, rgba(148,163,184,0.5), rgba(148,163,184,0.1));
+    }
+
+    /* Status badge */
+    .status-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 99px;
+      white-space: nowrap;
+    }
+
+    .status-badge.processing {
+      background: var(--status-processing-bg);
+      color: var(--status-processing);
+    }
+
+    .status-badge.done {
+      background: var(--status-done-bg);
+      color: var(--status-done);
+    }
+
+    .status-badge.review {
+      background: var(--status-review-bg);
+      color: var(--status-review);
+    }
+
+    .status-badge.exported {
+      background: var(--status-exported-bg);
+      color: var(--status-exported);
+    }
+
+    /* Layout */
+    .main-layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 20px;
+      padding: 24px;
+      height: calc(100vh - 60px);
+    }
+
+    .left-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .right-panel {
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    /* Progress arc */
+    .progress-bar-track {
+      height: 4px;
+      background: var(--glass-border);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), rgba(6,182,212,0.8));
+      border-radius: 99px;
+      width: 13%;
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    /* Spinner */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(245,158,11,0.3);
+      border-top-color: rgba(245,158,11,0.9);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+
+    /* Variant label */
+    .variant-label {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      background: var(--glass-bg);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      color: var(--accent);
+      padding: 6px 12px;
+      border-radius: 99px;
+      box-shadow: var(--card-shadow);
+      z-index: 100;
+    }
+
+    /* Type tag */
+    .type-tag {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-light);
+      background: var(--accent-light);
+      padding: 2px 7px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="app-name">
+      Vocab<span>Miner</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button class="btn-icon" onclick="toggleTheme()" title="Toggle theme" id="theme-btn">
+        ☀
+      </button>
+      <button class="btn-icon" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <!-- Main layout -->
+  <div class="main-layout">
+
+    <!-- Left Panel -->
+    <div class="left-panel">
+
+      <!-- Add source card -->
+      <div class="glass" style="padding: 22px;">
+        <div class="section-label">Mine vocabulary</div>
+        <textarea
+          class="source-textarea"
+          rows="7"
+          placeholder="Paste text, lyrics, subtitles, or any content…"
+        ></textarea>
+        <div style="margin-top:12px; display:flex; gap:8px;">
+          <select style="background:var(--input-bg); color:var(--text); border:1.5px solid var(--input-border); border-radius:10px; padding:9px 12px; font-size:13px; font-family:'Inter',sans-serif; flex-shrink:0; outline:none; cursor:pointer; -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);">
+            <option>Text</option>
+            <option>Lyrics</option>
+            <option>Subtitles</option>
+          </select>
+          <button class="btn-primary" style="flex:1;">Add source</button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div style="display:flex; gap:10px;">
+        <div class="stat-pill">
+          <span class="stat-number">47</span>
+          <span class="stat-label">To learn</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-number">312</span>
+          <span class="stat-label">Known</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-number">8</span>
+          <span class="stat-label">Sources</span>
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div class="glass" style="padding: 18px 20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:13px; font-weight:600;">Progress</span>
+          <span style="font-size:12px; color:var(--text-muted);">13% complete</span>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:10px; align-items:center;">
+          <span style="font-size:12px; color:var(--text-muted);">Estimated level</span>
+          <span style="font-size:15px; font-weight:700; color:var(--accent);">B2</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right Panel -->
+    <div class="right-panel">
+
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 16px;">
+        <div style="font-size:15px; font-weight:700;">Sources <span style="color:var(--text-muted); font-weight:400; font-size:13px;">8 total</span></div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-ghost" style="font-size:12px; padding:6px 12px;">Filter</button>
+          <button class="btn-primary" style="font-size:13px; padding:8px 16px;">Process All</button>
+        </div>
+      </div>
+
+      <!-- Source cards -->
+
+      <!-- 1: Processing -->
+      <div class="source-card processing">
+        <div style="display:flex; align-items:center; margin-top:2px; flex-shrink:0;">
+          <span class="spinner"></span>
+        </div>
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:600; font-size:14px; line-height:1.4; margin-bottom:4px;">"She's relentless in her pursuit of excellence…"</div>
+          <div style="font-size:12px; color:var(--text-muted);">Analyzing vocabulary — extracting candidates…</div>
+          <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+            <span class="type-tag">Text</span>
+          </div>
+        </div>
+        <div style="flex-shrink:0;">
+          <span class="status-badge processing">Processing</span>
+        </div>
+      </div>
+
+      <!-- 2: Ready -->
+      <div class="source-card done">
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:600; font-size:14px; line-height:1.4; margin-bottom:4px;">Bohemian Rhapsody — Queen lyrics</div>
+          <div style="font-size:12px; color:var(--text-muted);">Is this the real life? Is this just fantasy?…</div>
+          <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+            <span class="type-tag">Lyrics</span>
+            <span style="font-size:12px; color:var(--status-done); font-weight:600;">14 candidates</span>
+            <span style="font-size:11px; color:var(--text-light);">Today</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex-shrink:0;">
+          <span class="status-badge done">Ready</span>
+          <button class="btn-ghost" style="font-size:12px; padding:5px 10px;">Review →</button>
+        </div>
+      </div>
+
+      <!-- 3: In review -->
+      <div class="source-card review">
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:600; font-size:14px; line-height:1.4; margin-bottom:4px;">The Great Gatsby — Chapter 1</div>
+          <div style="font-size:12px; color:var(--text-muted);">In my younger and more vulnerable years…</div>
+          <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+            <span class="type-tag">Book</span>
+            <span style="font-size:12px; color:var(--status-review); font-weight:600;">5 / 11 marked</span>
+            <span style="font-size:11px; color:var(--text-light);">Yesterday</span>
+          </div>
+          <div style="margin-top:8px; height:3px; border-radius:99px; background:rgba(249,115,22,0.1); overflow:hidden;">
+            <div style="height:100%; width:45%; background:linear-gradient(90deg, rgba(249,115,22,0.8), rgba(251,146,60,0.5)); border-radius:99px;"></div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex-shrink:0;">
+          <span class="status-badge review">In Review</span>
+          <button class="btn-ghost" style="font-size:12px; padding:5px 10px;">Continue →</button>
+        </div>
+      </div>
+
+      <!-- 4: Exported -->
+      <div class="source-card exported">
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:600; font-size:14px; line-height:1.4; margin-bottom:4px;">Inception movie subtitles</div>
+          <div style="font-size:12px; color:var(--text-muted);">You mustn't be afraid to dream a little bigger, darling…</div>
+          <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+            <span class="type-tag">Subtitles</span>
+            <span style="font-size:12px; color:var(--status-exported); font-weight:600;">8 cards exported</span>
+            <span style="font-size:11px; color:var(--text-light);">Mar 28</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex-shrink:0;">
+          <span class="status-badge exported">Exported</span>
+          <button class="btn-ghost" style="font-size:12px; padding:5px 10px;">Re-export</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Variant label -->
+  <div class="variant-label">F — Glass</div>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.getAttribute('data-theme') === 'dark';
+      html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      document.getElementById('theme-btn').textContent = isDark ? '☀' : '☾';
+    }
+  </script>
+</body>
+</html>
