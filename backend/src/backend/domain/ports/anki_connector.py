@@ -30,3 +30,7 @@ class AnkiConnector(ABC):
         notes: list[dict[str, str]],
     ) -> list[int | None]:
         """Add notes to Anki. Returns list of new note IDs (None on failure)."""
+
+    @abstractmethod
+    def get_model_field_names(self, model_name: str) -> list[str] | None:
+        """Return field names for the given note type, or None if it doesn't exist."""

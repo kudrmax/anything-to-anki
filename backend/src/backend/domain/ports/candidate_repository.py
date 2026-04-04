@@ -22,3 +22,6 @@ class CandidateRepository(ABC):
 
     @abstractmethod
     def update_status(self, candidate_id: int, status: CandidateStatus) -> None: ...
+
+    @abstractmethod
+    def count_by_status(self, status: CandidateStatus) -> int: ...

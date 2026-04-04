@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sqlalchemy import func
+
 from backend.domain.ports.known_word_repository import KnownWordRepository
 from backend.infrastructure.persistence.models import KnownWordModel
 
@@ -53,3 +55,7 @@ class SqlaKnownWordRepository(KnownWordRepository):
     def get_all_pairs(self) -> set[tuple[str, str]]:
         rows = self._session.query(KnownWordModel.lemma, KnownWordModel.pos).all()
         return {(r.lemma, r.pos) for r in rows}
+
+    def count(self) -> int:
+        result = self._session.query(func.count(KnownWordModel.id)).scalar()
+        return result or 0

@@ -8,6 +8,7 @@ from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_source_cards import GetSourceCardsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
+from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
@@ -116,3 +117,12 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             dictionary_provider=CachedDictionaryApiProvider(session),
         )
+
+    def get_stats_use_case(self, session: Session) -> GetStatsUseCase:
+        return GetStatsUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            known_word_repo=SqlaKnownWordRepository(session),
+        )
+
+    def anki_connector(self) -> AnkiConnectConnector:
+        return self._anki_connector

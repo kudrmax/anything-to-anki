@@ -45,7 +45,14 @@ class TestSettingsAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["cefr_level"] == "B1"
-        assert data["anki_deck_name"] == "VocabMiner"
+        assert data["anki_deck_name"] == "Default"
+        assert data["ai_provider"] == "claude"
+        assert data["ai_model"] == "sonnet"
+        assert data["anki_note_type"] == "AnythingToAnkiType"
+        assert data["anki_field_sentence"] == "Sentence"
+        assert data["anki_field_target_word"] == "Target"
+        assert data["anki_field_meaning"] == "Meaning"
+        assert data["anki_field_ipa"] == "IPA"
 
     def test_update_cefr_level(self, client: TestClient) -> None:
         response = client.patch("/settings", json={"cefr_level": "C1"})

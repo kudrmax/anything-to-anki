@@ -48,7 +48,9 @@ export function SourceCard({ source, onProcess, onReview, onExport, isProcessing
 
       <div className="flex items-center justify-between text-xs text-slate-500">
         <span>{formatDate(source.created_at)}</span>
-        {source.candidate_count > 0 && (
+        {source.status === 'done' && source.candidate_count === 0 ? (
+          <span className="text-slate-600 italic">Nothing to learn</span>
+        ) : source.candidate_count > 0 && (
           <span className="text-slate-400">
             {source.candidate_count} candidates
             {source.learn_count > 0 && <> · <span className="text-indigo-400">{source.learn_count} to learn</span></>}
@@ -74,7 +76,7 @@ export function SourceCard({ source, onProcess, onReview, onExport, isProcessing
           </div>
         )}
 
-        {(source.status === 'done' || source.status === 'partially_reviewed') && (
+        {(source.status === 'done' || source.status === 'partially_reviewed') && source.candidate_count > 0 && (
           <>
             <button
               onClick={() => onReview(source.id)}

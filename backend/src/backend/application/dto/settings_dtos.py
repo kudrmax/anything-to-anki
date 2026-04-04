@@ -10,6 +10,13 @@ class SettingsDTO(BaseModel):
 
     cefr_level: str
     anki_deck_name: str
+    ai_provider: str
+    ai_model: str
+    anki_note_type: str
+    anki_field_sentence: str
+    anki_field_target_word: str
+    anki_field_meaning: str
+    anki_field_ipa: str
 
 
 class UpdateSettingsRequest(BaseModel):
@@ -17,6 +24,13 @@ class UpdateSettingsRequest(BaseModel):
 
     cefr_level: str | None = None
     anki_deck_name: str | None = None
+    ai_provider: str | None = None
+    ai_model: str | None = None
+    anki_note_type: str | None = None
+    anki_field_sentence: str | None = None
+    anki_field_target_word: str | None = None
+    anki_field_meaning: str | None = None
+    anki_field_ipa: str | None = None
 
     @field_validator("cefr_level")
     @classmethod
@@ -28,6 +42,7 @@ class UpdateSettingsRequest(BaseModel):
 
     @model_validator(mode="after")
     def at_least_one_field(self) -> UpdateSettingsRequest:
-        if self.cefr_level is None and self.anki_deck_name is None:
-            raise ValueError("At least one of cefr_level or anki_deck_name must be provided")
+        values = [getattr(self, f) for f in type(self).model_fields]
+        if all(v is None for v in values):
+            raise ValueError("At least one field must be provided")
         return self

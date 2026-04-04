@@ -65,4 +65,33 @@ export interface SyncResult {
 export interface Settings {
   cefr_level: string
   anki_deck_name: string
+  ai_provider: string
+  ai_model: string
+  anki_note_type: string
+  anki_field_sentence: string
+  anki_field_target_word: string
+  anki_field_meaning: string
+  anki_field_ipa: string
+}
+
+export interface KnownWord {
+  id: number
+  lemma: string
+  pos: string
+  created_at: string
+}
+
+export interface Stats {
+  learn_count: number
+  known_word_count: number
+}
+
+export interface VerifyNoteTypeResponse {
+  valid: boolean
+  available_fields: string[]
+  missing_fields: string[]
+}
+
+export interface CreateNoteTypeResponse {
+  already_existed: boolean
 }

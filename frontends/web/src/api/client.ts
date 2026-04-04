@@ -1,4 +1,18 @@
-import type { AnkiStatus, CardPreview, CandidateStatus, Settings, SourceDetail, SourceStatus, SourceSummary, StoredCandidate, SyncResult } from './types'
+import type {
+  AnkiStatus,
+  CardPreview,
+  CandidateStatus,
+  CreateNoteTypeResponse,
+  KnownWord,
+  Settings,
+  SourceDetail,
+  SourceStatus,
+  SourceSummary,
+  Stats,
+  StoredCandidate,
+  SyncResult,
+  VerifyNoteTypeResponse,
+} from './types'
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000'
 
@@ -48,6 +62,25 @@ export const api = {
 
   getSettings: () => req<Settings>('/settings'),
 
-  updateSettings: (patch: Partial<Pick<Settings, 'cefr_level' | 'anki_deck_name'>>) =>
+  updateSettings: (patch: Partial<Settings>) =>
     req<Settings>('/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
+
+  getKnownWords: () => req<KnownWord[]>('/known-words'),
+
+  deleteKnownWord: (id: number) =>
+    req<{ deleted: number }>(`/known-words/${id}`, { method: 'DELETE' }),
+
+  getStats: () => req<Stats>('/stats'),
+
+  verifyNoteType: (note_type: string, required_fields: string[]) =>
+    req<VerifyNoteTypeResponse>('/anki/verify-note-type', {
+      method: 'POST',
+      body: JSON.stringify({ note_type, required_fields }),
+    }),
+
+  createNoteType: (note_type: string, fields: string[]) =>
+    req<CreateNoteTypeResponse>('/anki/create-note-type', {
+      method: 'POST',
+      body: JSON.stringify({ note_type, fields }),
+    }),
 }

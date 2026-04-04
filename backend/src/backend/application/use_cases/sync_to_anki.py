@@ -13,9 +13,12 @@ if TYPE_CHECKING:
     from backend.domain.ports.dictionary_provider import DictionaryProvider
     from backend.domain.ports.settings_repository import SettingsRepository
 
-_MODEL_NAME: str = "VocabMiner"
-_MODEL_FIELDS: list[str] = ["Sentence", "Target", "Meaning", "API"]
-_DEFAULT_DECK: str = "VocabMiner"
+_DEFAULT_NOTE_TYPE: str = "AnythingToAnkiType"
+_DEFAULT_DECK: str = "Default"
+_DEFAULT_FIELD_SENTENCE: str = "Sentence"
+_DEFAULT_FIELD_TARGET: str = "Target"
+_DEFAULT_FIELD_MEANING: str = "Meaning"
+_DEFAULT_FIELD_IPA: str = "IPA"
 
 
 def _highlight(fragment: str, lemma: str) -> str:
@@ -41,6 +44,11 @@ class SyncToAnkiUseCase:
 
     def execute(self, source_id: int) -> SyncResultDTO:
         deck_name = self._settings_repo.get("anki_deck_name", _DEFAULT_DECK) or _DEFAULT_DECK
+        note_type = self._settings_repo.get("anki_note_type", _DEFAULT_NOTE_TYPE) or _DEFAULT_NOTE_TYPE
+        field_sentence = self._settings_repo.get("anki_field_sentence", _DEFAULT_FIELD_SENTENCE) or _DEFAULT_FIELD_SENTENCE
+        field_target = self._settings_repo.get("anki_field_target_word", _DEFAULT_FIELD_TARGET) or _DEFAULT_FIELD_TARGET
+        field_meaning = self._settings_repo.get("anki_field_meaning", _DEFAULT_FIELD_MEANING) or _DEFAULT_FIELD_MEANING
+        field_ipa = self._settings_repo.get("anki_field_ipa", _DEFAULT_FIELD_IPA) or _DEFAULT_FIELD_IPA
 
         candidates = self._candidate_repo.get_by_source(source_id)
         learn_candidates = [c for c in candidates if c.status == CandidateStatus.LEARN]
@@ -52,7 +60,9 @@ class SyncToAnkiUseCase:
         if not self._connector.is_available():
             raise AnkiNotAvailableError()
 
-        self._connector.ensure_note_type(_MODEL_NAME, _MODEL_FIELDS)
+        active_fields = [f for f in [field_sentence, field_target, field_meaning, field_ipa] if f]
+        if note_type == _DEFAULT_NOTE_TYPE:
+            self._connector.ensure_note_type(note_type, active_fields)
         self._connector.ensure_deck(deck_name)
 
         added = 0
@@ -66,15 +76,20 @@ class SyncToAnkiUseCase:
                 entry = self._dictionary_provider.get_entry(candidate.lemma, candidate.pos)
                 sentence = _highlight(candidate.context_fragment, candidate.lemma)
 
+                note: dict[str, str] = {}
+                if field_sentence:
+                    note[field_sentence] = sentence
+                if field_target:
+                    note[field_target] = candidate.lemma
+                if field_meaning:
+                    note[field_meaning] = entry.definition
+                if field_ipa:
+                    note[field_ipa] = entry.ipa or ""
+
                 results = self._connector.add_notes(
                     deck_name=deck_name,
-                    model_name=_MODEL_NAME,
-                    notes=[{
-                        "Sentence": sentence,
-                        "Target": candidate.lemma,
-                        "Meaning": entry.definition,
-                        "API": entry.ipa or "",
-                    }],
+                    model_name=note_type,
+                    notes=[note],
                 )
                 if results and results[0] is not None:
                     added += 1

@@ -12,16 +12,26 @@ class TestManageSettingsUseCase:
         self.use_case = ManageSettingsUseCase(settings_repo=self.settings_repo)
 
     def test_get_settings(self) -> None:
-        self.settings_repo.get.side_effect = lambda key, default: {"cefr_level": "B1", "anki_deck_name": "VocabMiner"}.get(key, default)
+        self.settings_repo.get.side_effect = lambda key, default: {
+            "cefr_level": "B1",
+            "anki_deck_name": "Default",
+        }.get(key, default)
         result = self.use_case.get_settings()
         assert result.cefr_level == "B1"
-        assert result.anki_deck_name == "VocabMiner"
+        assert result.anki_deck_name == "Default"
 
     def test_get_settings_default(self) -> None:
         self.settings_repo.get.return_value = None
         result = self.use_case.get_settings()
         assert result.cefr_level == "B1"
-        assert result.anki_deck_name == "VocabMiner"
+        assert result.anki_deck_name == "Default"
+        assert result.ai_provider == "claude"
+        assert result.ai_model == "sonnet"
+        assert result.anki_note_type == "AnythingToAnkiType"
+        assert result.anki_field_sentence == "Sentence"
+        assert result.anki_field_target_word == "Target"
+        assert result.anki_field_meaning == "Meaning"
+        assert result.anki_field_ipa == "IPA"
 
     def test_update_cefr_level(self) -> None:
         self.settings_repo.get.return_value = None
@@ -41,6 +51,26 @@ class TestManageSettingsUseCase:
         self.use_case.update_settings(req)
         self.settings_repo.set.assert_any_call("cefr_level", "C2")
         self.settings_repo.set.assert_any_call("anki_deck_name", "Learning")
+
+    def test_update_note_type(self) -> None:
+        self.settings_repo.get.return_value = None
+        req = UpdateSettingsRequest(anki_note_type="Basic")
+        self.use_case.update_settings(req)
+        self.settings_repo.set.assert_any_call("anki_note_type", "Basic")
+
+    def test_update_field_mapping(self) -> None:
+        self.settings_repo.get.return_value = None
+        req = UpdateSettingsRequest(
+            anki_field_sentence="Front",
+            anki_field_target_word="Word",
+            anki_field_meaning="Definition",
+            anki_field_ipa="Pronunciation",
+        )
+        self.use_case.update_settings(req)
+        self.settings_repo.set.assert_any_call("anki_field_sentence", "Front")
+        self.settings_repo.set.assert_any_call("anki_field_target_word", "Word")
+        self.settings_repo.set.assert_any_call("anki_field_meaning", "Definition")
+        self.settings_repo.set.assert_any_call("anki_field_ipa", "Pronunciation")
 
     def test_backward_compat_update_cefr_level(self) -> None:
         self.use_case.update_cefr_level("C1")

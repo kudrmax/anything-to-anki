@@ -7,10 +7,13 @@ from backend.domain.ports.anki_connector import AnkiConnector
 _ANKI_URL = "http://localhost:8765"
 _VERSION = 6
 
+_DEFAULT_MODEL_NAME = "AnythingToAnkiType"
+_DEFAULT_MODEL_FIELDS = ["Sentence", "Target", "Meaning", "IPA"]
+
 _CARD_CSS = """.card { font-family: Arial, sans-serif; font-size: 18px; text-align: left; color: #222; background-color: #fff; padding: 20px; }"""
 
 _FRONT_TEMPLATE = "{{Sentence}}"
-_BACK_TEMPLATE = "{{FrontSide}}<hr id=answer>{{Target}}&nbsp;[{{API}}]<br><br>{{Meaning}}"
+_BACK_TEMPLATE = "{{FrontSide}}<hr id=answer>{{Target}}&nbsp;[{{IPA}}]<br><br>{{Meaning}}"
 
 
 class AnkiConnectConnector(AnkiConnector):
@@ -49,7 +52,7 @@ class AnkiConnectConnector(AnkiConnector):
             css=_CARD_CSS,
             cardTemplates=[
                 {
-                    "Name": "VocabMiner Card",
+                    "Name": "AnythingToAnki Card",
                     "Front": _FRONT_TEMPLATE,
                     "Back": _BACK_TEMPLATE,
                 }
@@ -60,7 +63,7 @@ class AnkiConnectConnector(AnkiConnector):
         self._invoke("createDeck", deck=deck_name)
 
     def find_notes_by_target(self, deck_name: str, target: str) -> list[int]:
-        query = f'note:VocabMiner Target:"{target}"'
+        query = f'note:{_DEFAULT_MODEL_NAME} Target:"{target}"'
         result = self._invoke("findNotes", query=query)
         return list(result) if result else []  # type: ignore[arg-type]
 
@@ -76,9 +79,19 @@ class AnkiConnectConnector(AnkiConnector):
                 "modelName": model_name,
                 "fields": note,
                 "options": {"allowDuplicate": False},
-                "tags": ["vocabminer"],
+                "tags": ["anything-to-anki"],
             }
             for note in notes
         ]
         result = self._invoke("addNotes", notes=anki_notes)
         return list(result) if result else []  # type: ignore[arg-type]
+
+    def get_model_field_names(self, model_name: str) -> list[str] | None:
+        try:
+            existing: list[str] = self._invoke("modelNames")  # type: ignore[assignment]
+            if model_name not in existing:
+                return None
+            fields = self._invoke("modelFieldNames", modelName=model_name)
+            return list(fields)  # type: ignore[arg-type]
+        except Exception:  # noqa: BLE001
+            return None

@@ -8,7 +8,26 @@ if TYPE_CHECKING:
     from backend.domain.ports.settings_repository import SettingsRepository
 
 _DEFAULT_CEFR_LEVEL: str = "B1"
-_DEFAULT_DECK_NAME: str = "VocabMiner"
+_DEFAULT_DECK_NAME: str = "Default"
+_DEFAULT_NOTE_TYPE: str = "AnythingToAnkiType"
+_DEFAULT_AI_PROVIDER: str = "claude"
+_DEFAULT_AI_MODEL: str = "sonnet"
+_DEFAULT_FIELD_SENTENCE: str = "Sentence"
+_DEFAULT_FIELD_TARGET: str = "Target"
+_DEFAULT_FIELD_MEANING: str = "Meaning"
+_DEFAULT_FIELD_IPA: str = "IPA"
+
+_SETTING_KEYS: dict[str, str] = {
+    "cefr_level": _DEFAULT_CEFR_LEVEL,
+    "anki_deck_name": _DEFAULT_DECK_NAME,
+    "ai_provider": _DEFAULT_AI_PROVIDER,
+    "ai_model": _DEFAULT_AI_MODEL,
+    "anki_note_type": _DEFAULT_NOTE_TYPE,
+    "anki_field_sentence": _DEFAULT_FIELD_SENTENCE,
+    "anki_field_target_word": _DEFAULT_FIELD_TARGET,
+    "anki_field_meaning": _DEFAULT_FIELD_MEANING,
+    "anki_field_ipa": _DEFAULT_FIELD_IPA,
+}
 
 
 class ManageSettingsUseCase:
@@ -18,15 +37,14 @@ class ManageSettingsUseCase:
         self._settings_repo = settings_repo
 
     def get_settings(self) -> SettingsDTO:
-        cefr_level = self._settings_repo.get("cefr_level", _DEFAULT_CEFR_LEVEL) or _DEFAULT_CEFR_LEVEL
-        anki_deck_name = self._settings_repo.get("anki_deck_name", _DEFAULT_DECK_NAME) or _DEFAULT_DECK_NAME
-        return SettingsDTO(cefr_level=cefr_level, anki_deck_name=anki_deck_name)
+        values = {key: (self._settings_repo.get(key, default) or default) for key, default in _SETTING_KEYS.items()}
+        return SettingsDTO(**values)
 
     def update_settings(self, request: UpdateSettingsRequest) -> SettingsDTO:
-        if request.cefr_level is not None:
-            self._settings_repo.set("cefr_level", request.cefr_level)
-        if request.anki_deck_name is not None:
-            self._settings_repo.set("anki_deck_name", request.anki_deck_name)
+        for key in _SETTING_KEYS:
+            value = getattr(request, key, None)
+            if value is not None:
+                self._settings_repo.set(key, value)
         return self.get_settings()
 
     # kept for backward-compatibility with existing routes

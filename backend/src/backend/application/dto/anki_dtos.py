@@ -29,3 +29,31 @@ class SyncResultDTO(BaseModel):
     errors: int
     skipped_lemmas: list[str] = []
     error_lemmas: list[str] = []
+
+
+class VerifyNoteTypeRequest(BaseModel):
+    """Request to verify that a note type exists and has required fields."""
+
+    note_type: str
+    required_fields: list[str]
+
+
+class VerifyNoteTypeResponseDTO(BaseModel):
+    """Result of note type verification."""
+
+    valid: bool
+    available_fields: list[str]
+    missing_fields: list[str]
+
+
+class CreateNoteTypeRequest(BaseModel):
+    """Request to create a note type in Anki."""
+
+    note_type: str
+    fields: list[str]
+
+
+class CreateNoteTypeResponseDTO(BaseModel):
+    """Result of note type creation."""
+
+    already_existed: bool

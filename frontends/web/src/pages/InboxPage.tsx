@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, Plus, Settings } from 'lucide-react'
+import { Loader2, Plus, RefreshCw } from 'lucide-react'
 import { api } from '@/api/client'
-import type { SourceSummary } from '@/api/types'
+import type { SourceSummary, Stats } from '@/api/types'
+import { NavBar } from '@/components/NavBar'
 import { SourceCard } from '@/components/SourceCard'
 import { useSourcePolling } from '@/hooks/useSourcePolling'
 
 export function InboxPage() {
   const navigate = useNavigate()
   const [sources, setSources] = useState<SourceSummary[]>([])
+  const [stats, setStats] = useState<Stats | null>(null)
   const [text, setText] = useState('')
   const [adding, setAdding] = useState(false)
+  const [processingAll, setProcessingAll] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [processingIds, setProcessingIds] = useState<Set<number>>(new Set())
   const processingIdsRef = useRef(processingIds)
@@ -18,8 +21,9 @@ export function InboxPage() {
 
   const loadSources = useCallback(async () => {
     try {
-      const list = await api.listSources()
+      const [list, s] = await Promise.all([api.listSources(), api.getStats()])
       setSources(list)
+      setStats(s)
     } catch {
       // ignore background reload errors
     }
@@ -37,6 +41,7 @@ export function InboxPage() {
         next.delete(updated.id)
         return next
       })
+      void api.getStats().then(setStats).catch(() => undefined)
     },
     [],
   )
@@ -56,6 +61,7 @@ export function InboxPage() {
         status: 'new',
         created_at: new Date().toISOString(),
         candidate_count: 0,
+        learn_count: 0,
       }
       setSources((prev) => [newSource, ...prev])
     } catch (e) {
@@ -78,6 +84,28 @@ export function InboxPage() {
     }
   }
 
+  const handleProcessAll = async () => {
+    const pending = sources.filter((s) => s.status === 'new' || s.status === 'error')
+    if (pending.length === 0) return
+    setProcessingAll(true)
+    try {
+      for (const source of pending) {
+        try {
+          await api.processSource(source.id)
+          setSources((prev) =>
+            prev.map((s) => (s.id === source.id ? { ...s, status: 'processing' as const } : s)),
+          )
+          setProcessingIds((prev) => new Set(prev).add(source.id))
+          startPolling(source.id)
+        } catch {
+          // skip individual errors, continue with others
+        }
+      }
+    } finally {
+      setProcessingAll(false)
+    }
+  }
+
   const handleReview = (id: number) => {
     navigate(`/sources/${id}/review`)
   }
@@ -86,21 +114,11 @@ export function InboxPage() {
     navigate(`/sources/${id}/export`)
   }
 
+  const pendingCount = sources.filter((s) => s.status === 'new' || s.status === 'error').length
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
-      <header className="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight text-slate-100">VocabMiner</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Vocabulary extraction from any text</p>
-        </div>
-        <button
-          onClick={() => navigate('/settings')}
-          className="p-2 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
-          aria-label="Settings"
-        >
-          <Settings size={16} />
-        </button>
-      </header>
+      <NavBar />
 
       <main className="mx-auto max-w-6xl px-4 py-8 grid grid-cols-1 gap-8 lg:grid-cols-[400px_1fr]">
         {/* Form */}
@@ -128,9 +146,37 @@ export function InboxPage() {
 
         {/* Source list */}
         <section className="flex flex-col gap-4">
-          <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wider">
-            Sources{sources.length > 0 && <span className="ml-2 text-slate-600">({sources.length})</span>}
-          </h2>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wider">
+                Sources{sources.length > 0 && <span className="ml-2 text-slate-600">({sources.length})</span>}
+              </h2>
+              {stats && (
+                <span className="text-xs text-slate-600">
+                  {stats.learn_count > 0 && (
+                    <span className="text-indigo-400">{stats.learn_count} to learn</span>
+                  )}
+                  {stats.learn_count > 0 && stats.known_word_count > 0 && <span> · </span>}
+                  {stats.known_word_count > 0 && (
+                    <span>{stats.known_word_count} known</span>
+                  )}
+                </span>
+              )}
+            </div>
+            {pendingCount > 0 && (
+              <button
+                onClick={handleProcessAll}
+                disabled={processingAll}
+                className="flex items-center gap-1.5 rounded-md border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-400 hover:text-slate-200 hover:border-slate-600 disabled:opacity-50 transition-colors cursor-pointer"
+              >
+                {processingAll
+                  ? <Loader2 size={11} className="animate-spin" />
+                  : <RefreshCw size={11} />
+                }
+                Process all ({pendingCount})
+              </button>
+            )}
+          </div>
 
           {sources.length === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-800 p-8 text-center">

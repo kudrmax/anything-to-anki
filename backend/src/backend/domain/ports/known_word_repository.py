@@ -24,3 +24,6 @@ class KnownWordRepository(ABC):
 
     @abstractmethod
     def get_all_pairs(self) -> set[tuple[str, str]]: ...
+
+    @abstractmethod
+    def count(self) -> int: ...

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sqlalchemy import func
+
 from backend.domain.ports.candidate_repository import CandidateRepository
 from backend.infrastructure.persistence.models import StoredCandidateModel
 
@@ -41,3 +43,11 @@ class SqlaCandidateRepository(CandidateRepository):
         if model is not None:
             model.status = status.value
             self._session.flush()
+
+    def count_by_status(self, status: CandidateStatus) -> int:
+        result = (
+            self._session.query(func.count(StoredCandidateModel.id))
+            .filter(StoredCandidateModel.status == status.value)
+            .scalar()
+        )
+        return result or 0
