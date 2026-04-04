@@ -47,6 +47,7 @@ class StoredCandidateDTO(BaseModel):
     fragment_purity: str
     occurrences: int
     status: str
+    surface_form: str | None = None
 
 
 SourceDetailDTO.model_rebuild()

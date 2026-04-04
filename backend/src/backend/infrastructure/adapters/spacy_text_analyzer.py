@@ -43,6 +43,8 @@ class SpaCyTextAnalyzer(TextAnalyzer):
                     is_alpha=token.is_alpha,
                     is_propn=token.pos_ == "PROPN",
                     sent_index=sent_indices.get(token.i, 0),
+                    dep=token.dep_,
+                    whitespace_after=token.whitespace_,
                 )
             )
 

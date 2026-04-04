@@ -23,3 +23,5 @@ class TokenData:
     is_alpha: bool
     is_propn: bool
     sent_index: int
+    dep: str = ""  # Dependency relation label (e.g. "prt", "prep", "ROOT")
+    whitespace_after: str = ""  # Trailing whitespace as it appears in original text

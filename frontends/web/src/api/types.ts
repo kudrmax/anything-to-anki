@@ -28,6 +28,7 @@ export interface StoredCandidate {
   fragment_purity: string
   occurrences: number
   status: CandidateStatus
+  surface_form: string | null
 }
 
 export interface SourceDetail {

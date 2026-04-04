@@ -41,10 +41,10 @@ class FragmentExtractor:
         if self._count_content_words(tokens, subtree_indices) > MAX_FRAGMENT_WORDS:
             subtree_indices = self._trim_window(tokens, target_index, target.sent_index)
 
-        # Build fragment text from sorted indices
+        # Build fragment text from sorted indices, preserving original spacing
         sorted_indices = sorted(subtree_indices)
-        fragment_tokens = [tokens[i].text for i in sorted_indices]
-        return " ".join(fragment_tokens)
+        parts = [tokens[i].text + tokens[i].whitespace_after for i in sorted_indices]
+        return "".join(parts).strip()
 
     def extract_indices(self, tokens: list[TokenData], target_index: int) -> list[int]:
         """Extract fragment and return the token indices (for unknown-word counting)."""

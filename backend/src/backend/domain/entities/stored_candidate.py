@@ -21,4 +21,5 @@ class StoredCandidate:
     fragment_purity: str
     occurrences: int
     status: CandidateStatus
+    surface_form: str | None = None
     id: int | None = None

@@ -62,6 +62,7 @@ class StoredCandidateModel(Base):
     fragment_purity: Mapped[str] = mapped_column(String(10), nullable=False)
     occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
+    surface_form: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     def to_entity(self) -> StoredCandidate:
         return StoredCandidate(
@@ -75,6 +76,7 @@ class StoredCandidateModel(Base):
             context_fragment=self.context_fragment,
             fragment_purity=self.fragment_purity,
             occurrences=self.occurrences,
+            surface_form=self.surface_form,
             status=CandidateStatus(self.status),
         )
 
@@ -90,6 +92,7 @@ class StoredCandidateModel(Base):
             context_fragment=candidate.context_fragment,
             fragment_purity=candidate.fragment_purity,
             occurrences=candidate.occurrences,
+            surface_form=candidate.surface_form,
             status=candidate.status.value,
         )
 

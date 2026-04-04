@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.frequency_provider import FrequencyProvider
     from backend.domain.ports.text_analyzer import TextAnalyzer
     from backend.domain.ports.text_cleaner import TextCleaner
+    from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
 
 DIRTY_THRESHOLD: int = 2
 
@@ -32,11 +33,13 @@ class AnalyzeTextUseCase:
         text_analyzer: TextAnalyzer,
         cefr_classifier: CEFRClassifier,
         frequency_provider: FrequencyProvider,
+        phrasal_verb_detector: PhrasalVerbDetector,
     ) -> None:
         self._text_cleaner = text_cleaner
         self._text_analyzer = text_analyzer
         self._cefr_classifier = cefr_classifier
         self._frequency_provider = frequency_provider
+        self._phrasal_verb_detector = phrasal_verb_detector
         self._candidate_filter = CandidateFilter()
         self._fragment_extractor = FragmentExtractor()
 
@@ -58,7 +61,7 @@ class AnalyzeTextUseCase:
                 unique_lemmas=0,
             )
 
-        # Collect candidates: group by (lemma, pos)
+        # Collect single-word candidates: group by (lemma, pos)
         candidate_map: dict[tuple[str, str], _CandidateAccumulator] = {}
 
         for token in tokens:
@@ -86,8 +89,12 @@ class AnalyzeTextUseCase:
                     fragment=fragment,
                     unknown_count=unknown_count,
                     pos_tag=token.tag,
+                    is_phrasal_verb=False,
                 )
             candidate_map[key].occurrences += 1
+
+        # Collect phrasal verb candidates
+        self._collect_phrasal_verbs(tokens, candidate_map, user_level)
 
         # Build sorted list
         candidates = self._build_sorted_candidates(candidate_map)
@@ -100,6 +107,43 @@ class AnalyzeTextUseCase:
             total_tokens=len(tokens),
             unique_lemmas=unique_lemmas,
         )
+
+    def _collect_phrasal_verbs(
+        self,
+        tokens: list[TokenData],
+        candidate_map: dict[tuple[str, str], _CandidateAccumulator],
+        user_level: CEFRLevel,
+    ) -> None:
+        """Detect phrasal verbs and add them to candidate_map."""
+        token_map = {t.index: t for t in tokens}
+        matches = self._phrasal_verb_detector.detect(tokens)
+
+        for match in matches:
+            key = (match.lemma, "VERB")
+            verb_token = token_map[match.verb_index]
+
+            if key not in candidate_map:
+                freq = self._frequency_provider.get_frequency(match.lemma)
+                fragment = self._fragment_extractor.extract(tokens, match.verb_index)
+                fragment_indices = self._fragment_extractor.extract_indices(
+                    tokens, match.verb_index
+                )
+                unknown_count = self._count_unknowns_in_fragment(
+                    fragment_indices, tokens, user_level
+                )
+                # CEFR via base verb (cefrpy doesn't know phrasal verbs)
+                cefr = self._cefr_classifier.classify(verb_token.lemma, verb_token.tag)
+                candidate_map[key] = _CandidateAccumulator(
+                    cefr=cefr,
+                    freq_zipf=freq.zipf_value,
+                    freq_sweet_spot=freq.is_sweet_spot,
+                    fragment=fragment,
+                    unknown_count=unknown_count,
+                    pos_tag=verb_token.tag,
+                    is_phrasal_verb=True,
+                    surface_form=match.surface_form,
+                )
+            candidate_map[key].occurrences += 1
 
     def _count_unknowns_in_fragment(
         self,
@@ -121,7 +165,7 @@ class AnalyzeTextUseCase:
     def _build_sorted_candidates(
         self, candidate_map: dict[tuple[str, str], _CandidateAccumulator]
     ) -> list[WordCandidate]:
-        """Build and sort candidates: sweet_spot first, then by zipf asc, occurrences desc."""
+        """Build and sort candidates: phrasal verbs first, then sweet_spot, then zipf asc."""
         from backend.domain.value_objects.frequency_band import FrequencyBand
 
         candidates: list[WordCandidate] = []
@@ -135,14 +179,17 @@ class AnalyzeTextUseCase:
                     context_fragment=acc.fragment,
                     fragment_unknown_count=acc.unknown_count,
                     occurrences=acc.occurrences,
+                    is_phrasal_verb=acc.is_phrasal_verb,
+                    surface_form=acc.surface_form,
                 )
             )
 
         candidates.sort(
             key=lambda c: (
+                not c.is_phrasal_verb,               # phrasal verbs first
                 not c.frequency_band.is_sweet_spot,  # sweet spot first
-                c.frequency_band.zipf_value,  # rarer words first (lower zipf)
-                -c.occurrences,  # more occurrences first
+                c.frequency_band.zipf_value,          # rarer words first (lower zipf)
+                -c.occurrences,                       # more occurrences first
             )
         )
         return candidates
@@ -160,6 +207,8 @@ class AnalyzeTextUseCase:
             context_fragment=candidate.context_fragment,
             fragment_purity=purity,
             occurrences=candidate.occurrences,
+            is_phrasal_verb=candidate.is_phrasal_verb,
+            surface_form=candidate.surface_form,
         )
 
 
@@ -174,6 +223,8 @@ class _CandidateAccumulator:
         "unknown_count",
         "pos_tag",
         "occurrences",
+        "is_phrasal_verb",
+        "surface_form",
     )
 
     def __init__(
@@ -184,6 +235,8 @@ class _CandidateAccumulator:
         fragment: str,
         unknown_count: int,
         pos_tag: str,
+        is_phrasal_verb: bool,
+        surface_form: str | None = None,
     ) -> None:
         self.cefr = cefr
         self.freq_zipf = freq_zipf
@@ -191,4 +244,6 @@ class _CandidateAccumulator:
         self.fragment = fragment
         self.unknown_count = unknown_count
         self.pos_tag = pos_tag
+        self.is_phrasal_verb = is_phrasal_verb
+        self.surface_form = surface_form
         self.occurrences = 0

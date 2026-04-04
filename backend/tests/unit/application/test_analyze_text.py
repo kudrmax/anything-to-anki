@@ -64,11 +64,15 @@ def _create_use_case(
         _freq.get(lemma, 5.0)
     )
 
+    phrasal_verb_detector = MagicMock()
+    phrasal_verb_detector.detect.return_value = []
+
     return AnalyzeTextUseCase(
         text_cleaner=text_cleaner,
         text_analyzer=text_analyzer,
         cefr_classifier=cefr_classifier,
         frequency_provider=frequency_provider,
+        phrasal_verb_detector=phrasal_verb_detector,
     )
 
 

@@ -37,6 +37,7 @@ class GetCandidatesUseCase:
                 context_fragment=c.context_fragment,
                 fragment_purity=c.fragment_purity,
                 occurrences=c.occurrences,
+                surface_form=c.surface_form,
                 status=c.status.value,
             )
             for c in candidates

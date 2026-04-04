@@ -29,6 +29,8 @@ class WordCandidateDTO(BaseModel):
     context_fragment: str
     fragment_purity: str  # "clean" | "dirty"
     occurrences: int
+    is_phrasal_verb: bool = False
+    surface_form: str | None = None
 
 
 class AnalyzeTextResponse(BaseModel):

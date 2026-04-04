@@ -19,3 +19,5 @@ class WordCandidate:
     context_fragment: str
     fragment_unknown_count: int
     occurrences: int
+    is_phrasal_verb: bool = False
+    surface_form: str | None = None  # Actual form in text, e.g. "gave up" for lemma "give up"

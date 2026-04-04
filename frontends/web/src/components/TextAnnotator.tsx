@@ -25,43 +25,48 @@ type TextSegment =
   | { type: 'text'; content: string }
   | { type: 'mark'; content: string; candidateId: number; cefrLevel: string }
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function buildSegments(text: string, candidates: StoredCandidate[]): TextSegment[] {
-  // Build list of (start, end, candidate) matches in the text
-  type Match = { start: number; end: number; candidate: StoredCandidate }
+  type Match = { start: number; end: number; candidate: StoredCandidate; exact: boolean }
   const matches: Match[] = []
 
   for (const candidate of candidates) {
-    // Try to find context_fragment first, then lemma
-    const targets = [candidate.context_fragment, candidate.lemma].filter(Boolean)
-    let found = false
-    for (const target of targets) {
-      const idx = text.toLowerCase().indexOf(target.toLowerCase())
+    if (candidate.surface_form) {
+      // Phrasal verb: exact match by surface form ("gave up", "looked after")
+      const idx = text.toLowerCase().indexOf(candidate.surface_form.toLowerCase())
       if (idx !== -1) {
-        matches.push({ start: idx, end: idx + target.length, candidate })
-        found = true
-        break
+        matches.push({ start: idx, end: idx + candidate.surface_form.length, candidate, exact: true })
       }
-    }
-    if (!found) {
-      // Word-boundary search for lemma in text
-      const re = new RegExp(`\\b${candidate.lemma}\\b`, 'i')
+    } else {
+      // Single word: word-boundary regex with stem matching for inflected forms
+      const re = new RegExp(`\\b${escapeRegex(candidate.lemma)}\\w*`, 'i')
       const m = re.exec(text)
       if (m) {
-        matches.push({ start: m.index, end: m.index + m[0].length, candidate })
+        matches.push({ start: m.index, end: m.index + m[0].length, candidate, exact: false })
       }
     }
   }
 
-  // Sort by start position, remove overlaps
-  matches.sort((a, b) => a.start - b.start)
+  // Exact (phrasal verb) matches win over single-word matches when overlapping
+  matches.sort((a, b) => {
+    if (a.exact !== b.exact) return a.exact ? -1 : 1
+    return a.start - b.start
+  })
+
+  const taken: Array<{ start: number; end: number }> = []
   const nonOverlapping: Match[] = []
-  let cursor = 0
   for (const m of matches) {
-    if (m.start >= cursor) {
+    const overlaps = taken.some(t => m.start < t.end && m.end > t.start)
+    if (!overlaps) {
       nonOverlapping.push(m)
-      cursor = m.end
+      taken.push({ start: m.start, end: m.end })
     }
   }
+
+  nonOverlapping.sort((a, b) => a.start - b.start)
 
   // Build segments
   const segments: TextSegment[] = []
