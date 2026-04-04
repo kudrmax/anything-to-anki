@@ -19,6 +19,7 @@ class SourceDTO(BaseModel):
     status: str
     created_at: datetime
     candidate_count: int
+    learn_count: int
 
 
 class SourceDetailDTO(BaseModel):

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.source_dtos import SourceDetailDTO, SourceDTO, StoredCandidateDTO
 from backend.domain.exceptions import SourceNotFoundError
+from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
@@ -29,6 +30,7 @@ class GetSourcesUseCase:
         for source in sources:
             assert source.id is not None
             candidates = self._candidate_repo.get_by_source(source.id)
+            learn_count = sum(1 for c in candidates if c.status == CandidateStatus.LEARN)
             result.append(
                 SourceDTO(
                     id=source.id,
@@ -36,6 +38,7 @@ class GetSourcesUseCase:
                     status=source.status.value,
                     created_at=source.created_at,
                     candidate_count=len(candidates),
+                    learn_count=learn_count,
                 )
             )
         return result

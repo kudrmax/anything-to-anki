@@ -4,6 +4,7 @@ import pytest
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import SourceNotFoundError
+from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -26,6 +27,27 @@ class TestGetSourcesUseCase:
         result = self.use_case.list_all()
         assert len(result) == 2
         assert result[0].id == 1
+
+    def test_list_all_learn_count(self) -> None:
+        from backend.domain.entities.stored_candidate import StoredCandidate
+
+        self.source_repo.list_all.return_value = [
+            Source(id=1, raw_text="Text one", status=SourceStatus.DONE),
+        ]
+        make_candidate = lambda status: StoredCandidate(  # noqa: E731
+            id=1, source_id=1, lemma="word", pos="NOUN", cefr_level="B2",
+            zipf_frequency=4.0, is_sweet_spot=True, context_fragment="ctx",
+            fragment_purity="clean", occurrences=1, status=status,
+        )
+        self.candidate_repo.get_by_source.return_value = [
+            make_candidate(CandidateStatus.LEARN),
+            make_candidate(CandidateStatus.LEARN),
+            make_candidate(CandidateStatus.PENDING),
+            make_candidate(CandidateStatus.KNOWN),
+        ]
+        result = self.use_case.list_all()
+        assert result[0].candidate_count == 4
+        assert result[0].learn_count == 2
 
     def test_get_by_id_found(self) -> None:
         self.source_repo.get_by_id.return_value = Source(

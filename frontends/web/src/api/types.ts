@@ -14,6 +14,7 @@ export interface SourceSummary {
   status: SourceStatus
   created_at: string
   candidate_count: number
+  learn_count: number
 }
 
 export interface StoredCandidate {
