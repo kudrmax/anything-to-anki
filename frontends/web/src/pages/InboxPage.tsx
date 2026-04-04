@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, Plus, Settings } from 'lucide-react'
+import { Loader2, Plus } from 'lucide-react'
 import { api } from '@/api/client'
 import type { SourceSummary } from '@/api/types'
 import { SourceCard } from '@/components/SourceCard'
@@ -56,6 +56,7 @@ export function InboxPage() {
         status: 'new',
         created_at: new Date().toISOString(),
         candidate_count: 0,
+        learn_count: 0,
       }
       setSources((prev) => [newSource, ...prev])
     } catch (e) {
@@ -86,26 +87,18 @@ export function InboxPage() {
     navigate(`/sources/${id}/export`)
   }
 
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
-      <header className="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight text-slate-100">VocabMiner</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Vocabulary extraction from any text</p>
-        </div>
-        <button
-          onClick={() => navigate('/settings')}
-          className="p-2 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
-          aria-label="Settings"
-        >
-          <Settings size={16} />
-        </button>
-      </header>
+  const isSidebar = import.meta.env.VITE_LAYOUT === 'sidebar'
 
-      <main className="mx-auto max-w-6xl px-4 py-8 grid grid-cols-1 gap-8 lg:grid-cols-[400px_1fr]">
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <main className={
+        isSidebar
+          ? 'max-w-2xl mx-auto px-6 py-6 flex flex-col gap-6'
+          : 'mx-auto max-w-6xl px-4 py-8 grid grid-cols-1 gap-8 lg:grid-cols-[400px_1fr]'
+      }>
         {/* Form */}
         <section className="flex flex-col gap-4">
-          <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wider">
+          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>
             Add source
           </h2>
           <textarea
@@ -113,13 +106,19 @@ export function InboxPage() {
             onChange={(e) => setText(e.target.value)}
             placeholder="Paste text, lyrics, or subtitles here…"
             rows={8}
-            className="w-full rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-200 placeholder:text-slate-600 resize-none focus:border-indigo-700 focus:outline-none transition-colors"
+            className="w-full rounded-lg px-4 py-3 text-sm resize-none transition-colors cosmic-input"
+            style={{
+              background:   'var(--ibg)',
+              border:       '1.5px solid var(--ib)',
+              color:        'var(--text)',
+            }}
           />
           {error && <p className="text-xs text-rose-400">{error}</p>}
           <button
             onClick={handleAdd}
             disabled={adding || !text.trim()}
-            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+            className="flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50 transition-all hover:brightness-110 hover:-translate-y-px cursor-pointer"
+            style={{ background: 'var(--accent)', boxShadow: '0 4px 14px var(--ag)' }}
           >
             {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
             Add source
@@ -128,13 +127,13 @@ export function InboxPage() {
 
         {/* Source list */}
         <section className="flex flex-col gap-4">
-          <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wider">
-            Sources{sources.length > 0 && <span className="ml-2 text-slate-600">({sources.length})</span>}
+          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>
+            Sources{sources.length > 0 && <span className="ml-2" style={{ color: 'var(--td)' }}>({sources.length})</span>}
           </h2>
 
           {sources.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-800 p-8 text-center">
-              <p className="text-sm text-slate-600">No sources yet. Add one to get started.</p>
+            <div className="rounded-xl border border-dashed p-8 text-center" style={{ borderColor: 'var(--glass-b)' }}>
+              <p className="text-sm" style={{ color: 'var(--td)' }}>No sources yet. Add one to get started.</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">

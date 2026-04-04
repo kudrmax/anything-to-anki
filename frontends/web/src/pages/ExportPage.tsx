@@ -49,8 +49,8 @@ export function ExportPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <Loader2 size={20} className="animate-spin text-slate-500" />
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 size={20} className="animate-spin" style={{ color: 'var(--tm)' }} />
       </div>
     )
   }
@@ -58,17 +58,21 @@ export function ExportPage() {
   const canSync = ankiStatus?.available === true && cards.length > 0 && !syncing
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
-      <header className="border-b border-slate-800 px-6 py-3 flex items-center justify-between gap-4">
+    <div className="flex-1 overflow-y-auto">
+      <header
+        className="px-6 py-3 flex items-center justify-between gap-4"
+        style={{ borderBottom: '1px solid var(--glass-b)' }}
+      >
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 text-sm transition-opacity hover:opacity-100 cursor-pointer"
+          style={{ color: 'var(--tm)', opacity: 0.8 }}
         >
           <ArrowLeft size={14} />
           Back
         </button>
 
-        <h1 className="text-sm font-medium text-slate-300">Export to Anki</h1>
+        <h1 className="text-sm font-medium" style={{ color: 'var(--text)' }}>Export to Anki</h1>
 
         <div className="flex items-center gap-2 text-xs">
           {ankiStatus ? (
@@ -91,18 +95,18 @@ export function ExportPage() {
 
       <main className="mx-auto max-w-2xl px-4 py-8 flex flex-col gap-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wider">
+          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>
             Cards to export{cards.length > 0 && ` (${cards.length})`}
           </h2>
           {!ankiStatus?.available && (
-            <p className="text-xs text-slate-500">Launch Anki with AnkiConnect to sync</p>
+            <p className="text-xs" style={{ color: 'var(--td)' }}>Launch Anki with AnkiConnect to sync</p>
           )}
         </div>
 
         {cards.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-800 p-8 text-center">
-            <p className="text-sm text-slate-600">No words marked for learning.</p>
-            <p className="text-xs text-slate-700 mt-1">
+          <div className="rounded-xl border border-dashed p-8 text-center" style={{ borderColor: 'var(--glass-b)' }}>
+            <p className="text-sm" style={{ color: 'var(--td)' }}>No words marked for learning.</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--td)', opacity: 0.7 }}>
               Go to the review page and mark words as "Learn".
             </p>
           </div>
@@ -146,7 +150,8 @@ export function ExportPage() {
           <button
             onClick={handleSync}
             disabled={!canSync}
-            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors cursor-pointer"
+            className="flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
+            style={{ background: 'var(--accent)' }}
           >
             {syncing && <Loader2 size={14} className="animate-spin" />}
             {syncing ? 'Syncing…' : 'Add to Anki'}

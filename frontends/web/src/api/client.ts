@@ -1,6 +1,6 @@
 import type { AnkiStatus, CardPreview, CandidateStatus, Settings, SourceDetail, SourceStatus, SourceSummary, StoredCandidate, SyncResult } from './types'
 
-const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000'
+const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8002'
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {

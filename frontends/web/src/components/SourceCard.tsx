@@ -11,12 +11,12 @@ interface SourceCardProps {
 }
 
 const STATUS_BADGE: Record<SourceStatus, { label: string; cls: string }> = {
-  new:                { label: 'New',       cls: 'bg-slate-800 text-slate-400' },
-  processing:         { label: 'Processing',cls: 'bg-indigo-900/60 text-indigo-400' },
-  done:               { label: 'Done',      cls: 'bg-emerald-900/60 text-emerald-400' },
-  error:              { label: 'Error',     cls: 'bg-rose-900/60 text-rose-400' },
-  partially_reviewed: { label: 'In review', cls: 'bg-amber-900/60 text-amber-400' },
-  reviewed:           { label: 'Reviewed',  cls: 'bg-sky-900/60 text-sky-400' },
+  new:                { label: 'New',        cls: 'bg-slate-800/60 text-slate-400' },
+  processing:         { label: 'Processing', cls: 'bg-indigo-900/40 text-indigo-300' },
+  done:               { label: 'Done',       cls: 'bg-emerald-900/40 text-emerald-300' },
+  error:              { label: 'Error',      cls: 'bg-rose-900/40 text-rose-300' },
+  partially_reviewed: { label: 'In review',  cls: 'bg-amber-900/40 text-amber-300' },
+  reviewed:           { label: 'Reviewed',   cls: 'bg-sky-900/40 text-sky-300' },
 }
 
 function formatDate(iso: string): string {
@@ -36,9 +36,9 @@ export function SourceCard({ source, onProcess, onReview, onExport, isProcessing
   const isProcessing = source.status === 'processing' || isProcessingLocal
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-4 flex flex-col gap-3 hover:border-slate-700 transition-colors">
+    <div className="glass-card rounded-xl p-4 flex flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-sm text-slate-200 leading-relaxed line-clamp-2 flex-1">
+        <p className="text-sm leading-relaxed line-clamp-2 flex-1" style={{ color: 'var(--text)' }}>
           {source.raw_text_preview}
         </p>
         <span className={cn('shrink-0 rounded-md px-2 py-0.5 text-xs font-medium', badge.cls)}>
@@ -46,12 +46,14 @@ export function SourceCard({ source, onProcess, onReview, onExport, isProcessing
         </span>
       </div>
 
-      <div className="flex items-center justify-between text-xs text-slate-500">
+      <div className="flex items-center justify-between text-xs" style={{ color: 'var(--td)' }}>
         <span>{formatDate(source.created_at)}</span>
         {source.candidate_count > 0 && (
-          <span className="text-slate-400">
+          <span style={{ color: 'var(--tm)' }}>
             {source.candidate_count} candidates
-            {source.learn_count > 0 && <> · <span className="text-indigo-400">{source.learn_count} to learn</span></>}
+            {source.learn_count > 0 && (
+              <> · <span style={{ color: 'var(--accent)' }}>{source.learn_count} to learn</span></>
+            )}
           </span>
         )}
       </div>
@@ -61,14 +63,16 @@ export function SourceCard({ source, onProcess, onReview, onExport, isProcessing
           <button
             onClick={() => onProcess(source.id)}
             disabled={isProcessingLocal}
-            className="flex-1 rounded-md border border-indigo-700 px-3 py-1.5 text-xs font-medium text-indigo-400 hover:bg-indigo-950 disabled:opacity-50 transition-colors"
+            className="flex-1 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
+            style={{ border: '1px solid var(--ag)', color: 'var(--accent)', background: 'var(--abg)' }}
           >
             Process
           </button>
         )}
 
         {isProcessing && (
-          <div className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-500">
+          <div className="flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs"
+            style={{ border: '1px solid var(--glass-b)', color: 'var(--td)' }}>
             <Loader2 size={12} className="animate-spin" />
             Processing…
           </div>
@@ -78,13 +82,15 @@ export function SourceCard({ source, onProcess, onReview, onExport, isProcessing
           <>
             <button
               onClick={() => onReview(source.id)}
-              className="flex-1 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors cursor-pointer"
+              className="flex-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-all hover:brightness-110 cursor-pointer"
+              style={{ background: 'var(--accent)' }}
             >
               {source.status === 'partially_reviewed' ? 'Continue reviewing →' : 'Review →'}
             </button>
             <button
               onClick={() => onExport(source.id)}
-              className="rounded-md border border-indigo-700 px-3 py-1.5 text-xs font-medium text-indigo-400 hover:bg-indigo-950 transition-colors cursor-pointer"
+              className="rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:brightness-110 cursor-pointer"
+              style={{ border: '1px solid var(--ag)', color: 'var(--accent)', background: 'var(--abg)' }}
             >
               Export →
             </button>
@@ -94,7 +100,8 @@ export function SourceCard({ source, onProcess, onReview, onExport, isProcessing
         {source.status === 'reviewed' && (
           <button
             onClick={() => onExport(source.id)}
-            className="flex-1 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors cursor-pointer"
+            className="flex-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-all hover:brightness-110 cursor-pointer"
+            style={{ background: 'var(--accent)' }}
           >
             Export to Anki →
           </button>
