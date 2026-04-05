@@ -28,6 +28,20 @@ function freqLabel(zipf: number): string {
   return 'Rare'
 }
 
+const STATUS_BORDER: Partial<Record<CandidateStatus, string>> = {
+  learn: 'border-l-2 border-l-emerald-500/50',
+  known: 'border-l-2 border-l-sky-500/50',
+  skip:  'border-l-2 border-l-slate-500/40',
+}
+
+// Явный фон по статусу — нужен потому что backdrop-filter внутри overflow-контейнера
+// размывает тёмный фон контейнера (а не fixed body gradient), делая карточки чёрными
+const STATUS_BG: Partial<Record<CandidateStatus, string>> = {
+  learn: 'rgba(16,185,129,0.09)',
+  known: 'rgba(14,165,233,0.09)',
+  skip:  'rgba(148,163,184,0.07)',
+}
+
 const MARK_BUTTONS: { status: CandidateStatus; label: string; cls: string; activeCls: string }[] = [
   {
     status: 'learn',
@@ -70,8 +84,19 @@ export function CandidateCard({
       data-candidate-id={candidate.id}
       onMouseEnter={() => onHoverEnter(candidate.id)}
       onMouseLeave={onHoverLeave}
-      className={cn('glass-card rounded-xl p-4 flex flex-col gap-3', isRated && 'card-slide-in')}
-      style={isHovered ? { borderColor: 'var(--accent)' } : undefined}
+      className={cn(
+        'glass-card rounded-xl p-4 flex flex-col gap-3',
+        isRated && 'card-slide-in',
+        isRated && STATUS_BORDER[candidate.status],
+      )}
+      style={{
+        ...(isRated && {
+          background: STATUS_BG[candidate.status] ?? 'rgba(148,163,184,0.07)',
+          backdropFilter: 'none',
+          WebkitBackdropFilter: 'none',
+        }),
+        ...(isHovered && { borderColor: 'var(--accent)' }),
+      }}
     >
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-base font-semibold" style={{ color: 'var(--text)' }}>{candidate.lemma}</span>

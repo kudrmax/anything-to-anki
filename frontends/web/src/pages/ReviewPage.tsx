@@ -24,7 +24,9 @@ export function ReviewPage() {
   const [loading, setLoading] = useState(true)
   const [hoveredId, setHoveredId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
-  const rightPanelRef = useRef<HTMLDivElement>(null)
+  const candidatesPanelRef = useRef<HTMLDivElement>(null)
+  const textPanelRef = useRef<HTMLDivElement>(null)
+  const hoverFromCardRef = useRef(false)
 
   useEffect(() => {
     const load = async () => {
@@ -49,12 +51,29 @@ export function ReviewPage() {
     )
   }, [])
 
+  const handleCardHoverEnter = useCallback((id: number) => {
+    hoverFromCardRef.current = true
+    setHoveredId(id)
+  }, [])
+
+  const handleTextHover = useCallback((id: number | null) => {
+    hoverFromCardRef.current = false
+    setHoveredId(id)
+  }, [])
+
   const handleWordClick = useCallback((candidateId: number) => {
-    const el = rightPanelRef.current?.querySelector(`[data-candidate-id="${candidateId}"]`)
+    hoverFromCardRef.current = false
+    const el = candidatesPanelRef.current?.querySelector(`[data-candidate-id="${candidateId}"]`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     setHoveredId(candidateId)
     setTimeout(() => setHoveredId(null), 1500)
   }, [])
+
+  useEffect(() => {
+    if (hoveredId === null || !hoverFromCardRef.current) return
+    const mark = textPanelRef.current?.querySelector(`mark[data-candidate-id="${hoveredId}"]`)
+    mark?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [hoveredId])
 
   const handleSave = async () => {
     setSaving(true)
@@ -158,23 +177,8 @@ export function ReviewPage() {
 
       {/* Split panels */}
       <div className="flex-1 overflow-hidden flex">
-        {/* Left: text */}
-        <div className="w-[55%] overflow-y-auto p-6" style={{ borderRight: '1px solid var(--glass-b)' }}>
-          <h2 className="text-xs font-medium uppercase tracking-wider mb-4" style={{ color: 'var(--td)' }}>
-            Source text
-          </h2>
-          <TextAnnotator
-            text={annotationText}
-            candidates={candidates}
-            hoveredCandidateId={hoveredId}
-            ratedIds={ratedIds}
-            onWordClick={handleWordClick}
-            onWordHover={setHoveredId}
-          />
-        </div>
-
-        {/* Right: candidates */}
-        <div ref={rightPanelRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+        {/* Left: candidates */}
+        <div ref={candidatesPanelRef} className="w-[45%] overflow-y-auto p-4 flex flex-col gap-3" style={{ borderRight: '1px solid var(--glass-b)' }}>
           <h2 className="text-xs font-medium uppercase tracking-wider px-1" style={{ color: 'var(--td)' }}>
             Candidates {candidates.length > 0 && `(${candidates.length})`}
           </h2>
@@ -194,7 +198,7 @@ export function ReviewPage() {
                 candidate={c}
                 isRated={false}
                 isHovered={hoveredId === c.id}
-                onHoverEnter={setHoveredId}
+                onHoverEnter={handleCardHoverEnter}
                 onHoverLeave={() => setHoveredId(null)}
                 onMark={handleMark}
               />
@@ -216,13 +220,28 @@ export function ReviewPage() {
                   candidate={c}
                   isRated={true}
                   isHovered={hoveredId === c.id}
-                  onHoverEnter={setHoveredId}
+                  onHoverEnter={handleCardHoverEnter}
                   onHoverLeave={() => setHoveredId(null)}
                   onMark={handleMark}
                 />
               ))}
             </>
           )}
+        </div>
+
+        {/* Right: text */}
+        <div ref={textPanelRef} className="flex-1 overflow-y-auto p-6">
+          <h2 className="text-xs font-medium uppercase tracking-wider mb-4" style={{ color: 'var(--td)' }}>
+            Source text
+          </h2>
+          <TextAnnotator
+            text={annotationText}
+            candidates={candidates}
+            hoveredCandidateId={hoveredId}
+            ratedIds={ratedIds}
+            onWordClick={handleWordClick}
+            onWordHover={handleTextHover}
+          />
         </div>
       </div>
     </div>

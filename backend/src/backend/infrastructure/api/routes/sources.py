@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from backend.application.dto.ai_dtos import GenerateAllMeaningsResultDTO  # noqa: TC001
 from backend.application.dto.source_dtos import (  # noqa: TC001
     CreateSourceRequest,
     SourceDetailDTO,
@@ -161,6 +162,42 @@ def delete_source(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except SourceIsProcessingError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
+
+
+@router.post("/{source_id}/generate-all-meanings")
+async def generate_all_meanings(
+    source_id: int,
+    status: str | None = None,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> GenerateAllMeaningsResultDTO:
+    from backend.domain.value_objects.candidate_status import CandidateStatus
+    from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+
+    repo = SqlaCandidateRepository(session)
+    candidates = repo.get_by_source(source_id)
+
+    if status is not None:
+        try:
+            filter_status = CandidateStatus(status)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid status: {status}") from None
+        candidates = [c for c in candidates if c.status == filter_status]
+
+    use_case = container.generate_meaning_use_case(session)
+    generated = 0
+    failed = 0
+    total_tokens_used = 0
+    for candidate in candidates:
+        try:
+            result = await asyncio.to_thread(use_case.execute, candidate.id)
+            total_tokens_used += result.tokens_used
+            generated += 1
+        except Exception:
+            failed += 1
+
+    session.commit()
+    return GenerateAllMeaningsResultDTO(generated=generated, failed=failed, total_tokens_used=total_tokens_used)
 
 
 @router.get("/{source_id}/candidates")

@@ -96,3 +96,15 @@ export interface VerifyNoteTypeResponse {
 export interface CreateNoteTypeResponse {
   already_existed: boolean
 }
+
+export interface GenerateMeaningResult {
+  candidate_id: number
+  meaning: string
+  tokens_used: number
+}
+
+export interface GenerateAllMeaningsResult {
+  generated: number
+  failed: number
+  total_tokens_used: number
+}

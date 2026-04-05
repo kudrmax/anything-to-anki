@@ -52,6 +52,12 @@ class SqlaCandidateRepository(CandidateRepository):
         )
         return result or 0
 
+    def update_ai_meaning(self, candidate_id: int, meaning: str) -> None:
+        model = self._session.get(StoredCandidateModel, candidate_id)
+        if model is not None:
+            model.ai_meaning = meaning
+            self._session.flush()
+
     def delete_by_source(self, source_id: int) -> None:
         self._session.query(StoredCandidateModel).filter(
             StoredCandidateModel.source_id == source_id

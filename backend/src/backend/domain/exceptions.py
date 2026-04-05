@@ -71,3 +71,11 @@ class AnkiSyncError(DomainError):
     def __init__(self, detail: str) -> None:
         super().__init__(f"Anki sync failed: {detail}")
         self.detail = detail
+
+
+class AIServiceError(DomainError):
+    """Raised when the AI service fails (not authenticated, rate-limited, etc.)."""
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(f"AI service error: {detail}")
+        self.detail = detail

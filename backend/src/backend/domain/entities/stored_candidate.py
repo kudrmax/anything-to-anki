@@ -22,4 +22,5 @@ class StoredCandidate:
     occurrences: int
     status: CandidateStatus
     surface_form: str | None = None
+    ai_meaning: str | None = None
     id: int | None = None

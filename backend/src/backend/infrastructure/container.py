@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
+from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.application.use_cases.create_source import CreateSourceUseCase
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
@@ -16,6 +17,8 @@ from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
+from backend.infrastructure.adapters.ai_model_mapping import model_id_for
+from backend.infrastructure.adapters.http_ai_service import HttpAIService
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
 from backend.infrastructure.adapters.cached_dictionary_api_provider import (
     CachedDictionaryApiProvider,
@@ -129,6 +132,18 @@ class Container:
         return GetSourceCardsUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             dictionary_provider=CachedDictionaryApiProvider(session),
+        )
+
+    def generate_meaning_use_case(self, session: Session) -> GenerateMeaningUseCase:
+        import os
+
+        settings_repo = SqlaSettingsRepository(session)
+        ai_model_key = settings_repo.get("ai_model", "sonnet") or "sonnet"
+        ai_proxy_url = os.environ["AI_PROXY_URL"]
+        ai_service = HttpAIService(url=ai_proxy_url, model=model_id_for(ai_model_key))
+        return GenerateMeaningUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            ai_service=ai_service,
         )
 
     def get_stats_use_case(self, session: Session) -> GetStatsUseCase:

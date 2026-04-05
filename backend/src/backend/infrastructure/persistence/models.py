@@ -63,6 +63,7 @@ class StoredCandidateModel(Base):
     occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     surface_form: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    ai_meaning: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     def to_entity(self) -> StoredCandidate:
         return StoredCandidate(
@@ -77,6 +78,7 @@ class StoredCandidateModel(Base):
             fragment_purity=self.fragment_purity,
             occurrences=self.occurrences,
             surface_form=self.surface_form,
+            ai_meaning=self.ai_meaning,
             status=CandidateStatus(self.status),
         )
 

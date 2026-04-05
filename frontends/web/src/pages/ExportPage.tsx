@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import type { AnkiStatus, CardPreview, SyncResult } from '@/api/types'
 
@@ -15,6 +15,10 @@ export function ExportPage() {
   const [syncing, setSyncing] = useState(false)
   const [result, setResult] = useState<SyncResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set())
+  const [generatingAll, setGeneratingAll] = useState(false)
+  const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -47,6 +51,40 @@ export function ExportPage() {
     }
   }, [sourceId])
 
+  const handleGenerate = useCallback(async (candidateId: number) => {
+    setGeneratingIds((prev) => new Set(prev).add(candidateId))
+    try {
+      const res = await api.generateMeaning(candidateId)
+      setCards((prev) =>
+        prev.map((c) => (c.candidate_id === candidateId ? { ...c, meaning: res.meaning } : c)),
+      )
+      setToast({ text: `Tokens used: ${res.tokens_used}`, key: Date.now() })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Generation failed')
+    } finally {
+      setGeneratingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(candidateId)
+        return next
+      })
+    }
+  }, [])
+
+  const handleGenerateAll = useCallback(async () => {
+    setGeneratingAll(true)
+    setError(null)
+    try {
+      const res = await api.generateAllMeanings(sourceId, 'learn')
+      const updated = await api.getSourceCards(sourceId)
+      setCards(updated)
+      setToast({ text: `Tokens used: ${res.total_tokens_used}`, key: Date.now() })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Generation failed')
+    } finally {
+      setGeneratingAll(false)
+    }
+  }, [sourceId])
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -56,6 +94,7 @@ export function ExportPage() {
   }
 
   const canSync = ankiStatus?.available === true && cards.length > 0 && !syncing
+  const canGenerateAll = cards.length > 0 && !generatingAll && generatingIds.size === 0
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -98,9 +137,26 @@ export function ExportPage() {
           <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>
             Cards to export{cards.length > 0 && ` (${cards.length})`}
           </h2>
-          {!ankiStatus?.available && (
-            <p className="text-xs" style={{ color: 'var(--td)' }}>Launch Anki with AnkiConnect to sync</p>
-          )}
+          <div className="flex items-center gap-3">
+            {!ankiStatus?.available && (
+              <p className="text-xs" style={{ color: 'var(--td)' }}>Launch Anki with AnkiConnect to sync</p>
+            )}
+            {cards.length > 0 && (
+              <button
+                onClick={handleGenerateAll}
+                disabled={!canGenerateAll}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
+                style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+              >
+                {generatingAll ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Sparkles size={12} />
+                )}
+                {generatingAll ? 'Generating…' : 'Generate All'}
+              </button>
+            )}
+          </div>
         </div>
 
         {cards.length === 0 ? (
@@ -113,7 +169,12 @@ export function ExportPage() {
         ) : (
           <div className="flex flex-col gap-3">
             {cards.map((card) => (
-              <CardPreviewItem key={card.candidate_id} card={card} />
+              <CardPreviewItem
+                key={card.candidate_id}
+                card={card}
+                isGenerating={generatingIds.has(card.candidate_id)}
+                onGenerate={() => void handleGenerate(card.candidate_id)}
+              />
             ))}
           </div>
         )}
@@ -158,18 +219,41 @@ export function ExportPage() {
           </button>
         )}
       </main>
+
+      {toast && <Toast key={toast.key} text={toast.text} onDone={() => setToast(null)} />}
     </div>
   )
 }
 
-function CardPreviewItem({ card }: { card: CardPreview }) {
+interface CardPreviewItemProps {
+  card: CardPreview
+  isGenerating: boolean
+  onGenerate: () => void
+}
+
+function CardPreviewItem({ card, isGenerating, onGenerate }: CardPreviewItemProps) {
   return (
     <div className="glass-card rounded-xl p-4 flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <span className="font-semibold" style={{ color: 'var(--text)' }}>{card.lemma}</span>
-        {card.ipa && (
-          <span className="text-xs font-mono shrink-0" style={{ color: 'var(--td)' }}>{card.ipa}</span>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {card.ipa && (
+            <span className="text-xs font-mono" style={{ color: 'var(--td)' }}>{card.ipa}</span>
+          )}
+          <button
+            onClick={onGenerate}
+            disabled={isGenerating}
+            title="Generate meaning with AI"
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded-md disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
+            style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+          >
+            {isGenerating ? (
+              <Loader2 size={11} className="animate-spin" />
+            ) : (
+              <Sparkles size={11} />
+            )}
+          </button>
+        </div>
       </div>
       <p
         className="text-sm italic leading-relaxed"
@@ -182,6 +266,22 @@ function CardPreviewItem({ card }: { card: CardPreview }) {
       ) : (
         <p className="text-xs italic" style={{ color: 'var(--td)' }}>No definition available</p>
       )}
+    </div>
+  )
+}
+
+function Toast({ text, onDone }: { text: string; onDone: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onDone, 3000)
+    return () => clearTimeout(timer)
+  }, [onDone])
+
+  return (
+    <div
+      className="fixed bottom-4 right-4 rounded-lg px-4 py-2.5 text-xs font-medium shadow-lg animate-fade-in-out"
+      style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+    >
+      {text}
     </div>
   )
 }

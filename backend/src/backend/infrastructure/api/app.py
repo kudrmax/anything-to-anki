@@ -12,13 +12,14 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.infrastructure.api.dependencies import get_session_factory
 from backend.infrastructure.api.routes import anki, candidates, known_words, settings, sources, stats
-from backend.infrastructure.persistence.database import create_tables, reset_stuck_processing
+from backend.infrastructure.persistence.database import create_tables, reset_stuck_processing, upgrade_schema
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     session_factory = get_session_factory()
     create_tables(session_factory)  # type: ignore[arg-type]
+    upgrade_schema(session_factory)  # type: ignore[arg-type]
     reset_stuck_processing(session_factory)  # type: ignore[arg-type]
     yield
 

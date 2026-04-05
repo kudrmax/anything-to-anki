@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from sqlalchemy import create_engine, update
+from sqlalchemy import create_engine, text, update
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from backend.domain.value_objects.source_status import SourceStatus
@@ -28,6 +28,17 @@ def create_tables(session_factory: sessionmaker[Session]) -> None:
     """Create all tables from model metadata."""
     engine = session_factory.kw["bind"]
     Base.metadata.create_all(engine)
+
+
+def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
+    """Apply incremental schema changes that create_all() cannot handle."""
+    engine = session_factory.kw["bind"]
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN ai_meaning TEXT"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists — safe to ignore
 
 
 def reset_stuck_processing(session_factory: sessionmaker[Session]) -> None:

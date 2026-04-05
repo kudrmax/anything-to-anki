@@ -36,12 +36,13 @@ class GetSourceCardsUseCase:
         cards: list[CardPreviewDTO] = []
         for candidate in learn_candidates:
             entry = self._dictionary_provider.get_entry(candidate.lemma, candidate.pos)
+            dict_meaning = entry.definition if entry.definition != "No definition found" else None
             cards.append(
                 CardPreviewDTO(
                     candidate_id=candidate.id,  # type: ignore[arg-type]
                     lemma=candidate.lemma,
                     sentence=_highlight(candidate.context_fragment, candidate.lemma),
-                    meaning=entry.definition if entry.definition != "No definition found" else None,
+                    meaning=candidate.ai_meaning or dict_meaning,
                     ipa=entry.ipa,
                 )
             )

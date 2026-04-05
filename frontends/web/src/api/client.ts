@@ -3,6 +3,8 @@ import type {
   CardPreview,
   CandidateStatus,
   CreateNoteTypeResponse,
+  GenerateAllMeaningsResult,
+  GenerateMeaningResult,
   KnownWord,
   Settings,
   SourceDetail,
@@ -79,6 +81,15 @@ export const api = {
     req<{ deleted: number }>(`/known-words/${id}`, { method: 'DELETE' }),
 
   deleteSource: (id: number) => reqVoid(`/sources/${id}`, { method: 'DELETE' }),
+
+  generateMeaning: (candidateId: number) =>
+    req<GenerateMeaningResult>(`/candidates/${candidateId}/generate-meaning`, { method: 'POST' }),
+
+  generateAllMeanings: (sourceId: number, status?: string) =>
+    req<GenerateAllMeaningsResult>(
+      `/sources/${sourceId}/generate-all-meanings${status ? `?status=${status}` : ''}`,
+      { method: 'POST' },
+    ),
 
   getStats: () => req<Stats>('/stats'),
 
