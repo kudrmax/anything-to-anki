@@ -152,8 +152,6 @@ class PromptTemplateModel(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     function_key: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
     user_template: Mapped[str] = mapped_column(Text, nullable=False)
 
@@ -161,8 +159,6 @@ class PromptTemplateModel(Base):
         return PromptTemplate(
             id=self.id,
             function_key=self.function_key,
-            name=self.name,
-            description=self.description,
             system_prompt=self.system_prompt,
             user_template=self.user_template,
         )

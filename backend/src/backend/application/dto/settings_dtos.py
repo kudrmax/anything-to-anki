@@ -17,6 +17,7 @@ class SettingsDTO(BaseModel):
     anki_field_target_word: str
     anki_field_meaning: str
     anki_field_ipa: str
+    enable_definitions: bool
 
 
 class UpdateSettingsRequest(BaseModel):
@@ -31,6 +32,7 @@ class UpdateSettingsRequest(BaseModel):
     anki_field_target_word: str | None = None
     anki_field_meaning: str | None = None
     anki_field_ipa: str | None = None
+    enable_definitions: bool | None = None
 
     @field_validator("cefr_level")
     @classmethod

@@ -197,7 +197,7 @@ export function InboxPage() {
             )}
             style={{ background: 'var(--glass)' }}
           >
-            {(['text', 'lyrics'] as SourceType[]).map((t) => (
+            {(['text', 'lyrics', 'subtitles'] as SourceType[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setSourceType(t)}
@@ -217,7 +217,11 @@ export function InboxPage() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={
-              sourceType === 'lyrics' ? 'Paste song lyrics here…' : 'Paste text here…'
+              sourceType === 'lyrics'
+                ? 'Paste song lyrics here…'
+                : sourceType === 'subtitles'
+                  ? 'Paste .srt subtitle content here…'
+                  : 'Paste text here…'
             }
             rows={8}
             className="w-full rounded-lg px-4 py-3 text-sm resize-none transition-colors cosmic-input"

@@ -182,7 +182,7 @@ export function TextAnnotator({
       ref={containerRef}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-mono"
+      className="text-lg text-slate-300 leading-relaxed whitespace-pre-wrap"
     >
       {segments.map((seg, i) => {
         const segEnd = seg.start + seg.content.length

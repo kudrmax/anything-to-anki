@@ -14,8 +14,6 @@ def _to_dto(pt: PromptTemplate) -> PromptTemplateDTO:
     return PromptTemplateDTO(
         id=pt.id,
         function_key=pt.function_key,
-        name=pt.name,
-        description=pt.description,
         system_prompt=pt.system_prompt,
         user_template=pt.user_template,
     )

@@ -7,6 +7,7 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceAlreadyProcessedError, SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.source_type import SourceType
 
 if TYPE_CHECKING:
     from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.dictionary_provider import DictionaryProvider
     from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.settings_repository import SettingsRepository
+    from backend.domain.ports.source_parser import SourceParser
     from backend.domain.ports.source_repository import SourceRepository
 
 _ALLOWED_START_STATUSES = frozenset({SourceStatus.NEW, SourceStatus.ERROR})
@@ -30,6 +32,7 @@ class ProcessSourceUseCase:
         settings_repo: SettingsRepository,
         analyze_text_use_case: AnalyzeTextUseCase,
         dictionary_provider: DictionaryProvider,
+        source_parsers: dict[SourceType, SourceParser] | None = None,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
@@ -37,6 +40,7 @@ class ProcessSourceUseCase:
         self._settings_repo = settings_repo
         self._analyze_text = analyze_text_use_case
         self._dictionary_provider = dictionary_provider
+        self._source_parsers: dict[SourceType, SourceParser] = source_parsers or {}
 
     def start(self, source_id: int) -> None:
         """Validate source and mark as PROCESSING. Call before launching background task."""
@@ -54,10 +58,11 @@ class ProcessSourceUseCase:
             raise SourceNotFoundError(source_id)
 
         cefr_level = self._settings_repo.get("cefr_level", "B1") or "B1"
+        parser = self._source_parsers.get(source.source_type)
+        raw_text = parser.parse(source.raw_text) if parser else source.raw_text
         request = AnalyzeTextRequest(
-            raw_text=source.raw_text,
+            raw_text=raw_text,
             user_level=cefr_level,
-            source_type=source.source_type,
         )
         result = self._analyze_text.execute(request)
 

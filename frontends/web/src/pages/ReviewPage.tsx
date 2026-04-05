@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import type { CandidateStatus, SourceDetail, StoredCandidate } from '@/api/types'
-import { CandidateCard } from '@/components/CandidateCard'
+import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
 import { TextAnnotator } from '@/components/TextAnnotator'
 
 function sortCandidates(candidates: StoredCandidate[]): StoredCandidate[] {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle, Loader2, Trash2, XCircle } from 'lucide-react'
 import { api } from '@/api/client'
 import type { CreateNoteTypeResponse, KnownWord, PromptTemplate, Settings, VerifyNoteTypeResponse } from '@/api/types'
+import { PROMPT_LABELS } from '@/api/types'
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
 const AI_MODELS = [
@@ -335,8 +336,8 @@ export function SettingsPage() {
               <div key={pt.function_key} className="glass-card rounded-xl p-4 flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{pt.name}</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--td)' }}>{pt.description}</p>
+                    <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{PROMPT_LABELS[pt.function_key]?.name ?? pt.function_key}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--td)' }}>{PROMPT_LABELS[pt.function_key]?.description ?? ''}</p>
                   </div>
                   {editingKey !== pt.function_key && (
                     <button

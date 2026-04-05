@@ -6,7 +6,7 @@ export type SourceStatus =
   | 'partially_reviewed'
   | 'reviewed'
 
-export type SourceType = 'text' | 'lyrics'
+export type SourceType = 'text' | 'lyrics' | 'subtitles'
 
 export type CandidateStatus = 'pending' | 'learn' | 'known' | 'skip'
 
@@ -108,10 +108,15 @@ export interface CreateNoteTypeResponse {
 export interface PromptTemplate {
   id: number
   function_key: string
-  name: string
-  description: string
   system_prompt: string
   user_template: string
+}
+
+export const PROMPT_LABELS: Record<string, { name: string; description: string }> = {
+  generate_meaning: {
+    name: 'Meaning generation',
+    description: 'Explains a word based on the context it appears in',
+  },
 }
 
 export interface GenerateMeaningResult {

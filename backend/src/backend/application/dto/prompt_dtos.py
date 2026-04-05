@@ -8,8 +8,6 @@ class PromptTemplateDTO(BaseModel):
 
     id: int
     function_key: str
-    name: str
-    description: str
     system_prompt: str
     user_template: str
 

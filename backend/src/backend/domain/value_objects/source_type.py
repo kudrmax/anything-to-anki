@@ -4,5 +4,6 @@ from enum import Enum
 
 
 class SourceType(str, Enum):
-    TEXT   = "text"
-    LYRICS = "lyrics"
+    TEXT      = "text"
+    LYRICS    = "lyrics"
+    SUBTITLES = "subtitles"

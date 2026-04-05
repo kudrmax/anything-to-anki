@@ -47,7 +47,7 @@ class AnalyzeTextUseCase:
         user_level = CEFRLevel.from_str(request.user_level)
 
         # Layer 2: clean text
-        cleaned = self._text_cleaner.clean(request.raw_text, request.source_type)
+        cleaned = self._text_cleaner.clean(request.raw_text)
         if not cleaned.strip():
             raise TextTooShortError()
 

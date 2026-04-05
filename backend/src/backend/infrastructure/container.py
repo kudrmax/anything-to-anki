@@ -26,6 +26,9 @@ from backend.infrastructure.adapters.cached_dictionary_api_provider import (
     CachedDictionaryApiProvider,
 )
 from backend.infrastructure.adapters.cefrpy_classifier import CefrpyCEFRClassifier
+from backend.domain.value_objects.source_type import SourceType
+from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
+from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
 from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
@@ -59,7 +62,9 @@ class Container:
 
     def __init__(self) -> None:
         self._text_analyzer = SpaCyTextAnalyzer()
-        self._text_cleaner = RegexTextCleaner(self._text_analyzer)
+        self._text_cleaner = RegexTextCleaner()
+        self._lyrics_parser = RegexLyricsParser(self._text_analyzer)
+        self._srt_parser = RegexSrtParser()
         self._cefr_classifier = CefrpyCEFRClassifier()
         self._frequency_provider = WordfreqFrequencyProvider()
         self._anki_connector = AnkiConnectConnector()
@@ -109,6 +114,10 @@ class Container:
             settings_repo=SqlaSettingsRepository(session),
             analyze_text_use_case=self.analyze_text_use_case(),
             dictionary_provider=CachedDictionaryApiProvider(session),
+            source_parsers={
+                SourceType.LYRICS: self._lyrics_parser,
+                SourceType.SUBTITLES: self._srt_parser,
+            },
         )
 
     def get_candidates_use_case(self, session: Session) -> GetCandidatesUseCase:
