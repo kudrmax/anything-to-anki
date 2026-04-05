@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle, Loader2, Trash2, XCircle } from 'lucide-react'
 import { api } from '@/api/client'
-import type { CreateNoteTypeResponse, KnownWord, Settings, VerifyNoteTypeResponse } from '@/api/types'
+import type { CreateNoteTypeResponse, KnownWord, PromptTemplate, Settings, VerifyNoteTypeResponse } from '@/api/types'
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
 const AI_MODELS = [
@@ -27,6 +27,13 @@ export function SettingsPage() {
   const [knownWords, setKnownWords] = useState<KnownWord[]>([])
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
+  const [prompts, setPrompts] = useState<PromptTemplate[]>([])
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [promptDraft, setPromptDraft] = useState<{ system_prompt: string; user_template: string } | null>(null)
+  const [savingPrompt, setSavingPrompt] = useState(false)
+  const [promptError, setPromptError] = useState<string | null>(null)
+  const [promptSavedKey, setPromptSavedKey] = useState<string | null>(null)
+
   const [verifying, setVerifying] = useState(false)
   const [verifyResult, setVerifyResult] = useState<VerifyNoteTypeResponse | null>(null)
   const [verifyError, setVerifyError] = useState<string | null>(null)
@@ -38,10 +45,11 @@ export function SettingsPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [s, words] = await Promise.all([api.getSettings(), api.getKnownWords()])
+        const [s, words, pts] = await Promise.all([api.getSettings(), api.getKnownWords(), api.getPrompts()])
         setSettings(s)
         setForm(s)
         setKnownWords(words)
+        setPrompts(pts)
       } catch (e) {
         setSaveError(e instanceof Error ? e.message : 'Failed to load settings')
       } finally {
@@ -126,6 +134,45 @@ export function SettingsPage() {
     setVerifyResult(null)
     setCreateResult(null)
   }
+
+  const autoResize = (el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }
+
+  const handleEditPrompt = (pt: PromptTemplate) => {
+    setEditingKey(pt.function_key)
+    setPromptDraft({ system_prompt: pt.system_prompt, user_template: pt.user_template })
+    setPromptError(null)
+    setPromptSavedKey(null)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingKey(null)
+    setPromptDraft(null)
+    setPromptError(null)
+  }
+
+  const handleSavePrompt = useCallback(async (functionKey: string) => {
+    if (!promptDraft) return
+    setSavingPrompt(true)
+    setPromptError(null)
+    try {
+      const updated = await api.updatePrompt(functionKey, promptDraft)
+      setPrompts((prev) => prev.map((p) => (p.function_key === functionKey ? updated : p)))
+      setPromptSavedKey(functionKey)
+      setTimeout(() => {
+        setPromptSavedKey(null)
+        setEditingKey(null)
+        setPromptDraft(null)
+      }, 1500)
+    } catch (e) {
+      setPromptError(e instanceof Error ? e.message : 'Failed to save')
+    } finally {
+      setSavingPrompt(false)
+    }
+  }, [promptDraft])
 
   if (loading || !form) {
     return (
@@ -279,6 +326,88 @@ export function SettingsPage() {
             <p className="text-xs" style={{ color: 'var(--td)' }}>Reserved for future AI-powered features.</p>
           </div>
         </section>
+
+        {/* AI Prompts section */}
+        {prompts.length > 0 && (
+          <section className="flex flex-col gap-4">
+            <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>AI Prompts</h2>
+            {prompts.map((pt) => (
+              <div key={pt.function_key} className="glass-card rounded-xl p-4 flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{pt.name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--td)' }}>{pt.description}</p>
+                  </div>
+                  {editingKey !== pt.function_key && (
+                    <button
+                      onClick={() => handleEditPrompt(pt)}
+                      className="shrink-0 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+                      style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
+
+                {editingKey === pt.function_key && promptDraft && (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs" style={{ color: 'var(--td)' }}>System prompt</label>
+                      <textarea
+                        ref={autoResize}
+                        value={promptDraft.system_prompt}
+                        onChange={(e) => {
+                          autoResize(e.currentTarget)
+                          setPromptDraft((prev) => prev ? { ...prev, system_prompt: e.target.value } : prev)
+                        }}
+                        className="rounded-lg px-4 py-2.5 text-sm transition-colors cosmic-input resize-none overflow-hidden"
+                        style={{ ...INPUT_STYLE, minHeight: '4rem' }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs" style={{ color: 'var(--td)' }}>User template</label>
+                      <textarea
+                        ref={autoResize}
+                        value={promptDraft.user_template}
+                        onChange={(e) => {
+                          autoResize(e.currentTarget)
+                          setPromptDraft((prev) => prev ? { ...prev, user_template: e.target.value } : prev)
+                        }}
+                        className="rounded-lg px-4 py-2.5 text-sm font-mono transition-colors cosmic-input resize-none overflow-hidden"
+                        style={{ ...INPUT_STYLE, minHeight: '6rem' }}
+                      />
+                      <p className="text-xs" style={{ color: 'var(--td)' }}>
+                        Placeholders: <code style={{ color: 'var(--tm)' }}>{'{lemma}'}</code>,{' '}
+                        <code style={{ color: 'var(--tm)' }}>{'{pos}'}</code>,{' '}
+                        <code style={{ color: 'var(--tm)' }}>{'{context}'}</code>
+                      </p>
+                    </div>
+                    {promptError && <p className="text-xs text-rose-400">{promptError}</p>}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => void handleSavePrompt(pt.function_key)}
+                        disabled={savingPrompt}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer text-white"
+                        style={{ background: 'var(--accent)' }}
+                      >
+                        {savingPrompt && <Loader2 size={11} className="animate-spin" />}
+                        {promptSavedKey === pt.function_key ? 'Saved ✓' : 'Save'}
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        disabled={savingPrompt}
+                        className="text-xs px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
+                        style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </section>
+        )}
 
         {/* Save button */}
         {saveError && <p className="text-xs text-rose-400">{saveError}</p>}

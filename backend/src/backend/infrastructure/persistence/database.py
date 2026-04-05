@@ -30,6 +30,19 @@ def create_tables(session_factory: sessionmaker[Session]) -> None:
     Base.metadata.create_all(engine)
 
 
+_DEFAULT_SYSTEM_PROMPT = (
+    "You are a concise English dictionary assistant. "
+    "Always return only the definition text — no labels, no commentary."
+)
+
+_DEFAULT_USER_TEMPLATE = (
+    'Word: "{lemma}" (part of speech: {pos})\n'
+    'Context: "{context}"\n\n'
+    "Write a brief definition (1\u20132 sentences, max 30 words) for the specific meaning used in this context.\n"
+    "Return only the definition text."
+)
+
+
 def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
     """Apply incremental schema changes that create_all() cannot handle."""
     engine = session_factory.kw["bind"]
@@ -39,6 +52,23 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
             conn.commit()
         except Exception:
             pass  # Column already exists — safe to ignore
+
+        # Seed default prompt — idempotent, runs on every startup
+        conn.execute(
+            text(
+                "INSERT OR IGNORE INTO prompt_templates"
+                " (function_key, name, description, system_prompt, user_template)"
+                " VALUES (:fk, :name, :desc, :sys, :usr)"
+            ),
+            {
+                "fk": "generate_meaning",
+                "name": "Definition generation",
+                "desc": "Generates a 1\u20132 sentence contextual definition (max 30 words)",
+                "sys": _DEFAULT_SYSTEM_PROMPT,
+                "usr": _DEFAULT_USER_TEMPLATE,
+            },
+        )
+        conn.commit()
 
 
 def reset_stuck_processing(session_factory: sessionmaker[Session]) -> None:

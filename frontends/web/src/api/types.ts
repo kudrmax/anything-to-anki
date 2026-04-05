@@ -97,6 +97,15 @@ export interface CreateNoteTypeResponse {
   already_existed: boolean
 }
 
+export interface PromptTemplate {
+  id: number
+  function_key: string
+  name: string
+  description: string
+  system_prompt: string
+  user_template: string
+}
+
 export interface GenerateMeaningResult {
   candidate_id: number
   meaning: string

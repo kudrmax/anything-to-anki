@@ -6,6 +6,7 @@ import type {
   GenerateAllMeaningsResult,
   GenerateMeaningResult,
   KnownWord,
+  PromptTemplate,
   Settings,
   SourceDetail,
   SourceStatus,
@@ -92,6 +93,11 @@ export const api = {
     ),
 
   getStats: () => req<Stats>('/stats'),
+
+  getPrompts: () => req<PromptTemplate[]>('/prompts'),
+
+  updatePrompt: (functionKey: string, data: { system_prompt: string; user_template: string }) =>
+    req<PromptTemplate>(`/prompts/${functionKey}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   verifyNoteType: (note_type: string, required_fields: string[]) =>
     req<VerifyNoteTypeResponse>('/anki/verify-note-type', {

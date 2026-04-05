@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.infrastructure.api.dependencies import get_session_factory
-from backend.infrastructure.api.routes import anki, candidates, known_words, settings, sources, stats
+from backend.infrastructure.api.routes import anki, candidates, known_words, prompts, settings, sources, stats
 from backend.infrastructure.persistence.database import create_tables, reset_stuck_processing, upgrade_schema
 
 
@@ -37,6 +37,7 @@ app.include_router(sources.router)
 app.include_router(candidates.router)
 app.include_router(known_words.router)
 app.include_router(settings.router)
+app.include_router(prompts.router)
 app.include_router(anki.router)
 app.include_router(stats.router)
 

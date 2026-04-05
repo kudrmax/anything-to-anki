@@ -153,25 +153,23 @@ export function TextAnnotator({
         let opacity: number
 
         if (isActive) {
-          markCls = hoveredCls
+          markCls = cn('cursor-pointer rounded-sm px-0.5', hoveredCls)
           opacity = 1
-        } else if (!isDimming) {
-          markCls = isRated ? 'bg-transparent' : baseCls
-          opacity = 1
-        } else if (inFragment) {
-          markCls = isRated ? 'bg-transparent' : baseCls
-          opacity = 1
+        } else if (isRated) {
+          // Rated but not active: blend into regular text, no visual distinction
+          markCls = 'cursor-pointer'
+          opacity = isDimming && !inFragment ? 0.15 : 1
         } else {
-          markCls = isRated ? 'bg-transparent' : baseCls
-          opacity = 0.15
+          markCls = cn('cursor-pointer rounded-sm px-0.5', baseCls)
+          opacity = isDimming && !inFragment ? 0.15 : 1
         }
 
         return (
           <mark
             key={i}
             data-candidate-id={seg.candidateId}
-            className={cn('cursor-pointer rounded-sm px-0.5', markCls)}
-            style={{ opacity, transition: 'opacity 150ms ease' }}
+            className={markCls}
+            style={{ opacity, transition: 'opacity 150ms ease', ...(isRated && !isActive && { color: 'inherit', background: 'transparent' }) }}
             onClick={() => onWordClick(seg.candidateId)}
             onMouseEnter={() => onWordHover(seg.candidateId)}
             onMouseLeave={() => onWordHover(null)}

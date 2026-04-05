@@ -11,9 +11,5 @@ class AIService(ABC):
     """Port for AI-powered text generation."""
 
     @abstractmethod
-    def generate_meaning(self, lemma: str, pos: str, context: str) -> GenerationResult:
-        """Generate a concise meaning for a word given its context.
-
-        Returns:
-            GenerationResult with meaning text and token usage.
-        """
+    def generate_meaning(self, system_prompt: str, user_prompt: str) -> GenerationResult:
+        """Call the AI with the given prompts and return the generated text and token usage."""

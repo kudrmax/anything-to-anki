@@ -14,11 +14,11 @@ class HttpAIService(AIService):
         self._url = url.rstrip("/")
         self._model = model
 
-    def generate_meaning(self, lemma: str, pos: str, context: str) -> GenerationResult:
+    def generate_meaning(self, system_prompt: str, user_prompt: str) -> GenerationResult:
         try:
             response = httpx.post(
                 f"{self._url}/generate-meaning",
-                json={"lemma": lemma, "pos": pos, "context": context, "model": self._model},
+                json={"system_prompt": system_prompt, "user_prompt": user_prompt, "model": self._model},
                 timeout=60.0,
             )
             response.raise_for_status()

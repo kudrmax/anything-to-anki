@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.entities.token_data import TokenData
 
-MIN_FRAGMENT_WORDS: int = 3
+MIN_FRAGMENT_WORDS: int = 5
 MAX_FRAGMENT_WORDS: int = 12
 WINDOW_HALF_SIZE: int = 5
 
@@ -14,7 +14,11 @@ class FragmentExtractor:
     """Extracts minimal meaningful context fragments around target words.
 
     Uses dependency tree structure (via TokenData) to find syntactically
-    coherent fragments of 3–12 words.
+    coherent fragments of 5–12 words.
+
+    Step 0: if the whole sentence fits within MAX_FRAGMENT_WORDS content words,
+    use it entirely — this handles short lines (lyrics, quotes) correctly.
+    Steps 1–4: subtree escalation for longer sentences.
     """
 
     def extract(self, tokens: list[TokenData], target_index: int) -> str:
@@ -23,6 +27,13 @@ class FragmentExtractor:
             return ""
 
         target = tokens[target_index]
+
+        # Step 0: short sentence — use it whole
+        sentence_indices = self._sentence_window(tokens, target_index)
+        if self._count_content_words(tokens, sentence_indices) <= MAX_FRAGMENT_WORDS:
+            sorted_indices = sorted(sentence_indices)
+            parts = [tokens[i].text + tokens[i].whitespace_after for i in sorted_indices]
+            return "".join(parts).strip()
 
         # Step 1: collect subtree indices of the target token
         subtree_indices = self._collect_subtree(tokens, target_index)
@@ -52,6 +63,11 @@ class FragmentExtractor:
             return []
 
         target = tokens[target_index]
+
+        # Step 0: short sentence — use it whole
+        sentence_indices = self._sentence_window(tokens, target_index)
+        if self._count_content_words(tokens, sentence_indices) <= MAX_FRAGMENT_WORDS:
+            return sorted(sentence_indices)
 
         subtree_indices = self._collect_subtree(tokens, target_index)
         content_count = self._count_content_words(tokens, subtree_indices)

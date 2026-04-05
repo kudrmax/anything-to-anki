@@ -6,6 +6,7 @@ from sqlalchemy import DateTime, Float, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.domain.entities.known_word import KnownWord
+from backend.domain.entities.prompt_template import PromptTemplate
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -129,3 +130,26 @@ class SettingModel(Base):
 
     key: Mapped[str] = mapped_column(String(50), primary_key=True)
     value: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
+class PromptTemplateModel(Base):
+    """SQLAlchemy model for AI prompt templates keyed by function."""
+
+    __tablename__ = "prompt_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    function_key: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    user_template: Mapped[str] = mapped_column(Text, nullable=False)
+
+    def to_entity(self) -> PromptTemplate:
+        return PromptTemplate(
+            id=self.id,
+            function_key=self.function_key,
+            name=self.name,
+            description=self.description,
+            system_prompt=self.system_prompt,
+            user_template=self.user_template,
+        )

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
+from backend.application.use_cases.manage_prompts import ManagePromptsUseCase
 from backend.application.use_cases.create_source import CreateSourceUseCase
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
@@ -37,6 +38,9 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
 )
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
+)
+from backend.infrastructure.persistence.sqla_prompt_repository import (
+    SqlaPromptRepository,
 )
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
@@ -134,6 +138,9 @@ class Container:
             dictionary_provider=CachedDictionaryApiProvider(session),
         )
 
+    def manage_prompts_use_case(self, session: Session) -> ManagePromptsUseCase:
+        return ManagePromptsUseCase(prompt_repo=SqlaPromptRepository(session))
+
     def generate_meaning_use_case(self, session: Session) -> GenerateMeaningUseCase:
         import os
 
@@ -144,6 +151,7 @@ class Container:
         return GenerateMeaningUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             ai_service=ai_service,
+            prompt_repo=SqlaPromptRepository(session),
         )
 
     def get_stats_use_case(self, session: Session) -> GetStatsUseCase:
