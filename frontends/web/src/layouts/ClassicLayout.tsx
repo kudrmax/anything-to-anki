@@ -19,9 +19,13 @@ export function ClassicLayout() {
           zIndex: 100,
         }}
       >
-        <div className="text-lg font-bold" style={{ letterSpacing: '-0.4px' }}>
+        <button
+          onClick={() => navigate('/')}
+          className="text-lg font-bold cursor-pointer"
+          style={{ letterSpacing: '-0.4px', color: 'var(--text)' }}
+        >
           Vocab<span className="grad-text">Miner</span>
-        </div>
+        </button>
         <button
           onClick={() => navigate('/settings')}
           className="p-2 cursor-pointer transition-opacity hover:opacity-100"

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
+
 import httpx
 
 from backend.domain.ports.anki_connector import AnkiConnector
 
-_ANKI_URL = "http://localhost:8765"
+_ANKI_URL = os.getenv("ANKI_URL", "http://localhost:8765")
 _VERSION = 6
 
 _DEFAULT_MODEL_NAME = "AnythingToAnkiType"

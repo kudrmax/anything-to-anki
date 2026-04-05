@@ -1,19 +1,12 @@
 services:
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
+  app:
+    build: .
     ports:
-      - "8080:8000"
+      - "${PORT:-17832}:8000"
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      ANKI_URL: http://host.docker.internal:8765
     volumes:
-      - ./vocabminer.db:/app/vocabminer.db
-
-  web:
-    build:
-      context: ./frontends/web
-      args:
-        VITE_API_URL: http://localhost:8080
-    ports:
-      - "80:80"
-    depends_on:
-      - api
+      - ./data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

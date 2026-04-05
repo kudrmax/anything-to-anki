@@ -17,7 +17,7 @@ const INPUT_STYLE = {
 } as const
 
 export function SettingsPage() {
-  const [settings, setSettings] = useState<Settings | null>(null)
+  const [_settings, setSettings] = useState<Settings | null>(null)
   const [form, setForm] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -172,7 +172,7 @@ export function SettingsPage() {
 
           <div className="flex flex-col gap-2">
             <p className="text-sm" style={{ color: 'var(--text)' }}>Field mapping</p>
-            <div className="glass-card rounded-xl divide-y" style={{ borderColor: 'var(--glass-b)' }}>
+            <div className="glass-card rounded-xl">
               {(
                 [
                   { key: 'anki_field_sentence', label: 'Sentence' },
@@ -180,8 +180,8 @@ export function SettingsPage() {
                   { key: 'anki_field_meaning', label: 'Meaning' },
                   { key: 'anki_field_ipa', label: 'IPA' },
                 ] as { key: keyof Settings; label: string }[]
-              ).map(({ key, label }) => (
-                <div key={key} className="flex items-center gap-3 px-4 py-2.5">
+              ).map(({ key, label }, i) => (
+                <div key={key} className="flex items-center gap-3 px-4 py-2.5" style={i > 0 ? { borderTop: '1px solid var(--glass-b)' } : undefined}>
                   <span className="text-xs w-24 shrink-0" style={{ color: 'var(--td)' }}>{label}</span>
                   <input
                     type="text"
@@ -304,12 +304,9 @@ export function SettingsPage() {
           {knownWords.length === 0 ? (
             <p className="text-sm italic" style={{ color: 'var(--td)' }}>No known words yet.</p>
           ) : (
-            <div
-              className="glass-card rounded-xl divide-y max-h-64 overflow-y-auto"
-              style={{ borderColor: 'var(--glass-b)' }}
-            >
-              {knownWords.map((w) => (
-                <div key={w.id} className="flex items-center justify-between px-4 py-2.5 gap-2">
+            <div className="glass-card rounded-xl max-h-64 overflow-y-auto">
+              {knownWords.map((w, i) => (
+                <div key={w.id} className="flex items-center justify-between px-4 py-2.5 gap-2" style={i > 0 ? { borderTop: '1px solid var(--glass-b)' } : undefined}>
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-sm truncate" style={{ color: 'var(--text)' }}>{w.lemma}</span>
                     <span
