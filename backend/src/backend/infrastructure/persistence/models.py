@@ -11,6 +11,7 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.source_type import SourceType
 from backend.infrastructure.persistence.database import Base
 
 
@@ -23,6 +24,7 @@ class SourceModel(Base):
     raw_text: Mapped[str] = mapped_column(Text, nullable=False)
     cleaned_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="new")
+    source_type: Mapped[str] = mapped_column(String(20), nullable=False, default="text")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
@@ -34,6 +36,7 @@ class SourceModel(Base):
             raw_text=self.raw_text,
             cleaned_text=self.cleaned_text,
             status=SourceStatus(self.status),
+            source_type=SourceType(self.source_type),
             error_message=self.error_message,
             created_at=self.created_at,
         )
@@ -43,6 +46,7 @@ class SourceModel(Base):
         return SourceModel(
             raw_text=source.raw_text,
             status=source.status.value,
+            source_type=source.source_type.value,
             created_at=source.created_at,
         )
 
@@ -65,6 +69,7 @@ class StoredCandidateModel(Base):
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     surface_form: Mapped[str | None] = mapped_column(String(100), nullable=True)
     ai_meaning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     def to_entity(self) -> StoredCandidate:
         return StoredCandidate(
@@ -72,7 +77,7 @@ class StoredCandidateModel(Base):
             source_id=self.source_id,
             lemma=self.lemma,
             pos=self.pos,
-            cefr_level=self.cefr_level,
+            cefr_level=self.cefr_level or None,
             zipf_frequency=self.zipf_frequency,
             is_sweet_spot=self.is_sweet_spot,
             context_fragment=self.context_fragment,
@@ -80,6 +85,7 @@ class StoredCandidateModel(Base):
             occurrences=self.occurrences,
             surface_form=self.surface_form,
             ai_meaning=self.ai_meaning,
+            is_phrasal_verb=self.is_phrasal_verb,
             status=CandidateStatus(self.status),
         )
 
@@ -89,13 +95,14 @@ class StoredCandidateModel(Base):
             source_id=candidate.source_id,
             lemma=candidate.lemma,
             pos=candidate.pos,
-            cefr_level=candidate.cefr_level,
+            cefr_level=candidate.cefr_level or "",
             zipf_frequency=candidate.zipf_frequency,
             is_sweet_spot=candidate.is_sweet_spot,
             context_fragment=candidate.context_fragment,
             fragment_purity=candidate.fragment_purity,
             occurrences=candidate.occurrences,
             surface_form=candidate.surface_form,
+            is_phrasal_verb=candidate.is_phrasal_verb,
             status=candidate.status.value,
         )
 

@@ -3,3 +3,8 @@ vocabminer_dev.db
 data/
 .pids/
 .logs/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+kanban/

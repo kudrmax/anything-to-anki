@@ -3,6 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, field_validator
 
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.source_type import SourceType
 
 
 class AnalyzeTextRequest(BaseModel):
@@ -10,6 +11,7 @@ class AnalyzeTextRequest(BaseModel):
 
     raw_text: str
     user_level: str
+    source_type: SourceType = SourceType.TEXT
 
     @field_validator("user_level")
     @classmethod
@@ -23,7 +25,7 @@ class WordCandidateDTO(BaseModel):
 
     lemma: str
     pos: str
-    cefr_level: str
+    cefr_level: str | None
     zipf_frequency: float
     is_sweet_spot: bool
     context_fragment: str

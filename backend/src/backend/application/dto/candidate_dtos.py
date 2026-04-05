@@ -5,6 +5,13 @@ from pydantic import BaseModel, field_validator
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 
+class AddManualCandidateRequest(BaseModel):
+    """Input for manually adding a candidate during review."""
+
+    surface_form: str
+    context_fragment: str
+
+
 class MarkCandidateRequest(BaseModel):
     """Input for marking a candidate status."""
 

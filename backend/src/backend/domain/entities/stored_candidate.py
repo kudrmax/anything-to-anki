@@ -14,7 +14,7 @@ class StoredCandidate:
     source_id: int
     lemma: str
     pos: str
-    cefr_level: str
+    cefr_level: str | None
     zipf_frequency: float
     is_sweet_spot: bool
     context_fragment: str
@@ -23,4 +23,5 @@ class StoredCandidate:
     status: CandidateStatus
     surface_form: str | None = None
     ai_meaning: str | None = None
+    is_phrasal_verb: bool = False
     id: int | None = None

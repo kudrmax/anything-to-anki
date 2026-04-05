@@ -14,7 +14,7 @@ class WordCandidate:
 
     lemma: str
     pos: str
-    cefr_level: CEFRLevel
+    cefr_level: CEFRLevel | None
     frequency_band: FrequencyBand
     context_fragment: str
     fragment_unknown_count: int

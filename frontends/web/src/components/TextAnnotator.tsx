@@ -1,5 +1,7 @@
+import { useCallback, useRef, useState } from 'react'
 import type { StoredCandidate } from '@/api/types'
 import { cn } from '@/lib/utils'
+import { SelectionPopover } from '@/components/SelectionPopover'
 
 interface TextAnnotatorProps {
   text: string
@@ -8,6 +10,7 @@ interface TextAnnotatorProps {
   ratedIds: Set<number>
   onWordClick: (candidateId: number) => void
   onWordHover: (candidateId: number | null) => void
+  onManualAdd?: (surfaceForm: string, contextFragment: string) => Promise<void>
 }
 
 const CEFR_HIGHLIGHT: Record<string, string> = {
@@ -24,7 +27,7 @@ const CEFR_HIGHLIGHT_HOVERED: Record<string, string> = {
 
 type TextSegment =
   | { type: 'text'; content: string; start: number }
-  | { type: 'mark'; content: string; start: number; candidateId: number; cefrLevel: string }
+  | { type: 'mark'; content: string; start: number; candidateId: number; cefrLevel: string | null }
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -77,7 +80,7 @@ function buildSegments(text: string, candidates: StoredCandidate[]): TextSegment
       content: text.slice(m.start, m.end),
       start: m.start,
       candidateId: m.candidate.id,
-      cefrLevel: m.candidate.cefr_level,
+      cefrLevel: m.candidate.cefr_level ?? null,
     })
     pos = m.end
   }
@@ -94,8 +97,35 @@ export function TextAnnotator({
   ratedIds,
   onWordClick,
   onWordHover,
+  onManualAdd,
 }: TextAnnotatorProps) {
   const segments = buildSegments(text, candidates)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [popover, setPopover] = useState<{ phrase: string; position: { x: number; y: number } } | null>(null)
+
+  const handleMouseUp = useCallback(() => {
+    if (!onManualAdd) return
+    const sel = window.getSelection()
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return
+    const phrase = sel.toString().trim()
+    if (!phrase) return
+
+    const range = sel.getRangeAt(0)
+    const rect = range.getBoundingClientRect()
+    setPopover({ phrase, position: { x: rect.left + rect.width / 2, y: rect.top } })
+  }, [onManualAdd])
+
+  const handlePopoverAdd = useCallback(async (targetTokens: string[], contextFragment: string) => {
+    const surfaceForm = targetTokens.join(' ')
+    await onManualAdd?.(surfaceForm, contextFragment)
+    setPopover(null)
+    window.getSelection()?.removeAllRanges()
+  }, [onManualAdd])
+
+  const handlePopoverClose = useCallback(() => {
+    setPopover(null)
+    window.getSelection()?.removeAllRanges()
+  }, [])
 
   // Find fragment bounds in the full text for the hovered candidate
   let fragmentStart = -1
@@ -114,7 +144,12 @@ export function TextAnnotator({
   const isDimming = hoveredCandidateId !== null
 
   return (
-    <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-mono">
+    <>
+    <div
+      ref={containerRef}
+      onMouseUp={handleMouseUp}
+      className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-mono"
+    >
       {segments.map((seg, i) => {
         const segEnd = seg.start + seg.content.length
         const inFragment = fragmentStart !== -1 && seg.start < fragmentEnd && segEnd > fragmentStart
@@ -146,8 +181,8 @@ export function TextAnnotator({
 
         const isActive = hoveredCandidateId === seg.candidateId
         const isRated = ratedIds.has(seg.candidateId)
-        const baseCls = CEFR_HIGHLIGHT[seg.cefrLevel] ?? 'bg-slate-400/10 text-slate-400 border-b border-slate-500/40'
-        const hoveredCls = CEFR_HIGHLIGHT_HOVERED[seg.cefrLevel] ?? 'bg-slate-400/25 text-slate-200 border-b-2 border-slate-400'
+        const baseCls = (seg.cefrLevel && CEFR_HIGHLIGHT[seg.cefrLevel]) ?? 'bg-slate-400/10 text-slate-400 border-b border-slate-500/40'
+        const hoveredCls = (seg.cefrLevel && CEFR_HIGHLIGHT_HOVERED[seg.cefrLevel]) ?? 'bg-slate-400/25 text-slate-200 border-b-2 border-slate-400'
 
         let markCls: string
         let opacity: number
@@ -179,5 +214,14 @@ export function TextAnnotator({
         )
       })}
     </div>
+    {popover && (
+      <SelectionPopover
+        phrase={popover.phrase}
+        position={popover.position}
+        onAdd={handlePopoverAdd}
+        onClose={handlePopoverClose}
+      />
+    )}
+    </>
   )
 }

@@ -7,10 +7,12 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.ai_dtos import GenerateAllMeaningsResultDTO  # noqa: TC001
+from backend.application.dto.candidate_dtos import AddManualCandidateRequest  # noqa: TC001
 from backend.application.dto.source_dtos import (  # noqa: TC001
     CreateSourceRequest,
     SourceDetailDTO,
     SourceDTO,
+    StoredCandidateDTO,
 )
 from backend.domain.exceptions import SourceAlreadyProcessedError, SourceIsProcessingError, SourceNotFoundError
 from backend.domain.value_objects.source_status import SourceStatus
@@ -38,7 +40,7 @@ def create_source(
 ) -> dict[str, Any]:
     try:
         use_case = container.create_source_use_case(session)
-        source = use_case.execute(request.raw_text)
+        source = use_case.execute(request.raw_text, request.source_type)
         session.commit()
         return {"id": source.id, "status": source.status.value}
     except ValueError as e:
@@ -198,6 +200,22 @@ async def generate_all_meanings(
 
     session.commit()
     return GenerateAllMeaningsResultDTO(generated=generated, failed=failed, total_tokens_used=total_tokens_used)
+
+
+@router.post("/{source_id}/candidates/manual", status_code=201)
+def add_manual_candidate(
+    source_id: int,
+    request: AddManualCandidateRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> StoredCandidateDTO:
+    try:
+        use_case = container.add_manual_candidate_use_case(session)
+        result = use_case.execute(source_id, request.surface_form, request.context_fragment)
+        session.commit()
+        return result
+    except SourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.get("/{source_id}/candidates")

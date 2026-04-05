@@ -71,7 +71,7 @@ export function CandidateCard({
   onHoverLeave,
   onMark,
 }: CandidateCardProps) {
-  const cefrCls = CEFR_COLOR[candidate.cefr_level] ?? 'bg-slate-800 text-slate-400 border-slate-700'
+  const cefrCls = CEFR_COLOR[candidate.cefr_level ?? ''] ?? 'bg-slate-800 text-slate-400 border-slate-700'
 
   const handleMark = async (status: CandidateStatus) => {
     // Toggle: clicking active status → reset to pending
@@ -103,9 +103,15 @@ export function CandidateCard({
         <span className="rounded px-1.5 py-0.5 text-xs" style={{ color: 'var(--td)', background: 'var(--glass)', border: '1px solid var(--glass-b)' }}>
           {POS_LABEL[candidate.pos] ?? candidate.pos.toLowerCase()}
         </span>
-        <span className={cn('rounded border px-1.5 py-0.5 text-xs font-medium', cefrCls)}>
-          {candidate.cefr_level}
-        </span>
+        {candidate.is_phrasal_verb ? (
+          <span className="rounded border px-1.5 py-0.5 text-xs font-medium bg-violet-900/40 text-violet-400 border-violet-800">
+            phrasal
+          </span>
+        ) : candidate.cefr_level && (
+          <span className={cn('rounded border px-1.5 py-0.5 text-xs font-medium', cefrCls)}>
+            {candidate.cefr_level}
+          </span>
+        )}
         <span className="ml-auto text-xs" style={{ color: 'var(--td)' }}>{freqLabel(candidate.zipf_frequency)}</span>
       </div>
 

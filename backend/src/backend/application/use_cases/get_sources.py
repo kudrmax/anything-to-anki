@@ -36,6 +36,7 @@ class GetSourcesUseCase:
                     id=source.id,
                     raw_text_preview=source.raw_text[:_PREVIEW_LENGTH],
                     status=source.status.value,
+                    source_type=source.source_type.value,
                     created_at=source.created_at,
                     candidate_count=len(candidates),
                     learn_count=learn_count,
@@ -54,6 +55,7 @@ class GetSourcesUseCase:
             raw_text=source.raw_text,
             cleaned_text=source.cleaned_text,
             status=source.status.value,
+            source_type=source.source_type.value,
             error_message=source.error_message,
             created_at=source.created_at,
             candidates=[
@@ -68,6 +70,8 @@ class GetSourcesUseCase:
                     fragment_purity=c.fragment_purity,
                     occurrences=c.occurrences,
                     status=c.status.value,
+                    surface_form=c.surface_form,
+                    is_phrasal_verb=c.is_phrasal_verb,
                 )
                 for c in candidates
             ],

@@ -53,6 +53,18 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
         except Exception:
             pass  # Column already exists — safe to ignore
 
+        try:
+            conn.execute(text("ALTER TABLE sources ADD COLUMN source_type VARCHAR(20) NOT NULL DEFAULT 'text'"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists — safe to ignore
+
+        try:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN is_phrasal_verb BOOLEAN NOT NULL DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists — safe to ignore
+
         # Seed default prompt — idempotent, runs on every startup
         conn.execute(
             text(

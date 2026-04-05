@@ -11,6 +11,7 @@ import type {
   SourceDetail,
   SourceStatus,
   SourceSummary,
+  SourceType,
   Stats,
   StoredCandidate,
   SyncResult,
@@ -37,10 +38,10 @@ async function reqVoid(path: string, init?: RequestInit): Promise<void> {
 }
 
 export const api = {
-  createSource: (raw_text: string) =>
+  createSource: (raw_text: string, source_type: SourceType) =>
     req<{ id: number; status: string }>('/sources', {
       method: 'POST',
-      body: JSON.stringify({ raw_text }),
+      body: JSON.stringify({ raw_text, source_type }),
     }),
 
   listSources: () => req<SourceSummary[]>('/sources'),
@@ -109,5 +110,11 @@ export const api = {
     req<CreateNoteTypeResponse>('/anki/create-note-type', {
       method: 'POST',
       body: JSON.stringify({ note_type, fields }),
+    }),
+
+  addManualCandidate: (sourceId: number, surfaceForm: string, contextFragment: string) =>
+    req<StoredCandidate>(`/sources/${sourceId}/candidates/manual`, {
+      method: 'POST',
+      body: JSON.stringify({ surface_form: surfaceForm, context_fragment: contextFragment }),
     }),
 }

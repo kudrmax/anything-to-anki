@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Loader2, Plus, RefreshCw } from 'lucide-react'
 import { api } from '@/api/client'
-import type { SourceSummary, Stats } from '@/api/types'
+import type { SourceSummary, SourceType, Stats } from '@/api/types'
 import { SourceCard } from '@/components/SourceCard'
 import { useSourcePolling } from '@/hooks/useSourcePolling'
+import { cn } from '@/lib/utils'
 
 function StatWidget({ label, value }: { label: string; value: number }) {
   return (
@@ -52,6 +53,7 @@ export function InboxPage() {
   const [sources, setSources] = useState<SourceSummary[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [text, setText] = useState('')
+  const [sourceType, setSourceType] = useState<SourceType | null>(null)
   const [adding, setAdding] = useState(false)
   const [processingAll, setProcessingAll] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -92,15 +94,21 @@ export function InboxPage() {
 
   const handleAdd = async () => {
     if (!text.trim()) return
+    if (!sourceType) {
+      setError('Select source type: Text or Lyrics')
+      return
+    }
     setAdding(true)
     setError(null)
     try {
-      const created = await api.createSource(text.trim())
+      const created = await api.createSource(text.trim(), sourceType)
       setText('')
+      setSourceType(null)
       const newSource: SourceSummary = {
         id: created.id,
         raw_text_preview: text.trim().slice(0, 100),
         status: 'new',
+        source_type: sourceType,
         created_at: new Date().toISOString(),
         candidate_count: 0,
         learn_count: 0,
@@ -181,10 +189,36 @@ export function InboxPage() {
           <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>
             Add source
           </h2>
+          {/* Source type toggle */}
+          <div
+            className={cn(
+              'flex gap-1 p-1 rounded-lg w-fit transition-all',
+              !sourceType && text.trim() && 'ring-1 ring-amber-500/60',
+            )}
+            style={{ background: 'var(--glass)' }}
+          >
+            {(['text', 'lyrics'] as SourceType[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setSourceType(t)}
+                className="px-3 py-1 rounded-md text-xs font-medium capitalize transition-all cursor-pointer"
+                style={
+                  sourceType === t
+                    ? { background: 'var(--accent)', color: '#fff' }
+                    : { background: 'transparent', color: 'var(--tm)' }
+                }
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Paste text, lyrics, or subtitles here…"
+            placeholder={
+              sourceType === 'lyrics' ? 'Paste song lyrics here…' : 'Paste text here…'
+            }
             rows={8}
             className="w-full rounded-lg px-4 py-3 text-sm resize-none transition-colors cosmic-input"
             style={{

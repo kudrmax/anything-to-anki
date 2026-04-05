@@ -47,7 +47,7 @@ class AnalyzeTextUseCase:
         user_level = CEFRLevel.from_str(request.user_level)
 
         # Layer 2: clean text
-        cleaned = self._text_cleaner.clean(request.raw_text)
+        cleaned = self._text_cleaner.clean(request.raw_text, request.source_type)
         if not cleaned.strip():
             raise TextTooShortError()
 
@@ -131,10 +131,8 @@ class AnalyzeTextUseCase:
                 unknown_count = self._count_unknowns_in_fragment(
                     fragment_indices, tokens, user_level
                 )
-                # CEFR via base verb (cefrpy doesn't know phrasal verbs)
-                cefr = self._cefr_classifier.classify(verb_token.lemma, verb_token.tag)
                 candidate_map[key] = _CandidateAccumulator(
-                    cefr=cefr,
+                    cefr=None,
                     freq_zipf=freq.zipf_value,
                     freq_sweet_spot=freq.is_sweet_spot,
                     fragment=fragment,
@@ -201,7 +199,7 @@ class AnalyzeTextUseCase:
         return WordCandidateDTO(
             lemma=candidate.lemma,
             pos=candidate.pos,
-            cefr_level=candidate.cefr_level.name,
+            cefr_level=candidate.cefr_level.name if candidate.cefr_level else None,
             zipf_frequency=candidate.frequency_band.zipf_value,
             is_sweet_spot=candidate.frequency_band.is_sweet_spot,
             context_fragment=candidate.context_fragment,
@@ -229,7 +227,7 @@ class _CandidateAccumulator:
 
     def __init__(
         self,
-        cefr: CEFRLevel,
+        cefr: CEFRLevel | None,
         freq_zipf: float,
         freq_sweet_spot: bool,
         fragment: str,

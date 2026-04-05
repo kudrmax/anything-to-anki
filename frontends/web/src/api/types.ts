@@ -6,12 +6,15 @@ export type SourceStatus =
   | 'partially_reviewed'
   | 'reviewed'
 
+export type SourceType = 'text' | 'lyrics'
+
 export type CandidateStatus = 'pending' | 'learn' | 'known' | 'skip'
 
 export interface SourceSummary {
   id: number
   raw_text_preview: string
   status: SourceStatus
+  source_type: SourceType
   created_at: string
   candidate_count: number
   learn_count: number
@@ -21,7 +24,7 @@ export interface StoredCandidate {
   id: number
   lemma: string
   pos: string
-  cefr_level: string
+  cefr_level: string | null
   zipf_frequency: number
   is_sweet_spot: boolean
   context_fragment: string
@@ -29,6 +32,7 @@ export interface StoredCandidate {
   occurrences: number
   status: CandidateStatus
   surface_form: string | null
+  is_phrasal_verb: boolean
 }
 
 export interface SourceDetail {
@@ -36,6 +40,7 @@ export interface SourceDetail {
   raw_text: string
   cleaned_text: string | null
   status: SourceStatus
+  source_type: SourceType
   error_message: string | null
   created_at: string
   candidates: StoredCandidate[]

@@ -51,7 +51,11 @@ class ProcessSourceUseCase:
             raise SourceNotFoundError(source_id)
 
         cefr_level = self._settings_repo.get("cefr_level", "B1") or "B1"
-        request = AnalyzeTextRequest(raw_text=source.raw_text, user_level=cefr_level)
+        request = AnalyzeTextRequest(
+            raw_text=source.raw_text,
+            user_level=cefr_level,
+            source_type=source.source_type,
+        )
         result = self._analyze_text.execute(request)
 
         known_pairs = self._known_word_repo.get_all_pairs()
@@ -69,6 +73,7 @@ class ProcessSourceUseCase:
                 fragment_purity=c.fragment_purity,
                 occurrences=c.occurrences,
                 surface_form=c.surface_form,
+                is_phrasal_verb=c.is_phrasal_verb,
                 status=CandidateStatus.PENDING,
             )
             for c in filtered

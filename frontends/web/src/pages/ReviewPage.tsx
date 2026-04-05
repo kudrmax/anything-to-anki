@@ -10,7 +10,7 @@ function sortCandidates(candidates: StoredCandidate[]): StoredCandidate[] {
   const cefrOrder: Record<string, number> = { C2: 4, C1: 3, B2: 2, B1: 1, A2: 0, A1: 0 }
   return [...candidates].sort((a, b) => {
     if (a.is_sweet_spot !== b.is_sweet_spot) return a.is_sweet_spot ? -1 : 1
-    return (cefrOrder[b.cefr_level] ?? 0) - (cefrOrder[a.cefr_level] ?? 0)
+    return (cefrOrder[b.cefr_level ?? ''] ?? 0) - (cefrOrder[a.cefr_level ?? ''] ?? 0)
   })
 }
 
@@ -60,6 +60,11 @@ export function ReviewPage() {
     hoverFromCardRef.current = false
     setHoveredId(id)
   }, [])
+
+  const handleManualAdd = useCallback(async (surfaceForm: string, contextFragment: string) => {
+    const candidate = await api.addManualCandidate(sourceId, surfaceForm, contextFragment)
+    setCandidates((prev) => sortCandidates([...prev, candidate]))
+  }, [sourceId])
 
   const handleWordClick = useCallback((candidateId: number) => {
     hoverFromCardRef.current = false
@@ -241,6 +246,7 @@ export function ReviewPage() {
             ratedIds={ratedIds}
             onWordClick={handleWordClick}
             onWordHover={handleTextHover}
+            onManualAdd={handleManualAdd}
           />
         </div>
       </div>
