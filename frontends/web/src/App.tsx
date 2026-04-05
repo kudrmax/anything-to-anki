@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '@/layouts/AppLayout'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { InboxPage } from '@/pages/InboxPage'
 import { ReviewPage } from '@/pages/ReviewPage'
 import { ExportPage } from '@/pages/ExportPage'
@@ -10,10 +11,10 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<InboxPage />} />
-          <Route path="/sources/:id/review" element={<ReviewPage />} />
-          <Route path="/sources/:id/export" element={<ExportPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/" element={<ErrorBoundary><InboxPage /></ErrorBoundary>} />
+          <Route path="/sources/:id/review" element={<ErrorBoundary><ReviewPage /></ErrorBoundary>} />
+          <Route path="/sources/:id/export" element={<ErrorBoundary><ExportPage /></ErrorBoundary>} />
+          <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
         </Route>
       </Routes>
     </BrowserRouter>

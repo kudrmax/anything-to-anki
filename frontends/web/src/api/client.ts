@@ -25,6 +25,14 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function reqVoid(path: string, init?: RequestInit): Promise<void> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...init,
+  })
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+}
+
 export const api = {
   createSource: (raw_text: string) =>
     req<{ id: number; status: string }>('/sources', {
@@ -69,6 +77,8 @@ export const api = {
 
   deleteKnownWord: (id: number) =>
     req<{ deleted: number }>(`/known-words/${id}`, { method: 'DELETE' }),
+
+  deleteSource: (id: number) => reqVoid(`/sources/${id}`, { method: 'DELETE' }),
 
   getStats: () => req<Stats>('/stats'),
 

@@ -5,6 +5,7 @@ import type { CandidateStatus, StoredCandidate } from '@/api/types'
 interface CandidateCardProps {
   candidate: StoredCandidate
   isHovered: boolean
+  isRated: boolean
   onHoverEnter: (id: number) => void
   onHoverLeave: () => void
   onMark: (id: number, status: CandidateStatus) => Promise<void>
@@ -51,6 +52,7 @@ const MARK_BUTTONS: { status: CandidateStatus; label: string; cls: string; activ
 export function CandidateCard({
   candidate,
   isHovered,
+  isRated,
   onHoverEnter,
   onHoverLeave,
   onMark,
@@ -68,7 +70,7 @@ export function CandidateCard({
       data-candidate-id={candidate.id}
       onMouseEnter={() => onHoverEnter(candidate.id)}
       onMouseLeave={onHoverLeave}
-      className={cn('glass-card rounded-xl p-4 flex flex-col gap-3')}
+      className={cn('glass-card rounded-xl p-4 flex flex-col gap-3', isRated && 'card-slide-in')}
       style={isHovered ? { borderColor: 'var(--accent)' } : undefined}
     >
       <div className="flex items-center gap-2 flex-wrap">

@@ -11,7 +11,7 @@ from backend.application.dto.source_dtos import (  # noqa: TC001
     SourceDetailDTO,
     SourceDTO,
 )
-from backend.domain.exceptions import SourceAlreadyProcessedError, SourceNotFoundError
+from backend.domain.exceptions import SourceAlreadyProcessedError, SourceIsProcessingError, SourceNotFoundError
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.dependencies import (
     get_container,
@@ -145,6 +145,22 @@ def update_source_status(
     repo.update_status(source_id, new_status)
     session.commit()
     return {"id": source_id, "status": new_status.value}
+
+
+@router.delete("/{source_id}", status_code=204)
+def delete_source(
+    source_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> None:
+    try:
+        use_case = container.delete_source_use_case(session)
+        use_case.execute(source_id)
+        session.commit()
+    except SourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except SourceIsProcessingError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
 
 @router.get("/{source_id}/candidates")

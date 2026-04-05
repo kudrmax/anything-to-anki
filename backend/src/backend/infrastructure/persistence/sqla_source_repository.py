@@ -32,6 +32,12 @@ class SqlaSourceRepository(SourceRepository):
         models = self._session.query(SourceModel).order_by(SourceModel.created_at.desc()).all()
         return [m.to_entity() for m in models]
 
+    def delete(self, source_id: int) -> None:
+        model = self._session.get(SourceModel, source_id)
+        if model is not None:
+            self._session.delete(model)
+            self._session.flush()
+
     def update_status(
         self,
         source_id: int,

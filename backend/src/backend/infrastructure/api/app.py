@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.infrastructure.api.dependencies import get_session_factory
@@ -41,4 +42,11 @@ app.include_router(stats.router)
 _dist_env = os.getenv("FRONTEND_DIST")
 _DIST = Path(_dist_env) if _dist_env else Path(__file__).parents[5] / "frontends" / "web" / "dist"
 if _DIST.exists():
-    app.mount("/", StaticFiles(directory=str(_DIST), html=True), name="static")
+    app.mount("/assets", StaticFiles(directory=str(_DIST / "assets")), name="static-assets")
+
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str) -> FileResponse:  # noqa: RUF029
+        candidate = _DIST / full_path
+        if candidate.is_file():
+            return FileResponse(str(candidate))
+        return FileResponse(str(_DIST / "index.html"))

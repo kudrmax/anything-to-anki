@@ -29,3 +29,6 @@ class SourceRepository(ABC):
         cleaned_text: str | None = None,
         error_message: str | None = None,
     ) -> None: ...
+
+    @abstractmethod
+    def delete(self, source_id: int) -> None: ...

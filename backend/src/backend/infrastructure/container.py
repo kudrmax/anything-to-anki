@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.create_source import CreateSourceUseCase
+from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_source_cards import GetSourceCardsUseCase
@@ -68,6 +69,12 @@ class Container:
     def create_source_use_case(self, session: Session) -> CreateSourceUseCase:
         return CreateSourceUseCase(
             source_repo=SqlaSourceRepository(session),
+        )
+
+    def delete_source_use_case(self, session: Session) -> DeleteSourceUseCase:
+        return DeleteSourceUseCase(
+            source_repo=SqlaSourceRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
         )
 
     def get_sources_use_case(self, session: Session) -> GetSourcesUseCase:

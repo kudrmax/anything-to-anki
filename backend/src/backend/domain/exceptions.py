@@ -34,6 +34,14 @@ class KnownWordNotFoundError(DomainError):
         self.known_word_id = known_word_id
 
 
+class SourceIsProcessingError(DomainError):
+    """Raised when trying to delete a source that is currently being processed."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Source is currently being processed: {source_id}")
+        self.source_id = source_id
+
+
 class SourceAlreadyProcessedError(DomainError):
     """Raised when trying to process a source that is not in NEW or ERROR status."""
 

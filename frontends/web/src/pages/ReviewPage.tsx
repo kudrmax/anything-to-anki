@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { api } from '@/api/client'
@@ -68,6 +68,23 @@ export function ReviewPage() {
     }
   }
 
+  const pendingCandidates = useMemo(
+    () => candidates.filter((c) => c.status === 'pending'),
+    [candidates],
+  )
+  const ratedCandidates = useMemo(
+    () => candidates.filter((c) => c.status !== 'pending'),
+    [candidates],
+  )
+  const ratedIds = useMemo(
+    () => new Set(ratedCandidates.map((c) => c.id)),
+    [ratedCandidates],
+  )
+
+  const markedCount = ratedCandidates.length
+  const learnCount = candidates.filter((c) => c.status === 'learn').length
+  const progress = candidates.length > 0 ? (markedCount / candidates.length) * 100 : 0
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -84,9 +101,6 @@ export function ReviewPage() {
     )
   }
 
-  const markedCount = candidates.filter((c) => c.status !== 'pending').length
-  const learnCount = candidates.filter((c) => c.status === 'learn').length
-  const progress = candidates.length > 0 ? (markedCount / candidates.length) * 100 : 0
   const annotationText = source.cleaned_text ?? source.raw_text
 
   return (
@@ -153,6 +167,7 @@ export function ReviewPage() {
             text={annotationText}
             candidates={candidates}
             hoveredCandidateId={hoveredId}
+            ratedIds={ratedIds}
             onWordClick={handleWordClick}
             onWordHover={setHoveredId}
           />
@@ -163,21 +178,50 @@ export function ReviewPage() {
           <h2 className="text-xs font-medium uppercase tracking-wider px-1" style={{ color: 'var(--td)' }}>
             Candidates {candidates.length > 0 && `(${candidates.length})`}
           </h2>
+
           {candidates.length === 0 ? (
             <div className="rounded-xl border border-dashed p-6 text-center" style={{ borderColor: 'var(--glass-b)' }}>
               <p className="text-sm" style={{ color: 'var(--td)' }}>No candidates found for this source.</p>
             </div>
+          ) : pendingCandidates.length === 0 ? (
+            <div className="rounded-xl border border-dashed p-6 text-center" style={{ borderColor: 'var(--glass-b)' }}>
+              <p className="text-sm" style={{ color: 'var(--td)' }}>All candidates reviewed.</p>
+            </div>
           ) : (
-            candidates.map((c) => (
+            pendingCandidates.map((c) => (
               <CandidateCard
                 key={c.id}
                 candidate={c}
+                isRated={false}
                 isHovered={hoveredId === c.id}
                 onHoverEnter={setHoveredId}
                 onHoverLeave={() => setHoveredId(null)}
                 onMark={handleMark}
               />
             ))
+          )}
+
+          {ratedCandidates.length > 0 && (
+            <>
+              <div className="flex items-center gap-2 px-1 pt-1">
+                <div className="flex-1 h-px" style={{ background: 'var(--glass-b)' }} />
+                <span className="text-xs font-medium uppercase tracking-wider shrink-0" style={{ color: 'var(--td)' }}>
+                  Reviewed ({ratedCandidates.length})
+                </span>
+                <div className="flex-1 h-px" style={{ background: 'var(--glass-b)' }} />
+              </div>
+              {ratedCandidates.map((c) => (
+                <CandidateCard
+                  key={c.id}
+                  candidate={c}
+                  isRated={true}
+                  isHovered={hoveredId === c.id}
+                  onHoverEnter={setHoveredId}
+                  onHoverLeave={() => setHoveredId(null)}
+                  onMark={handleMark}
+                />
+              ))}
+            </>
           )}
         </div>
       </div>

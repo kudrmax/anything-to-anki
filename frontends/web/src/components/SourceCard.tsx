@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react'
+import { Loader2, Trash2 } from 'lucide-react'
 import type { SourceStatus, SourceSummary } from '@/api/types'
 
 interface SourceCardProps {
@@ -6,6 +6,7 @@ interface SourceCardProps {
   onProcess: (id: number) => void
   onReview: (id: number) => void
   onExport: (id: number) => void
+  onDelete: (id: number) => void
   isProcessingLocal: boolean
 }
 
@@ -45,7 +46,7 @@ const GHOST_BTN = {
   border: '1px solid var(--glass-b)',
 } as const
 
-export function SourceCard({ source, onProcess, onReview, onExport, isProcessingLocal }: SourceCardProps) {
+export function SourceCard({ source, onProcess, onReview, onExport, onDelete, isProcessingLocal }: SourceCardProps) {
   const badge = STATUS_BADGE[source.status]
   const border = STATUS_BORDER[source.status]
   const isProcessing = source.status === 'processing' || isProcessingLocal
@@ -126,12 +127,24 @@ export function SourceCard({ source, onProcess, onReview, onExport, isProcessing
 
       {/* Right: badge + action button */}
       <div className="flex flex-col items-end gap-2 shrink-0">
-        <span
-          className="text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap"
-          style={{ background: badge.bg, color: badge.color }}
-        >
-          {badge.label}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className="text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap"
+            style={{ background: badge.bg, color: badge.color }}
+          >
+            {badge.label}
+          </span>
+          {!isProcessing && (
+            <button
+              onClick={() => onDelete(source.id)}
+              className="cursor-pointer transition-opacity hover:opacity-100 opacity-40"
+              style={{ background: 'transparent', border: 'none', padding: 0, lineHeight: 0 }}
+              title="Delete source"
+            >
+              <Trash2 size={13} style={{ color: 'rgba(244,63,94,.9)' }} />
+            </button>
+          )}
+        </div>
 
         {(source.status === 'new' || source.status === 'error') && (
           <button

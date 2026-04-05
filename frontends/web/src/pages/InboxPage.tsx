@@ -156,6 +156,16 @@ export function InboxPage() {
     navigate(`/sources/${id}/export`)
   }
 
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Delete this source and all its candidates?')) return
+    try {
+      await api.deleteSource(id)
+      setSources((prev) => prev.filter((s) => s.id !== id))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete source')
+    }
+  }
+
   const pendingCount = sources.filter((s) => s.status === 'new' || s.status === 'error').length
   const isSidebar = import.meta.env.VITE_LAYOUT === 'sidebar'
 
@@ -259,6 +269,7 @@ export function InboxPage() {
                   onProcess={handleProcess}
                   onReview={handleReview}
                   onExport={handleExport}
+                  onDelete={handleDelete}
                   isProcessingLocal={processingIds.has(s.id)}
                 />
               ))}

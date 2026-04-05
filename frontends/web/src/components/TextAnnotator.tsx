@@ -5,6 +5,7 @@ interface TextAnnotatorProps {
   text: string
   candidates: StoredCandidate[]
   hoveredCandidateId: number | null
+  ratedIds: Set<number>
   onWordClick: (candidateId: number) => void
   onWordHover: (candidateId: number | null) => void
 }
@@ -93,6 +94,7 @@ export function TextAnnotator({
   text,
   candidates,
   hoveredCandidateId,
+  ratedIds,
   onWordClick,
   onWordHover,
 }: TextAnnotatorProps) {
@@ -105,6 +107,7 @@ export function TextAnnotator({
           return <span key={i}>{seg.content}</span>
         }
         const isHovered = hoveredCandidateId === seg.candidateId
+        const isRated = ratedIds.has(seg.candidateId)
         const baseCls = CEFR_HIGHLIGHT[seg.cefrLevel] ?? 'bg-slate-700/40 text-slate-300 border-b border-slate-500'
         const hoveredCls = CEFR_HIGHLIGHT_HOVERED[seg.cefrLevel] ?? 'bg-slate-600/60 text-slate-100 border-b-2 border-slate-400'
         return (
@@ -112,8 +115,8 @@ export function TextAnnotator({
             key={i}
             data-candidate-id={seg.candidateId}
             className={cn(
-              'cursor-pointer rounded-sm px-0.5 transition-colors bg-transparent',
-              isHovered ? hoveredCls : baseCls,
+              'cursor-pointer rounded-sm px-0.5 transition-colors',
+              isHovered ? hoveredCls : isRated ? 'bg-transparent' : baseCls,
             )}
             onClick={() => onWordClick(seg.candidateId)}
             onMouseEnter={() => onWordHover(seg.candidateId)}

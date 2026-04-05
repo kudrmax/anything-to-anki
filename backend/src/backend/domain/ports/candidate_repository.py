@@ -25,3 +25,6 @@ class CandidateRepository(ABC):
 
     @abstractmethod
     def count_by_status(self, status: CandidateStatus) -> int: ...
+
+    @abstractmethod
+    def delete_by_source(self, source_id: int) -> None: ...

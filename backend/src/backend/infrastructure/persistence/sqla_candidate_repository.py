@@ -51,3 +51,9 @@ class SqlaCandidateRepository(CandidateRepository):
             .scalar()
         )
         return result or 0
+
+    def delete_by_source(self, source_id: int) -> None:
+        self._session.query(StoredCandidateModel).filter(
+            StoredCandidateModel.source_id == source_id
+        ).delete()
+        self._session.flush()
