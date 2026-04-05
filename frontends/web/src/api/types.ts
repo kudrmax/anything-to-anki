@@ -8,6 +8,8 @@ export type SourceStatus =
 
 export type SourceType = 'text' | 'lyrics' | 'subtitles'
 
+export type ProcessingStage = 'cleaning_source' | 'analyzing_text' | 'fetching_definitions'
+
 export type CandidateStatus = 'pending' | 'learn' | 'known' | 'skip'
 
 export interface SourceSummary {
@@ -18,6 +20,7 @@ export interface SourceSummary {
   created_at: string
   candidate_count: number
   learn_count: number
+  processing_stage: ProcessingStage | null
 }
 
 export interface StoredCandidate {
@@ -45,6 +48,7 @@ export interface SourceDetail {
   status: SourceStatus
   source_type: SourceType
   error_message: string | null
+  processing_stage: ProcessingStage | null
   created_at: string
   candidates: StoredCandidate[]
 }
@@ -81,6 +85,7 @@ export interface Settings {
   anki_field_target_word: string
   anki_field_meaning: string
   anki_field_ipa: string
+  enable_definitions: boolean
 }
 
 export interface KnownWord {

@@ -40,6 +40,7 @@ class GetSourcesUseCase:
                     created_at=source.created_at,
                     candidate_count=len(candidates),
                     learn_count=learn_count,
+                    processing_stage=source.processing_stage.value if source.processing_stage else None,
                 )
             )
         return result
@@ -57,6 +58,7 @@ class GetSourcesUseCase:
             status=source.status.value,
             source_type=source.source_type.value,
             error_message=source.error_message,
+            processing_stage=source.processing_stage.value if source.processing_stage else None,
             created_at=source.created_at,
             candidates=[
                 StoredCandidateDTO(

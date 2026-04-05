@@ -97,7 +97,7 @@ async def _process_background(
     bg_session: Session = session_factory()  # type: ignore[operator]
     try:
         use_case = container.process_source_use_case(bg_session)
-        await asyncio.to_thread(use_case.execute, source_id)
+        await asyncio.to_thread(use_case.execute, source_id, on_stage_commit=bg_session.commit)
         bg_session.commit()
     except Exception:
         bg_session.rollback()

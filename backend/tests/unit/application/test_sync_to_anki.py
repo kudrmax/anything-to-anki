@@ -8,7 +8,12 @@ from backend.domain.exceptions import AnkiNotAvailableError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 
-def _make_candidate(candidate_id: int, lemma: str, status: CandidateStatus) -> StoredCandidate:
+def _make_candidate(
+    candidate_id: int,
+    lemma: str,
+    status: CandidateStatus,
+    ai_meaning: str | None = None,
+) -> StoredCandidate:
     return StoredCandidate(
         id=candidate_id,
         source_id=1,
@@ -21,6 +26,7 @@ def _make_candidate(candidate_id: int, lemma: str, status: CandidateStatus) -> S
         fragment_purity="clean",
         occurrences=1,
         status=status,
+        ai_meaning=ai_meaning,
     )
 
 
@@ -121,3 +127,29 @@ class TestSyncToAnkiUseCase:
         assert result.skipped == 1
         assert result.errors == 0
         assert result.skipped_lemmas == ["burnout"]
+
+    def test_ai_meaning_takes_priority_over_dictionary(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "thug", CandidateStatus.LEARN, ai_meaning="бандит, головорез"),
+        ]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        self.use_case.execute(source_id=1)
+
+        call_args = self.anki_connector.add_notes.call_args
+        note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
+        assert note[0]["Meaning"] == "бандит, головорез"
+
+    def test_falls_back_to_dictionary_when_no_ai_meaning(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "thug", CandidateStatus.LEARN, ai_meaning=None),
+        ]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        self.use_case.execute(source_id=1)
+
+        call_args = self.anki_connector.add_notes.call_args
+        note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
+        assert note[0]["Meaning"] == "a definition"

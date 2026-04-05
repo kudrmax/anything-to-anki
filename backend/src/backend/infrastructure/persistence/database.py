@@ -92,6 +92,12 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
         except Exception:
             pass  # Column already exists — safe to ignore
 
+        try:
+            conn.execute(text("ALTER TABLE sources ADD COLUMN processing_stage VARCHAR(30)"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists — safe to ignore
+
         # Seed default prompt — idempotent, runs on every startup
         conn.execute(
             text(
@@ -117,7 +123,7 @@ def reset_stuck_processing(session_factory: sessionmaker[Session]) -> None:
         session.execute(
             update(SourceModel)
             .where(SourceModel.status == SourceStatus.PROCESSING.value)
-            .values(status=SourceStatus.NEW.value)
+            .values(status=SourceStatus.NEW.value, processing_stage=None)
         )
         session.commit()
     finally:

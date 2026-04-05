@@ -10,6 +10,7 @@ from backend.domain.entities.prompt_template import PromptTemplate
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.source_type import SourceType
 from backend.infrastructure.persistence.database import Base
@@ -26,6 +27,7 @@ class SourceModel(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="new")
     source_type: Mapped[str] = mapped_column(String(20), nullable=False, default="text")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    processing_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
@@ -38,6 +40,7 @@ class SourceModel(Base):
             status=SourceStatus(self.status),
             source_type=SourceType(self.source_type),
             error_message=self.error_message,
+            processing_stage=ProcessingStage(self.processing_stage) if self.processing_stage else None,
             created_at=self.created_at,
         )
 

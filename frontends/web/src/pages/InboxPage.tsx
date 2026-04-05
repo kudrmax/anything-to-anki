@@ -112,6 +112,7 @@ export function InboxPage() {
         created_at: new Date().toISOString(),
         candidate_count: 0,
         learn_count: 0,
+        processing_stage: null,
       }
       setSources((prev) => [newSource, ...prev])
     } catch (e) {

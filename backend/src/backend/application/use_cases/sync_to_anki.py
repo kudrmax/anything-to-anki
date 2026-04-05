@@ -75,6 +75,8 @@ class SyncToAnkiUseCase:
             try:
                 entry = self._dictionary_provider.get_entry(candidate.lemma, candidate.pos)
                 sentence = _highlight(candidate.context_fragment, candidate.lemma)
+                dict_meaning = entry.definition if entry.definition != "No definition found" else ""
+                meaning = candidate.ai_meaning or dict_meaning
 
                 note: dict[str, str] = {}
                 if field_sentence:
@@ -82,7 +84,7 @@ class SyncToAnkiUseCase:
                 if field_target:
                     note[field_target] = candidate.lemma
                 if field_meaning:
-                    note[field_meaning] = entry.definition
+                    note[field_meaning] = meaning
                 if field_ipa:
                     note[field_ipa] = entry.ipa or ""
 

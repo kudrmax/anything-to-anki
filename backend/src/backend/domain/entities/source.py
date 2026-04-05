@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from backend.domain.value_objects.source_type import SourceType
 
 if TYPE_CHECKING:
+    from backend.domain.value_objects.processing_stage import ProcessingStage
     from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -20,4 +21,5 @@ class Source:
     cleaned_text: str | None = None
     error_message: str | None = None
     source_type: SourceType = SourceType.TEXT
+    processing_stage: ProcessingStage | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))

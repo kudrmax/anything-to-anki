@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceAlreadyProcessedError, SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.source_type import SourceType
 
@@ -51,15 +53,37 @@ class ProcessSourceUseCase:
             raise SourceAlreadyProcessedError(source_id)
         self._source_repo.update_status(source_id, SourceStatus.PROCESSING)
 
-    def execute(self, source_id: int) -> None:
+    def _notify_stage(
+        self,
+        source_id: int,
+        stage: ProcessingStage,
+        on_stage_commit: Callable[[], None] | None,
+    ) -> None:
+        self._source_repo.update_status(
+            source_id, SourceStatus.PROCESSING, processing_stage=stage,
+        )
+        if on_stage_commit:
+            on_stage_commit()
+
+    def execute(
+        self,
+        source_id: int,
+        *,
+        on_stage_commit: Callable[[], None] | None = None,
+    ) -> None:
         """Run the full pipeline and save results. Call in background thread."""
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
 
+        # Stage 1: source-specific cleaning (subtitles/lyrics parsing)
+        self._notify_stage(source_id, ProcessingStage.CLEANING_SOURCE, on_stage_commit)
         cefr_level = self._settings_repo.get("cefr_level", "B1") or "B1"
         parser = self._source_parsers.get(source.source_type)
         raw_text = parser.parse(source.raw_text) if parser else source.raw_text
+
+        # Stage 2: text analysis (cleaning + tokenization + filtering)
+        self._notify_stage(source_id, ProcessingStage.ANALYZING_TEXT, on_stage_commit)
         request = AnalyzeTextRequest(
             raw_text=raw_text,
             user_level=cefr_level,
@@ -69,11 +93,22 @@ class ProcessSourceUseCase:
         known_pairs = self._known_word_repo.get_all_pairs()
         filtered = [c for c in result.candidates if (c.lemma, c.pos) not in known_pairs]
 
+        # Stage 3: dictionary definitions lookup
+        self._notify_stage(source_id, ProcessingStage.FETCHING_DEFINITIONS, on_stage_commit)
+
+        enable_definitions = (
+            self._settings_repo.get("enable_definitions", "true") or "true"
+        ).lower() == "true"
+
         _NO_DEFINITION = "No definition found"
         stored: list[StoredCandidate] = []
         for c in filtered:
-            entry = self._dictionary_provider.get_entry(c.lemma, c.pos)
-            definition = entry.definition if entry.definition != _NO_DEFINITION else None
+            definition: str | None = None
+            ipa: str | None = None
+            if enable_definitions:
+                entry = self._dictionary_provider.get_entry(c.lemma, c.pos)
+                definition = entry.definition if entry.definition != _NO_DEFINITION else None
+                ipa = entry.ipa
             stored.append(
                 StoredCandidate(
                     source_id=source_id,
@@ -89,7 +124,7 @@ class ProcessSourceUseCase:
                     is_phrasal_verb=c.is_phrasal_verb,
                     status=CandidateStatus.PENDING,
                     definition=definition,
-                    ipa=entry.ipa,
+                    ipa=ipa,
                 ),
             )
         self._candidate_repo.create_batch(stored)

@@ -24,6 +24,7 @@ class SourceDTO(BaseModel):
     created_at: datetime
     candidate_count: int
     learn_count: int
+    processing_stage: str | None = None
 
 
 class SourceDetailDTO(BaseModel):
@@ -35,6 +36,7 @@ class SourceDetailDTO(BaseModel):
     status: str
     source_type: str
     error_message: str | None
+    processing_stage: str | None = None
     created_at: datetime
     candidates: list[StoredCandidateDTO]
 

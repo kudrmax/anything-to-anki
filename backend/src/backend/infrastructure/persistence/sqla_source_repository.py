@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.source import Source
+    from backend.domain.value_objects.processing_stage import ProcessingStage
     from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -45,11 +46,13 @@ class SqlaSourceRepository(SourceRepository):
         *,
         cleaned_text: str | None = None,
         error_message: str | None = None,
+        processing_stage: ProcessingStage | None = None,
     ) -> None:
         model = self._session.get(SourceModel, source_id)
         if model is None:
             return
         model.status = status.value
+        model.processing_stage = processing_stage.value if processing_stage else None
         if cleaned_text is not None:
             model.cleaned_text = cleaned_text
         if error_message is not None:

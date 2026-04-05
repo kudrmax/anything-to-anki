@@ -1,5 +1,5 @@
 import { Loader2, Trash2 } from 'lucide-react'
-import type { SourceStatus, SourceSummary } from '@/api/types'
+import type { ProcessingStage, SourceStatus, SourceSummary } from '@/api/types'
 
 interface SourceCardProps {
   source: SourceSummary
@@ -38,6 +38,12 @@ function formatDate(iso: string): string {
   const diffH = Math.floor(diffMin / 60)
   if (diffH < 24) return `${diffH}h ago`
   return d.toLocaleDateString()
+}
+
+const STAGE_LABELS: Record<ProcessingStage, string> = {
+  cleaning_source: 'Cleaning source format…',
+  analyzing_text: 'Analyzing text…',
+  fetching_definitions: 'Looking up definitions…',
 }
 
 const GHOST_BTN = {
@@ -87,7 +93,11 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, is
           )}
 
           {isProcessing && (
-            <span style={{ color: 'var(--tm)' }}>Extracting vocabulary candidates…</span>
+            <span style={{ color: 'var(--tm)' }}>
+              {source.processing_stage
+                ? STAGE_LABELS[source.processing_stage]
+                : 'Starting…'}
+            </span>
           )}
 
           {/* "Nothing to learn" from master — functional addition */}

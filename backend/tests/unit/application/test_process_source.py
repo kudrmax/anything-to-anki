@@ -95,9 +95,10 @@ class TestProcessSourceExecute:
         )
         uc.execute(1)
         mocks["candidate_repo"].create_batch.assert_called_once()
-        mocks["source_repo"].update_status.assert_called_once()
-        call_args = mocks["source_repo"].update_status.call_args
-        assert call_args[0][1] == SourceStatus.DONE
+        # 3 stage updates + 1 final DONE update
+        assert mocks["source_repo"].update_status.call_count == 4
+        final_call = mocks["source_repo"].update_status.call_args_list[-1]
+        assert final_call[0][1] == SourceStatus.DONE
 
     def test_execute_filters_known_words(self) -> None:
         uc, mocks = _make_use_case()

@@ -16,6 +16,7 @@ _DEFAULT_FIELD_SENTENCE: str = "Sentence"
 _DEFAULT_FIELD_TARGET: str = "Target"
 _DEFAULT_FIELD_MEANING: str = "Meaning"
 _DEFAULT_FIELD_IPA: str = "IPA"
+_DEFAULT_ENABLE_DEFINITIONS: str = "true"
 
 _SETTING_KEYS: dict[str, str] = {
     "cefr_level": _DEFAULT_CEFR_LEVEL,
@@ -27,7 +28,10 @@ _SETTING_KEYS: dict[str, str] = {
     "anki_field_target_word": _DEFAULT_FIELD_TARGET,
     "anki_field_meaning": _DEFAULT_FIELD_MEANING,
     "anki_field_ipa": _DEFAULT_FIELD_IPA,
+    "enable_definitions": _DEFAULT_ENABLE_DEFINITIONS,
 }
+
+_BOOL_KEYS: frozenset[str] = frozenset({"enable_definitions"})
 
 
 class ManageSettingsUseCase:
@@ -37,14 +41,22 @@ class ManageSettingsUseCase:
         self._settings_repo = settings_repo
 
     def get_settings(self) -> SettingsDTO:
-        values = {key: (self._settings_repo.get(key, default) or default) for key, default in _SETTING_KEYS.items()}
+        raw: dict[str, str] = {
+            key: (self._settings_repo.get(key, default) or default)
+            for key, default in _SETTING_KEYS.items()
+        }
+        values: dict[str, str | bool] = {
+            k: (v.lower() == "true" if k in _BOOL_KEYS else v)
+            for k, v in raw.items()
+        }
         return SettingsDTO(**values)
 
     def update_settings(self, request: UpdateSettingsRequest) -> SettingsDTO:
         for key in _SETTING_KEYS:
             value = getattr(request, key, None)
             if value is not None:
-                self._settings_repo.set(key, value)
+                str_value = str(value).lower() if key in _BOOL_KEYS else str(value)
+                self._settings_repo.set(key, str_value)
         return self.get_settings()
 
     # kept for backward-compatibility with existing routes
