@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import sys
-from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -20,25 +18,12 @@ from pydantic import BaseModel
 # Import directly — this script runs on the host where claude-agent-sdk is installed.
 from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, ResultMessage, TextBlock, query
 
-_SYSTEM_PROMPT = (
-    "You are a concise English dictionary assistant. "
-    "Always return only the definition text — no labels, no commentary."
-)
-
-_PROMPT_TEMPLATE = """\
-Word: "{lemma}" (part of speech: {pos})
-Context: "{context}"
-
-Write a brief definition (1–2 sentences, max 30 words) for the specific meaning used in this context.
-Return only the definition text."""
-
-app = FastAPI(title="AI Proxy", version="0.1.0")
+app = FastAPI(title="AI Proxy", version="0.2.0")
 
 
 class GenerateRequest(BaseModel):
-    lemma: str
-    pos: str
-    context: str
+    system_prompt: str
+    user_prompt: str
     model: str
 
 
@@ -47,15 +32,15 @@ class GenerateResponse(BaseModel):
     tokens_used: int
 
 
-async def _generate(prompt: str, model: str) -> tuple[str, int]:
+async def _generate(system_prompt: str, user_prompt: str, model: str) -> tuple[str, int]:
     options = ClaudeAgentOptions(
         model=model,
-        system_prompt=_SYSTEM_PROMPT,
+        system_prompt=system_prompt,
         max_turns=1,
     )
     parts: list[str] = []
     tokens_used = 0
-    async for message in query(prompt=prompt, options=options):
+    async for message in query(prompt=user_prompt, options=options):
         if isinstance(message, AssistantMessage):
             for block in message.content:
                 if isinstance(block, TextBlock):
@@ -68,9 +53,8 @@ async def _generate(prompt: str, model: str) -> tuple[str, int]:
 
 @app.post("/generate-meaning")
 async def generate_meaning(req: GenerateRequest) -> GenerateResponse:
-    prompt = _PROMPT_TEMPLATE.format(lemma=req.lemma, pos=req.pos, context=req.context)
     try:
-        meaning, tokens_used = await _generate(prompt, req.model)
+        meaning, tokens_used = await _generate(req.system_prompt, req.user_prompt, req.model)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
     return GenerateResponse(meaning=meaning, tokens_used=tokens_used)

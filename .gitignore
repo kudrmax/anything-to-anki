@@ -1,3 +1,5 @@
 vocabminer.db
 vocabminer_dev.db
 data/
+.pids/
+.logs/
