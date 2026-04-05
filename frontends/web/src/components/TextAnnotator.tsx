@@ -120,12 +120,26 @@ export function TextAnnotator({
         const inFragment = fragmentStart !== -1 && seg.start < fragmentEnd && segEnd > fragmentStart
 
         if (seg.type === 'text') {
+          if (!isDimming || fragmentStart === -1) {
+            return <span key={i}>{seg.content}</span>
+          }
+          const overlapStart = Math.max(seg.start, fragmentStart)
+          const overlapEnd = Math.min(segEnd, fragmentEnd)
+          if (overlapStart >= overlapEnd) {
+            return (
+              <span key={i} style={{ opacity: 0.15, transition: 'opacity 150ms ease' }}>
+                {seg.content}
+              </span>
+            )
+          }
+          const before = seg.content.slice(0, overlapStart - seg.start)
+          const inside = seg.content.slice(overlapStart - seg.start, overlapEnd - seg.start)
+          const after = seg.content.slice(overlapEnd - seg.start)
           return (
-            <span
-              key={i}
-              style={{ opacity: isDimming && !inFragment ? 0.15 : 1, transition: 'opacity 150ms ease' }}
-            >
-              {seg.content}
+            <span key={i}>
+              {before && <span style={{ opacity: 0.15, transition: 'opacity 150ms ease' }}>{before}</span>}
+              <span style={{ opacity: 1, transition: 'opacity 150ms ease' }}>{inside}</span>
+              {after && <span style={{ opacity: 0.15, transition: 'opacity 150ms ease' }}>{after}</span>}
             </span>
           )
         }
