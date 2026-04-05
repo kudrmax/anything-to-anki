@@ -38,6 +38,9 @@ class GetCandidatesUseCase:
                 fragment_purity=c.fragment_purity,
                 occurrences=c.occurrences,
                 surface_form=c.surface_form,
+                ai_meaning=c.ai_meaning,
+                definition=c.definition,
+                ipa=c.ipa,
                 status=c.status.value,
             )
             for c in candidates

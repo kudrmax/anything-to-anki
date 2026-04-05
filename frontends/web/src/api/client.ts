@@ -112,6 +112,12 @@ export const api = {
       body: JSON.stringify({ note_type, fields }),
     }),
 
+  updateCandidateFragment: (candidateId: number, contextFragment: string) =>
+    req<{ id: number; context_fragment: string }>(`/candidates/${candidateId}/context-fragment`, {
+      method: 'PATCH',
+      body: JSON.stringify({ context_fragment: contextFragment }),
+    }),
+
   addManualCandidate: (sourceId: number, surfaceForm: string, contextFragment: string) =>
     req<StoredCandidate>(`/sources/${sourceId}/candidates/manual`, {
       method: 'POST',

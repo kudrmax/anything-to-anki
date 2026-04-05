@@ -53,6 +53,9 @@ class StoredCandidateDTO(BaseModel):
     occurrences: int
     status: str
     surface_form: str | None = None
+    ai_meaning: str | None = None
+    definition: str | None = None
+    ipa: str | None = None
     is_phrasal_verb: bool = False
 
 

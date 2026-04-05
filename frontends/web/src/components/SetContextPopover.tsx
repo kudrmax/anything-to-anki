@@ -1,21 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
-interface SelectionPopoverProps {
+interface SetContextPopoverProps {
   phrase: string
+  lemma: string
   position: { x: number; y: number; yBottom: number }
-  onAdd: (targetTokens: string[], contextFragment: string) => Promise<void>
+  onSet: (phrase: string) => Promise<void>
   onClose: () => void
 }
 
-function tokenise(phrase: string): string[] {
-  return phrase.split(/\s+/).map(t => t.trim()).filter(Boolean)
-}
-
-export function SelectionPopover({ phrase, position, onAdd, onClose }: SelectionPopoverProps) {
-  const tokens = tokenise(phrase)
-  const [selected, setSelected] = useState<Set<number>>(new Set())
+export function SetContextPopover({ phrase, lemma, position, onSet, onClose }: SetContextPopoverProps) {
   const [loading, setLoading] = useState(false)
   const [flipped, setFlipped] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -39,24 +33,17 @@ export function SelectionPopover({ phrase, position, onAdd, onClose }: Selection
     }
   }, [onClose])
 
-  const toggleToken = (i: number) => {
-    setSelected(prev => {
-      const next = new Set(prev)
-      next.has(i) ? next.delete(i) : next.add(i)
-      return next
-    })
-  }
-
-  const handleAdd = async () => {
-    if (selected.size === 0 || loading) return
-    const orderedTokens = tokens.filter((_, i) => selected.has(i))
+  const handleSet = async () => {
+    if (loading) return
     setLoading(true)
     try {
-      await onAdd(orderedTokens, phrase)
+      await onSet(phrase)
     } finally {
       setLoading(false)
     }
   }
+
+  const preview = phrase.length > 60 ? phrase.slice(0, 60) + '…' : phrase
 
   return (
     <div
@@ -77,41 +64,26 @@ export function SelectionPopover({ phrase, position, onAdd, onClose }: Selection
         display: 'flex',
         flexDirection: 'column',
         gap: '0.5rem',
-        maxWidth: '320px',
+        maxWidth: '280px',
       }}
     >
       <p className="text-xs" style={{ color: 'var(--td)' }}>
-        Нажми на слово(а) — target word
+        Context for: <span className="font-semibold" style={{ color: 'var(--accent)' }}>{lemma}</span>
       </p>
-      <div className="flex flex-wrap gap-1">
-        {tokens.map((token, i) => (
-          <span
-            key={i}
-            onClick={() => toggleToken(i)}
-            className={cn(
-              'cursor-pointer rounded px-1.5 py-0.5 text-sm font-mono transition-all select-none',
-              selected.has(i)
-                ? 'font-semibold'
-                : 'opacity-70 hover:opacity-100',
-            )}
-            style={{
-              color: selected.has(i) ? 'var(--accent)' : 'var(--tm)',
-              background: selected.has(i) ? 'var(--abg)' : 'transparent',
-              border: selected.has(i) ? '1px solid var(--ag)' : '1px solid transparent',
-            }}
-          >
-            {token}
-          </span>
-        ))}
-      </div>
+      <p
+        className="text-xs italic leading-relaxed"
+        style={{ color: 'var(--tm)', borderLeft: '2px solid var(--ag)', paddingLeft: '0.5rem' }}
+      >
+        "{preview}"
+      </p>
       <button
-        onClick={handleAdd}
-        disabled={selected.size === 0 || loading}
+        onClick={() => void handleSet()}
+        disabled={loading}
         className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium text-white disabled:opacity-40 transition-all hover:brightness-110 cursor-pointer self-end"
         style={{ background: 'var(--accent)' }}
       >
         {loading && <Loader2 size={11} className="animate-spin" />}
-        Add
+        Set
       </button>
     </div>
   )

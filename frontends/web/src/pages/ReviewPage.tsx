@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import type { CandidateStatus, SourceDetail, StoredCandidate } from '@/api/types'
 import { CandidateCard } from '@/components/CandidateCard'
@@ -24,9 +24,13 @@ export function ReviewPage() {
   const [loading, setLoading] = useState(true)
   const [hoveredId, setHoveredId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
+  const [editingFragmentFor, setEditingFragmentFor] = useState<number | null>(null)
   const candidatesPanelRef = useRef<HTMLDivElement>(null)
   const textPanelRef = useRef<HTMLDivElement>(null)
   const hoverFromCardRef = useRef(false)
+  const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set())
+  const [generatingAll, setGeneratingAll] = useState(false)
+  const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -61,6 +65,23 @@ export function ReviewPage() {
     setHoveredId(id)
   }, [])
 
+  const handleEditFragment = useCallback((candidateId: number) => {
+    setEditingFragmentFor(candidateId)
+  }, [])
+
+  const handleCancelEditFragment = useCallback(() => {
+    setEditingFragmentFor(null)
+  }, [])
+
+  const handleSetFragment = useCallback(async (fragment: string) => {
+    if (editingFragmentFor === null) return
+    await api.updateCandidateFragment(editingFragmentFor, fragment)
+    setCandidates((prev) =>
+      prev.map((c) => (c.id === editingFragmentFor ? { ...c, context_fragment: fragment } : c)),
+    )
+    setEditingFragmentFor(null)
+  }, [editingFragmentFor])
+
   const handleManualAdd = useCallback(async (surfaceForm: string, contextFragment: string) => {
     const candidate = await api.addManualCandidate(sourceId, surfaceForm, contextFragment)
     setCandidates((prev) => sortCandidates([...prev, candidate]))
@@ -73,6 +94,39 @@ export function ReviewPage() {
     setHoveredId(candidateId)
     setTimeout(() => setHoveredId(null), 1500)
   }, [])
+
+  const handleGenerate = useCallback(async (candidateId: number) => {
+    setGeneratingIds((prev) => new Set(prev).add(candidateId))
+    try {
+      const res = await api.generateMeaning(candidateId)
+      setCandidates((prev) =>
+        prev.map((c) => (c.id === candidateId ? { ...c, ai_meaning: res.meaning } : c)),
+      )
+      setToast({ text: `Tokens used: ${res.tokens_used}`, key: Date.now() })
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Generation failed', key: Date.now() })
+    } finally {
+      setGeneratingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(candidateId)
+        return next
+      })
+    }
+  }, [])
+
+  const handleGenerateAll = useCallback(async () => {
+    setGeneratingAll(true)
+    try {
+      const res = await api.generateAllMeanings(sourceId)
+      const updated = await api.getCandidates(sourceId)
+      setCandidates(sortCandidates(updated))
+      setToast({ text: `Generated: ${res.generated}, tokens: ${res.total_tokens_used}`, key: Date.now() })
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Generation failed', key: Date.now() })
+    } finally {
+      setGeneratingAll(false)
+    }
+  }, [sourceId])
 
   useEffect(() => {
     if (hoveredId === null || !hoverFromCardRef.current) return
@@ -104,6 +158,10 @@ export function ReviewPage() {
     () => new Set(ratedCandidates.map((c) => c.id)),
     [ratedCandidates],
   )
+
+  const editingCandidate = editingFragmentFor !== null
+    ? candidates.find((c) => c.id === editingFragmentFor)
+    : null
 
   const markedCount = ratedCandidates.length
   const learnCount = candidates.filter((c) => c.status === 'learn').length
@@ -184,9 +242,26 @@ export function ReviewPage() {
       <div className="flex-1 overflow-hidden flex">
         {/* Left: candidates */}
         <div ref={candidatesPanelRef} className="w-[45%] overflow-y-auto p-4 flex flex-col gap-3" style={{ borderRight: '1px solid var(--glass-b)' }}>
-          <h2 className="text-xs font-medium uppercase tracking-wider px-1" style={{ color: 'var(--td)' }}>
-            Candidates {candidates.length > 0 && `(${candidates.length})`}
-          </h2>
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--td)' }}>
+              Candidates {candidates.length > 0 && `(${candidates.length})`}
+            </h2>
+            {candidates.length > 0 && (
+              <button
+                onClick={() => void handleGenerateAll()}
+                disabled={generatingAll || generatingIds.size > 0}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
+                style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+              >
+                {generatingAll ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Sparkles size={12} />
+                )}
+                {generatingAll ? 'Generating...' : 'Generate All'}
+              </button>
+            )}
+          </div>
 
           {candidates.length === 0 ? (
             <div className="rounded-xl border border-dashed p-6 text-center" style={{ borderColor: 'var(--glass-b)' }}>
@@ -206,6 +281,11 @@ export function ReviewPage() {
                 onHoverEnter={handleCardHoverEnter}
                 onHoverLeave={() => setHoveredId(null)}
                 onMark={handleMark}
+                onEditFragment={handleEditFragment}
+                onCancelEditFragment={handleCancelEditFragment}
+                isEditingFragment={editingFragmentFor === c.id}
+                onGenerateMeaning={(id) => void handleGenerate(id)}
+                isGenerating={generatingIds.has(c.id)}
               />
             ))
           )}
@@ -228,6 +308,11 @@ export function ReviewPage() {
                   onHoverEnter={handleCardHoverEnter}
                   onHoverLeave={() => setHoveredId(null)}
                   onMark={handleMark}
+                  onEditFragment={handleEditFragment}
+                  onCancelEditFragment={handleCancelEditFragment}
+                  isEditingFragment={editingFragmentFor === c.id}
+                  onGenerateMeaning={(id) => void handleGenerate(id)}
+                  isGenerating={generatingIds.has(c.id)}
                 />
               ))}
             </>
@@ -239,6 +324,26 @@ export function ReviewPage() {
           <h2 className="text-xs font-medium uppercase tracking-wider mb-4" style={{ color: 'var(--td)' }}>
             Source text
           </h2>
+
+          {editingFragmentFor !== null && (
+            <div
+              className="mb-4 flex items-center justify-between rounded-lg px-3 py-2 text-xs"
+              style={{ background: 'var(--abg)', border: '1px solid var(--ag)' }}
+            >
+              <span style={{ color: 'var(--accent)' }}>
+                ✏ Selecting boundary for:{' '}
+                <strong>{editingCandidate?.lemma ?? '…'}</strong>
+              </span>
+              <button
+                onClick={handleCancelEditFragment}
+                className="cursor-pointer transition-opacity hover:opacity-100"
+                style={{ color: 'var(--tm)', opacity: 0.7 }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
           <TextAnnotator
             text={annotationText}
             candidates={candidates}
@@ -247,9 +352,30 @@ export function ReviewPage() {
             onWordClick={handleWordClick}
             onWordHover={handleTextHover}
             onManualAdd={handleManualAdd}
+            editingFragmentFor={editingFragmentFor}
+            editingFragmentLemma={editingCandidate?.lemma ?? null}
+            onSetFragment={handleSetFragment}
           />
         </div>
       </div>
+
+      {toast && <Toast key={toast.key} text={toast.text} onDone={() => setToast(null)} />}
+    </div>
+  )
+}
+
+function Toast({ text, onDone }: { text: string; onDone: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onDone, 3000)
+    return () => clearTimeout(timer)
+  }, [onDone])
+
+  return (
+    <div
+      className="fixed bottom-4 right-4 rounded-lg px-4 py-2.5 text-xs font-medium shadow-lg"
+      style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+    >
+      {text}
     </div>
   )
 }

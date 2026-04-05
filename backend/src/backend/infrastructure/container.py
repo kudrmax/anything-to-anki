@@ -108,6 +108,7 @@ class Container:
             known_word_repo=SqlaKnownWordRepository(session),
             settings_repo=SqlaSettingsRepository(session),
             analyze_text_use_case=self.analyze_text_use_case(),
+            dictionary_provider=CachedDictionaryApiProvider(session),
         )
 
     def get_candidates_use_case(self, session: Session) -> GetCandidatesUseCase:

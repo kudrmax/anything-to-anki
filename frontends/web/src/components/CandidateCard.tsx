@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Loader2, Pencil, Sparkles, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, StoredCandidate } from '@/api/types'
 
@@ -9,6 +9,11 @@ interface CandidateCardProps {
   onHoverEnter: (id: number) => void
   onHoverLeave: () => void
   onMark: (id: number, status: CandidateStatus) => Promise<void>
+  onEditFragment?: (id: number) => void
+  onCancelEditFragment?: () => void
+  isEditingFragment?: boolean
+  onGenerateMeaning?: (id: number) => void
+  isGenerating?: boolean
 }
 
 const CEFR_COLOR: Record<string, string> = {
@@ -70,6 +75,11 @@ export function CandidateCard({
   onHoverEnter,
   onHoverLeave,
   onMark,
+  onEditFragment,
+  onCancelEditFragment,
+  isEditingFragment,
+  onGenerateMeaning,
+  isGenerating,
 }: CandidateCardProps) {
   const cefrCls = CEFR_COLOR[candidate.cefr_level ?? ''] ?? 'bg-slate-800 text-slate-400 border-slate-700'
 
@@ -95,11 +105,16 @@ export function CandidateCard({
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
         }),
-        ...(isHovered && { borderColor: 'var(--accent)' }),
+        ...(isEditingFragment
+          ? { borderColor: 'var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }
+          : isHovered && { borderColor: 'var(--accent)' }),
       }}
     >
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-base font-semibold" style={{ color: 'var(--text)' }}>{candidate.lemma}</span>
+        {candidate.ipa && (
+          <span className="text-xs font-mono" style={{ color: 'var(--td)' }}>{candidate.ipa}</span>
+        )}
         <span className="rounded px-1.5 py-0.5 text-xs" style={{ color: 'var(--td)', background: 'var(--glass)', border: '1px solid var(--glass-b)' }}>
           {POS_LABEL[candidate.pos] ?? candidate.pos.toLowerCase()}
         </span>
@@ -115,7 +130,43 @@ export function CandidateCard({
         <span className="ml-auto text-xs" style={{ color: 'var(--td)' }}>{freqLabel(candidate.zipf_frequency)}</span>
       </div>
 
-      <p className="text-xs italic leading-relaxed" style={{ color: 'var(--tm)' }}>"{candidate.context_fragment}"</p>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-start gap-1">
+          <p className="flex-1 text-xs italic leading-relaxed" style={{ color: 'var(--tm)' }}>
+            "{candidate.context_fragment}"
+          </p>
+          {isEditingFragment ? (
+            <button
+              onClick={onCancelEditFragment}
+              aria-label="Cancel editing context fragment"
+              className="shrink-0 mt-0.5 cursor-pointer transition-opacity hover:opacity-100 rounded"
+              style={{ opacity: 0.8, color: 'var(--accent)' }}
+            >
+              <X size={12} />
+            </button>
+          ) : onEditFragment && (
+            <button
+              onClick={() => onEditFragment(candidate.id)}
+              aria-label="Edit context fragment"
+              className="shrink-0 mt-0.5 cursor-pointer transition-opacity hover:opacity-80"
+              style={{ opacity: isHovered ? 0.5 : 0.15 }}
+            >
+              <Pencil size={11} style={{ color: 'var(--tm)' }} />
+            </button>
+          )}
+        </div>
+        {isEditingFragment && (
+          <p className="text-xs" style={{ color: 'var(--accent)', opacity: 0.8 }}>
+            Select new boundary in text →
+          </p>
+        )}
+      </div>
+
+      {(candidate.ai_meaning || candidate.definition) && (
+        <p className="text-xs leading-relaxed" style={{ color: 'var(--tm)' }}>
+          {candidate.ai_meaning || candidate.definition}
+        </p>
+      )}
 
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1 text-xs">
@@ -134,9 +185,26 @@ export function CandidateCard({
             <span style={{ color: 'var(--td)' }}>· ×{candidate.occurrences}</span>
           )}
         </span>
-        {candidate.is_sweet_spot && (
-          <span className="text-xs" style={{ color: 'var(--accent)' }}>sweet spot</span>
-        )}
+        <span className="flex items-center gap-1.5">
+          {candidate.is_sweet_spot && (
+            <span className="text-xs" style={{ color: 'var(--accent)' }}>sweet spot</span>
+          )}
+          {onGenerateMeaning && (
+            <button
+              onClick={() => onGenerateMeaning(candidate.id)}
+              disabled={isGenerating}
+              title="Generate meaning with AI"
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded-md disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
+              style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+            >
+              {isGenerating ? (
+                <Loader2 size={11} className="animate-spin" />
+              ) : (
+                <Sparkles size={11} />
+              )}
+            </button>
+          )}
+        </span>
       </div>
 
       <div className="flex gap-1.5">

@@ -65,6 +65,18 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
         except Exception:
             pass  # Column already exists — safe to ignore
 
+        try:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN definition TEXT"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists — safe to ignore
+
+        try:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN ipa VARCHAR(100)"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists — safe to ignore
+
         # Seed default prompt — idempotent, runs on every startup
         conn.execute(
             text(

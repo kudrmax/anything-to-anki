@@ -6,6 +6,7 @@ from backend.application.dto.analysis_dtos import (
     WordCandidateDTO,
 )
 from backend.application.use_cases.process_source import ProcessSourceUseCase
+from backend.domain.entities.dictionary_entry import DictionaryEntry
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import SourceAlreadyProcessedError, SourceNotFoundError
 from backend.domain.value_objects.source_status import SourceStatus
@@ -18,13 +19,18 @@ def _make_use_case() -> tuple[ProcessSourceUseCase, dict[str, MagicMock]]:
         "known_word_repo": MagicMock(),
         "settings_repo": MagicMock(),
         "analyze_text": MagicMock(),
+        "dictionary_provider": MagicMock(),
     }
+    mocks["dictionary_provider"].get_entry.return_value = DictionaryEntry(
+        lemma="", pos="", definition="a test definition", ipa="/tɛst/",
+    )
     uc = ProcessSourceUseCase(
         source_repo=mocks["source_repo"],
         candidate_repo=mocks["candidate_repo"],
         known_word_repo=mocks["known_word_repo"],
         settings_repo=mocks["settings_repo"],
         analyze_text_use_case=mocks["analyze_text"],
+        dictionary_provider=mocks["dictionary_provider"],
     )
     return uc, mocks
 

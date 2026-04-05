@@ -69,6 +69,8 @@ class StoredCandidateModel(Base):
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     surface_form: Mapped[str | None] = mapped_column(String(100), nullable=True)
     ai_meaning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    definition: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ipa: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     def to_entity(self) -> StoredCandidate:
@@ -85,6 +87,8 @@ class StoredCandidateModel(Base):
             occurrences=self.occurrences,
             surface_form=self.surface_form,
             ai_meaning=self.ai_meaning,
+            definition=self.definition,
+            ipa=self.ipa,
             is_phrasal_verb=self.is_phrasal_verb,
             status=CandidateStatus(self.status),
         )
@@ -102,6 +106,8 @@ class StoredCandidateModel(Base):
             fragment_purity=candidate.fragment_purity,
             occurrences=candidate.occurrences,
             surface_form=candidate.surface_form,
+            definition=candidate.definition,
+            ipa=candidate.ipa,
             is_phrasal_verb=candidate.is_phrasal_verb,
             status=candidate.status.value,
         )

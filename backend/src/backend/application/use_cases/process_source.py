@@ -11,6 +11,7 @@ from backend.domain.value_objects.source_status import SourceStatus
 if TYPE_CHECKING:
     from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.dictionary_provider import DictionaryProvider
     from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
@@ -28,12 +29,14 @@ class ProcessSourceUseCase:
         known_word_repo: KnownWordRepository,
         settings_repo: SettingsRepository,
         analyze_text_use_case: AnalyzeTextUseCase,
+        dictionary_provider: DictionaryProvider,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
         self._known_word_repo = known_word_repo
         self._settings_repo = settings_repo
         self._analyze_text = analyze_text_use_case
+        self._dictionary_provider = dictionary_provider
 
     def start(self, source_id: int) -> None:
         """Validate source and mark as PROCESSING. Call before launching background task."""
@@ -61,23 +64,29 @@ class ProcessSourceUseCase:
         known_pairs = self._known_word_repo.get_all_pairs()
         filtered = [c for c in result.candidates if (c.lemma, c.pos) not in known_pairs]
 
-        stored = [
-            StoredCandidate(
-                source_id=source_id,
-                lemma=c.lemma,
-                pos=c.pos,
-                cefr_level=c.cefr_level,
-                zipf_frequency=c.zipf_frequency,
-                is_sweet_spot=c.is_sweet_spot,
-                context_fragment=c.context_fragment,
-                fragment_purity=c.fragment_purity,
-                occurrences=c.occurrences,
-                surface_form=c.surface_form,
-                is_phrasal_verb=c.is_phrasal_verb,
-                status=CandidateStatus.PENDING,
+        _NO_DEFINITION = "No definition found"
+        stored: list[StoredCandidate] = []
+        for c in filtered:
+            entry = self._dictionary_provider.get_entry(c.lemma, c.pos)
+            definition = entry.definition if entry.definition != _NO_DEFINITION else None
+            stored.append(
+                StoredCandidate(
+                    source_id=source_id,
+                    lemma=c.lemma,
+                    pos=c.pos,
+                    cefr_level=c.cefr_level,
+                    zipf_frequency=c.zipf_frequency,
+                    is_sweet_spot=c.is_sweet_spot,
+                    context_fragment=c.context_fragment,
+                    fragment_purity=c.fragment_purity,
+                    occurrences=c.occurrences,
+                    surface_form=c.surface_form,
+                    is_phrasal_verb=c.is_phrasal_verb,
+                    status=CandidateStatus.PENDING,
+                    definition=definition,
+                    ipa=entry.ipa,
+                ),
             )
-            for c in filtered
-        ]
         self._candidate_repo.create_batch(stored)
         self._source_repo.update_status(
             source_id, SourceStatus.DONE, cleaned_text=result.cleaned_text,

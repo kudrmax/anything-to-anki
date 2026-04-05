@@ -71,6 +71,9 @@ class GetSourcesUseCase:
                     occurrences=c.occurrences,
                     status=c.status.value,
                     surface_form=c.surface_form,
+                    ai_meaning=c.ai_meaning,
+                    definition=c.definition,
+                    ipa=c.ipa,
                     is_phrasal_verb=c.is_phrasal_verb,
                 )
                 for c in candidates

@@ -58,6 +58,12 @@ class SqlaCandidateRepository(CandidateRepository):
             model.ai_meaning = meaning
             self._session.flush()
 
+    def update_context_fragment(self, candidate_id: int, context_fragment: str) -> None:
+        model = self._session.get(StoredCandidateModel, candidate_id)
+        if model is not None:
+            model.context_fragment = context_fragment
+            self._session.flush()
+
     def delete_by_source(self, source_id: int) -> None:
         self._session.query(StoredCandidateModel).filter(
             StoredCandidateModel.source_id == source_id

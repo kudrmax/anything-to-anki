@@ -3,6 +3,7 @@ vocabminer_dev.db
 data/
 .pids/
 .logs/
+.venv*/
 **/__pycache__/
 **/*.pyc
 **/*.pyo

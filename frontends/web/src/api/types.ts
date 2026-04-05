@@ -32,6 +32,9 @@ export interface StoredCandidate {
   occurrences: number
   status: CandidateStatus
   surface_form: string | null
+  ai_meaning: string | null
+  definition: string | null
+  ipa: string | null
   is_phrasal_verb: boolean
 }
 

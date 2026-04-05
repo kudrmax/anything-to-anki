@@ -12,6 +12,12 @@ class AddManualCandidateRequest(BaseModel):
     context_fragment: str
 
 
+class UpdateContextFragmentRequest(BaseModel):
+    """Input for updating context_fragment of a candidate."""
+
+    context_fragment: str
+
+
 class MarkCandidateRequest(BaseModel):
     """Input for marking a candidate status."""
 
