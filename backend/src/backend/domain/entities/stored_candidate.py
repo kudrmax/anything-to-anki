@@ -22,8 +22,7 @@ class StoredCandidate:
     occurrences: int
     status: CandidateStatus
     surface_form: str | None = None
-    ai_meaning: str | None = None
-    definition: str | None = None
+    meaning: str | None = None
     ipa: str | None = None
     is_phrasal_verb: bool = False
     id: int | None = None

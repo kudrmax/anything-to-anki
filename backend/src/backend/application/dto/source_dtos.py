@@ -12,12 +12,20 @@ class CreateSourceRequest(BaseModel):
 
     raw_text: str
     source_type: SourceType = SourceType.TEXT
+    title: str | None = None
+
+
+class UpdateTitleRequest(BaseModel):
+    """Input for renaming a source."""
+
+    title: str
 
 
 class SourceDTO(BaseModel):
     """Summary view of a source (for list endpoints)."""
 
     id: int
+    title: str
     raw_text_preview: str
     status: str
     source_type: str
@@ -31,6 +39,7 @@ class SourceDetailDTO(BaseModel):
     """Detailed view of a source with candidates."""
 
     id: int
+    title: str
     raw_text: str
     cleaned_text: str | None
     status: str
@@ -55,8 +64,7 @@ class StoredCandidateDTO(BaseModel):
     occurrences: int
     status: str
     surface_form: str | None = None
-    ai_meaning: str | None = None
-    definition: str | None = None
+    meaning: str | None = None
     ipa: str | None = None
     is_phrasal_verb: bool = False
 

@@ -3,8 +3,8 @@ import type {
   CardPreview,
   CandidateStatus,
   CreateNoteTypeResponse,
-  GenerateAllMeaningsResult,
   GenerateMeaningResult,
+  GenerationQueueStatus,
   KnownWord,
   PromptTemplate,
   Settings,
@@ -38,10 +38,16 @@ async function reqVoid(path: string, init?: RequestInit): Promise<void> {
 }
 
 export const api = {
-  createSource: (raw_text: string, source_type: SourceType) =>
+  createSource: (raw_text: string, source_type: SourceType, title?: string) =>
     req<{ id: number; status: string }>('/sources', {
       method: 'POST',
-      body: JSON.stringify({ raw_text, source_type }),
+      body: JSON.stringify({ raw_text, source_type, ...(title ? { title } : {}) }),
+    }),
+
+  renameSource: (id: number, title: string) =>
+    req<{ id: number; title: string }>(`/sources/${id}/title`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title }),
     }),
 
   listSources: () => req<SourceSummary[]>('/sources'),
@@ -87,11 +93,24 @@ export const api = {
   generateMeaning: (candidateId: number) =>
     req<GenerateMeaningResult>(`/candidates/${candidateId}/generate-meaning`, { method: 'POST' }),
 
-  generateAllMeanings: (sourceId: number, status?: string) =>
-    req<GenerateAllMeaningsResult>(
-      `/sources/${sourceId}/generate-all-meanings${status ? `?status=${status}` : ''}`,
-      { method: 'POST' },
-    ),
+  startGeneration: (sourceId?: number) =>
+    req<GenerationQueueStatus>('/generation/start', {
+      method: 'POST',
+      body: JSON.stringify({ source_id: sourceId ?? null }),
+    }),
+
+  stopGeneration: (jobId: number) =>
+    req<{ status: string }>(`/generation/${jobId}/stop`, { method: 'POST' }),
+
+  getGenerationStatus: () => {
+    return fetch(`${BASE}/generation/status`, {
+      headers: { 'Content-Type': 'application/json' },
+    }).then(async (res) => {
+      if (res.status === 204) return null
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+      return res.json() as Promise<GenerationQueueStatus>
+    })
+  },
 
   getStats: () => req<Stats>('/stats'),
 

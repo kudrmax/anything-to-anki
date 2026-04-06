@@ -53,6 +53,7 @@ export function InboxPage() {
   const [sources, setSources] = useState<SourceSummary[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [text, setText] = useState('')
+  const [title, setTitle] = useState('')
   const [sourceType, setSourceType] = useState<SourceType | null>(null)
   const [adding, setAdding] = useState(false)
   const [processingAll, setProcessingAll] = useState(false)
@@ -101,11 +102,14 @@ export function InboxPage() {
     setAdding(true)
     setError(null)
     try {
-      const created = await api.createSource(text.trim(), sourceType)
+      const created = await api.createSource(text.trim(), sourceType, title.trim() || undefined)
+      const resolvedTitle = title.trim() || text.trim().slice(0, 100)
       setText('')
+      setTitle('')
       setSourceType(null)
       const newSource: SourceSummary = {
         id: created.id,
+        title: resolvedTitle,
         raw_text_preview: text.trim().slice(0, 100),
         status: 'new',
         source_type: sourceType,
@@ -165,6 +169,15 @@ export function InboxPage() {
     navigate(`/sources/${id}/export`)
   }
 
+  const handleRename = async (id: number, newTitle: string) => {
+    try {
+      await api.renameSource(id, newTitle)
+      setSources((prev) => prev.map((s) => (s.id === id ? { ...s, title: newTitle } : s)))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to rename source')
+    }
+  }
+
   const handleDelete = async (id: number) => {
     if (!window.confirm('Delete this source and all its candidates?')) return
     try {
@@ -214,6 +227,18 @@ export function InboxPage() {
             ))}
           </div>
 
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Source name (optional)"
+            className="w-full rounded-lg px-4 py-2.5 text-sm transition-colors cosmic-input"
+            style={{
+              background:   'var(--ibg)',
+              border:       '1.5px solid var(--ib)',
+              color:        'var(--text)',
+            }}
+          />
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -309,6 +334,7 @@ export function InboxPage() {
                   onReview={handleReview}
                   onExport={handleExport}
                   onDelete={handleDelete}
+                  onRename={handleRename}
                   isProcessingLocal={processingIds.has(s.id)}
                 />
               ))}

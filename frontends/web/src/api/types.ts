@@ -8,12 +8,13 @@ export type SourceStatus =
 
 export type SourceType = 'text' | 'lyrics' | 'subtitles'
 
-export type ProcessingStage = 'cleaning_source' | 'analyzing_text' | 'fetching_definitions'
+export type ProcessingStage = 'cleaning_source' | 'analyzing_text'
 
 export type CandidateStatus = 'pending' | 'learn' | 'known' | 'skip'
 
 export interface SourceSummary {
   id: number
+  title: string
   raw_text_preview: string
   status: SourceStatus
   source_type: SourceType
@@ -35,14 +36,14 @@ export interface StoredCandidate {
   occurrences: number
   status: CandidateStatus
   surface_form: string | null
-  ai_meaning: string | null
-  definition: string | null
+  meaning: string | null
   ipa: string | null
   is_phrasal_verb: boolean
 }
 
 export interface SourceDetail {
   id: number
+  title: string
   raw_text: string
   cleaned_text: string | null
   status: SourceStatus
@@ -85,7 +86,6 @@ export interface Settings {
   anki_field_target_word: string
   anki_field_meaning: string
   anki_field_ipa: string
-  enable_definitions: boolean
 }
 
 export interface KnownWord {
@@ -127,11 +127,24 @@ export const PROMPT_LABELS: Record<string, { name: string; description: string }
 export interface GenerateMeaningResult {
   candidate_id: number
   meaning: string
+  ipa: string | null
   tokens_used: number
 }
 
-export interface GenerateAllMeaningsResult {
-  generated: number
-  failed: number
-  total_tokens_used: number
+export interface GenerationJobStatus {
+  id: number
+  source_id: number | null
+  status: 'pending' | 'running' | 'paused' | 'cancelled' | 'completed' | 'failed'
+  total_candidates: number
+  processed_candidates: number
+  failed_candidates: number
+  skipped_candidates: number
+  candidate_ids: number[]
+  created_at: string
+}
+
+export interface GenerationQueueStatus {
+  running_job: GenerationJobStatus | null
+  pending_jobs: GenerationJobStatus[]
+  total_pending_count: number
 }

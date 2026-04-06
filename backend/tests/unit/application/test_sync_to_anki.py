@@ -2,7 +2,6 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
-from backend.domain.entities.dictionary_entry import DictionaryEntry
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import AnkiNotAvailableError
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -12,7 +11,8 @@ def _make_candidate(
     candidate_id: int,
     lemma: str,
     status: CandidateStatus,
-    ai_meaning: str | None = None,
+    meaning: str | None = None,
+    ipa: str | None = None,
 ) -> StoredCandidate:
     return StoredCandidate(
         id=candidate_id,
@@ -26,7 +26,8 @@ def _make_candidate(
         fragment_purity="clean",
         occurrences=1,
         status=status,
-        ai_meaning=ai_meaning,
+        meaning=meaning,
+        ipa=ipa,
     )
 
 
@@ -34,16 +35,11 @@ def _make_candidate(
 class TestSyncToAnkiUseCase:
     def setup_method(self) -> None:
         self.candidate_repo = MagicMock()
-        self.dictionary_provider = MagicMock()
         self.anki_connector = MagicMock()
         self.settings_repo = MagicMock()
         self.settings_repo.get.return_value = None  # use default deck
-        self.dictionary_provider.get_entry.return_value = DictionaryEntry(
-            lemma="word", pos="NOUN", definition="a definition", ipa="/wɜːd/"
-        )
         self.use_case = SyncToAnkiUseCase(
             candidate_repo=self.candidate_repo,
-            dictionary_provider=self.dictionary_provider,
             anki_connector=self.anki_connector,
             settings_repo=self.settings_repo,
         )
@@ -67,8 +63,8 @@ class TestSyncToAnkiUseCase:
 
     def test_adds_new_cards(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "burnout", CandidateStatus.LEARN),
-            _make_candidate(2, "relentless", CandidateStatus.LEARN),
+            _make_candidate(1, "burnout", CandidateStatus.LEARN, meaning="выгорание"),
+            _make_candidate(2, "relentless", CandidateStatus.LEARN, meaning="неумолимый"),
         ]
         self.anki_connector.is_available.return_value = True
         self.anki_connector.find_notes_by_target.return_value = []
@@ -128,9 +124,9 @@ class TestSyncToAnkiUseCase:
         assert result.errors == 0
         assert result.skipped_lemmas == ["burnout"]
 
-    def test_ai_meaning_takes_priority_over_dictionary(self) -> None:
+    def test_meaning_from_candidate(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "thug", CandidateStatus.LEARN, ai_meaning="бандит, головорез"),
+            _make_candidate(1, "thug", CandidateStatus.LEARN, meaning="бандит, головорез"),
         ]
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
@@ -141,9 +137,9 @@ class TestSyncToAnkiUseCase:
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
         assert note[0]["Meaning"] == "бандит, головорез"
 
-    def test_falls_back_to_dictionary_when_no_ai_meaning(self) -> None:
+    def test_no_meaning_becomes_empty_string(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "thug", CandidateStatus.LEARN, ai_meaning=None),
+            _make_candidate(1, "thug", CandidateStatus.LEARN, meaning=None),
         ]
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
@@ -152,4 +148,17 @@ class TestSyncToAnkiUseCase:
 
         call_args = self.anki_connector.add_notes.call_args
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
-        assert note[0]["Meaning"] == "a definition"
+        assert note[0]["Meaning"] == ""
+
+    def test_ipa_from_candidate(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "thug", CandidateStatus.LEARN, ipa="/θʌɡ/"),
+        ]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        self.use_case.execute(source_id=1)
+
+        call_args = self.anki_connector.add_notes.call_args
+        note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
+        assert note[0]["IPA"] == "/θʌɡ/"

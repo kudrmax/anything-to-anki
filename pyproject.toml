@@ -3,6 +3,21 @@ name = "anything-to-anki"
 version = "0.1.0"
 requires-python = ">=3.12"
 
+[project.optional-dependencies]
+ai-proxy = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.0",
+    "claude-agent-sdk>=0.1.56",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = []
+
 [tool.mypy]
 strict = true
 warn_return_any = true

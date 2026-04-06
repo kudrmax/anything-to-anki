@@ -5,9 +5,15 @@ from typing import TYPE_CHECKING
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
+from backend.application.use_cases.manage_generation import (
+    GetGenerationStatusUseCase,
+    StartGenerationUseCase,
+    StopGenerationUseCase,
+)
 from backend.application.use_cases.manage_prompts import ManagePromptsUseCase
 from backend.application.use_cases.create_source import CreateSourceUseCase
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
+from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_source_cards import GetSourceCardsUseCase
@@ -17,14 +23,12 @@ from backend.application.use_cases.manage_known_words import ManageKnownWordsUse
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
+from backend.application.use_cases.run_generation_job import RunGenerationJobUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
 from backend.infrastructure.adapters.ai_model_mapping import model_id_for
 from backend.infrastructure.adapters.http_ai_service import HttpAIService
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
-from backend.infrastructure.adapters.cached_dictionary_api_provider import (
-    CachedDictionaryApiProvider,
-)
 from backend.infrastructure.adapters.cefrpy_classifier import CefrpyCEFRClassifier
 from backend.domain.value_objects.source_type import SourceType
 from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
@@ -39,6 +43,9 @@ from backend.infrastructure.adapters.wordfreq_frequency_provider import (
 )
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
+)
+from backend.infrastructure.persistence.sqla_generation_job_repository import (
+    SqlaGenerationJobRepository,
 )
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
@@ -94,6 +101,11 @@ class Container:
             source_repo=SqlaSourceRepository(session),
         )
 
+    def rename_source_use_case(self, session: Session) -> RenameSourceUseCase:
+        return RenameSourceUseCase(
+            source_repo=SqlaSourceRepository(session),
+        )
+
     def delete_source_use_case(self, session: Session) -> DeleteSourceUseCase:
         return DeleteSourceUseCase(
             source_repo=SqlaSourceRepository(session),
@@ -113,7 +125,6 @@ class Container:
             known_word_repo=SqlaKnownWordRepository(session),
             settings_repo=SqlaSettingsRepository(session),
             analyze_text_use_case=self.analyze_text_use_case(),
-            dictionary_provider=CachedDictionaryApiProvider(session),
             source_parsers={
                 SourceType.LYRICS: self._lyrics_parser,
                 SourceType.SUBTITLES: self._srt_parser,
@@ -148,7 +159,6 @@ class Container:
     def sync_to_anki_use_case(self, session: Session) -> SyncToAnkiUseCase:
         return SyncToAnkiUseCase(
             candidate_repo=SqlaCandidateRepository(session),
-            dictionary_provider=CachedDictionaryApiProvider(session),
             anki_connector=self._anki_connector,
             settings_repo=SqlaSettingsRepository(session),
         )
@@ -156,7 +166,6 @@ class Container:
     def get_source_cards_use_case(self, session: Session) -> GetSourceCardsUseCase:
         return GetSourceCardsUseCase(
             candidate_repo=SqlaCandidateRepository(session),
-            dictionary_provider=CachedDictionaryApiProvider(session),
         )
 
     def manage_prompts_use_case(self, session: Session) -> ManagePromptsUseCase:
@@ -170,6 +179,36 @@ class Container:
         ai_proxy_url = os.environ["AI_PROXY_URL"]
         ai_service = HttpAIService(url=ai_proxy_url, model=model_id_for(ai_model_key))
         return GenerateMeaningUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            ai_service=ai_service,
+            prompt_repo=SqlaPromptRepository(session),
+        )
+
+    def start_generation_use_case(self, session: Session) -> StartGenerationUseCase:
+        return StartGenerationUseCase(
+            job_repo=SqlaGenerationJobRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
+        )
+
+    def stop_generation_use_case(self, session: Session) -> StopGenerationUseCase:
+        return StopGenerationUseCase(
+            job_repo=SqlaGenerationJobRepository(session),
+        )
+
+    def get_generation_status_use_case(self, session: Session) -> GetGenerationStatusUseCase:
+        return GetGenerationStatusUseCase(
+            job_repo=SqlaGenerationJobRepository(session),
+        )
+
+    def run_generation_job_use_case(self, session: Session) -> RunGenerationJobUseCase:
+        import os
+
+        settings_repo = SqlaSettingsRepository(session)
+        ai_model_key = settings_repo.get("ai_model", "sonnet") or "sonnet"
+        ai_proxy_url = os.environ["AI_PROXY_URL"]
+        ai_service = HttpAIService(url=ai_proxy_url, model=model_id_for(ai_model_key))
+        return RunGenerationJobUseCase(
+            job_repo=SqlaGenerationJobRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             ai_service=ai_service,
             prompt_repo=SqlaPromptRepository(session),

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-from backend.domain.entities.dictionary_entry import DictionaryEntry
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.source_status import SourceStatus
@@ -192,11 +191,7 @@ class TestGetSourceCardsAPI:
 
         # Manually mark a candidate via mock - use the API flow instead
         # First just test that the endpoint exists and returns 200 with empty list
-        with patch(
-            "backend.infrastructure.adapters.cached_dictionary_api_provider.CachedDictionaryApiProvider.get_entry",
-            return_value=DictionaryEntry(lemma="burnout", pos="NOUN", definition="exhaustion", ipa="/ˈbɜːrnaʊt/"),
-        ):
-            response = client.get(f"/sources/{source_id}/cards")
+        response = client.get(f"/sources/{source_id}/cards")
         assert response.status_code == 200
         assert isinstance(response.json(), list)
 
@@ -207,15 +202,9 @@ class TestSyncToAnkiAPI:
         post = client.post("/sources", json={"raw_text": "some text here for testing"})
         source_id = post.json()["id"]
 
-        with (
-            patch(
-                "backend.infrastructure.adapters.anki_connect_connector.AnkiConnectConnector.is_available",
-                return_value=False,
-            ),
-            patch(
-                "backend.infrastructure.adapters.cached_dictionary_api_provider.CachedDictionaryApiProvider.get_entry",
-                return_value=DictionaryEntry(lemma="text", pos="NOUN", definition="words", ipa=None),
-            ),
+        with patch(
+            "backend.infrastructure.adapters.anki_connect_connector.AnkiConnectConnector.is_available",
+            return_value=False,
         ):
             # Need at least one learn candidate - with empty source there are none, so total=0 and returns 200
             response = client.post(f"/sources/{source_id}/sync-to-anki")
@@ -255,10 +244,6 @@ class TestSyncToAnkiAPI:
             patch(
                 "backend.infrastructure.adapters.anki_connect_connector.AnkiConnectConnector.add_notes",
                 return_value=[12345],
-            ),
-            patch(
-                "backend.infrastructure.adapters.cached_dictionary_api_provider.CachedDictionaryApiProvider.get_entry",
-                return_value=DictionaryEntry(lemma="burnout", pos="NOUN", definition="exhaustion", ipa=None),
             ),
             patch(
                 "backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository.get_by_source",

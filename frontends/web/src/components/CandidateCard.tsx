@@ -162,9 +162,9 @@ export function CandidateCard({
         )}
       </div>
 
-      {(candidate.ai_meaning || candidate.definition) && (
+      {candidate.meaning && (
         <p className="text-xs leading-relaxed" style={{ color: 'var(--tm)' }}>
-          {candidate.ai_meaning || candidate.definition}
+          {candidate.meaning}
         </p>
       )}
 

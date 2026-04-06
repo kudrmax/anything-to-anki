@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
-import type { CandidateStatus, SourceDetail, StoredCandidate } from '@/api/types'
+import type { CandidateStatus, GenerationQueueStatus, SourceDetail, StoredCandidate } from '@/api/types'
 import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
 import { TextAnnotator } from '@/components/TextAnnotator'
 
@@ -29,18 +29,35 @@ export function ReviewPage() {
   const textPanelRef = useRef<HTMLDivElement>(null)
   const hoverFromCardRef = useRef(false)
   const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set())
-  const [generatingAll, setGeneratingAll] = useState(false)
+  const [genQueue, setGenQueue] = useState<GenerationQueueStatus | null>(null)
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
+
+  const runningJob = genQueue?.running_job ?? null
+  const pendingJobsCount = genQueue?.pending_jobs.length ?? 0
+
+  // IDs of candidates being processed right now (only running job)
+  const processingCandidateIds = useMemo(
+    () => new Set(runningJob?.candidate_ids ?? []),
+    [runningJob]
+  )
+
+  // IDs of candidates in queue (all pending jobs)
+  const queuedCandidateIds = useMemo(
+    () => new Set(genQueue?.pending_jobs.flatMap(j => j.candidate_ids) ?? []),
+    [genQueue]
+  )
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [src, cands] = await Promise.all([
+        const [src, cands, queue] = await Promise.all([
           api.getSource(sourceId),
           api.getCandidates(sourceId),
+          api.getGenerationStatus(),
         ])
         setSource(src)
         setCandidates(sortCandidates(cands))
+        if (queue) setGenQueue(queue)
       } finally {
         setLoading(false)
       }
@@ -100,7 +117,7 @@ export function ReviewPage() {
     try {
       const res = await api.generateMeaning(candidateId)
       setCandidates((prev) =>
-        prev.map((c) => (c.id === candidateId ? { ...c, ai_meaning: res.meaning } : c)),
+        prev.map((c) => (c.id === candidateId ? { ...c, meaning: res.meaning, ipa: res.ipa } : c)),
       )
       setToast({ text: `Tokens used: ${res.tokens_used}`, key: Date.now() })
     } catch (e) {
@@ -114,19 +131,45 @@ export function ReviewPage() {
     }
   }, [])
 
-  const handleGenerateAll = useCallback(async () => {
-    setGeneratingAll(true)
+  const handleStartGeneration = useCallback(async () => {
     try {
-      const res = await api.generateAllMeanings(sourceId)
-      const updated = await api.getCandidates(sourceId)
-      setCandidates(sortCandidates(updated))
-      setToast({ text: `Generated: ${res.generated}, tokens: ${res.total_tokens_used}`, key: Date.now() })
+      const queue = await api.startGeneration(sourceId)
+      setGenQueue(queue)
     } catch (e) {
-      setToast({ text: e instanceof Error ? e.message : 'Generation failed', key: Date.now() })
-    } finally {
-      setGeneratingAll(false)
+      setToast({ text: e instanceof Error ? e.message : 'Failed to start', key: Date.now() })
     }
   }, [sourceId])
+
+  const handleStopGeneration = useCallback(async () => {
+    if (!runningJob) return
+    try {
+      await api.stopGeneration(runningJob.id)
+      setGenQueue(prev => prev ? {
+        ...prev,
+        running_job: prev.running_job ? { ...prev.running_job, status: 'paused' } : null,
+        pending_jobs: [],
+      } : null)
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Failed to stop', key: Date.now() })
+    }
+  }, [runningJob])
+
+  useEffect(() => {
+    const hasActive = runningJob?.status === 'running' || runningJob?.status === 'pending' || pendingJobsCount > 0
+    if (!hasActive) return
+    const interval = setInterval(async () => {
+      try {
+        const updated = await api.getCandidates(sourceId)
+        setCandidates(sortCandidates(updated))
+        const queue = await api.getGenerationStatus()
+        setGenQueue(queue)
+        if (!queue || (!queue.running_job && queue.pending_jobs.length === 0)) {
+          clearInterval(interval)
+        }
+      } catch { /* ignore polling errors */ }
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [runningJob?.status, pendingJobsCount, sourceId])
 
   useEffect(() => {
     if (hoveredId === null || !hoverFromCardRef.current) return
@@ -158,6 +201,14 @@ export function ReviewPage() {
     () => new Set(ratedCandidates.map((c) => c.id)),
     [ratedCandidates],
   )
+
+  const batchGenerationStatus: 'pending' | 'running' | 'failed' | null = (() => {
+    if (!runningJob || (runningJob.source_id !== null && runningJob.source_id !== sourceId)) return null
+    if (runningJob.status === 'pending' || runningJob.status === 'running' || runningJob.status === 'failed') {
+      return runningJob.status
+    }
+    return null
+  })()
 
   const editingCandidate = editingFragmentFor !== null
     ? candidates.find((c) => c.id === editingFragmentFor)
@@ -247,19 +298,31 @@ export function ReviewPage() {
               Candidates {candidates.length > 0 && `(${candidates.length})`}
             </h2>
             {candidates.length > 0 && (
-              <button
-                onClick={() => void handleGenerateAll()}
-                disabled={generatingAll || generatingIds.size > 0}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
-                style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
-              >
-                {generatingAll ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
+              runningJob && (runningJob.status === 'pending' || runningJob.status === 'running') ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs" style={{ color: 'var(--tm)' }}>
+                    Generating... {runningJob.processed_candidates}/{runningJob.total_candidates}
+                    {pendingJobsCount > 0 && ` (+${pendingJobsCount} batches queued)`}
+                  </span>
+                  <button
+                    onClick={() => void handleStopGeneration()}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+                    style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
+                  >
+                    Stop
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => void handleStartGeneration()}
+                  disabled={generatingIds.size > 0}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
+                  style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+                >
                   <Sparkles size={12} />
-                )}
-                {generatingAll ? 'Generating...' : 'Generate All'}
-              </button>
+                  Generate Meanings
+                </button>
+              )
             )}
           </div>
 
@@ -286,6 +349,9 @@ export function ReviewPage() {
                 isEditingFragment={editingFragmentFor === c.id}
                 onGenerateMeaning={(id) => void handleGenerate(id)}
                 isGenerating={generatingIds.has(c.id)}
+                batchGenerationStatus={batchGenerationStatus}
+                isInBatchProcessing={processingCandidateIds.has(c.id)}
+                isQueued={queuedCandidateIds.has(c.id)}
               />
             ))
           )}
@@ -313,6 +379,9 @@ export function ReviewPage() {
                   isEditingFragment={editingFragmentFor === c.id}
                   onGenerateMeaning={(id) => void handleGenerate(id)}
                   isGenerating={generatingIds.has(c.id)}
+                  batchGenerationStatus={batchGenerationStatus}
+                  isInBatchProcessing={processingCandidateIds.has(c.id)}
+                  isQueued={queuedCandidateIds.has(c.id)}
                 />
               ))}
             </>

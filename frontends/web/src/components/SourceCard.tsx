@@ -1,4 +1,5 @@
-import { Loader2, Trash2 } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Loader2, Pencil, Trash2 } from 'lucide-react'
 import type { ProcessingStage, SourceStatus, SourceSummary } from '@/api/types'
 
 interface SourceCardProps {
@@ -7,6 +8,7 @@ interface SourceCardProps {
   onReview: (id: number) => void
   onExport: (id: number) => void
   onDelete: (id: number) => void
+  onRename: (id: number, title: string) => void
   isProcessingLocal: boolean
 }
 
@@ -43,7 +45,6 @@ function formatDate(iso: string): string {
 const STAGE_LABELS: Record<ProcessingStage, string> = {
   cleaning_source: 'Cleaning source format…',
   analyzing_text: 'Analyzing text…',
-  fetching_definitions: 'Looking up definitions…',
 }
 
 const GHOST_BTN = {
@@ -52,16 +53,39 @@ const GHOST_BTN = {
   border: '1px solid var(--glass-b)',
 } as const
 
-export function SourceCard({ source, onProcess, onReview, onExport, onDelete, isProcessingLocal }: SourceCardProps) {
+export function SourceCard({ source, onProcess, onReview, onExport, onDelete, onRename, isProcessingLocal }: SourceCardProps) {
   const badge = STATUS_BADGE[source.status]
   const border = STATUS_BORDER[source.status]
   const isProcessing = source.status === 'processing' || isProcessingLocal
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(source.title)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isEditing) inputRef.current?.focus()
+  }, [isEditing])
+
+  const handleSave = () => {
+    const trimmed = editValue.trim()
+    if (trimmed && trimmed !== source.title) {
+      onRename(source.id, trimmed)
+    }
+    setIsEditing(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleSave()
+    if (e.key === 'Escape') {
+      setEditValue(source.title)
+      setIsEditing(false)
+    }
+  }
   const reviewProgress = source.candidate_count > 0
     ? (source.learn_count / source.candidate_count) * 100
     : 0
 
   return (
-    <div className="glass-card rounded-2xl px-5 py-[18px] flex items-start gap-3 relative overflow-hidden">
+    <div className="group glass-card rounded-2xl px-5 py-[18px] flex items-start gap-3 relative overflow-hidden">
       {/* Left status border */}
       <div
         className="absolute left-0 top-[15%] bottom-[15%] w-[2px] rounded-full"
@@ -77,9 +101,40 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, is
 
       {/* Main content */}
       <div className="flex-1 min-w-0 flex flex-col gap-1">
-        <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: 'var(--text)' }}>
-          {source.raw_text_preview}
-        </p>
+        <div className="flex items-center gap-1.5 min-w-0">
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={handleKeyDown}
+              className="text-sm font-semibold leading-snug w-full rounded px-1 py-0.5"
+              style={{
+                color: 'var(--text)',
+                background: 'var(--ibg)',
+                border: '1.5px solid var(--ib)',
+                outline: 'none',
+              }}
+            />
+          ) : (
+            <>
+              <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: 'var(--text)' }}>
+                {source.title}
+              </p>
+              {!isProcessing && (
+                <button
+                  onClick={() => { setEditValue(source.title); setIsEditing(true) }}
+                  className="cursor-pointer shrink-0 opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity"
+                  style={{ background: 'transparent', border: 'none', padding: 0, lineHeight: 0 }}
+                  title="Rename"
+                >
+                  <Pencil size={12} style={{ color: 'var(--tm)' }} />
+                </button>
+              )}
+            </>
+          )}
+        </div>
 
         <div className="flex items-center gap-2 text-xs mt-0.5">
           <span style={{ color: 'var(--tm)' }}>{formatDate(source.created_at)}</span>

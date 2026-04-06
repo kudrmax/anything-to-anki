@@ -10,7 +10,6 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 if TYPE_CHECKING:
     from backend.domain.ports.anki_connector import AnkiConnector
     from backend.domain.ports.candidate_repository import CandidateRepository
-    from backend.domain.ports.dictionary_provider import DictionaryProvider
     from backend.domain.ports.settings_repository import SettingsRepository
 
 _DEFAULT_NOTE_TYPE: str = "AnythingToAnkiType"
@@ -33,12 +32,10 @@ class SyncToAnkiUseCase:
     def __init__(
         self,
         candidate_repo: CandidateRepository,
-        dictionary_provider: DictionaryProvider,
         anki_connector: AnkiConnector,
         settings_repo: SettingsRepository,
     ) -> None:
         self._candidate_repo = candidate_repo
-        self._dictionary_provider = dictionary_provider
         self._connector = anki_connector
         self._settings_repo = settings_repo
 
@@ -73,10 +70,8 @@ class SyncToAnkiUseCase:
 
         for candidate in learn_candidates:
             try:
-                entry = self._dictionary_provider.get_entry(candidate.lemma, candidate.pos)
                 sentence = _highlight(candidate.context_fragment, candidate.lemma)
-                dict_meaning = entry.definition if entry.definition != "No definition found" else ""
-                meaning = candidate.ai_meaning or dict_meaning
+                meaning = candidate.meaning or ""
 
                 note: dict[str, str] = {}
                 if field_sentence:
@@ -86,7 +81,7 @@ class SyncToAnkiUseCase:
                 if field_meaning:
                     note[field_meaning] = meaning
                 if field_ipa:
-                    note[field_ipa] = entry.ipa or ""
+                    note[field_ipa] = candidate.ipa or ""
 
                 results = self._connector.add_notes(
                     deck_name=deck_name,

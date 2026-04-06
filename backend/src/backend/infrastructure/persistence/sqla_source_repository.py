@@ -33,6 +33,13 @@ class SqlaSourceRepository(SourceRepository):
         models = self._session.query(SourceModel).order_by(SourceModel.created_at.desc()).all()
         return [m.to_entity() for m in models]
 
+    def update_title(self, source_id: int, title: str) -> None:
+        model = self._session.get(SourceModel, source_id)
+        if model is None:
+            return
+        model.title = title
+        self._session.flush()
+
     def delete(self, source_id: int) -> None:
         model = self._session.get(SourceModel, source_id)
         if model is not None:

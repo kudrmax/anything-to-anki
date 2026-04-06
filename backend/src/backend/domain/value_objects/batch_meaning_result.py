@@ -4,9 +4,9 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class GenerationResult:
-    """Result of AI meaning generation."""
+class BatchMeaningResult:
+    """A single result from batch meaning generation."""
 
+    word_index: int
     meaning: str
     ipa: str | None
-    tokens_used: int

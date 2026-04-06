@@ -1,18 +1,24 @@
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import AsyncGenerator  # noqa: TC003
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.infrastructure.api.dependencies import get_session_factory
-from backend.infrastructure.api.routes import anki, candidates, known_words, prompts, settings, sources, stats
-from backend.infrastructure.persistence.database import create_tables, reset_stuck_processing, upgrade_schema
+from backend.infrastructure.api.routes import anki, candidates, generation, known_words, prompts, settings, sources, stats
+from backend.infrastructure.persistence.database import create_tables, reset_stuck_processing, resume_generation_jobs, upgrade_schema
 
 
 @asynccontextmanager
@@ -21,6 +27,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     create_tables(session_factory)  # type: ignore[arg-type]
     upgrade_schema(session_factory)  # type: ignore[arg-type]
     reset_stuck_processing(session_factory)  # type: ignore[arg-type]
+    resume_generation_jobs(session_factory)  # type: ignore[arg-type]
     yield
 
 
@@ -40,6 +47,7 @@ app.include_router(settings.router)
 app.include_router(prompts.router)
 app.include_router(anki.router)
 app.include_router(stats.router)
+app.include_router(generation.router)
 
 _dist_env = os.getenv("FRONTEND_DIST")
 _DIST = Path(_dist_env) if _dist_env else Path(__file__).parents[5] / "frontends" / "web" / "dist"

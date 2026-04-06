@@ -34,6 +34,7 @@ class GetSourcesUseCase:
             result.append(
                 SourceDTO(
                     id=source.id,
+                    title=source.title or source.raw_text[:_PREVIEW_LENGTH],
                     raw_text_preview=source.raw_text[:_PREVIEW_LENGTH],
                     status=source.status.value,
                     source_type=source.source_type.value,
@@ -53,6 +54,7 @@ class GetSourcesUseCase:
         candidates = self._candidate_repo.get_by_source(source.id)
         return SourceDetailDTO(
             id=source.id,
+            title=source.title or source.raw_text[:_PREVIEW_LENGTH],
             raw_text=source.raw_text,
             cleaned_text=source.cleaned_text,
             status=source.status.value,
@@ -73,8 +75,7 @@ class GetSourcesUseCase:
                     occurrences=c.occurrences,
                     status=c.status.value,
                     surface_form=c.surface_form,
-                    ai_meaning=c.ai_meaning,
-                    definition=c.definition,
+                    meaning=c.meaning,
                     ipa=c.ipa,
                     is_phrasal_verb=c.is_phrasal_verb,
                 )

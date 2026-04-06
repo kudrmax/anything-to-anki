@@ -8,4 +8,3 @@ class ProcessingStage(Enum):
 
     CLEANING_SOURCE = "cleaning_source"
     ANALYZING_TEXT = "analyzing_text"
-    FETCHING_DEFINITIONS = "fetching_definitions"

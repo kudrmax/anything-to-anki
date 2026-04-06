@@ -35,7 +35,7 @@ define start_ai_proxy
 	@mkdir -p .pids .logs
 	@[ -d $(AI_VENV) ] || (echo "Creating AI proxy venv..." && \
 	    python3 -m venv $(AI_VENV) && \
-	    $(AI_VENV)/bin/pip install fastapi uvicorn pydantic claude-agent-sdk)
+	    $(AI_VENV)/bin/pip install -e ".[ai-proxy]")
 	$(call kill_ai_proxy_on_port,$(3))
 	@$(AI_VENV)/bin/python ai_proxy.py --port $(3) >> $(2) 2>&1 & echo $$! > $(1); \
 	    echo "AI proxy started on port $(3) (PID $$(cat $(1)))"

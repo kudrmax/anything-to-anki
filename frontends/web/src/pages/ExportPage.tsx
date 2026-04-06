@@ -74,10 +74,10 @@ export function ExportPage() {
     setGeneratingAll(true)
     setError(null)
     try {
-      const res = await api.generateAllMeanings(sourceId, 'learn')
+      await api.startGeneration(sourceId)
       const updated = await api.getSourceCards(sourceId)
       setCards(updated)
-      setToast({ text: `Tokens used: ${res.total_tokens_used}`, key: Date.now() })
+      setToast({ text: 'Generation started in background', key: Date.now() })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed')
     } finally {

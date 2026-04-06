@@ -34,25 +34,22 @@ _DEFAULT_SYSTEM_PROMPT = (
     "You are a vocabulary assistant for a B1-B2 English learner. "
     "Your task is to explain English words clearly and simply, "
     "using only common everyday English in your explanations.\n\n"
-    "Output has 4 lines. Follow the format exactly, no extra lines or labels.\n\n"
-    "LINE 1 — Definition:\n"
-    "Use the word itself inside a natural sentence pattern that shows how it works in speech.\n"
+    "For the 'meaning' field, provide:\n"
+    "- LINE 1: Definition using the word in a natural sentence pattern "
+    "that shows how it works in speech. "
     'NOT "X means Y". Instead, a real phrase: '
     '"When you **elaborate** on something, you give more details about it", '
-    '"If you are **reluctant** to do something, you don\'t really want to do it".\n'
-    "This shows the learner the part of speech, grammar, and how the word fits in real sentences.\n"
-    "Bold the target word using **bold**.\n"
-    "Must match the SPECIFIC meaning used in the given context, not a general one.\n\n"
-    "LINE 2 — Context explanation:\n"
-    "Explain what is happening in the given context in simple words.\n"
-    "Rephrase the situation: what is happening, why, what it feels like.\n"
-    "Imagine explaining the sentence to a friend who doesn't know this word.\n"
-    'NEVER evaluate how well the word fits. No "this word fits perfectly", '
-    '"this perfectly captures", "this is a great example of".\n\n'
-    "LINE 3 — \U0001f1f7\U0001f1fa <short Russian translation, 1-3 words>\n"
-    "Short, natural — not a dictionary entry.\n\n"
-    "LINE 4 — \U0001f4cb <2-3 English synonyms or short phrases>\n"
-    "Only for the specific meaning used in context."
+    '"If you are **reluctant** to do something, you don\'t really want to do it". '
+    "Bold the target word using **bold**. "
+    "Must match the SPECIFIC meaning used in the given context.\n"
+    "- LINE 2: Context explanation \u2014 explain what is happening in the given context "
+    "in simple words. Rephrase the situation. "
+    'NEVER evaluate how well the word fits. No "this word fits perfectly".\n'
+    "- LINE 3: \U0001f1f7\U0001f1fa <short Russian translation, 1-3 words>\n"
+    "- LINE 4: \U0001f4cb <2-3 English synonyms or short phrases> "
+    "(only for the specific meaning used in context)\n\n"
+    "For the 'ipa' field, provide the IPA transcription of the word "
+    "(e.g., /\u026a\u02c8l\u00e6b.\u0259.re\u026at/ for 'elaborate')."
 )
 
 _DEFAULT_USER_TEMPLATE = 'Word: "{lemma}" ({pos})\nContext: "{context}"'
@@ -98,6 +95,51 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
         except Exception:
             pass  # Column already exists — safe to ignore
 
+        try:
+            conn.execute(text("ALTER TABLE sources ADD COLUMN title VARCHAR(200)"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists — safe to ignore
+
+        try:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN meaning TEXT"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists — safe to ignore
+
+        try:
+            conn.execute(text("UPDATE candidates SET meaning = COALESCE(ai_meaning, definition) WHERE meaning IS NULL"))
+            conn.commit()
+        except Exception:
+            pass
+
+        conn.execute(text(
+            "CREATE TABLE IF NOT EXISTS generation_jobs ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "source_id INTEGER, "
+            "status VARCHAR(20) NOT NULL DEFAULT 'pending', "
+            "total_candidates INTEGER NOT NULL, "
+            "processed_candidates INTEGER NOT NULL DEFAULT 0, "
+            "failed_candidates INTEGER NOT NULL DEFAULT 0, "
+            "skipped_candidates INTEGER NOT NULL DEFAULT 0, "
+            "candidate_ids_json TEXT NOT NULL DEFAULT '[]', "
+            "created_at DATETIME NOT NULL DEFAULT (datetime('now'))"
+            ")"
+        ))
+        conn.commit()
+
+        try:
+            conn.execute(text("ALTER TABLE generation_jobs ADD COLUMN candidate_ids_json TEXT NOT NULL DEFAULT '[]'"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists — safe to ignore
+
+        try:
+            conn.execute(text("ALTER TABLE generation_jobs ADD COLUMN skipped_candidates INTEGER NOT NULL DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists — safe to ignore
+
         # Seed default prompt — idempotent, runs on every startup
         conn.execute(
             text(
@@ -110,6 +152,14 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
                 "sys": _DEFAULT_SYSTEM_PROMPT,
                 "usr": _DEFAULT_USER_TEMPLATE,
             },
+        )
+        # Force-update prompt to current version (adds IPA support)
+        conn.execute(
+            text(
+                "UPDATE prompt_templates SET system_prompt = :sys"
+                " WHERE function_key = :fk AND system_prompt NOT LIKE '%ipa%'"
+            ),
+            {"fk": "generate_meaning", "sys": _DEFAULT_SYSTEM_PROMPT},
         )
         conn.commit()
 
@@ -124,6 +174,26 @@ def reset_stuck_processing(session_factory: sessionmaker[Session]) -> None:
             update(SourceModel)
             .where(SourceModel.status == SourceStatus.PROCESSING.value)
             .values(status=SourceStatus.NEW.value, processing_stage=None)
+        )
+        session.commit()
+    finally:
+        session.close()
+
+
+def resume_generation_jobs(session_factory: sessionmaker[Session]) -> None:
+    """Mark RUNNING/PENDING generation jobs as FAILED on startup (crash recovery).
+
+    Jobs left in RUNNING or PENDING state after a crash are stale — the worker
+    is no longer running. Mark them FAILED so the user can start a fresh job.
+    """
+    from backend.infrastructure.persistence.models import GenerationJobModel
+
+    session = session_factory()
+    try:
+        session.execute(
+            update(GenerationJobModel)
+            .where(GenerationJobModel.status.in_(["running", "pending"]))
+            .values(status="failed")
         )
         session.commit()
     finally:

@@ -303,27 +303,6 @@ export function SettingsPage() {
             </p>
           </div>
 
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-sm" style={{ color: 'var(--text)' }}>Fetch definitions</span>
-              <p className="text-xs" style={{ color: 'var(--td)' }}>
-                Look up definitions and IPA from dictionary during processing. Disabling speeds up processing.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={form.enable_definitions}
-              onClick={() => setField('enable_definitions', !form.enable_definitions)}
-              className="relative shrink-0 inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer"
-              style={{ background: form.enable_definitions ? 'var(--accent)' : 'var(--glass-b)' }}
-            >
-              <span
-                className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
-                style={{ transform: form.enable_definitions ? 'translateX(1.375rem)' : 'translateX(0.25rem)' }}
-              />
-            </button>
-          </div>
         </section>
 
         {/* AI Model section */}

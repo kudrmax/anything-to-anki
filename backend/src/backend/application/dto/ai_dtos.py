@@ -8,6 +8,7 @@ class GenerateMeaningResponseDTO(BaseModel):
 
     candidate_id: int
     meaning: str
+    ipa: str | None = None
     tokens_used: int
 
 

@@ -87,3 +87,17 @@ class PromptNotFoundError(DomainError):
     def __init__(self, function_key: str) -> None:
         super().__init__(f"Prompt not found for function: {function_key}")
         self.function_key = function_key
+
+
+class GenerationAlreadyRunningError(DomainError):
+    """Raised when trying to start generation while one is already running."""
+
+    def __init__(self) -> None:
+        super().__init__("A generation job is already running or pending")
+
+
+class NoActiveCandidatesError(DomainError):
+    """Raised when trying to start generation but no active candidates without meaning exist."""
+
+    def __init__(self) -> None:
+        super().__init__("No active candidates without meaning to process")

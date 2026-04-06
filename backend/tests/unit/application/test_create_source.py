@@ -31,3 +31,36 @@ class TestCreateSourceUseCase:
     def test_whitespace_only_raises(self) -> None:
         with pytest.raises(ValueError, match="empty"):
             self.use_case.execute("   \n  ")
+
+    def test_creates_source_with_explicit_title(self) -> None:
+        self.source_repo.create.return_value = Source(
+            id=2, raw_text="Some text", status=SourceStatus.NEW, title="My Title",
+        )
+        self.use_case.execute("Some text", title="My Title")
+        created_source = self.source_repo.create.call_args[0][0]
+        assert created_source.title == "My Title"
+
+    def test_auto_generates_title_when_none(self) -> None:
+        self.source_repo.create.return_value = Source(
+            id=3, raw_text="Hello world", status=SourceStatus.NEW, title="Hello world",
+        )
+        self.use_case.execute("Hello world")
+        created_source = self.source_repo.create.call_args[0][0]
+        assert created_source.title == "Hello world"
+
+    def test_auto_generates_title_when_whitespace(self) -> None:
+        self.source_repo.create.return_value = Source(
+            id=4, raw_text="Hello world", status=SourceStatus.NEW, title="Hello world",
+        )
+        self.use_case.execute("Hello world", title="   ")
+        created_source = self.source_repo.create.call_args[0][0]
+        assert created_source.title == "Hello world"
+
+    def test_auto_title_truncated_to_100_chars(self) -> None:
+        long_text = "a" * 200
+        self.source_repo.create.return_value = Source(
+            id=5, raw_text=long_text, status=SourceStatus.NEW, title="a" * 100,
+        )
+        self.use_case.execute(long_text)
+        created_source = self.source_repo.create.call_args[0][0]
+        assert len(created_source.title) == 100

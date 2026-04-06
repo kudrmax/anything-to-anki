@@ -41,9 +41,10 @@ class GenerateMeaningUseCase:
             context=candidate.context_fragment,
         )
         result = self._ai_service.generate_meaning(prompt.system_prompt, user_prompt)
-        self._candidate_repo.update_ai_meaning(candidate_id, result.meaning)
+        self._candidate_repo.update_meaning_and_ipa(candidate_id, result.meaning, result.ipa)
         return GenerateMeaningResponseDTO(
             candidate_id=candidate_id,
             meaning=result.meaning,
+            ipa=result.ipa,
             tokens_used=result.tokens_used,
         )

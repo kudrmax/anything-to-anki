@@ -14,7 +14,6 @@ from backend.domain.value_objects.source_type import SourceType
 if TYPE_CHECKING:
     from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
     from backend.domain.ports.candidate_repository import CandidateRepository
-    from backend.domain.ports.dictionary_provider import DictionaryProvider
     from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_parser import SourceParser
@@ -33,7 +32,6 @@ class ProcessSourceUseCase:
         known_word_repo: KnownWordRepository,
         settings_repo: SettingsRepository,
         analyze_text_use_case: AnalyzeTextUseCase,
-        dictionary_provider: DictionaryProvider,
         source_parsers: dict[SourceType, SourceParser] | None = None,
     ) -> None:
         self._source_repo = source_repo
@@ -41,7 +39,6 @@ class ProcessSourceUseCase:
         self._known_word_repo = known_word_repo
         self._settings_repo = settings_repo
         self._analyze_text = analyze_text_use_case
-        self._dictionary_provider = dictionary_provider
         self._source_parsers: dict[SourceType, SourceParser] = source_parsers or {}
 
     def start(self, source_id: int) -> None:
@@ -93,40 +90,23 @@ class ProcessSourceUseCase:
         known_pairs = self._known_word_repo.get_all_pairs()
         filtered = [c for c in result.candidates if (c.lemma, c.pos) not in known_pairs]
 
-        # Stage 3: dictionary definitions lookup
-        self._notify_stage(source_id, ProcessingStage.FETCHING_DEFINITIONS, on_stage_commit)
-
-        enable_definitions = (
-            self._settings_repo.get("enable_definitions", "true") or "true"
-        ).lower() == "true"
-
-        _NO_DEFINITION = "No definition found"
-        stored: list[StoredCandidate] = []
-        for c in filtered:
-            definition: str | None = None
-            ipa: str | None = None
-            if enable_definitions:
-                entry = self._dictionary_provider.get_entry(c.lemma, c.pos)
-                definition = entry.definition if entry.definition != _NO_DEFINITION else None
-                ipa = entry.ipa
-            stored.append(
-                StoredCandidate(
-                    source_id=source_id,
-                    lemma=c.lemma,
-                    pos=c.pos,
-                    cefr_level=c.cefr_level,
-                    zipf_frequency=c.zipf_frequency,
-                    is_sweet_spot=c.is_sweet_spot,
-                    context_fragment=c.context_fragment,
-                    fragment_purity=c.fragment_purity,
-                    occurrences=c.occurrences,
-                    surface_form=c.surface_form,
-                    is_phrasal_verb=c.is_phrasal_verb,
-                    status=CandidateStatus.PENDING,
-                    definition=definition,
-                    ipa=ipa,
-                ),
+        stored: list[StoredCandidate] = [
+            StoredCandidate(
+                source_id=source_id,
+                lemma=c.lemma,
+                pos=c.pos,
+                cefr_level=c.cefr_level,
+                zipf_frequency=c.zipf_frequency,
+                is_sweet_spot=c.is_sweet_spot,
+                context_fragment=c.context_fragment,
+                fragment_purity=c.fragment_purity,
+                occurrences=c.occurrences,
+                surface_form=c.surface_form,
+                is_phrasal_verb=c.is_phrasal_verb,
+                status=CandidateStatus.PENDING,
             )
+            for c in filtered
+        ]
         self._candidate_repo.create_batch(stored)
         self._source_repo.update_status(
             source_id, SourceStatus.DONE, cleaned_text=result.cleaned_text,

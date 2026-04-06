@@ -18,6 +18,7 @@ class Source:
     raw_text: str
     status: SourceStatus
     id: int | None = None
+    title: str | None = None
     cleaned_text: str | None = None
     error_message: str | None = None
     source_type: SourceType = SourceType.TEXT

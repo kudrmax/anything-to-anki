@@ -15,6 +15,9 @@ interface CandidateCardV2Props {
   isEditingFragment?: boolean
   onGenerateMeaning?: (id: number) => void
   isGenerating?: boolean
+  batchGenerationStatus?: 'pending' | 'running' | 'failed' | null
+  isInBatchProcessing?: boolean
+  isQueued?: boolean
 }
 
 const CEFR_COLOR: Record<string, { bg: string; text: string; border: string }> = {
@@ -143,6 +146,9 @@ export function CandidateCardV2({
   isEditingFragment,
   onGenerateMeaning,
   isGenerating,
+  batchGenerationStatus,
+  isInBatchProcessing,
+  isQueued,
 }: CandidateCardV2Props) {
   const [showInfo, setShowInfo] = useState(false)
 
@@ -301,7 +307,7 @@ export function CandidateCardV2({
       )}
 
       {/* Meaning */}
-      {(candidate.ai_meaning || candidate.definition) && (
+      {candidate.meaning ? (
         <p style={{
           margin: '0 0 20px',
           fontSize: '19px',
@@ -309,9 +315,36 @@ export function CandidateCardV2({
           color: '#cbd5e1',
           whiteSpace: 'pre-line',
         }}>
-          {candidate.ai_meaning || candidate.definition}
+          {candidate.meaning}
         </p>
-      )}
+      ) : isInBatchProcessing ? (
+        <p style={{
+          margin: '0 0 20px',
+          fontSize: '14px',
+          color: 'var(--td)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}>
+          <Loader2 size={14} className="animate-spin" /> Generating...
+        </p>
+      ) : isQueued ? (
+        <p style={{
+          margin: '0 0 20px',
+          fontSize: '14px',
+          color: 'var(--td)',
+        }}>
+          Queued
+        </p>
+      ) : batchGenerationStatus === 'failed' ? (
+        <p style={{
+          margin: '0 0 20px',
+          fontSize: '14px',
+          color: '#f87171',
+        }}>
+          Failed to generate
+        </p>
+      ) : null}
 
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: '10px' }}>
