@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from backend.domain.value_objects.media_extraction_job_status import MediaExtractionJobStatus
