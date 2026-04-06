@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from backend.domain.value_objects.subtitle_block import SubtitleBlock
 
 
@@ -8,4 +8,4 @@ class ParsedSrt:
     """Result of structured SRT parsing: cleaned text + per-block timecodes."""
 
     text: str
-    blocks: list[SubtitleBlock] = field(default_factory=list)
+    blocks: tuple[SubtitleBlock, ...] = ()

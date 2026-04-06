@@ -28,7 +28,7 @@ class TestParsedSrt:
 
     def test_fields(self) -> None:
         block = SubtitleBlock(start_ms=0, end_ms=1000, char_start=0, char_end=5)
-        p = ParsedSrt(text="hello", blocks=[block])
+        p = ParsedSrt(text="hello", blocks=(block,))
         assert p.text == "hello"
         assert len(p.blocks) == 1
 
