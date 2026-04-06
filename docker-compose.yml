@@ -1,6 +1,9 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        VITE_APP_ENV: ${APP_ENV:-development}
     ports:
       - "${PORT:-17832}:8000"
     environment:

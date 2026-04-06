@@ -3,6 +3,8 @@ WORKDIR /build
 COPY frontends/web/package*.json ./
 RUN npm install --prefer-offline
 COPY frontends/web/ ./
+ARG VITE_APP_ENV=development
+ENV VITE_APP_ENV=$VITE_APP_ENV
 RUN npm run build
 
 FROM python:3.12-slim
