@@ -23,9 +23,9 @@ export function ReviewPage() {
   const [candidates, setCandidates] = useState<StoredCandidate[]>([])
   const [loading, setLoading] = useState(true)
   const [hoveredId, setHoveredId] = useState<number | null>(null)
-  const [saving, setSaving] = useState(false)
   const [editingFragmentFor, setEditingFragmentFor] = useState<number | null>(null)
   const candidatesPanelRef = useRef<HTMLDivElement>(null)
+  const autoSaveRef = useRef(false)
   const textPanelRef = useRef<HTMLDivElement>(null)
   const hoverFromCardRef = useRef(false)
   const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set())
@@ -107,7 +107,7 @@ export function ReviewPage() {
   const handleWordClick = useCallback((candidateId: number) => {
     hoverFromCardRef.current = false
     const el = candidatesPanelRef.current?.querySelector(`[data-candidate-id="${candidateId}"]`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     setHoveredId(candidateId)
     setTimeout(() => setHoveredId(null), 1500)
   }, [])
@@ -177,17 +177,16 @@ export function ReviewPage() {
     mark?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [hoveredId])
 
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      const anyPending = candidates.some((c) => c.status === 'pending')
-      const newStatus = anyPending ? 'partially_reviewed' : 'reviewed'
-      await api.updateSourceStatus(sourceId, newStatus)
-      navigate('/')
-    } catch {
-      setSaving(false)
+  useEffect(() => {
+    if (loading) return
+    if (!autoSaveRef.current) {
+      autoSaveRef.current = true
+      return
     }
-  }
+    const anyPending = candidates.some((c) => c.status === 'pending')
+    const newStatus = anyPending ? 'partially_reviewed' : 'reviewed'
+    void api.updateSourceStatus(sourceId, newStatus)
+  }, [candidates, loading, sourceId])
 
   const pendingCandidates = useMemo(
     () => candidates.filter((c) => c.status === 'pending'),
@@ -276,15 +275,6 @@ export function ReviewPage() {
             }}
           >
             Export →
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
-            style={{ background: 'var(--accent)' }}
-          >
-            {saving && <Loader2 size={12} className="animate-spin" />}
-            Save and exit
           </button>
         </div>
       </header>

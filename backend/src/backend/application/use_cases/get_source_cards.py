@@ -1,20 +1,13 @@
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 from backend.application.dto.anki_dtos import CardPreviewDTO
+from backend.application.utils.highlight import highlight_all_forms
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
-
-
-def _highlight(fragment: str, lemma: str) -> str:
-    """Wrap the first occurrence of lemma in fragment with <b> tags."""
-    pattern = re.compile(r"\b(" + re.escape(lemma) + r")\b", re.IGNORECASE)
-    result, count = pattern.subn(r"<b>\1</b>", fragment, count=1)
-    return result if count else fragment
 
 
 class GetSourceCardsUseCase:
@@ -36,8 +29,20 @@ class GetSourceCardsUseCase:
                 CardPreviewDTO(
                     candidate_id=candidate.id,  # type: ignore[arg-type]
                     lemma=candidate.lemma,
-                    sentence=_highlight(candidate.context_fragment, candidate.lemma),
-                    meaning=candidate.meaning,
+                    sentence=highlight_all_forms(
+                        candidate.context_fragment,
+                        candidate.lemma,
+                        candidate.surface_form,
+                    ),
+                    meaning=(
+                        highlight_all_forms(
+                            candidate.meaning,
+                            candidate.lemma,
+                            candidate.surface_form,
+                        )
+                        if candidate.meaning is not None
+                        else None
+                    ),
                     ipa=candidate.ipa,
                 )
             )

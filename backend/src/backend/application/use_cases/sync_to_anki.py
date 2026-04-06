@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 from backend.application.dto.anki_dtos import SyncResultDTO
+from backend.application.utils.highlight import highlight_all_forms
 from backend.domain.exceptions import AnkiNotAvailableError, AnkiSyncError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
@@ -18,12 +18,6 @@ _DEFAULT_FIELD_SENTENCE: str = "Sentence"
 _DEFAULT_FIELD_TARGET: str = "Target"
 _DEFAULT_FIELD_MEANING: str = "Meaning"
 _DEFAULT_FIELD_IPA: str = "IPA"
-
-
-def _highlight(fragment: str, lemma: str) -> str:
-    pattern = re.compile(r"\b(" + re.escape(lemma) + r")\b", re.IGNORECASE)
-    result, count = pattern.subn(r"<b>\1</b>", fragment, count=1)
-    return result if count else fragment
 
 
 class SyncToAnkiUseCase:
@@ -70,8 +64,20 @@ class SyncToAnkiUseCase:
 
         for candidate in learn_candidates:
             try:
-                sentence = _highlight(candidate.context_fragment, candidate.lemma)
-                meaning = candidate.meaning or ""
+                sentence = highlight_all_forms(
+                    candidate.context_fragment,
+                    candidate.lemma,
+                    candidate.surface_form,
+                )
+                meaning = (
+                    highlight_all_forms(
+                        candidate.meaning,
+                        candidate.lemma,
+                        candidate.surface_form,
+                    )
+                    if candidate.meaning
+                    else ""
+                )
 
                 note: dict[str, str] = {}
                 if field_sentence:

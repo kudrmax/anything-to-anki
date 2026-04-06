@@ -15,7 +15,7 @@ interface SourceCardProps {
 const STATUS_BADGE: Record<SourceStatus, { label: string; bg: string; color: string }> = {
   new:                { label: 'New',        bg: 'rgba(148,163,184,.13)', color: 'rgba(148,163,184,.9)' },
   processing:         { label: 'Processing', bg: 'rgba(245,158,11,.13)',  color: 'rgba(245,158,11,.95)' },
-  done:               { label: 'Ready',      bg: 'rgba(16,185,129,.13)',  color: 'rgba(16,185,129,.95)' },
+  done:               { label: 'Ready for review', bg: 'rgba(16,185,129,.13)',  color: 'rgba(16,185,129,.95)' },
   error:              { label: 'Error',      bg: 'rgba(244,63,94,.13)',   color: 'rgba(244,63,94,.95)' },
   partially_reviewed: { label: 'In Review',  bg: 'rgba(249,115,22,.13)', color: 'rgba(249,115,22,.95)' },
   reviewed:           { label: 'Reviewed',   bg: 'rgba(14,165,233,.13)',  color: 'rgba(14,165,233,.95)' },
@@ -84,8 +84,13 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
     ? (source.learn_count / source.candidate_count) * 100
     : 0
 
+  const isReviewable = source.status === 'done' || source.status === 'partially_reviewed' || source.status === 'reviewed'
+
   return (
-    <div className="group glass-card rounded-2xl px-5 py-[18px] flex items-start gap-3 relative overflow-hidden">
+    <div
+      className={`group glass-card rounded-2xl px-5 py-[18px] flex items-start gap-3 relative overflow-hidden${isReviewable ? ' cursor-pointer' : ''}`}
+      onClick={isReviewable ? () => onReview(source.id) : undefined}
+    >
       {/* Left status border */}
       <div
         className="absolute left-0 top-[15%] bottom-[15%] w-[2px] rounded-full"
@@ -124,7 +129,7 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
               </p>
               {!isProcessing && (
                 <button
-                  onClick={() => { setEditValue(source.title); setIsEditing(true) }}
+                  onClick={(e) => { e.stopPropagation(); setEditValue(source.title); setIsEditing(true) }}
                   className="cursor-pointer shrink-0 opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity"
                   style={{ background: 'transparent', border: 'none', padding: 0, lineHeight: 0 }}
                   title="Rename"
@@ -209,7 +214,7 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
           </span>
           {!isProcessing && (
             <button
-              onClick={() => onDelete(source.id)}
+              onClick={(e) => { e.stopPropagation(); onDelete(source.id) }}
               className="cursor-pointer transition-opacity hover:opacity-100 opacity-40"
               style={{ background: 'transparent', border: 'none', padding: 0, lineHeight: 0 }}
               title="Delete source"
@@ -219,58 +224,45 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
           )}
         </div>
 
-        {(source.status === 'new' || source.status === 'error') && (
-          <button
-            onClick={() => onProcess(source.id)}
-            disabled={isProcessingLocal}
-            className="text-xs font-medium rounded-lg disabled:opacity-50 cursor-pointer transition-all hover:brightness-110"
-            style={{ ...GHOST_BTN, padding: '5px 11px' }}
-          >
-            Process →
-          </button>
-        )}
-
-        {/* done: Review primary + Export secondary (master добавил Export, сохраняем) */}
-        {source.status === 'done' && (
-          <>
+        <div className="flex items-center gap-2">
+          {source.status === 'partially_reviewed' && (
             <button
-              onClick={() => onReview(source.id)}
+              onClick={(e) => { e.stopPropagation(); onExport(source.id) }}
+              className="text-xs font-medium rounded-lg cursor-pointer transition-all hover:brightness-110"
+              style={{ ...GHOST_BTN, padding: '5px 11px' }}
+            >
+              Export →
+            </button>
+          )}
+          {source.status === 'reviewed' && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onExport(source.id) }}
+              className="text-xs font-medium rounded-lg cursor-pointer transition-all hover:brightness-110"
+              style={{ ...GHOST_BTN, padding: '5px 11px' }}
+            >
+              Export →
+            </button>
+          )}
+          {source.status === 'new' && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onProcess(source.id) }}
+              disabled={isProcessingLocal}
+              className="text-xs font-medium rounded-lg disabled:opacity-50 cursor-pointer transition-all hover:brightness-110"
+              style={{ ...GHOST_BTN, padding: '5px 11px' }}
+            >
+              Process →
+            </button>
+          )}
+          {(source.status === 'done' || source.status === 'partially_reviewed' || source.status === 'reviewed') && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onReview(source.id) }}
               className="text-xs font-medium rounded-lg cursor-pointer transition-all hover:brightness-110"
               style={{ ...GHOST_BTN, padding: '5px 11px' }}
             >
               Review →
             </button>
-            {source.candidate_count > 0 && (
-              <button
-                onClick={() => onExport(source.id)}
-                className="text-xs font-medium rounded-lg cursor-pointer transition-all hover:brightness-110"
-                style={{ ...GHOST_BTN, padding: '5px 11px' }}
-              >
-                Export →
-              </button>
-            )}
-          </>
-        )}
-
-        {source.status === 'partially_reviewed' && (
-          <button
-            onClick={() => onReview(source.id)}
-            className="text-xs font-medium rounded-lg cursor-pointer transition-all hover:brightness-110"
-            style={{ ...GHOST_BTN, padding: '5px 11px' }}
-          >
-            Continue →
-          </button>
-        )}
-
-        {source.status === 'reviewed' && (
-          <button
-            onClick={() => onExport(source.id)}
-            className="text-xs font-medium rounded-lg cursor-pointer transition-all hover:brightness-110"
-            style={{ ...GHOST_BTN, padding: '5px 11px' }}
-          >
-            Export →
-          </button>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )

@@ -88,3 +88,27 @@ class TestGetSourceCardsUseCase:
         ]
         result = self.use_case.execute(source_id=1)
         assert result == []
+
+    def test_sentence_highlights_inflected_form(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate("run", CandidateStatus.LEARN, "she is running fast"),
+        ]
+        result = self.use_case.execute(source_id=1)
+        assert "<b>running</b>" in result[0].sentence
+
+    def test_sentence_strips_markdown(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate("burnout", CandidateStatus.LEARN, "leads to **burnout** quickly"),
+        ]
+        result = self.use_case.execute(source_id=1)
+        assert "**" not in result[0].sentence
+        assert "<b>burnout</b>" in result[0].sentence
+
+    def test_meaning_strips_markdown_and_highlights(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate("burnout", CandidateStatus.LEARN, meaning="**burnout** means exhaustion"),
+        ]
+        result = self.use_case.execute(source_id=1)
+        assert result[0].meaning is not None
+        assert "**" not in result[0].meaning
+        assert "<b>burnout</b>" in result[0].meaning

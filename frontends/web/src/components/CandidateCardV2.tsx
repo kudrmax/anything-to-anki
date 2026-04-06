@@ -78,15 +78,40 @@ const MARK_ACTIVE: Record<string, { bg: string; color: string; border: string }>
   skip:  { bg: 'rgba(239,68,68,0.3)', color: '#f87171', border: 'rgba(239,68,68,0.5)' },
 }
 
-function highlightWord(fragment: string, lemma: string, surfaceForm: string | null): React.ReactElement {
-  const target = surfaceForm ?? lemma
-  const idx = fragment.toLowerCase().indexOf(target.toLowerCase())
-  if (idx === -1) {
-    return <>{fragment}</>
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*{2}(.+?)\*{2}/gs, '$1')
+    .replace(/_{2}(.+?)_{2}/gs, '$1')
+    .replace(/\*(.+?)\*/gs, '$1')
+    .replace(/_(.+?)_/gs, '$1')
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function buildHighlightPattern(lemma: string, surfaceForm: string | null): RegExp {
+  const patterns: string[] = []
+  if (surfaceForm) patterns.push(escapeRegex(surfaceForm))
+  const words = lemma.split(' ')
+  if (words.length === 1) {
+    patterns.push(`\\b${escapeRegex(lemma)}\\w*`)
+  } else {
+    const rest = words.slice(1).map(escapeRegex).join('\\s+')
+    patterns.push(`\\b${escapeRegex(words[0])}\\w*\\s+${rest}\\b`)
   }
-  const before = fragment.slice(0, idx)
-  const match = fragment.slice(idx, idx + target.length)
-  const after = fragment.slice(idx + target.length)
+  return new RegExp(`(${patterns.join('|')})`, 'gi')
+}
+
+function highlightWord(fragment: string, lemma: string, surfaceForm: string | null): React.ReactElement {
+  const clean = stripMarkdown(fragment)
+  const pattern = buildHighlightPattern(lemma, surfaceForm)
+  const match = pattern.exec(clean)
+  if (!match) {
+    return <>{clean}</>
+  }
+  const before = clean.slice(0, match.index)
+  const after = clean.slice(match.index + match[0].length)
   return (
     <>
       {before}
@@ -98,11 +123,30 @@ function highlightWord(fragment: string, lemma: string, surfaceForm: string | nu
         textDecorationColor: '#818cf8',
         textUnderlineOffset: '4px',
       }}>
-        {match}
+        {match[0]}
       </span>
       {after}
     </>
   )
+}
+
+function renderMeaning(text: string, lemma: string, surfaceForm: string | null): React.ReactElement {
+  const clean = stripMarkdown(text)
+  const pattern = buildHighlightPattern(lemma, surfaceForm)
+  const parts: React.ReactNode[] = []
+  let last = 0
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(clean)) !== null) {
+    if (match.index > last) parts.push(clean.slice(last, match.index))
+    parts.push(
+      <span key={match.index} style={{ fontWeight: 700, color: '#eef0ff' }}>
+        {match[0]}
+      </span>,
+    )
+    last = match.index + match[0].length
+  }
+  if (last < clean.length) parts.push(clean.slice(last))
+  return <>{parts}</>
 }
 
 const TOOLBAR_BTN_CLS = [
@@ -201,72 +245,9 @@ export function CandidateCardV2({
         top: '20px',
         right: '20px',
         display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-end',
-        gap: '6px',
+        alignItems: 'center',
+        gap: '4px',
       }}>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          {isEditingFragment ? (
-            <ToolbarButton
-              onClick={onCancelEditFragment}
-              ariaLabel="Cancel editing context fragment"
-              className="border-[var(--accent)] text-[var(--accent)]"
-            >
-              <X size={13} />
-            </ToolbarButton>
-          ) : onEditFragment && (
-            <ToolbarButton
-              onClick={() => onEditFragment(candidate.id)}
-              ariaLabel="Edit context fragment"
-              title="Edit context fragment"
-            >
-              <Pencil size={13} />
-            </ToolbarButton>
-          )}
-          {onGenerateMeaning && (
-            <ToolbarButton
-              onClick={() => onGenerateMeaning(candidate.id)}
-              disabled={isGenerating}
-              ariaLabel="Generate meaning with AI"
-              title="Generate meaning with AI"
-            >
-              {isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-            </ToolbarButton>
-          )}
-          <div
-            className="relative"
-            onMouseEnter={() => setShowInfo(true)}
-            onMouseLeave={() => setShowInfo(false)}
-          >
-            <ToolbarButton ariaLabel="Word info" title="Word info">
-              <Info size={13} />
-            </ToolbarButton>
-            {showInfo && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                marginTop: '6px',
-                background: 'rgba(15,17,30,0.95)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                whiteSpace: 'nowrap',
-                zIndex: 10,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-              }}>
-                {candidate.ipa && (
-                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>
-                    {candidate.ipa}
-                  </span>
-                )}
-                <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>
-                  · {POS_LABEL[candidate.pos] ?? candidate.pos.toLowerCase()}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
         {(candidate.is_phrasal_verb || candidate.cefr_level) && (
           candidate.is_phrasal_verb ? (
             <span className="rounded border px-1.5 py-0.5 text-xs font-medium bg-violet-900/40 text-violet-400 border-violet-800">
@@ -287,6 +268,66 @@ export function CandidateCardV2({
             </span>
           )
         )}
+        {isEditingFragment ? (
+          <ToolbarButton
+            onClick={onCancelEditFragment}
+            ariaLabel="Cancel editing context fragment"
+            className="border-[var(--accent)] text-[var(--accent)]"
+          >
+            <X size={13} />
+          </ToolbarButton>
+        ) : onEditFragment && (
+          <ToolbarButton
+            onClick={() => onEditFragment(candidate.id)}
+            ariaLabel="Edit context fragment"
+            title="Edit context fragment"
+          >
+            <Pencil size={13} />
+          </ToolbarButton>
+        )}
+        {onGenerateMeaning && (
+          <ToolbarButton
+            onClick={() => onGenerateMeaning(candidate.id)}
+            disabled={isGenerating}
+            ariaLabel="Generate meaning with AI"
+            title="Generate meaning with AI"
+          >
+            {isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+          </ToolbarButton>
+        )}
+        <div
+          className="relative"
+          onMouseEnter={() => setShowInfo(true)}
+          onMouseLeave={() => setShowInfo(false)}
+        >
+          <ToolbarButton ariaLabel="Word info" title="Word info">
+            <Info size={13} />
+          </ToolbarButton>
+          {showInfo && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              marginTop: '6px',
+              background: 'rgba(15,17,30,0.95)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: '8px',
+              padding: '8px 12px',
+              whiteSpace: 'nowrap',
+              zIndex: 10,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            }}>
+              {candidate.ipa && (
+                <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>
+                  {candidate.ipa}
+                </span>
+              )}
+              <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>
+                · {POS_LABEL[candidate.pos] ?? candidate.pos.toLowerCase()}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Fragment (hero) */}
@@ -315,7 +356,7 @@ export function CandidateCardV2({
           color: '#cbd5e1',
           whiteSpace: 'pre-line',
         }}>
-          {candidate.meaning}
+          {renderMeaning(candidate.meaning, candidate.lemma, candidate.surface_form)}
         </p>
       ) : isInBatchProcessing ? (
         <p style={{

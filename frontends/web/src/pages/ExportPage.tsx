@@ -262,7 +262,12 @@ function CardPreviewItem({ card, isGenerating, onGenerate }: CardPreviewItemProp
         dangerouslySetInnerHTML={{ __html: card.sentence }}
       />
       {card.meaning ? (
-        <p className="text-xs" style={{ color: 'var(--tm)' }}>{card.meaning}</p>
+        <p
+          className="text-xs"
+          style={{ color: 'var(--tm)' }}
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: card.meaning }}
+        />
       ) : (
         <p className="text-xs italic" style={{ color: 'var(--td)' }}>No definition available</p>
       )}

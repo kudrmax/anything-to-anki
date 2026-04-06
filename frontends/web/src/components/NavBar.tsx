@@ -5,7 +5,10 @@ export function NavBar() {
   return (
     <header className="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
       <div>
-        <span className="text-base font-semibold tracking-tight text-slate-100">VocabMiner</span>
+        <span className="flex items-center gap-2 text-base font-semibold text-slate-100">
+          <img src="/anki-logo.png" alt="Anki" className="w-7 h-7 rounded-lg object-cover" />
+          Anything to Anki
+        </span>
         <p className="text-xs text-slate-500 mt-0.5">Vocabulary extraction from any text</p>
       </div>
       <nav className="flex items-center gap-1">

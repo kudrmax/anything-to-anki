@@ -24,7 +24,10 @@ export function ClassicLayout() {
           className="text-lg font-bold cursor-pointer"
           style={{ letterSpacing: '-0.4px', color: 'var(--text)' }}
         >
-          Vocab<span className="grad-text">Miner</span>
+          <span className="flex items-center gap-2">
+            <img src="/anki-logo.png" alt="Anki" className="w-7 h-7 rounded-lg object-cover" />
+            Anything to <span className="grad-text">Anki</span>
+          </span>
         </button>
         <button
           onClick={() => navigate('/settings')}
