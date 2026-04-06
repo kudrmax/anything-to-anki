@@ -35,8 +35,14 @@ class TestParsedSrt:
 
 @pytest.mark.unit
 class TestSubtitleTrackInfo:
+    def test_is_frozen(self) -> None:
+        t = SubtitleTrackInfo(index=0, language="eng", title="English", codec="subrip")
+        with pytest.raises(Exception):
+            t.index = 999  # type: ignore[misc]
+
     def test_fields(self) -> None:
         t = SubtitleTrackInfo(index=0, language="eng", title="English", codec="subrip")
         assert t.index == 0
         assert t.language == "eng"
+        assert t.title == "English"
         assert t.codec == "subrip"
