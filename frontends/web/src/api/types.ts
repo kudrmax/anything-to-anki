@@ -6,7 +6,7 @@ export type SourceStatus =
   | 'partially_reviewed'
   | 'reviewed'
 
-export type SourceType = 'text' | 'lyrics' | 'subtitles'
+export type SourceType = 'text' | 'lyrics' | 'subtitles' | 'book' | 'video' | 'article'
 
 export type ProcessingStage = 'cleaning_source' | 'analyzing_text'
 
