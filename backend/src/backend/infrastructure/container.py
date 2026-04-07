@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, Iterator
 
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
@@ -114,6 +115,32 @@ class Container:
             os.path.join(os.getenv("DATA_DIR", "."), "media"),
         )
         self._lazy_media_reconciler: LazyMediaReconciler | None = None  # lazy init on first call
+        # Lazy-created by get_redis_pool()
+        self._redis_pool: object | None = None
+        # Session factory — lazy-loaded to avoid importing from api.dependencies at class-definition time
+        self._session_factory = None
+
+    def _get_session_factory(self):  # type: ignore[return]
+        """Lazy-load the session factory to avoid circular imports."""
+        if self._session_factory is None:
+            from backend.infrastructure.api.dependencies import get_session_factory
+            self._session_factory = get_session_factory()
+        return self._session_factory
+
+    @contextmanager
+    def session_scope(self) -> Iterator[Session]:
+        """Context manager for a DB session with auto-commit/rollback.
+        Used by worker job functions which don't have FastAPI request scope."""
+        factory = self._get_session_factory()
+        session = factory()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
     def add_manual_candidate_use_case(self, session: Session) -> AddManualCandidateUseCase:
         return AddManualCandidateUseCase(
@@ -343,3 +370,32 @@ class Container:
             media_extractor=self._media_extractor,
             media_root=self._media_root,
         )
+
+    def media_extraction_use_case(self, session: Session) -> MediaExtractionUseCase:
+        """Alias for run_media_extraction_job_use_case (new name for Phase 2)."""
+        return self.run_media_extraction_job_use_case(session)
+
+    def meaning_generation_use_case(self, session: Session) -> MeaningGenerationUseCase:
+        """Alias for run_generation_job_use_case (new name for Phase 2)."""
+        return self.run_generation_job_use_case(session)
+
+    def candidate_meaning_repository(self, session: Session) -> SqlaCandidateMeaningRepository:
+        return SqlaCandidateMeaningRepository(session)
+
+    def candidate_media_repository(self, session: Session) -> SqlaCandidateMediaRepository:
+        return SqlaCandidateMediaRepository(session)
+
+    async def get_redis_pool(self) -> object:
+        """Lazy-init shared ArqRedis pool for enqueueing jobs from FastAPI."""
+        import os
+
+        from arq import create_pool
+        from arq.connections import RedisSettings
+
+        if self._redis_pool is None:
+            self._redis_pool = await create_pool(
+                RedisSettings.from_dsn(
+                    os.environ.get("REDIS_URL", "redis://localhost:6379")
+                )
+            )
+        return self._redis_pool
