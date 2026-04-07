@@ -366,7 +366,17 @@ export function ReviewPage() {
       {/* Split panels */}
       <div className="flex-1 overflow-hidden flex">
         {/* Left: candidates */}
-        <div ref={candidatesPanelRef} className="w-[45%] overflow-y-auto p-4 flex flex-col gap-3" style={{ borderRight: '1px solid var(--glass-b)' }}>
+        <div
+          ref={candidatesPanelRef}
+          className="overflow-y-auto p-4 flex flex-col gap-3"
+          style={{
+            // Fixed 640px on wide screens (so toggling sidebar doesn't reflow the candidates panel),
+            // shrinks proportionally on narrow viewports, never below 360px (tablet-friendly).
+            width: 'clamp(360px, 640px, 50vw)',
+            flexShrink: 0,
+            borderRight: '1px solid var(--glass-b)',
+          }}
+        >
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-3">
               <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--td)' }}>
