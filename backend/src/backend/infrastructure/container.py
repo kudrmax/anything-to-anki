@@ -23,7 +23,7 @@ from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.rename_source import RenameSourceUseCase
-from backend.application.use_cases.run_generation_job import RunGenerationJobUseCase
+from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
 from backend.domain.value_objects.source_type import SourceType
@@ -85,7 +85,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.regenerate_candidate_media import (
         RegenerateCandidateMediaUseCase,
     )
-    from backend.application.use_cases.run_media_extraction_job import RunMediaExtractionJobUseCase
+    from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
 
 
 class Container:
@@ -245,17 +245,16 @@ class Container:
             job_repo=SqlaGenerationJobRepository(session),
         )
 
-    def run_generation_job_use_case(self, session: Session) -> RunGenerationJobUseCase:
+    def run_generation_job_use_case(self, session: Session) -> MeaningGenerationUseCase:
         import os
 
         settings_repo = SqlaSettingsRepository(session)
         ai_model_key = settings_repo.get("ai_model", "sonnet") or "sonnet"
         ai_proxy_url = os.environ["AI_PROXY_URL"]
         ai_service = HttpAIService(url=ai_proxy_url, model=model_id_for(ai_model_key))
-        return RunGenerationJobUseCase(
-            job_repo=SqlaGenerationJobRepository(session),
+        return MeaningGenerationUseCase(
             candidate_repo=SqlaCandidateRepository(session),
-            meaning_repo=SqlaCandidateMeaningRepository(session),  # NEW
+            meaning_repo=SqlaCandidateMeaningRepository(session),
             ai_service=ai_service,
             prompt_repo=SqlaPromptRepository(session),
         )
@@ -301,14 +300,13 @@ class Container:
             job_repo=SqlaMediaExtractionJobRepository(session),
         )
 
-    def run_media_extraction_job_use_case(self, session: Session) -> RunMediaExtractionJobUseCase:
+    def run_media_extraction_job_use_case(self, session: Session) -> MediaExtractionUseCase:
         from backend.application.use_cases.run_media_extraction_job import (
-            RunMediaExtractionJobUseCase,
+            MediaExtractionUseCase,
         )
-        return RunMediaExtractionJobUseCase(
-            job_repo=SqlaMediaExtractionJobRepository(session),
+        return MediaExtractionUseCase(
             candidate_repo=SqlaCandidateRepository(session),
-            media_repo=SqlaCandidateMediaRepository(session),  # NEW
+            media_repo=SqlaCandidateMediaRepository(session),
             source_repo=SqlaSourceRepository(session),
             media_extractor=self._media_extractor,
             media_root=self._media_root,

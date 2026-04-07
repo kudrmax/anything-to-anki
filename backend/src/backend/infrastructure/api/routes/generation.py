@@ -86,51 +86,5 @@ async def _run_generation_background(
     container: Container,
     session_factory: object,
 ) -> None:
-    """Run a generation job and recursively launch the next pending job."""
-    bg_session: Session = session_factory()  # type: ignore[operator]
-    try:
-        use_case = container.run_generation_job_use_case(bg_session)
-        await asyncio.to_thread(use_case.execute, job_id, commit=bg_session.commit)
-    except Exception:
-        bg_session.rollback()
-        logger.exception("Generation job %d failed", job_id)
-        # Mark job as FAILED in a fresh session
-        err_session: Session = session_factory()  # type: ignore[operator]
-        try:
-            from backend.domain.value_objects.generation_job_status import GenerationJobStatus
-            from backend.infrastructure.persistence.sqla_generation_job_repository import (
-                SqlaGenerationJobRepository,
-            )
-
-            repo = SqlaGenerationJobRepository(err_session)
-            job = repo.get_by_id(job_id)
-            if job is not None:
-                job.status = GenerationJobStatus.FAILED
-                repo.update(job)
-                err_session.commit()
-        except Exception:
-            logger.exception("Failed to mark generation job %d as FAILED", job_id)
-            err_session.rollback()
-        finally:
-            err_session.close()
-    finally:
-        bg_session.close()
-
-    # After current job finishes, check for next pending job
-    next_session: Session = session_factory()  # type: ignore[operator]
-    try:
-        from backend.infrastructure.persistence.sqla_generation_job_repository import (
-            SqlaGenerationJobRepository,
-        )
-
-        repo = SqlaGenerationJobRepository(next_session)
-        next_job = repo.get_next_pending(source_id)
-        next_job_id = next_job.id if next_job is not None and next_job.id is not None else None
-    finally:
-        next_session.close()
-
-    # Recursively run next job if exists
-    if next_job_id is not None:
-        asyncio.create_task(
-            _run_generation_background(next_job_id, source_id, container, session_factory)
-        )
+    # Deprecated: old job-loop flow. Removed in Phase 2 C7.
+    raise NotImplementedError("Deprecated, removed in Phase 2 C7")
