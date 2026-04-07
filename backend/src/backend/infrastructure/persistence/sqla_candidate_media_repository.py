@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select, update
 
 from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
+from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.models import (
     CandidateMediaModel,
     StoredCandidateModel,
@@ -83,15 +84,13 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
         self._session.flush()
 
     def get_eligible_candidate_ids(self, source_id: int) -> list[int]:
-        from backend.domain.value_objects.candidate_status import CandidateStatus
-
-        query = (
-            self._session.query(StoredCandidateModel.id)
+        stmt = (
+            select(StoredCandidateModel.id)
             .join(
                 CandidateMediaModel,
                 CandidateMediaModel.candidate_id == StoredCandidateModel.id,
             )
-            .filter(
+            .where(
                 StoredCandidateModel.source_id == source_id,
                 StoredCandidateModel.status.in_(
                     [CandidateStatus.PENDING.value, CandidateStatus.LEARN.value]
@@ -101,4 +100,5 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
                 CandidateMediaModel.screenshot_path.is_(None),
             )
         )
-        return [row[0] for row in query.all()]
+        rows = self._session.execute(stmt).all()
+        return [row[0] for row in rows]

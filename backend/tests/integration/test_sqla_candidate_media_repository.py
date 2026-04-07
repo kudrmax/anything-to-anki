@@ -169,3 +169,25 @@ class TestSqlaCandidateMediaRepository:
 
             ids = repo.get_eligible_candidate_ids(source_id=1)
             assert ids == [1]
+
+    def test_get_eligible_candidate_ids_excludes_non_active_status(self) -> None:
+        with self._Session() as s:
+            # Insert candidate with status='known' (not active)
+            s.execute(text(
+                "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
+                "occurrences, status, is_phrasal_verb) "
+                "VALUES (4, 1, 'z', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'known', 0)"
+            ))
+            s.commit()
+            repo = SqlaCandidateMediaRepository(s)
+            # candidate 4 has timecodes and no screenshot, but status=known → NOT eligible
+            repo.upsert(CandidateMedia(
+                candidate_id=4, screenshot_path=None, audio_path=None,
+                start_ms=10, end_ms=20, status=EnrichmentStatus.DONE,
+                error=None, generated_at=None,
+            ))
+            s.commit()
+
+            ids = repo.get_eligible_candidate_ids(source_id=1)
+            assert 4 not in ids

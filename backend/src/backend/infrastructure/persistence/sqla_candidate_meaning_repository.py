@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -66,15 +66,13 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
         source_id: int | None,
         only_active: bool,
     ) -> list[int]:
-        from sqlalchemy import or_
-
-        query = (
-            self._session.query(StoredCandidateModel.id)
+        stmt = (
+            select(StoredCandidateModel.id)
             .outerjoin(
                 CandidateMeaningModel,
                 CandidateMeaningModel.candidate_id == StoredCandidateModel.id,
             )
-            .filter(
+            .where(
                 or_(
                     CandidateMeaningModel.candidate_id.is_(None),
                     CandidateMeaningModel.meaning.is_(None),
@@ -82,33 +80,32 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
             )
         )
         if source_id is not None:
-            query = query.filter(StoredCandidateModel.source_id == source_id)
+            stmt = stmt.where(StoredCandidateModel.source_id == source_id)
         if only_active:
-            query = query.filter(
+            stmt = stmt.where(
                 StoredCandidateModel.status.in_(
                     [CandidateStatus.PENDING.value, CandidateStatus.LEARN.value]
                 )
             )
-        query = query.order_by(
+        stmt = stmt.order_by(
             StoredCandidateModel.is_sweet_spot.desc(),
             StoredCandidateModel.cefr_level.desc(),
         )
-        return [row[0] for row in query.all()]
+        rows = self._session.execute(stmt).all()
+        return [row[0] for row in rows]
 
     def count_candidate_ids_without_meaning(
         self,
         source_id: int | None,
         only_active: bool,
     ) -> int:
-        from sqlalchemy import or_
-
-        query = (
-            self._session.query(func.count(StoredCandidateModel.id))
+        stmt = (
+            select(func.count(StoredCandidateModel.id))
             .outerjoin(
                 CandidateMeaningModel,
                 CandidateMeaningModel.candidate_id == StoredCandidateModel.id,
             )
-            .filter(
+            .where(
                 or_(
                     CandidateMeaningModel.candidate_id.is_(None),
                     CandidateMeaningModel.meaning.is_(None),
@@ -116,11 +113,11 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
             )
         )
         if source_id is not None:
-            query = query.filter(StoredCandidateModel.source_id == source_id)
+            stmt = stmt.where(StoredCandidateModel.source_id == source_id)
         if only_active:
-            query = query.filter(
+            stmt = stmt.where(
                 StoredCandidateModel.status.in_(
                     [CandidateStatus.PENDING.value, CandidateStatus.LEARN.value]
                 )
             )
-        return query.scalar() or 0
+        return self._session.execute(stmt).scalar() or 0
