@@ -505,15 +505,24 @@ export function CandidateCardV2({
           )}
 
           {candidate.meaning?.meaning ? (
-            <p style={{
-              margin: '10px 0 0',
-              fontSize: '15px',
-              lineHeight: 1.55,
-              color: '#cbd5e1',
-              whiteSpace: 'pre-line',
-            }}>
-              {renderMeaning(candidate.meaning.meaning, candidate.lemma, candidate.surface_form)}
-            </p>
+            <div style={{ marginTop: '10px' }}>
+              {candidate.meaning.meaning
+                .split(/\n+/)
+                .filter((p) => p.trim().length > 0)
+                .map((para, i) => (
+                  <p
+                    key={i}
+                    style={{
+                      margin: i === 0 ? 0 : '8px 0 0',
+                      fontSize: '15px',
+                      lineHeight: 1.55,
+                      color: '#cbd5e1',
+                    }}
+                  >
+                    {renderMeaning(para, candidate.lemma, candidate.surface_form)}
+                  </p>
+                ))}
+            </div>
           ) : candidate.meaning?.status === 'running' ? (
             <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--td)', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Loader2 size={13} className="animate-spin" /> Generating...
