@@ -14,6 +14,9 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.generation_job_status import GenerationJobStatus
+from backend.domain.entities.candidate_meaning import CandidateMeaning
+from backend.domain.entities.candidate_media import CandidateMedia
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.media_extraction_job_status import MediaExtractionJobStatus
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
@@ -289,4 +292,86 @@ class MediaExtractionJobModel(Base):
             failed_candidates=job.failed_candidates,
             skipped_candidates=job.skipped_candidates,
             created_at=job.created_at,
+        )
+
+
+class CandidateMeaningModel(Base):
+    """SQLAlchemy model for the meaning enrichment of a candidate (1:1)."""
+
+    __tablename__ = "candidate_meanings"
+
+    candidate_id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        nullable=False,
+    )
+    meaning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ipa: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="done")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def to_entity(self) -> CandidateMeaning:
+        return CandidateMeaning(
+            candidate_id=self.candidate_id,
+            meaning=self.meaning,
+            ipa=self.ipa,
+            status=EnrichmentStatus(self.status),
+            error=self.error,
+            generated_at=self.generated_at,
+        )
+
+    @staticmethod
+    def from_entity(entity: CandidateMeaning) -> CandidateMeaningModel:
+        return CandidateMeaningModel(
+            candidate_id=entity.candidate_id,
+            meaning=entity.meaning,
+            ipa=entity.ipa,
+            status=entity.status.value,
+            error=entity.error,
+            generated_at=entity.generated_at,
+        )
+
+
+class CandidateMediaModel(Base):
+    """SQLAlchemy model for the media enrichment of a candidate (1:1)."""
+
+    __tablename__ = "candidate_media"
+
+    candidate_id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        nullable=False,
+    )
+    screenshot_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    start_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    end_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="done")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def to_entity(self) -> CandidateMedia:
+        return CandidateMedia(
+            candidate_id=self.candidate_id,
+            screenshot_path=self.screenshot_path,
+            audio_path=self.audio_path,
+            start_ms=self.start_ms,
+            end_ms=self.end_ms,
+            status=EnrichmentStatus(self.status),
+            error=self.error,
+            generated_at=self.generated_at,
+        )
+
+    @staticmethod
+    def from_entity(entity: CandidateMedia) -> CandidateMediaModel:
+        return CandidateMediaModel(
+            candidate_id=entity.candidate_id,
+            screenshot_path=entity.screenshot_path,
+            audio_path=entity.audio_path,
+            start_ms=entity.start_ms,
+            end_ms=entity.end_ms,
+            status=entity.status.value,
+            error=entity.error,
+            generated_at=entity.generated_at,
         )

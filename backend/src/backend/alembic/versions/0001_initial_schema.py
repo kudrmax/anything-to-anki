@@ -28,7 +28,8 @@ def upgrade() -> None:
     bind = op.get_bind()
     # Exclude tables introduced by later migrations so they don't conflict.
     # Tables added in 0002+: anki_synced_cards
-    _ADDED_LATER = {"anki_synced_cards"}
+    # Tables added in 0003+: candidate_meanings, candidate_media
+    _ADDED_LATER = {"anki_synced_cards", "candidate_meanings", "candidate_media"}
     tables = [t for name, t in Base.metadata.tables.items() if name not in _ADDED_LATER]
     Base.metadata.create_all(bind, tables=tables, checkfirst=True)
 
