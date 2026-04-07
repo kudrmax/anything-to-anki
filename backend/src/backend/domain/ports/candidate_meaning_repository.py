@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_meaning import CandidateMeaning
+    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
     from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 
@@ -37,10 +38,11 @@ class CandidateMeaningRepository(ABC):
         self,
         source_id: int | None,
         only_active: bool,
+        sort_order: CandidateSortOrder | None = None,
     ) -> list[int]:
         """Return ids of candidates that have no meaning row OR meaning row with
         meaning IS NULL. If only_active=True, restrict to candidates with
-        status PENDING or LEARN. Order: is_sweet_spot DESC, cefr_level DESC."""
+        status PENDING or LEARN. sort_order controls ordering (default RELEVANCE)."""
 
     @abstractmethod
     def count_candidate_ids_without_meaning(

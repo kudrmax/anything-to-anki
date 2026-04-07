@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
+    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
     from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 
@@ -41,13 +42,18 @@ class CandidateMediaRepository(ABC):
         (so timecodes are not lost)."""
 
     @abstractmethod
-    def get_eligible_candidate_ids(self, source_id: int) -> list[int]:
+    def get_eligible_candidate_ids(
+        self,
+        source_id: int,
+        sort_order: CandidateSortOrder | None = None,
+    ) -> list[int]:
         """Return ids of candidates of `source_id` that:
         - have status PENDING or LEARN
         - have a candidate_media row with start_ms / end_ms set
         - have NULL screenshot_path on that row (= media not yet generated)
 
-        Used by StartMediaExtractionUseCase to pick what to extract."""
+        sort_order controls ordering (default CHRONOLOGICAL).
+        Used by enqueue media generation use case."""
 
     @abstractmethod
     def mark_queued_bulk(self, candidate_ids: list[int]) -> None:

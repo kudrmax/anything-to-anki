@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
 _PREVIEW_LENGTH: int = 100
 
@@ -94,12 +95,16 @@ class GetSourcesUseCase:
             )
         return result
 
-    def get_by_id(self, source_id: int) -> SourceDetailDTO:
+    def get_by_id(
+        self,
+        source_id: int,
+        sort_order: CandidateSortOrder | None = None,
+    ) -> SourceDetailDTO:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
         assert source.id is not None
-        candidates = self._candidate_repo.get_by_source(source.id)
+        candidates = self._candidate_repo.get_by_source(source.id, sort_order=sort_order)
         return SourceDetailDTO(
             id=source.id,
             title=source.title or source.raw_text[:_PREVIEW_LENGTH],

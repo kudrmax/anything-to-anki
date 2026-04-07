@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
     from backend.domain.value_objects.candidate_status import CandidateStatus
 
 
@@ -15,7 +16,13 @@ class CandidateRepository(ABC):
     def create_batch(self, candidates: list[StoredCandidate]) -> list[StoredCandidate]: ...
 
     @abstractmethod
-    def get_by_source(self, source_id: int) -> list[StoredCandidate]: ...
+    def get_by_source(
+        self,
+        source_id: int,
+        sort_order: CandidateSortOrder | None = None,
+    ) -> list[StoredCandidate]:
+        """Return candidates for the source. If sort_order is None, default
+        ordering (insertion order, i.e. id ASC) is used."""
 
     @abstractmethod
     def get_by_id(self, candidate_id: int) -> StoredCandidate | None: ...

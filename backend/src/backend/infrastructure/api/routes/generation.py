@@ -4,7 +4,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from backend.infrastructure.api.dependencies import (
     get_container,
@@ -24,12 +24,23 @@ router = APIRouter(tags=["generation"])
 @router.post("/sources/{source_id}/meanings/generate", status_code=202)
 async def enqueue_meaning_generation(
     source_id: int,
+    sort: str = "relevance",
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, int]:
-    """Enqueue ARQ jobs for meaning generation, batched by 15."""
+    """Enqueue ARQ jobs for meaning generation, batched by 15.
+    Order of enqueue follows sort param ('relevance' or 'chronological')."""
+    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+    try:
+        sort_order = CandidateSortOrder(sort)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid sort: {sort}. Use 'relevance' or 'chronological'.",
+        ) from e
+
     use_case = container.enqueue_meaning_generation_use_case(session)
-    batches = use_case.execute(source_id)
+    batches = use_case.execute(source_id, sort_order=sort_order)
     session.commit()
 
     if batches:

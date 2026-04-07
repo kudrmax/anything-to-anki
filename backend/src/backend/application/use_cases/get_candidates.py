@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
 
 def _to_dto(c: StoredCandidate) -> StoredCandidateDTO:
@@ -65,9 +66,13 @@ class GetCandidatesUseCase:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
 
-    def execute(self, source_id: int) -> list[StoredCandidateDTO]:
+    def execute(
+        self,
+        source_id: int,
+        sort_order: CandidateSortOrder | None = None,
+    ) -> list[StoredCandidateDTO]:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
-        candidates = self._candidate_repo.get_by_source(source_id)
+        candidates = self._candidate_repo.get_by_source(source_id, sort_order=sort_order)
         return [_to_dto(c) for c in candidates]

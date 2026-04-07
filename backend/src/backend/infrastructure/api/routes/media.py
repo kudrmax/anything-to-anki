@@ -36,12 +36,23 @@ async def serve_media_file(
 @router.post("/sources/{source_id}/media/generate", status_code=202)
 async def enqueue_media_generation(
     source_id: int,
+    sort: str = "relevance",
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, int]:
-    """Enqueue ARQ jobs for all eligible candidates (those with timecodes but no screenshot)."""
+    """Enqueue ARQ jobs for all eligible candidates (those with timecodes but no screenshot).
+    Order of enqueue follows sort param ('relevance' or 'chronological')."""
+    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+    try:
+        sort_order = CandidateSortOrder(sort)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid sort: {sort}. Use 'relevance' or 'chronological'.",
+        ) from e
+
     use_case = container.enqueue_media_generation_use_case(session)
-    eligible_ids = use_case.execute(source_id)
+    eligible_ids = use_case.execute(source_id, sort_order=sort_order)
     session.commit()
 
     if eligible_ids:

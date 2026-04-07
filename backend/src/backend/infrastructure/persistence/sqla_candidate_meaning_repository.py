@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, or_, select, update
 
 from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
+from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.infrastructure.persistence.models import (
@@ -66,6 +67,7 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
         self,
         source_id: int | None,
         only_active: bool,
+        sort_order: CandidateSortOrder | None = None,
     ) -> list[int]:
         stmt = (
             select(StoredCandidateModel.id)
@@ -88,10 +90,15 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
                     [CandidateStatus.PENDING.value, CandidateStatus.LEARN.value]
                 )
             )
-        stmt = stmt.order_by(
-            StoredCandidateModel.is_sweet_spot.desc(),
-            StoredCandidateModel.cefr_level.desc(),
-        )
+        if sort_order == CandidateSortOrder.CHRONOLOGICAL:
+            stmt = stmt.order_by(StoredCandidateModel.id.asc())
+        else:
+            # RELEVANCE (default)
+            stmt = stmt.order_by(
+                StoredCandidateModel.is_sweet_spot.desc(),
+                StoredCandidateModel.zipf_frequency.desc(),
+                StoredCandidateModel.cefr_level.desc(),
+            )
         rows = self._session.execute(stmt).all()
         return [row[0] for row in rows]
 
