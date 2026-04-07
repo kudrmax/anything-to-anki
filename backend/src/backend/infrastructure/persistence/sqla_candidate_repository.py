@@ -33,7 +33,8 @@ class SqlaCandidateRepository(CandidateRepository):
         models = [StoredCandidateModel.from_entity(c) for c in candidates]
         self._session.add_all(models)
         self._session.flush()
-        return [self._attach_enrichments(m.to_entity()) for m in models]
+        # Fresh candidates never have enrichments yet — skip the lookup.
+        return [m.to_entity() for m in models]
 
     def get_by_source(self, source_id: int) -> list[StoredCandidate]:
         models = (
