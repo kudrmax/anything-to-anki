@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from backend.domain.entities.generation_job import GenerationJob
-    from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
     from backend.domain.ports.generation_job_repository import GenerationJobRepository
 
 BATCH_SIZE = 15
@@ -23,10 +23,10 @@ class StartGenerationUseCase:
     def __init__(
         self,
         job_repo: GenerationJobRepository,
-        candidate_repo: CandidateRepository,
+        meaning_repo: CandidateMeaningRepository,
     ) -> None:
         self._job_repo = job_repo
-        self._candidate_repo = candidate_repo
+        self._meaning_repo = meaning_repo
 
     def execute(self, source_id: int | None) -> GenerationQueueDTO:
         # Check no RUNNING or PENDING job exists
@@ -38,12 +38,13 @@ class StartGenerationUseCase:
             raise GenerationAlreadyRunningError()
 
         # Get all active candidates without meaning
-        all_candidates = self._candidate_repo.get_all_active_without_meaning(source_id)
-        if not all_candidates:
+        candidate_ids = self._meaning_repo.get_candidate_ids_without_meaning(
+            source_id=source_id, only_active=True,
+        )
+        if not candidate_ids:
             raise NoActiveCandidatesError()
 
         # Split into batches
-        candidate_ids = [c.id for c in all_candidates if c.id is not None]
         batches = [candidate_ids[i:i + BATCH_SIZE] for i in range(0, len(candidate_ids), BATCH_SIZE)]
 
         from backend.domain.entities.generation_job import GenerationJob
