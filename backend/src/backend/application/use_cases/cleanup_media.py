@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from backend.application.dto.media_dtos import CleanupMediaKind
 
 if TYPE_CHECKING:
+    from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
 
 logger = logging.getLogger(__name__)
@@ -18,9 +19,11 @@ class CleanupMediaUseCase:
     def __init__(
         self,
         candidate_repo: CandidateRepository,
+        media_repo: CandidateMediaRepository,
         media_root: str,
     ) -> None:
         self._candidate_repo = candidate_repo
+        self._media_repo = media_repo
         self._media_root = media_root
 
     def execute(self, source_id: int, kind: CleanupMediaKind) -> None:
@@ -32,31 +35,29 @@ class CleanupMediaUseCase:
         removed_audio = 0
 
         for c in candidates:
-            if c.id is None:
+            if c.id is None or c.media is None:
                 continue
-            if clear_screenshot and c.screenshot_path:
+            if clear_screenshot and c.media.screenshot_path:
                 try:
-                    if os.path.exists(c.screenshot_path):
-                        os.remove(c.screenshot_path)
+                    if os.path.exists(c.media.screenshot_path):
+                        os.remove(c.media.screenshot_path)
                         removed_shot += 1
                 except OSError:
-                    logger.exception("Failed to remove screenshot %s", c.screenshot_path)
-            if clear_audio and c.audio_path:
+                    logger.exception("Failed to remove screenshot %s", c.media.screenshot_path)
+            if clear_audio and c.media.audio_path:
                 try:
-                    if os.path.exists(c.audio_path):
-                        os.remove(c.audio_path)
+                    if os.path.exists(c.media.audio_path):
+                        os.remove(c.media.audio_path)
                         removed_audio += 1
                 except OSError:
-                    logger.exception("Failed to remove audio %s", c.audio_path)
+                    logger.exception("Failed to remove audio %s", c.media.audio_path)
 
-            # Clear DB paths for this candidate
-            self._candidate_repo.clear_media_path(
+            self._media_repo.clear_paths(
                 c.id,
                 clear_screenshot=clear_screenshot,
                 clear_audio=clear_audio,
             )
 
-        # If all media for this source is cleared, remove the directory too
         source_dir = os.path.join(self._media_root, str(source_id))
         if kind == CleanupMediaKind.ALL and os.path.isdir(source_dir):
             try:

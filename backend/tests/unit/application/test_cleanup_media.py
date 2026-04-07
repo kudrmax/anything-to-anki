@@ -6,13 +6,23 @@ import pytest
 
 from backend.application.dto.media_dtos import CleanupMediaKind
 from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
+from backend.domain.entities.candidate_media import CandidateMedia
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 
 def _make_candidate(cid: int, screenshot_path: str | None, audio_path: str | None) -> MagicMock:
     c = MagicMock()
     c.id = cid
-    c.screenshot_path = screenshot_path
-    c.audio_path = audio_path
+    c.media = CandidateMedia(
+        candidate_id=cid,
+        screenshot_path=screenshot_path,
+        audio_path=audio_path,
+        start_ms=1000,
+        end_ms=2000,
+        status=EnrichmentStatus.DONE,
+        error=None,
+        generated_at=None,
+    )
     return c
 
 
@@ -30,16 +40,18 @@ class TestCleanupMedia:
         candidate = _make_candidate(10, str(shot), str(audio))
         candidate_repo = MagicMock()
         candidate_repo.get_by_source.return_value = [candidate]
+        media_repo = MagicMock()
 
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
+            media_repo=media_repo,
             media_root=str(media_root),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.ALL)
 
         assert not shot.exists()
         assert not audio.exists()
-        candidate_repo.clear_media_path.assert_called_once_with(
+        media_repo.clear_paths.assert_called_once_with(
             10, clear_screenshot=True, clear_audio=True
         )
         # Empty source dir is removed
@@ -57,16 +69,18 @@ class TestCleanupMedia:
         candidate = _make_candidate(10, str(shot), str(audio))
         candidate_repo = MagicMock()
         candidate_repo.get_by_source.return_value = [candidate]
+        media_repo = MagicMock()
 
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
+            media_repo=media_repo,
             media_root=str(media_root),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.IMAGES)
 
         assert not shot.exists()
         assert audio.exists()
-        candidate_repo.clear_media_path.assert_called_once_with(
+        media_repo.clear_paths.assert_called_once_with(
             10, clear_screenshot=True, clear_audio=False
         )
         assert source_dir.exists()  # non-empty
@@ -83,16 +97,18 @@ class TestCleanupMedia:
         candidate = _make_candidate(10, str(shot), str(audio))
         candidate_repo = MagicMock()
         candidate_repo.get_by_source.return_value = [candidate]
+        media_repo = MagicMock()
 
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
+            media_repo=media_repo,
             media_root=str(media_root),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.AUDIO)
 
         assert shot.exists()
         assert not audio.exists()
-        candidate_repo.clear_media_path.assert_called_once_with(
+        media_repo.clear_paths.assert_called_once_with(
             10, clear_screenshot=False, clear_audio=True
         )
 
@@ -104,29 +120,37 @@ class TestCleanupMedia:
         candidate = _make_candidate(10, "/nonexistent/path.webp", "/nonexistent/path.m4a")
         candidate_repo = MagicMock()
         candidate_repo.get_by_source.return_value = [candidate]
+        media_repo = MagicMock()
 
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
+            media_repo=media_repo,
             media_root=str(media_root),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.ALL)
 
-        candidate_repo.clear_media_path.assert_called_once()
+        media_repo.clear_paths.assert_called_once()
 
-    def test_candidate_without_paths_still_gets_db_cleared(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    def test_candidate_without_media_skipped(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
         media_root = tmp_path / "media"
         source_dir = media_root / "1"
         source_dir.mkdir(parents=True)
 
-        candidate = _make_candidate(10, None, None)
+        # Candidate with no media row at all (media=None)
+        candidate = MagicMock()
+        candidate.id = 10
+        candidate.media = None
+
         candidate_repo = MagicMock()
         candidate_repo.get_by_source.return_value = [candidate]
+        media_repo = MagicMock()
 
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
+            media_repo=media_repo,
             media_root=str(media_root),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.ALL)
 
-        # Called to be safe — even if paths were None, DB should be normalized
-        candidate_repo.clear_media_path.assert_called_once()
+        # No DB call since candidate has no media row
+        media_repo.clear_paths.assert_not_called()
