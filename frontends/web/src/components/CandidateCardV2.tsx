@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Info, Loader2, Pencil, Play, RefreshCw, Sparkles, Square, X } from 'lucide-react'
+import { Film, Info, Loader2, Pencil, Play, Sparkles, Square, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, StoredCandidate } from '@/api/types'
 
@@ -273,6 +273,26 @@ export function CandidateCardV2({
         gap: '8px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {onGenerateMeaning && (
+            <ToolbarButton
+              onClick={() => onGenerateMeaning(candidate.id)}
+              disabled={isGenerating}
+              ariaLabel="Generate meaning with AI"
+              title="Generate meaning with AI"
+            >
+              {isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            </ToolbarButton>
+          )}
+          {onRegenerateMedia && hasMediaTimecodes && (
+            <ToolbarButton
+              onClick={() => onRegenerateMedia(candidate.id)}
+              disabled={isRegeneratingMedia}
+              ariaLabel="Generate media for this candidate"
+              title="Generate screenshot and audio (uses current fragment boundaries)"
+            >
+              {isRegeneratingMedia ? <Loader2 size={13} className="animate-spin" /> : <Film size={13} />}
+            </ToolbarButton>
+          )}
           {isEditingFragment ? (
             <ToolbarButton
               onClick={onCancelEditFragment}
@@ -288,16 +308,6 @@ export function CandidateCardV2({
               title="Edit context fragment"
             >
               <Pencil size={13} />
-            </ToolbarButton>
-          )}
-          {onGenerateMeaning && (
-            <ToolbarButton
-              onClick={() => onGenerateMeaning(candidate.id)}
-              disabled={isGenerating}
-              ariaLabel="Generate meaning with AI"
-              title="Generate meaning with AI"
-            >
-              {isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
             </ToolbarButton>
           )}
           <div
@@ -333,16 +343,6 @@ export function CandidateCardV2({
               </div>
             )}
           </div>
-          {onRegenerateMedia && hasMediaTimecodes && (
-            <ToolbarButton
-              onClick={() => onRegenerateMedia(candidate.id)}
-              disabled={isRegeneratingMedia}
-              ariaLabel="Regenerate media for this candidate"
-              title="Regenerate screenshot and audio (uses current fragment boundaries)"
-            >
-              {isRegeneratingMedia ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-            </ToolbarButton>
-          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
