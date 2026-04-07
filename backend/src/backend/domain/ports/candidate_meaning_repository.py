@@ -3,10 +3,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
-
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_meaning import CandidateMeaning
+    from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 
 class CandidateMeaningRepository(ABC):
