@@ -207,11 +207,12 @@ async def create_video_source(
     video: UploadFile = File(...),  # noqa: B008
     srt: UploadFile | None = File(None),  # noqa: B008
     title: str | None = Form(None),  # noqa: B008
-    track_index: int | None = Form(None),  # noqa: B008
+    subtitle_track_index: int | None = Form(None),  # noqa: B008
+    audio_track_index: int | None = Form(None),  # noqa: B008
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, Any]:
-    from backend.application.dto.video_dtos import SubtitleSelectionRequired, VideoSourceCreated
+    from backend.application.dto.video_dtos import TrackSelectionRequired, VideoSourceCreated
 
     # Save video to disk
     data_dir = os.getenv("DATA_DIR", ".")
@@ -223,6 +224,10 @@ async def create_video_source(
     content = await video.read()
     with open(video_path, "wb") as f:
         f.write(content)
+    logger.info(
+        "Uploaded video %s (%d bytes) subtitle_track=%s audio_track=%s",
+        video_filename, len(content), subtitle_track_index, audio_track_index,
+    )
 
     srt_text: str | None = None
     if srt is not None:
@@ -235,24 +240,35 @@ async def create_video_source(
             video_path=video_path,
             srt_text=srt_text,
             title=title,
-            track_index=track_index,
+            subtitle_track_index=subtitle_track_index,
+            audio_track_index=audio_track_index,
         )
     except ValueError as e:
         os.remove(video_path)
         raise HTTPException(status_code=400, detail=str(e)) from e
 
-    if isinstance(result, SubtitleSelectionRequired):
+    if isinstance(result, TrackSelectionRequired):
         return {
-            "status": "subtitle_selection_required",
+            "status": "track_selection_required",
             "pending_video_path": video_path,
-            "tracks": [
+            "subtitle_tracks": [
                 {
                     "index": t.index,
                     "language": t.language,
                     "title": t.title,
                     "codec": t.codec,
                 }
-                for t in result.tracks
+                for t in result.subtitle_tracks
+            ],
+            "audio_tracks": [
+                {
+                    "index": t.index,
+                    "language": t.language,
+                    "title": t.title,
+                    "codec": t.codec,
+                    "channels": t.channels,
+                }
+                for t in result.audio_tracks
             ],
         }
 

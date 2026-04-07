@@ -163,6 +163,12 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
             pass
 
         try:
+            conn.execute(text("ALTER TABLE sources ADD COLUMN audio_track_index INTEGER"))
+            conn.commit()
+        except Exception:
+            pass
+
+        try:
             conn.execute(text("ALTER TABLE candidates ADD COLUMN media_start_ms INTEGER"))
             conn.commit()
         except Exception:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.media_extraction_job import MediaExtractionJob
@@ -10,6 +11,8 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.media_extraction_job_repository import MediaExtractionJobRepository
     from backend.domain.ports.source_repository import SourceRepository
+
+logger = logging.getLogger(__name__)
 
 
 class StartMediaExtractionUseCase:
@@ -35,6 +38,11 @@ class StartMediaExtractionUseCase:
             and c.screenshot_path is None
             and c.id is not None
         ]
+        learn_count = sum(1 for c in candidates if c.status == CandidateStatus.LEARN)
+        logger.info(
+            "StartMediaExtraction source=%d: %d total, %d learn, %d eligible",
+            source_id, len(candidates), learn_count, len(eligible),
+        )
         job = MediaExtractionJob(
             source_id=source_id,
             status=MediaExtractionJobStatus.PENDING,

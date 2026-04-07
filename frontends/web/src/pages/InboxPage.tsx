@@ -3,7 +3,7 @@ import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FileText, Link, File, Upload, Loader2, Plus, RefreshCw } from 'lucide-react'
 import { api } from '@/api/client'
-import type { SourceSummary, SourceType, Stats, SubtitleTrack } from '@/api/types'
+import type { AudioTrack, SourceSummary, SourceType, Stats, SubtitleTrack } from '@/api/types'
 import { SourceCard } from '@/components/SourceCard'
 import { useSourcePolling } from '@/hooks/useSourcePolling'
 
@@ -82,7 +82,10 @@ export function InboxPage() {
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null)
   const [_pendingVideoPath, setPendingVideoPath] = useState('') // kept for future use
   const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrack[]>([])
-  const [showSubtitleModal, setShowSubtitleModal] = useState(false)
+  const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([])
+  const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null)
+  const [selectedAudioIndex, setSelectedAudioIndex] = useState<number | null>(null)
+  const [showTrackModal, setShowTrackModal] = useState(false)
 
   const loadSources = useCallback(async () => {
     try {
@@ -130,12 +133,23 @@ export function InboxPage() {
       if (videoFile) {
         setAdding(true)
         try {
-          const result = await api.createVideoSource(videoFile, srtFile, title.trim() || undefined, undefined)
-          if (result.status === 'subtitle_selection_required') {
+          const result = await api.createVideoSource(
+            videoFile,
+            srtFile,
+            title.trim() || undefined,
+            undefined,
+            undefined,
+          )
+          if (result.status === 'track_selection_required') {
             setPendingVideoFile(videoFile)
             setPendingVideoPath(result.pending_video_path ?? '')
-            setSubtitleTracks(result.tracks ?? [])
-            setShowSubtitleModal(true)
+            const subs = result.subtitle_tracks ?? []
+            const auds = result.audio_tracks ?? []
+            setSubtitleTracks(subs)
+            setAudioTracks(auds)
+            setSelectedSubtitleIndex(subs.length > 0 ? subs[0].index : null)
+            setSelectedAudioIndex(auds.length > 0 ? auds[0].index : null)
+            setShowTrackModal(true)
           } else if (result.id) {
             setFiles([])
             setTitle('')
@@ -275,23 +289,43 @@ export function InboxPage() {
     }
   }
 
-  const handleTrackSelect = async (trackIndex: number) => {
+  const handleConfirmTracks = async () => {
     if (!pendingVideoFile) return
-    setShowSubtitleModal(false)
+    // Require a selection for each ambiguous side
+    if (subtitleTracks.length > 0 && selectedSubtitleIndex === null) return
+    if (audioTracks.length > 0 && selectedAudioIndex === null) return
+    setShowTrackModal(false)
     setAdding(true)
     try {
       const result = await api.createVideoSource(
         pendingVideoFile,
         null,
         title.trim() || undefined,
-        trackIndex,
+        subtitleTracks.length > 0 ? selectedSubtitleIndex ?? undefined : undefined,
+        audioTracks.length > 0 ? selectedAudioIndex ?? undefined : undefined,
       )
-      if (result.id) { setFiles([]); setTitle(''); void loadSources() }
+      if (result.id) {
+        setFiles([])
+        setTitle('')
+        setPendingVideoFile(null)
+        setSubtitleTracks([])
+        setAudioTracks([])
+        void loadSources()
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload failed')
     } finally {
       setAdding(false)
     }
+  }
+
+  const handleCancelTrackSelection = () => {
+    setShowTrackModal(false)
+    setPendingVideoFile(null)
+    setSubtitleTracks([])
+    setAudioTracks([])
+    setSelectedSubtitleIndex(null)
+    setSelectedAudioIndex(null)
   }
 
   const handleGlobalDragOver = (e: React.DragEvent) => {
@@ -624,40 +658,90 @@ export function InboxPage() {
           )}
         </section>
       </main>
-      {showSubtitleModal && (
+      {showTrackModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4"
+          <div className="rounded-2xl p-6 max-w-md w-full flex flex-col gap-5"
                style={{ background: 'var(--bg)', border: '1px solid var(--glass-b)' }}>
             <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-              Choose subtitle track
+              Choose tracks
             </h3>
-            <div className="flex flex-col gap-2">
-              {subtitleTracks.map((track) => (
-                <button
-                  key={track.index}
-                  onClick={() => void handleTrackSelect(track.index)}
-                  className="text-left px-4 py-3 rounded-lg transition-all cursor-pointer"
-                  style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--text)' }}
-                >
-                  <div className="text-sm font-medium">
-                    {track.title ?? track.language ?? `Track ${track.index}`}
-                  </div>
-                  <div className="text-xs" style={{ color: 'var(--tm)' }}>
-                    {track.language} · {track.codec}
-                  </div>
-                </button>
-              ))}
+
+            {subtitleTracks.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <div className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--td)' }}>
+                  Subtitle track
+                </div>
+                {subtitleTracks.map((track) => {
+                  const isSelected = selectedSubtitleIndex === track.index
+                  return (
+                    <button
+                      key={track.index}
+                      onClick={() => setSelectedSubtitleIndex(track.index)}
+                      className="text-left px-4 py-3 rounded-lg transition-all cursor-pointer"
+                      style={{
+                        background: isSelected ? 'var(--abg)' : 'var(--glass)',
+                        border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--glass-b)'}`,
+                        color: 'var(--text)',
+                      }}
+                    >
+                      <div className="text-sm font-medium">
+                        {track.title ?? track.language ?? `Track ${track.index}`}
+                      </div>
+                      <div className="text-xs" style={{ color: 'var(--tm)' }}>
+                        {track.language ?? '—'} · {track.codec}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {audioTracks.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <div className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--td)' }}>
+                  Audio track
+                </div>
+                {audioTracks.map((track) => {
+                  const isSelected = selectedAudioIndex === track.index
+                  return (
+                    <button
+                      key={track.index}
+                      onClick={() => setSelectedAudioIndex(track.index)}
+                      className="text-left px-4 py-3 rounded-lg transition-all cursor-pointer"
+                      style={{
+                        background: isSelected ? 'var(--abg)' : 'var(--glass)',
+                        border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--glass-b)'}`,
+                        color: 'var(--text)',
+                      }}
+                    >
+                      <div className="text-sm font-medium">
+                        {track.title ?? track.language ?? `Track ${track.index}`}
+                      </div>
+                      <div className="text-xs" style={{ color: 'var(--tm)' }}>
+                        {track.language ?? '—'} · {track.codec}
+                        {track.channels != null && ` · ${track.channels}ch`}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-1">
+              <button
+                onClick={handleCancelTrackSelection}
+                className="text-xs cursor-pointer" style={{ color: 'var(--td)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleConfirmTracks()}
+                className="rounded-lg px-4 py-2 text-xs font-medium text-white cursor-pointer transition-all hover:brightness-110"
+                style={{ background: 'var(--accent)' }}
+              >
+                Confirm
+              </button>
             </div>
-            <button
-              onClick={() => {
-                setShowSubtitleModal(false)
-                setPendingVideoFile(null)
-                setSubtitleTracks([])
-              }}
-              className="text-xs cursor-pointer" style={{ color: 'var(--td)' }}
-            >
-              Cancel
-            </button>
           </div>
         </div>
       )}

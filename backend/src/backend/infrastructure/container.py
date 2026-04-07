@@ -123,6 +123,7 @@ class Container:
         return CreateSourceUseCase(
             source_repo=SqlaSourceRepository(session),
             subtitle_extractor=self._subtitle_extractor,
+            audio_track_lister=self._subtitle_extractor,
         )
 
     def rename_source_use_case(self, session: Session) -> RenameSourceUseCase:

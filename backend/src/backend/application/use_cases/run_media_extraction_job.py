@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import TYPE_CHECKING
 
@@ -10,6 +11,8 @@ if TYPE_CHECKING:
     from backend.domain.ports.media_extractor import MediaExtractor
     from backend.domain.ports.media_extraction_job_repository import MediaExtractionJobRepository
     from backend.domain.ports.source_repository import SourceRepository
+
+logger = logging.getLogger(__name__)
 
 
 class RunMediaExtractionJobUseCase:
@@ -32,20 +35,33 @@ class RunMediaExtractionJobUseCase:
     def execute(self, job_id: int) -> None:
         job = self._job_repo.get_by_id(job_id)
         if job is None:
+            logger.warning("MediaExtractionJob %d not found", job_id)
             return
 
+        logger.info(
+            "MediaExtractionJob %d starting: source_id=%s total=%d",
+            job_id, job.source_id, job.total_candidates,
+        )
         job.status = MediaExtractionJobStatus.RUNNING
         self._job_repo.update(job)
 
         for candidate_id in job.candidate_ids:
             candidate = self._candidate_repo.get_by_id(candidate_id)
             if candidate is None or candidate.media_start_ms is None:
+                logger.info(
+                    "MediaExtractionJob %d: skipping candidate %d (no timecodes)",
+                    job_id, candidate_id,
+                )
                 job.skipped_candidates += 1
                 self._job_repo.update(job)
                 continue
 
             source = self._source_repo.get_by_id(candidate.source_id)
             if source is None or source.video_path is None or not os.path.exists(source.video_path):
+                logger.warning(
+                    "MediaExtractionJob %d: skipping candidate %d (video file missing)",
+                    job_id, candidate_id,
+                )
                 job.skipped_candidates += 1
                 self._job_repo.update(job)
                 continue
@@ -66,6 +82,7 @@ class RunMediaExtractionJobUseCase:
                     start_ms,
                     end_ms,
                     audio_path,
+                    audio_track_index=source.audio_track_index,
                 )
                 self._candidate_repo.update_media_paths(
                     candidate_id,
@@ -73,10 +90,22 @@ class RunMediaExtractionJobUseCase:
                     audio_path=audio_path,
                 )
                 job.processed_candidates += 1
-            except Exception:  # noqa: BLE001
+                logger.info(
+                    "MediaExtractionJob %d: candidate %d done (%d/%d)",
+                    job_id, candidate_id, job.processed_candidates, job.total_candidates,
+                )
+            except Exception:
+                logger.exception(
+                    "MediaExtractionJob %d: candidate %d failed",
+                    job_id, candidate_id,
+                )
                 job.failed_candidates += 1
 
             self._job_repo.update(job)
 
         job.status = MediaExtractionJobStatus.DONE
         self._job_repo.update(job)
+        logger.info(
+            "MediaExtractionJob %d finished: processed=%d failed=%d skipped=%d",
+            job_id, job.processed_candidates, job.failed_candidates, job.skipped_candidates,
+        )

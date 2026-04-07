@@ -15,6 +15,7 @@ import type {
   Stats,
   StoredCandidate,
   SubtitleTrack,
+  AudioTrack,
   SyncResult,
   VerifyNoteTypeResponse,
 } from './types'
@@ -156,15 +157,29 @@ export const api = {
     videoFile: File,
     srtFile: File | null,
     title: string | undefined,
-    trackIndex: number | undefined,
-  ): Promise<{ id?: number; status: string; tracks?: SubtitleTrack[]; pending_video_path?: string }> => {
+    subtitleTrackIndex: number | undefined,
+    audioTrackIndex: number | undefined,
+  ): Promise<{
+    id?: number
+    status: string
+    subtitle_tracks?: SubtitleTrack[]
+    audio_tracks?: AudioTrack[]
+    pending_video_path?: string
+  }> => {
     const form = new FormData()
     form.append('video', videoFile)
     if (srtFile) form.append('srt', srtFile)
     if (title) form.append('title', title)
-    if (trackIndex !== undefined) form.append('track_index', String(trackIndex))
+    if (subtitleTrackIndex !== undefined) form.append('subtitle_track_index', String(subtitleTrackIndex))
+    if (audioTrackIndex !== undefined) form.append('audio_track_index', String(audioTrackIndex))
     const res = await fetch(`${BASE}/sources/video`, { method: 'POST', body: form })
     if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
-    return res.json() as Promise<{ id?: number; status: string; tracks?: SubtitleTrack[]; pending_video_path?: string }>
+    return res.json() as Promise<{
+      id?: number
+      status: string
+      subtitle_tracks?: SubtitleTrack[]
+      audio_tracks?: AudioTrack[]
+      pending_video_path?: string
+    }>
   },
 }

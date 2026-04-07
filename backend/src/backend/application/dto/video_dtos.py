@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from backend.domain.value_objects.audio_track_info import AudioTrackInfo
 from backend.domain.value_objects.subtitle_track_info import SubtitleTrackInfo
 
 
@@ -14,8 +15,13 @@ class VideoSourceCreated:
 
 
 @dataclass(frozen=True)
-class SubtitleSelectionRequired:
-    """Multiple subtitle tracks found — user must choose."""
+class TrackSelectionRequired:
+    """Ambiguous track configuration — user must choose subtitle and/or audio track.
 
-    tracks: list[SubtitleTrackInfo]
-    status: str = "subtitle_selection_required"
+    Either list may be empty: an empty list means that side needs no selection
+    (already resolved — 0 or 1 track, or provided externally).
+    """
+
+    subtitle_tracks: list[SubtitleTrackInfo] = field(default_factory=list)
+    audio_tracks: list[AudioTrackInfo] = field(default_factory=list)
+    status: str = "track_selection_required"

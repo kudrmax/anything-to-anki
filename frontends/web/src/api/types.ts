@@ -157,3 +157,11 @@ export interface SubtitleTrack {
   title: string | null
   codec: string
 }
+
+export interface AudioTrack {
+  index: number
+  language: string | null
+  title: string | null
+  codec: string
+  channels: number | null
+}

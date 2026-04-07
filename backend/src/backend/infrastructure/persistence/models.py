@@ -35,6 +35,7 @@ class SourceModel(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     processing_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     video_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    audio_track_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
@@ -50,6 +51,7 @@ class SourceModel(Base):
             error_message=self.error_message,
             processing_stage=ProcessingStage(self.processing_stage) if self.processing_stage else None,
             video_path=self.video_path,
+            audio_track_index=self.audio_track_index,
             created_at=self.created_at,
         )
 
@@ -61,6 +63,7 @@ class SourceModel(Base):
             status=source.status.value,
             source_type=source.source_type.value,
             video_path=source.video_path,
+            audio_track_index=source.audio_track_index,
             created_at=source.created_at,
         )
 
