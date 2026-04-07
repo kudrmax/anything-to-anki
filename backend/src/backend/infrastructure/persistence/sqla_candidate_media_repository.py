@@ -81,3 +81,24 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
             .values(**values)
         )
         self._session.flush()
+
+    def get_eligible_candidate_ids(self, source_id: int) -> list[int]:
+        from backend.domain.value_objects.candidate_status import CandidateStatus
+
+        query = (
+            self._session.query(StoredCandidateModel.id)
+            .join(
+                CandidateMediaModel,
+                CandidateMediaModel.candidate_id == StoredCandidateModel.id,
+            )
+            .filter(
+                StoredCandidateModel.source_id == source_id,
+                StoredCandidateModel.status.in_(
+                    [CandidateStatus.PENDING.value, CandidateStatus.LEARN.value]
+                ),
+                CandidateMediaModel.start_ms.is_not(None),
+                CandidateMediaModel.end_ms.is_not(None),
+                CandidateMediaModel.screenshot_path.is_(None),
+            )
+        )
+        return [row[0] for row in query.all()]

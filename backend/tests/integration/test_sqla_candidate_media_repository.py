@@ -145,3 +145,27 @@ class TestSqlaCandidateMediaRepository:
         with self._Session() as s:
             repo = SqlaCandidateMediaRepository(s)
             assert repo.get_by_candidate_ids([]) == {}
+
+    def test_get_eligible_candidate_ids(self) -> None:
+        with self._Session() as s:
+            _insert_candidate(s, 2)
+            _insert_candidate(s, 3)
+            # candidate 1: has timecodes, no screenshot → eligible
+            # candidate 2: has timecodes AND screenshot → NOT eligible
+            # candidate 3: no media row → NOT eligible
+            s.commit()
+            repo = SqlaCandidateMediaRepository(s)
+            repo.upsert(CandidateMedia(
+                candidate_id=1, screenshot_path=None, audio_path=None,
+                start_ms=10, end_ms=20, status=EnrichmentStatus.DONE,
+                error=None, generated_at=None,
+            ))
+            repo.upsert(CandidateMedia(
+                candidate_id=2, screenshot_path="/x.webp", audio_path=None,
+                start_ms=10, end_ms=20, status=EnrichmentStatus.DONE,
+                error=None, generated_at=None,
+            ))
+            s.commit()
+
+            ids = repo.get_eligible_candidate_ids(source_id=1)
+            assert ids == [1]

@@ -38,3 +38,12 @@ class CandidateMediaRepository(ABC):
 
         Used by CleanupMediaUseCase when the user purges files but keeps the row
         (so timecodes are not lost)."""
+
+    @abstractmethod
+    def get_eligible_candidate_ids(self, source_id: int) -> list[int]:
+        """Return ids of candidates of `source_id` that:
+        - have status PENDING or LEARN
+        - have a candidate_media row with start_ms / end_ms set
+        - have NULL screenshot_path on that row (= media not yet generated)
+
+        Used by StartMediaExtractionUseCase to pick what to extract."""
