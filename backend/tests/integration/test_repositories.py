@@ -149,61 +149,6 @@ class TestCandidateRepository:
         repo = SqlaCandidateRepository(db_session)
         assert repo.get_by_id(999) is None
 
-    def test_get_active_without_meaning_excludes_known(self, db_session: Session) -> None:
-        source_id = self._create_source(db_session)
-        repo = SqlaCandidateRepository(db_session)
-        self._create_candidate(repo, source_id, "word1", CandidateStatus.KNOWN)
-        result = repo.get_active_without_meaning(source_id=source_id, limit=10)
-        assert len(result) == 0
-
-    def test_get_active_without_meaning_excludes_skip(self, db_session: Session) -> None:
-        source_id = self._create_source(db_session)
-        repo = SqlaCandidateRepository(db_session)
-        self._create_candidate(repo, source_id, "word1", CandidateStatus.SKIP)
-        result = repo.get_active_without_meaning(source_id=source_id, limit=10)
-        assert len(result) == 0
-
-    def test_get_active_without_meaning_includes_pending(self, db_session: Session) -> None:
-        source_id = self._create_source(db_session)
-        repo = SqlaCandidateRepository(db_session)
-        self._create_candidate(repo, source_id, "word1", CandidateStatus.PENDING)
-        result = repo.get_active_without_meaning(source_id=source_id, limit=10)
-        assert len(result) == 1
-        assert result[0].lemma == "word1"
-
-    def test_get_active_without_meaning_includes_learn(self, db_session: Session) -> None:
-        source_id = self._create_source(db_session)
-        repo = SqlaCandidateRepository(db_session)
-        self._create_candidate(repo, source_id, "word1", CandidateStatus.LEARN)
-        result = repo.get_active_without_meaning(source_id=source_id, limit=10)
-        assert len(result) == 1
-        assert result[0].lemma == "word1"
-
-    def test_get_active_without_meaning_excludes_with_meaning(self, db_session: Session) -> None:
-        source_id = self._create_source(db_session)
-        repo = SqlaCandidateRepository(db_session)
-        self._create_candidate(repo, source_id, "word1", CandidateStatus.PENDING, meaning="definition")
-        result = repo.get_active_without_meaning(source_id=source_id, limit=10)
-        assert len(result) == 0
-
-    def test_count_active_without_meaning_excludes_known_skip(self, db_session: Session) -> None:
-        source_id = self._create_source(db_session)
-        repo = SqlaCandidateRepository(db_session)
-        self._create_candidate(repo, source_id, "word1", CandidateStatus.PENDING)
-        self._create_candidate(repo, source_id, "word2", CandidateStatus.LEARN)
-        self._create_candidate(repo, source_id, "word3", CandidateStatus.KNOWN)
-        self._create_candidate(repo, source_id, "word4", CandidateStatus.SKIP)
-        count = repo.count_active_without_meaning(source_id)
-        assert count == 2
-
-    def test_count_active_without_meaning_excludes_with_meaning(self, db_session: Session) -> None:
-        source_id = self._create_source(db_session)
-        repo = SqlaCandidateRepository(db_session)
-        self._create_candidate(repo, source_id, "word1", CandidateStatus.PENDING)
-        self._create_candidate(repo, source_id, "word2", CandidateStatus.PENDING, meaning="definition")
-        count = repo.count_active_without_meaning(source_id)
-        assert count == 1
-
 
 @pytest.mark.integration
 class TestKnownWordRepository:

@@ -35,15 +35,3 @@ class CandidateRepository(ABC):
 
     @abstractmethod
     def delete_by_source(self, source_id: int) -> None: ...
-
-    @abstractmethod
-    def get_active_without_meaning(
-        self, source_id: int, limit: int
-    ) -> list[StoredCandidate]:
-        """Return up to `limit` PENDING/LEARN candidates for `source_id` that
-        have no row in candidate_meanings yet (i.e., meaning is None)."""
-
-    @abstractmethod
-    def count_active_without_meaning(self, source_id: int) -> int:
-        """Return count of PENDING/LEARN candidates for `source_id` that
-        have no row in candidate_meanings."""

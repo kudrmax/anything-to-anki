@@ -104,44 +104,6 @@ class SqlaCandidateRepository(CandidateRepository):
         ).delete()
         self._session.flush()
 
-    def get_active_without_meaning(
-        self, source_id: int, limit: int
-    ) -> list[StoredCandidate]:
-        active_statuses = (CandidateStatus.PENDING.value, CandidateStatus.LEARN.value)
-        models = (
-            self._session.query(StoredCandidateModel)
-            .outerjoin(
-                CandidateMeaningModel,
-                CandidateMeaningModel.candidate_id == StoredCandidateModel.id,
-            )
-            .filter(
-                StoredCandidateModel.source_id == source_id,
-                StoredCandidateModel.status.in_(active_statuses),
-                CandidateMeaningModel.candidate_id.is_(None),
-            )
-            .limit(limit)
-            .all()
-        )
-        entities = [m.to_entity() for m in models]
-        return self._bulk_attach(entities)
-
-    def count_active_without_meaning(self, source_id: int) -> int:
-        active_statuses = (CandidateStatus.PENDING.value, CandidateStatus.LEARN.value)
-        result = (
-            self._session.query(func.count(StoredCandidateModel.id))
-            .outerjoin(
-                CandidateMeaningModel,
-                CandidateMeaningModel.candidate_id == StoredCandidateModel.id,
-            )
-            .filter(
-                StoredCandidateModel.source_id == source_id,
-                StoredCandidateModel.status.in_(active_statuses),
-                CandidateMeaningModel.candidate_id.is_(None),
-            )
-            .scalar()
-        )
-        return result or 0
-
     # ── private helpers ────────────────────────────────────────────────
 
     def _attach_enrichments(self, entity: StoredCandidate) -> StoredCandidate:
