@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Info, Loader2, Pencil, RefreshCw, Sparkles, X } from 'lucide-react'
+import { Info, Loader2, Pencil, Play, RefreshCw, Sparkles, Square, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, StoredCandidate } from '@/api/types'
 
@@ -23,14 +23,6 @@ interface CandidateCardV2Props {
   hasMediaTimecodes?: boolean
 }
 
-const CEFR_COLOR: Record<string, { bg: string; text: string; border: string }> = {
-  B2: { bg: 'rgba(180,83,9,0.2)', text: '#fbbf24', border: 'rgba(180,83,9,0.3)' },
-  C1: { bg: 'rgba(234,88,12,0.2)', text: '#fb923c', border: 'rgba(234,88,12,0.3)' },
-  C2: { bg: 'rgba(225,29,72,0.2)', text: '#fb7185', border: 'rgba(225,29,72,0.3)' },
-}
-
-const CEFR_DEFAULT = { bg: 'rgba(148,163,184,0.15)', text: '#94a3b8', border: 'rgba(148,163,184,0.2)' }
-
 const POS_LABEL: Record<string, string> = {
   NOUN: 'noun', VERB: 'verb', ADJ: 'adjective', ADV: 'adverb',
   PROPN: 'proper noun', NUM: 'numeral', PRON: 'pronoun', DET: 'determiner',
@@ -48,38 +40,24 @@ const STATUS_BG: Partial<Record<CandidateStatus, string>> = {
   skip:  'rgba(239,68,68,0.07)',
 }
 
-const MARK_BUTTONS: { status: CandidateStatus; label: string; bg: string; color: string; border: string; hoverBg: string }[] = [
-  {
-    status: 'learn',
-    label: 'Learn',
-    bg: 'rgba(52,211,153,0.2)',
-    color: '#34d399',
-    border: 'rgba(52,211,153,0.35)',
-    hoverBg: 'rgba(52,211,153,0.3)',
-  },
-  {
-    status: 'known',
-    label: 'Know',
-    bg: 'rgba(56,189,248,0.15)',
-    color: '#38bdf8',
-    border: 'rgba(56,189,248,0.3)',
-    hoverBg: 'rgba(56,189,248,0.25)',
-  },
-  {
-    status: 'skip',
-    label: 'Skip',
-    bg: 'rgba(239,68,68,0.15)',
-    color: '#f87171',
-    border: 'rgba(239,68,68,0.3)',
-    hoverBg: 'rgba(239,68,68,0.25)',
-  },
+const MARK_BUTTONS: { status: CandidateStatus; label: string; bg: string; color: string; border: string }[] = [
+  { status: 'learn', label: 'Learn', bg: 'rgba(52,211,153,0.2)',  color: '#34d399', border: 'rgba(52,211,153,0.35)' },
+  { status: 'known', label: 'Know',  bg: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: 'rgba(56,189,248,0.3)' },
+  { status: 'skip',  label: 'Skip',  bg: 'rgba(239,68,68,0.15)',  color: '#f87171', border: 'rgba(239,68,68,0.3)' },
 ]
 
 const MARK_ACTIVE: Record<string, { bg: string; color: string; border: string }> = {
   learn: { bg: 'rgba(16,185,129,0.35)', color: '#34d399', border: 'rgba(52,211,153,0.5)' },
-  known: { bg: 'rgba(14,165,233,0.3)', color: '#38bdf8', border: 'rgba(56,189,248,0.5)' },
-  skip:  { bg: 'rgba(239,68,68,0.3)', color: '#f87171', border: 'rgba(239,68,68,0.5)' },
+  known: { bg: 'rgba(14,165,233,0.3)',  color: '#38bdf8', border: 'rgba(56,189,248,0.5)' },
+  skip:  { bg: 'rgba(239,68,68,0.3)',   color: '#f87171', border: 'rgba(239,68,68,0.5)' },
 }
+
+const CEFR_PILL_COLOR: Record<string, { bg: string; color: string }> = {
+  B2: { bg: 'rgba(180,83,9,0.18)',  color: '#fbbf24' },
+  C1: { bg: 'rgba(234,88,12,0.2)',  color: '#fb923c' },
+  C2: { bg: 'rgba(225,29,72,0.2)',  color: '#fb7185' },
+}
+const CEFR_PILL_DEFAULT = { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8' }
 
 function stripMarkdown(text: string): string {
   return text
@@ -233,7 +211,23 @@ export function CandidateCardV2({
     await onMark(candidate.id, next)
   }
 
-  const cefr = CEFR_COLOR[candidate.cefr_level ?? ''] ?? CEFR_DEFAULT
+  // Derive media URLs from candidate.media (preferred), fall back to mediaMap props
+  // (mediaMap is built from /sources/{id}/cards which is LEARN-only).
+  const candShot = candidate.media?.screenshot_path
+    ? `/media/${sourceId}/${candidate.media.screenshot_path.split('/').pop()}`
+    : null
+  const candAudio = candidate.media?.audio_path
+    ? `/media/${sourceId}/${candidate.media.audio_path.split('/').pop()}`
+    : null
+  const finalShot = candShot ?? screenshotUrl ?? null
+  const finalAudio = candAudio ?? audioUrl ?? null
+  const mediaStatus = candidate.media?.status
+  const showMediaColumn = !!(
+    finalShot || finalAudio
+    || mediaStatus === 'queued' || mediaStatus === 'running' || mediaStatus === 'failed'
+  )
+
+  const cefrPillColor = CEFR_PILL_COLOR[candidate.cefr_level ?? ''] ?? CEFR_PILL_DEFAULT
 
   return (
     <div
@@ -247,7 +241,7 @@ export function CandidateCardV2({
       )}
       style={{
         position: 'relative',
-        padding: '20px 20px 20px 24px',
+        padding: '20px',
         ...(isRated && {
           background: STATUS_BG[candidate.status] ?? 'rgba(148,163,184,0.07)',
           backdropFilter: 'none',
@@ -271,129 +265,122 @@ export function CandidateCardV2({
         }} />
       )}
 
-      {/* Right column: toolbar + CEFR */}
+      {/* TOP BAR: toolbar (left) + Learn/Know/Skip (right) */}
       <div style={{
-        position: 'absolute',
-        top: '20px',
-        right: '20px',
         display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        gap: '4px',
-        zIndex: 2,
+        gap: '8px',
       }}>
-        {(candidate.is_phrasal_verb || candidate.cefr_level) && (
-          candidate.is_phrasal_verb ? (
-            <span className="rounded border px-1.5 py-0.5 text-xs font-medium bg-violet-900/40 text-violet-400 border-violet-800">
-              phrasal
-            </span>
-          ) : (
-            <span style={{
-              fontSize: '10px',
-              fontWeight: 600,
-              background: cefr.bg,
-              color: cefr.text,
-              border: `1px solid ${cefr.border}`,
-              borderRadius: '4px',
-              padding: '1px 6px',
-              whiteSpace: 'nowrap',
-            }}>
-              {candidate.cefr_level}
-            </span>
-          )
-        )}
-        {isEditingFragment ? (
-          <ToolbarButton
-            onClick={onCancelEditFragment}
-            ariaLabel="Cancel editing context fragment"
-            className="border-[var(--accent)] text-[var(--accent)]"
-          >
-            <X size={13} />
-          </ToolbarButton>
-        ) : onEditFragment && (
-          <ToolbarButton
-            onClick={() => onEditFragment(candidate.id)}
-            ariaLabel="Edit context fragment"
-            title="Edit context fragment"
-          >
-            <Pencil size={13} />
-          </ToolbarButton>
-        )}
-        {onGenerateMeaning && (
-          <ToolbarButton
-            onClick={() => onGenerateMeaning(candidate.id)}
-            disabled={isGenerating}
-            ariaLabel="Generate meaning with AI"
-            title="Generate meaning with AI"
-          >
-            {isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-          </ToolbarButton>
-        )}
-        {onRegenerateMedia && hasMediaTimecodes && (
-          <ToolbarButton
-            onClick={() => onRegenerateMedia(candidate.id)}
-            disabled={isRegeneratingMedia}
-            ariaLabel="Regenerate media for this candidate"
-            title="Regenerate screenshot and audio (uses current fragment boundaries)"
-          >
-            {isRegeneratingMedia ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-          </ToolbarButton>
-        )}
-        <div
-          className="relative"
-          onMouseEnter={() => setShowInfo(true)}
-          onMouseLeave={() => setShowInfo(false)}
-        >
-          <ToolbarButton ariaLabel="Word info" title="Word info">
-            <Info size={13} />
-          </ToolbarButton>
-          {showInfo && (
-            <div style={{
-              position: 'absolute',
-              top: '100%',
-              right: 0,
-              marginTop: '6px',
-              background: 'rgba(15,17,30,0.95)',
-              border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: '8px',
-              padding: '8px 12px',
-              whiteSpace: 'nowrap',
-              zIndex: 10,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-            }}>
-              {candidate.meaning?.ipa && (
-                <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>
-                  {candidate.meaning.ipa}
-                </span>
-              )}
-              <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>
-                · {POS_LABEL[candidate.pos] ?? candidate.pos.toLowerCase()}
-              </span>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {isEditingFragment ? (
+            <ToolbarButton
+              onClick={onCancelEditFragment}
+              ariaLabel="Cancel editing context fragment"
+              className="border-[var(--accent)] text-[var(--accent)]"
+            >
+              <X size={13} />
+            </ToolbarButton>
+          ) : onEditFragment && (
+            <ToolbarButton
+              onClick={() => onEditFragment(candidate.id)}
+              ariaLabel="Edit context fragment"
+              title="Edit context fragment"
+            >
+              <Pencil size={13} />
+            </ToolbarButton>
           )}
+          {onGenerateMeaning && (
+            <ToolbarButton
+              onClick={() => onGenerateMeaning(candidate.id)}
+              disabled={isGenerating}
+              ariaLabel="Generate meaning with AI"
+              title="Generate meaning with AI"
+            >
+              {isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            </ToolbarButton>
+          )}
+          <div
+            className="relative"
+            onMouseEnter={() => setShowInfo(true)}
+            onMouseLeave={() => setShowInfo(false)}
+          >
+            <ToolbarButton ariaLabel="Word info" title="Word info">
+              <Info size={13} />
+            </ToolbarButton>
+            {showInfo && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                marginTop: '6px',
+                background: 'rgba(15,17,30,0.95)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                whiteSpace: 'nowrap',
+                zIndex: 10,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              }}>
+                {candidate.meaning?.ipa && (
+                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>
+                    {candidate.meaning.ipa}
+                  </span>
+                )}
+                <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>
+                  · {POS_LABEL[candidate.pos] ?? candidate.pos.toLowerCase()}
+                </span>
+              </div>
+            )}
+          </div>
+          {onRegenerateMedia && hasMediaTimecodes && (
+            <ToolbarButton
+              onClick={() => onRegenerateMedia(candidate.id)}
+              disabled={isRegeneratingMedia}
+              ariaLabel="Regenerate media for this candidate"
+              title="Regenerate screenshot and audio (uses current fragment boundaries)"
+            >
+              {isRegeneratingMedia ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            </ToolbarButton>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {MARK_BUTTONS.map((btn) => {
+            const isActive = candidate.status === btn.status
+            const active = MARK_ACTIVE[btn.status]
+            return (
+              <button
+                key={btn.status}
+                onClick={() => void handleMark(btn.status)}
+                className="cursor-pointer transition-colors"
+                style={{
+                  padding: '4px 14px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: isActive ? 700 : 600,
+                  border: `1px solid ${isActive ? active.border : btn.border}`,
+                  background: isActive ? active.bg : btn.bg,
+                  color: isActive ? active.color : btn.color,
+                  lineHeight: 1.4,
+                }}
+              >
+                {btn.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {/* Horizontal split: media left, content right */}
-      <div style={{ display: 'flex', gap: '14px', paddingRight: '120px' }}>
-        {/* LEFT: Media column */}
-        {(() => {
-          // Derive URLs from candidate.media (preferred), fall back to mediaMap props
-          // (mediaMap is built from /sources/{id}/cards which is LEARN-only).
-          const candShot = candidate.media?.screenshot_path
-            ? `/media/${sourceId}/${candidate.media.screenshot_path.split('/').pop()}`
-            : null
-          const candAudio = candidate.media?.audio_path
-            ? `/media/${sourceId}/${candidate.media.audio_path.split('/').pop()}`
-            : null
-          const finalShot = candShot ?? screenshotUrl ?? null
-          const finalAudio = candAudio ?? audioUrl ?? null
-          const mediaStatus = candidate.media?.status
-          const showMediaColumn = finalShot || finalAudio
-            || mediaStatus === 'queued' || mediaStatus === 'running' || mediaStatus === 'failed'
-          if (!showMediaColumn) return null
-          return (
-            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px', width: '160px' }}>
-              {finalShot ? (
+      {/* Divider between top bar and content */}
+      <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '20px 0' }} />
+
+      {/* BODY: media (optional) + text column */}
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+        {showMediaColumn && (
+          <div style={{ flexShrink: 0, width: '160px' }}>
+            {finalShot ? (
+              <div style={{ position: 'relative', width: '160px', height: '90px' }}>
                 <img
                   src={finalShot}
                   alt="Scene screenshot"
@@ -407,60 +394,103 @@ export function CandidateCardV2({
                   }}
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                 />
-              ) : (
-                <div style={{
-                  width: '160px',
-                  height: '90px',
-                  borderRadius: '8px',
-                  border: '1px dashed var(--glass-b)',
-                  background: 'var(--glass)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '11px',
-                  color: 'var(--td)',
-                  gap: '6px',
-                }}>
-                  {mediaStatus === 'running' && (
-                    <>
-                      <Loader2 size={12} className="animate-spin" /> Generating
-                    </>
-                  )}
-                  {mediaStatus === 'queued' && 'Queued'}
-                  {mediaStatus === 'failed' && (
-                    <span style={{ color: '#f87171' }} title={candidate.media?.error ?? undefined}>
-                      Failed
-                    </span>
-                  )}
-                </div>
-              )}
-              {finalAudio && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    toggleAudio(finalAudio)
-                  }}
-                  className="flex items-center justify-center gap-1.5 text-xs cursor-pointer"
-                  style={{
-                    width: '160px',
-                    padding: '5px 0',
-                    borderRadius: '6px',
-                    border: '1px solid var(--glass-b)',
-                    background: 'var(--glass)',
-                    color: 'var(--accent)',
-                  }}
-                >
-                  {isAudioPlaying ? '■ Stop audio' : '▶ Play audio'}
-                </button>
-              )}
-            </div>
-          )
-        })()}
+                {finalAudio && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleAudio(finalAudio)
+                    }}
+                    aria-label={isAudioPlaying ? 'Stop audio' : 'Play audio'}
+                    title={isAudioPlaying ? 'Stop audio' : 'Play audio'}
+                    style={{
+                      position: 'absolute',
+                      top: '6px',
+                      right: '6px',
+                      width: '28px',
+                      height: '28px',
+                      background: 'rgba(15,17,30,0.85)',
+                      border: '1px solid rgba(129,140,248,0.4)',
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#818cf8',
+                      cursor: 'pointer',
+                      backdropFilter: 'blur(4px)',
+                    }}
+                  >
+                    {isAudioPlaying ? <Square size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div style={{
+                width: '160px',
+                height: '90px',
+                borderRadius: '8px',
+                border: '1px dashed var(--glass-b)',
+                background: 'var(--glass)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '11px',
+                color: 'var(--td)',
+                gap: '6px',
+              }}>
+                {mediaStatus === 'running' && (
+                  <>
+                    <Loader2 size={12} className="animate-spin" /> Generating
+                  </>
+                )}
+                {mediaStatus === 'queued' && 'Queued'}
+                {mediaStatus === 'failed' && (
+                  <span style={{ color: '#f87171' }} title={candidate.media?.error ?? undefined}>
+                    Failed
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* RIGHT: Text content */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        {/* RIGHT: text column with floated CEFR pill */}
+        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+          {candidate.is_phrasal_verb ? (
+            <span
+              style={{
+                float: 'right',
+                margin: '0 0 4px 8px',
+                padding: '2px 10px',
+                background: 'rgba(124,58,237,0.18)',
+                color: '#a78bfa',
+                borderRadius: '999px',
+                fontSize: '10px',
+                fontWeight: 700,
+                letterSpacing: '0.03em',
+              }}
+            >
+              phrasal
+            </span>
+          ) : candidate.cefr_level && (
+            <span
+              style={{
+                float: 'right',
+                margin: '0 0 4px 8px',
+                padding: '2px 10px',
+                background: cefrPillColor.bg,
+                color: cefrPillColor.color,
+                borderRadius: '999px',
+                fontSize: '10px',
+                fontWeight: 700,
+                letterSpacing: '0.03em',
+              }}
+            >
+              {candidate.cefr_level}
+            </span>
+          )}
+
           <p style={{
-            margin: '0 0 10px',
+            margin: '-3px 0 6px',
             fontSize: '17px',
             color: '#c4b5fd',
             lineHeight: 1.5,
@@ -476,51 +506,25 @@ export function CandidateCardV2({
 
           {candidate.meaning?.meaning ? (
             <p style={{
-              margin: '0 0 14px',
+              margin: '10px 0 0',
               fontSize: '15px',
-              lineHeight: 1.45,
+              lineHeight: 1.55,
               color: '#cbd5e1',
               whiteSpace: 'pre-line',
             }}>
               {renderMeaning(candidate.meaning.meaning, candidate.lemma, candidate.surface_form)}
             </p>
           ) : candidate.meaning?.status === 'running' ? (
-            <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--td)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--td)', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Loader2 size={13} className="animate-spin" /> Generating...
             </p>
           ) : candidate.meaning?.status === 'queued' ? (
-            <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--td)' }}>Queued</p>
+            <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--td)' }}>Queued</p>
           ) : candidate.meaning?.status === 'failed' ? (
-            <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#f87171' }} title={candidate.meaning.error ?? undefined}>
+            <p style={{ margin: '10px 0 0', fontSize: '13px', color: '#f87171' }} title={candidate.meaning.error ?? undefined}>
               Failed to generate
             </p>
           ) : null}
-
-          <div style={{ display: 'flex', gap: '10px' }}>
-            {MARK_BUTTONS.map((btn) => {
-              const isActive = candidate.status === btn.status
-              const active = MARK_ACTIVE[btn.status]
-              return (
-                <button
-                  key={btn.status}
-                  onClick={() => void handleMark(btn.status)}
-                  className="flex-1 rounded-lg cursor-pointer transition-colors"
-                  style={{
-                    border: `1px solid ${isActive ? active.border : btn.border}`,
-                    borderRadius: '8px',
-                    padding: '9px 0',
-                    fontSize: '12px',
-                    fontWeight: isActive ? 600 : 500,
-                    background: isActive ? active.bg : btn.bg,
-                    color: isActive ? active.color : btn.color,
-                    textAlign: 'center',
-                  }}
-                >
-                  {btn.label}
-                </button>
-              )
-            })}
-          </div>
         </div>
       </div>
     </div>
