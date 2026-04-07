@@ -4,11 +4,10 @@ import logging
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.media_extraction_job import MediaExtractionJob
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.media_extraction_job_status import MediaExtractionJobStatus
 
 if TYPE_CHECKING:
-    from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.media_extraction_job_repository import MediaExtractionJobRepository
     from backend.domain.ports.source_repository import SourceRepository
 
@@ -16,39 +15,30 @@ logger = logging.getLogger(__name__)
 
 
 class StartMediaExtractionUseCase:
-    """Creates a MediaExtractionJob for all LEARN and PENDING candidates of a source with timecodes but no media yet."""
+    """Creates a MediaExtractionJob for all PENDING/LEARN candidates of a source
+    that have timecodes in candidate_media but no screenshot yet."""
 
     def __init__(
         self,
         job_repo: MediaExtractionJobRepository,
-        candidate_repo: CandidateRepository,
+        media_repo: CandidateMediaRepository,
         source_repo: SourceRepository,
     ) -> None:
         self._job_repo = job_repo
-        self._candidate_repo = candidate_repo
+        self._media_repo = media_repo
         self._source_repo = source_repo
 
     def execute(self, source_id: int) -> MediaExtractionJob:
-        candidates = self._candidate_repo.get_by_source(source_id)
-        eligible = [
-            c for c in candidates
-            if c.status in (CandidateStatus.LEARN, CandidateStatus.PENDING)
-            and c.media_start_ms is not None
-            and c.media_end_ms is not None
-            and c.screenshot_path is None
-            and c.id is not None
-        ]
-        learn_count = sum(1 for c in candidates if c.status == CandidateStatus.LEARN)
-        pending_count = sum(1 for c in candidates if c.status == CandidateStatus.PENDING)
+        eligible_ids = self._media_repo.get_eligible_candidate_ids(source_id=source_id)
         logger.info(
-            "StartMediaExtraction source=%d: %d total, %d learn, %d pending, %d eligible",
-            source_id, len(candidates), learn_count, pending_count, len(eligible),
+            "StartMediaExtraction source=%d: %d eligible",
+            source_id, len(eligible_ids),
         )
         job = MediaExtractionJob(
             source_id=source_id,
             status=MediaExtractionJobStatus.PENDING,
-            total_candidates=len(eligible),
-            candidate_ids=[c.id for c in eligible],  # type: ignore[misc]
+            total_candidates=len(eligible_ids),
+            candidate_ids=eligible_ids,
         )
         return self._job_repo.create(job)
 
