@@ -1,6 +1,7 @@
 import type {
   AnkiStatus,
   CardPreview,
+  CandidateSortOrder,
   CandidateStatus,
   CleanupMediaKind,
   CreateNoteTypeResponse,
@@ -56,12 +57,14 @@ export const api = {
 
   listSources: () => req<SourceSummary[]>('/sources'),
 
-  getSource: (id: number) => req<SourceDetail>(`/sources/${id}`),
+  getSource: (id: number, sort: CandidateSortOrder = 'relevance') =>
+    req<SourceDetail>(`/sources/${id}?sort=${sort}`),
 
   processSource: (id: number) =>
     req<{ status: string }>(`/sources/${id}/process`, { method: 'POST' }),
 
-  getCandidates: (id: number) => req<StoredCandidate[]>(`/sources/${id}/candidates`),
+  getCandidates: (id: number, sort: CandidateSortOrder = 'relevance') =>
+    req<StoredCandidate[]>(`/sources/${id}/candidates?sort=${sort}`),
 
   markCandidate: (id: number, status: CandidateStatus) =>
     req<{ id: number; status: string }>(`/candidates/${id}`, {
@@ -100,8 +103,11 @@ export const api = {
   regenerateCandidateMedia: (candidateId: number) =>
     req<{ status: string }>(`/candidates/${candidateId}/regenerate-media`, { method: 'POST' }),
 
-  enqueueMeaningGeneration: (sourceId: number) =>
-    req<{ enqueued: number; batches: number }>(`/sources/${sourceId}/meanings/generate`, { method: 'POST' }),
+  enqueueMeaningGeneration: (sourceId: number, sort: CandidateSortOrder = 'relevance') =>
+    req<{ enqueued: number; batches: number }>(
+      `/sources/${sourceId}/meanings/generate?sort=${sort}`,
+      { method: 'POST' },
+    ),
 
   cancelMeaningQueue: (sourceId: number) =>
     req<{ cancelled: number }>(`/sources/${sourceId}/meanings/cancel`, { method: 'POST' }),
@@ -109,8 +115,11 @@ export const api = {
   retryFailedMeanings: (sourceId: number) =>
     req<{ enqueued: number }>(`/sources/${sourceId}/meanings/retry-failed`, { method: 'POST' }),
 
-  enqueueMediaGeneration: (sourceId: number) =>
-    req<{ enqueued: number }>(`/sources/${sourceId}/media/generate`, { method: 'POST' }),
+  enqueueMediaGeneration: (sourceId: number, sort: CandidateSortOrder = 'relevance') =>
+    req<{ enqueued: number }>(
+      `/sources/${sourceId}/media/generate?sort=${sort}`,
+      { method: 'POST' },
+    ),
 
   cancelMediaQueue: (sourceId: number) =>
     req<{ cancelled: number }>(`/sources/${sourceId}/media/cancel`, { method: 'POST' }),

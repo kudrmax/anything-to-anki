@@ -2,18 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Film, Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
-import type { CardPreview, CandidateStatus, QueueSummary, SourceDetail, StoredCandidate } from '@/api/types'
+import type {
+  CandidateSortOrder,
+  CandidateStatus,
+  CardPreview,
+  QueueSummary,
+  SourceDetail,
+  StoredCandidate,
+} from '@/api/types'
 import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
 import { TextAnnotator } from '@/components/TextAnnotator'
-
-function sortCandidates(candidates: StoredCandidate[]): StoredCandidate[] {
-  const cefrOrder: Record<string, number> = { A1: 0, A2: 1, B1: 2, B2: 3, C1: 4, C2: 5 }
-  return [...candidates].sort((a, b) => {
-    if (a.is_sweet_spot !== b.is_sweet_spot) return a.is_sweet_spot ? -1 : 1
-    if (b.zipf_frequency !== a.zipf_frequency) return b.zipf_frequency - a.zipf_frequency
-    return (cefrOrder[a.cefr_level ?? ''] ?? 0) - (cefrOrder[b.cefr_level ?? ''] ?? 0)
-  })
-}
 
 export function ReviewPage() {
   const { id } = useParams<{ id: string }>()
@@ -34,19 +32,20 @@ export function ReviewPage() {
   const [queueSummary, setQueueSummary] = useState<QueueSummary | null>(null)
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
   const [mediaMap, setMediaMap] = useState<Record<number, { screenshotUrl: string | null; audioUrl: string | null }>>({})
+  const [sortOrder, setSortOrder] = useState<CandidateSortOrder>('relevance')
 
   const loadCandidates = useCallback(async () => {
     const [cands, cards] = await Promise.all([
-      api.getCandidates(sourceId),
+      api.getCandidates(sourceId, sortOrder),
       api.getSourceCards(sourceId).catch(() => [] as CardPreview[]),
     ])
-    setCandidates(sortCandidates(cands))
+    setCandidates(cands)
     const map: Record<number, { screenshotUrl: string | null; audioUrl: string | null }> = {}
     for (const card of cards) {
       map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }
     }
     setMediaMap(map)
-  }, [sourceId])
+  }, [sourceId, sortOrder])
 
   const loadQueueSummary = useCallback(async () => {
     try {
@@ -60,9 +59,9 @@ export function ReviewPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const src = await api.getSource(sourceId)
+        const src = await api.getSource(sourceId, sortOrder)
         setSource(src)
-        setCandidates(sortCandidates(src.candidates))
+        setCandidates(src.candidates)
         await Promise.all([
           api.getSourceCards(sourceId).catch(() => [] as CardPreview[]).then((cards) => {
             const map: Record<number, { screenshotUrl: string | null; audioUrl: string | null }> = {}
@@ -78,7 +77,7 @@ export function ReviewPage() {
       }
     }
     void load()
-  }, [sourceId, loadQueueSummary])
+  }, [sourceId, sortOrder, loadQueueSummary])
 
   // Polling while there are inflight jobs
   useEffect(() => {
@@ -128,9 +127,10 @@ export function ReviewPage() {
   }, [editingFragmentFor])
 
   const handleManualAdd = useCallback(async (surfaceForm: string, contextFragment: string) => {
-    const candidate = await api.addManualCandidate(sourceId, surfaceForm, contextFragment)
-    setCandidates((prev) => sortCandidates([...prev, candidate]))
-  }, [sourceId])
+    await api.addManualCandidate(sourceId, surfaceForm, contextFragment)
+    // Re-fetch from backend so sort_order is applied consistently
+    await loadCandidates()
+  }, [sourceId, loadCandidates])
 
   const handleWordClick = useCallback((candidateId: number) => {
     hoverFromCardRef.current = false
@@ -170,23 +170,23 @@ export function ReviewPage() {
 
   const handleGenerateMeanings = useCallback(async () => {
     try {
-      await api.enqueueMeaningGeneration(sourceId)
+      await api.enqueueMeaningGeneration(sourceId, sortOrder)
       await loadCandidates()
       await loadQueueSummary()
     } catch (e) {
       setToast({ text: e instanceof Error ? e.message : 'Failed to enqueue meanings', key: Date.now() })
     }
-  }, [sourceId, loadCandidates, loadQueueSummary])
+  }, [sourceId, sortOrder, loadCandidates, loadQueueSummary])
 
   const handleGenerateMedia = useCallback(async () => {
     try {
-      await api.enqueueMediaGeneration(sourceId)
+      await api.enqueueMediaGeneration(sourceId, sortOrder)
       await loadCandidates()
       await loadQueueSummary()
     } catch (e) {
       setToast({ text: e instanceof Error ? e.message : 'Failed to enqueue media', key: Date.now() })
     }
-  }, [sourceId, loadCandidates, loadQueueSummary])
+  }, [sourceId, sortOrder, loadCandidates, loadQueueSummary])
 
   const handleCancelMeanings = useCallback(async () => {
     try {
@@ -361,9 +361,29 @@ export function ReviewPage() {
         {/* Left: candidates */}
         <div ref={candidatesPanelRef} className="w-[45%] overflow-y-auto p-4 flex flex-col gap-3" style={{ borderRight: '1px solid var(--glass-b)' }}>
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--td)' }}>
-              Candidates {candidates.length > 0 && `(${candidates.length})`}
-            </h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--td)' }}>
+                Candidates {candidates.length > 0 && `(${candidates.length})`}
+              </h2>
+              {candidates.length > 0 && (
+                <div className="flex p-[2px] rounded-md" style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)' }}>
+                  {(['relevance', 'chronological'] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setSortOrder(opt)}
+                      className="px-2.5 py-[3px] rounded-[5px] text-[10px] font-medium uppercase tracking-wider transition-all cursor-pointer"
+                      style={
+                        sortOrder === opt
+                          ? { background: 'var(--accent)', color: '#fff' }
+                          : { background: 'transparent', color: 'var(--tm)' }
+                      }
+                    >
+                      {opt === 'relevance' ? 'By relevance' : 'Chronologically'}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="flex items-center gap-2 flex-wrap justify-end">
               {candidates.length > 0 && (
                 hasInflightMeaning ? (

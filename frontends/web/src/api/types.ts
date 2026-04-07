@@ -12,6 +12,8 @@ export type ProcessingStage = 'cleaning_source' | 'analyzing_text'
 
 export type CandidateStatus = 'pending' | 'learn' | 'known' | 'skip'
 
+export type CandidateSortOrder = 'relevance' | 'chronological'
+
 export interface SourceSummary {
   id: number
   title: string
