@@ -10,19 +10,22 @@ SQLite needs table recreation for column drops.
 """
 from __future__ import annotations
 
-from typing import Sequence, Union
+from typing import TYPE_CHECKING
 
 from alembic import op
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
 revision: str = "0005"
-down_revision: Union[str, None] = "0004"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0004"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def _legacy_columns_present() -> bool:
     """Return True if at least one legacy column still exists in candidates."""
-    from sqlalchemy import inspect, text
+    from sqlalchemy import text
 
     bind = op.get_bind()
     rows = bind.execute(text("PRAGMA table_info(candidates)")).fetchall()

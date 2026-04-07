@@ -13,22 +13,25 @@ is safe.
 """
 from __future__ import annotations
 
-from typing import Sequence, Union
+from typing import TYPE_CHECKING
 
 from alembic import op
 from sqlalchemy import text
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from sqlalchemy.engine import Connection
+
 revision: str = "0004"
-down_revision: Union[str, None] = "0003"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0003"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
-def _column_exists(conn: object, table: str, column: str) -> bool:
+def _column_exists(conn: Connection, table: str, column: str) -> bool:
     """Return True if *column* exists in *table* (SQLite PRAGMA-based check)."""
-    from sqlalchemy import text as _text
-
-    rows = conn.execute(_text(f"PRAGMA table_info({table})")).fetchall()  # type: ignore[union-attr]
+    rows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
     return any(row[1] == column for row in rows)
 
 
