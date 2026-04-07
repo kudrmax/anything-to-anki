@@ -38,8 +38,9 @@ class GetCandidatesUseCase:
                 fragment_purity=c.fragment_purity,
                 occurrences=c.occurrences,
                 surface_form=c.surface_form,
-                meaning=c.meaning,
-                ipa=c.ipa,
+                is_phrasal_verb=c.is_phrasal_verb,
+                meaning=c.meaning.meaning if c.meaning else None,
+                ipa=c.meaning.ipa if c.meaning else None,
                 status=c.status.value,
             )
             for c in candidates

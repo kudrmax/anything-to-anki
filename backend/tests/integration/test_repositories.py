@@ -1,8 +1,13 @@
 import pytest
+from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
+    SqlaCandidateMeaningRepository,
+)
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
@@ -80,14 +85,24 @@ class TestCandidateRepository:
         status: CandidateStatus,
         meaning: str | None = None,
     ) -> None:
-        repo.create_batch([
+        created = repo.create_batch([
             StoredCandidate(
                 source_id=source_id, lemma=lemma, pos="NOUN",
                 cefr_level="B2", zipf_frequency=3.5, is_sweet_spot=True,
                 context_fragment=f"context {lemma}", fragment_purity="clean",
-                occurrences=1, status=status, meaning=meaning,
+                occurrences=1, status=status,
             )
         ])
+        if meaning is not None and created[0].id is not None:
+            meaning_repo = SqlaCandidateMeaningRepository(repo._session)
+            meaning_repo.upsert(CandidateMeaning(
+                candidate_id=created[0].id,
+                meaning=meaning,
+                ipa=None,
+                status=EnrichmentStatus.DONE,
+                error=None,
+                generated_at=None,
+            ))
 
     def test_create_batch_and_get(self, db_session: Session) -> None:
         source_id = self._create_source(db_session)

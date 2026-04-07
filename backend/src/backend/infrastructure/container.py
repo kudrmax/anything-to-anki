@@ -167,6 +167,7 @@ class Container:
                 SourceType.SUBTITLES: self._srt_parser,
             },
             structured_srt_parser=self._srt_parser,
+            media_repo=SqlaCandidateMediaRepository(session),
         )
 
     def get_candidates_use_case(self, session: Session) -> GetCandidatesUseCase:
