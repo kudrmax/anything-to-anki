@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Info, Loader2, Pencil, RefreshCw, Sparkles, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, StoredCandidate } from '@/api/types'
@@ -201,6 +201,32 @@ export function CandidateCardV2({
   hasMediaTimecodes,
 }: CandidateCardV2Props) {
   const [showInfo, setShowInfo] = useState(false)
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+    }
+  }, [])
+
+  const toggleAudio = (url: string) => {
+    if (isAudioPlaying && audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      setIsAudioPlaying(false)
+      return
+    }
+    const audio = new Audio(url)
+    audioRef.current = audio
+    audio.addEventListener('ended', () => setIsAudioPlaying(false))
+    audio.addEventListener('error', () => setIsAudioPlaying(false))
+    audio.play().then(() => setIsAudioPlaying(true)).catch(() => setIsAudioPlaying(false))
+  }
 
   const handleMark = async (status: CandidateStatus) => {
     const next: CandidateStatus = candidate.status === status ? 'pending' : status
@@ -412,7 +438,7 @@ export function CandidateCardV2({
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    new Audio(finalAudio).play().catch(() => undefined)
+                    toggleAudio(finalAudio)
                   }}
                   className="flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                   style={{
@@ -424,7 +450,7 @@ export function CandidateCardV2({
                     color: 'var(--accent)',
                   }}
                 >
-                  ▶ Play audio
+                  {isAudioPlaying ? '■ Stop audio' : '▶ Play audio'}
                 </button>
               )}
             </div>
