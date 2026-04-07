@@ -68,8 +68,8 @@ class RunMediaExtractionJobUseCase:
 
             out_dir = os.path.join(self._media_root, str(candidate.source_id))
             os.makedirs(out_dir, exist_ok=True)
-            screenshot_path = os.path.join(out_dir, f"{candidate_id}_screenshot.jpg")
-            audio_path = os.path.join(out_dir, f"{candidate_id}_audio.mp3")
+            screenshot_path = os.path.join(out_dir, f"{candidate_id}_screenshot.webp")
+            audio_path = os.path.join(out_dir, f"{candidate_id}_audio.m4a")
 
             try:
                 start_ms = candidate.media_start_ms

@@ -39,6 +39,8 @@ export interface StoredCandidate {
   meaning: string | null
   ipa: string | null
   is_phrasal_verb: boolean
+  media_start_ms: number | null
+  media_end_ms: number | null
 }
 
 export interface SourceDetail {
@@ -165,3 +167,14 @@ export interface AudioTrack {
   codec: string
   channels: number | null
 }
+
+export interface SourceMediaStats {
+  source_id: number
+  source_title: string
+  screenshot_bytes: number
+  audio_bytes: number
+  screenshot_count: number
+  audio_count: number
+}
+
+export type CleanupMediaKind = 'all' | 'images' | 'audio'

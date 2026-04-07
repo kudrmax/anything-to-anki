@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 import os
 
 from sqlalchemy import create_engine, text, update
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from backend.domain.value_objects.source_status import SourceStatus
+
+logger = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -207,6 +210,20 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
         ))
         conn.commit()
 
+        # Rename settings key: anki_field_screenshot → anki_field_image
+        try:
+            conn.execute(text(
+                "UPDATE settings SET key = 'anki_field_image' "
+                "WHERE key = 'anki_field_screenshot' "
+                "AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'anki_field_image')"
+            ))
+            conn.execute(text(
+                "DELETE FROM settings WHERE key = 'anki_field_screenshot'"
+            ))
+            conn.commit()
+        except Exception:
+            pass
+
         # Seed default prompt — idempotent, runs on every startup
         conn.execute(
             text(
@@ -279,5 +296,64 @@ def resume_generation_jobs(session_factory: sessionmaker[Session]) -> None:
             .values(status="failed")
         )
         session.commit()
+    finally:
+        session.close()
+
+
+def reconcile_media_files(session_factory: sessionmaker[Session], media_root: str) -> None:
+    """Remove orphan media files/directories without corresponding DB records.
+
+    Two-phase scan on startup:
+    Phase 1: for each source_id directory in media_root, verify source exists in DB.
+             If not, remove the directory entirely.
+    Phase 2: for each `{candidate_id}_{kind}.{ext}` file in a valid source directory,
+             verify the candidate exists in DB. If not, remove the file.
+
+    Orphan DB paths (file missing but DB still has path) are handled by the
+    runtime lazy reconciler, not here.
+    """
+    import re
+    import shutil
+
+    from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+    from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
+
+    if not os.path.isdir(media_root):
+        return
+
+    session = session_factory()
+    try:
+        source_repo = SqlaSourceRepository(session)
+        candidate_repo = SqlaCandidateRepository(session)
+        file_pattern = re.compile(r"^(\d+)_(screenshot|audio)\.")
+
+        for entry in os.listdir(media_root):
+            if not entry.isdigit():
+                continue  # ignore non-source dirs (tmp uploads, etc.)
+            source_id = int(entry)
+            source_dir = os.path.join(media_root, entry)
+            if not os.path.isdir(source_dir):
+                continue
+
+            if source_repo.get_by_id(source_id) is None:
+                shutil.rmtree(source_dir, ignore_errors=True)
+                logger.info("Reconcile: removed orphan media dir %s", source_dir)
+                continue
+
+            # Phase 2: check each file in the valid source directory
+            for fname in os.listdir(source_dir):
+                m = file_pattern.match(fname)
+                if not m:
+                    continue  # unknown file, leave it
+                candidate_id = int(m.group(1))
+                if candidate_repo.get_by_id(candidate_id) is None:
+                    fpath = os.path.join(source_dir, fname)
+                    try:
+                        os.remove(fpath)
+                        logger.info("Reconcile: removed orphan media file %s", fpath)
+                    except OSError:
+                        logger.warning(
+                            "Reconcile: failed to remove orphan file %s", fpath, exc_info=True,
+                        )
     finally:
         session.close()

@@ -71,4 +71,24 @@ class CandidateRepository(ABC):
     ) -> None: ...
 
     @abstractmethod
+    def update_media_timecodes(
+        self,
+        candidate_id: int,
+        *,
+        start_ms: int,
+        end_ms: int,
+    ) -> None:
+        """Update media_start_ms and media_end_ms for a candidate."""
+
+    @abstractmethod
+    def clear_media_path(
+        self,
+        candidate_id: int,
+        *,
+        clear_screenshot: bool,
+        clear_audio: bool,
+    ) -> None:
+        """Set screenshot_path and/or audio_path to NULL for a candidate."""
+
+    @abstractmethod
     def delete_by_source(self, source_id: int) -> None: ...

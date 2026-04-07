@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Film, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { Loader2, Pencil, Trash2 } from 'lucide-react'
 import type { ProcessingStage, SourceStatus, SourceSummary } from '@/api/types'
 
 interface SourceCardProps {
@@ -10,8 +10,6 @@ interface SourceCardProps {
   onDelete: (id: number) => void
   onRename: (id: number, title: string) => void
   isProcessingLocal: boolean
-  onGenerateMedia?: (id: number) => void
-  mediaJob?: { jobId: number; status: string; processed: number; total: number; failed: number } | null
 }
 
 const STATUS_BADGE: Record<SourceStatus, { label: string; bg: string; color: string }> = {
@@ -55,7 +53,7 @@ const GHOST_BTN = {
   border: '1px solid var(--glass-b)',
 } as const
 
-export function SourceCard({ source, onProcess, onReview, onExport, onDelete, onRename, isProcessingLocal, onGenerateMedia, mediaJob }: SourceCardProps) {
+export function SourceCard({ source, onProcess, onReview, onExport, onDelete, onRename, isProcessingLocal }: SourceCardProps) {
   const badge = STATUS_BADGE[source.status]
   const border = STATUS_BORDER[source.status]
   const isProcessing = source.status === 'processing' || isProcessingLocal
@@ -227,40 +225,6 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
         </div>
 
         <div className="flex items-center gap-2">
-          {source.source_type === 'video' && (source.status === 'done' || source.status === 'partially_reviewed' || source.status === 'reviewed') && (
-            mediaJob && (mediaJob.status === 'running' || mediaJob.status === 'pending') ? (
-              <span
-                className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg"
-                style={{ border: '1px solid var(--glass-b)', color: 'var(--tm)', background: 'var(--glass)' }}
-              >
-                <Loader2 size={11} className="animate-spin" />
-                {mediaJob.processed}/{mediaJob.total} media
-              </span>
-            ) : mediaJob && mediaJob.status === 'done' ? (
-              <span
-                className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg"
-                style={{ border: '1px solid rgba(16,185,129,.3)', color: 'rgba(16,185,129,.9)', background: 'rgba(16,185,129,.1)' }}
-              >
-                ✓ Media ready{mediaJob.failed > 0 ? ` (${mediaJob.failed} failed)` : ''}
-              </span>
-            ) : mediaJob && mediaJob.status === 'failed' ? (
-              <span
-                className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg"
-                style={{ border: '1px solid rgba(244,63,94,.3)', color: 'rgba(244,63,94,.9)', background: 'rgba(244,63,94,.1)' }}
-              >
-                ✗ Media failed
-              </span>
-            ) : onGenerateMedia ? (
-              <button
-                onClick={(e) => { e.stopPropagation(); onGenerateMedia(source.id) }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer hover:brightness-110"
-                style={{ border: '1px solid var(--glass-b)', color: 'var(--tm)', background: 'var(--glass)' }}
-              >
-                <Film size={11} />
-                Generate media
-              </button>
-            ) : null
-          )}
           {source.status === 'partially_reviewed' && (
             <button
               onClick={(e) => { e.stopPropagation(); onExport(source.id) }}

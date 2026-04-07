@@ -4,6 +4,11 @@ import subprocess
 
 from backend.domain.ports.media_extractor import MediaExtractor
 
+_SCREENSHOT_MAX_WIDTH: int = 640
+_SCREENSHOT_WEBP_QUALITY: int = 75
+_AUDIO_BITRATE: str = "96k"
+_AUDIO_CHANNELS: int = 1
+
 
 class FfmpegMediaExtractor(MediaExtractor):
     """Generates screenshots and audio clips from video files using ffmpeg."""
@@ -16,9 +21,9 @@ class FfmpegMediaExtractor(MediaExtractor):
                 "-ss", str(ts_s),
                 "-i", video_path,
                 "-vframes", "1",
-                "-vf", "scale='min(640,iw)':'-2'",
+                "-vf", f"scale='min({_SCREENSHOT_MAX_WIDTH},iw)':'-2'",
                 "-c:v", "libwebp",
-                "-quality", "75",
+                "-quality", str(_SCREENSHOT_WEBP_QUALITY),
                 out_path,
             ],
             capture_output=True,
@@ -44,5 +49,10 @@ class FfmpegMediaExtractor(MediaExtractor):
         ]
         if audio_track_index is not None:
             args += ["-map", f"0:a:{audio_track_index}"]
-        args += ["-acodec", "mp3", out_path]
+        args += [
+            "-c:a", "aac",
+            "-b:a", _AUDIO_BITRATE,
+            "-ac", str(_AUDIO_CHANNELS),
+            out_path,
+        ]
         subprocess.run(args, capture_output=True, check=True)

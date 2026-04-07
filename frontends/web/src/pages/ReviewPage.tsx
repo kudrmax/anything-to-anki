@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Loader2, Sparkles } from 'lucide-react'
+import { ArrowLeft, Film, Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import type { CardPreview, CandidateStatus, GenerationQueueStatus, SourceDetail, StoredCandidate } from '@/api/types'
 import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
@@ -30,9 +30,11 @@ export function ReviewPage() {
   const textPanelRef = useRef<HTMLDivElement>(null)
   const hoverFromCardRef = useRef(false)
   const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set())
+  const [regeneratingMediaIds, setRegeneratingMediaIds] = useState<Set<number>>(new Set())
   const [genQueue, setGenQueue] = useState<GenerationQueueStatus | null>(null)
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
   const [mediaMap, setMediaMap] = useState<Record<number, { screenshotUrl: string | null; audioUrl: string | null }>>({})
+  const [mediaJob, setMediaJob] = useState<{ jobId: number; status: string; processed: number; total: number; failed: number } | null>(null)
 
   const runningJob = genQueue?.running_job ?? null
   const pendingJobsCount = genQueue?.pending_jobs.length ?? 0
@@ -148,6 +150,42 @@ export function ReviewPage() {
     }
   }, [sourceId])
 
+  const handleRegenerateCandidateMedia = useCallback(async (candidateId: number) => {
+    setRegeneratingMediaIds((prev) => new Set(prev).add(candidateId))
+    try {
+      await api.regenerateCandidateMedia(candidateId)
+      // Reload candidates (so updated media_start_ms/end_ms are reflected)
+      const [updatedCandidates, cards] = await Promise.all([
+        api.getCandidates(sourceId),
+        api.getSourceCards(sourceId).catch(() => []),
+      ])
+      setCandidates(sortCandidates(updatedCandidates))
+      const map: Record<number, { screenshotUrl: string | null; audioUrl: string | null }> = {}
+      for (const card of cards) {
+        map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }
+      }
+      setMediaMap(map)
+      setToast({ text: 'Media regenerated', key: Date.now() })
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Regeneration failed', key: Date.now() })
+    } finally {
+      setRegeneratingMediaIds((prev) => {
+        const next = new Set(prev)
+        next.delete(candidateId)
+        return next
+      })
+    }
+  }, [sourceId])
+
+  const handleStartMediaExtraction = useCallback(async () => {
+    try {
+      const res = await api.startMediaExtraction(sourceId)
+      setMediaJob({ jobId: res.job_id, status: res.status, processed: 0, total: 0, failed: 0 })
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Failed to start media extraction', key: Date.now() })
+    }
+  }, [sourceId])
+
   const handleStopGeneration = useCallback(async () => {
     if (!runningJob) return
     try {
@@ -178,6 +216,37 @@ export function ReviewPage() {
     }, 10000)
     return () => clearInterval(interval)
   }, [runningJob?.status, pendingJobsCount, sourceId])
+
+  useEffect(() => {
+    if (!mediaJob) return
+    if (mediaJob.status !== 'pending' && mediaJob.status !== 'running') return
+    const interval = setInterval(async () => {
+      try {
+        const status = await api.getMediaExtractionStatus(sourceId, mediaJob.jobId)
+        setMediaJob({
+          jobId: mediaJob.jobId,
+          status: status.status,
+          processed: status.processed,
+          total: status.total,
+          failed: status.failed,
+        })
+        // Reload cards to pick up fresh media URLs when done
+        if (status.status === 'done') {
+          try {
+            const cards = await api.getSourceCards(sourceId)
+            const map: Record<number, { screenshotUrl: string | null; audioUrl: string | null }> = {}
+            for (const card of cards) {
+              map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }
+            }
+            setMediaMap(map)
+          } catch { /* ignore */ }
+        }
+      } catch {
+        /* ignore polling errors */
+      }
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [mediaJob, sourceId])
 
   useEffect(() => {
     if (hoveredId === null || !hoverFromCardRef.current) return
@@ -295,33 +364,69 @@ export function ReviewPage() {
             <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--td)' }}>
               Candidates {candidates.length > 0 && `(${candidates.length})`}
             </h2>
-            {candidates.length > 0 && (
-              runningJob && (runningJob.status === 'pending' || runningJob.status === 'running') ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs" style={{ color: 'var(--tm)' }}>
-                    Generating... {runningJob.processed_candidates}/{runningJob.total_candidates}
-                    {pendingJobsCount > 0 && ` (+${pendingJobsCount} batches queued)`}
-                  </span>
+            <div className="flex items-center gap-2">
+              {candidates.length > 0 && (
+                runningJob && (runningJob.status === 'pending' || runningJob.status === 'running') ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs" style={{ color: 'var(--tm)' }}>
+                      Generating... {runningJob.processed_candidates}/{runningJob.total_candidates}
+                      {pendingJobsCount > 0 && ` (+${pendingJobsCount} batches queued)`}
+                    </span>
+                    <button
+                      onClick={() => void handleStopGeneration()}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+                      style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
+                    >
+                      Stop
+                    </button>
+                  </div>
+                ) : (
                   <button
-                    onClick={() => void handleStopGeneration()}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-                    style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
+                    onClick={() => void handleStartGeneration()}
+                    disabled={generatingIds.size > 0}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
+                    style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
                   >
-                    Stop
+                    <Sparkles size={12} />
+                    Generate Meanings
                   </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => void handleStartGeneration()}
-                  disabled={generatingIds.size > 0}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
-                  style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
-                >
-                  <Sparkles size={12} />
-                  Generate Meanings
-                </button>
-              )
-            )}
+                )
+              )}
+              {source && source.source_type === 'video' && (
+                mediaJob && (mediaJob.status === 'pending' || mediaJob.status === 'running') ? (
+                  <span
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
+                    style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+                  >
+                    <Loader2 size={12} className="animate-spin" />
+                    {mediaJob.processed}/{mediaJob.total} media
+                  </span>
+                ) : mediaJob && mediaJob.status === 'done' ? (
+                  <span
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
+                    style={{ border: '1px solid rgba(16,185,129,.3)', color: 'rgba(16,185,129,.9)', background: 'rgba(16,185,129,.1)' }}
+                  >
+                    ✓ Media ready{mediaJob.failed > 0 ? ` (${mediaJob.failed} failed)` : ''}
+                  </span>
+                ) : mediaJob && mediaJob.status === 'failed' ? (
+                  <span
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
+                    style={{ border: '1px solid rgba(244,63,94,.3)', color: 'rgba(244,63,94,.9)', background: 'rgba(244,63,94,.1)' }}
+                  >
+                    ✗ Media failed
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => void handleStartMediaExtraction()}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+                    style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+                  >
+                    <Film size={12} />
+                    Generate Media
+                  </button>
+                )
+              )}
+            </div>
           </div>
 
           {candidates.length === 0 ? (
@@ -352,6 +457,9 @@ export function ReviewPage() {
                 isQueued={queuedCandidateIds.has(c.id)}
                 screenshotUrl={mediaMap[c.id]?.screenshotUrl}
                 audioUrl={mediaMap[c.id]?.audioUrl}
+                onRegenerateMedia={source?.source_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
+                isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
+                hasMediaTimecodes={c.media_start_ms != null}
               />
             ))
           )}
@@ -384,6 +492,9 @@ export function ReviewPage() {
                   isQueued={queuedCandidateIds.has(c.id)}
                   screenshotUrl={mediaMap[c.id]?.screenshotUrl}
                   audioUrl={mediaMap[c.id]?.audioUrl}
+                  onRegenerateMedia={source?.source_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
+                  isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
+                  hasMediaTimecodes={c.media_start_ms != null}
                 />
               ))}
             </>

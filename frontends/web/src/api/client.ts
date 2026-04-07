@@ -2,6 +2,7 @@ import type {
   AnkiStatus,
   CardPreview,
   CandidateStatus,
+  CleanupMediaKind,
   CreateNoteTypeResponse,
   GenerateMeaningResult,
   GenerationQueueStatus,
@@ -9,6 +10,7 @@ import type {
   PromptTemplate,
   Settings,
   SourceDetail,
+  SourceMediaStats,
   SourceStatus,
   SourceSummary,
   SourceType,
@@ -95,6 +97,9 @@ export const api = {
   generateMeaning: (candidateId: number) =>
     req<GenerateMeaningResult>(`/candidates/${candidateId}/generate-meaning`, { method: 'POST' }),
 
+  regenerateCandidateMedia: (candidateId: number) =>
+    req<{ status: string }>(`/candidates/${candidateId}/regenerate-media`, { method: 'POST' }),
+
   startGeneration: (sourceId?: number) =>
     req<GenerationQueueStatus>('/generation/start', {
       method: 'POST',
@@ -143,6 +148,14 @@ export const api = {
     req<StoredCandidate>(`/sources/${sourceId}/candidates/manual`, {
       method: 'POST',
       body: JSON.stringify({ surface_form: surfaceForm, context_fragment: contextFragment }),
+    }),
+
+  getMediaStats: () => req<SourceMediaStats[]>('/settings/media-stats'),
+
+  cleanupMedia: (sourceId: number, kind: CleanupMediaKind) =>
+    reqVoid('/settings/media-cleanup', {
+      method: 'POST',
+      body: JSON.stringify({ source_id: sourceId, kind }),
     }),
 
   startMediaExtraction: (sourceId: number) =>

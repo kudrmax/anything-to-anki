@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle, Loader2, Trash2, XCircle } from 'lucide-react'
+import { CheckCircle, Loader2, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import { api } from '@/api/client'
-import type { CreateNoteTypeResponse, KnownWord, PromptTemplate, Settings, VerifyNoteTypeResponse } from '@/api/types'
+import type { CleanupMediaKind, CreateNoteTypeResponse, KnownWord, PromptTemplate, Settings, SourceMediaStats, VerifyNoteTypeResponse } from '@/api/types'
 import { PROMPT_LABELS } from '@/api/types'
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
@@ -42,6 +42,48 @@ export function SettingsPage() {
   const [creating, setCreating] = useState(false)
   const [createResult, setCreateResult] = useState<CreateNoteTypeResponse | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
+
+  const [mediaStats, setMediaStats] = useState<SourceMediaStats[]>([])
+  const [mediaStatsLoading, setMediaStatsLoading] = useState(false)
+
+  const loadMediaStats = useCallback(async () => {
+    setMediaStatsLoading(true)
+    try {
+      const stats = await api.getMediaStats()
+      setMediaStats(stats)
+    } catch {
+      /* ignore */
+    } finally {
+      setMediaStatsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadMediaStats()
+  }, [loadMediaStats])
+
+  const handleCleanup = async (sourceId: number, kind: CleanupMediaKind) => {
+    const kindLabel = kind === 'all' ? 'all media' : kind === 'images' ? 'images' : 'audio'
+    if (!window.confirm(`Delete ${kindLabel} for this source?`)) return
+    try {
+      await api.cleanupMedia(sourceId, kind)
+      await loadMediaStats()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Cleanup failed')
+    }
+  }
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B'
+    const units = ['B', 'KB', 'MB', 'GB']
+    let value = bytes
+    let unit = 0
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024
+      unit++
+    }
+    return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -466,6 +508,99 @@ export function SettingsPage() {
           <p className="text-xs" style={{ color: 'var(--td)' }}>
             Known words won't be suggested when processing new sources.
           </p>
+        </section>
+
+        {/* Media storage section */}
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>
+              Media storage
+            </h2>
+            <button
+              onClick={() => void loadMediaStats()}
+              disabled={mediaStatsLoading}
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg cursor-pointer disabled:opacity-50"
+              style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+            >
+              <RefreshCw size={11} className={mediaStatsLoading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </div>
+
+          {mediaStats.length === 0 ? (
+            <p className="text-xs" style={{ color: 'var(--td)' }}>
+              No video sources with media yet.
+            </p>
+          ) : (
+            <div className="glass-card rounded-xl overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr style={{ background: 'var(--glass)', color: 'var(--td)' }}>
+                    <th className="text-left px-3 py-2 font-medium">Source</th>
+                    <th className="text-right px-3 py-2 font-medium">Images</th>
+                    <th className="text-right px-3 py-2 font-medium">Audio</th>
+                    <th className="text-right px-3 py-2 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mediaStats.map((s) => (
+                    <tr key={s.source_id} style={{ borderTop: '1px solid var(--glass-b)', color: 'var(--text)' }}>
+                      <td className="px-3 py-2 truncate max-w-[200px]" title={s.source_title}>{s.source_title}</td>
+                      <td className="px-3 py-2 text-right font-mono" style={{ color: 'var(--tm)' }}>
+                        {formatBytes(s.screenshot_bytes)}
+                        {s.screenshot_count > 0 && <span style={{ color: 'var(--td)', marginLeft: '4px' }}>({s.screenshot_count})</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono" style={{ color: 'var(--tm)' }}>
+                        {formatBytes(s.audio_bytes)}
+                        {s.audio_count > 0 && <span style={{ color: 'var(--td)', marginLeft: '4px' }}>({s.audio_count})</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => void handleCleanup(s.source_id, 'images')}
+                            disabled={s.screenshot_count === 0}
+                            title="Delete images only"
+                            className="text-xs px-2 py-1 rounded cursor-pointer disabled:opacity-30"
+                            style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+                          >
+                            Del images
+                          </button>
+                          <button
+                            onClick={() => void handleCleanup(s.source_id, 'audio')}
+                            disabled={s.audio_count === 0}
+                            title="Delete audio only"
+                            className="text-xs px-2 py-1 rounded cursor-pointer disabled:opacity-30"
+                            style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+                          >
+                            Del audio
+                          </button>
+                          <button
+                            onClick={() => void handleCleanup(s.source_id, 'all')}
+                            disabled={s.screenshot_count === 0 && s.audio_count === 0}
+                            title="Delete all media"
+                            className="text-xs px-2 py-1 rounded cursor-pointer disabled:opacity-30"
+                            style={{ background: 'rgba(244,63,94,.1)', border: '1px solid rgba(244,63,94,.3)', color: 'rgba(244,63,94,.9)' }}
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr style={{ borderTop: '2px solid var(--glass-b)', background: 'var(--glass)', fontWeight: 600, color: 'var(--text)' }}>
+                    <td className="px-3 py-2">Total</td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {formatBytes(mediaStats.reduce((acc, s) => acc + s.screenshot_bytes, 0))}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {formatBytes(mediaStats.reduce((acc, s) => acc + s.audio_bytes, 0))}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
       </main>

@@ -65,6 +65,7 @@ from backend.infrastructure.persistence.sqla_media_extraction_job_repository imp
 from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
 )
+from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -73,6 +74,9 @@ if TYPE_CHECKING:
         GetMediaExtractionStatusUseCase,
         StartMediaExtractionUseCase,
     )
+    from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
+    from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
+    from backend.application.use_cases.regenerate_candidate_media import RegenerateCandidateMediaUseCase
     from backend.application.use_cases.run_media_extraction_job import RunMediaExtractionJobUseCase
 
 
@@ -99,6 +103,7 @@ class Container:
             "MEDIA_ROOT",
             os.path.join(os.getenv("DATA_DIR", "."), "media"),
         )
+        self._lazy_media_reconciler: LazyMediaReconciler | None = None  # lazy init on first call
 
     def add_manual_candidate_use_case(self, session: Session) -> AddManualCandidateUseCase:
         return AddManualCandidateUseCase(
@@ -135,6 +140,7 @@ class Container:
         return DeleteSourceUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            media_root=self._media_root,
         )
 
     def get_sources_use_case(self, session: Session) -> GetSourcesUseCase:
@@ -253,6 +259,15 @@ class Container:
     def media_root(self) -> str:
         return self._media_root
 
+    def lazy_media_reconciler(self) -> LazyMediaReconciler:
+        from backend.infrastructure.api.dependencies import get_session_factory
+        if self._lazy_media_reconciler is None:
+            self._lazy_media_reconciler = LazyMediaReconciler(
+                session_factory=get_session_factory(),
+                media_root=self._media_root,
+            )
+        return self._lazy_media_reconciler
+
     def start_media_extraction_use_case(self, session: Session) -> StartMediaExtractionUseCase:
         from backend.application.use_cases.manage_media_extraction import StartMediaExtractionUseCase
         return StartMediaExtractionUseCase(
@@ -273,6 +288,30 @@ class Container:
             job_repo=SqlaMediaExtractionJobRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
+            media_extractor=self._media_extractor,
+            media_root=self._media_root,
+        )
+
+    def get_media_storage_stats_use_case(self, session: Session) -> "GetMediaStorageStatsUseCase":
+        from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
+        return GetMediaStorageStatsUseCase(
+            source_repo=SqlaSourceRepository(session),
+            media_root=self._media_root,
+        )
+
+    def cleanup_media_use_case(self, session: Session) -> "CleanupMediaUseCase":
+        from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
+        return CleanupMediaUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            media_root=self._media_root,
+        )
+
+    def regenerate_candidate_media_use_case(self, session: Session) -> "RegenerateCandidateMediaUseCase":
+        from backend.application.use_cases.regenerate_candidate_media import RegenerateCandidateMediaUseCase
+        return RegenerateCandidateMediaUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            source_repo=SqlaSourceRepository(session),
+            structured_srt_parser=self._srt_parser,
             media_extractor=self._media_extractor,
             media_root=self._media_root,
         )

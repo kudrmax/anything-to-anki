@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class StartMediaExtractionUseCase:
-    """Creates a MediaExtractionJob for all eligible LEARN candidates of a source."""
+    """Creates a MediaExtractionJob for all LEARN and PENDING candidates of a source with timecodes but no media yet."""
 
     def __init__(
         self,
@@ -32,16 +32,17 @@ class StartMediaExtractionUseCase:
         candidates = self._candidate_repo.get_by_source(source_id)
         eligible = [
             c for c in candidates
-            if c.status == CandidateStatus.LEARN
+            if c.status in (CandidateStatus.LEARN, CandidateStatus.PENDING)
             and c.media_start_ms is not None
             and c.media_end_ms is not None
             and c.screenshot_path is None
             and c.id is not None
         ]
         learn_count = sum(1 for c in candidates if c.status == CandidateStatus.LEARN)
+        pending_count = sum(1 for c in candidates if c.status == CandidateStatus.PENDING)
         logger.info(
-            "StartMediaExtraction source=%d: %d total, %d learn, %d eligible",
-            source_id, len(candidates), learn_count, len(eligible),
+            "StartMediaExtraction source=%d: %d total, %d learn, %d pending, %d eligible",
+            source_id, len(candidates), learn_count, pending_count, len(eligible),
         )
         job = MediaExtractionJob(
             source_id=source_id,

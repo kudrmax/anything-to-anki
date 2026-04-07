@@ -78,7 +78,6 @@ export function InboxPage() {
   const processingIdsRef = useRef(processingIds)
   processingIdsRef.current = processingIds
   const [cefrLevel, setCefrLevel] = useState('B2')
-  const [mediaJobs, setMediaJobs] = useState<Record<number, { jobId: number; status: string; processed: number; total: number; failed: number }>>({})
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null)
   const [_pendingVideoPath, setPendingVideoPath] = useState('') // kept for future use
   const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrack[]>([])
@@ -235,40 +234,6 @@ export function InboxPage() {
 
   const handleReview = (id: number) => navigate(`/sources/${id}/review`)
   const handleExport = (id: number) => navigate(`/sources/${id}/export`)
-
-  const handleGenerateMedia = async (id: number) => {
-    try {
-      const res = await api.startMediaExtraction(id)
-      setMediaJobs(prev => ({
-        ...prev,
-        [id]: { jobId: res.job_id, status: res.status, processed: 0, total: 0, failed: 0 },
-      }))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to start media extraction')
-    }
-  }
-
-  useEffect(() => {
-    const activeEntries = Object.entries(mediaJobs).filter(
-      ([, job]) => job.status === 'pending' || job.status === 'running'
-    )
-    if (activeEntries.length === 0) return
-
-    const interval = setInterval(async () => {
-      for (const [sourceIdStr, job] of activeEntries) {
-        const sourceId = Number(sourceIdStr)
-        try {
-          const status = await api.getMediaExtractionStatus(sourceId, job.jobId)
-          setMediaJobs(prev => ({
-            ...prev,
-            [sourceId]: { jobId: job.jobId, status: status.status, processed: status.processed, total: status.total, failed: status.failed },
-          }))
-        } catch { /* ignore polling errors */ }
-      }
-    }, 3000)
-
-    return () => clearInterval(interval)
-  }, [mediaJobs])
 
   const handleRename = async (id: number, newTitle: string) => {
     try {
@@ -650,8 +615,7 @@ export function InboxPage() {
                   onDelete={handleDelete}
                   onRename={handleRename}
                   isProcessingLocal={processingIds.has(s.id)}
-                  onGenerateMedia={handleGenerateMedia}
-                  mediaJob={mediaJobs[s.id] ?? null}
+
                 />
               ))}
             </div>
@@ -659,9 +623,18 @@ export function InboxPage() {
         </section>
       </main>
       {showTrackModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="rounded-2xl p-6 max-w-md w-full flex flex-col gap-5"
-               style={{ background: 'var(--bg)', border: '1px solid var(--glass-b)' }}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+        >
+          <div
+            className="rounded-2xl p-6 max-w-md w-full flex flex-col gap-5"
+            style={{
+              background: '#1a1d2e',
+              border: '1px solid rgba(148,163,184,.25)',
+              boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+            }}
+          >
             <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
               Choose tracks
             </h3>

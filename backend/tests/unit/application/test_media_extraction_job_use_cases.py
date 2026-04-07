@@ -77,6 +77,45 @@ class TestStartMediaExtractionUseCase:
         assert job_arg.total_candidates == 1
         assert job_arg.candidate_ids == [1]
 
+    def test_includes_pending_candidates_in_job(self) -> None:
+        learn_candidate = MagicMock()
+        learn_candidate.id = 1
+        learn_candidate.status = CandidateStatus.LEARN
+        learn_candidate.media_start_ms = 1000
+        learn_candidate.media_end_ms = 2000
+        learn_candidate.screenshot_path = None
+
+        pending_candidate = MagicMock()
+        pending_candidate.id = 2
+        pending_candidate.status = CandidateStatus.PENDING
+        pending_candidate.media_start_ms = 3000
+        pending_candidate.media_end_ms = 4000
+        pending_candidate.screenshot_path = None
+
+        known_candidate = MagicMock()
+        known_candidate.id = 3
+        known_candidate.status = CandidateStatus.KNOWN
+        known_candidate.media_start_ms = 5000
+        known_candidate.media_end_ms = 6000
+        known_candidate.screenshot_path = None
+
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_source.return_value = [learn_candidate, pending_candidate, known_candidate]
+        job_repo = MagicMock()
+        job_repo.create.side_effect = lambda j: j
+        source_repo = MagicMock()
+
+        uc = StartMediaExtractionUseCase(
+            job_repo=job_repo,
+            candidate_repo=candidate_repo,
+            source_repo=source_repo,
+        )
+
+        job = uc.execute(source_id=42)
+
+        assert job.total_candidates == 2
+        assert sorted(job.candidate_ids) == [1, 2]  # learn + pending, NOT known
+
 
 @pytest.mark.unit
 class TestRunMediaExtractionJobUseCase:
@@ -112,6 +151,6 @@ class TestRunMediaExtractionJobUseCase:
         media_extractor.extract_audio.assert_called_once()
         candidate_repo.update_media_paths.assert_called_once_with(
             10,
-            screenshot_path="/tmp/media/1/10_screenshot.jpg",
-            audio_path="/tmp/media/1/10_audio.mp3",
+            screenshot_path="/tmp/media/1/10_screenshot.webp",
+            audio_path="/tmp/media/1/10_audio.m4a",
         )

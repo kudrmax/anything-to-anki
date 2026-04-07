@@ -20,7 +20,7 @@ _DEFAULT_FIELD_SENTENCE: str = "Sentence"
 _DEFAULT_FIELD_TARGET: str = "Target"
 _DEFAULT_FIELD_MEANING: str = "Meaning"
 _DEFAULT_FIELD_IPA: str = "IPA"
-_DEFAULT_FIELD_SCREENSHOT: str = "Screenshot"
+_DEFAULT_FIELD_IMAGE: str = "Image"
 _DEFAULT_FIELD_AUDIO: str = "Audio"
 
 
@@ -46,7 +46,7 @@ class SyncToAnkiUseCase:
         field_target = self._settings_repo.get("anki_field_target_word", _DEFAULT_FIELD_TARGET) or _DEFAULT_FIELD_TARGET
         field_meaning = self._settings_repo.get("anki_field_meaning", _DEFAULT_FIELD_MEANING) or _DEFAULT_FIELD_MEANING
         field_ipa = self._settings_repo.get("anki_field_ipa", _DEFAULT_FIELD_IPA) or _DEFAULT_FIELD_IPA
-        field_screenshot = self._settings_repo.get("anki_field_screenshot", _DEFAULT_FIELD_SCREENSHOT) or _DEFAULT_FIELD_SCREENSHOT
+        field_image = self._settings_repo.get("anki_field_image", _DEFAULT_FIELD_IMAGE) or _DEFAULT_FIELD_IMAGE
         field_audio = self._settings_repo.get("anki_field_audio", _DEFAULT_FIELD_AUDIO) or _DEFAULT_FIELD_AUDIO
 
         candidates = self._candidate_repo.get_by_source(source_id)
@@ -71,7 +71,7 @@ class SyncToAnkiUseCase:
                 skipped_lemmas=skipped_lemmas,
             )
 
-        active_fields = [f for f in [field_sentence, field_target, field_meaning, field_ipa, field_screenshot, field_audio] if f]
+        active_fields = [f for f in [field_sentence, field_target, field_meaning, field_ipa, field_image, field_audio] if f]
         if note_type == _DEFAULT_NOTE_TYPE:
             self._connector.ensure_note_type(note_type, active_fields)
         self._connector.ensure_deck(deck_name)
@@ -106,12 +106,12 @@ class SyncToAnkiUseCase:
                     note[field_meaning] = meaning
                 if field_ipa:
                     note[field_ipa] = candidate.ipa or ""
-                if field_screenshot and candidate.screenshot_path and os.path.exists(candidate.screenshot_path):
-                    filename = candidate.screenshot_path.rsplit("/", 1)[-1]
+                if field_image and candidate.screenshot_path and os.path.exists(candidate.screenshot_path):
+                    filename = os.path.basename(candidate.screenshot_path)
                     self._connector.store_media_file(filename, candidate.screenshot_path)
-                    note[field_screenshot] = f'<img src="{filename}">'
+                    note[field_image] = f'<img src="{filename}">'
                 if field_audio and candidate.audio_path and os.path.exists(candidate.audio_path):
-                    filename = candidate.audio_path.rsplit("/", 1)[-1]
+                    filename = os.path.basename(candidate.audio_path)
                     self._connector.store_media_file(filename, candidate.audio_path)
                     note[field_audio] = f'[sound:{filename}]'
 

@@ -53,6 +53,21 @@ def update_context_fragment(
     return {"id": candidate_id, "context_fragment": request.context_fragment}
 
 
+@router.post("/{candidate_id}/regenerate-media", status_code=202)
+def regenerate_candidate_media(
+    candidate_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, str]:
+    try:
+        use_case = container.regenerate_candidate_media_use_case(session)
+        use_case.execute(candidate_id)
+        session.commit()
+        return {"status": "regenerated"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
 @router.post("/{candidate_id}/generate-meaning")
 async def generate_meaning(
     candidate_id: int,

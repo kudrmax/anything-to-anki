@@ -22,7 +22,7 @@ router = APIRouter(tags=["media"])
 
 
 @router.get("/media/{source_id}/{filename}")
-def serve_media_file(
+async def serve_media_file(
     source_id: int,
     filename: str,
     container: Container = Depends(get_container),  # noqa: B008
@@ -30,6 +30,7 @@ def serve_media_file(
     media_root = container.media_root()
     file_path = os.path.join(media_root, str(source_id), filename)
     if not os.path.exists(file_path):
+        await container.lazy_media_reconciler().schedule(source_id)
         raise HTTPException(status_code=404, detail="Media file not found")
     return FileResponse(file_path)
 

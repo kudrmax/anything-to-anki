@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func
+from sqlalchemy import func, update
 
 from backend.domain.ports.candidate_repository import CandidateRepository
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -154,6 +154,39 @@ class SqlaCandidateRepository(CandidateRepository):
             model.screenshot_path = screenshot_path
             model.audio_path = audio_path
             self._session.flush()
+
+    def update_media_timecodes(
+        self,
+        candidate_id: int,
+        *,
+        start_ms: int,
+        end_ms: int,
+    ) -> None:
+        self._session.execute(
+            update(StoredCandidateModel)
+            .where(StoredCandidateModel.id == candidate_id)
+            .values(media_start_ms=start_ms, media_end_ms=end_ms)
+        )
+
+    def clear_media_path(
+        self,
+        candidate_id: int,
+        *,
+        clear_screenshot: bool,
+        clear_audio: bool,
+    ) -> None:
+        values: dict[str, None] = {}
+        if clear_screenshot:
+            values["screenshot_path"] = None
+        if clear_audio:
+            values["audio_path"] = None
+        if not values:
+            return
+        self._session.execute(
+            update(StoredCandidateModel)
+            .where(StoredCandidateModel.id == candidate_id)
+            .values(**values)
+        )
 
     def delete_by_source(self, source_id: int) -> None:
         self._session.query(StoredCandidateModel).filter(
