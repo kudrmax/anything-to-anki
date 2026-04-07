@@ -5,9 +5,9 @@ import type {
   CleanupMediaKind,
   CreateNoteTypeResponse,
   GenerateMeaningResult,
-  GenerationQueueStatus,
   KnownWord,
   PromptTemplate,
+  QueueSummary,
   Settings,
   SourceDetail,
   SourceMediaStats,
@@ -100,24 +100,26 @@ export const api = {
   regenerateCandidateMedia: (candidateId: number) =>
     req<{ status: string }>(`/candidates/${candidateId}/regenerate-media`, { method: 'POST' }),
 
-  startGeneration: (sourceId?: number) =>
-    req<GenerationQueueStatus>('/generation/start', {
-      method: 'POST',
-      body: JSON.stringify({ source_id: sourceId ?? null }),
-    }),
+  enqueueMeaningGeneration: (sourceId: number) =>
+    req<{ enqueued: number; batches: number }>(`/sources/${sourceId}/meanings/generate`, { method: 'POST' }),
 
-  stopGeneration: (jobId: number) =>
-    req<{ status: string }>(`/generation/${jobId}/stop`, { method: 'POST' }),
+  cancelMeaningQueue: (sourceId: number) =>
+    req<{ cancelled: number }>(`/sources/${sourceId}/meanings/cancel`, { method: 'POST' }),
 
-  getGenerationStatus: () => {
-    return fetch(`${BASE}/generation/status`, {
-      headers: { 'Content-Type': 'application/json' },
-    }).then(async (res) => {
-      if (res.status === 204) return null
-      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
-      return res.json() as Promise<GenerationQueueStatus>
-    })
-  },
+  retryFailedMeanings: (sourceId: number) =>
+    req<{ enqueued: number }>(`/sources/${sourceId}/meanings/retry-failed`, { method: 'POST' }),
+
+  enqueueMediaGeneration: (sourceId: number) =>
+    req<{ enqueued: number }>(`/sources/${sourceId}/media/generate`, { method: 'POST' }),
+
+  cancelMediaQueue: (sourceId: number) =>
+    req<{ cancelled: number }>(`/sources/${sourceId}/media/cancel`, { method: 'POST' }),
+
+  retryFailedMedia: (sourceId: number) =>
+    req<{ enqueued: number }>(`/sources/${sourceId}/media/retry-failed`, { method: 'POST' }),
+
+  getQueueSummary: (sourceId: number) =>
+    req<QueueSummary>(`/sources/${sourceId}/queue-summary`),
 
   getStats: () => req<Stats>('/stats'),
 
@@ -157,14 +159,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ source_id: sourceId, kind }),
     }),
-
-  startMediaExtraction: (sourceId: number) =>
-    req<{ job_id: number; status: string }>(`/sources/${sourceId}/media-extraction`, { method: 'POST' }),
-
-  getMediaExtractionStatus: (sourceId: number, jobId: number) =>
-    req<{ job_id: number; status: string; total: number; processed: number; failed: number; skipped: number }>(
-      `/sources/${sourceId}/media-extraction/${jobId}`
-    ),
 
   createVideoSource: async (
     videoFile: File,

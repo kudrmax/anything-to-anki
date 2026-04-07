@@ -153,22 +153,15 @@ export interface GenerateMeaningResult {
   tokens_used: number
 }
 
-export interface GenerationJobStatus {
-  id: number
-  source_id: number | null
-  status: 'pending' | 'running' | 'paused' | 'cancelled' | 'completed' | 'failed'
-  total_candidates: number
-  processed_candidates: number
-  failed_candidates: number
-  skipped_candidates: number
-  candidate_ids: number[]
-  created_at: string
+export interface QueueStatus {
+  queued: number
+  running: number
+  failed: number
 }
 
-export interface GenerationQueueStatus {
-  running_job: GenerationJobStatus | null
-  pending_jobs: GenerationJobStatus[]
-  total_pending_count: number
+export interface QueueSummary {
+  meaning: QueueStatus
+  media: QueueStatus
 }
 
 export interface SubtitleTrack {
