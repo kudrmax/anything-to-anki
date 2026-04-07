@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import cast
 
 import httpx
 
@@ -12,7 +13,10 @@ _VERSION = 6
 _DEFAULT_MODEL_NAME = "AnythingToAnkiType"
 _DEFAULT_MODEL_FIELDS = ["Sentence", "Target", "Meaning", "IPA"]
 
-_CARD_CSS = """.card { font-family: Arial, sans-serif; font-size: 18px; text-align: left; color: #222; background-color: #fff; padding: 20px; }"""
+_CARD_CSS = (
+    ".card { font-family: Arial, sans-serif; font-size: 18px; text-align: left;"
+    " color: #222; background-color: #fff; padding: 20px; }"
+)
 
 _FRONT_TEMPLATE = "{{Sentence}}"
 _BACK_TEMPLATE = "{{FrontSide}}<hr id=answer>{{Target}}&nbsp;[{{IPA}}]<br><br>{{Meaning}}"
@@ -34,7 +38,8 @@ class AnkiConnectConnector(AnkiConnector):
         return result.get("result")
 
     def get_version(self) -> int:
-        return int(self._invoke("version"))  # type: ignore[arg-type]
+        result = self._invoke("version")
+        return cast("int", result)
 
     def is_available(self) -> bool:
         try:
@@ -44,7 +49,7 @@ class AnkiConnectConnector(AnkiConnector):
             return False
 
     def ensure_note_type(self, model_name: str, fields: list[str]) -> None:
-        existing: list[str] = self._invoke("modelNames")  # type: ignore[assignment]
+        existing = cast("list[str]", self._invoke("modelNames"))
         if model_name in existing:
             return
         self._invoke(
@@ -66,8 +71,8 @@ class AnkiConnectConnector(AnkiConnector):
 
     def find_notes_by_target(self, deck_name: str, target: str) -> list[int]:
         query = f'note:{_DEFAULT_MODEL_NAME} Target:"{target}"'
-        result = self._invoke("findNotes", query=query)
-        return list(result) if result else []  # type: ignore[arg-type]
+        raw = self._invoke("findNotes", query=query)
+        return cast("list[int]", raw) if raw else []
 
     def add_notes(
         self,
@@ -85,16 +90,16 @@ class AnkiConnectConnector(AnkiConnector):
             }
             for note in notes
         ]
-        result = self._invoke("addNotes", notes=anki_notes)
-        return list(result) if result else []  # type: ignore[arg-type]
+        raw = self._invoke("addNotes", notes=anki_notes)
+        return cast("list[int | None]", raw) if raw else []
 
     def get_model_field_names(self, model_name: str) -> list[str] | None:
         try:
-            existing: list[str] = self._invoke("modelNames")  # type: ignore[assignment]
+            existing = cast("list[str]", self._invoke("modelNames"))
             if model_name not in existing:
                 return None
-            fields = self._invoke("modelFieldNames", modelName=model_name)
-            return list(fields)  # type: ignore[arg-type]
+            raw_fields = self._invoke("modelFieldNames", modelName=model_name)
+            return cast("list[str]", raw_fields)
         except Exception:  # noqa: BLE001
             return None
 

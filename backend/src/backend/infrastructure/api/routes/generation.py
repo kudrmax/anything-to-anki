@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, Response
 
 from backend.application.dto.generation_dtos import (  # noqa: TC001
-    GenerationJobDTO,
     GenerationQueueDTO,
     StartGenerationRequest,
 )
@@ -126,13 +125,12 @@ async def _run_generation_background(
 
         repo = SqlaGenerationJobRepository(next_session)
         next_job = repo.get_next_pending(source_id)
-        if next_job is not None and next_job.id is not None:
-            next_job_id = next_job.id
-        else:
-            next_job_id = None
+        next_job_id = next_job.id if next_job is not None and next_job.id is not None else None
     finally:
         next_session.close()
 
     # Recursively run next job if exists
     if next_job_id is not None:
-        asyncio.create_task(_run_generation_background(next_job_id, source_id, container, session_factory))
+        asyncio.create_task(
+            _run_generation_background(next_job_id, source_id, container, session_factory)
+        )

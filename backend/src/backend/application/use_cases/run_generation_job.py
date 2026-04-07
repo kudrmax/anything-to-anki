@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -10,6 +10,8 @@ from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.generation_job_status import GenerationJobStatus
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from backend.domain.ports.ai_service import AIService
     from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
     from backend.domain.ports.candidate_repository import CandidateRepository

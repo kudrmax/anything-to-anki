@@ -4,13 +4,14 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 
-from backend.domain.entities.prompt_template import PromptTemplate
 from backend.domain.exceptions import PromptNotFoundError
 from backend.domain.ports.prompt_repository import PromptRepository
 from backend.infrastructure.persistence.models import PromptTemplateModel
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
+    from backend.domain.entities.prompt_template import PromptTemplate
 
 
 class SqlaPromptRepository(PromptRepository):

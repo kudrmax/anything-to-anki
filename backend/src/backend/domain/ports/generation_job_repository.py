@@ -24,7 +24,9 @@ class GenerationJobRepository(ABC):
 
     @abstractmethod
     def get_next_pending(self, source_id: int | None) -> GenerationJob | None:
-        """Get the next pending job for the given source (or any source if None), ordered by created_at."""
+        """Get the next pending job for the given source (or any source if None), ordered by
+        created_at.
+        """
 
     @abstractmethod
     def cancel_pending_for_source(self, source_id: int | None) -> None:

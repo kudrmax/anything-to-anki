@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.generation_job_status import GenerationJobStatus
+if TYPE_CHECKING:
+    from backend.domain.value_objects.generation_job_status import GenerationJobStatus
 
 
 @dataclass

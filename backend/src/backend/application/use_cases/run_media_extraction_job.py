@@ -12,8 +12,8 @@ from backend.domain.value_objects.media_extraction_job_status import MediaExtrac
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
-    from backend.domain.ports.media_extractor import MediaExtractor
     from backend.domain.ports.media_extraction_job_repository import MediaExtractionJobRepository
+    from backend.domain.ports.media_extractor import MediaExtractor
     from backend.domain.ports.source_repository import SourceRepository
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,11 @@ class RunMediaExtractionJobUseCase:
                 continue
 
             source = self._source_repo.get_by_id(candidate.source_id)
-            if source is None or source.video_path is None or not os.path.exists(source.video_path):
+            if (
+                source is None
+                or source.video_path is None
+                or not os.path.exists(source.video_path)
+            ):
                 logger.warning(
                     "MediaExtractionJob %d: skipping candidate %d (video file missing)",
                     job_id, candidate_id,

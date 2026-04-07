@@ -45,7 +45,9 @@ class StartGenerationUseCase:
             raise NoActiveCandidatesError()
 
         # Split into batches
-        batches = [candidate_ids[i:i + BATCH_SIZE] for i in range(0, len(candidate_ids), BATCH_SIZE)]
+        batches = [
+            candidate_ids[i:i + BATCH_SIZE] for i in range(0, len(candidate_ids), BATCH_SIZE)
+        ]
 
         from backend.domain.entities.generation_job import GenerationJob
 

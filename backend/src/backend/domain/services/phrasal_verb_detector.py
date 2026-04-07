@@ -55,16 +55,19 @@ class PhrasalVerbDetector:
                             surface_form=f"{token.text} {child.text}",
                         )
                     )
-                elif child.dep in _PREP_DEPS and child.is_alpha:
-                    # Layer 2: check dictionary
-                    if self._dictionary.contains(token.lemma, child.text):
-                        matches.append(
-                            PhrasalVerbMatch(
-                                verb_index=token.index,
-                                particle_index=child.index,
-                                lemma=f"{token.lemma.lower()} {child.text.lower()}",
-                                surface_form=f"{token.text} {child.text}",
-                            )
+                elif (
+                    child.dep in _PREP_DEPS
+                    and child.is_alpha
+                    and self._dictionary.contains(token.lemma, child.text)
+                ):
+                    # Layer 2: dictionary confirms the phrasal verb
+                    matches.append(
+                        PhrasalVerbMatch(
+                            verb_index=token.index,
+                            particle_index=child.index,
+                            lemma=f"{token.lemma.lower()} {child.text.lower()}",
+                            surface_form=f"{token.text} {child.text}",
                         )
+                    )
 
         return matches

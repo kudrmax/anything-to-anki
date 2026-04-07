@@ -16,7 +16,11 @@ from backend.application.dto.source_dtos import (  # noqa: TC001
     StoredCandidateDTO,
     UpdateTitleRequest,
 )
-from backend.domain.exceptions import SourceAlreadyProcessedError, SourceIsProcessingError, SourceNotFoundError
+from backend.domain.exceptions import (
+    SourceAlreadyProcessedError,
+    SourceIsProcessingError,
+    SourceNotFoundError,
+)
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.dependencies import (
     get_container,
@@ -159,7 +163,9 @@ def update_source_status(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid status: {raw_status}") from None
     if new_status not in _REVIEW_STATUSES:
-        raise HTTPException(status_code=400, detail=f"Status transition to '{raw_status}' not allowed") from None
+        raise HTTPException(
+            status_code=400, detail=f"Status transition to '{raw_status}' not allowed"
+        ) from None
     from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
     repo = SqlaSourceRepository(session)
     source = repo.get_by_id(source_id)
@@ -212,7 +218,7 @@ async def create_video_source(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, Any]:
-    from backend.application.dto.video_dtos import TrackSelectionRequired, VideoSourceCreated
+    from backend.application.dto.video_dtos import TrackSelectionRequired
 
     # Save video to disk
     data_dir = os.getenv("DATA_DIR", ".")

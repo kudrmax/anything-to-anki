@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func
 
 from backend.domain.ports.candidate_repository import CandidateRepository
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.models import (
     CandidateMeaningModel,
     CandidateMediaModel,
@@ -17,6 +16,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.value_objects.candidate_status import CandidateStatus
 
 
 class SqlaCandidateRepository(CandidateRepository):

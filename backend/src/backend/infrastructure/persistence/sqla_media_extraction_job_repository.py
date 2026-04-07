@@ -9,6 +9,7 @@ from backend.infrastructure.persistence.models import MediaExtractionJobModel
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
     from backend.domain.entities.media_extraction_job import MediaExtractionJob
 
 

@@ -4,45 +4,45 @@ from typing import TYPE_CHECKING
 
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
-from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
-from backend.application.use_cases.manage_generation import (
-    GetGenerationStatusUseCase,
-    StartGenerationUseCase,
-    StopGenerationUseCase,
-)
-from backend.application.use_cases.manage_prompts import ManagePromptsUseCase
 from backend.application.use_cases.create_source import CreateSourceUseCase
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
-from backend.application.use_cases.rename_source import RenameSourceUseCase
+from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_source_cards import GetSourceCardsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
+from backend.application.use_cases.manage_generation import (
+    GetGenerationStatusUseCase,
+    StartGenerationUseCase,
+    StopGenerationUseCase,
+)
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
+from backend.application.use_cases.manage_prompts import ManagePromptsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
+from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.run_generation_job import RunGenerationJobUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
-from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
-from backend.infrastructure.adapters.ai_model_mapping import model_id_for
-from backend.infrastructure.adapters.http_ai_service import HttpAIService
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
-from backend.infrastructure.adapters.cefrpy_classifier import CefrpyCEFRClassifier
 from backend.domain.value_objects.source_type import SourceType
+from backend.infrastructure.adapters.ai_model_mapping import model_id_for
+from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
+from backend.infrastructure.adapters.cefrpy_classifier import CefrpyCEFRClassifier
+from backend.infrastructure.adapters.http_ai_service import HttpAIService
+from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
+    JsonPhrasalVerbDictionary,
+)
 from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
 from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
-from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
-    JsonPhrasalVerbDictionary,
-)
 from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
 )
-from backend.infrastructure.persistence.sqla_candidate_repository import (
-    SqlaCandidateRepository,
+from backend.infrastructure.persistence.sqla_anki_sync_repository import (
+    SqlaAnkiSyncRepository,
 )
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
@@ -50,23 +50,23 @@ from backend.infrastructure.persistence.sqla_candidate_meaning_repository import
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
+from backend.infrastructure.persistence.sqla_candidate_repository import (
+    SqlaCandidateRepository,
+)
 from backend.infrastructure.persistence.sqla_generation_job_repository import (
     SqlaGenerationJobRepository,
 )
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
+from backend.infrastructure.persistence.sqla_media_extraction_job_repository import (
+    SqlaMediaExtractionJobRepository,
+)
 from backend.infrastructure.persistence.sqla_prompt_repository import (
     SqlaPromptRepository,
 )
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
-)
-from backend.infrastructure.persistence.sqla_anki_sync_repository import (
-    SqlaAnkiSyncRepository,
-)
-from backend.infrastructure.persistence.sqla_media_extraction_job_repository import (
-    SqlaMediaExtractionJobRepository,
 )
 from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
@@ -76,13 +76,15 @@ from backend.infrastructure.services.lazy_media_reconciler import LazyMediaRecon
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+    from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
+    from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
     from backend.application.use_cases.manage_media_extraction import (
         GetMediaExtractionStatusUseCase,
         StartMediaExtractionUseCase,
     )
-    from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
-    from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
-    from backend.application.use_cases.regenerate_candidate_media import RegenerateCandidateMediaUseCase
+    from backend.application.use_cases.regenerate_candidate_media import (
+        RegenerateCandidateMediaUseCase,
+    )
     from backend.application.use_cases.run_media_extraction_job import RunMediaExtractionJobUseCase
 
 
@@ -93,7 +95,9 @@ class Container:
         import os
 
         from backend.infrastructure.adapters.ffmpeg_media_extractor import FfmpegMediaExtractor
-        from backend.infrastructure.adapters.ffmpeg_subtitle_extractor import FfmpegSubtitleExtractor
+        from backend.infrastructure.adapters.ffmpeg_subtitle_extractor import (
+            FfmpegSubtitleExtractor,
+        )
 
         self._text_analyzer = SpaCyTextAnalyzer()
         self._text_cleaner = RegexTextCleaner()
@@ -278,21 +282,29 @@ class Container:
         return self._lazy_media_reconciler
 
     def start_media_extraction_use_case(self, session: Session) -> StartMediaExtractionUseCase:
-        from backend.application.use_cases.manage_media_extraction import StartMediaExtractionUseCase
+        from backend.application.use_cases.manage_media_extraction import (
+            StartMediaExtractionUseCase,
+        )
         return StartMediaExtractionUseCase(
             job_repo=SqlaMediaExtractionJobRepository(session),
             media_repo=SqlaCandidateMediaRepository(session),  # NEW (replaces candidate_repo)
             source_repo=SqlaSourceRepository(session),
         )
 
-    def get_media_extraction_status_use_case(self, session: Session) -> GetMediaExtractionStatusUseCase:
-        from backend.application.use_cases.manage_media_extraction import GetMediaExtractionStatusUseCase
+    def get_media_extraction_status_use_case(
+        self, session: Session
+    ) -> GetMediaExtractionStatusUseCase:
+        from backend.application.use_cases.manage_media_extraction import (
+            GetMediaExtractionStatusUseCase,
+        )
         return GetMediaExtractionStatusUseCase(
             job_repo=SqlaMediaExtractionJobRepository(session),
         )
 
     def run_media_extraction_job_use_case(self, session: Session) -> RunMediaExtractionJobUseCase:
-        from backend.application.use_cases.run_media_extraction_job import RunMediaExtractionJobUseCase
+        from backend.application.use_cases.run_media_extraction_job import (
+            RunMediaExtractionJobUseCase,
+        )
         return RunMediaExtractionJobUseCase(
             job_repo=SqlaMediaExtractionJobRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
@@ -302,14 +314,16 @@ class Container:
             media_root=self._media_root,
         )
 
-    def get_media_storage_stats_use_case(self, session: Session) -> "GetMediaStorageStatsUseCase":
-        from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
+    def get_media_storage_stats_use_case(self, session: Session) -> GetMediaStorageStatsUseCase:
+        from backend.application.use_cases.get_media_storage_stats import (
+            GetMediaStorageStatsUseCase,
+        )
         return GetMediaStorageStatsUseCase(
             source_repo=SqlaSourceRepository(session),
             media_root=self._media_root,
         )
 
-    def cleanup_media_use_case(self, session: Session) -> "CleanupMediaUseCase":
+    def cleanup_media_use_case(self, session: Session) -> CleanupMediaUseCase:
         from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
         return CleanupMediaUseCase(
             candidate_repo=SqlaCandidateRepository(session),
@@ -317,8 +331,12 @@ class Container:
             media_root=self._media_root,
         )
 
-    def regenerate_candidate_media_use_case(self, session: Session) -> "RegenerateCandidateMediaUseCase":
-        from backend.application.use_cases.regenerate_candidate_media import RegenerateCandidateMediaUseCase
+    def regenerate_candidate_media_use_case(
+        self, session: Session
+    ) -> RegenerateCandidateMediaUseCase:
+        from backend.application.use_cases.regenerate_candidate_media import (
+            RegenerateCandidateMediaUseCase,
+        )
         return RegenerateCandidateMediaUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             media_repo=SqlaCandidateMediaRepository(session),  # NEW

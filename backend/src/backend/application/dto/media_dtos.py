@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
 @dataclass(frozen=True)
@@ -16,7 +16,7 @@ class SourceMediaStats:
     audio_count: int
 
 
-class CleanupMediaKind(str, Enum):
+class CleanupMediaKind(StrEnum):
     ALL = "all"
     IMAGES = "images"
     AUDIO = "audio"

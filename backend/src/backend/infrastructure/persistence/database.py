@@ -24,8 +24,9 @@ def default_db_url() -> str:
 def run_alembic_migrations(db_url: str) -> None:
     """Run all pending Alembic migrations up to head."""
     from pathlib import Path as _Path
-    from alembic.config import Config
+
     from alembic import command
+    from alembic.config import Config
 
     # alembic/ lives at backend/src/backend/alembic/ — find it relative to this file.
     # Works both in development (editable install) and in Docker (installed package).
@@ -84,13 +85,17 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
             pass  # Column already exists — safe to ignore
 
         try:
-            conn.execute(text("ALTER TABLE sources ADD COLUMN source_type VARCHAR(20) NOT NULL DEFAULT 'text'"))
+            conn.execute(text(
+                "ALTER TABLE sources ADD COLUMN source_type VARCHAR(20) NOT NULL DEFAULT 'text'"
+            ))
             conn.commit()
         except Exception:
             pass  # Column already exists — safe to ignore
 
         try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN is_phrasal_verb BOOLEAN NOT NULL DEFAULT 0"))
+            conn.execute(text(
+                "ALTER TABLE candidates ADD COLUMN is_phrasal_verb BOOLEAN NOT NULL DEFAULT 0"
+            ))
             conn.commit()
         except Exception:
             pass  # Column already exists — safe to ignore
@@ -126,7 +131,10 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
             pass  # Column already exists — safe to ignore
 
         try:
-            conn.execute(text("UPDATE candidates SET meaning = COALESCE(ai_meaning, definition) WHERE meaning IS NULL"))
+            conn.execute(text(
+                "UPDATE candidates SET meaning = COALESCE(ai_meaning, definition)"
+                " WHERE meaning IS NULL"
+            ))
             conn.commit()
         except Exception:
             pass
@@ -147,13 +155,19 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
         conn.commit()
 
         try:
-            conn.execute(text("ALTER TABLE generation_jobs ADD COLUMN candidate_ids_json TEXT NOT NULL DEFAULT '[]'"))
+            conn.execute(text(
+                "ALTER TABLE generation_jobs"
+                " ADD COLUMN candidate_ids_json TEXT NOT NULL DEFAULT '[]'"
+            ))
             conn.commit()
         except Exception:
             pass  # Column already exists — safe to ignore
 
         try:
-            conn.execute(text("ALTER TABLE generation_jobs ADD COLUMN skipped_candidates INTEGER NOT NULL DEFAULT 0"))
+            conn.execute(text(
+                "ALTER TABLE generation_jobs"
+                " ADD COLUMN skipped_candidates INTEGER NOT NULL DEFAULT 0"
+            ))
             conn.commit()
         except Exception:
             pass  # Column already exists — safe to ignore
@@ -315,7 +329,9 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
     import re
     import shutil
 
-    from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+    from backend.infrastructure.persistence.sqla_candidate_repository import (
+        SqlaCandidateRepository,
+    )
     from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 
     if not os.path.isdir(media_root):

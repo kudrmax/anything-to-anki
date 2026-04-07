@@ -62,7 +62,9 @@ class AnkiNotAvailableError(DomainError):
     """Raised when AnkiConnect is not reachable."""
 
     def __init__(self) -> None:
-        super().__init__("AnkiConnect is not available. Make sure Anki is running with the AnkiConnect plugin.")
+        super().__init__(
+            "AnkiConnect is not available. Make sure Anki is running with the AnkiConnect plugin."
+        )
 
 
 class AnkiSyncError(DomainError):

@@ -52,7 +52,9 @@ class SourceModel(Base):
             status=SourceStatus(self.status),
             source_type=SourceType(self.source_type),
             error_message=self.error_message,
-            processing_stage=ProcessingStage(self.processing_stage) if self.processing_stage else None,
+            processing_stage=(
+                ProcessingStage(self.processing_stage) if self.processing_stage else None
+            ),
             video_path=self.video_path,
             audio_track_index=self.audio_track_index,
             created_at=self.created_at,

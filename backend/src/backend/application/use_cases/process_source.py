@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -16,6 +15,8 @@ from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.source_type import SourceType
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.candidate_repository import CandidateRepository

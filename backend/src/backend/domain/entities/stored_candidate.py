@@ -28,9 +28,9 @@ class StoredCandidate:
     context_fragment: str
     fragment_purity: str
     occurrences: int
-    status: "CandidateStatus"
+    status: CandidateStatus
     surface_form: str | None = None
     is_phrasal_verb: bool = False
-    meaning: "CandidateMeaning | None" = None
-    media: "CandidateMedia | None" = None
+    meaning: CandidateMeaning | None = None
+    media: CandidateMedia | None = None
     id: int | None = None

@@ -13,8 +13,8 @@ _src = Path(__file__).parents[2]
 if str(_src) not in sys.path:
     sys.path.insert(0, str(_src))
 
-from backend.infrastructure.persistence.database import Base, default_db_url
-from backend.infrastructure.persistence import models  # noqa: F401 — registers all ORM models
+from backend.infrastructure.persistence import models  # noqa: E402,F401 — registers all ORM models
+from backend.infrastructure.persistence.database import Base, default_db_url  # noqa: E402
 
 target_metadata = Base.metadata
 

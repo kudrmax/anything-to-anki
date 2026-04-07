@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class SourceType(str, Enum):
+class SourceType(StrEnum):
     TEXT      = "text"
     LYRICS    = "lyrics"
     SUBTITLES = "subtitles"

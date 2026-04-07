@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.application.dto.prompt_dtos import PromptTemplateDTO, UpdatePromptRequest
-from backend.domain.entities.prompt_template import PromptTemplate
 from backend.domain.exceptions import PromptNotFoundError
 
 if TYPE_CHECKING:
+    from backend.domain.entities.prompt_template import PromptTemplate
     from backend.domain.ports.prompt_repository import PromptRepository
 
 
@@ -20,7 +20,10 @@ def _to_dto(pt: PromptTemplate) -> PromptTemplateDTO:
 
 
 class ManagePromptsUseCase:
-    """List and update prompt templates. Functions are defined by the system; only text is editable."""
+    """List and update prompt templates.
+
+    Functions are defined by the system; only text is editable.
+    """
 
     def __init__(self, prompt_repo: PromptRepository) -> None:
         self._prompt_repo = prompt_repo

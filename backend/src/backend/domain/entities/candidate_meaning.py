@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 
 @dataclass(frozen=True)

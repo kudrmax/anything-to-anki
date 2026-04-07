@@ -45,6 +45,7 @@ async def start_media_extraction(
     use_case = container.start_media_extraction_use_case(session)
     job = use_case.execute(source_id=source_id)
     session.commit()
+    assert job.id is not None
     asyncio.create_task(_run_media_job_background(job.id, container, session_factory))
     return {"job_id": job.id, "status": job.status.value}
 
