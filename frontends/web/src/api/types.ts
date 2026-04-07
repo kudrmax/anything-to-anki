@@ -24,6 +24,26 @@ export interface SourceSummary {
   processing_stage: ProcessingStage | null
 }
 
+export type EnrichmentStatus = 'queued' | 'running' | 'done' | 'failed'
+
+export interface CandidateMeaning {
+  meaning: string | null
+  ipa: string | null
+  status: EnrichmentStatus
+  error: string | null
+  generated_at: string | null
+}
+
+export interface CandidateMedia {
+  screenshot_path: string | null
+  audio_path: string | null
+  start_ms: number | null
+  end_ms: number | null
+  status: EnrichmentStatus
+  error: string | null
+  generated_at: string | null
+}
+
 export interface StoredCandidate {
   id: number
   lemma: string
@@ -36,11 +56,9 @@ export interface StoredCandidate {
   occurrences: number
   status: CandidateStatus
   surface_form: string | null
-  meaning: string | null
-  ipa: string | null
   is_phrasal_verb: boolean
-  media_start_ms: number | null
-  media_end_ms: number | null
+  meaning: CandidateMeaning | null
+  media: CandidateMedia | null
 }
 
 export interface SourceDetail {

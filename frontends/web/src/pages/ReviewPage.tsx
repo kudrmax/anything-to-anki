@@ -127,7 +127,16 @@ export function ReviewPage() {
     try {
       const res = await api.generateMeaning(candidateId)
       setCandidates((prev) =>
-        prev.map((c) => (c.id === candidateId ? { ...c, meaning: res.meaning, ipa: res.ipa } : c)),
+        prev.map((c) => (c.id === candidateId ? {
+          ...c,
+          meaning: {
+            meaning: res.meaning,
+            ipa: res.ipa,
+            status: 'done' as const,
+            error: null,
+            generated_at: null,
+          },
+        } : c)),
       )
       setToast({ text: `Tokens used: ${res.tokens_used}`, key: Date.now() })
     } catch (e) {
@@ -459,7 +468,7 @@ export function ReviewPage() {
                 audioUrl={mediaMap[c.id]?.audioUrl}
                 onRegenerateMedia={source?.source_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                 isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
-                hasMediaTimecodes={c.media_start_ms != null}
+                hasMediaTimecodes={c.media?.start_ms != null}
               />
             ))
           )}
@@ -494,7 +503,7 @@ export function ReviewPage() {
                   audioUrl={mediaMap[c.id]?.audioUrl}
                   onRegenerateMedia={source?.source_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                   isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
-                  hasMediaTimecodes={c.media_start_ms != null}
+                  hasMediaTimecodes={c.media?.start_ms != null}
                 />
               ))}
             </>

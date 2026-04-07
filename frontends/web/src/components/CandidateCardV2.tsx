@@ -338,9 +338,9 @@ export function CandidateCardV2({
               zIndex: 10,
               boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
             }}>
-              {candidate.ipa && (
+              {candidate.meaning?.ipa && (
                 <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>
-                  {candidate.ipa}
+                  {candidate.meaning.ipa}
                 </span>
               )}
               <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>
@@ -410,7 +410,7 @@ export function CandidateCardV2({
             </p>
           )}
 
-          {candidate.meaning ? (
+          {candidate.meaning?.meaning ? (
             <p style={{
               margin: '0 0 14px',
               fontSize: '15px',
@@ -418,7 +418,7 @@ export function CandidateCardV2({
               color: '#cbd5e1',
               whiteSpace: 'pre-line',
             }}>
-              {renderMeaning(candidate.meaning, candidate.lemma, candidate.surface_form)}
+              {renderMeaning(candidate.meaning.meaning, candidate.lemma, candidate.surface_form)}
             </p>
           ) : isInBatchProcessing ? (
             <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--td)', display: 'flex', alignItems: 'center', gap: '6px' }}>
