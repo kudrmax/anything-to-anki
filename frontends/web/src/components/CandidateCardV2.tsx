@@ -241,7 +241,7 @@ export function CandidateCardV2({
       )}
       style={{
         position: 'relative',
-        padding: '20px',
+        padding: '14px',
         ...(isRated && {
           background: STATUS_BG[candidate.status] ?? 'rgba(148,163,184,0.07)',
           backdropFilter: 'none',
@@ -373,7 +373,7 @@ export function CandidateCardV2({
       </div>
 
       {/* Divider between top bar and content */}
-      <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '20px 0' }} />
+      <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '14px 0' }} />
 
       {/* BODY: media (optional) + text column */}
       <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
