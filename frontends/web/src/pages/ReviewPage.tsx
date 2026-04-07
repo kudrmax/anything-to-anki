@@ -370,9 +370,9 @@ export function ReviewPage() {
           ref={candidatesPanelRef}
           className="overflow-y-auto p-4 flex flex-col gap-3"
           style={{
-            // Fixed 640px on wide screens (so toggling sidebar doesn't reflow the candidates panel),
+            // Fixed 832px on wide screens (so toggling sidebar doesn't reflow the candidates panel),
             // shrinks proportionally on narrow viewports, never below 360px (tablet-friendly).
-            width: 'clamp(360px, 640px, 50vw)',
+            width: 'clamp(360px, 832px, 60vw)',
             flexShrink: 0,
             borderRight: '1px solid var(--glass-b)',
           }}
