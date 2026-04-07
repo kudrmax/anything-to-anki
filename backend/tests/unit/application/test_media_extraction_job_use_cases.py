@@ -5,9 +5,11 @@ from backend.application.use_cases.manage_media_extraction import (
     GetMediaExtractionStatusUseCase,
 )
 from backend.application.use_cases.run_media_extraction_job import RunMediaExtractionJobUseCase
+from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.media_extraction_job import MediaExtractionJob
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.media_extraction_job_status import MediaExtractionJobStatus
 
 
@@ -17,7 +19,16 @@ def _make_candidate(id: int, fragment: str = "hello world") -> StoredCandidate:
         cefr_level="B1", zipf_frequency=3.5, is_sweet_spot=True,
         context_fragment=fragment, fragment_purity="clean", occurrences=1,
         status=CandidateStatus.LEARN,
-        media_start_ms=1000, media_end_ms=2000,
+        media=CandidateMedia(
+            candidate_id=id,
+            screenshot_path=None,
+            audio_path=None,
+            start_ms=1000,
+            end_ms=2000,
+            status=EnrichmentStatus.DONE,
+            error=None,
+            generated_at=None,
+        ),
     )
 
 
@@ -25,20 +36,16 @@ def _make_candidate(id: int, fragment: str = "hello world") -> StoredCandidate:
 class TestStartMediaExtractionUseCase:
     def test_creates_job_with_eligible_candidates(self) -> None:
         job_repo = MagicMock()
-        candidate_repo = MagicMock()
+        media_repo = MagicMock()
         source_repo = MagicMock()
-        source_repo.get_by_id.return_value = MagicMock(video_path="/tmp/movie.mp4")
-        candidate_repo.get_by_source.return_value = [
-            _make_candidate(1),
-            _make_candidate(2),
-        ]
+        media_repo.get_eligible_candidate_ids.return_value = [1, 2]
         created_job = MagicMock()
         created_job.id = 42
         job_repo.create.return_value = created_job
 
         uc = StartMediaExtractionUseCase(
             job_repo=job_repo,
-            candidate_repo=candidate_repo,
+            media_repo=media_repo,
             source_repo=source_repo,
         )
         result = uc.execute(source_id=1)
@@ -50,25 +57,17 @@ class TestStartMediaExtractionUseCase:
 
     def test_skips_candidates_without_timecodes(self) -> None:
         job_repo = MagicMock()
-        candidate_repo = MagicMock()
+        media_repo = MagicMock()
         source_repo = MagicMock()
-        source_repo.get_by_id.return_value = MagicMock(video_path="/tmp/movie.mp4")
-        c_with = _make_candidate(1)
-        c_without = StoredCandidate(
-            id=2, source_id=1, lemma="x", pos="NOUN",
-            cefr_level="B1", zipf_frequency=3.5, is_sweet_spot=True,
-            context_fragment="x", fragment_purity="clean", occurrences=1,
-            status=CandidateStatus.LEARN,
-            media_start_ms=None, media_end_ms=None,
-        )
-        candidate_repo.get_by_source.return_value = [c_with, c_without]
+        # Only candidate 1 is eligible (2 was filtered out by repo)
+        media_repo.get_eligible_candidate_ids.return_value = [1]
         created_job = MagicMock()
         created_job.id = 1
         job_repo.create.return_value = created_job
 
         uc = StartMediaExtractionUseCase(
             job_repo=job_repo,
-            candidate_repo=candidate_repo,
+            media_repo=media_repo,
             source_repo=source_repo,
         )
         uc.execute(source_id=1)
@@ -78,36 +77,16 @@ class TestStartMediaExtractionUseCase:
         assert job_arg.candidate_ids == [1]
 
     def test_includes_pending_candidates_in_job(self) -> None:
-        learn_candidate = MagicMock()
-        learn_candidate.id = 1
-        learn_candidate.status = CandidateStatus.LEARN
-        learn_candidate.media_start_ms = 1000
-        learn_candidate.media_end_ms = 2000
-        learn_candidate.screenshot_path = None
-
-        pending_candidate = MagicMock()
-        pending_candidate.id = 2
-        pending_candidate.status = CandidateStatus.PENDING
-        pending_candidate.media_start_ms = 3000
-        pending_candidate.media_end_ms = 4000
-        pending_candidate.screenshot_path = None
-
-        known_candidate = MagicMock()
-        known_candidate.id = 3
-        known_candidate.status = CandidateStatus.KNOWN
-        known_candidate.media_start_ms = 5000
-        known_candidate.media_end_ms = 6000
-        known_candidate.screenshot_path = None
-
-        candidate_repo = MagicMock()
-        candidate_repo.get_by_source.return_value = [learn_candidate, pending_candidate, known_candidate]
         job_repo = MagicMock()
-        job_repo.create.side_effect = lambda j: j
+        media_repo = MagicMock()
         source_repo = MagicMock()
+        # Repo handles filtering: returns learn + pending, excludes known
+        media_repo.get_eligible_candidate_ids.return_value = [1, 2]
+        job_repo.create.side_effect = lambda j: j
 
         uc = StartMediaExtractionUseCase(
             job_repo=job_repo,
-            candidate_repo=candidate_repo,
+            media_repo=media_repo,
             source_repo=source_repo,
         )
 
@@ -134,6 +113,7 @@ class TestRunMediaExtractionJobUseCase:
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = MagicMock(video_path="/tmp/movie.mp4")
         media_extractor = MagicMock()
+        media_repo = MagicMock()
 
         uc = RunMediaExtractionJobUseCase(
             job_repo=job_repo,
@@ -141,6 +121,7 @@ class TestRunMediaExtractionJobUseCase:
             source_repo=source_repo,
             media_extractor=media_extractor,
             media_root="/tmp/media",
+            media_repo=media_repo,
         )
 
         with patch("backend.application.use_cases.run_media_extraction_job.os.path.exists", return_value=True), \
@@ -149,8 +130,10 @@ class TestRunMediaExtractionJobUseCase:
 
         media_extractor.extract_screenshot.assert_called_once()
         media_extractor.extract_audio.assert_called_once()
-        candidate_repo.update_media_paths.assert_called_once_with(
-            10,
-            screenshot_path="/tmp/media/1/10_screenshot.webp",
-            audio_path="/tmp/media/1/10_audio.m4a",
-        )
+        media_repo.upsert.assert_called_once()
+        upserted: CandidateMedia = media_repo.upsert.call_args[0][0]
+        assert upserted.candidate_id == 10
+        assert upserted.screenshot_path == "/tmp/media/1/10_screenshot.webp"
+        assert upserted.audio_path == "/tmp/media/1/10_audio.m4a"
+        assert upserted.start_ms == 1000
+        assert upserted.end_ms == 2000

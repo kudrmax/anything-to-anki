@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from backend.domain.entities.candidate_media import CandidateMedia
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.media_extraction_job_status import MediaExtractionJobStatus
 
 if TYPE_CHECKING:
+    from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.media_extractor import MediaExtractor
     from backend.domain.ports.media_extraction_job_repository import MediaExtractionJobRepository
@@ -25,12 +29,14 @@ class RunMediaExtractionJobUseCase:
         source_repo: SourceRepository,
         media_extractor: MediaExtractor,
         media_root: str,
+        media_repo: CandidateMediaRepository,
     ) -> None:
         self._job_repo = job_repo
         self._candidate_repo = candidate_repo
         self._source_repo = source_repo
         self._media_extractor = media_extractor
         self._media_root = media_root
+        self._media_repo = media_repo
 
     def execute(self, job_id: int) -> None:
         job = self._job_repo.get_by_id(job_id)
@@ -47,7 +53,7 @@ class RunMediaExtractionJobUseCase:
 
         for candidate_id in job.candidate_ids:
             candidate = self._candidate_repo.get_by_id(candidate_id)
-            if candidate is None or candidate.media_start_ms is None:
+            if candidate is None or candidate.media is None or candidate.media.start_ms is None:
                 logger.info(
                     "MediaExtractionJob %d: skipping candidate %d (no timecodes)",
                     job_id, candidate_id,
@@ -72,9 +78,9 @@ class RunMediaExtractionJobUseCase:
             audio_path = os.path.join(out_dir, f"{candidate_id}_audio.m4a")
 
             try:
-                start_ms = candidate.media_start_ms
-                end_ms = candidate.media_end_ms
-                assert start_ms is not None and end_ms is not None  # guaranteed by StartMediaExtractionUseCase filter
+                start_ms = candidate.media.start_ms
+                end_ms = candidate.media.end_ms
+                assert start_ms is not None and end_ms is not None
                 ts_ms = (start_ms + end_ms) // 2
                 self._media_extractor.extract_screenshot(source.video_path, ts_ms, screenshot_path)
                 self._media_extractor.extract_audio(
@@ -84,11 +90,16 @@ class RunMediaExtractionJobUseCase:
                     audio_path,
                     audio_track_index=source.audio_track_index,
                 )
-                self._candidate_repo.update_media_paths(
-                    candidate_id,
+                self._media_repo.upsert(CandidateMedia(
+                    candidate_id=candidate_id,
                     screenshot_path=screenshot_path,
                     audio_path=audio_path,
-                )
+                    start_ms=start_ms,
+                    end_ms=end_ms,
+                    status=EnrichmentStatus.DONE,
+                    error=None,
+                    generated_at=datetime.now(tz=UTC),
+                ))
                 job.processed_candidates += 1
                 logger.info(
                     "MediaExtractionJob %d: candidate %d done (%d/%d)",
