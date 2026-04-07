@@ -5,6 +5,7 @@ import type { CandidateStatus, StoredCandidate } from '@/api/types'
 
 interface CandidateCardV2Props {
   candidate: StoredCandidate
+  sourceId: number
   isHovered: boolean
   isRated: boolean
   onHoverEnter: (id: number) => void
@@ -182,6 +183,7 @@ function ToolbarButton({ children, onClick, disabled, title, ariaLabel, classNam
 
 export function CandidateCardV2({
   candidate,
+  sourceId,
   isHovered,
   isRated,
   onHoverEnter,
@@ -352,10 +354,10 @@ export function CandidateCardV2({
           // Derive URLs from candidate.media (preferred), fall back to mediaMap props
           // (mediaMap is built from /sources/{id}/cards which is LEARN-only).
           const candShot = candidate.media?.screenshot_path
-            ? `/media/${candidate.source_id}/${candidate.media.screenshot_path.split('/').pop()}`
+            ? `/media/${sourceId}/${candidate.media.screenshot_path.split('/').pop()}`
             : null
           const candAudio = candidate.media?.audio_path
-            ? `/media/${candidate.source_id}/${candidate.media.audio_path.split('/').pop()}`
+            ? `/media/${sourceId}/${candidate.media.audio_path.split('/').pop()}`
             : null
           const finalShot = candShot ?? screenshotUrl ?? null
           const finalAudio = candAudio ?? audioUrl ?? null

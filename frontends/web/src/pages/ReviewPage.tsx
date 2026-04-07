@@ -451,6 +451,7 @@ export function ReviewPage() {
               <CandidateCard
                 key={c.id}
                 candidate={c}
+                sourceId={sourceId}
                 isRated={false}
                 isHovered={hoveredId === c.id}
                 onHoverEnter={handleCardHoverEnter}
