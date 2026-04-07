@@ -2,15 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
-import type { CandidateStatus, GenerationQueueStatus, SourceDetail, StoredCandidate } from '@/api/types'
+import type { CardPreview, CandidateStatus, GenerationQueueStatus, SourceDetail, StoredCandidate } from '@/api/types'
 import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
 import { TextAnnotator } from '@/components/TextAnnotator'
 
 function sortCandidates(candidates: StoredCandidate[]): StoredCandidate[] {
-  const cefrOrder: Record<string, number> = { C2: 4, C1: 3, B2: 2, B1: 1, A2: 0, A1: 0 }
+  const cefrOrder: Record<string, number> = { A1: 0, A2: 1, B1: 2, B2: 3, C1: 4, C2: 5 }
   return [...candidates].sort((a, b) => {
     if (a.is_sweet_spot !== b.is_sweet_spot) return a.is_sweet_spot ? -1 : 1
-    return (cefrOrder[b.cefr_level ?? ''] ?? 0) - (cefrOrder[a.cefr_level ?? ''] ?? 0)
+    if (b.zipf_frequency !== a.zipf_frequency) return b.zipf_frequency - a.zipf_frequency
+    return (cefrOrder[a.cefr_level ?? ''] ?? 0) - (cefrOrder[b.cefr_level ?? ''] ?? 0)
   })
 }
 
@@ -31,6 +32,7 @@ export function ReviewPage() {
   const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set())
   const [genQueue, setGenQueue] = useState<GenerationQueueStatus | null>(null)
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
+  const [mediaMap, setMediaMap] = useState<Record<number, { screenshotUrl: string | null; audioUrl: string | null }>>({})
 
   const runningJob = genQueue?.running_job ?? null
   const pendingJobsCount = genQueue?.pending_jobs.length ?? 0
@@ -50,14 +52,20 @@ export function ReviewPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [src, cands, queue] = await Promise.all([
+        const [src, cands, queue, cards] = await Promise.all([
           api.getSource(sourceId),
           api.getCandidates(sourceId),
           api.getGenerationStatus(),
+          api.getSourceCards(sourceId).catch(() => [] as CardPreview[]),
         ])
         setSource(src)
         setCandidates(sortCandidates(cands))
         if (queue) setGenQueue(queue)
+        const map: Record<number, { screenshotUrl: string | null; audioUrl: string | null }> = {}
+        for (const card of cards) {
+          map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }
+        }
+        setMediaMap(map)
       } finally {
         setLoading(false)
       }
@@ -342,6 +350,8 @@ export function ReviewPage() {
                 batchGenerationStatus={batchGenerationStatus}
                 isInBatchProcessing={processingCandidateIds.has(c.id)}
                 isQueued={queuedCandidateIds.has(c.id)}
+                screenshotUrl={mediaMap[c.id]?.screenshotUrl}
+                audioUrl={mediaMap[c.id]?.audioUrl}
               />
             ))
           )}
@@ -372,6 +382,8 @@ export function ReviewPage() {
                   batchGenerationStatus={batchGenerationStatus}
                   isInBatchProcessing={processingCandidateIds.has(c.id)}
                   isQueued={queuedCandidateIds.has(c.id)}
+                  screenshotUrl={mediaMap[c.id]?.screenshotUrl}
+                  audioUrl={mediaMap[c.id]?.audioUrl}
                 />
               ))}
             </>

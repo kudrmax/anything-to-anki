@@ -12,6 +12,8 @@ def _make_candidate(
     fragment: str = "test fragment",
     meaning: str | None = None,
     ipa: str | None = None,
+    screenshot_path: str | None = None,
+    audio_path: str | None = None,
 ) -> StoredCandidate:
     return StoredCandidate(
         id=1,
@@ -27,6 +29,8 @@ def _make_candidate(
         status=status,
         meaning=meaning,
         ipa=ipa,
+        screenshot_path=screenshot_path,
+        audio_path=audio_path,
     )
 
 
@@ -112,3 +116,49 @@ class TestGetSourceCardsUseCase:
         assert result[0].meaning is not None
         assert "**" not in result[0].meaning
         assert "<b>burnout</b>" in result[0].meaning
+
+    def test_screenshot_url_generated_from_path(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate("burnout", CandidateStatus.LEARN, screenshot_path="/tmp/media/burnout_123.jpg"),
+        ]
+        result = self.use_case.execute(source_id=1)
+        assert result[0].screenshot_url == "/media/1/burnout_123.jpg"
+
+    def test_audio_url_generated_from_path(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate("burnout", CandidateStatus.LEARN, audio_path="/tmp/media/burnout_456.mp3"),
+        ]
+        result = self.use_case.execute(source_id=1)
+        assert result[0].audio_url == "/media/1/burnout_456.mp3"
+
+    def test_both_media_urls_generated(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(
+                "burnout",
+                CandidateStatus.LEARN,
+                screenshot_path="/tmp/media/burnout_123.jpg",
+                audio_path="/tmp/media/burnout_456.mp3",
+            ),
+        ]
+        result = self.use_case.execute(source_id=1)
+        assert result[0].screenshot_url == "/media/1/burnout_123.jpg"
+        assert result[0].audio_url == "/media/1/burnout_456.mp3"
+
+    def test_no_media_urls_when_paths_missing(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate("burnout", CandidateStatus.LEARN),
+        ]
+        result = self.use_case.execute(source_id=1)
+        assert result[0].screenshot_url is None
+        assert result[0].audio_url is None
+
+    def test_custom_media_base_url(self) -> None:
+        use_case = GetSourceCardsUseCase(
+            candidate_repo=self.candidate_repo,
+            media_base_url="/custom/media",
+        )
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate("burnout", CandidateStatus.LEARN, screenshot_path="/tmp/burnout_123.jpg"),
+        ]
+        result = use_case.execute(source_id=1)
+        assert result[0].screenshot_url == "/custom/media/1/burnout_123.jpg"

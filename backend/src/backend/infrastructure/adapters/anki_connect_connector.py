@@ -97,3 +97,9 @@ class AnkiConnectConnector(AnkiConnector):
             return list(fields)  # type: ignore[arg-type]
         except Exception:  # noqa: BLE001
             return None
+
+    def store_media_file(self, filename: str, file_path: str) -> None:
+        import base64
+        with open(file_path, "rb") as f:
+            data = base64.b64encode(f.read()).decode()
+        self._invoke("storeMediaFile", filename=filename, data=data)

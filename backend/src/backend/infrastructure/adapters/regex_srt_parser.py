@@ -3,6 +3,9 @@ from __future__ import annotations
 import re
 
 from backend.domain.ports.source_parser import SourceParser
+from backend.domain.ports.structured_srt_parser import StructuredSrtParser
+from backend.domain.value_objects.parsed_srt import ParsedSrt
+from backend.domain.value_objects.subtitle_block import SubtitleBlock
 
 # Block separator (both Unix and Windows line endings)
 _BLOCK_SEP_RE = re.compile(r"\r?\n\r?\n")
@@ -33,54 +36,82 @@ _CREDITS_RE = re.compile(
 )
 
 
-class RegexSrtParser(SourceParser):
+def _srt_time_to_ms(time_str: str) -> int:
+    """Convert SRT timestamp "HH:MM:SS,mmm" to milliseconds."""
+    time_str = time_str.strip()
+    hms, ms_part = time_str.split(",")
+    h, m, s = hms.split(":")
+    return int(h) * 3_600_000 + int(m) * 60_000 + int(s) * 1_000 + int(ms_part)
+
+
+class RegexSrtParser(SourceParser, StructuredSrtParser):
     """Parses SRT subtitle format into plain text."""
 
-    def __init__(self) -> None:
-        pass
-
     def parse(self, raw_text: str) -> str:
-        """Convert SRT format to plain text, removing timecodes and metadata."""
-        blocks = _BLOCK_SEP_RE.split(raw_text)
-        collected_lines: list[str] = []
+        """Convert SRT format to plain text (backward-compatible)."""
+        return self.parse_structured(raw_text).text
 
-        for block in blocks:
+    def parse_structured(self, raw_text: str) -> ParsedSrt:
+        """Parse SRT into cleaned text + per-block char offsets and timecodes."""
+        blocks_raw = _BLOCK_SEP_RE.split(raw_text)
+        cleaned_text = ""
+        blocks: list[SubtitleBlock] = []
+
+        for block in blocks_raw:
             lines = block.splitlines()
+            start_ms: int | None = None
+            end_ms: int | None = None
             block_lines: list[str] = []
             skip_block = False
 
             for line in lines:
-                # Check credits — skip entire block
                 if _CREDITS_RE.search(line):
                     skip_block = True
                     break
 
-                # Skip sequence number line
                 if _SEQ_NUM_RE.match(line.strip()):
                     continue
 
-                # Skip SRT timecode line
-                if _SRT_TIMECODE_RE.match(line.strip()):
+                m = _SRT_TIMECODE_RE.match(line.strip())
+                if m:
+                    parts = line.strip().split("-->")
+                    start_ms = _srt_time_to_ms(parts[0])
+                    end_ms = _srt_time_to_ms(parts[1].split()[0])
                     continue
 
-                # Remove positional tags
                 line = _POSITION_TAG_RE.sub("", line)
-
-                # Remove HTML tags (keep content)
                 line = _HTML_TAG_RE.sub("", line)
 
-                # Skip sound description lines
                 if _SOUND_DESC_RE.match(line):
                     continue
 
-                # Remove speaker labels
                 line = _SPEAKER_LABEL_RE.sub("", line)
 
                 stripped = line.strip()
                 if stripped:
                     block_lines.append(stripped)
 
-            if not skip_block:
-                collected_lines.extend(block_lines)
+            if skip_block or not block_lines or start_ms is None or end_ms is None:
+                continue
 
-        return "\n".join(collected_lines)
+            cleaned_block = "\n".join(block_lines)
+            char_start = len(cleaned_text)
+            cleaned_text += cleaned_block + "\n"
+            char_end = len(cleaned_text)
+            blocks.append(SubtitleBlock(
+                start_ms=start_ms,
+                end_ms=end_ms,
+                char_start=char_start,
+                char_end=char_end,
+            ))
+
+        final_text = cleaned_text.rstrip("\n")
+        if blocks:
+            last = blocks[-1]
+            blocks[-1] = SubtitleBlock(
+                start_ms=last.start_ms,
+                end_ms=last.end_ms,
+                char_start=last.char_start,
+                char_end=min(last.char_end, len(final_text)),
+            )
+        return ParsedSrt(text=final_text, blocks=tuple(blocks))

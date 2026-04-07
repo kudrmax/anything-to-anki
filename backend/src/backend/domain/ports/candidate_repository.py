@@ -62,4 +62,13 @@ class CandidateRepository(ABC):
         ordered by sweet_spot DESC, cefr_level DESC."""
 
     @abstractmethod
+    def update_media_paths(
+        self,
+        candidate_id: int,
+        *,
+        screenshot_path: str,
+        audio_path: str,
+    ) -> None: ...
+
+    @abstractmethod
     def delete_by_source(self, source_id: int) -> None: ...

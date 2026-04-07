@@ -14,6 +14,7 @@ import type {
   SourceType,
   Stats,
   StoredCandidate,
+  SubtitleTrack,
   SyncResult,
   VerifyNoteTypeResponse,
 } from './types'
@@ -142,4 +143,28 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ surface_form: surfaceForm, context_fragment: contextFragment }),
     }),
+
+  startMediaExtraction: (sourceId: number) =>
+    req<{ job_id: number; status: string }>(`/sources/${sourceId}/media-extraction`, { method: 'POST' }),
+
+  getMediaExtractionStatus: (sourceId: number, jobId: number) =>
+    req<{ job_id: number; status: string; total: number; processed: number; failed: number; skipped: number }>(
+      `/sources/${sourceId}/media-extraction/${jobId}`
+    ),
+
+  createVideoSource: async (
+    videoFile: File,
+    srtFile: File | null,
+    title: string | undefined,
+    trackIndex: number | undefined,
+  ): Promise<{ id?: number; status: string; tracks?: SubtitleTrack[]; pending_video_path?: string }> => {
+    const form = new FormData()
+    form.append('video', videoFile)
+    if (srtFile) form.append('srt', srtFile)
+    if (title) form.append('title', title)
+    if (trackIndex !== undefined) form.append('track_index', String(trackIndex))
+    const res = await fetch(`${BASE}/sources/video`, { method: 'POST', body: form })
+    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+    return res.json() as Promise<{ id?: number; status: string; tracks?: SubtitleTrack[]; pending_video_path?: string }>
+  },
 }

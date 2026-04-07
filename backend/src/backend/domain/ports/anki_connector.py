@@ -34,3 +34,7 @@ class AnkiConnector(ABC):
     @abstractmethod
     def get_model_field_names(self, model_name: str) -> list[str] | None:
         """Return field names for the given note type, or None if it doesn't exist."""
+
+    @abstractmethod
+    def store_media_file(self, filename: str, file_path: str) -> None:
+        """Copy a local file to Anki's media folder via AnkiConnect."""

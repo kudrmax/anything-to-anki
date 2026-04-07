@@ -12,15 +12,30 @@ class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
 
 
-def _default_db_url() -> str:
+def default_db_url() -> str:
     data_dir = os.getenv("DATA_DIR", ".")
     db_file = "vocabminer.db" if os.getenv("APP_ENV") == "production" else "vocabminer_dev.db"
     return f"sqlite:///{data_dir}/{db_file}"
 
 
+def run_alembic_migrations(db_url: str) -> None:
+    """Run all pending Alembic migrations up to head."""
+    from pathlib import Path as _Path
+    from alembic.config import Config
+    from alembic import command
+
+    # alembic/ lives at backend/src/backend/alembic/ — find it relative to this file.
+    # Works both in development (editable install) and in Docker (installed package).
+    alembic_dir = _Path(__file__).parent.parent.parent / "alembic"
+    cfg = Config()
+    cfg.set_main_option("script_location", str(alembic_dir))
+    cfg.set_main_option("sqlalchemy.url", db_url)
+    command.upgrade(cfg, "head")
+
+
 def create_session_factory(db_url: str | None = None) -> sessionmaker[Session]:
     """Create a SQLAlchemy session factory."""
-    engine = create_engine(db_url or _default_db_url(), connect_args={"check_same_thread": False})
+    engine = create_engine(db_url or default_db_url(), connect_args={"check_same_thread": False})
     return sessionmaker(bind=engine)
 
 
@@ -140,6 +155,52 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
         except Exception:
             pass  # Column already exists — safe to ignore
 
+        # --- Video media attachments ---
+        try:
+            conn.execute(text("ALTER TABLE sources ADD COLUMN video_path TEXT"))
+            conn.commit()
+        except Exception:
+            pass
+
+        try:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN media_start_ms INTEGER"))
+            conn.commit()
+        except Exception:
+            pass
+
+        try:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN media_end_ms INTEGER"))
+            conn.commit()
+        except Exception:
+            pass
+
+        try:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN screenshot_path TEXT"))
+            conn.commit()
+        except Exception:
+            pass
+
+        try:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN audio_path TEXT"))
+            conn.commit()
+        except Exception:
+            pass
+
+        conn.execute(text(
+            "CREATE TABLE IF NOT EXISTS media_extraction_jobs ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "source_id INTEGER, "
+            "status VARCHAR(20) NOT NULL DEFAULT 'pending', "
+            "total_candidates INTEGER NOT NULL, "
+            "processed_candidates INTEGER NOT NULL DEFAULT 0, "
+            "failed_candidates INTEGER NOT NULL DEFAULT 0, "
+            "skipped_candidates INTEGER NOT NULL DEFAULT 0, "
+            "candidate_ids_json TEXT NOT NULL DEFAULT '[]', "
+            "created_at DATETIME NOT NULL DEFAULT (datetime('now'))"
+            ")"
+        ))
+        conn.commit()
+
         # Seed default prompt — idempotent, runs on every startup
         conn.execute(
             text(
@@ -174,6 +235,22 @@ def reset_stuck_processing(session_factory: sessionmaker[Session]) -> None:
             update(SourceModel)
             .where(SourceModel.status == SourceStatus.PROCESSING.value)
             .values(status=SourceStatus.NEW.value, processing_stage=None)
+        )
+        session.commit()
+    finally:
+        session.close()
+
+
+def resume_media_extraction_jobs(session_factory: sessionmaker[Session]) -> None:
+    """Mark RUNNING or PENDING media extraction jobs as FAILED on startup."""
+    from backend.infrastructure.persistence.models import MediaExtractionJobModel
+
+    session = session_factory()
+    try:
+        session.execute(
+            update(MediaExtractionJobModel)
+            .where(MediaExtractionJobModel.status.in_(["running", "pending"]))
+            .values(status="failed")
         )
         session.commit()
     finally:

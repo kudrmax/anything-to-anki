@@ -3,7 +3,7 @@ import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FileText, Link, File, Upload, Loader2, Plus, RefreshCw } from 'lucide-react'
 import { api } from '@/api/client'
-import type { SourceSummary, SourceType, Stats } from '@/api/types'
+import type { SourceSummary, SourceType, Stats, SubtitleTrack } from '@/api/types'
 import { SourceCard } from '@/components/SourceCard'
 import { useSourcePolling } from '@/hooks/useSourcePolling'
 
@@ -78,6 +78,11 @@ export function InboxPage() {
   const processingIdsRef = useRef(processingIds)
   processingIdsRef.current = processingIds
   const [cefrLevel, setCefrLevel] = useState('B2')
+  const [mediaJobs, setMediaJobs] = useState<Record<number, { jobId: number; status: string; processed: number; total: number; failed: number }>>({})
+  const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null)
+  const [_pendingVideoPath, setPendingVideoPath] = useState('') // kept for future use
+  const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrack[]>([])
+  const [showSubtitleModal, setShowSubtitleModal] = useState(false)
 
   const loadSources = useCallback(async () => {
     try {
@@ -112,7 +117,37 @@ export function InboxPage() {
   const handleAdd = async () => {
     setError(null)
 
-    if (activeTab === 'url' || activeTab === 'file') {
+    if (activeTab === 'url') {
+      setToast({ text: 'This feature is not implemented yet', key: Date.now() })
+      return
+    }
+
+    if (activeTab === 'file') {
+      const videoExts = ['mp4', 'mkv', 'avi', 'mov']
+      const videoFile = files.find(f => videoExts.includes(f.name.split('.').pop()?.toLowerCase() ?? ''))
+      const srtFile = files.find(f => f.name.endsWith('.srt')) ?? null
+
+      if (videoFile) {
+        setAdding(true)
+        try {
+          const result = await api.createVideoSource(videoFile, srtFile, title.trim() || undefined, undefined)
+          if (result.status === 'subtitle_selection_required') {
+            setPendingVideoFile(videoFile)
+            setPendingVideoPath(result.pending_video_path ?? '')
+            setSubtitleTracks(result.tracks ?? [])
+            setShowSubtitleModal(true)
+          } else if (result.id) {
+            setFiles([])
+            setTitle('')
+            void loadSources()
+          }
+        } catch (e) {
+          setError(e instanceof Error ? e.message : 'Upload failed')
+        } finally {
+          setAdding(false)
+        }
+        return
+      }
       setToast({ text: 'This feature is not implemented yet', key: Date.now() })
       return
     }
@@ -187,6 +222,40 @@ export function InboxPage() {
   const handleReview = (id: number) => navigate(`/sources/${id}/review`)
   const handleExport = (id: number) => navigate(`/sources/${id}/export`)
 
+  const handleGenerateMedia = async (id: number) => {
+    try {
+      const res = await api.startMediaExtraction(id)
+      setMediaJobs(prev => ({
+        ...prev,
+        [id]: { jobId: res.job_id, status: res.status, processed: 0, total: 0, failed: 0 },
+      }))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to start media extraction')
+    }
+  }
+
+  useEffect(() => {
+    const activeEntries = Object.entries(mediaJobs).filter(
+      ([, job]) => job.status === 'pending' || job.status === 'running'
+    )
+    if (activeEntries.length === 0) return
+
+    const interval = setInterval(async () => {
+      for (const [sourceIdStr, job] of activeEntries) {
+        const sourceId = Number(sourceIdStr)
+        try {
+          const status = await api.getMediaExtractionStatus(sourceId, job.jobId)
+          setMediaJobs(prev => ({
+            ...prev,
+            [sourceId]: { jobId: job.jobId, status: status.status, processed: status.processed, total: status.total, failed: status.failed },
+          }))
+        } catch { /* ignore polling errors */ }
+      }
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [mediaJobs])
+
   const handleRename = async (id: number, newTitle: string) => {
     try {
       await api.renameSource(id, newTitle)
@@ -203,6 +272,25 @@ export function InboxPage() {
       setSources((prev) => prev.filter((s) => s.id !== id))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to delete source')
+    }
+  }
+
+  const handleTrackSelect = async (trackIndex: number) => {
+    if (!pendingVideoFile) return
+    setShowSubtitleModal(false)
+    setAdding(true)
+    try {
+      const result = await api.createVideoSource(
+        pendingVideoFile,
+        null,
+        title.trim() || undefined,
+        trackIndex,
+      )
+      if (result.id) { setFiles([]); setTitle(''); void loadSources() }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Upload failed')
+    } finally {
+      setAdding(false)
     }
   }
 
@@ -528,12 +616,51 @@ export function InboxPage() {
                   onDelete={handleDelete}
                   onRename={handleRename}
                   isProcessingLocal={processingIds.has(s.id)}
+                  onGenerateMedia={handleGenerateMedia}
+                  mediaJob={mediaJobs[s.id] ?? null}
                 />
               ))}
             </div>
           )}
         </section>
       </main>
+      {showSubtitleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4"
+               style={{ background: 'var(--bg)', border: '1px solid var(--glass-b)' }}>
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+              Choose subtitle track
+            </h3>
+            <div className="flex flex-col gap-2">
+              {subtitleTracks.map((track) => (
+                <button
+                  key={track.index}
+                  onClick={() => void handleTrackSelect(track.index)}
+                  className="text-left px-4 py-3 rounded-lg transition-all cursor-pointer"
+                  style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--text)' }}
+                >
+                  <div className="text-sm font-medium">
+                    {track.title ?? track.language ?? `Track ${track.index}`}
+                  </div>
+                  <div className="text-xs" style={{ color: 'var(--tm)' }}>
+                    {track.language} · {track.codec}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                setShowSubtitleModal(false)
+                setPendingVideoFile(null)
+                setSubtitleTracks([])
+              }}
+              className="text-xs cursor-pointer" style={{ color: 'var(--td)' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {toast && <Toast key={toast.key} text={toast.text} onDone={() => setToast(null)} />}
     </div>
   )

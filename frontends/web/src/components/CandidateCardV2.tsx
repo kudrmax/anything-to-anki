@@ -18,6 +18,8 @@ interface CandidateCardV2Props {
   batchGenerationStatus?: 'pending' | 'running' | 'failed' | null
   isInBatchProcessing?: boolean
   isQueued?: boolean
+  screenshotUrl?: string | null
+  audioUrl?: string | null
 }
 
 const CEFR_COLOR: Record<string, { bg: string; text: string; border: string }> = {
@@ -193,8 +195,11 @@ export function CandidateCardV2({
   batchGenerationStatus,
   isInBatchProcessing,
   isQueued,
+  screenshotUrl,
+  audioUrl,
 }: CandidateCardV2Props) {
   const [showInfo, setShowInfo] = useState(false)
+  const [showScreenshot, setShowScreenshot] = useState(false)
 
   const handleMark = async (status: CandidateStatus) => {
     const next: CandidateStatus = candidate.status === status ? 'pending' : status
@@ -331,15 +336,50 @@ export function CandidateCardV2({
       </div>
 
       {/* Fragment (hero) */}
-      <p style={{
-        margin: '0 0 10px',
-        fontSize: '19px',
-        color: '#c4b5fd',
-        lineHeight: 1.7,
-        paddingRight: '120px',
-      }}>
-        &ldquo;{highlightWord(candidate.context_fragment, candidate.lemma, candidate.surface_form)}&rdquo;
-      </p>
+      <div
+        className="relative"
+        onMouseEnter={() => { if (screenshotUrl) setShowScreenshot(true) }}
+        onMouseLeave={() => setShowScreenshot(false)}
+      >
+        <p style={{
+          margin: '0 0 10px',
+          fontSize: '19px',
+          color: '#c4b5fd',
+          lineHeight: 1.7,
+          paddingRight: '120px',
+        }}>
+          &ldquo;{highlightWord(candidate.context_fragment, candidate.lemma, candidate.surface_form)}&rdquo;
+        </p>
+
+        {showScreenshot && screenshotUrl && (
+          <div className="absolute bottom-full left-0 z-10 pb-2">
+            <div
+              className="rounded-xl overflow-hidden shadow-xl"
+              style={{ border: '1px solid var(--glass-b)', background: 'var(--bg)' }}
+            >
+              <img
+                src={screenshotUrl}
+                alt="Scene screenshot"
+                style={{ maxWidth: '300px', maxHeight: '180px', display: 'block' }}
+              />
+              {audioUrl && (
+                <div className="px-3 py-2 flex items-center gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      new Audio(audioUrl).play().catch(() => undefined)
+                    }}
+                    className="flex items-center gap-1.5 text-xs cursor-pointer"
+                    style={{ color: 'var(--accent)' }}
+                  >
+                    ▶ Play audio
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {isEditingFragment && (
         <p style={{ margin: '0 0 10px', fontSize: '12px', color: 'var(--accent)', opacity: 0.8 }}>

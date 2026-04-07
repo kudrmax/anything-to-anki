@@ -7,3 +7,4 @@ class SourceType(str, Enum):
     TEXT      = "text"
     LYRICS    = "lyrics"
     SUBTITLES = "subtitles"
+    VIDEO     = "video"

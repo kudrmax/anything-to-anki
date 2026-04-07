@@ -16,8 +16,10 @@ class GetSourceCardsUseCase:
     def __init__(
         self,
         candidate_repo: CandidateRepository,
+        media_base_url: str = "/media",
     ) -> None:
         self._candidate_repo = candidate_repo
+        self._media_base_url = media_base_url
 
     def execute(self, source_id: int) -> list[CardPreviewDTO]:
         candidates = self._candidate_repo.get_by_source(source_id)
@@ -25,6 +27,15 @@ class GetSourceCardsUseCase:
 
         cards: list[CardPreviewDTO] = []
         for candidate in learn_candidates:
+            screenshot_url: str | None = None
+            audio_url: str | None = None
+            if candidate.screenshot_path:
+                filename = candidate.screenshot_path.rsplit("/", 1)[-1]
+                screenshot_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
+            if candidate.audio_path:
+                filename = candidate.audio_path.rsplit("/", 1)[-1]
+                audio_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
+
             cards.append(
                 CardPreviewDTO(
                     candidate_id=candidate.id,  # type: ignore[arg-type]
@@ -44,6 +55,8 @@ class GetSourceCardsUseCase:
                         else None
                     ),
                     ipa=candidate.ipa,
+                    screenshot_url=screenshot_url,
+                    audio_url=audio_url,
                 )
             )
         return cards

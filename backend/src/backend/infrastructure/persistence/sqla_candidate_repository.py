@@ -142,6 +142,19 @@ class SqlaCandidateRepository(CandidateRepository):
         )
         return [m.to_entity() for m in query.all()]
 
+    def update_media_paths(
+        self,
+        candidate_id: int,
+        *,
+        screenshot_path: str,
+        audio_path: str,
+    ) -> None:
+        model = self._session.get(StoredCandidateModel, candidate_id)
+        if model is not None:
+            model.screenshot_path = screenshot_path
+            model.audio_path = audio_path
+            self._session.flush()
+
     def delete_by_source(self, source_id: int) -> None:
         self._session.query(StoredCandidateModel).filter(
             StoredCandidateModel.source_id == source_id

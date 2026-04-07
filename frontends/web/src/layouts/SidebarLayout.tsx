@@ -39,6 +39,21 @@ export function SidebarLayout() {
           <span className="flex items-center gap-2">
             <img src="/anki-logo.png" alt="Anki" className="w-7 h-7 rounded-lg object-cover" />
             Anything to <span className="grad-text">Anki</span>
+            {import.meta.env.VITE_APP_ENV !== 'production' && (
+              <span style={{
+                fontSize: '10px',
+                fontWeight: 600,
+                letterSpacing: '0.05em',
+                padding: '1px 6px',
+                borderRadius: '4px',
+                background: 'rgba(255,160,0,0.15)',
+                color: '#ffaa33',
+                border: '1px solid rgba(255,160,0,0.3)',
+                lineHeight: '16px',
+              }}>
+                dev
+              </span>
+            )}
           </span>
         </button>
       </header>

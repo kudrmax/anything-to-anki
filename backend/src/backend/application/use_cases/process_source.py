@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest
+from backend.application.utils.timecode_mapping import find_timecodes
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceAlreadyProcessedError, SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -18,6 +19,8 @@ if TYPE_CHECKING:
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_parser import SourceParser
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.structured_srt_parser import StructuredSrtParser
+    from backend.domain.value_objects.parsed_srt import ParsedSrt
 
 _ALLOWED_START_STATUSES = frozenset({SourceStatus.NEW, SourceStatus.ERROR})
 
@@ -33,6 +36,7 @@ class ProcessSourceUseCase:
         settings_repo: SettingsRepository,
         analyze_text_use_case: AnalyzeTextUseCase,
         source_parsers: dict[SourceType, SourceParser] | None = None,
+        structured_srt_parser: StructuredSrtParser | None = None,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
@@ -40,6 +44,7 @@ class ProcessSourceUseCase:
         self._settings_repo = settings_repo
         self._analyze_text = analyze_text_use_case
         self._source_parsers: dict[SourceType, SourceParser] = source_parsers or {}
+        self._structured_srt_parser = structured_srt_parser
 
     def start(self, source_id: int) -> None:
         """Validate source and mark as PROCESSING. Call before launching background task."""
@@ -76,8 +81,15 @@ class ProcessSourceUseCase:
         # Stage 1: source-specific cleaning (subtitles/lyrics parsing)
         self._notify_stage(source_id, ProcessingStage.CLEANING_SOURCE, on_stage_commit)
         cefr_level = self._settings_repo.get("cefr_level", "B1") or "B1"
-        parser = self._source_parsers.get(source.source_type)
-        raw_text = parser.parse(source.raw_text) if parser else source.raw_text
+
+        parsed_srt: ParsedSrt | None = None
+
+        if source.source_type == SourceType.VIDEO and self._structured_srt_parser:
+            parsed_srt = self._structured_srt_parser.parse_structured(source.raw_text)
+            raw_text = parsed_srt.text
+        else:
+            parser = self._source_parsers.get(source.source_type)
+            raw_text = parser.parse(source.raw_text) if parser else source.raw_text
 
         # Stage 2: text analysis (cleaning + tokenization + filtering)
         self._notify_stage(source_id, ProcessingStage.ANALYZING_TEXT, on_stage_commit)
@@ -90,8 +102,19 @@ class ProcessSourceUseCase:
         known_pairs = self._known_word_repo.get_all_pairs()
         filtered = [c for c in result.candidates if (c.lemma, c.pos) not in known_pairs]
 
-        stored: list[StoredCandidate] = [
-            StoredCandidate(
+        if parsed_srt is not None:
+            self._notify_stage(source_id, ProcessingStage.MAPPING_TIMECODES, on_stage_commit)
+
+        stored: list[StoredCandidate] = []
+        for c in filtered:
+            media_start_ms: int | None = None
+            media_end_ms: int | None = None
+            if parsed_srt is not None:
+                timecodes = find_timecodes(c.context_fragment, parsed_srt)
+                if timecodes is not None:
+                    media_start_ms, media_end_ms = timecodes
+
+            stored.append(StoredCandidate(
                 source_id=source_id,
                 lemma=c.lemma,
                 pos=c.pos,
@@ -104,9 +127,9 @@ class ProcessSourceUseCase:
                 surface_form=c.surface_form,
                 is_phrasal_verb=c.is_phrasal_verb,
                 status=CandidateStatus.PENDING,
-            )
-            for c in filtered
-        ]
+                media_start_ms=media_start_ms,
+                media_end_ms=media_end_ms,
+            ))
         self._candidate_repo.create_batch(stored)
         self._source_repo.update_status(
             source_id, SourceStatus.DONE, cleaned_text=result.cleaned_text,

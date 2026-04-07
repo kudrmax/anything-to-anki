@@ -18,6 +18,8 @@ class CardPreviewDTO(BaseModel):
     sentence: str        # context_fragment with <b>word</b>
     meaning: str | None  # None if not yet fetched from dictionary
     ipa: str | None
+    screenshot_url: str | None = None
+    audio_url: str | None = None
 
 
 class SyncResultDTO(BaseModel):
@@ -25,7 +27,7 @@ class SyncResultDTO(BaseModel):
 
     total: int
     added: int
-    skipped: int   # duplicates already in Anki
+    skipped: int   # already in anki_synced_cards (previously synced successfully)
     errors: int
     skipped_lemmas: list[str] = []
     error_lemmas: list[str] = []

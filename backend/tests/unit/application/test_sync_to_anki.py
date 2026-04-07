@@ -37,11 +37,14 @@ class TestSyncToAnkiUseCase:
         self.candidate_repo = MagicMock()
         self.anki_connector = MagicMock()
         self.settings_repo = MagicMock()
+        self.anki_sync_repo = MagicMock()
         self.settings_repo.get.return_value = None  # use default deck
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.use_case = SyncToAnkiUseCase(
             candidate_repo=self.candidate_repo,
             anki_connector=self.anki_connector,
             settings_repo=self.settings_repo,
+            anki_sync_repo=self.anki_sync_repo,
         )
 
     def test_returns_zero_when_no_learn_candidates(self) -> None:
@@ -67,7 +70,6 @@ class TestSyncToAnkiUseCase:
             _make_candidate(2, "relentless", CandidateStatus.LEARN, meaning="неумолимый"),
         ]
         self.anki_connector.is_available.return_value = True
-        self.anki_connector.find_notes_by_target.return_value = []
         self.anki_connector.add_notes.return_value = [12345]
 
         result = self.use_case.execute(source_id=1)
@@ -77,52 +79,114 @@ class TestSyncToAnkiUseCase:
         assert result.skipped == 0
         assert result.errors == 0
 
-    def test_skips_duplicates(self) -> None:
+    def test_skips_already_synced_candidates(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "burnout", CandidateStatus.LEARN),
+            _make_candidate(2, "relentless", CandidateStatus.LEARN),
+        ]
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}  # burnout already synced
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [99999]
+
+        result = self.use_case.execute(source_id=1)
+
+        assert result.total == 2
+        assert result.added == 1
+        assert result.skipped == 1
+        assert result.skipped_lemmas == ["burnout"]
+        # burnout should NOT be passed to add_notes
+        call_notes = self.anki_connector.add_notes.call_args[1]["notes"]
+        assert call_notes[0]["Target"] == "relentless"
+
+    def test_all_already_synced_returns_without_calling_anki(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
             _make_candidate(1, "burnout", CandidateStatus.LEARN),
         ]
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}
         self.anki_connector.is_available.return_value = True
-        self.anki_connector.add_notes.side_effect = RuntimeError(
-            "AnkiConnect error: ['cannot create note because it is a duplicate']"
-        )
 
         result = self.use_case.execute(source_id=1)
 
         assert result.total == 1
         assert result.added == 0
         assert result.skipped == 1
-        self.anki_connector.find_notes_by_target.assert_not_called()
+        self.anki_connector.ensure_note_type.assert_not_called()
+        self.anki_connector.add_notes.assert_not_called()
 
-    def test_counts_errors_when_add_fails(self) -> None:
+    def test_marks_synced_after_successful_add(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
             _make_candidate(1, "burnout", CandidateStatus.LEARN),
         ]
         self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        self.use_case.execute(source_id=1)
+
+        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 12345)
+
+    def test_counts_as_skipped_when_note_already_exists_in_anki(self) -> None:
+        # add_notes returns None (allowDuplicate=False), but note exists in Anki
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "burnout", CandidateStatus.LEARN),
+        ]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [None]
+        self.anki_connector.find_notes_by_target.return_value = [99999]
+
+        result = self.use_case.execute(source_id=1)
+
+        assert result.added == 0
+        assert result.skipped == 1
+        assert result.skipped_lemmas == ["burnout"]
+        assert result.errors == 0
+        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 99999)
+
+    def test_counts_errors_when_add_fails_and_note_not_found(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "burnout", CandidateStatus.LEARN),
+        ]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [None]
         self.anki_connector.find_notes_by_target.return_value = []
-        self.anki_connector.add_notes.return_value = [None]  # failure
 
         result = self.use_case.execute(source_id=1)
 
         assert result.added == 0
         assert result.errors == 1
         assert result.error_lemmas == ["burnout"]
+        self.anki_sync_repo.mark_synced.assert_not_called()
 
-    def test_duplicate_exception_counts_as_skipped(self) -> None:
+    def test_duplicate_exception_marks_synced_and_counts_as_skipped(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
             _make_candidate(1, "burnout", CandidateStatus.LEARN),
         ]
         self.anki_connector.is_available.return_value = True
-        self.anki_connector.find_notes_by_target.return_value = []
         self.anki_connector.add_notes.side_effect = RuntimeError(
             "AnkiConnect error: ['cannot create note because it is a duplicate']"
         )
+        self.anki_connector.find_notes_by_target.return_value = [99999]
 
         result = self.use_case.execute(source_id=1)
 
         assert result.added == 0
         assert result.skipped == 1
-        assert result.errors == 0
         assert result.skipped_lemmas == ["burnout"]
+        assert result.errors == 0
+        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 99999)
+
+    def test_counts_errors_on_exception(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "burnout", CandidateStatus.LEARN),
+        ]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.side_effect = RuntimeError("some unexpected error")
+
+        result = self.use_case.execute(source_id=1)
+
+        assert result.added == 0
+        assert result.errors == 1
+        assert result.error_lemmas == ["burnout"]
+        self.anki_sync_repo.mark_synced.assert_not_called()
 
     def test_meaning_from_candidate(self) -> None:
         self.candidate_repo.get_by_source.return_value = [

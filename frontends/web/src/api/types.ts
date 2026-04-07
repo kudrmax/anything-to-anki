@@ -65,6 +65,8 @@ export interface CardPreview {
   sentence: string
   meaning: string | null
   ipa: string | null
+  screenshot_url: string | null
+  audio_url: string | null
 }
 
 export interface SyncResult {
@@ -147,4 +149,11 @@ export interface GenerationQueueStatus {
   running_job: GenerationJobStatus | null
   pending_jobs: GenerationJobStatus[]
   total_pending_count: number
+}
+
+export interface SubtitleTrack {
+  index: number
+  language: string | null
+  title: string | null
+  codec: string
 }

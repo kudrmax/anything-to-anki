@@ -25,4 +25,8 @@ class StoredCandidate:
     meaning: str | None = None
     ipa: str | None = None
     is_phrasal_verb: bool = False
+    media_start_ms: int | None = None    # start of covering subtitle range
+    media_end_ms: int | None = None      # end of covering subtitle range
+    screenshot_path: str | None = None   # absolute path to generated screenshot
+    audio_path: str | None = None        # absolute path to generated audio clip
     id: int | None = None

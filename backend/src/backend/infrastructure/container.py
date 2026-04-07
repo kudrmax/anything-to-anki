@@ -56,6 +56,12 @@ from backend.infrastructure.persistence.sqla_prompt_repository import (
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
 )
+from backend.infrastructure.persistence.sqla_anki_sync_repository import (
+    SqlaAnkiSyncRepository,
+)
+from backend.infrastructure.persistence.sqla_media_extraction_job_repository import (
+    SqlaMediaExtractionJobRepository,
+)
 from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
 )
@@ -63,11 +69,22 @@ from backend.infrastructure.persistence.sqla_source_repository import (
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+    from backend.application.use_cases.manage_media_extraction import (
+        GetMediaExtractionStatusUseCase,
+        StartMediaExtractionUseCase,
+    )
+    from backend.application.use_cases.run_media_extraction_job import RunMediaExtractionJobUseCase
+
 
 class Container:
     """Dependency injection container. Single point of assembly for all dependencies."""
 
     def __init__(self) -> None:
+        import os
+
+        from backend.infrastructure.adapters.ffmpeg_media_extractor import FfmpegMediaExtractor
+        from backend.infrastructure.adapters.ffmpeg_subtitle_extractor import FfmpegSubtitleExtractor
+
         self._text_analyzer = SpaCyTextAnalyzer()
         self._text_cleaner = RegexTextCleaner()
         self._lyrics_parser = RegexLyricsParser(self._text_analyzer)
@@ -76,6 +93,12 @@ class Container:
         self._frequency_provider = WordfreqFrequencyProvider()
         self._anki_connector = AnkiConnectConnector()
         self._phrasal_verb_dictionary = JsonPhrasalVerbDictionary()
+        self._subtitle_extractor = FfmpegSubtitleExtractor()
+        self._media_extractor = FfmpegMediaExtractor()
+        self._media_root = os.environ.get(
+            "MEDIA_ROOT",
+            os.path.join(os.getenv("DATA_DIR", "."), "media"),
+        )
 
     def add_manual_candidate_use_case(self, session: Session) -> AddManualCandidateUseCase:
         return AddManualCandidateUseCase(
@@ -99,6 +122,7 @@ class Container:
     def create_source_use_case(self, session: Session) -> CreateSourceUseCase:
         return CreateSourceUseCase(
             source_repo=SqlaSourceRepository(session),
+            subtitle_extractor=self._subtitle_extractor,
         )
 
     def rename_source_use_case(self, session: Session) -> RenameSourceUseCase:
@@ -129,6 +153,7 @@ class Container:
                 SourceType.LYRICS: self._lyrics_parser,
                 SourceType.SUBTITLES: self._srt_parser,
             },
+            structured_srt_parser=self._srt_parser,
         )
 
     def get_candidates_use_case(self, session: Session) -> GetCandidatesUseCase:
@@ -161,6 +186,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             anki_connector=self._anki_connector,
             settings_repo=SqlaSettingsRepository(session),
+            anki_sync_repo=SqlaAnkiSyncRepository(session),
         )
 
     def get_source_cards_use_case(self, session: Session) -> GetSourceCardsUseCase:
@@ -222,3 +248,30 @@ class Container:
 
     def anki_connector(self) -> AnkiConnectConnector:
         return self._anki_connector
+
+    def media_root(self) -> str:
+        return self._media_root
+
+    def start_media_extraction_use_case(self, session: Session) -> StartMediaExtractionUseCase:
+        from backend.application.use_cases.manage_media_extraction import StartMediaExtractionUseCase
+        return StartMediaExtractionUseCase(
+            job_repo=SqlaMediaExtractionJobRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
+            source_repo=SqlaSourceRepository(session),
+        )
+
+    def get_media_extraction_status_use_case(self, session: Session) -> GetMediaExtractionStatusUseCase:
+        from backend.application.use_cases.manage_media_extraction import GetMediaExtractionStatusUseCase
+        return GetMediaExtractionStatusUseCase(
+            job_repo=SqlaMediaExtractionJobRepository(session),
+        )
+
+    def run_media_extraction_job_use_case(self, session: Session) -> RunMediaExtractionJobUseCase:
+        from backend.application.use_cases.run_media_extraction_job import RunMediaExtractionJobUseCase
+        return RunMediaExtractionJobUseCase(
+            job_repo=SqlaMediaExtractionJobRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
+            source_repo=SqlaSourceRepository(session),
+            media_extractor=self._media_extractor,
+            media_root=self._media_root,
+        )

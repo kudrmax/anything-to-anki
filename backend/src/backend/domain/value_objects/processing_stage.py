@@ -8,3 +8,4 @@ class ProcessingStage(Enum):
 
     CLEANING_SOURCE = "cleaning_source"
     ANALYZING_TEXT = "analyzing_text"
+    MAPPING_TIMECODES = "mapping_timecodes"

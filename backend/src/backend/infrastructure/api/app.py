@@ -18,16 +18,20 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.infrastructure.api.dependencies import get_session_factory
 from backend.infrastructure.api.routes import anki, candidates, generation, known_words, prompts, settings, sources, stats
-from backend.infrastructure.persistence.database import create_tables, reset_stuck_processing, resume_generation_jobs, upgrade_schema
+from backend.infrastructure.api.routes.media import router as media_router
+from backend.infrastructure.persistence.database import reset_stuck_processing, resume_generation_jobs, resume_media_extraction_jobs, run_alembic_migrations, upgrade_schema
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     session_factory = get_session_factory()
-    create_tables(session_factory)  # type: ignore[arg-type]
+    db_url = str(session_factory.kw["bind"].url)  # type: ignore[union-attr]
+    if ":memory:" not in db_url:
+        run_alembic_migrations(db_url)
     upgrade_schema(session_factory)  # type: ignore[arg-type]
     reset_stuck_processing(session_factory)  # type: ignore[arg-type]
     resume_generation_jobs(session_factory)  # type: ignore[arg-type]
+    resume_media_extraction_jobs(session_factory)  # type: ignore[arg-type]
     yield
 
 
@@ -41,6 +45,7 @@ app.add_middleware(
 )
 
 app.include_router(sources.router)
+app.include_router(media_router)
 app.include_router(candidates.router)
 app.include_router(known_words.router)
 app.include_router(settings.router)
