@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Callable
 
+from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.generation_job_status import GenerationJobStatus
 
 if TYPE_CHECKING:
     from backend.domain.ports.ai_service import AIService
+    from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.generation_job_repository import GenerationJobRepository
     from backend.domain.ports.prompt_repository import PromptRepository
@@ -26,11 +30,13 @@ class RunGenerationJobUseCase:
         self,
         job_repo: GenerationJobRepository,
         candidate_repo: CandidateRepository,
+        meaning_repo: CandidateMeaningRepository,
         ai_service: AIService,
         prompt_repo: PromptRepository,
     ) -> None:
         self._job_repo = job_repo
         self._candidate_repo = candidate_repo
+        self._meaning_repo = meaning_repo
         self._ai_service = ai_service
         self._prompt_repo = prompt_repo
 
@@ -83,7 +89,8 @@ class RunGenerationJobUseCase:
         # Filter: only process those still PENDING/LEARN and without meaning
         active = [
             c for c in candidates
-            if c.meaning is None and c.status in (CandidateStatus.PENDING, CandidateStatus.LEARN)
+            if (c.meaning is None or c.meaning.meaning is None)
+            and c.status in (CandidateStatus.PENDING, CandidateStatus.LEARN)
         ]
         skipped = len(candidates) - len(active)
 
@@ -118,7 +125,14 @@ class RunGenerationJobUseCase:
             for i, c in enumerate(active, 1):
                 r = result_map.get(i)
                 if r is not None and c.id is not None:
-                    self._candidate_repo.update_meaning_and_ipa(c.id, r.meaning, r.ipa)
+                    self._meaning_repo.upsert(CandidateMeaning(
+                        candidate_id=c.id,
+                        meaning=r.meaning,
+                        ipa=r.ipa,
+                        status=EnrichmentStatus.DONE,
+                        error=None,
+                        generated_at=datetime.now(tz=UTC),
+                    ))
                     matched += 1
             job.processed_candidates = matched
             job.failed_candidates = len(active) - matched
