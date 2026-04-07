@@ -107,12 +107,6 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
             pass  # Column already exists — safe to ignore
 
         try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN ipa VARCHAR(100)"))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists — safe to ignore
-
-        try:
             conn.execute(text("ALTER TABLE sources ADD COLUMN processing_stage VARCHAR(30)"))
             conn.commit()
         except Exception:
@@ -123,21 +117,6 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
             conn.commit()
         except Exception:
             pass  # Column already exists — safe to ignore
-
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN meaning TEXT"))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists — safe to ignore
-
-        try:
-            conn.execute(text(
-                "UPDATE candidates SET meaning = COALESCE(ai_meaning, definition)"
-                " WHERE meaning IS NULL"
-            ))
-            conn.commit()
-        except Exception:
-            pass
 
         conn.execute(text(
             "CREATE TABLE IF NOT EXISTS generation_jobs ("
@@ -181,30 +160,6 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
 
         try:
             conn.execute(text("ALTER TABLE sources ADD COLUMN audio_track_index INTEGER"))
-            conn.commit()
-        except Exception:
-            pass
-
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN media_start_ms INTEGER"))
-            conn.commit()
-        except Exception:
-            pass
-
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN media_end_ms INTEGER"))
-            conn.commit()
-        except Exception:
-            pass
-
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN screenshot_path TEXT"))
-            conn.commit()
-        except Exception:
-            pass
-
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN audio_path TEXT"))
             conn.commit()
         except Exception:
             pass
