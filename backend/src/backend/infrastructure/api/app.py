@@ -26,8 +26,6 @@ from backend.infrastructure.api.routes.media import router as media_router
 from backend.infrastructure.persistence.database import (
     reconcile_media_files,
     reset_stuck_processing,
-    resume_generation_jobs,
-    resume_media_extraction_jobs,
     run_alembic_migrations,
     upgrade_schema,
 )
@@ -46,8 +44,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         run_alembic_migrations(db_url)
     upgrade_schema(session_factory)
     reset_stuck_processing(session_factory)
-    resume_generation_jobs(session_factory)
-    resume_media_extraction_jobs(session_factory)
     media_root = os.environ.get("MEDIA_ROOT", os.path.join(os.getenv("DATA_DIR", "."), "media"))
     reconcile_media_files(session_factory, media_root)
     yield

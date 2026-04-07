@@ -14,11 +14,6 @@ from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_source_cards import GetSourceCardsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
-from backend.application.use_cases.manage_generation import (
-    GetGenerationStatusUseCase,
-    StartGenerationUseCase,
-    StopGenerationUseCase,
-)
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.use_cases.manage_prompts import ManagePromptsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
@@ -55,14 +50,8 @@ from backend.infrastructure.persistence.sqla_candidate_media_repository import (
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
-from backend.infrastructure.persistence.sqla_generation_job_repository import (
-    SqlaGenerationJobRepository,
-)
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
-)
-from backend.infrastructure.persistence.sqla_media_extraction_job_repository import (
-    SqlaMediaExtractionJobRepository,
 )
 from backend.infrastructure.persistence.sqla_prompt_repository import (
     SqlaPromptRepository,
@@ -86,10 +75,6 @@ if TYPE_CHECKING:
         EnqueueMediaGenerationUseCase,
     )
     from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
-    from backend.application.use_cases.manage_media_extraction import (
-        GetMediaExtractionStatusUseCase,
-        StartMediaExtractionUseCase,
-    )
     from backend.application.use_cases.regenerate_candidate_media import (
         RegenerateCandidateMediaUseCase,
     )
@@ -263,23 +248,7 @@ class Container:
             prompt_repo=SqlaPromptRepository(session),
         )
 
-    def start_generation_use_case(self, session: Session) -> StartGenerationUseCase:
-        return StartGenerationUseCase(
-            job_repo=SqlaGenerationJobRepository(session),
-            meaning_repo=SqlaCandidateMeaningRepository(session),  # NEW (replaces candidate_repo)
-        )
-
-    def stop_generation_use_case(self, session: Session) -> StopGenerationUseCase:
-        return StopGenerationUseCase(
-            job_repo=SqlaGenerationJobRepository(session),
-        )
-
-    def get_generation_status_use_case(self, session: Session) -> GetGenerationStatusUseCase:
-        return GetGenerationStatusUseCase(
-            job_repo=SqlaGenerationJobRepository(session),
-        )
-
-    def run_generation_job_use_case(self, session: Session) -> MeaningGenerationUseCase:
+    def meaning_generation_use_case(self, session: Session) -> MeaningGenerationUseCase:
         import os
 
         settings_repo = SqlaSettingsRepository(session)
@@ -314,27 +283,7 @@ class Container:
             )
         return self._lazy_media_reconciler
 
-    def start_media_extraction_use_case(self, session: Session) -> StartMediaExtractionUseCase:
-        from backend.application.use_cases.manage_media_extraction import (
-            StartMediaExtractionUseCase,
-        )
-        return StartMediaExtractionUseCase(
-            job_repo=SqlaMediaExtractionJobRepository(session),
-            media_repo=SqlaCandidateMediaRepository(session),  # NEW (replaces candidate_repo)
-            source_repo=SqlaSourceRepository(session),
-        )
-
-    def get_media_extraction_status_use_case(
-        self, session: Session
-    ) -> GetMediaExtractionStatusUseCase:
-        from backend.application.use_cases.manage_media_extraction import (
-            GetMediaExtractionStatusUseCase,
-        )
-        return GetMediaExtractionStatusUseCase(
-            job_repo=SqlaMediaExtractionJobRepository(session),
-        )
-
-    def run_media_extraction_job_use_case(self, session: Session) -> MediaExtractionUseCase:
+    def media_extraction_use_case(self, session: Session) -> MediaExtractionUseCase:
         from backend.application.use_cases.run_media_extraction_job import (
             MediaExtractionUseCase,
         )
@@ -377,14 +326,6 @@ class Container:
             media_extractor=self._media_extractor,
             media_root=self._media_root,
         )
-
-    def media_extraction_use_case(self, session: Session) -> MediaExtractionUseCase:
-        """Alias for run_media_extraction_job_use_case (new name for Phase 2)."""
-        return self.run_media_extraction_job_use_case(session)
-
-    def meaning_generation_use_case(self, session: Session) -> MeaningGenerationUseCase:
-        """Alias for run_generation_job_use_case (new name for Phase 2)."""
-        return self.run_generation_job_use_case(session)
 
     def candidate_meaning_repository(self, session: Session) -> SqlaCandidateMeaningRepository:
         return SqlaCandidateMeaningRepository(session)

@@ -3,10 +3,6 @@ from __future__ import annotations
 import pytest
 from unittest.mock import MagicMock, call, patch
 
-from backend.application.use_cases.manage_media_extraction import (
-    StartMediaExtractionUseCase,
-    GetMediaExtractionStatusUseCase,
-)
 from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -52,70 +48,6 @@ def _make_source(video_path: str | None = "/tmp/movie.mp4") -> MagicMock:
     source.video_path = video_path
     source.audio_track_index = 0
     return source
-
-
-@pytest.mark.unit
-class TestStartMediaExtractionUseCase:
-    def test_creates_job_with_eligible_candidates(self) -> None:
-        job_repo = MagicMock()
-        media_repo = MagicMock()
-        source_repo = MagicMock()
-        media_repo.get_eligible_candidate_ids.return_value = [1, 2]
-        created_job = MagicMock()
-        created_job.id = 42
-        job_repo.create.return_value = created_job
-
-        uc = StartMediaExtractionUseCase(
-            job_repo=job_repo,
-            media_repo=media_repo,
-            source_repo=source_repo,
-        )
-        result = uc.execute(source_id=1)
-
-        assert result.id == 42
-        job_arg = job_repo.create.call_args[0][0]
-        assert job_arg.total_candidates == 2
-        assert set(job_arg.candidate_ids) == {1, 2}
-
-    def test_skips_candidates_without_timecodes(self) -> None:
-        job_repo = MagicMock()
-        media_repo = MagicMock()
-        source_repo = MagicMock()
-        # Only candidate 1 is eligible (2 was filtered out by repo)
-        media_repo.get_eligible_candidate_ids.return_value = [1]
-        created_job = MagicMock()
-        created_job.id = 1
-        job_repo.create.return_value = created_job
-
-        uc = StartMediaExtractionUseCase(
-            job_repo=job_repo,
-            media_repo=media_repo,
-            source_repo=source_repo,
-        )
-        uc.execute(source_id=1)
-
-        job_arg = job_repo.create.call_args[0][0]
-        assert job_arg.total_candidates == 1
-        assert job_arg.candidate_ids == [1]
-
-    def test_includes_pending_candidates_in_job(self) -> None:
-        job_repo = MagicMock()
-        media_repo = MagicMock()
-        source_repo = MagicMock()
-        # Repo handles filtering: returns learn + pending, excludes known
-        media_repo.get_eligible_candidate_ids.return_value = [1, 2]
-        job_repo.create.side_effect = lambda j: j
-
-        uc = StartMediaExtractionUseCase(
-            job_repo=job_repo,
-            media_repo=media_repo,
-            source_repo=source_repo,
-        )
-
-        job = uc.execute(source_id=42)
-
-        assert job.total_candidates == 2
-        assert sorted(job.candidate_ids) == [1, 2]  # learn + pending, NOT known
 
 
 @pytest.mark.unit

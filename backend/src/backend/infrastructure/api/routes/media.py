@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import os
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -10,7 +9,6 @@ from fastapi.responses import FileResponse
 from backend.infrastructure.api.dependencies import (
     get_container,
     get_db_session,
-    get_session_factory,
 )
 
 if TYPE_CHECKING:
@@ -33,51 +31,6 @@ async def serve_media_file(
         await container.lazy_media_reconciler().schedule(source_id)
         raise HTTPException(status_code=404, detail="Media file not found")
     return FileResponse(file_path)
-
-
-@router.post("/sources/{source_id}/media-extraction", status_code=202)
-async def start_media_extraction(
-    source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-    session_factory: object = Depends(get_session_factory),  # noqa: B008
-) -> dict[str, Any]:
-    use_case = container.start_media_extraction_use_case(session)
-    job = use_case.execute(source_id=source_id)
-    session.commit()
-    assert job.id is not None
-    asyncio.create_task(_run_media_job_background(job.id, container, session_factory))
-    return {"job_id": job.id, "status": job.status.value}
-
-
-@router.get("/sources/{source_id}/media-extraction/{job_id}")
-def get_media_extraction_status(
-    source_id: int,
-    job_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, Any]:
-    use_case = container.get_media_extraction_status_use_case(session)
-    job = use_case.execute(job_id=job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
-    return {
-        "job_id": job.id,
-        "status": job.status.value,
-        "total": job.total_candidates,
-        "processed": job.processed_candidates,
-        "failed": job.failed_candidates,
-        "skipped": job.skipped_candidates,
-    }
-
-
-async def _run_media_job_background(
-    job_id: int,
-    container: Container,
-    session_factory: object,
-) -> None:
-    # Deprecated: old job-loop flow. Removed in Phase 2 C7.
-    raise NotImplementedError("Deprecated, removed in Phase 2 C7")
 
 
 @router.post("/sources/{source_id}/media/generate", status_code=202)

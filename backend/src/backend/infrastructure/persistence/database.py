@@ -233,42 +233,6 @@ def reset_stuck_processing(session_factory: sessionmaker[Session]) -> None:
         session.close()
 
 
-def resume_media_extraction_jobs(session_factory: sessionmaker[Session]) -> None:
-    """Mark RUNNING or PENDING media extraction jobs as FAILED on startup."""
-    from backend.infrastructure.persistence.models import MediaExtractionJobModel
-
-    session = session_factory()
-    try:
-        session.execute(
-            update(MediaExtractionJobModel)
-            .where(MediaExtractionJobModel.status.in_(["running", "pending"]))
-            .values(status="failed")
-        )
-        session.commit()
-    finally:
-        session.close()
-
-
-def resume_generation_jobs(session_factory: sessionmaker[Session]) -> None:
-    """Mark RUNNING/PENDING generation jobs as FAILED on startup (crash recovery).
-
-    Jobs left in RUNNING or PENDING state after a crash are stale — the worker
-    is no longer running. Mark them FAILED so the user can start a fresh job.
-    """
-    from backend.infrastructure.persistence.models import GenerationJobModel
-
-    session = session_factory()
-    try:
-        session.execute(
-            update(GenerationJobModel)
-            .where(GenerationJobModel.status.in_(["running", "pending"]))
-            .values(status="failed")
-        )
-        session.commit()
-    finally:
-        session.close()
-
-
 def reconcile_media_files(session_factory: sessionmaker[Session], media_root: str) -> None:
     """Remove orphan media files/directories without corresponding DB records.
 
