@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
+from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.models import (
     CandidateMeaningModel,
     StoredCandidateModel,
@@ -59,3 +60,67 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
             existing.error = meaning.error
             existing.generated_at = meaning.generated_at
         self._session.flush()
+
+    def get_candidate_ids_without_meaning(
+        self,
+        source_id: int | None,
+        only_active: bool,
+    ) -> list[int]:
+        from sqlalchemy import or_
+
+        query = (
+            self._session.query(StoredCandidateModel.id)
+            .outerjoin(
+                CandidateMeaningModel,
+                CandidateMeaningModel.candidate_id == StoredCandidateModel.id,
+            )
+            .filter(
+                or_(
+                    CandidateMeaningModel.candidate_id.is_(None),
+                    CandidateMeaningModel.meaning.is_(None),
+                )
+            )
+        )
+        if source_id is not None:
+            query = query.filter(StoredCandidateModel.source_id == source_id)
+        if only_active:
+            query = query.filter(
+                StoredCandidateModel.status.in_(
+                    [CandidateStatus.PENDING.value, CandidateStatus.LEARN.value]
+                )
+            )
+        query = query.order_by(
+            StoredCandidateModel.is_sweet_spot.desc(),
+            StoredCandidateModel.cefr_level.desc(),
+        )
+        return [row[0] for row in query.all()]
+
+    def count_candidate_ids_without_meaning(
+        self,
+        source_id: int | None,
+        only_active: bool,
+    ) -> int:
+        from sqlalchemy import or_
+
+        query = (
+            self._session.query(func.count(StoredCandidateModel.id))
+            .outerjoin(
+                CandidateMeaningModel,
+                CandidateMeaningModel.candidate_id == StoredCandidateModel.id,
+            )
+            .filter(
+                or_(
+                    CandidateMeaningModel.candidate_id.is_(None),
+                    CandidateMeaningModel.meaning.is_(None),
+                )
+            )
+        )
+        if source_id is not None:
+            query = query.filter(StoredCandidateModel.source_id == source_id)
+        if only_active:
+            query = query.filter(
+                StoredCandidateModel.status.in_(
+                    [CandidateStatus.PENDING.value, CandidateStatus.LEARN.value]
+                )
+            )
+        return query.scalar() or 0

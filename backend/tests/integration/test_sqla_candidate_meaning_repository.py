@@ -133,3 +133,37 @@ class TestSqlaCandidateMeaningRepository:
         with self._Session() as s:
             repo = SqlaCandidateMeaningRepository(s)
             assert repo.get_by_candidate_ids([]) == {}
+
+    def test_get_candidate_ids_without_meaning_returns_only_missing(self) -> None:
+        with self._Session() as s:
+            s.execute(text(
+                "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
+                "occurrences, status, is_phrasal_verb) "
+                "VALUES (2, 1, 'y', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0)"
+            ))
+            s.commit()
+            repo = SqlaCandidateMeaningRepository(s)
+            # candidate 1 has meaning, candidate 2 does not
+            repo.upsert(CandidateMeaning(
+                candidate_id=1, meaning="x", ipa=None,
+                status=EnrichmentStatus.DONE, error=None, generated_at=None,
+            ))
+            s.commit()
+
+            ids = repo.get_candidate_ids_without_meaning(source_id=1, only_active=True)
+            assert ids == [2]
+
+    def test_count_candidate_ids_without_meaning(self) -> None:
+        with self._Session() as s:
+            s.execute(text(
+                "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
+                "occurrences, status, is_phrasal_verb) "
+                "VALUES (2, 1, 'y', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'known', 0)"
+            ))
+            s.commit()
+            repo = SqlaCandidateMeaningRepository(s)
+            # 2 candidates, neither has meaning, but only 1 active (PENDING)
+            assert repo.count_candidate_ids_without_meaning(source_id=1, only_active=True) == 1
+            assert repo.count_candidate_ids_without_meaning(source_id=1, only_active=False) == 2

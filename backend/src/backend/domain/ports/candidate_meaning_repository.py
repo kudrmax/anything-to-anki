@@ -30,3 +30,20 @@ class CandidateMeaningRepository(ABC):
     @abstractmethod
     def upsert(self, meaning: CandidateMeaning) -> None:
         """Insert or update the meaning row for the contained candidate_id."""
+
+    @abstractmethod
+    def get_candidate_ids_without_meaning(
+        self,
+        source_id: int | None,
+        only_active: bool,
+    ) -> list[int]:
+        """Return ids of candidates that have no meaning row OR meaning row with
+        meaning IS NULL. If only_active=True, restrict to candidates with
+        status PENDING or LEARN. Order: is_sweet_spot DESC, cefr_level DESC."""
+
+    @abstractmethod
+    def count_candidate_ids_without_meaning(
+        self,
+        source_id: int | None,
+        only_active: bool,
+    ) -> int: ...
