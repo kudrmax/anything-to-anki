@@ -1,35 +1,57 @@
+from __future__ import annotations
+
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
+
 from backend.application.use_cases.manage_media_extraction import (
     StartMediaExtractionUseCase,
     GetMediaExtractionStatusUseCase,
 )
-from backend.application.use_cases.run_media_extraction_job import RunMediaExtractionJobUseCase
+from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
 from backend.domain.entities.candidate_media import CandidateMedia
-from backend.domain.entities.media_extraction_job import MediaExtractionJob
 from backend.domain.entities.stored_candidate import StoredCandidate
+from backend.domain.exceptions import (
+    BadVideoFormatError,
+    InvalidTimecodesError,
+    PermanentMediaError,
+)
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
-from backend.domain.value_objects.media_extraction_job_status import MediaExtractionJobStatus
 
 
-def _make_candidate(id: int, fragment: str = "hello world") -> StoredCandidate:
+def _make_candidate(
+    id: int,
+    fragment: str = "hello world",
+    start_ms: int | None = 1000,
+    end_ms: int | None = 2000,
+    media: CandidateMedia | None = None,
+) -> StoredCandidate:
+    if media is None and start_ms is not None:
+        media = CandidateMedia(
+            candidate_id=id,
+            screenshot_path=None,
+            audio_path=None,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            status=EnrichmentStatus.QUEUED,
+            error=None,
+            generated_at=None,
+        )
     return StoredCandidate(
         id=id, source_id=1, lemma="test", pos="NOUN",
         cefr_level="B1", zipf_frequency=3.5, is_sweet_spot=True,
         context_fragment=fragment, fragment_purity="clean", occurrences=1,
         status=CandidateStatus.LEARN,
-        media=CandidateMedia(
-            candidate_id=id,
-            screenshot_path=None,
-            audio_path=None,
-            start_ms=1000,
-            end_ms=2000,
-            status=EnrichmentStatus.DONE,
-            error=None,
-            generated_at=None,
-        ),
+        media=media,
     )
+
+
+def _make_source(video_path: str | None = "/tmp/movie.mp4") -> MagicMock:
+    source = MagicMock()
+    source.id = 1
+    source.video_path = video_path
+    source.audio_track_index = 0
+    return source
 
 
 @pytest.mark.unit
@@ -97,43 +119,121 @@ class TestStartMediaExtractionUseCase:
 
 
 @pytest.mark.unit
-class TestRunMediaExtractionJobUseCase:
-    def test_extracts_screenshot_and_audio_for_each_candidate(self) -> None:
-        job = MediaExtractionJob(
-            id=1, source_id=1,
-            status=MediaExtractionJobStatus.PENDING,
-            total_candidates=1,
-            candidate_ids=[10],
-        )
-        job_repo = MagicMock()
-        job_repo.get_by_id.return_value = job
-        candidate = _make_candidate(10)
+class TestMediaExtractionUseCase:
+    def _make_uc(
+        self,
+        candidate: StoredCandidate | None = None,
+        source: MagicMock | None = None,
+    ) -> tuple[MediaExtractionUseCase, MagicMock, MagicMock, MagicMock, MagicMock]:
         candidate_repo = MagicMock()
-        candidate_repo.get_by_id.return_value = candidate
-        source_repo = MagicMock()
-        source_repo.get_by_id.return_value = MagicMock(video_path="/tmp/movie.mp4")
-        media_extractor = MagicMock()
         media_repo = MagicMock()
+        source_repo = MagicMock()
+        media_extractor = MagicMock()
 
-        uc = RunMediaExtractionJobUseCase(
-            job_repo=job_repo,
+        candidate_repo.get_by_id.return_value = candidate
+        source_repo.get_by_id.return_value = source
+
+        uc = MediaExtractionUseCase(
             candidate_repo=candidate_repo,
+            media_repo=media_repo,
             source_repo=source_repo,
             media_extractor=media_extractor,
             media_root="/tmp/media",
-            media_repo=media_repo,
         )
+        return uc, candidate_repo, media_repo, source_repo, media_extractor
+
+    def test_execute_one_success(self) -> None:
+        candidate = _make_candidate(10)
+        source = _make_source("/tmp/movie.mp4")
+
+        uc, _, media_repo, _, media_extractor = self._make_uc(candidate, source)
 
         with patch("backend.application.use_cases.run_media_extraction_job.os.path.exists", return_value=True), \
              patch("backend.application.use_cases.run_media_extraction_job.os.makedirs"):
-            uc.execute(job_id=1)
+            uc.execute_one(10)
 
-        media_extractor.extract_screenshot.assert_called_once()
-        media_extractor.extract_audio.assert_called_once()
+        # mark_running called before extract_*
+        mark_running_call_order = media_repo.method_calls.index(call.mark_running(10))
+        assert mark_running_call_order == 0
+
+        media_extractor.extract_screenshot.assert_called_once_with(
+            "/tmp/movie.mp4", 1500, "/tmp/media/1/10_screenshot.webp"
+        )
+        media_extractor.extract_audio.assert_called_once_with(
+            "/tmp/movie.mp4", 1000, 2000, "/tmp/media/1/10_audio.m4a",
+            audio_track_index=0,
+        )
+
         media_repo.upsert.assert_called_once()
         upserted: CandidateMedia = media_repo.upsert.call_args[0][0]
         assert upserted.candidate_id == 10
+        assert upserted.status == EnrichmentStatus.DONE
         assert upserted.screenshot_path == "/tmp/media/1/10_screenshot.webp"
         assert upserted.audio_path == "/tmp/media/1/10_audio.m4a"
         assert upserted.start_ms == 1000
         assert upserted.end_ms == 2000
+
+    def test_execute_one_raises_permanent_when_candidate_missing(self) -> None:
+        uc, _, _, _, _ = self._make_uc(candidate=None, source=None)
+
+        with pytest.raises(PermanentMediaError):
+            uc.execute_one(99)
+
+    def test_execute_one_raises_invalid_timecodes(self) -> None:
+        # Pass start_ms=None so _make_candidate doesn't auto-create media
+        candidate = _make_candidate(10, start_ms=None, media=None)
+        uc, _, _, _, _ = self._make_uc(candidate=candidate, source=None)
+
+        with pytest.raises(InvalidTimecodesError):
+            uc.execute_one(10)
+
+    def test_execute_one_raises_invalid_timecodes_when_start_ms_none(self) -> None:
+        media = CandidateMedia(
+            candidate_id=10,
+            screenshot_path=None,
+            audio_path=None,
+            start_ms=None,
+            end_ms=2000,
+            status=EnrichmentStatus.QUEUED,
+            error=None,
+            generated_at=None,
+        )
+        candidate = _make_candidate(10, media=media)
+        uc, _, _, _, _ = self._make_uc(candidate=candidate, source=None)
+
+        with pytest.raises(InvalidTimecodesError):
+            uc.execute_one(10)
+
+    def test_execute_one_raises_bad_video_format_when_source_missing(self) -> None:
+        candidate = _make_candidate(10)
+        source = MagicMock()
+        source.id = 1
+        source.video_path = None
+        source.audio_track_index = 0
+
+        uc, _, _, source_repo, _ = self._make_uc(candidate=candidate, source=source)
+
+        with pytest.raises(BadVideoFormatError):
+            uc.execute_one(10)
+
+    def test_execute_one_raises_bad_video_format_when_file_missing(self, tmp_path: object) -> None:
+        candidate = _make_candidate(10)
+        source = _make_source("/nonexistent/path/movie.mp4")
+
+        uc, _, _, _, _ = self._make_uc(candidate=candidate, source=source)
+
+        with patch("backend.application.use_cases.run_media_extraction_job.os.path.exists", return_value=False):
+            with pytest.raises(BadVideoFormatError):
+                uc.execute_one(10)
+
+    def test_execute_one_propagates_extractor_error(self) -> None:
+        candidate = _make_candidate(10)
+        source = _make_source("/tmp/movie.mp4")
+
+        uc, _, _, _, media_extractor = self._make_uc(candidate=candidate, source=source)
+        media_extractor.extract_screenshot.side_effect = OSError("ffmpeg crashed")
+
+        with patch("backend.application.use_cases.run_media_extraction_job.os.path.exists", return_value=True), \
+             patch("backend.application.use_cases.run_media_extraction_job.os.makedirs"):
+            with pytest.raises(OSError, match="ffmpeg crashed"):
+                uc.execute_one(10)

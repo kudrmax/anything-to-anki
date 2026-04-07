@@ -76,12 +76,5 @@ async def _run_media_job_background(
     container: Container,
     session_factory: object,
 ) -> None:
-    bg_session = session_factory()  # type: ignore[operator]
-    try:
-        use_case = container.run_media_extraction_job_use_case(bg_session)
-        await asyncio.to_thread(use_case.execute, job_id)
-        bg_session.commit()
-    except Exception:  # noqa: BLE001
-        bg_session.rollback()
-    finally:
-        bg_session.close()
+    # Deprecated: old job-loop flow. Removed in Phase 2 C7.
+    raise NotImplementedError("Deprecated, removed in Phase 2 C7")
