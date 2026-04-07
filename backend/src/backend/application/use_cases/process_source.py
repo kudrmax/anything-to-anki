@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest
@@ -149,9 +148,9 @@ class ProcessSourceUseCase:
                         audio_path=None,
                         start_ms=start_ms,
                         end_ms=end_ms,
-                        status=EnrichmentStatus.QUEUED,
+                        status=EnrichmentStatus.IDLE,
                         error=None,
-                        generated_at=datetime.now(tz=UTC),
+                        generated_at=None,
                     ))
         self._source_repo.update_status(
             source_id, SourceStatus.DONE, cleaned_text=result.cleaned_text,
