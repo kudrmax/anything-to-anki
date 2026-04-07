@@ -8,7 +8,7 @@ from backend.infrastructure.persistence.database import create_session_factory
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-    from sqlalchemy.orm import Session
+    from sqlalchemy.orm import Session, sessionmaker
 
 _container: Container | None = None
 _session_factory = create_session_factory()
@@ -21,7 +21,7 @@ def get_container() -> Container:
     return _container
 
 
-def get_session_factory() -> object:
+def get_session_factory() -> sessionmaker[Session]:
     return _session_factory
 
 

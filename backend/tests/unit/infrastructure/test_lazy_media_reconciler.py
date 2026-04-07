@@ -19,22 +19,31 @@ class TestLazyMediaReconciler:
         session = MagicMock()
         session_factory.return_value = session
 
+        # Candidate with nested media object; screenshot file does NOT exist on disk
+        media_mock = MagicMock()
+        media_mock.screenshot_path = str(media_root / "1" / "10_screenshot.webp")
+        media_mock.audio_path = None
+
         candidate = MagicMock()
         candidate.id = 10
         candidate.source_id = 1
-        candidate.screenshot_path = str(media_root / "1" / "10_screenshot.webp")  # file does NOT exist
-        candidate.audio_path = None
+        candidate.media = media_mock
 
-        with patch("backend.infrastructure.services.lazy_media_reconciler.SqlaCandidateRepository") as cand_cls:
-            repo = cand_cls.return_value
-            repo.get_by_source.return_value = [candidate]
+        with (
+            patch("backend.infrastructure.services.lazy_media_reconciler.SqlaCandidateRepository") as cand_cls,
+            patch("backend.infrastructure.services.lazy_media_reconciler.SqlaCandidateMediaRepository") as media_cls,
+        ):
+            cand_repo = cand_cls.return_value
+            cand_repo.get_by_source.return_value = [candidate]
+            media_repo = media_cls.return_value
+
             reconciler = LazyMediaReconciler(session_factory, str(media_root))
 
             await reconciler.schedule(1)
             # Give background task time to run
             await asyncio.sleep(0.1)
 
-            repo.clear_media_path.assert_called_once_with(
+            media_repo.clear_paths.assert_called_once_with(
                 10, clear_screenshot=True, clear_audio=False
             )
             session.commit.assert_called_once()

@@ -4,8 +4,14 @@ import asyncio
 import json
 from typing import Any
 
-from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
-from claude_agent_sdk import CLIConnectionError, CLINotFoundError, ProcessError
+from claude_agent_sdk import (
+    ClaudeAgentOptions,
+    CLIConnectionError,
+    CLINotFoundError,
+    ProcessError,
+    ResultMessage,
+    query,
+)
 
 from backend.domain.exceptions import AIServiceError
 from backend.domain.ports.ai_service import AIService
@@ -34,12 +40,11 @@ _BATCH_SCHEMA: dict[str, Any] = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "lemma": {"type": "string"},
-                        "pos": {"type": "string"},
+                        "word_index": {"type": "integer"},
                         "meaning": {"type": "string"},
                         "ipa": {"type": "string"},
                     },
-                    "required": ["lemma", "pos", "meaning", "ipa"],
+                    "required": ["word_index", "meaning", "ipa"],
                 },
             }
         },
@@ -67,11 +72,15 @@ class ClaudeAIService(AIService):
         except AIServiceError:
             raise
         except CLINotFoundError as e:
-            raise AIServiceError("Claude Code CLI not found. Install it at https://claude.ai/download") from e
+            raise AIServiceError(
+                "Claude Code CLI not found. Install it at https://claude.ai/download"
+            ) from e
         except CLIConnectionError as e:
             raise AIServiceError("Cannot connect to Claude. Run 'claude' to log in.") from e
         except ProcessError as e:
-            raise AIServiceError(f"Claude process failed (exit {e.exit_code}). Run 'claude' to check auth.") from e
+            raise AIServiceError(
+                f"Claude process failed (exit {e.exit_code}). Run 'claude' to check auth."
+            ) from e
         except Exception as e:
             raise AIServiceError(str(e)) from e
 
@@ -96,8 +105,15 @@ class ClaudeAIService(AIService):
         except Exception as e:
             stderr_detail = " | ".join(stderr_lines).strip()
             detail = stderr_detail or str(e)
-            if "authentication" in detail.lower() or "login" in detail.lower() or "not logged" in detail.lower():
-                raise AIServiceError(f"Not authenticated. Run 'claude' to log in. ({detail})") from e
+            is_auth = (
+                "authentication" in detail.lower()
+                or "login" in detail.lower()
+                or "not logged" in detail.lower()
+            )
+            if is_auth:
+                raise AIServiceError(
+                    f"Not authenticated. Run 'claude' to log in. ({detail})"
+                ) from e
             raise AIServiceError(detail) from e
 
         if structured is None:
@@ -105,31 +121,39 @@ class ClaudeAIService(AIService):
 
         # structured_output may arrive as a JSON string or a dict
         if isinstance(structured, str):
-            structured = json.loads(structured)  # type: ignore[assignment]
+            structured = json.loads(structured)
 
         return GenerationResult(
-            meaning=structured["meaning"],  # type: ignore[index]
-            ipa=structured.get("ipa"),  # type: ignore[union-attr]
+            meaning=structured["meaning"],
+            ipa=structured.get("ipa"),
             tokens_used=tokens_used,
         )
 
     # --- batch generation -----------------------------------------------------
 
-    def generate_meanings_batch(self, system_prompt: str, user_prompt: str) -> list[BatchMeaningResult]:
+    def generate_meanings_batch(
+        self, system_prompt: str, user_prompt: str
+    ) -> list[BatchMeaningResult]:
         try:
             return asyncio.run(self._async_generate_batch(system_prompt, user_prompt))
         except AIServiceError:
             raise
         except CLINotFoundError as e:
-            raise AIServiceError("Claude Code CLI not found. Install it at https://claude.ai/download") from e
+            raise AIServiceError(
+                "Claude Code CLI not found. Install it at https://claude.ai/download"
+            ) from e
         except CLIConnectionError as e:
             raise AIServiceError("Cannot connect to Claude. Run 'claude' to log in.") from e
         except ProcessError as e:
-            raise AIServiceError(f"Claude process failed (exit {e.exit_code}). Run 'claude' to check auth.") from e
+            raise AIServiceError(
+                f"Claude process failed (exit {e.exit_code}). Run 'claude' to check auth."
+            ) from e
         except Exception as e:
             raise AIServiceError(str(e)) from e
 
-    async def _async_generate_batch(self, system_prompt: str, user_prompt: str) -> list[BatchMeaningResult]:
+    async def _async_generate_batch(
+        self, system_prompt: str, user_prompt: str
+    ) -> list[BatchMeaningResult]:
         stderr_lines: list[str] = []
 
         options = ClaudeAgentOptions(
@@ -147,21 +171,27 @@ class ClaudeAIService(AIService):
         except Exception as e:
             stderr_detail = " | ".join(stderr_lines).strip()
             detail = stderr_detail or str(e)
-            if "authentication" in detail.lower() or "login" in detail.lower() or "not logged" in detail.lower():
-                raise AIServiceError(f"Not authenticated. Run 'claude' to log in. ({detail})") from e
+            is_auth = (
+                "authentication" in detail.lower()
+                or "login" in detail.lower()
+                or "not logged" in detail.lower()
+            )
+            if is_auth:
+                raise AIServiceError(
+                    f"Not authenticated. Run 'claude' to log in. ({detail})"
+                ) from e
             raise AIServiceError(detail) from e
 
         if structured is None:
             raise AIServiceError("No structured output received from Claude")
 
         if isinstance(structured, str):
-            structured = json.loads(structured)  # type: ignore[assignment]
+            structured = json.loads(structured)
 
-        results: list[dict[str, Any]] = structured["results"]  # type: ignore[index]
+        results: list[dict[str, Any]] = structured["results"]
         return [
             BatchMeaningResult(
-                lemma=item["lemma"],
-                pos=item["pos"],
+                word_index=item["word_index"],
                 meaning=item["meaning"],
                 ipa=item.get("ipa"),
             )
