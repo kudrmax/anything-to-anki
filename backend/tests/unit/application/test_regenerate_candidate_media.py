@@ -7,6 +7,7 @@ import pytest
 from backend.application.use_cases.regenerate_candidate_media import (
     RegenerateCandidateMediaUseCase,
 )
+from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.value_objects.parsed_srt import ParsedSrt
 from backend.domain.value_objects.source_type import SourceType
 from backend.domain.value_objects.subtitle_block import SubtitleBlock
@@ -29,8 +30,6 @@ class TestRegenerateCandidateMedia:
         candidate.id = 10
         candidate.source_id = 42
         candidate.context_fragment = "How are you?"
-        candidate.media_start_ms = 0  # stale
-        candidate.media_end_ms = 0  # stale
 
         source = MagicMock()
         source.id = 42
@@ -46,9 +45,11 @@ class TestRegenerateCandidateMedia:
         parser = MagicMock()
         parser.parse_structured.return_value = _make_parsed_srt()
         media_extractor = MagicMock()
+        media_repo = MagicMock()
 
         uc = RegenerateCandidateMediaUseCase(
             candidate_repo=candidate_repo,
+            media_repo=media_repo,
             source_repo=source_repo,
             structured_srt_parser=parser,
             media_extractor=media_extractor,
@@ -58,9 +59,6 @@ class TestRegenerateCandidateMedia:
         with patch("backend.application.use_cases.regenerate_candidate_media.os.makedirs"), \
              patch("backend.application.use_cases.regenerate_candidate_media.os.path.exists", return_value=True):
             uc.execute(candidate_id=10)
-
-        # Timecodes were recomputed (3000-4000 from second block, matching "How are you?")
-        candidate_repo.update_media_timecodes.assert_called_once_with(10, start_ms=3000, end_ms=4000)
 
         # Screenshot extracted at midpoint (3500 ms)
         screenshot_call = media_extractor.extract_screenshot.call_args
@@ -76,8 +74,14 @@ class TestRegenerateCandidateMedia:
         assert audio_call.args[3].endswith("10_audio.m4a")
         assert audio_call.kwargs.get("audio_track_index") is None
 
-        # Paths updated in DB
-        candidate_repo.update_media_paths.assert_called_once()
+        # CandidateMedia upserted with correct fields
+        media_repo.upsert.assert_called_once()
+        upserted: CandidateMedia = media_repo.upsert.call_args[0][0]
+        assert upserted.candidate_id == 10
+        assert upserted.start_ms == 3000
+        assert upserted.end_ms == 4000
+        assert upserted.screenshot_path.endswith("10_screenshot.webp")
+        assert upserted.audio_path.endswith("10_audio.m4a")
 
     def test_uses_source_audio_track_index(self) -> None:
         candidate = MagicMock()
@@ -99,9 +103,11 @@ class TestRegenerateCandidateMedia:
         parser = MagicMock()
         parser.parse_structured.return_value = _make_parsed_srt()
         media_extractor = MagicMock()
+        media_repo = MagicMock()
 
         uc = RegenerateCandidateMediaUseCase(
             candidate_repo=candidate_repo,
+            media_repo=media_repo,
             source_repo=source_repo,
             structured_srt_parser=parser,
             media_extractor=media_extractor,
@@ -121,6 +127,7 @@ class TestRegenerateCandidateMedia:
 
         uc = RegenerateCandidateMediaUseCase(
             candidate_repo=candidate_repo,
+            media_repo=MagicMock(),
             source_repo=MagicMock(),
             structured_srt_parser=MagicMock(),
             media_extractor=MagicMock(),
@@ -144,6 +151,7 @@ class TestRegenerateCandidateMedia:
 
         uc = RegenerateCandidateMediaUseCase(
             candidate_repo=candidate_repo,
+            media_repo=MagicMock(),
             source_repo=source_repo,
             structured_srt_parser=MagicMock(),
             media_extractor=MagicMock(),
@@ -169,6 +177,7 @@ class TestRegenerateCandidateMedia:
 
         uc = RegenerateCandidateMediaUseCase(
             candidate_repo=candidate_repo,
+            media_repo=MagicMock(),
             source_repo=source_repo,
             structured_srt_parser=MagicMock(),
             media_extractor=MagicMock(),
@@ -201,6 +210,7 @@ class TestRegenerateCandidateMedia:
 
         uc = RegenerateCandidateMediaUseCase(
             candidate_repo=candidate_repo,
+            media_repo=MagicMock(),
             source_repo=source_repo,
             structured_srt_parser=parser,
             media_extractor=MagicMock(),
