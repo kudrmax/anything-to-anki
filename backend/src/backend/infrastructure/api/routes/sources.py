@@ -282,6 +282,37 @@ async def create_video_source(
     return {"id": result.source_id, "status": "new"}
 
 
+@router.get("/{source_id}/queue-summary")
+def get_queue_summary(
+    source_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, dict[str, int]]:
+    """Aggregate counts of meaning/media enrichments by status.
+    Used by frontend to show 'Cancel queue' / 'Retry failed' button visibility."""
+    from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+
+    meaning_repo = container.candidate_meaning_repository(session)
+    media_repo = container.candidate_media_repository(session)
+
+    qs = EnrichmentStatus.QUEUED
+    rs = EnrichmentStatus.RUNNING
+    fs = EnrichmentStatus.FAILED
+
+    return {
+        "meaning": {
+            "queued": len(meaning_repo.get_candidate_ids_by_status(source_id, qs)),
+            "running": len(meaning_repo.get_candidate_ids_by_status(source_id, rs)),
+            "failed": len(meaning_repo.get_candidate_ids_by_status(source_id, fs)),
+        },
+        "media": {
+            "queued": len(media_repo.get_candidate_ids_by_status(source_id, qs)),
+            "running": len(media_repo.get_candidate_ids_by_status(source_id, rs)),
+            "failed": len(media_repo.get_candidate_ids_by_status(source_id, fs)),
+        },
+    }
+
+
 @router.get("/{source_id}/candidates")
 def get_candidates(
     source_id: int,
