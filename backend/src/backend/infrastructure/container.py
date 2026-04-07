@@ -44,6 +44,12 @@ from backend.infrastructure.adapters.wordfreq_frequency_provider import (
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
+from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
+    SqlaCandidateMeaningRepository,
+)
+from backend.infrastructure.persistence.sqla_candidate_media_repository import (
+    SqlaCandidateMediaRepository,
+)
 from backend.infrastructure.persistence.sqla_generation_job_repository import (
     SqlaGenerationJobRepository,
 )
@@ -213,6 +219,7 @@ class Container:
         ai_service = HttpAIService(url=ai_proxy_url, model=model_id_for(ai_model_key))
         return GenerateMeaningUseCase(
             candidate_repo=SqlaCandidateRepository(session),
+            meaning_repo=SqlaCandidateMeaningRepository(session),  # NEW
             ai_service=ai_service,
             prompt_repo=SqlaPromptRepository(session),
         )
@@ -220,7 +227,7 @@ class Container:
     def start_generation_use_case(self, session: Session) -> StartGenerationUseCase:
         return StartGenerationUseCase(
             job_repo=SqlaGenerationJobRepository(session),
-            candidate_repo=SqlaCandidateRepository(session),
+            meaning_repo=SqlaCandidateMeaningRepository(session),  # NEW (replaces candidate_repo)
         )
 
     def stop_generation_use_case(self, session: Session) -> StopGenerationUseCase:
@@ -243,6 +250,7 @@ class Container:
         return RunGenerationJobUseCase(
             job_repo=SqlaGenerationJobRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            meaning_repo=SqlaCandidateMeaningRepository(session),  # NEW
             ai_service=ai_service,
             prompt_repo=SqlaPromptRepository(session),
         )
@@ -272,7 +280,7 @@ class Container:
         from backend.application.use_cases.manage_media_extraction import StartMediaExtractionUseCase
         return StartMediaExtractionUseCase(
             job_repo=SqlaMediaExtractionJobRepository(session),
-            candidate_repo=SqlaCandidateRepository(session),
+            media_repo=SqlaCandidateMediaRepository(session),  # NEW (replaces candidate_repo)
             source_repo=SqlaSourceRepository(session),
         )
 
@@ -287,6 +295,7 @@ class Container:
         return RunMediaExtractionJobUseCase(
             job_repo=SqlaMediaExtractionJobRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            media_repo=SqlaCandidateMediaRepository(session),  # NEW
             source_repo=SqlaSourceRepository(session),
             media_extractor=self._media_extractor,
             media_root=self._media_root,
@@ -303,6 +312,7 @@ class Container:
         from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
         return CleanupMediaUseCase(
             candidate_repo=SqlaCandidateRepository(session),
+            media_repo=SqlaCandidateMediaRepository(session),  # NEW
             media_root=self._media_root,
         )
 
@@ -310,6 +320,7 @@ class Container:
         from backend.application.use_cases.regenerate_candidate_media import RegenerateCandidateMediaUseCase
         return RegenerateCandidateMediaUseCase(
             candidate_repo=SqlaCandidateRepository(session),
+            media_repo=SqlaCandidateMediaRepository(session),  # NEW
             source_repo=SqlaSourceRepository(session),
             structured_srt_parser=self._srt_parser,
             media_extractor=self._media_extractor,
