@@ -85,13 +85,62 @@ class SqlaCandidateRepository(CandidateRepository):
         return self._bulk_attach(entities)
 
     def delete_by_source(self, source_id: int) -> None:
-        # Note: enrichment rows in candidate_meanings/candidate_media will be
-        # deleted explicitly in Task 21 (DeleteSourceUseCase rewrite). For now
-        # this is a half-step; the test for delete_source is updated in Task 21.
+        # Find candidate ids first to also delete their enrichment rows
+        cid_rows = (
+            self._session.query(StoredCandidateModel.id)
+            .filter(StoredCandidateModel.source_id == source_id)
+            .all()
+        )
+        cids = [r[0] for r in cid_rows]
+        if cids:
+            self._session.query(CandidateMeaningModel).filter(
+                CandidateMeaningModel.candidate_id.in_(cids)
+            ).delete(synchronize_session=False)
+            self._session.query(CandidateMediaModel).filter(
+                CandidateMediaModel.candidate_id.in_(cids)
+            ).delete(synchronize_session=False)
         self._session.query(StoredCandidateModel).filter(
             StoredCandidateModel.source_id == source_id
         ).delete()
         self._session.flush()
+
+    def get_active_without_meaning(
+        self, source_id: int, limit: int
+    ) -> list[StoredCandidate]:
+        active_statuses = (CandidateStatus.PENDING.value, CandidateStatus.LEARN.value)
+        models = (
+            self._session.query(StoredCandidateModel)
+            .outerjoin(
+                CandidateMeaningModel,
+                CandidateMeaningModel.candidate_id == StoredCandidateModel.id,
+            )
+            .filter(
+                StoredCandidateModel.source_id == source_id,
+                StoredCandidateModel.status.in_(active_statuses),
+                CandidateMeaningModel.candidate_id.is_(None),
+            )
+            .limit(limit)
+            .all()
+        )
+        entities = [m.to_entity() for m in models]
+        return self._bulk_attach(entities)
+
+    def count_active_without_meaning(self, source_id: int) -> int:
+        active_statuses = (CandidateStatus.PENDING.value, CandidateStatus.LEARN.value)
+        result = (
+            self._session.query(func.count(StoredCandidateModel.id))
+            .outerjoin(
+                CandidateMeaningModel,
+                CandidateMeaningModel.candidate_id == StoredCandidateModel.id,
+            )
+            .filter(
+                StoredCandidateModel.source_id == source_id,
+                StoredCandidateModel.status.in_(active_statuses),
+                CandidateMeaningModel.candidate_id.is_(None),
+            )
+            .scalar()
+        )
+        return result or 0
 
     # ── private helpers ────────────────────────────────────────────────
 
