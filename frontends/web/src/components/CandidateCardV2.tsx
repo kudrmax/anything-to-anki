@@ -348,44 +348,86 @@ export function CandidateCardV2({
       {/* Horizontal split: media left, content right */}
       <div style={{ display: 'flex', gap: '14px', paddingRight: '120px' }}>
         {/* LEFT: Media column */}
-        {(screenshotUrl || audioUrl) && (
-          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {screenshotUrl && (
-              <img
-                src={screenshotUrl}
-                alt="Scene screenshot"
-                width={160}
-                height={90}
-                style={{
-                  objectFit: 'cover',
-                  borderRadius: '8px',
-                  border: '1px solid var(--glass-b)',
-                  display: 'block',
-                }}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-              />
-            )}
-            {audioUrl && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  new Audio(audioUrl).play().catch(() => undefined)
-                }}
-                className="flex items-center justify-center gap-1.5 text-xs cursor-pointer"
-                style={{
+        {(() => {
+          // Derive URLs from candidate.media (preferred), fall back to mediaMap props
+          // (mediaMap is built from /sources/{id}/cards which is LEARN-only).
+          const candShot = candidate.media?.screenshot_path
+            ? `/media/${candidate.source_id}/${candidate.media.screenshot_path.split('/').pop()}`
+            : null
+          const candAudio = candidate.media?.audio_path
+            ? `/media/${candidate.source_id}/${candidate.media.audio_path.split('/').pop()}`
+            : null
+          const finalShot = candShot ?? screenshotUrl ?? null
+          const finalAudio = candAudio ?? audioUrl ?? null
+          const mediaStatus = candidate.media?.status
+          const showMediaColumn = finalShot || finalAudio
+            || mediaStatus === 'queued' || mediaStatus === 'running' || mediaStatus === 'failed'
+          if (!showMediaColumn) return null
+          return (
+            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px', width: '160px' }}>
+              {finalShot ? (
+                <img
+                  src={finalShot}
+                  alt="Scene screenshot"
+                  width={160}
+                  height={90}
+                  style={{
+                    objectFit: 'cover',
+                    borderRadius: '8px',
+                    border: '1px solid var(--glass-b)',
+                    display: 'block',
+                  }}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                />
+              ) : (
+                <div style={{
                   width: '160px',
-                  padding: '5px 0',
-                  borderRadius: '6px',
-                  border: '1px solid var(--glass-b)',
+                  height: '90px',
+                  borderRadius: '8px',
+                  border: '1px dashed var(--glass-b)',
                   background: 'var(--glass)',
-                  color: 'var(--accent)',
-                }}
-              >
-                ▶ Play audio
-              </button>
-            )}
-          </div>
-        )}
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '11px',
+                  color: 'var(--td)',
+                  gap: '6px',
+                }}>
+                  {mediaStatus === 'running' && (
+                    <>
+                      <Loader2 size={12} className="animate-spin" /> Generating
+                    </>
+                  )}
+                  {mediaStatus === 'queued' && 'Queued'}
+                  {mediaStatus === 'failed' && (
+                    <span style={{ color: '#f87171' }} title={candidate.media?.error ?? undefined}>
+                      Failed
+                    </span>
+                  )}
+                </div>
+              )}
+              {finalAudio && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    new Audio(finalAudio).play().catch(() => undefined)
+                  }}
+                  className="flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                  style={{
+                    width: '160px',
+                    padding: '5px 0',
+                    borderRadius: '6px',
+                    border: '1px solid var(--glass-b)',
+                    background: 'var(--glass)',
+                    color: 'var(--accent)',
+                  }}
+                >
+                  ▶ Play audio
+                </button>
+              )}
+            </div>
+          )
+        })()}
 
         {/* RIGHT: Text content */}
         <div style={{ flex: 1, minWidth: 0 }}>
