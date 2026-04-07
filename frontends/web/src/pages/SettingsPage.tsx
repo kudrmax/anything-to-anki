@@ -3,6 +3,7 @@ import { CheckCircle, Loader2, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import { api } from '@/api/client'
 import type { CleanupMediaKind, CreateNoteTypeResponse, KnownWord, PromptTemplate, Settings, SourceMediaStats, VerifyNoteTypeResponse } from '@/api/types'
 import { PROMPT_LABELS } from '@/api/types'
+import { autoPlayAudioPref } from '@/lib/preferences'
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
 const AI_MODELS = [
@@ -45,6 +46,12 @@ export function SettingsPage() {
 
   const [mediaStats, setMediaStats] = useState<SourceMediaStats[]>([])
   const [mediaStatsLoading, setMediaStatsLoading] = useState(false)
+
+  const [autoPlayAudio, setAutoPlayAudio] = useState<boolean>(() => autoPlayAudioPref.read())
+  const handleAutoPlayToggle = (next: boolean) => {
+    setAutoPlayAudio(next)
+    autoPlayAudioPref.write(next)
+  }
 
   const loadMediaStats = useCallback(async () => {
     setMediaStatsLoading(true)
@@ -345,6 +352,48 @@ export function SettingsPage() {
             </p>
           </div>
 
+        </section>
+
+        {/* Review section */}
+        <section className="flex flex-col gap-4">
+          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>Review</h2>
+          <div className="glass-card rounded-xl px-4 py-3 flex items-center justify-between">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm" style={{ color: 'var(--text)' }}>Auto-play audio</span>
+              <span className="text-xs" style={{ color: 'var(--td)' }}>
+                After marking a word, automatically play the next word's audio (if available).
+              </span>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoPlayAudio}
+              onClick={() => handleAutoPlayToggle(!autoPlayAudio)}
+              className="relative cursor-pointer transition-colors"
+              style={{
+                width: '36px',
+                height: '20px',
+                borderRadius: '999px',
+                background: autoPlayAudio ? 'var(--accent)' : 'rgba(148,163,184,0.3)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '1px',
+                  left: autoPlayAudio ? '17px' : '1px',
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '999px',
+                  background: '#fff',
+                  transition: 'left 120ms ease',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                }}
+              />
+            </button>
+          </div>
         </section>
 
         {/* AI Model section */}

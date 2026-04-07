@@ -12,6 +12,13 @@ import type {
 } from '@/api/types'
 import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
 import { TextAnnotator } from '@/components/TextAnnotator'
+import { autoPlayAudioPref } from '@/lib/preferences'
+
+function audioUrlForCandidate(candidate: StoredCandidate, sourceId: number): string | null {
+  const path = candidate.media?.audio_path
+  if (!path) return null
+  return `/media/${sourceId}/${path.split('/').pop()}`
+}
 
 export function ReviewPage() {
   const { id } = useParams<{ id: string }>()
@@ -40,6 +47,51 @@ export function ReviewPage() {
   useEffect(() => {
     localStorage.setItem('reviewPage.sortOrder', sortOrder)
   }, [sortOrder])
+
+  // Audio playback is owned by ReviewPage so that:
+  // - only one audio plays at a time across cards
+  // - the parent can auto-play the next card after a mark click
+  const [playingCandidateId, setPlayingCandidateId] = useState<number | null>(null)
+  const audioElRef = useRef<HTMLAudioElement | null>(null)
+
+  const stopAudio = useCallback(() => {
+    if (audioElRef.current) {
+      audioElRef.current.pause()
+      audioElRef.current.currentTime = 0
+      audioElRef.current = null
+    }
+    setPlayingCandidateId(null)
+  }, [])
+
+  const playAudio = useCallback((candidateId: number, url: string) => {
+    if (audioElRef.current) {
+      audioElRef.current.pause()
+      audioElRef.current = null
+    }
+    const audio = new Audio(url)
+    audioElRef.current = audio
+    const clear = () => {
+      if (audioElRef.current === audio) {
+        audioElRef.current = null
+        setPlayingCandidateId(null)
+      }
+    }
+    audio.addEventListener('ended', clear)
+    audio.addEventListener('error', clear)
+    audio.play()
+      .then(() => setPlayingCandidateId(candidateId))
+      .catch(() => clear())
+  }, [])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (audioElRef.current) {
+        audioElRef.current.pause()
+        audioElRef.current = null
+      }
+    }
+  }, [])
 
   const loadCandidates = useCallback(async () => {
     const [cands, cards] = await Promise.all([
@@ -99,12 +151,36 @@ export function ReviewPage() {
     return () => clearInterval(interval)
   }, [queueSummary, loadCandidates, loadQueueSummary])
 
+  // Keep a ref to the latest candidates so handleMark (memoized) can read
+  // the freshest list without re-creating on every state change.
+  const candidatesRef = useRef<StoredCandidate[]>(candidates)
+  candidatesRef.current = candidates
+
   const handleMark = useCallback(async (candidateId: number, status: CandidateStatus) => {
+    // Capture the next pending candidate BEFORE marking — once we mark,
+    // this one is removed from the pending list and 'next' shifts.
+    let nextToPlay: { id: number; url: string } | null = null
+    if (autoPlayAudioPref.read()) {
+      const pending = candidatesRef.current.filter((c) => c.status === 'pending')
+      const idx = pending.findIndex((c) => c.id === candidateId)
+      if (idx >= 0 && idx + 1 < pending.length) {
+        const next = pending[idx + 1]
+        const url = audioUrlForCandidate(next, sourceId)
+        if (url && next.id !== null) {
+          nextToPlay = { id: next.id, url }
+        }
+      }
+    }
+
     await api.markCandidate(candidateId, status)
     setCandidates((prev) =>
       prev.map((c) => (c.id === candidateId ? { ...c, status } : c)),
     )
-  }, [])
+
+    if (nextToPlay) {
+      playAudio(nextToPlay.id, nextToPlay.url)
+    }
+  }, [sourceId, playAudio])
 
   const handleCardHoverEnter = useCallback((id: number) => {
     hoverFromCardRef.current = true
@@ -504,6 +580,9 @@ export function ReviewPage() {
                 onRegenerateMedia={source?.source_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                 isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
                 hasMediaTimecodes={c.media?.start_ms != null}
+                isAudioPlaying={playingCandidateId === c.id}
+                onPlayAudio={(url) => playAudio(c.id, url)}
+                onStopAudio={stopAudio}
               />
             ))
           )}
@@ -537,6 +616,9 @@ export function ReviewPage() {
                   onRegenerateMedia={source?.source_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                   isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
                   hasMediaTimecodes={c.media?.start_ms != null}
+                  isAudioPlaying={playingCandidateId === c.id}
+                  onPlayAudio={(url) => playAudio(c.id, url)}
+                  onStopAudio={stopAudio}
                 />
               ))}
             </>

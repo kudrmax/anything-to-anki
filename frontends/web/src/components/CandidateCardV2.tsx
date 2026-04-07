@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Film, Info, Loader2, Pencil, Play, Sparkles, Square, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, StoredCandidate } from '@/api/types'
@@ -21,6 +21,12 @@ interface CandidateCardV2Props {
   onRegenerateMedia?: (id: number) => void
   isRegeneratingMedia?: boolean
   hasMediaTimecodes?: boolean
+  // Audio playback is lifted to the parent so that:
+  //  - only one audio plays at a time across cards
+  //  - the parent can auto-play the next card's audio after a mark click
+  isAudioPlaying: boolean
+  onPlayAudio: (url: string) => void
+  onStopAudio: () => void
 }
 
 const POS_LABEL: Record<string, string> = {
@@ -177,33 +183,18 @@ export function CandidateCardV2({
   onRegenerateMedia,
   isRegeneratingMedia,
   hasMediaTimecodes,
+  isAudioPlaying,
+  onPlayAudio,
+  onStopAudio,
 }: CandidateCardV2Props) {
   const [showInfo, setShowInfo] = useState(false)
-  const [isAudioPlaying, setIsAudioPlaying] = useState(false)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-
-  // Cleanup audio on unmount
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current = null
-      }
-    }
-  }, [])
 
   const toggleAudio = (url: string) => {
-    if (isAudioPlaying && audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
-      setIsAudioPlaying(false)
-      return
+    if (isAudioPlaying) {
+      onStopAudio()
+    } else {
+      onPlayAudio(url)
     }
-    const audio = new Audio(url)
-    audioRef.current = audio
-    audio.addEventListener('ended', () => setIsAudioPlaying(false))
-    audio.addEventListener('error', () => setIsAudioPlaying(false))
-    audio.play().then(() => setIsAudioPlaying(true)).catch(() => setIsAudioPlaying(false))
   }
 
   const handleMark = async (status: CandidateStatus) => {
