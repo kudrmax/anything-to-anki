@@ -10,5 +10,26 @@ services:
       APP_ENV: ${APP_ENV:-development}
       ANKI_URL: http://host.docker.internal:8765
       AI_PROXY_URL: ${AI_PROXY_URL:-http://host.docker.internal:8766}
+      REDIS_URL: redis://redis:6379
     volumes:
       - ./data:/data
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      AI_PROXY_URL: ${AI_PROXY_URL:-http://host.docker.internal:8766}
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./data:/data
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - ./data/redis:/data
