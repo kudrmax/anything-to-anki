@@ -72,7 +72,11 @@ class SourceModel(Base):
 
 
 class StoredCandidateModel(Base):
-    """SQLAlchemy model for word candidates."""
+    """SQLAlchemy model for word candidates.
+
+    Note: meaning and media live in separate tables (CandidateMeaningModel,
+    CandidateMediaModel) and are loaded by SqlaCandidateRepository, not here.
+    """
 
     __tablename__ = "candidates"
 
@@ -88,15 +92,11 @@ class StoredCandidateModel(Base):
     occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     surface_form: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    meaning: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ipa: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False, default=False)
-    media_start_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    media_end_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    screenshot_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     def to_entity(self) -> StoredCandidate:
+        """Build a StoredCandidate WITHOUT meaning/media — those are loaded
+        separately by SqlaCandidateRepository which then attaches them."""
         return StoredCandidate(
             id=self.id,
             source_id=self.source_id,
@@ -109,14 +109,10 @@ class StoredCandidateModel(Base):
             fragment_purity=self.fragment_purity,
             occurrences=self.occurrences,
             surface_form=self.surface_form,
-            meaning=self.meaning,
-            ipa=self.ipa,
             is_phrasal_verb=self.is_phrasal_verb,
-            media_start_ms=self.media_start_ms,
-            media_end_ms=self.media_end_ms,
-            screenshot_path=self.screenshot_path,
-            audio_path=self.audio_path,
             status=CandidateStatus(self.status),
+            meaning=None,
+            media=None,
         )
 
     @staticmethod
@@ -132,13 +128,7 @@ class StoredCandidateModel(Base):
             fragment_purity=candidate.fragment_purity,
             occurrences=candidate.occurrences,
             surface_form=candidate.surface_form,
-            meaning=candidate.meaning,
-            ipa=candidate.ipa,
             is_phrasal_verb=candidate.is_phrasal_verb,
-            media_start_ms=candidate.media_start_ms,
-            media_end_ms=candidate.media_end_ms,
-            screenshot_path=candidate.screenshot_path,
-            audio_path=candidate.audio_path,
             status=candidate.status.value,
         )
 
