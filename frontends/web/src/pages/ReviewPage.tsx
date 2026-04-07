@@ -251,14 +251,20 @@ export function ReviewPage() {
     mark?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [hoveredId])
 
+  // Auto-save source status only when the derived status actually changes,
+  // not on every candidates re-fetch (which happens during polling).
+  const lastSavedStatusRef = useRef<string | null>(null)
   useEffect(() => {
     if (loading) return
-    if (!autoSaveRef.current) {
-      autoSaveRef.current = true
-      return
-    }
     const anyPending = candidates.some((c) => c.status === 'pending')
     const newStatus = anyPending ? 'partially_reviewed' : 'reviewed'
+    if (!autoSaveRef.current) {
+      autoSaveRef.current = true
+      lastSavedStatusRef.current = newStatus
+      return
+    }
+    if (lastSavedStatusRef.current === newStatus) return
+    lastSavedStatusRef.current = newStatus
     void api.updateSourceStatus(sourceId, newStatus)
   }, [candidates, loading, sourceId])
 
