@@ -61,37 +61,43 @@ async def cancel_meaning_queue(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, int]:
-    """Soft cancel queued meaning generation jobs."""
+    """Cancel queued AND running meaning generation jobs.
+
+    Marks both QUEUED and RUNNING candidates as FAILED with 'cancelled by user'.
+    The use case checks the row status before its final upsert, so any in-flight
+    worker job will see the cancelled status and skip writing its result.
+    """
     from backend.domain.value_objects.enrichment_status import EnrichmentStatus
     meaning_repo = container.candidate_meaning_repository(session)
     queued_ids = meaning_repo.get_candidate_ids_by_status(
         source_id, EnrichmentStatus.QUEUED
     )
-    if not queued_ids:
+    running_ids = meaning_repo.get_candidate_ids_by_status(
+        source_id, EnrichmentStatus.RUNNING
+    )
+    affected_ids = queued_ids + running_ids
+    if not affected_ids:
         return {"cancelled": 0}
 
-    # Meaning jobs are batched — we abort by batch job_id pattern
+    # Mark all FAILED with cancellation marker — worker's pre-upsert guard
+    # will see this status and skip writing results for the running batch.
+    meaning_repo.mark_batch_failed(affected_ids, "cancelled by user")
+    session.commit()
+
+    # Best-effort: also abort batch jobs that haven't started yet
     redis = await container.get_redis_pool()
-    # Best-effort: try aborting all possible batch job_ids for this source
-    # Since we don't track exact batch count, iterate over a reasonable range
     cancelled_batches = 0
-    for i in range(100):  # upper bound for batches
+    for i in range(100):
         try:
             result = await redis.abort_job(f"meaning_{source_id}_{i}")
             if result:
                 cancelled_batches += 1
-            else:
-                # No more batches found
-                if i > 10 and cancelled_batches == 0:
-                    break
+            elif i > 10 and cancelled_batches == 0:
+                break
         except Exception:  # noqa: BLE001
             pass
 
-    # Mark cancelled candidates FAILED so retry-failed can resurrect them.
-    meaning_repo.mark_batch_failed(queued_ids, "cancelled by user")
-    session.commit()
-
-    return {"cancelled": len(queued_ids)}
+    return {"cancelled": len(affected_ids)}
 
 
 @router.post("/sources/{source_id}/meanings/retry-failed", status_code=202)

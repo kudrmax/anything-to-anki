@@ -79,6 +79,17 @@ class TestMediaExtractionUseCase:
         source = _make_source("/tmp/movie.mp4")
 
         uc, _, media_repo, _, media_extractor = self._make_uc(candidate, source)
+        # Pre-upsert guard expects status=RUNNING (set by worker wrapper)
+        media_repo.get_by_candidate_id.return_value = CandidateMedia(
+            candidate_id=10,
+            screenshot_path=None,
+            audio_path=None,
+            start_ms=1000,
+            end_ms=2000,
+            status=EnrichmentStatus.RUNNING,
+            error=None,
+            generated_at=None,
+        )
 
         with patch("backend.application.use_cases.run_media_extraction_job.os.path.exists", return_value=True), \
              patch("backend.application.use_cases.run_media_extraction_job.os.makedirs"):

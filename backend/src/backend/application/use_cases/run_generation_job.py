@@ -86,20 +86,29 @@ class MeaningGenerationUseCase:
 
         now = datetime.now(tz=UTC)
         matched = 0
+        cancelled = 0
         for i, c in enumerate(active, 1):
             r = result_map.get(i)
-            if r is not None and c.id is not None:
-                self._meaning_repo.upsert(CandidateMeaning(
-                    candidate_id=c.id,
-                    meaning=r.meaning,
-                    ipa=r.ipa,
-                    status=EnrichmentStatus.DONE,
-                    error=None,
-                    generated_at=now,
-                ))
-                matched += 1
+            if r is None or c.id is None:
+                continue
+            # Pre-upsert guard: check current status. If the user clicked
+            # Cancel while we were calling the AI, the row is now FAILED
+            # ('cancelled by user'). Skip writing to avoid overwriting it.
+            current = self._meaning_repo.get_by_candidate_id(c.id)
+            if current is None or current.status != EnrichmentStatus.RUNNING:
+                cancelled += 1
+                continue
+            self._meaning_repo.upsert(CandidateMeaning(
+                candidate_id=c.id,
+                meaning=r.meaning,
+                ipa=r.ipa,
+                status=EnrichmentStatus.DONE,
+                error=None,
+                generated_at=now,
+            ))
+            matched += 1
 
         logger.info(
-            "MeaningGeneration batch: %d/%d matched",
-            matched, len(active),
+            "MeaningGeneration batch: %d/%d matched, %d cancelled",
+            matched, len(active), cancelled,
         )

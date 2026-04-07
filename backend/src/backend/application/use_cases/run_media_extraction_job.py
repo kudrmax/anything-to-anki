@@ -79,6 +79,17 @@ class MediaExtractionUseCase:
             audio_track_index=source.audio_track_index,
         )
 
+        # Pre-upsert guard: check current status. If the user clicked Cancel
+        # while we were running ffmpeg, the row is now FAILED ('cancelled by
+        # user'). Skip writing to avoid overwriting it.
+        current = self._media_repo.get_by_candidate_id(candidate_id)
+        if current is None or current.status != EnrichmentStatus.RUNNING:
+            logger.info(
+                "MediaExtraction candidate %d: skipped (cancelled by user)",
+                candidate_id,
+            )
+            return
+
         self._media_repo.upsert(CandidateMedia(
             candidate_id=candidate_id,
             screenshot_path=screenshot_path,

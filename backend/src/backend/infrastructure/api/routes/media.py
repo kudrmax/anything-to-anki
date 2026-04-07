@@ -71,25 +71,38 @@ async def cancel_media_queue(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, int]:
-    """Soft cancel: abort QUEUED jobs from ARQ. In-flight jobs are not interrupted."""
+    """Cancel queued AND running media extraction jobs.
+
+    Marks both QUEUED and RUNNING candidates as FAILED with 'cancelled by user'.
+    The use case checks the row status before its final upsert, so any in-flight
+    worker job will see the cancelled status and skip writing its result.
+    """
     from backend.domain.value_objects.enrichment_status import EnrichmentStatus
     media_repo = container.candidate_media_repository(session)
     queued_ids = media_repo.get_candidate_ids_by_status(
         source_id, EnrichmentStatus.QUEUED
     )
-    if not queued_ids:
+    running_ids = media_repo.get_candidate_ids_by_status(
+        source_id, EnrichmentStatus.RUNNING
+    )
+    affected_ids = queued_ids + running_ids
+    if not affected_ids:
         return {"cancelled": 0}
 
+    media_repo.mark_batch_failed(affected_ids, "cancelled by user")
+    session.commit()
+
+    # Best-effort: abort per-candidate jobs that haven't started yet
     redis = await container.get_redis_pool()
-    cancelled = 0
-    for cid in queued_ids:
+    aborted = 0
+    for cid in affected_ids:
         try:
             result = await redis.abort_job(f"media_{cid}")
             if result:
-                cancelled += 1
+                aborted += 1
         except Exception:  # noqa: BLE001
             pass
-    return {"cancelled": cancelled}
+    return {"cancelled": len(affected_ids)}
 
 
 @router.post("/sources/{source_id}/media/retry-failed", status_code=202)
