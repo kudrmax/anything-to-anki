@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import UTC
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -44,11 +45,21 @@ async def enqueue_meaning_generation(
     session.commit()
 
     if batches:
+        from datetime import datetime, timedelta
         redis = await container.get_redis_pool()
+        # Unique timestamp prefix avoids ARQ deduplication on re-enqueue.
+        # _defer_until with microsecond offset gives each batch a UNIQUE
+        # Redis ZSET score so worker pops them in enqueue order (otherwise
+        # equal scores fall back to lexicographic, e.g. ..._10 before ..._2).
+        ts_ms = int(time.time() * 1000)
+        base = datetime.now(tz=UTC)
         for i, batch in enumerate(batches):
-            job_id = f"meaning_{source_id}_{i}"
+            job_id = f"meaning_{source_id}_{ts_ms}_{i:04d}"
             await redis.enqueue_job(
-                "generate_meanings_batch", batch, _job_id=job_id
+                "generate_meanings_batch",
+                batch,
+                _job_id=job_id,
+                _defer_until=base + timedelta(milliseconds=i),
             )
 
     total = sum(len(b) for b in batches)
@@ -118,13 +129,18 @@ async def retry_failed_meanings(
     meaning_repo.mark_queued_bulk(failed_ids)
     session.commit()
 
+    from datetime import datetime, timedelta
     redis = await container.get_redis_pool()
     batch_size = 15
     batches = [failed_ids[i:i + batch_size] for i in range(0, len(failed_ids), batch_size)]
+    ts_ms = int(time.time() * 1000)
+    base = datetime.now(tz=UTC)
     for i, batch in enumerate(batches):
-        # Use retry_N suffix to avoid clashing with previous job_ids
-        job_id = f"meaning_{source_id}_retry_{int(time.time())}_{i}"
+        job_id = f"meaning_{source_id}_retry_{ts_ms}_{i:04d}"
         await redis.enqueue_job(
-            "generate_meanings_batch", batch, _job_id=job_id
+            "generate_meanings_batch",
+            batch,
+            _job_id=job_id,
+            _defer_until=base + timedelta(milliseconds=i),
         )
     return {"enqueued": len(failed_ids), "batches": len(batches)}

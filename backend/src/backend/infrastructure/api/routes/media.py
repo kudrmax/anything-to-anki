@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import UTC
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -56,10 +57,20 @@ async def enqueue_media_generation(
     session.commit()
 
     if eligible_ids:
+        import time
+        from datetime import datetime, timedelta
         redis = await container.get_redis_pool()
-        for cid in eligible_ids:
+        # Unique timestamp prefix avoids ARQ deduplication; _defer_until with
+        # microsecond offset gives each job a unique Redis ZSET score so they
+        # are popped in enqueue order (otherwise lex order shuffles them).
+        ts_ms = int(time.time() * 1000)
+        base = datetime.now(tz=UTC)
+        for i, cid in enumerate(eligible_ids):
             await redis.enqueue_job(
-                "extract_media_for_candidate", cid, _job_id=f"media_{cid}"
+                "extract_media_for_candidate",
+                cid,
+                _job_id=f"media_{cid}_{ts_ms}",
+                _defer_until=base + timedelta(milliseconds=i),
             )
 
     return {"enqueued": len(eligible_ids)}
@@ -123,9 +134,16 @@ async def retry_failed_media(
     media_repo.mark_queued_bulk(failed_ids)
     session.commit()
 
+    import time
+    from datetime import datetime, timedelta
     redis = await container.get_redis_pool()
-    for cid in failed_ids:
+    ts_ms = int(time.time() * 1000)
+    base = datetime.now(tz=UTC)
+    for i, cid in enumerate(failed_ids):
         await redis.enqueue_job(
-            "extract_media_for_candidate", cid, _job_id=f"media_{cid}"
+            "extract_media_for_candidate",
+            cid,
+            _job_id=f"media_{cid}_retry_{ts_ms}",
+            _defer_until=base + timedelta(milliseconds=i),
         )
     return {"enqueued": len(failed_ids)}
