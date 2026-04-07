@@ -103,3 +103,34 @@ class NoActiveCandidatesError(DomainError):
 
     def __init__(self) -> None:
         super().__init__("No active candidates without meaning to process")
+
+
+class PermanentError(Exception):
+    """Base class for errors that should NOT be retried.
+
+    Use case catches subclasses and writes status=FAILED; worker considers
+    the job completed successfully (no retry)."""
+
+
+class PermanentMediaError(PermanentError):
+    """Permanent failure in media extraction."""
+
+
+class InvalidTimecodesError(PermanentMediaError):
+    pass
+
+
+class BadVideoFormatError(PermanentMediaError):
+    pass
+
+
+class FragmentNotInSrtError(PermanentMediaError):
+    pass
+
+
+class PermanentAIError(PermanentError):
+    """Permanent failure in AI generation."""
+
+
+class InvalidPromptError(PermanentAIError):
+    pass
