@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator  # noqa: TC003 — used at runtime by @contextmanager
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING, Any
 
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
@@ -75,9 +76,15 @@ from backend.infrastructure.persistence.sqla_source_repository import (
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+    from sqlalchemy.orm import Session, sessionmaker
 
     from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
+    from backend.application.use_cases.enqueue_meaning_generation import (
+        EnqueueMeaningGenerationUseCase,
+    )
+    from backend.application.use_cases.enqueue_media_generation import (
+        EnqueueMediaGenerationUseCase,
+    )
     from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
     from backend.application.use_cases.manage_media_extraction import (
         GetMediaExtractionStatusUseCase,
@@ -116,11 +123,11 @@ class Container:
         )
         self._lazy_media_reconciler: LazyMediaReconciler | None = None  # lazy init on first call
         # Lazy-created by get_redis_pool()
-        self._redis_pool: object | None = None
-        # Session factory — lazy-loaded to avoid importing from api.dependencies at class-definition time
-        self._session_factory = None
+        self._redis_pool: Any = None  # arq has no type stubs — Any is justified
+        # Session factory — lazy-loaded to avoid circular import with api.dependencies
+        self._session_factory: sessionmaker[Session] | None = None
 
-    def _get_session_factory(self):  # type: ignore[return]
+    def _get_session_factory(self) -> sessionmaker[Session]:
         """Lazy-load the session factory to avoid circular imports."""
         if self._session_factory is None:
             from backend.infrastructure.api.dependencies import get_session_factory
@@ -385,7 +392,27 @@ class Container:
     def candidate_media_repository(self, session: Session) -> SqlaCandidateMediaRepository:
         return SqlaCandidateMediaRepository(session)
 
-    async def get_redis_pool(self) -> object:
+    def enqueue_media_generation_use_case(
+        self, session: Session
+    ) -> EnqueueMediaGenerationUseCase:
+        from backend.application.use_cases.enqueue_media_generation import (
+            EnqueueMediaGenerationUseCase,
+        )
+        return EnqueueMediaGenerationUseCase(
+            media_repo=SqlaCandidateMediaRepository(session),
+        )
+
+    def enqueue_meaning_generation_use_case(
+        self, session: Session
+    ) -> EnqueueMeaningGenerationUseCase:
+        from backend.application.use_cases.enqueue_meaning_generation import (
+            EnqueueMeaningGenerationUseCase,
+        )
+        return EnqueueMeaningGenerationUseCase(
+            meaning_repo=SqlaCandidateMeaningRepository(session),
+        )
+
+    async def get_redis_pool(self) -> Any:  # noqa: ANN401 — arq has no type stubs
         """Lazy-init shared ArqRedis pool for enqueueing jobs from FastAPI."""
         import os
 

@@ -78,3 +78,77 @@ async def _run_media_job_background(
 ) -> None:
     # Deprecated: old job-loop flow. Removed in Phase 2 C7.
     raise NotImplementedError("Deprecated, removed in Phase 2 C7")
+
+
+@router.post("/sources/{source_id}/media/generate", status_code=202)
+async def enqueue_media_generation(
+    source_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, int]:
+    """Enqueue ARQ jobs for all eligible candidates (those with timecodes but no screenshot)."""
+    use_case = container.enqueue_media_generation_use_case(session)
+    eligible_ids = use_case.execute(source_id)
+    session.commit()
+
+    if eligible_ids:
+        redis = await container.get_redis_pool()
+        for cid in eligible_ids:
+            await redis.enqueue_job(
+                "extract_media_for_candidate", cid, _job_id=f"media_{cid}"
+            )
+
+    return {"enqueued": len(eligible_ids)}
+
+
+@router.post("/sources/{source_id}/media/cancel")
+async def cancel_media_queue(
+    source_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, int]:
+    """Soft cancel: abort QUEUED jobs from ARQ. In-flight jobs are not interrupted."""
+    from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+    media_repo = container.candidate_media_repository(session)
+    queued_ids = media_repo.get_candidate_ids_by_status(
+        source_id, EnrichmentStatus.QUEUED
+    )
+    if not queued_ids:
+        return {"cancelled": 0}
+
+    redis = await container.get_redis_pool()
+    cancelled = 0
+    for cid in queued_ids:
+        try:
+            result = await redis.abort_job(f"media_{cid}")
+            if result:
+                cancelled += 1
+        except Exception:  # noqa: BLE001
+            pass
+    return {"cancelled": cancelled}
+
+
+@router.post("/sources/{source_id}/media/retry-failed", status_code=202)
+async def retry_failed_media(
+    source_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, int]:
+    """Re-enqueue all FAILED media jobs for the source."""
+    from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+    media_repo = container.candidate_media_repository(session)
+    failed_ids = media_repo.get_candidate_ids_by_status(
+        source_id, EnrichmentStatus.FAILED
+    )
+    if not failed_ids:
+        return {"enqueued": 0}
+
+    media_repo.mark_queued_bulk(failed_ids)
+    session.commit()
+
+    redis = await container.get_redis_pool()
+    for cid in failed_ids:
+        await redis.enqueue_job(
+            "extract_media_for_candidate", cid, _job_id=f"media_{cid}"
+        )
+    return {"enqueued": len(failed_ids)}
