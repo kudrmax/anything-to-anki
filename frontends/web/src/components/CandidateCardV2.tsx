@@ -459,7 +459,7 @@ export function CandidateCardV2({
             <span
               style={{
                 float: 'right',
-                margin: '0 0 4px 8px',
+                margin: '-2px 0 4px 8px',
                 padding: '2px 10px',
                 background: 'rgba(124,58,237,0.18)',
                 color: '#a78bfa',
@@ -475,7 +475,7 @@ export function CandidateCardV2({
             <span
               style={{
                 float: 'right',
-                margin: '0 0 4px 8px',
+                margin: '-2px 0 4px 8px',
                 padding: '2px 10px',
                 background: cefrPillColor.bg,
                 color: cefrPillColor.color,
@@ -490,7 +490,10 @@ export function CandidateCardV2({
           )}
 
           <p style={{
-            margin: '-3px 0 6px',
+            // Compensate for line-box leading: with line-height 1.5 on a 17px font,
+            // the visible cap-line of the first character sits ~9px below the line
+            // box top. Without this offset the text appears lower than the image top.
+            margin: '-9px 0 6px',
             fontSize: '17px',
             color: '#c4b5fd',
             lineHeight: 1.5,
