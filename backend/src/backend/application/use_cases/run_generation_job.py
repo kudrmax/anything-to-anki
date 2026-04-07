@@ -61,7 +61,9 @@ class MeaningGenerationUseCase:
         ]
 
         if not active:
-            logger.info("MeaningGeneration batch: all candidates skipped (status changed or already done)")
+            logger.info(
+                "MeaningGeneration batch: all candidates skipped (status changed or done)"
+            )
             return
 
         # Format batch prompt

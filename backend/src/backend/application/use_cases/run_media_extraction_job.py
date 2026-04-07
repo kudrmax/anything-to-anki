@@ -51,7 +51,8 @@ class MediaExtractionUseCase:
         candidate = self._candidate_repo.get_by_id(candidate_id)
         if candidate is None:
             raise PermanentMediaError(f"Candidate {candidate_id} not found")
-        if candidate.media is None or candidate.media.start_ms is None or candidate.media.end_ms is None:
+        media = candidate.media
+        if media is None or media.start_ms is None or media.end_ms is None:
             raise InvalidTimecodesError(f"Candidate {candidate_id} has no timecodes")
 
         source = self._source_repo.get_by_id(candidate.source_id)
@@ -60,8 +61,8 @@ class MediaExtractionUseCase:
         if source.video_path is None or not os.path.exists(source.video_path):
             raise BadVideoFormatError(f"Video missing for source {source.id}")
 
-        start_ms = candidate.media.start_ms
-        end_ms = candidate.media.end_ms
+        start_ms = media.start_ms
+        end_ms = media.end_ms
 
         out_dir = os.path.join(self._media_root, str(source.id))
         os.makedirs(out_dir, exist_ok=True)
