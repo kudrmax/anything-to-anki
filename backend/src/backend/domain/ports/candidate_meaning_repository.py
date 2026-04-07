@@ -3,6 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_meaning import CandidateMeaning
 
@@ -47,3 +49,29 @@ class CandidateMeaningRepository(ABC):
         source_id: int | None,
         only_active: bool,
     ) -> int: ...
+
+    @abstractmethod
+    def mark_queued_bulk(self, candidate_ids: list[int]) -> None:
+        """Upsert status=QUEUED for each candidate. Preserves existing meaning/ipa
+        on retry of failed rows (only flips status + clears error).
+
+        If a row doesn't exist yet, creates a placeholder row with NULL meaning/ipa."""
+
+    @abstractmethod
+    def mark_running(self, candidate_id: int) -> None:
+        """Set status=RUNNING on existing row. No-op if no row exists."""
+
+    @abstractmethod
+    def mark_failed(self, candidate_id: int, error: str) -> None:
+        """Set status=FAILED and error text. No-op if no row exists."""
+
+    @abstractmethod
+    def mark_batch_failed(self, candidate_ids: list[int], error: str) -> None:
+        """Bulk FAILED for a whole batch (used by worker on_job_end)."""
+
+    @abstractmethod
+    def get_candidate_ids_by_status(
+        self, source_id: int, status: EnrichmentStatus,
+    ) -> list[int]:
+        """Return candidate ids from the given source whose meaning row has the given status.
+        Used by cancel/retry-failed endpoints."""

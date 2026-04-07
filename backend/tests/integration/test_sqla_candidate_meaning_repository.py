@@ -167,3 +167,103 @@ class TestSqlaCandidateMeaningRepository:
             # 2 candidates, neither has meaning, but only 1 active (PENDING)
             assert repo.count_candidate_ids_without_meaning(source_id=1, only_active=True) == 1
             assert repo.count_candidate_ids_without_meaning(source_id=1, only_active=False) == 2
+
+    def test_mark_queued_bulk_creates_and_updates(self) -> None:
+        with self._Session() as s:
+            s.execute(text(
+                "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
+                "occurrences, status, is_phrasal_verb) "
+                "VALUES (2, 1, 'y', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0)"
+            ))
+            s.commit()
+            repo = SqlaCandidateMeaningRepository(s)
+            # candidate 1: no existing row (will be created)
+            # candidate 2: existing row with meaning (will be flipped to QUEUED, meaning preserved)
+            repo.upsert(CandidateMeaning(
+                candidate_id=2, meaning="existing", ipa=None,
+                status=EnrichmentStatus.FAILED, error="old error", generated_at=None,
+            ))
+            s.commit()
+
+            repo.mark_queued_bulk([1, 2])
+            s.commit()
+
+            row1 = repo.get_by_candidate_id(1)
+            row2 = repo.get_by_candidate_id(2)
+            assert row1 is not None and row1.status == EnrichmentStatus.QUEUED
+            assert row1.meaning is None
+            assert row2 is not None and row2.status == EnrichmentStatus.QUEUED
+            assert row2.meaning == "existing"  # preserved
+            assert row2.error is None  # cleared
+
+    def test_mark_running_flips_status(self) -> None:
+        with self._Session() as s:
+            repo = SqlaCandidateMeaningRepository(s)
+            repo.upsert(CandidateMeaning(
+                candidate_id=1, meaning=None, ipa=None,
+                status=EnrichmentStatus.QUEUED, error=None, generated_at=None,
+            ))
+            s.commit()
+            repo.mark_running(1)
+            s.commit()
+            loaded = repo.get_by_candidate_id(1)
+            assert loaded is not None
+            assert loaded.status == EnrichmentStatus.RUNNING
+
+    def test_mark_failed_sets_error(self) -> None:
+        with self._Session() as s:
+            repo = SqlaCandidateMeaningRepository(s)
+            repo.upsert(CandidateMeaning(
+                candidate_id=1, meaning=None, ipa=None,
+                status=EnrichmentStatus.RUNNING, error=None, generated_at=None,
+            ))
+            s.commit()
+            repo.mark_failed(1, "boom")
+            s.commit()
+            loaded = repo.get_by_candidate_id(1)
+            assert loaded is not None
+            assert loaded.status == EnrichmentStatus.FAILED
+            assert loaded.error == "boom"
+
+    def test_mark_batch_failed(self) -> None:
+        with self._Session() as s:
+            s.execute(text(
+                "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
+                "occurrences, status, is_phrasal_verb) "
+                "VALUES (2, 1, 'y', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0)"
+            ))
+            s.commit()
+            repo = SqlaCandidateMeaningRepository(s)
+            repo.mark_queued_bulk([1, 2])
+            s.commit()
+            repo.mark_batch_failed([1, 2], "api down")
+            s.commit()
+            r1 = repo.get_by_candidate_id(1)
+            r2 = repo.get_by_candidate_id(2)
+            assert r1 is not None and r1.status == EnrichmentStatus.FAILED
+            assert r2 is not None and r2.status == EnrichmentStatus.FAILED
+            assert r1.error == "api down"
+
+    def test_get_candidate_ids_by_status_failed(self) -> None:
+        with self._Session() as s:
+            s.execute(text(
+                "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
+                "occurrences, status, is_phrasal_verb) "
+                "VALUES (2, 1, 'y', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0)"
+            ))
+            s.commit()
+            repo = SqlaCandidateMeaningRepository(s)
+            repo.upsert(CandidateMeaning(
+                candidate_id=1, meaning="x", ipa=None,
+                status=EnrichmentStatus.DONE, error=None, generated_at=None,
+            ))
+            repo.upsert(CandidateMeaning(
+                candidate_id=2, meaning=None, ipa=None,
+                status=EnrichmentStatus.FAILED, error="boom", generated_at=None,
+            ))
+            s.commit()
+            failed_ids = repo.get_candidate_ids_by_status(1, EnrichmentStatus.FAILED)
+            assert failed_ids == [2]
