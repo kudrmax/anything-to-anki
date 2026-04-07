@@ -74,7 +74,7 @@ export function ExportPage() {
     setGeneratingAll(true)
     setError(null)
     try {
-      await api.startGeneration(sourceId)
+      await api.enqueueMeaningGeneration(sourceId)
       const updated = await api.getSourceCards(sourceId)
       setCards(updated)
       setToast({ text: 'Generation started in background', key: Date.now() })

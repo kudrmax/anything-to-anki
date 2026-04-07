@@ -15,9 +15,6 @@ interface CandidateCardV2Props {
   isEditingFragment?: boolean
   onGenerateMeaning?: (id: number) => void
   isGenerating?: boolean
-  batchGenerationStatus?: 'pending' | 'running' | 'failed' | null
-  isInBatchProcessing?: boolean
-  isQueued?: boolean
   screenshotUrl?: string | null
   audioUrl?: string | null
   onRegenerateMedia?: (id: number) => void
@@ -195,9 +192,6 @@ export function CandidateCardV2({
   isEditingFragment,
   onGenerateMeaning,
   isGenerating,
-  batchGenerationStatus,
-  isInBatchProcessing,
-  isQueued,
   screenshotUrl,
   audioUrl,
   onRegenerateMedia,
@@ -420,14 +414,16 @@ export function CandidateCardV2({
             }}>
               {renderMeaning(candidate.meaning.meaning, candidate.lemma, candidate.surface_form)}
             </p>
-          ) : isInBatchProcessing ? (
+          ) : candidate.meaning?.status === 'running' ? (
             <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--td)', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Loader2 size={13} className="animate-spin" /> Generating...
             </p>
-          ) : isQueued ? (
+          ) : candidate.meaning?.status === 'queued' ? (
             <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--td)' }}>Queued</p>
-          ) : batchGenerationStatus === 'failed' ? (
-            <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#f87171' }}>Failed to generate</p>
+          ) : candidate.meaning?.status === 'failed' ? (
+            <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#f87171' }} title={candidate.meaning.error ?? undefined}>
+              Failed to generate
+            </p>
           ) : null}
 
           <div style={{ display: 'flex', gap: '10px' }}>
