@@ -46,7 +46,9 @@ class MediaExtractionUseCase:
         self._media_root = media_root
 
     def execute_one(self, candidate_id: int) -> None:
-        self._media_repo.mark_running(candidate_id)
+        # Note: mark_running is done by the worker wrapper in a separate
+        # committed session — so even if this use case rolls back on failure,
+        # the user still sees that we tried.
 
         candidate = self._candidate_repo.get_by_id(candidate_id)
         if candidate is None:

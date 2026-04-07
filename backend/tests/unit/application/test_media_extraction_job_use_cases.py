@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
 from backend.domain.entities.candidate_media import CandidateMedia
@@ -84,10 +84,7 @@ class TestMediaExtractionUseCase:
              patch("backend.application.use_cases.run_media_extraction_job.os.makedirs"):
             uc.execute_one(10)
 
-        # mark_running called before extract_*
-        mark_running_call_order = media_repo.method_calls.index(call.mark_running(10))
-        assert mark_running_call_order == 0
-
+        # mark_running is now called by the worker wrapper, not the use case
         media_extractor.extract_screenshot.assert_called_once_with(
             "/tmp/movie.mp4", 1500, "/tmp/media/1/10_screenshot.webp"
         )

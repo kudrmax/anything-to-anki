@@ -44,9 +44,9 @@ class MeaningGenerationUseCase:
         if not candidate_ids:
             return
 
-        # Mark all RUNNING upfront
-        for cid in candidate_ids:
-            self._meaning_repo.mark_running(cid)
+        # Note: mark_running is done by the worker wrapper in a separate
+        # committed session — so even if this use case rolls back on failure,
+        # the user still sees that we tried.
 
         prompt = self._prompt_repo.get_by_key(_GENERATE_MEANING_KEY)
         if prompt is None:

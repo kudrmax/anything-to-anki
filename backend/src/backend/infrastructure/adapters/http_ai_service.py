@@ -54,7 +54,7 @@ class HttpAIService(AIService):
                     "user_prompt": user_prompt,
                     "model": self._model,
                 },
-                timeout=120.0,
+                timeout=300.0,
             )
             response.raise_for_status()
             data = response.json()
