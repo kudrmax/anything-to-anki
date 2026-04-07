@@ -1,24 +1,31 @@
+# backend/src/backend/infrastructure/persistence/sqla_candidate_repository.py
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, update
+from sqlalchemy import func
 
 from backend.domain.ports.candidate_repository import CandidateRepository
-from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.infrastructure.persistence.models import StoredCandidateModel
+from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+from backend.infrastructure.persistence.models import (
+    CandidateMeaningModel,
+    CandidateMediaModel,
+    StoredCandidateModel,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.stored_candidate import StoredCandidate
-
-
-_ACTIVE_STATUSES: list[str] = [CandidateStatus.PENDING.value, CandidateStatus.LEARN.value]
+    from backend.domain.value_objects.candidate_status import CandidateStatus
 
 
 class SqlaCandidateRepository(CandidateRepository):
-    """SQLAlchemy implementation of CandidateRepository."""
+    """SQLAlchemy implementation of CandidateRepository.
+
+    On read methods, attaches `meaning` and `media` from sibling tables in a
+    single follow-up query (one per kind, by candidate_id IN (...)).
+    """
 
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -27,19 +34,37 @@ class SqlaCandidateRepository(CandidateRepository):
         models = [StoredCandidateModel.from_entity(c) for c in candidates]
         self._session.add_all(models)
         self._session.flush()
+        # Fresh candidates never have enrichments yet — skip the lookup.
         return [m.to_entity() for m in models]
 
-    def get_by_source(self, source_id: int) -> list[StoredCandidate]:
-        models = (
+    def get_by_source(
+        self,
+        source_id: int,
+        sort_order: CandidateSortOrder | None = None,
+    ) -> list[StoredCandidate]:
+        query = (
             self._session.query(StoredCandidateModel)
             .filter(StoredCandidateModel.source_id == source_id)
-            .all()
         )
-        return [m.to_entity() for m in models]
+        if sort_order == CandidateSortOrder.RELEVANCE:
+            # sweet-spot first, then high-frequency words, then by CEFR level desc
+            query = query.order_by(
+                StoredCandidateModel.is_sweet_spot.desc(),
+                StoredCandidateModel.zipf_frequency.desc(),
+                StoredCandidateModel.cefr_level.desc(),
+            )
+        else:
+            # CHRONOLOGICAL or unspecified — insertion order = source text order
+            query = query.order_by(StoredCandidateModel.id.asc())
+        models = query.all()
+        entities = [m.to_entity() for m in models]
+        return self._bulk_attach(entities)
 
     def get_by_id(self, candidate_id: int) -> StoredCandidate | None:
         model = self._session.get(StoredCandidateModel, candidate_id)
-        return model.to_entity() if model else None
+        if model is None:
+            return None
+        return self._attach_enrichments(model.to_entity())
 
     def update_status(self, candidate_id: int, status: CandidateStatus) -> None:
         model = self._session.get(StoredCandidateModel, candidate_id)
@@ -55,66 +80,11 @@ class SqlaCandidateRepository(CandidateRepository):
         )
         return result or 0
 
-    def update_meaning(self, candidate_id: int, meaning: str) -> None:
-        model = self._session.get(StoredCandidateModel, candidate_id)
-        if model is not None:
-            model.meaning = meaning
-            self._session.flush()
-
-    def update_meaning_and_ipa(self, candidate_id: int, meaning: str, ipa: str | None) -> None:
-        model = self._session.get(StoredCandidateModel, candidate_id)
-        if model is not None:
-            model.meaning = meaning
-            model.ipa = ipa
-            self._session.flush()
-
     def update_context_fragment(self, candidate_id: int, context_fragment: str) -> None:
         model = self._session.get(StoredCandidateModel, candidate_id)
         if model is not None:
             model.context_fragment = context_fragment
             self._session.flush()
-
-    def get_without_meaning(self, source_id: int | None, limit: int) -> list[StoredCandidate]:
-        query = self._session.query(StoredCandidateModel).filter(
-            StoredCandidateModel.meaning.is_(None)
-        )
-        if source_id is not None:
-            query = query.filter(StoredCandidateModel.source_id == source_id)
-        query = query.order_by(
-            StoredCandidateModel.is_sweet_spot.desc(),
-            StoredCandidateModel.cefr_level.desc(),
-        )
-        return [m.to_entity() for m in query.limit(limit).all()]
-
-    def count_without_meaning(self, source_id: int | None) -> int:
-        query = self._session.query(func.count(StoredCandidateModel.id)).filter(
-            StoredCandidateModel.meaning.is_(None)
-        )
-        if source_id is not None:
-            query = query.filter(StoredCandidateModel.source_id == source_id)
-        return query.scalar() or 0
-
-    def get_active_without_meaning(self, source_id: int | None, limit: int) -> list[StoredCandidate]:
-        query = self._session.query(StoredCandidateModel).filter(
-            StoredCandidateModel.meaning.is_(None),
-            StoredCandidateModel.status.in_(_ACTIVE_STATUSES),
-        )
-        if source_id is not None:
-            query = query.filter(StoredCandidateModel.source_id == source_id)
-        query = query.order_by(
-            StoredCandidateModel.is_sweet_spot.desc(),
-            StoredCandidateModel.cefr_level.desc(),
-        )
-        return [m.to_entity() for m in query.limit(limit).all()]
-
-    def count_active_without_meaning(self, source_id: int | None) -> int:
-        query = self._session.query(func.count(StoredCandidateModel.id)).filter(
-            StoredCandidateModel.meaning.is_(None),
-            StoredCandidateModel.status.in_(_ACTIVE_STATUSES),
-        )
-        if source_id is not None:
-            query = query.filter(StoredCandidateModel.source_id == source_id)
-        return query.scalar() or 0
 
     def get_by_ids(self, candidate_ids: list[int]) -> list[StoredCandidate]:
         if not candidate_ids:
@@ -124,72 +94,60 @@ class SqlaCandidateRepository(CandidateRepository):
             .filter(StoredCandidateModel.id.in_(candidate_ids))
             .all()
         )
-        # Preserve order from candidate_ids list
         order_map = {cid: idx for idx, cid in enumerate(candidate_ids)}
         models.sort(key=lambda m: order_map.get(m.id, 999999))
-        return [m.to_entity() for m in models]
-
-    def get_all_active_without_meaning(self, source_id: int | None) -> list[StoredCandidate]:
-        query = self._session.query(StoredCandidateModel).filter(
-            StoredCandidateModel.meaning.is_(None),
-            StoredCandidateModel.status.in_(_ACTIVE_STATUSES),
-        )
-        if source_id is not None:
-            query = query.filter(StoredCandidateModel.source_id == source_id)
-        query = query.order_by(
-            StoredCandidateModel.is_sweet_spot.desc(),
-            StoredCandidateModel.cefr_level.desc(),
-        )
-        return [m.to_entity() for m in query.all()]
-
-    def update_media_paths(
-        self,
-        candidate_id: int,
-        *,
-        screenshot_path: str,
-        audio_path: str,
-    ) -> None:
-        model = self._session.get(StoredCandidateModel, candidate_id)
-        if model is not None:
-            model.screenshot_path = screenshot_path
-            model.audio_path = audio_path
-            self._session.flush()
-
-    def update_media_timecodes(
-        self,
-        candidate_id: int,
-        *,
-        start_ms: int,
-        end_ms: int,
-    ) -> None:
-        self._session.execute(
-            update(StoredCandidateModel)
-            .where(StoredCandidateModel.id == candidate_id)
-            .values(media_start_ms=start_ms, media_end_ms=end_ms)
-        )
-
-    def clear_media_path(
-        self,
-        candidate_id: int,
-        *,
-        clear_screenshot: bool,
-        clear_audio: bool,
-    ) -> None:
-        values: dict[str, None] = {}
-        if clear_screenshot:
-            values["screenshot_path"] = None
-        if clear_audio:
-            values["audio_path"] = None
-        if not values:
-            return
-        self._session.execute(
-            update(StoredCandidateModel)
-            .where(StoredCandidateModel.id == candidate_id)
-            .values(**values)
-        )
+        entities = [m.to_entity() for m in models]
+        return self._bulk_attach(entities)
 
     def delete_by_source(self, source_id: int) -> None:
+        # Find candidate ids first to also delete their enrichment rows
+        cid_rows = (
+            self._session.query(StoredCandidateModel.id)
+            .filter(StoredCandidateModel.source_id == source_id)
+            .all()
+        )
+        cids = [r[0] for r in cid_rows]
+        if cids:
+            self._session.query(CandidateMeaningModel).filter(
+                CandidateMeaningModel.candidate_id.in_(cids)
+            ).delete(synchronize_session=False)
+            self._session.query(CandidateMediaModel).filter(
+                CandidateMediaModel.candidate_id.in_(cids)
+            ).delete(synchronize_session=False)
         self._session.query(StoredCandidateModel).filter(
             StoredCandidateModel.source_id == source_id
         ).delete()
         self._session.flush()
+
+    # ── private helpers ────────────────────────────────────────────────
+
+    def _attach_enrichments(self, entity: StoredCandidate) -> StoredCandidate:
+        if entity.id is None:
+            return entity
+        meaning_model = self._session.get(CandidateMeaningModel, entity.id)
+        media_model = self._session.get(CandidateMediaModel, entity.id)
+        entity.meaning = meaning_model.to_entity() if meaning_model else None
+        entity.media = media_model.to_entity() if media_model else None
+        return entity
+
+    def _bulk_attach(self, entities: list[StoredCandidate]) -> list[StoredCandidate]:
+        ids = [e.id for e in entities if e.id is not None]
+        if not ids:
+            return entities
+        meaning_rows = (
+            self._session.query(CandidateMeaningModel)
+            .filter(CandidateMeaningModel.candidate_id.in_(ids))
+            .all()
+        )
+        media_rows = (
+            self._session.query(CandidateMediaModel)
+            .filter(CandidateMediaModel.candidate_id.in_(ids))
+            .all()
+        )
+        meanings = {r.candidate_id: r.to_entity() for r in meaning_rows}
+        medias = {r.candidate_id: r.to_entity() for r in media_rows}
+        for e in entities:
+            if e.id is not None:
+                e.meaning = meanings.get(e.id)
+                e.media = medias.get(e.id)
+        return entities

@@ -12,6 +12,8 @@ export type ProcessingStage = 'cleaning_source' | 'analyzing_text'
 
 export type CandidateStatus = 'pending' | 'learn' | 'known' | 'skip'
 
+export type CandidateSortOrder = 'relevance' | 'chronological'
+
 export interface SourceSummary {
   id: number
   title: string
@@ -22,6 +24,26 @@ export interface SourceSummary {
   candidate_count: number
   learn_count: number
   processing_stage: ProcessingStage | null
+}
+
+export type EnrichmentStatus = 'queued' | 'running' | 'done' | 'failed'
+
+export interface CandidateMeaning {
+  meaning: string | null
+  ipa: string | null
+  status: EnrichmentStatus
+  error: string | null
+  generated_at: string | null
+}
+
+export interface CandidateMedia {
+  screenshot_path: string | null
+  audio_path: string | null
+  start_ms: number | null
+  end_ms: number | null
+  status: EnrichmentStatus
+  error: string | null
+  generated_at: string | null
 }
 
 export interface StoredCandidate {
@@ -36,11 +58,9 @@ export interface StoredCandidate {
   occurrences: number
   status: CandidateStatus
   surface_form: string | null
-  meaning: string | null
-  ipa: string | null
   is_phrasal_verb: boolean
-  media_start_ms: number | null
-  media_end_ms: number | null
+  meaning: CandidateMeaning | null
+  media: CandidateMedia | null
 }
 
 export interface SourceDetail {
@@ -135,22 +155,15 @@ export interface GenerateMeaningResult {
   tokens_used: number
 }
 
-export interface GenerationJobStatus {
-  id: number
-  source_id: number | null
-  status: 'pending' | 'running' | 'paused' | 'cancelled' | 'completed' | 'failed'
-  total_candidates: number
-  processed_candidates: number
-  failed_candidates: number
-  skipped_candidates: number
-  candidate_ids: number[]
-  created_at: string
+export interface QueueStatus {
+  queued: number
+  running: number
+  failed: number
 }
 
-export interface GenerationQueueStatus {
-  running_job: GenerationJobStatus | null
-  pending_jobs: GenerationJobStatus[]
-  total_pending_count: number
+export interface QueueSummary {
+  meaning: QueueStatus
+  media: QueueStatus
 }
 
 export interface SubtitleTrack {

@@ -23,6 +23,7 @@ class Source:
     error_message: str | None = None
     source_type: SourceType = SourceType.TEXT
     video_path: str | None = None  # absolute path to video file on disk (VIDEO sources only)
-    audio_track_index: int | None = None  # selected audio track index for media extraction (None = ffmpeg default)
+    # selected audio track index for media extraction (None = ffmpeg default)
+    audio_track_index: int | None = None
     processing_stage: ProcessingStage | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))

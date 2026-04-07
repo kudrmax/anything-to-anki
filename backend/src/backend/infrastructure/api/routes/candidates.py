@@ -6,7 +6,10 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO  # noqa: TC001
-from backend.application.dto.candidate_dtos import MarkCandidateRequest, UpdateContextFragmentRequest  # noqa: TC001
+from backend.application.dto.candidate_dtos import (  # noqa: TC001
+    MarkCandidateRequest,
+    UpdateContextFragmentRequest,
+)
 from backend.domain.exceptions import AIServiceError, CandidateNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.api.dependencies import get_container, get_db_session
@@ -43,7 +46,9 @@ def update_context_fragment(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, Any]:
-    from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+    from backend.infrastructure.persistence.sqla_candidate_repository import (
+        SqlaCandidateRepository,
+    )
     repo = SqlaCandidateRepository(session)
     candidate = repo.get_by_id(candidate_id)
     if candidate is None:

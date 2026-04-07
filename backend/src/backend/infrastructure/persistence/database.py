@@ -24,8 +24,9 @@ def default_db_url() -> str:
 def run_alembic_migrations(db_url: str) -> None:
     """Run all pending Alembic migrations up to head."""
     from pathlib import Path as _Path
-    from alembic.config import Config
+
     from alembic import command
+    from alembic.config import Config
 
     # alembic/ lives at backend/src/backend/alembic/ — find it relative to this file.
     # Works both in development (editable install) and in Docker (installed package).
@@ -84,25 +85,23 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
             pass  # Column already exists — safe to ignore
 
         try:
-            conn.execute(text("ALTER TABLE sources ADD COLUMN source_type VARCHAR(20) NOT NULL DEFAULT 'text'"))
+            conn.execute(text(
+                "ALTER TABLE sources ADD COLUMN source_type VARCHAR(20) NOT NULL DEFAULT 'text'"
+            ))
             conn.commit()
         except Exception:
             pass  # Column already exists — safe to ignore
 
         try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN is_phrasal_verb BOOLEAN NOT NULL DEFAULT 0"))
+            conn.execute(text(
+                "ALTER TABLE candidates ADD COLUMN is_phrasal_verb BOOLEAN NOT NULL DEFAULT 0"
+            ))
             conn.commit()
         except Exception:
             pass  # Column already exists — safe to ignore
 
         try:
             conn.execute(text("ALTER TABLE candidates ADD COLUMN definition TEXT"))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists — safe to ignore
-
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN ipa VARCHAR(100)"))
             conn.commit()
         except Exception:
             pass  # Column already exists — safe to ignore
@@ -118,18 +117,6 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
             conn.commit()
         except Exception:
             pass  # Column already exists — safe to ignore
-
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN meaning TEXT"))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists — safe to ignore
-
-        try:
-            conn.execute(text("UPDATE candidates SET meaning = COALESCE(ai_meaning, definition) WHERE meaning IS NULL"))
-            conn.commit()
-        except Exception:
-            pass
 
         conn.execute(text(
             "CREATE TABLE IF NOT EXISTS generation_jobs ("
@@ -147,13 +134,19 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
         conn.commit()
 
         try:
-            conn.execute(text("ALTER TABLE generation_jobs ADD COLUMN candidate_ids_json TEXT NOT NULL DEFAULT '[]'"))
+            conn.execute(text(
+                "ALTER TABLE generation_jobs"
+                " ADD COLUMN candidate_ids_json TEXT NOT NULL DEFAULT '[]'"
+            ))
             conn.commit()
         except Exception:
             pass  # Column already exists — safe to ignore
 
         try:
-            conn.execute(text("ALTER TABLE generation_jobs ADD COLUMN skipped_candidates INTEGER NOT NULL DEFAULT 0"))
+            conn.execute(text(
+                "ALTER TABLE generation_jobs"
+                " ADD COLUMN skipped_candidates INTEGER NOT NULL DEFAULT 0"
+            ))
             conn.commit()
         except Exception:
             pass  # Column already exists — safe to ignore
@@ -167,30 +160,6 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
 
         try:
             conn.execute(text("ALTER TABLE sources ADD COLUMN audio_track_index INTEGER"))
-            conn.commit()
-        except Exception:
-            pass
-
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN media_start_ms INTEGER"))
-            conn.commit()
-        except Exception:
-            pass
-
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN media_end_ms INTEGER"))
-            conn.commit()
-        except Exception:
-            pass
-
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN screenshot_path TEXT"))
-            conn.commit()
-        except Exception:
-            pass
-
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN audio_path TEXT"))
             conn.commit()
         except Exception:
             pass
@@ -264,42 +233,6 @@ def reset_stuck_processing(session_factory: sessionmaker[Session]) -> None:
         session.close()
 
 
-def resume_media_extraction_jobs(session_factory: sessionmaker[Session]) -> None:
-    """Mark RUNNING or PENDING media extraction jobs as FAILED on startup."""
-    from backend.infrastructure.persistence.models import MediaExtractionJobModel
-
-    session = session_factory()
-    try:
-        session.execute(
-            update(MediaExtractionJobModel)
-            .where(MediaExtractionJobModel.status.in_(["running", "pending"]))
-            .values(status="failed")
-        )
-        session.commit()
-    finally:
-        session.close()
-
-
-def resume_generation_jobs(session_factory: sessionmaker[Session]) -> None:
-    """Mark RUNNING/PENDING generation jobs as FAILED on startup (crash recovery).
-
-    Jobs left in RUNNING or PENDING state after a crash are stale — the worker
-    is no longer running. Mark them FAILED so the user can start a fresh job.
-    """
-    from backend.infrastructure.persistence.models import GenerationJobModel
-
-    session = session_factory()
-    try:
-        session.execute(
-            update(GenerationJobModel)
-            .where(GenerationJobModel.status.in_(["running", "pending"]))
-            .values(status="failed")
-        )
-        session.commit()
-    finally:
-        session.close()
-
-
 def reconcile_media_files(session_factory: sessionmaker[Session], media_root: str) -> None:
     """Remove orphan media files/directories without corresponding DB records.
 
@@ -315,7 +248,9 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
     import re
     import shutil
 
-    from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+    from backend.infrastructure.persistence.sqla_candidate_repository import (
+        SqlaCandidateRepository,
+    )
     from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 
     if not os.path.isdir(media_root):

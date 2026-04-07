@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.audio_track_info import AudioTrackInfo
-from backend.domain.value_objects.subtitle_track_info import SubtitleTrackInfo
+if TYPE_CHECKING:
+    from backend.domain.value_objects.audio_track_info import AudioTrackInfo
+    from backend.domain.value_objects.subtitle_track_info import SubtitleTrackInfo
 
 
 @dataclass(frozen=True)

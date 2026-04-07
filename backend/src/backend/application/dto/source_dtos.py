@@ -35,19 +35,26 @@ class SourceDTO(BaseModel):
     processing_stage: str | None = None
 
 
-class SourceDetailDTO(BaseModel):
-    """Detailed view of a source with candidates."""
+class CandidateMeaningDTO(BaseModel):
+    """Meaning enrichment of a candidate (1:1)."""
 
-    id: int
-    title: str
-    raw_text: str
-    cleaned_text: str | None
+    meaning: str | None
+    ipa: str | None
+    status: str  # 'queued' | 'running' | 'done' | 'failed'
+    error: str | None
+    generated_at: datetime | None
+
+
+class CandidateMediaDTO(BaseModel):
+    """Media enrichment of a candidate (1:1)."""
+
+    screenshot_path: str | None
+    audio_path: str | None
+    start_ms: int | None
+    end_ms: int | None
     status: str
-    source_type: str
-    error_message: str | None
-    processing_stage: str | None = None
-    created_at: datetime
-    candidates: list[StoredCandidateDTO]
+    error: str | None
+    generated_at: datetime | None
 
 
 class StoredCandidateDTO(BaseModel):
@@ -64,9 +71,24 @@ class StoredCandidateDTO(BaseModel):
     occurrences: int
     status: str
     surface_form: str | None = None
-    meaning: str | None = None
-    ipa: str | None = None
     is_phrasal_verb: bool = False
+    meaning: CandidateMeaningDTO | None = None
+    media: CandidateMediaDTO | None = None
+
+
+class SourceDetailDTO(BaseModel):
+    """Detailed view of a source with candidates."""
+
+    id: int
+    title: str
+    raw_text: str
+    cleaned_text: str | None
+    status: str
+    source_type: str
+    error_message: str | None
+    processing_stage: str | None = None
+    created_at: datetime
+    candidates: list[StoredCandidateDTO]
 
 
 SourceDetailDTO.model_rebuild()

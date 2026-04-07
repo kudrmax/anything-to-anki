@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
     from backend.domain.value_objects.candidate_status import CandidateStatus
 
 
@@ -15,7 +16,13 @@ class CandidateRepository(ABC):
     def create_batch(self, candidates: list[StoredCandidate]) -> list[StoredCandidate]: ...
 
     @abstractmethod
-    def get_by_source(self, source_id: int) -> list[StoredCandidate]: ...
+    def get_by_source(
+        self,
+        source_id: int,
+        sort_order: CandidateSortOrder | None = None,
+    ) -> list[StoredCandidate]:
+        """Return candidates for the source. If sort_order is None, default
+        ordering (insertion order, i.e. id ASC) is used."""
 
     @abstractmethod
     def get_by_id(self, candidate_id: int) -> StoredCandidate | None: ...
@@ -27,68 +34,11 @@ class CandidateRepository(ABC):
     def count_by_status(self, status: CandidateStatus) -> int: ...
 
     @abstractmethod
-    def update_meaning(self, candidate_id: int, meaning: str) -> None: ...
-
-    @abstractmethod
-    def update_meaning_and_ipa(self, candidate_id: int, meaning: str, ipa: str | None) -> None: ...
-
-    @abstractmethod
     def update_context_fragment(self, candidate_id: int, context_fragment: str) -> None: ...
-
-    @abstractmethod
-    def get_without_meaning(self, source_id: int | None, limit: int) -> list[StoredCandidate]:
-        """Get candidates without meaning, ordered by sweet_spot DESC, cefr_level DESC."""
-
-    @abstractmethod
-    def count_without_meaning(self, source_id: int | None) -> int:
-        """Count candidates that don't have a meaning yet."""
-
-    @abstractmethod
-    def get_active_without_meaning(self, source_id: int | None, limit: int) -> list[StoredCandidate]:
-        """Get candidates with status PENDING or LEARN that have no meaning yet,
-        ordered by sweet_spot DESC, cefr_level DESC."""
-
-    @abstractmethod
-    def count_active_without_meaning(self, source_id: int | None) -> int:
-        """Count candidates with status PENDING or LEARN that have no meaning yet."""
 
     @abstractmethod
     def get_by_ids(self, candidate_ids: list[int]) -> list[StoredCandidate]:
         """Get candidates by explicit list of IDs, preserving order."""
-
-    @abstractmethod
-    def get_all_active_without_meaning(self, source_id: int | None) -> list[StoredCandidate]:
-        """Get ALL candidates with status PENDING or LEARN that have no meaning (no limit),
-        ordered by sweet_spot DESC, cefr_level DESC."""
-
-    @abstractmethod
-    def update_media_paths(
-        self,
-        candidate_id: int,
-        *,
-        screenshot_path: str,
-        audio_path: str,
-    ) -> None: ...
-
-    @abstractmethod
-    def update_media_timecodes(
-        self,
-        candidate_id: int,
-        *,
-        start_ms: int,
-        end_ms: int,
-    ) -> None:
-        """Update media_start_ms and media_end_ms for a candidate."""
-
-    @abstractmethod
-    def clear_media_path(
-        self,
-        candidate_id: int,
-        *,
-        clear_screenshot: bool,
-        clear_audio: bool,
-    ) -> None:
-        """Set screenshot_path and/or audio_path to NULL for a candidate."""
 
     @abstractmethod
     def delete_by_source(self, source_id: int) -> None: ...

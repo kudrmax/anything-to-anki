@@ -1,10 +1,13 @@
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
+from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import AnkiNotAvailableError
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 
 def _make_candidate(
@@ -14,6 +17,16 @@ def _make_candidate(
     meaning: str | None = None,
     ipa: str | None = None,
 ) -> StoredCandidate:
+    meaning_obj = None
+    if meaning is not None or ipa is not None:
+        meaning_obj = CandidateMeaning(
+            candidate_id=candidate_id,
+            meaning=meaning,
+            ipa=ipa,
+            status=EnrichmentStatus.DONE,
+            error=None,
+            generated_at=datetime(2026, 4, 7, tzinfo=UTC),
+        )
     return StoredCandidate(
         id=candidate_id,
         source_id=1,
@@ -26,8 +39,8 @@ def _make_candidate(
         fragment_purity="clean",
         occurrences=1,
         status=status,
-        meaning=meaning,
-        ipa=ipa,
+        meaning=meaning_obj,
+        media=None,
     )
 
 

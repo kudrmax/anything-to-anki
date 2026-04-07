@@ -2,18 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Film, Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
-import type { CardPreview, CandidateStatus, GenerationQueueStatus, SourceDetail, StoredCandidate } from '@/api/types'
+import type {
+  CandidateSortOrder,
+  CandidateStatus,
+  CardPreview,
+  QueueSummary,
+  SourceDetail,
+  StoredCandidate,
+} from '@/api/types'
 import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
 import { TextAnnotator } from '@/components/TextAnnotator'
-
-function sortCandidates(candidates: StoredCandidate[]): StoredCandidate[] {
-  const cefrOrder: Record<string, number> = { A1: 0, A2: 1, B1: 2, B2: 3, C1: 4, C2: 5 }
-  return [...candidates].sort((a, b) => {
-    if (a.is_sweet_spot !== b.is_sweet_spot) return a.is_sweet_spot ? -1 : 1
-    if (b.zipf_frequency !== a.zipf_frequency) return b.zipf_frequency - a.zipf_frequency
-    return (cefrOrder[a.cefr_level ?? ''] ?? 0) - (cefrOrder[b.cefr_level ?? ''] ?? 0)
-  })
-}
 
 export function ReviewPage() {
   const { id } = useParams<{ id: string }>()
@@ -31,49 +29,75 @@ export function ReviewPage() {
   const hoverFromCardRef = useRef(false)
   const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set())
   const [regeneratingMediaIds, setRegeneratingMediaIds] = useState<Set<number>>(new Set())
-  const [genQueue, setGenQueue] = useState<GenerationQueueStatus | null>(null)
+  const [queueSummary, setQueueSummary] = useState<QueueSummary | null>(null)
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
   const [mediaMap, setMediaMap] = useState<Record<number, { screenshotUrl: string | null; audioUrl: string | null }>>({})
-  const [mediaJob, setMediaJob] = useState<{ jobId: number; status: string; processed: number; total: number; failed: number } | null>(null)
+  const [sortOrder, setSortOrder] = useState<CandidateSortOrder>(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('reviewPage.sortOrder') : null
+    return saved === 'chronological' || saved === 'relevance' ? saved : 'relevance'
+  })
 
-  const runningJob = genQueue?.running_job ?? null
-  const pendingJobsCount = genQueue?.pending_jobs.length ?? 0
+  useEffect(() => {
+    localStorage.setItem('reviewPage.sortOrder', sortOrder)
+  }, [sortOrder])
 
-  // IDs of candidates being processed right now (only running job)
-  const processingCandidateIds = useMemo(
-    () => new Set(runningJob?.candidate_ids ?? []),
-    [runningJob]
-  )
+  const loadCandidates = useCallback(async () => {
+    const [cands, cards] = await Promise.all([
+      api.getCandidates(sourceId, sortOrder),
+      api.getSourceCards(sourceId).catch(() => [] as CardPreview[]),
+    ])
+    setCandidates(cands)
+    const map: Record<number, { screenshotUrl: string | null; audioUrl: string | null }> = {}
+    for (const card of cards) {
+      map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }
+    }
+    setMediaMap(map)
+  }, [sourceId, sortOrder])
 
-  // IDs of candidates in queue (all pending jobs)
-  const queuedCandidateIds = useMemo(
-    () => new Set(genQueue?.pending_jobs.flatMap(j => j.candidate_ids) ?? []),
-    [genQueue]
-  )
+  const loadQueueSummary = useCallback(async () => {
+    try {
+      const summary = await api.getQueueSummary(sourceId)
+      setQueueSummary(summary)
+    } catch {
+      // ignore — endpoint may not be available for all source types
+    }
+  }, [sourceId])
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [src, cands, queue, cards] = await Promise.all([
-          api.getSource(sourceId),
-          api.getCandidates(sourceId),
-          api.getGenerationStatus(),
-          api.getSourceCards(sourceId).catch(() => [] as CardPreview[]),
-        ])
+        const src = await api.getSource(sourceId, sortOrder)
         setSource(src)
-        setCandidates(sortCandidates(cands))
-        if (queue) setGenQueue(queue)
-        const map: Record<number, { screenshotUrl: string | null; audioUrl: string | null }> = {}
-        for (const card of cards) {
-          map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }
-        }
-        setMediaMap(map)
+        setCandidates(src.candidates)
+        await Promise.all([
+          api.getSourceCards(sourceId).catch(() => [] as CardPreview[]).then((cards) => {
+            const map: Record<number, { screenshotUrl: string | null; audioUrl: string | null }> = {}
+            for (const card of cards) {
+              map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }
+            }
+            setMediaMap(map)
+          }),
+          loadQueueSummary(),
+        ])
       } finally {
         setLoading(false)
       }
     }
     void load()
-  }, [sourceId])
+  }, [sourceId, sortOrder, loadQueueSummary])
+
+  // Polling while there are inflight jobs
+  useEffect(() => {
+    const meaningInflight = (queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)
+    const mediaInflight = (queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)
+    if (meaningInflight + mediaInflight === 0) return
+
+    const interval = setInterval(() => {
+      void loadCandidates()
+      void loadQueueSummary()
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [queueSummary, loadCandidates, loadQueueSummary])
 
   const handleMark = useCallback(async (candidateId: number, status: CandidateStatus) => {
     await api.markCandidate(candidateId, status)
@@ -110,9 +134,10 @@ export function ReviewPage() {
   }, [editingFragmentFor])
 
   const handleManualAdd = useCallback(async (surfaceForm: string, contextFragment: string) => {
-    const candidate = await api.addManualCandidate(sourceId, surfaceForm, contextFragment)
-    setCandidates((prev) => sortCandidates([...prev, candidate]))
-  }, [sourceId])
+    await api.addManualCandidate(sourceId, surfaceForm, contextFragment)
+    // Re-fetch from backend so sort_order is applied consistently
+    await loadCandidates()
+  }, [sourceId, loadCandidates])
 
   const handleWordClick = useCallback((candidateId: number) => {
     hoverFromCardRef.current = false
@@ -127,7 +152,16 @@ export function ReviewPage() {
     try {
       const res = await api.generateMeaning(candidateId)
       setCandidates((prev) =>
-        prev.map((c) => (c.id === candidateId ? { ...c, meaning: res.meaning, ipa: res.ipa } : c)),
+        prev.map((c) => (c.id === candidateId ? {
+          ...c,
+          meaning: {
+            meaning: res.meaning,
+            ipa: res.ipa,
+            status: 'done' as const,
+            error: null,
+            generated_at: null,
+          },
+        } : c)),
       )
       setToast({ text: `Tokens used: ${res.tokens_used}`, key: Date.now() })
     } catch (e) {
@@ -141,30 +175,71 @@ export function ReviewPage() {
     }
   }, [])
 
-  const handleStartGeneration = useCallback(async () => {
+  const handleGenerateMeanings = useCallback(async () => {
     try {
-      const queue = await api.startGeneration(sourceId)
-      setGenQueue(queue)
+      await api.enqueueMeaningGeneration(sourceId, sortOrder)
+      await loadCandidates()
+      await loadQueueSummary()
     } catch (e) {
-      setToast({ text: e instanceof Error ? e.message : 'Failed to start', key: Date.now() })
+      setToast({ text: e instanceof Error ? e.message : 'Failed to enqueue meanings', key: Date.now() })
     }
-  }, [sourceId])
+  }, [sourceId, sortOrder, loadCandidates, loadQueueSummary])
+
+  const handleGenerateMedia = useCallback(async () => {
+    try {
+      await api.enqueueMediaGeneration(sourceId, sortOrder)
+      await loadCandidates()
+      await loadQueueSummary()
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Failed to enqueue media', key: Date.now() })
+    }
+  }, [sourceId, sortOrder, loadCandidates, loadQueueSummary])
+
+  const handleCancelMeanings = useCallback(async () => {
+    try {
+      await api.cancelMeaningQueue(sourceId)
+      await loadCandidates()
+      await loadQueueSummary()
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Failed to cancel', key: Date.now() })
+    }
+  }, [sourceId, loadCandidates, loadQueueSummary])
+
+  const handleCancelMedia = useCallback(async () => {
+    try {
+      await api.cancelMediaQueue(sourceId)
+      await loadCandidates()
+      await loadQueueSummary()
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Failed to cancel', key: Date.now() })
+    }
+  }, [sourceId, loadCandidates, loadQueueSummary])
+
+  const handleRetryFailedMeanings = useCallback(async () => {
+    try {
+      await api.retryFailedMeanings(sourceId)
+      await loadCandidates()
+      await loadQueueSummary()
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Failed to retry', key: Date.now() })
+    }
+  }, [sourceId, loadCandidates, loadQueueSummary])
+
+  const handleRetryFailedMedia = useCallback(async () => {
+    try {
+      await api.retryFailedMedia(sourceId)
+      await loadCandidates()
+      await loadQueueSummary()
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Failed to retry', key: Date.now() })
+    }
+  }, [sourceId, loadCandidates, loadQueueSummary])
 
   const handleRegenerateCandidateMedia = useCallback(async (candidateId: number) => {
     setRegeneratingMediaIds((prev) => new Set(prev).add(candidateId))
     try {
       await api.regenerateCandidateMedia(candidateId)
-      // Reload candidates (so updated media_start_ms/end_ms are reflected)
-      const [updatedCandidates, cards] = await Promise.all([
-        api.getCandidates(sourceId),
-        api.getSourceCards(sourceId).catch(() => []),
-      ])
-      setCandidates(sortCandidates(updatedCandidates))
-      const map: Record<number, { screenshotUrl: string | null; audioUrl: string | null }> = {}
-      for (const card of cards) {
-        map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }
-      }
-      setMediaMap(map)
+      await loadCandidates()
       setToast({ text: 'Media regenerated', key: Date.now() })
     } catch (e) {
       setToast({ text: e instanceof Error ? e.message : 'Regeneration failed', key: Date.now() })
@@ -175,78 +250,7 @@ export function ReviewPage() {
         return next
       })
     }
-  }, [sourceId])
-
-  const handleStartMediaExtraction = useCallback(async () => {
-    try {
-      const res = await api.startMediaExtraction(sourceId)
-      setMediaJob({ jobId: res.job_id, status: res.status, processed: 0, total: 0, failed: 0 })
-    } catch (e) {
-      setToast({ text: e instanceof Error ? e.message : 'Failed to start media extraction', key: Date.now() })
-    }
-  }, [sourceId])
-
-  const handleStopGeneration = useCallback(async () => {
-    if (!runningJob) return
-    try {
-      await api.stopGeneration(runningJob.id)
-      setGenQueue(prev => prev ? {
-        ...prev,
-        running_job: prev.running_job ? { ...prev.running_job, status: 'paused' } : null,
-        pending_jobs: [],
-      } : null)
-    } catch (e) {
-      setToast({ text: e instanceof Error ? e.message : 'Failed to stop', key: Date.now() })
-    }
-  }, [runningJob])
-
-  useEffect(() => {
-    const hasActive = runningJob?.status === 'running' || runningJob?.status === 'pending' || pendingJobsCount > 0
-    if (!hasActive) return
-    const interval = setInterval(async () => {
-      try {
-        const updated = await api.getCandidates(sourceId)
-        setCandidates(sortCandidates(updated))
-        const queue = await api.getGenerationStatus()
-        setGenQueue(queue)
-        if (!queue || (!queue.running_job && queue.pending_jobs.length === 0)) {
-          clearInterval(interval)
-        }
-      } catch { /* ignore polling errors */ }
-    }, 10000)
-    return () => clearInterval(interval)
-  }, [runningJob?.status, pendingJobsCount, sourceId])
-
-  useEffect(() => {
-    if (!mediaJob) return
-    if (mediaJob.status !== 'pending' && mediaJob.status !== 'running') return
-    const interval = setInterval(async () => {
-      try {
-        const status = await api.getMediaExtractionStatus(sourceId, mediaJob.jobId)
-        setMediaJob({
-          jobId: mediaJob.jobId,
-          status: status.status,
-          processed: status.processed,
-          total: status.total,
-          failed: status.failed,
-        })
-        // Reload cards to pick up fresh media URLs when done
-        if (status.status === 'done') {
-          try {
-            const cards = await api.getSourceCards(sourceId)
-            const map: Record<number, { screenshotUrl: string | null; audioUrl: string | null }> = {}
-            for (const card of cards) {
-              map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }
-            }
-            setMediaMap(map)
-          } catch { /* ignore */ }
-        }
-      } catch {
-        /* ignore polling errors */
-      }
-    }, 3000)
-    return () => clearInterval(interval)
-  }, [mediaJob, sourceId])
+  }, [loadCandidates])
 
   useEffect(() => {
     if (hoveredId === null || !hoverFromCardRef.current) return
@@ -254,14 +258,20 @@ export function ReviewPage() {
     mark?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [hoveredId])
 
+  // Auto-save source status only when the derived status actually changes,
+  // not on every candidates re-fetch (which happens during polling).
+  const lastSavedStatusRef = useRef<string | null>(null)
   useEffect(() => {
     if (loading) return
-    if (!autoSaveRef.current) {
-      autoSaveRef.current = true
-      return
-    }
     const anyPending = candidates.some((c) => c.status === 'pending')
     const newStatus = anyPending ? 'partially_reviewed' : 'reviewed'
+    if (!autoSaveRef.current) {
+      autoSaveRef.current = true
+      lastSavedStatusRef.current = newStatus
+      return
+    }
+    if (lastSavedStatusRef.current === newStatus) return
+    lastSavedStatusRef.current = newStatus
     void api.updateSourceStatus(sourceId, newStatus)
   }, [candidates, loading, sourceId])
 
@@ -278,13 +288,10 @@ export function ReviewPage() {
     [ratedCandidates],
   )
 
-  const batchGenerationStatus: 'pending' | 'running' | 'failed' | null = (() => {
-    if (!runningJob || (runningJob.source_id !== null && runningJob.source_id !== sourceId)) return null
-    if (runningJob.status === 'pending' || runningJob.status === 'running' || runningJob.status === 'failed') {
-      return runningJob.status
-    }
-    return null
-  })()
+  const hasInflightMeaning = ((queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)) > 0
+  const hasFailedMeaning = (queueSummary?.meaning.failed ?? 0) > 0
+  const hasInflightMedia = ((queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)) > 0
+  const hasFailedMedia = (queueSummary?.media.failed ?? 0) > 0
 
   const editingCandidate = editingFragmentFor !== null
     ? candidates.find((c) => c.id === editingFragmentFor)
@@ -359,30 +366,60 @@ export function ReviewPage() {
       {/* Split panels */}
       <div className="flex-1 overflow-hidden flex">
         {/* Left: candidates */}
-        <div ref={candidatesPanelRef} className="w-[45%] overflow-y-auto p-4 flex flex-col gap-3" style={{ borderRight: '1px solid var(--glass-b)' }}>
+        <div
+          ref={candidatesPanelRef}
+          className="overflow-y-auto p-4 flex flex-col gap-3"
+          style={{
+            // Fixed 832px on wide screens (so toggling sidebar doesn't reflow the candidates panel),
+            // shrinks proportionally on narrow viewports, never below 360px (tablet-friendly).
+            width: 'clamp(360px, 832px, 60vw)',
+            flexShrink: 0,
+            borderRight: '1px solid var(--glass-b)',
+          }}
+        >
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--td)' }}>
-              Candidates {candidates.length > 0 && `(${candidates.length})`}
-            </h2>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--td)' }}>
+                Candidates {candidates.length > 0 && `(${candidates.length})`}
+              </h2>
               {candidates.length > 0 && (
-                runningJob && (runningJob.status === 'pending' || runningJob.status === 'running') ? (
+                <div className="flex p-[2px] rounded-md" style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)' }}>
+                  {(['relevance', 'chronological'] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setSortOrder(opt)}
+                      className="px-2.5 py-[3px] rounded-[5px] text-[10px] font-medium uppercase tracking-wider transition-all cursor-pointer"
+                      style={
+                        sortOrder === opt
+                          ? { background: 'var(--accent)', color: '#fff' }
+                          : { background: 'transparent', color: 'var(--tm)' }
+                      }
+                    >
+                      {opt === 'relevance' ? 'By relevance' : 'Chronologically'}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {candidates.length > 0 && (
+                hasInflightMeaning ? (
                   <div className="flex items-center gap-2">
                     <span className="text-xs" style={{ color: 'var(--tm)' }}>
-                      Generating... {runningJob.processed_candidates}/{runningJob.total_candidates}
-                      {pendingJobsCount > 0 && ` (+${pendingJobsCount} batches queued)`}
+                      Meanings: {(queueSummary?.meaning.running ?? 0) > 0 ? 'running' : 'queued'}
+                      {' '}({(queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)})
                     </span>
                     <button
-                      onClick={() => void handleStopGeneration()}
+                      onClick={() => void handleCancelMeanings()}
                       className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
                       style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
                     >
-                      Stop
+                      Cancel
                     </button>
                   </div>
                 ) : (
                   <button
-                    onClick={() => void handleStartGeneration()}
+                    onClick={() => void handleGenerateMeanings()}
                     disabled={generatingIds.size > 0}
                     className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
                     style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
@@ -392,32 +429,41 @@ export function ReviewPage() {
                   </button>
                 )
               )}
+              {hasFailedMeaning && !hasInflightMeaning && (
+                <button
+                  onClick={() => void handleRetryFailedMeanings()}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+                  style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}
+                >
+                  Retry failed ({queueSummary?.meaning.failed})
+                </button>
+              )}
               {source && source.source_type === 'video' && (
-                mediaJob && (mediaJob.status === 'pending' || mediaJob.status === 'running') ? (
-                  <span
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
-                    style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+                hasInflightMedia ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--tm)' }}>
+                      <Loader2 size={12} className="animate-spin" />
+                      Media ({(queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)})
+                    </span>
+                    <button
+                      onClick={() => void handleCancelMedia()}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+                      style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : hasFailedMedia ? (
+                  <button
+                    onClick={() => void handleRetryFailedMedia()}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+                    style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}
                   >
-                    <Loader2 size={12} className="animate-spin" />
-                    {mediaJob.processed}/{mediaJob.total} media
-                  </span>
-                ) : mediaJob && mediaJob.status === 'done' ? (
-                  <span
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
-                    style={{ border: '1px solid rgba(16,185,129,.3)', color: 'rgba(16,185,129,.9)', background: 'rgba(16,185,129,.1)' }}
-                  >
-                    ✓ Media ready{mediaJob.failed > 0 ? ` (${mediaJob.failed} failed)` : ''}
-                  </span>
-                ) : mediaJob && mediaJob.status === 'failed' ? (
-                  <span
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
-                    style={{ border: '1px solid rgba(244,63,94,.3)', color: 'rgba(244,63,94,.9)', background: 'rgba(244,63,94,.1)' }}
-                  >
-                    ✗ Media failed
-                  </span>
+                    Retry media ({queueSummary?.media.failed})
+                  </button>
                 ) : (
                   <button
-                    onClick={() => void handleStartMediaExtraction()}
+                    onClick={() => void handleGenerateMedia()}
                     className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
                     style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
                   >
@@ -442,6 +488,7 @@ export function ReviewPage() {
               <CandidateCard
                 key={c.id}
                 candidate={c}
+                sourceId={sourceId}
                 isRated={false}
                 isHovered={hoveredId === c.id}
                 onHoverEnter={handleCardHoverEnter}
@@ -452,14 +499,11 @@ export function ReviewPage() {
                 isEditingFragment={editingFragmentFor === c.id}
                 onGenerateMeaning={(id) => void handleGenerate(id)}
                 isGenerating={generatingIds.has(c.id)}
-                batchGenerationStatus={batchGenerationStatus}
-                isInBatchProcessing={processingCandidateIds.has(c.id)}
-                isQueued={queuedCandidateIds.has(c.id)}
                 screenshotUrl={mediaMap[c.id]?.screenshotUrl}
                 audioUrl={mediaMap[c.id]?.audioUrl}
                 onRegenerateMedia={source?.source_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                 isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
-                hasMediaTimecodes={c.media_start_ms != null}
+                hasMediaTimecodes={c.media?.start_ms != null}
               />
             ))
           )}
@@ -477,6 +521,7 @@ export function ReviewPage() {
                 <CandidateCard
                   key={c.id}
                   candidate={c}
+                  sourceId={sourceId}
                   isRated={true}
                   isHovered={hoveredId === c.id}
                   onHoverEnter={handleCardHoverEnter}
@@ -487,14 +532,11 @@ export function ReviewPage() {
                   isEditingFragment={editingFragmentFor === c.id}
                   onGenerateMeaning={(id) => void handleGenerate(id)}
                   isGenerating={generatingIds.has(c.id)}
-                  batchGenerationStatus={batchGenerationStatus}
-                  isInBatchProcessing={processingCandidateIds.has(c.id)}
-                  isQueued={queuedCandidateIds.has(c.id)}
                   screenshotUrl={mediaMap[c.id]?.screenshotUrl}
                   audioUrl={mediaMap[c.id]?.audioUrl}
                   onRegenerateMedia={source?.source_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                   isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
-                  hasMediaTimecodes={c.media_start_ms != null}
+                  hasMediaTimecodes={c.media?.start_ms != null}
                 />
               ))}
             </>

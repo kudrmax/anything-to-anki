@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 from backend.application.use_cases.process_source import ProcessSourceUseCase
+from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.source_status import SourceStatus
@@ -35,6 +36,15 @@ class TestProcessVideoSource:
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = source
         candidate_repo = MagicMock()
+        # create_batch returns candidates with IDs set
+        returned = [StoredCandidate(
+            id=i + 1, source_id=c.source_id, lemma=c.lemma, pos=c.pos,
+            cefr_level=c.cefr_level, zipf_frequency=c.zipf_frequency,
+            is_sweet_spot=c.is_sweet_spot, context_fragment=c.context_fragment,
+            fragment_purity=c.fragment_purity, occurrences=c.occurrences,
+            status=c.status,
+        ) for i, c in enumerate(candidates)]
+        candidate_repo.create_batch.return_value = returned
         known_word_repo = MagicMock()
         known_word_repo.get_all_pairs.return_value = set()
         settings_repo = MagicMock()
@@ -55,6 +65,7 @@ class TestProcessVideoSource:
         structured_parser.parse_structured.return_value = parsed_srt
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
+        self._media_repo = MagicMock()
         return ProcessSourceUseCase(
             source_repo=source_repo,
             candidate_repo=candidate_repo,
@@ -62,6 +73,7 @@ class TestProcessVideoSource:
             settings_repo=settings_repo,
             analyze_text_use_case=analyze_text,
             structured_srt_parser=structured_parser,
+            media_repo=self._media_repo,
         )
 
     def test_video_source_sets_timecodes_on_candidates(self) -> None:
@@ -70,14 +82,20 @@ class TestProcessVideoSource:
         candidate = _make_candidate(fragment)
         uc = self._make_use_case(source, [candidate])
         uc.execute(source_id=1)
-        saved_candidates = self._candidate_repo.create_batch.call_args[0][0]
-        assert saved_candidates[0].media_start_ms == 1200
-        assert saved_candidates[0].media_end_ms == 4000
+
+        # media_repo.upsert called with CandidateMedia having correct timecodes
+        self._media_repo.upsert.assert_called_once()
+        upserted: CandidateMedia = self._media_repo.upsert.call_args[0][0]
+        assert upserted.start_ms == 1200
+        assert upserted.end_ms == 4000
+        assert upserted.screenshot_path is None
+        assert upserted.audio_path is None
 
     def test_non_video_source_no_timecodes(self) -> None:
         source = _make_source(SourceType.TEXT, raw_text="plain text")
         candidate = _make_candidate("plain text")
         uc = self._make_use_case(source, [candidate])
         uc.execute(source_id=1)
-        saved_candidates = self._candidate_repo.create_batch.call_args[0][0]
-        assert saved_candidates[0].media_start_ms is None
+
+        # No media rows created for non-video source
+        self._media_repo.upsert.assert_not_called()

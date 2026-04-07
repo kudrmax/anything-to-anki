@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO
+from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.exceptions import CandidateNotFoundError, PromptNotFoundError
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 if TYPE_CHECKING:
     from backend.domain.ports.ai_service import AIService
+    from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.prompt_repository import PromptRepository
 
@@ -19,10 +23,12 @@ class GenerateMeaningUseCase:
     def __init__(
         self,
         candidate_repo: CandidateRepository,
+        meaning_repo: CandidateMeaningRepository,
         ai_service: AIService,
         prompt_repo: PromptRepository,
     ) -> None:
         self._candidate_repo = candidate_repo
+        self._meaning_repo = meaning_repo
         self._ai_service = ai_service
         self._prompt_repo = prompt_repo
 
@@ -41,7 +47,14 @@ class GenerateMeaningUseCase:
             context=candidate.context_fragment,
         )
         result = self._ai_service.generate_meaning(prompt.system_prompt, user_prompt)
-        self._candidate_repo.update_meaning_and_ipa(candidate_id, result.meaning, result.ipa)
+        self._meaning_repo.upsert(CandidateMeaning(
+            candidate_id=candidate_id,
+            meaning=result.meaning,
+            ipa=result.ipa,
+            status=EnrichmentStatus.DONE,
+            error=None,
+            generated_at=datetime.now(tz=UTC),
+        ))
         return GenerateMeaningResponseDTO(
             candidate_id=candidate_id,
             meaning=result.meaning,

@@ -16,7 +16,11 @@ from backend.application.dto.source_dtos import (  # noqa: TC001
     StoredCandidateDTO,
     UpdateTitleRequest,
 )
-from backend.domain.exceptions import SourceAlreadyProcessedError, SourceIsProcessingError, SourceNotFoundError
+from backend.domain.exceptions import (
+    SourceAlreadyProcessedError,
+    SourceIsProcessingError,
+    SourceNotFoundError,
+)
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.dependencies import (
     get_container,
@@ -61,12 +65,21 @@ def list_sources(
 @router.get("/{source_id}")
 def get_source(
     source_id: int,
+    sort: str = "relevance",
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> SourceDetailDTO:
+    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+    try:
+        sort_order = CandidateSortOrder(sort)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid sort: {sort}. Use 'relevance' or 'chronological'.",
+        ) from e
     try:
         use_case = container.get_sources_use_case(session)
-        return use_case.get_by_id(source_id)
+        return use_case.get_by_id(source_id, sort_order=sort_order)
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
@@ -159,7 +172,9 @@ def update_source_status(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid status: {raw_status}") from None
     if new_status not in _REVIEW_STATUSES:
-        raise HTTPException(status_code=400, detail=f"Status transition to '{raw_status}' not allowed") from None
+        raise HTTPException(
+            status_code=400, detail=f"Status transition to '{raw_status}' not allowed"
+        ) from None
     from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
     repo = SqlaSourceRepository(session)
     source = repo.get_by_id(source_id)
@@ -212,7 +227,7 @@ async def create_video_source(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, Any]:
-    from backend.application.dto.video_dtos import TrackSelectionRequired, VideoSourceCreated
+    from backend.application.dto.video_dtos import TrackSelectionRequired
 
     # Save video to disk
     data_dir = os.getenv("DATA_DIR", ".")
@@ -276,15 +291,55 @@ async def create_video_source(
     return {"id": result.source_id, "status": "new"}
 
 
-@router.get("/{source_id}/candidates")
-def get_candidates(
+@router.get("/{source_id}/queue-summary")
+def get_queue_summary(
     source_id: int,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, dict[str, int]]:
+    """Aggregate counts of meaning/media enrichments by status.
+    Used by frontend to show 'Cancel queue' / 'Retry failed' button visibility."""
+    from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+
+    meaning_repo = container.candidate_meaning_repository(session)
+    media_repo = container.candidate_media_repository(session)
+
+    qs = EnrichmentStatus.QUEUED
+    rs = EnrichmentStatus.RUNNING
+    fs = EnrichmentStatus.FAILED
+
+    return {
+        "meaning": {
+            "queued": len(meaning_repo.get_candidate_ids_by_status(source_id, qs)),
+            "running": len(meaning_repo.get_candidate_ids_by_status(source_id, rs)),
+            "failed": len(meaning_repo.get_candidate_ids_by_status(source_id, fs)),
+        },
+        "media": {
+            "queued": len(media_repo.get_candidate_ids_by_status(source_id, qs)),
+            "running": len(media_repo.get_candidate_ids_by_status(source_id, rs)),
+            "failed": len(media_repo.get_candidate_ids_by_status(source_id, fs)),
+        },
+    }
+
+
+@router.get("/{source_id}/candidates")
+def get_candidates(
+    source_id: int,
+    sort: str = "relevance",
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
 ) -> list[dict[str, Any]]:
+    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+    try:
+        sort_order = CandidateSortOrder(sort)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid sort: {sort}. Use 'relevance' or 'chronological'.",
+        ) from e
     try:
         use_case = container.get_candidates_use_case(session)
-        candidates = use_case.execute(source_id)
+        candidates = use_case.execute(source_id, sort_order=sort_order)
         return [c.model_dump() for c in candidates]
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

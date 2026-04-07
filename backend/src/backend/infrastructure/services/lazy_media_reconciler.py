@@ -5,6 +5,9 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
+from backend.infrastructure.persistence.sqla_candidate_media_repository import (
+    SqlaCandidateMediaRepository,
+)
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 
 if TYPE_CHECKING:
@@ -50,16 +53,23 @@ class LazyMediaReconciler:
         session = self._session_factory()
         try:
             repo = SqlaCandidateRepository(session)
+            media_repo = SqlaCandidateMediaRepository(session)
             candidates = repo.get_by_source(source_id)
             cleared_shot = 0
             cleared_audio = 0
             for c in candidates:
-                if c.id is None:
+                if c.id is None or c.media is None:
                     continue
-                missing_shot = c.screenshot_path is not None and not os.path.exists(c.screenshot_path)
-                missing_audio = c.audio_path is not None and not os.path.exists(c.audio_path)
+                missing_shot = (
+                    c.media.screenshot_path is not None
+                    and not os.path.exists(c.media.screenshot_path)
+                )
+                missing_audio = (
+                    c.media.audio_path is not None
+                    and not os.path.exists(c.media.audio_path)
+                )
                 if missing_shot or missing_audio:
-                    repo.clear_media_path(
+                    media_repo.clear_paths(
                         c.id,
                         clear_screenshot=missing_shot,
                         clear_audio=missing_audio,

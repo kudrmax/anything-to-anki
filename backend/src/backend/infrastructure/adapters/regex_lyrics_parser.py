@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
 
 from backend.domain.ports.source_parser import SourceParser
-from backend.domain.ports.text_analyzer import TextAnalyzer
+
+if TYPE_CHECKING:
+    from backend.domain.ports.text_analyzer import TextAnalyzer
 
 # Lines ending with a word character need a sentence-ending period
 _NEEDS_PERIOD_RE = re.compile(r"\w$")

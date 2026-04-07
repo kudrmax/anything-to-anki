@@ -112,8 +112,8 @@ export function CandidateCard({
     >
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-base font-semibold" style={{ color: 'var(--text)' }}>{candidate.lemma}</span>
-        {candidate.ipa && (
-          <span className="text-xs font-mono" style={{ color: 'var(--td)' }}>{candidate.ipa}</span>
+        {candidate.meaning?.ipa && (
+          <span className="text-xs font-mono" style={{ color: 'var(--td)' }}>{candidate.meaning.ipa}</span>
         )}
         <span className="rounded px-1.5 py-0.5 text-xs" style={{ color: 'var(--td)', background: 'var(--glass)', border: '1px solid var(--glass-b)' }}>
           {POS_LABEL[candidate.pos] ?? candidate.pos.toLowerCase()}
@@ -162,9 +162,9 @@ export function CandidateCard({
         )}
       </div>
 
-      {candidate.meaning && (
+      {candidate.meaning?.meaning && (
         <p className="text-xs leading-relaxed" style={{ color: 'var(--tm)' }}>
-          {candidate.meaning}
+          {candidate.meaning.meaning}
         </p>
       )}
 

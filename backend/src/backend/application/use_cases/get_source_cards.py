@@ -29,12 +29,15 @@ class GetSourceCardsUseCase:
         for candidate in learn_candidates:
             screenshot_url: str | None = None
             audio_url: str | None = None
-            if candidate.screenshot_path:
-                filename = candidate.screenshot_path.rsplit("/", 1)[-1]
+            if candidate.media and candidate.media.screenshot_path:
+                filename = candidate.media.screenshot_path.rsplit("/", 1)[-1]
                 screenshot_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
-            if candidate.audio_path:
-                filename = candidate.audio_path.rsplit("/", 1)[-1]
+            if candidate.media and candidate.media.audio_path:
+                filename = candidate.media.audio_path.rsplit("/", 1)[-1]
                 audio_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
+
+            meaning_text = candidate.meaning.meaning if candidate.meaning else None
+            ipa_text = candidate.meaning.ipa if candidate.meaning else None
 
             cards.append(
                 CardPreviewDTO(
@@ -47,14 +50,14 @@ class GetSourceCardsUseCase:
                     ),
                     meaning=(
                         highlight_all_forms(
-                            candidate.meaning,
+                            meaning_text,
                             candidate.lemma,
                             candidate.surface_form,
                         )
-                        if candidate.meaning is not None
+                        if meaning_text is not None
                         else None
                     ),
-                    ipa=candidate.ipa,
+                    ipa=ipa_text,
                     screenshot_url=screenshot_url,
                     audio_url=audio_url,
                 )

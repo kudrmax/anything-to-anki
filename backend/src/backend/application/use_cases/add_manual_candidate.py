@@ -68,7 +68,10 @@ class AddManualCandidateUseCase:
             tag = verb_token.tag if verb_token else "VB"
         else:
             matching_token = next(
-                (t for t in tokens if t.text.lower() == surface_lower and t.is_alpha and not t.is_punct),
+                (
+                    t for t in tokens
+                    if t.text.lower() == surface_lower and t.is_alpha and not t.is_punct
+                ),
                 None,
             )
             if matching_token is None:

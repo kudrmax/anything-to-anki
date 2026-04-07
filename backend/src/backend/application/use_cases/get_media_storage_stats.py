@@ -26,6 +26,7 @@ class GetMediaStorageStatsUseCase:
         for source in self._source_repo.list_all():
             if source.source_type != SourceType.VIDEO:
                 continue
+            assert source.id is not None
 
             source_dir = os.path.join(self._media_root, str(source.id))
             screenshot_bytes = 0

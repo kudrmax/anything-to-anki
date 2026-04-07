@@ -41,13 +41,32 @@ class SyncToAnkiUseCase:
 
     def execute(self, source_id: int) -> SyncResultDTO:
         deck_name = self._settings_repo.get("anki_deck_name", _DEFAULT_DECK) or _DEFAULT_DECK
-        note_type = self._settings_repo.get("anki_note_type", _DEFAULT_NOTE_TYPE) or _DEFAULT_NOTE_TYPE
-        field_sentence = self._settings_repo.get("anki_field_sentence", _DEFAULT_FIELD_SENTENCE) or _DEFAULT_FIELD_SENTENCE
-        field_target = self._settings_repo.get("anki_field_target_word", _DEFAULT_FIELD_TARGET) or _DEFAULT_FIELD_TARGET
-        field_meaning = self._settings_repo.get("anki_field_meaning", _DEFAULT_FIELD_MEANING) or _DEFAULT_FIELD_MEANING
-        field_ipa = self._settings_repo.get("anki_field_ipa", _DEFAULT_FIELD_IPA) or _DEFAULT_FIELD_IPA
-        field_image = self._settings_repo.get("anki_field_image", _DEFAULT_FIELD_IMAGE) or _DEFAULT_FIELD_IMAGE
-        field_audio = self._settings_repo.get("anki_field_audio", _DEFAULT_FIELD_AUDIO) or _DEFAULT_FIELD_AUDIO
+        note_type = (
+            self._settings_repo.get("anki_note_type", _DEFAULT_NOTE_TYPE) or _DEFAULT_NOTE_TYPE
+        )
+        field_sentence = (
+            self._settings_repo.get("anki_field_sentence", _DEFAULT_FIELD_SENTENCE)
+            or _DEFAULT_FIELD_SENTENCE
+        )
+        field_target = (
+            self._settings_repo.get("anki_field_target_word", _DEFAULT_FIELD_TARGET)
+            or _DEFAULT_FIELD_TARGET
+        )
+        field_meaning = (
+            self._settings_repo.get("anki_field_meaning", _DEFAULT_FIELD_MEANING)
+            or _DEFAULT_FIELD_MEANING
+        )
+        field_ipa = (
+            self._settings_repo.get("anki_field_ipa", _DEFAULT_FIELD_IPA) or _DEFAULT_FIELD_IPA
+        )
+        field_image = (
+            self._settings_repo.get("anki_field_image", _DEFAULT_FIELD_IMAGE)
+            or _DEFAULT_FIELD_IMAGE
+        )
+        field_audio = (
+            self._settings_repo.get("anki_field_audio", _DEFAULT_FIELD_AUDIO)
+            or _DEFAULT_FIELD_AUDIO
+        )
 
         candidates = self._candidate_repo.get_by_source(source_id)
         learn_candidates = [c for c in candidates if c.status == CandidateStatus.LEARN]
@@ -71,7 +90,12 @@ class SyncToAnkiUseCase:
                 skipped_lemmas=skipped_lemmas,
             )
 
-        active_fields = [f for f in [field_sentence, field_target, field_meaning, field_ipa, field_image, field_audio] if f]
+        active_fields = [
+            f for f in [
+                field_sentence, field_target, field_meaning, field_ipa, field_image, field_audio,
+            ]
+            if f
+        ]
         if note_type == _DEFAULT_NOTE_TYPE:
             self._connector.ensure_note_type(note_type, active_fields)
         self._connector.ensure_deck(deck_name)
@@ -87,13 +111,14 @@ class SyncToAnkiUseCase:
                     candidate.lemma,
                     candidate.surface_form,
                 )
+                meaning_text = candidate.meaning.meaning if candidate.meaning else None
                 meaning = (
                     highlight_all_forms(
-                        candidate.meaning,
+                        meaning_text,
                         candidate.lemma,
                         candidate.surface_form,
                     )
-                    if candidate.meaning
+                    if meaning_text
                     else ""
                 )
 
@@ -105,14 +130,24 @@ class SyncToAnkiUseCase:
                 if field_meaning:
                     note[field_meaning] = meaning
                 if field_ipa:
-                    note[field_ipa] = candidate.ipa or ""
-                if field_image and candidate.screenshot_path and os.path.exists(candidate.screenshot_path):
-                    filename = os.path.basename(candidate.screenshot_path)
-                    self._connector.store_media_file(filename, candidate.screenshot_path)
+                    note[field_ipa] = (candidate.meaning.ipa if candidate.meaning else None) or ""
+                if (
+                    field_image
+                    and candidate.media
+                    and candidate.media.screenshot_path
+                    and os.path.exists(candidate.media.screenshot_path)
+                ):
+                    filename = os.path.basename(candidate.media.screenshot_path)
+                    self._connector.store_media_file(filename, candidate.media.screenshot_path)
                     note[field_image] = f'<img src="{filename}">'
-                if field_audio and candidate.audio_path and os.path.exists(candidate.audio_path):
-                    filename = os.path.basename(candidate.audio_path)
-                    self._connector.store_media_file(filename, candidate.audio_path)
+                if (
+                    field_audio
+                    and candidate.media
+                    and candidate.media.audio_path
+                    and os.path.exists(candidate.media.audio_path)
+                ):
+                    filename = os.path.basename(candidate.media.audio_path)
+                    self._connector.store_media_file(filename, candidate.media.audio_path)
                     note[field_audio] = f'[sound:{filename}]'
 
                 results = self._connector.add_notes(

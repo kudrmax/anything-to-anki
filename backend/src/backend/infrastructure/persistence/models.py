@@ -1,20 +1,18 @@
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Float, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from backend.domain.entities.generation_job import GenerationJob
+from backend.domain.entities.candidate_meaning import CandidateMeaning
+from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.known_word import KnownWord
-from backend.domain.entities.media_extraction_job import MediaExtractionJob
 from backend.domain.entities.prompt_template import PromptTemplate
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.generation_job_status import GenerationJobStatus
-from backend.domain.value_objects.media_extraction_job_status import MediaExtractionJobStatus
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.source_type import SourceType
@@ -49,7 +47,9 @@ class SourceModel(Base):
             status=SourceStatus(self.status),
             source_type=SourceType(self.source_type),
             error_message=self.error_message,
-            processing_stage=ProcessingStage(self.processing_stage) if self.processing_stage else None,
+            processing_stage=(
+                ProcessingStage(self.processing_stage) if self.processing_stage else None
+            ),
             video_path=self.video_path,
             audio_track_index=self.audio_track_index,
             created_at=self.created_at,
@@ -69,7 +69,11 @@ class SourceModel(Base):
 
 
 class StoredCandidateModel(Base):
-    """SQLAlchemy model for word candidates."""
+    """SQLAlchemy model for word candidates.
+
+    Note: meaning and media live in separate tables (CandidateMeaningModel,
+    CandidateMediaModel) and are loaded by SqlaCandidateRepository, not here.
+    """
 
     __tablename__ = "candidates"
 
@@ -85,15 +89,11 @@ class StoredCandidateModel(Base):
     occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     surface_form: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    meaning: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ipa: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False, default=False)
-    media_start_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    media_end_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    screenshot_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     def to_entity(self) -> StoredCandidate:
+        """Build a StoredCandidate WITHOUT meaning/media — those are loaded
+        separately by SqlaCandidateRepository which then attaches them."""
         return StoredCandidate(
             id=self.id,
             source_id=self.source_id,
@@ -106,14 +106,10 @@ class StoredCandidateModel(Base):
             fragment_purity=self.fragment_purity,
             occurrences=self.occurrences,
             surface_form=self.surface_form,
-            meaning=self.meaning,
-            ipa=self.ipa,
             is_phrasal_verb=self.is_phrasal_verb,
-            media_start_ms=self.media_start_ms,
-            media_end_ms=self.media_end_ms,
-            screenshot_path=self.screenshot_path,
-            audio_path=self.audio_path,
             status=CandidateStatus(self.status),
+            meaning=None,
+            media=None,
         )
 
     @staticmethod
@@ -129,13 +125,7 @@ class StoredCandidateModel(Base):
             fragment_purity=candidate.fragment_purity,
             occurrences=candidate.occurrences,
             surface_form=candidate.surface_form,
-            meaning=candidate.meaning,
-            ipa=candidate.ipa,
             is_phrasal_verb=candidate.is_phrasal_verb,
-            media_start_ms=candidate.media_start_ms,
-            media_end_ms=candidate.media_end_ms,
-            screenshot_path=candidate.screenshot_path,
-            audio_path=candidate.audio_path,
             status=candidate.status.value,
         )
 
@@ -201,92 +191,83 @@ class AnkiSyncedCardModel(Base):
     anki_note_id: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
-class GenerationJobModel(Base):
-    """SQLAlchemy model for background generation jobs.
+class CandidateMeaningModel(Base):
+    """SQLAlchemy model for the meaning enrichment of a candidate (1:1)."""
 
-    One job = one batch of candidates (up to 15 words).
-    """
+    __tablename__ = "candidate_meanings"
 
-    __tablename__ = "generation_jobs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    source_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
-    total_candidates: Mapped[int] = mapped_column(Integer, nullable=False)
-    processed_candidates: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    failed_candidates: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    skipped_candidates: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    candidate_ids_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
+    candidate_id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        nullable=False,
     )
+    meaning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ipa: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="done")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    def to_entity(self) -> GenerationJob:
-        return GenerationJob(
-            id=self.id,
-            source_id=self.source_id,
-            status=GenerationJobStatus(self.status),
-            total_candidates=self.total_candidates,
-            candidate_ids=json.loads(self.candidate_ids_json),
-            processed_candidates=self.processed_candidates,
-            failed_candidates=self.failed_candidates,
-            skipped_candidates=self.skipped_candidates,
-            created_at=self.created_at,
+    def to_entity(self) -> CandidateMeaning:
+        return CandidateMeaning(
+            candidate_id=self.candidate_id,
+            meaning=self.meaning,
+            ipa=self.ipa,
+            status=EnrichmentStatus(self.status),
+            error=self.error,
+            generated_at=self.generated_at,
         )
 
     @staticmethod
-    def from_entity(job: GenerationJob) -> GenerationJobModel:
-        return GenerationJobModel(
-            source_id=job.source_id,
-            status=job.status.value,
-            total_candidates=job.total_candidates,
-            candidate_ids_json=json.dumps(job.candidate_ids),
-            processed_candidates=job.processed_candidates,
-            failed_candidates=job.failed_candidates,
-            skipped_candidates=job.skipped_candidates,
-            created_at=job.created_at,
+    def from_entity(entity: CandidateMeaning) -> CandidateMeaningModel:
+        return CandidateMeaningModel(
+            candidate_id=entity.candidate_id,
+            meaning=entity.meaning,
+            ipa=entity.ipa,
+            status=entity.status.value,
+            error=entity.error,
+            generated_at=entity.generated_at,
         )
 
 
-class MediaExtractionJobModel(Base):
-    """SQLAlchemy model for media extraction jobs."""
+class CandidateMediaModel(Base):
+    """SQLAlchemy model for the media enrichment of a candidate (1:1)."""
 
-    __tablename__ = "media_extraction_jobs"
+    __tablename__ = "candidate_media"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    source_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
-    total_candidates: Mapped[int] = mapped_column(Integer, nullable=False)
-    processed_candidates: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    failed_candidates: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    skipped_candidates: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    candidate_ids_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
+    candidate_id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        nullable=False,
     )
+    screenshot_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    start_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    end_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="done")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    def to_entity(self) -> MediaExtractionJob:
-        return MediaExtractionJob(
-            id=self.id,
-            source_id=self.source_id,
-            status=MediaExtractionJobStatus(self.status),
-            total_candidates=self.total_candidates,
-            candidate_ids=json.loads(self.candidate_ids_json),
-            processed_candidates=self.processed_candidates,
-            failed_candidates=self.failed_candidates,
-            skipped_candidates=self.skipped_candidates,
-            created_at=self.created_at,
+    def to_entity(self) -> CandidateMedia:
+        return CandidateMedia(
+            candidate_id=self.candidate_id,
+            screenshot_path=self.screenshot_path,
+            audio_path=self.audio_path,
+            start_ms=self.start_ms,
+            end_ms=self.end_ms,
+            status=EnrichmentStatus(self.status),
+            error=self.error,
+            generated_at=self.generated_at,
         )
 
     @staticmethod
-    def from_entity(job: MediaExtractionJob) -> MediaExtractionJobModel:
-        return MediaExtractionJobModel(
-            source_id=job.source_id,
-            status=job.status.value,
-            total_candidates=job.total_candidates,
-            candidate_ids_json=json.dumps(job.candidate_ids),
-            processed_candidates=job.processed_candidates,
-            failed_candidates=job.failed_candidates,
-            skipped_candidates=job.skipped_candidates,
-            created_at=job.created_at,
+    def from_entity(entity: CandidateMedia) -> CandidateMediaModel:
+        return CandidateMediaModel(
+            candidate_id=entity.candidate_id,
+            screenshot_path=entity.screenshot_path,
+            audio_path=entity.audio_path,
+            start_ms=entity.start_ms,
+            end_ms=entity.end_ms,
+            status=entity.status.value,
+            error=entity.error,
+            generated_at=entity.generated_at,
         )

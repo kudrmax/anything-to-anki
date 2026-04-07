@@ -1,13 +1,14 @@
 import type {
   AnkiStatus,
   CardPreview,
+  CandidateSortOrder,
   CandidateStatus,
   CleanupMediaKind,
   CreateNoteTypeResponse,
   GenerateMeaningResult,
-  GenerationQueueStatus,
   KnownWord,
   PromptTemplate,
+  QueueSummary,
   Settings,
   SourceDetail,
   SourceMediaStats,
@@ -56,12 +57,14 @@ export const api = {
 
   listSources: () => req<SourceSummary[]>('/sources'),
 
-  getSource: (id: number) => req<SourceDetail>(`/sources/${id}`),
+  getSource: (id: number, sort: CandidateSortOrder = 'relevance') =>
+    req<SourceDetail>(`/sources/${id}?sort=${sort}`),
 
   processSource: (id: number) =>
     req<{ status: string }>(`/sources/${id}/process`, { method: 'POST' }),
 
-  getCandidates: (id: number) => req<StoredCandidate[]>(`/sources/${id}/candidates`),
+  getCandidates: (id: number, sort: CandidateSortOrder = 'relevance') =>
+    req<StoredCandidate[]>(`/sources/${id}/candidates?sort=${sort}`),
 
   markCandidate: (id: number, status: CandidateStatus) =>
     req<{ id: number; status: string }>(`/candidates/${id}`, {
@@ -100,24 +103,32 @@ export const api = {
   regenerateCandidateMedia: (candidateId: number) =>
     req<{ status: string }>(`/candidates/${candidateId}/regenerate-media`, { method: 'POST' }),
 
-  startGeneration: (sourceId?: number) =>
-    req<GenerationQueueStatus>('/generation/start', {
-      method: 'POST',
-      body: JSON.stringify({ source_id: sourceId ?? null }),
-    }),
+  enqueueMeaningGeneration: (sourceId: number, sort: CandidateSortOrder = 'relevance') =>
+    req<{ enqueued: number; batches: number }>(
+      `/sources/${sourceId}/meanings/generate?sort=${sort}`,
+      { method: 'POST' },
+    ),
 
-  stopGeneration: (jobId: number) =>
-    req<{ status: string }>(`/generation/${jobId}/stop`, { method: 'POST' }),
+  cancelMeaningQueue: (sourceId: number) =>
+    req<{ cancelled: number }>(`/sources/${sourceId}/meanings/cancel`, { method: 'POST' }),
 
-  getGenerationStatus: () => {
-    return fetch(`${BASE}/generation/status`, {
-      headers: { 'Content-Type': 'application/json' },
-    }).then(async (res) => {
-      if (res.status === 204) return null
-      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
-      return res.json() as Promise<GenerationQueueStatus>
-    })
-  },
+  retryFailedMeanings: (sourceId: number) =>
+    req<{ enqueued: number }>(`/sources/${sourceId}/meanings/retry-failed`, { method: 'POST' }),
+
+  enqueueMediaGeneration: (sourceId: number, sort: CandidateSortOrder = 'relevance') =>
+    req<{ enqueued: number }>(
+      `/sources/${sourceId}/media/generate?sort=${sort}`,
+      { method: 'POST' },
+    ),
+
+  cancelMediaQueue: (sourceId: number) =>
+    req<{ cancelled: number }>(`/sources/${sourceId}/media/cancel`, { method: 'POST' }),
+
+  retryFailedMedia: (sourceId: number) =>
+    req<{ enqueued: number }>(`/sources/${sourceId}/media/retry-failed`, { method: 'POST' }),
+
+  getQueueSummary: (sourceId: number) =>
+    req<QueueSummary>(`/sources/${sourceId}/queue-summary`),
 
   getStats: () => req<Stats>('/stats'),
 
@@ -157,14 +168,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ source_id: sourceId, kind }),
     }),
-
-  startMediaExtraction: (sourceId: number) =>
-    req<{ job_id: number; status: string }>(`/sources/${sourceId}/media-extraction`, { method: 'POST' }),
-
-  getMediaExtractionStatus: (sourceId: number, jobId: number) =>
-    req<{ job_id: number; status: string; total: number; processed: number; failed: number; skipped: number }>(
-      `/sources/${sourceId}/media-extraction/${jobId}`
-    ),
 
   createVideoSource: async (
     videoFile: File,

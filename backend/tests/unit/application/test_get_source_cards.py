@@ -1,9 +1,13 @@
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.get_source_cards import GetSourceCardsUseCase
+from backend.domain.entities.candidate_meaning import CandidateMeaning
+from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 
 def _make_candidate(
@@ -15,6 +19,28 @@ def _make_candidate(
     screenshot_path: str | None = None,
     audio_path: str | None = None,
 ) -> StoredCandidate:
+    meaning_obj = None
+    if meaning is not None or ipa is not None:
+        meaning_obj = CandidateMeaning(
+            candidate_id=1,
+            meaning=meaning,
+            ipa=ipa,
+            status=EnrichmentStatus.DONE,
+            error=None,
+            generated_at=datetime(2026, 4, 7, tzinfo=UTC),
+        )
+    media_obj = None
+    if screenshot_path is not None or audio_path is not None:
+        media_obj = CandidateMedia(
+            candidate_id=1,
+            screenshot_path=screenshot_path,
+            audio_path=audio_path,
+            start_ms=None,
+            end_ms=None,
+            status=EnrichmentStatus.DONE,
+            error=None,
+            generated_at=datetime(2026, 4, 7, tzinfo=UTC),
+        )
     return StoredCandidate(
         id=1,
         source_id=1,
@@ -27,10 +53,8 @@ def _make_candidate(
         fragment_purity="clean",
         occurrences=1,
         status=status,
-        meaning=meaning,
-        ipa=ipa,
-        screenshot_path=screenshot_path,
-        audio_path=audio_path,
+        meaning=meaning_obj,
+        media=media_obj,
     )
 
 

@@ -472,8 +472,20 @@ export function InboxPage() {
                   id="anki-file-input"
                   type="file"
                   multiple
-                  accept=".epub,.srt,.html,.txt,.mp4,.mkv,.avi,.mov"
-                  className="hidden"
+                  accept=".epub,.srt,.html,.txt,video/*"
+                  // visually hidden but kept in layout — `display: none` causes
+                  // some browsers to fire `change` with empty FileList after picker
+                  style={{
+                    position: 'absolute',
+                    width: '1px',
+                    height: '1px',
+                    padding: 0,
+                    margin: '-1px',
+                    overflow: 'hidden',
+                    clip: 'rect(0,0,0,0)',
+                    whiteSpace: 'nowrap',
+                    border: 0,
+                  }}
                   onChange={(e) => {
                     setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])])
                     e.target.value = ''

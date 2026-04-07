@@ -49,7 +49,7 @@ class ManageSettingsUseCase:
             k: (v.lower() == "true" if k in _BOOL_KEYS else v)
             for k, v in raw.items()
         }
-        return SettingsDTO(**values)
+        return SettingsDTO(**values)  # type: ignore[arg-type]
 
     def update_settings(self, request: UpdateSettingsRequest) -> SettingsDTO:
         for key in _SETTING_KEYS:
