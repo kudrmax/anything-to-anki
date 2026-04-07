@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 
 @dataclass(frozen=True)
@@ -18,6 +16,6 @@ class CandidateMeaning:
     candidate_id: int
     meaning: str | None
     ipa: str | None
-    status: "EnrichmentStatus"
+    status: EnrichmentStatus
     error: str | None
     generated_at: datetime | None
