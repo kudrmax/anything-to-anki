@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from backend.domain.entities.candidate_meaning import CandidateMeaning
@@ -25,7 +25,7 @@ class TestSqlaCandidateMeaningRepository:
         # application level (no actual FK in this phase).
         with self._Session() as s:
             s.execute(
-                __import__("sqlalchemy").text(
+                text(
                     "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
                     "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
                     "occurrences, status, is_phrasal_verb) "
@@ -81,7 +81,7 @@ class TestSqlaCandidateMeaningRepository:
         with self._Session() as s:
             # add another candidate
             s.execute(
-                __import__("sqlalchemy").text(
+                text(
                     "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
                     "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
                     "occurrences, status, is_phrasal_verb) "
@@ -104,3 +104,32 @@ class TestSqlaCandidateMeaningRepository:
             assert set(mapping.keys()) == {1, 2}
             assert mapping[1].meaning == "m1"
             assert mapping[2].meaning == "m2"
+
+    def test_get_by_candidate_ids_returns_mapping(self) -> None:
+        with self._Session() as s:
+            s.execute(text(
+                "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
+                "occurrences, status, is_phrasal_verb) "
+                "VALUES (2, 1, 'y', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0)"
+            ))
+            s.commit()
+            repo = SqlaCandidateMeaningRepository(s)
+            repo.upsert(CandidateMeaning(
+                candidate_id=1, meaning="m1", ipa=None,
+                status=EnrichmentStatus.DONE, error=None, generated_at=None,
+            ))
+            repo.upsert(CandidateMeaning(
+                candidate_id=2, meaning="m2", ipa=None,
+                status=EnrichmentStatus.DONE, error=None, generated_at=None,
+            ))
+            s.commit()
+
+            mapping = repo.get_by_candidate_ids([1, 2])
+            assert set(mapping.keys()) == {1, 2}
+            assert mapping[1].meaning == "m1"
+
+    def test_get_by_candidate_ids_empty_list(self) -> None:
+        with self._Session() as s:
+            repo = SqlaCandidateMeaningRepository(s)
+            assert repo.get_by_candidate_ids([]) == {}

@@ -119,3 +119,29 @@ class TestSqlaCandidateMediaRepository:
 
             mapping = repo.get_all_by_source(source_id=1)
             assert set(mapping.keys()) == {1, 2}
+
+    def test_get_by_candidate_ids_returns_mapping(self) -> None:
+        with self._Session() as s:
+            _insert_candidate(s, 2)
+            s.commit()
+            repo = SqlaCandidateMediaRepository(s)
+            repo.upsert(CandidateMedia(
+                candidate_id=1, screenshot_path="/1.webp", audio_path=None,
+                start_ms=0, end_ms=10, status=EnrichmentStatus.DONE,
+                error=None, generated_at=None,
+            ))
+            repo.upsert(CandidateMedia(
+                candidate_id=2, screenshot_path="/2.webp", audio_path=None,
+                start_ms=0, end_ms=10, status=EnrichmentStatus.DONE,
+                error=None, generated_at=None,
+            ))
+            s.commit()
+
+            mapping = repo.get_by_candidate_ids([1, 2])
+            assert set(mapping.keys()) == {1, 2}
+            assert mapping[1].screenshot_path == "/1.webp"
+
+    def test_get_by_candidate_ids_empty_list(self) -> None:
+        with self._Session() as s:
+            repo = SqlaCandidateMediaRepository(s)
+            assert repo.get_by_candidate_ids([]) == {}

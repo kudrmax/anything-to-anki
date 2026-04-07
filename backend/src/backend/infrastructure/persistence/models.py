@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from sqlalchemy import DateTime, Float, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from backend.domain.entities.candidate_meaning import CandidateMeaning
+from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.generation_job import GenerationJob
 from backend.domain.entities.known_word import KnownWord
 from backend.domain.entities.media_extraction_job import MediaExtractionJob
@@ -13,10 +15,8 @@ from backend.domain.entities.prompt_template import PromptTemplate
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.generation_job_status import GenerationJobStatus
-from backend.domain.entities.candidate_meaning import CandidateMeaning
-from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+from backend.domain.value_objects.generation_job_status import GenerationJobStatus
 from backend.domain.value_objects.media_extraction_job_status import MediaExtractionJobStatus
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
