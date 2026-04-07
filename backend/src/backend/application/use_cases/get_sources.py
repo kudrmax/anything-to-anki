@@ -2,15 +2,61 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.application.dto.source_dtos import SourceDetailDTO, SourceDTO, StoredCandidateDTO
+from backend.application.dto.source_dtos import (
+    CandidateMeaningDTO,
+    CandidateMediaDTO,
+    SourceDetailDTO,
+    SourceDTO,
+    StoredCandidateDTO,
+)
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
+    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.source_repository import SourceRepository
 
 _PREVIEW_LENGTH: int = 100
+
+
+def _candidate_to_dto(c: StoredCandidate) -> StoredCandidateDTO:
+    meaning_dto: CandidateMeaningDTO | None = None
+    if c.meaning is not None:
+        meaning_dto = CandidateMeaningDTO(
+            meaning=c.meaning.meaning,
+            ipa=c.meaning.ipa,
+            status=c.meaning.status.value,
+            error=c.meaning.error,
+            generated_at=c.meaning.generated_at,
+        )
+    media_dto: CandidateMediaDTO | None = None
+    if c.media is not None:
+        media_dto = CandidateMediaDTO(
+            screenshot_path=c.media.screenshot_path,
+            audio_path=c.media.audio_path,
+            start_ms=c.media.start_ms,
+            end_ms=c.media.end_ms,
+            status=c.media.status.value,
+            error=c.media.error,
+            generated_at=c.media.generated_at,
+        )
+    return StoredCandidateDTO(
+        id=c.id,  # type: ignore[arg-type]
+        lemma=c.lemma,
+        pos=c.pos,
+        cefr_level=c.cefr_level,
+        zipf_frequency=c.zipf_frequency,
+        is_sweet_spot=c.is_sweet_spot,
+        context_fragment=c.context_fragment,
+        fragment_purity=c.fragment_purity,
+        occurrences=c.occurrences,
+        status=c.status.value,
+        surface_form=c.surface_form,
+        is_phrasal_verb=c.is_phrasal_verb,
+        meaning=meaning_dto,
+        media=media_dto,
+    )
 
 
 class GetSourcesUseCase:
@@ -41,7 +87,9 @@ class GetSourcesUseCase:
                     created_at=source.created_at,
                     candidate_count=len(candidates),
                     learn_count=learn_count,
-                    processing_stage=source.processing_stage.value if source.processing_stage else None,
+                    processing_stage=(
+                        source.processing_stage.value if source.processing_stage else None
+                    ),
                 )
             )
         return result
@@ -62,23 +110,5 @@ class GetSourcesUseCase:
             error_message=source.error_message,
             processing_stage=source.processing_stage.value if source.processing_stage else None,
             created_at=source.created_at,
-            candidates=[
-                StoredCandidateDTO(
-                    id=c.id,  # type: ignore[arg-type]
-                    lemma=c.lemma,
-                    pos=c.pos,
-                    cefr_level=c.cefr_level,
-                    zipf_frequency=c.zipf_frequency,
-                    is_sweet_spot=c.is_sweet_spot,
-                    context_fragment=c.context_fragment,
-                    fragment_purity=c.fragment_purity,
-                    occurrences=c.occurrences,
-                    status=c.status.value,
-                    surface_form=c.surface_form,
-                    meaning=c.meaning,
-                    ipa=c.ipa,
-                    is_phrasal_verb=c.is_phrasal_verb,
-                )
-                for c in candidates
-            ],
+            candidates=[_candidate_to_dto(c) for c in candidates],
         )
