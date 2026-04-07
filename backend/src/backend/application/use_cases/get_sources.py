@@ -100,11 +100,21 @@ class GetSourcesUseCase:
         source_id: int,
         sort_order: CandidateSortOrder | None = None,
     ) -> SourceDetailDTO:
+        from backend.domain.value_objects.candidate_sort_order import (
+            CandidateSortOrder as SortEnum,
+        )
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
         assert source.id is not None
-        candidates = self._candidate_repo.get_by_source(source.id, sort_order=sort_order)
+        if sort_order == SortEnum.CHRONOLOGICAL:
+            candidates = self._candidate_repo.get_by_source(source.id)
+            text = source.cleaned_text or source.raw_text
+            candidates.sort(
+                key=lambda c: (text.find(c.context_fragment), c.id or 0),
+            )
+        else:
+            candidates = self._candidate_repo.get_by_source(source.id, sort_order=sort_order)
         return SourceDetailDTO(
             id=source.id,
             title=source.title or source.raw_text[:_PREVIEW_LENGTH],

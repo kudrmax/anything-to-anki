@@ -341,6 +341,8 @@ class Container:
         )
         return EnqueueMediaGenerationUseCase(
             media_repo=SqlaCandidateMediaRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
+            source_repo=SqlaSourceRepository(session),
         )
 
     def enqueue_meaning_generation_use_case(
@@ -351,6 +353,8 @@ class Container:
         )
         return EnqueueMeaningGenerationUseCase(
             meaning_repo=SqlaCandidateMeaningRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
+            source_repo=SqlaSourceRepository(session),
         )
 
     async def get_redis_pool(self) -> Any:  # noqa: ANN401 — arq has no type stubs

@@ -71,8 +71,21 @@ class GetCandidatesUseCase:
         source_id: int,
         sort_order: CandidateSortOrder | None = None,
     ) -> list[StoredCandidateDTO]:
+        from backend.domain.value_objects.candidate_sort_order import (
+            CandidateSortOrder as SortEnum,
+        )
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
-        candidates = self._candidate_repo.get_by_source(source_id, sort_order=sort_order)
+        if sort_order == SortEnum.CHRONOLOGICAL:
+            # Python sort by position of context_fragment in source text — SQL
+            # cannot do this without custom functions, and it's only N substring
+            # scans for a few hundred candidates.
+            candidates = self._candidate_repo.get_by_source(source_id)
+            text = source.cleaned_text or source.raw_text
+            candidates.sort(
+                key=lambda c: (text.find(c.context_fragment), c.id or 0),
+            )
+        else:
+            candidates = self._candidate_repo.get_by_source(source_id, sort_order=sort_order)
         return [_to_dto(c) for c in candidates]

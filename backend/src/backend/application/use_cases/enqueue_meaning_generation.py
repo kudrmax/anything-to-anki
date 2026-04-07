@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
+    from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
 BATCH_SIZE = 15
@@ -12,23 +14,51 @@ BATCH_SIZE = 15
 class EnqueueMeaningGenerationUseCase:
     """Finds all active candidates without meaning, marks them QUEUED, returns batches of 15.
 
-    The order of returned batches respects sort_order — first batch contains the
-    highest-priority candidates so they're processed first by the worker.
+    The order of returned batches respects sort_order so the worker processes
+    them in the user's chosen order. RELEVANCE uses SQL sort on the meaning repo;
+    CHRONOLOGICAL re-sorts in Python by context_fragment position in source text.
     """
 
-    def __init__(self, meaning_repo: CandidateMeaningRepository) -> None:
+    def __init__(
+        self,
+        meaning_repo: CandidateMeaningRepository,
+        candidate_repo: CandidateRepository,
+        source_repo: SourceRepository,
+    ) -> None:
         self._meaning_repo = meaning_repo
+        self._candidate_repo = candidate_repo
+        self._source_repo = source_repo
 
     def execute(
         self,
         source_id: int,
         sort_order: CandidateSortOrder | None = None,
     ) -> list[list[int]]:
-        all_ids = self._meaning_repo.get_candidate_ids_without_meaning(
-            source_id=source_id,
-            only_active=True,
-            sort_order=sort_order,
+        from backend.domain.value_objects.candidate_sort_order import (
+            CandidateSortOrder as SortEnum,
         )
+        if sort_order == SortEnum.CHRONOLOGICAL:
+            # Fetch ids unsorted, then re-sort by position in source text
+            unsorted_ids = self._meaning_repo.get_candidate_ids_without_meaning(
+                source_id=source_id, only_active=True,
+            )
+            if not unsorted_ids:
+                return []
+            source = self._source_repo.get_by_id(source_id)
+            if source is None:
+                return []
+            candidates = self._candidate_repo.get_by_ids(unsorted_ids)
+            text = source.cleaned_text or source.raw_text
+            candidates.sort(
+                key=lambda c: (text.find(c.context_fragment), c.id or 0),
+            )
+            all_ids = [c.id for c in candidates if c.id is not None]
+        else:
+            all_ids = self._meaning_repo.get_candidate_ids_without_meaning(
+                source_id=source_id,
+                only_active=True,
+                sort_order=sort_order,
+            )
         if not all_ids:
             return []
         self._meaning_repo.mark_queued_bulk(all_ids)
