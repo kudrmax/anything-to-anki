@@ -32,7 +32,14 @@ export function ReviewPage() {
   const [queueSummary, setQueueSummary] = useState<QueueSummary | null>(null)
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
   const [mediaMap, setMediaMap] = useState<Record<number, { screenshotUrl: string | null; audioUrl: string | null }>>({})
-  const [sortOrder, setSortOrder] = useState<CandidateSortOrder>('relevance')
+  const [sortOrder, setSortOrder] = useState<CandidateSortOrder>(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('reviewPage.sortOrder') : null
+    return saved === 'chronological' || saved === 'relevance' ? saved : 'relevance'
+  })
+
+  useEffect(() => {
+    localStorage.setItem('reviewPage.sortOrder', sortOrder)
+  }, [sortOrder])
 
   const loadCandidates = useCallback(async () => {
     const [cands, cards] = await Promise.all([
