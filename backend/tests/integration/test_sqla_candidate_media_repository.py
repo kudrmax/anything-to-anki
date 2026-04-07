@@ -191,3 +191,101 @@ class TestSqlaCandidateMediaRepository:
 
             ids = repo.get_eligible_candidate_ids(source_id=1)
             assert 4 not in ids
+
+    def test_mark_queued_bulk_preserves_timecodes(self) -> None:
+        with self._Session() as s:
+            repo = SqlaCandidateMediaRepository(s)
+            repo.upsert(CandidateMedia(
+                candidate_id=1, screenshot_path="/old.webp", audio_path="/old.m4a",
+                start_ms=100, end_ms=200,
+                status=EnrichmentStatus.DONE, error=None, generated_at=None,
+            ))
+            s.commit()
+            repo.mark_queued_bulk([1])
+            s.commit()
+            loaded = repo.get_by_candidate_id(1)
+            assert loaded is not None
+            assert loaded.status == EnrichmentStatus.QUEUED
+            # Timecodes and paths preserved
+            assert loaded.start_ms == 100
+            assert loaded.end_ms == 200
+            assert loaded.screenshot_path == "/old.webp"
+
+    def test_mark_queued_bulk_creates_new_row(self) -> None:
+        with self._Session() as s:
+            _insert_candidate(s, 2)
+            s.commit()
+            repo = SqlaCandidateMediaRepository(s)
+            # candidate 2: no existing row
+            repo.mark_queued_bulk([2])
+            s.commit()
+            loaded = repo.get_by_candidate_id(2)
+            assert loaded is not None
+            assert loaded.status == EnrichmentStatus.QUEUED
+            assert loaded.start_ms is None
+            assert loaded.screenshot_path is None
+
+    def test_mark_running_flips_status(self) -> None:
+        with self._Session() as s:
+            repo = SqlaCandidateMediaRepository(s)
+            repo.upsert(CandidateMedia(
+                candidate_id=1, screenshot_path=None, audio_path=None,
+                start_ms=None, end_ms=None,
+                status=EnrichmentStatus.QUEUED, error=None, generated_at=None,
+            ))
+            s.commit()
+            repo.mark_running(1)
+            s.commit()
+            loaded = repo.get_by_candidate_id(1)
+            assert loaded is not None
+            assert loaded.status == EnrichmentStatus.RUNNING
+
+    def test_mark_failed_sets_error(self) -> None:
+        with self._Session() as s:
+            repo = SqlaCandidateMediaRepository(s)
+            repo.upsert(CandidateMedia(
+                candidate_id=1, screenshot_path=None, audio_path=None,
+                start_ms=None, end_ms=None,
+                status=EnrichmentStatus.RUNNING, error=None, generated_at=None,
+            ))
+            s.commit()
+            repo.mark_failed(1, "ffmpeg died")
+            s.commit()
+            loaded = repo.get_by_candidate_id(1)
+            assert loaded is not None
+            assert loaded.status == EnrichmentStatus.FAILED
+            assert loaded.error == "ffmpeg died"
+
+    def test_mark_batch_failed(self) -> None:
+        with self._Session() as s:
+            _insert_candidate(s, 2)
+            s.commit()
+            repo = SqlaCandidateMediaRepository(s)
+            repo.mark_queued_bulk([1, 2])
+            s.commit()
+            repo.mark_batch_failed([1, 2], "disk full")
+            s.commit()
+            r1 = repo.get_by_candidate_id(1)
+            r2 = repo.get_by_candidate_id(2)
+            assert r1 is not None and r1.status == EnrichmentStatus.FAILED
+            assert r2 is not None and r2.status == EnrichmentStatus.FAILED
+            assert r1.error == "disk full"
+
+    def test_get_candidate_ids_by_status_failed(self) -> None:
+        with self._Session() as s:
+            _insert_candidate(s, 2)
+            s.commit()
+            repo = SqlaCandidateMediaRepository(s)
+            repo.upsert(CandidateMedia(
+                candidate_id=1, screenshot_path="/1.webp", audio_path=None,
+                start_ms=0, end_ms=10, status=EnrichmentStatus.DONE,
+                error=None, generated_at=None,
+            ))
+            repo.upsert(CandidateMedia(
+                candidate_id=2, screenshot_path=None, audio_path=None,
+                start_ms=None, end_ms=None,
+                status=EnrichmentStatus.FAILED, error="boom", generated_at=None,
+            ))
+            s.commit()
+            failed_ids = repo.get_candidate_ids_by_status(1, EnrichmentStatus.FAILED)
+            assert failed_ids == [2]
