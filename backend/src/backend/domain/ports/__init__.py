@@ -1,5 +1,7 @@
 from backend.domain.ports.ai_service import AIService
 from backend.domain.ports.anki_connector import AnkiConnector
+from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
+from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
 from backend.domain.ports.candidate_repository import CandidateRepository
 from backend.domain.ports.cefr_classifier import CEFRClassifier
 from backend.domain.ports.frequency_provider import FrequencyProvider
@@ -12,6 +14,8 @@ from backend.domain.ports.text_cleaner import TextCleaner
 __all__ = [
     "AIService",
     "AnkiConnector",
+    "CandidateMeaningRepository",
+    "CandidateMediaRepository",
     "CandidateRepository",
     "CEFRClassifier",
     "FrequencyProvider",
