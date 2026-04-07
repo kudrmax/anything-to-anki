@@ -87,13 +87,14 @@ class SyncToAnkiUseCase:
                     candidate.lemma,
                     candidate.surface_form,
                 )
+                meaning_text = candidate.meaning.meaning if candidate.meaning else None
                 meaning = (
                     highlight_all_forms(
-                        candidate.meaning,
+                        meaning_text,
                         candidate.lemma,
                         candidate.surface_form,
                     )
-                    if candidate.meaning
+                    if meaning_text
                     else ""
                 )
 
@@ -105,14 +106,14 @@ class SyncToAnkiUseCase:
                 if field_meaning:
                     note[field_meaning] = meaning
                 if field_ipa:
-                    note[field_ipa] = candidate.ipa or ""
-                if field_image and candidate.screenshot_path and os.path.exists(candidate.screenshot_path):
-                    filename = os.path.basename(candidate.screenshot_path)
-                    self._connector.store_media_file(filename, candidate.screenshot_path)
+                    note[field_ipa] = (candidate.meaning.ipa if candidate.meaning else None) or ""
+                if field_image and candidate.media and candidate.media.screenshot_path and os.path.exists(candidate.media.screenshot_path):
+                    filename = os.path.basename(candidate.media.screenshot_path)
+                    self._connector.store_media_file(filename, candidate.media.screenshot_path)
                     note[field_image] = f'<img src="{filename}">'
-                if field_audio and candidate.audio_path and os.path.exists(candidate.audio_path):
-                    filename = os.path.basename(candidate.audio_path)
-                    self._connector.store_media_file(filename, candidate.audio_path)
+                if field_audio and candidate.media and candidate.media.audio_path and os.path.exists(candidate.media.audio_path):
+                    filename = os.path.basename(candidate.media.audio_path)
+                    self._connector.store_media_file(filename, candidate.media.audio_path)
                     note[field_audio] = f'[sound:{filename}]'
 
                 results = self._connector.add_notes(
