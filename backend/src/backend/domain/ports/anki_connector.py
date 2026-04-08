@@ -12,7 +12,13 @@ class AnkiConnector(ABC):
 
     @abstractmethod
     def ensure_note_type(self, model_name: str, fields: list[str]) -> None:
-        """Create the note type if it does not exist yet."""
+        """Ensure the note type exists and contains all of the listed fields.
+
+        If the note type does not exist, create it with exactly the listed
+        fields. If it exists, add any missing fields to it (existing extra
+        fields are preserved). When creating a new model, the order of
+        fields matches the order of the input list.
+        """
 
     @abstractmethod
     def ensure_deck(self, deck_name: str) -> None:
