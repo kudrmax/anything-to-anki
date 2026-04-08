@@ -134,3 +134,11 @@ class PermanentAIError(PermanentError):
 
 class InvalidPromptError(PermanentAIError):
     pass
+
+
+class ConfigError(DomainError):
+    """Raised when application configuration is missing or invalid."""
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(f"Config error: {detail}")
+        self.detail = detail
