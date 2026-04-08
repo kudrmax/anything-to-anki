@@ -17,6 +17,8 @@ class SettingsDTO(BaseModel):
     anki_field_target_word: str
     anki_field_meaning: str
     anki_field_ipa: str
+    anki_field_image: str
+    anki_field_audio: str
     enable_definitions: bool
 
 
@@ -32,6 +34,8 @@ class UpdateSettingsRequest(BaseModel):
     anki_field_target_word: str | None = None
     anki_field_meaning: str | None = None
     anki_field_ipa: str | None = None
+    anki_field_image: str | None = None
+    anki_field_audio: str | None = None
     enable_definitions: bool | None = None
 
     @field_validator("cefr_level")
