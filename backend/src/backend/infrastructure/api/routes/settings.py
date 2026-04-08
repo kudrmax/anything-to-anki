@@ -13,7 +13,12 @@ if TYPE_CHECKING:
 
     from backend.infrastructure.container import Container
 
-router = APIRouter(prefix="/settings", tags=["settings"])
+# NOTE: prefix is `/api/settings`, not `/settings`, because the frontend SPA
+# has a `/settings` route — when the user refreshes that page, the browser
+# does a full GET /settings, and if the API occupies that path they'd see
+# the raw JSON instead of the app. Keep API endpoints under `/api/*` to
+# avoid collisions with React Router routes.
+router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
 @router.get("")

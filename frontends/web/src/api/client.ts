@@ -85,10 +85,10 @@ export const api = {
   syncToAnki: (id: number) =>
     req<SyncResult>(`/sources/${id}/sync-to-anki`, { method: 'POST' }),
 
-  getSettings: () => req<Settings>('/settings'),
+  getSettings: () => req<Settings>('/api/settings'),
 
   updateSettings: (patch: Partial<Settings>) =>
-    req<Settings>('/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
+    req<Settings>('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
 
   getKnownWords: () => req<KnownWord[]>('/known-words'),
 
@@ -161,10 +161,10 @@ export const api = {
       body: JSON.stringify({ surface_form: surfaceForm, context_fragment: contextFragment }),
     }),
 
-  getMediaStats: () => req<SourceMediaStats[]>('/settings/media-stats'),
+  getMediaStats: () => req<SourceMediaStats[]>('/api/settings/media-stats'),
 
   cleanupMedia: (sourceId: number, kind: CleanupMediaKind) =>
-    reqVoid('/settings/media-cleanup', {
+    reqVoid('/api/settings/media-cleanup', {
       method: 'POST',
       body: JSON.stringify({ source_id: sourceId, kind }),
     }),
