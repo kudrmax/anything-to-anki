@@ -11,7 +11,13 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-_SECTION_ORDER: tuple[str, ...] = ("intro", "meaning", "ipa")
+_SECTION_ORDER: tuple[str, ...] = (
+    "intro",
+    "meaning",
+    "translation",
+    "synonyms",
+    "ipa",
+)
 
 
 class PromptsLoader:

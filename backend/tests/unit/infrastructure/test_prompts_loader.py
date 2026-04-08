@@ -18,6 +18,10 @@ ai:
       meaning: |
         For the 'meaning' field, provide:
         - LINE 1: Definition.
+      translation: |
+        For the 'translation' field, provide a short Russian translation.
+      synonyms: |
+        For the 'synonyms' field, provide 2-3 synonyms.
       ipa: |
         For the 'ipa' field, provide the IPA transcription.
 """
@@ -45,6 +49,10 @@ def test_load_joins_system_sections_in_order(valid_config_file: Path) -> None:
         "You are a vocabulary assistant.\n"
         "\n\n"
         "For the 'meaning' field, provide:\n- LINE 1: Definition.\n"
+        "\n\n"
+        "For the 'translation' field, provide a short Russian translation.\n"
+        "\n\n"
+        "For the 'synonyms' field, provide 2-3 synonyms.\n"
         "\n\n"
         "For the 'ipa' field, provide the IPA transcription.\n"
     )
@@ -96,3 +104,39 @@ def test_load_invalid_yaml_raises(tmp_path: Path) -> None:
     path.write_text("this: is: not valid: yaml: [")
     with pytest.raises(ConfigError):
         PromptsLoader().load(path)
+
+
+@pytest.mark.unit
+def test_load_missing_translation_section_raises(tmp_path: Path) -> None:
+    path = tmp_path / "prompts.yaml"
+    path.write_text(
+        "ai:\n"
+        "  generate_meaning:\n"
+        "    user_template: 'x'\n"
+        "    system:\n"
+        "      intro: x\n"
+        "      meaning: y\n"
+        "      synonyms: s\n"
+        "      ipa: z\n"
+    )
+    with pytest.raises(ConfigError) as exc_info:
+        PromptsLoader().load(path)
+    assert "translation" in str(exc_info.value)
+
+
+@pytest.mark.unit
+def test_load_missing_synonyms_section_raises(tmp_path: Path) -> None:
+    path = tmp_path / "prompts.yaml"
+    path.write_text(
+        "ai:\n"
+        "  generate_meaning:\n"
+        "    user_template: 'x'\n"
+        "    system:\n"
+        "      intro: x\n"
+        "      meaning: y\n"
+        "      translation: t\n"
+        "      ipa: z\n"
+    )
+    with pytest.raises(ConfigError) as exc_info:
+        PromptsLoader().load(path)
+    assert "synonyms" in str(exc_info.value)
