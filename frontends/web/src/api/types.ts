@@ -134,20 +134,6 @@ export interface CreateNoteTypeResponse {
   already_existed: boolean
 }
 
-export interface PromptTemplate {
-  id: number
-  function_key: string
-  system_prompt: string
-  user_template: string
-}
-
-export const PROMPT_LABELS: Record<string, { name: string; description: string }> = {
-  generate_meaning: {
-    name: 'Meaning generation',
-    description: 'Explains a word based on the context it appears in',
-  },
-}
-
 export interface GenerateMeaningResult {
   candidate_id: number
   meaning: string

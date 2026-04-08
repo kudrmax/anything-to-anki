@@ -7,7 +7,6 @@ import type {
   CreateNoteTypeResponse,
   GenerateMeaningResult,
   KnownWord,
-  PromptTemplate,
   QueueSummary,
   Settings,
   SourceDetail,
@@ -131,11 +130,6 @@ export const api = {
     req<QueueSummary>(`/sources/${sourceId}/queue-summary`),
 
   getStats: () => req<Stats>('/stats'),
-
-  getPrompts: () => req<PromptTemplate[]>('/prompts'),
-
-  updatePrompt: (functionKey: string, data: { system_prompt: string; user_template: string }) =>
-    req<PromptTemplate>(`/prompts/${functionKey}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   verifyNoteType: (note_type: string, required_fields: string[]) =>
     req<VerifyNoteTypeResponse>('/anki/verify-note-type', {
