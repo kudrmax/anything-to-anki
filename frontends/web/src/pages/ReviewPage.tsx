@@ -157,6 +157,10 @@ export function ReviewPage() {
   candidatesRef.current = candidates
 
   const handleMark = useCallback(async (candidateId: number, status: CandidateStatus) => {
+    // Stop any currently-playing audio (manual or auto-play). The user
+    // pressed a mark button, so they're done listening.
+    stopAudio()
+
     // Capture the next pending candidate BEFORE marking — once we mark,
     // this one is removed from the pending list and 'next' shifts.
     let nextToPlay: { id: number; url: string } | null = null
@@ -180,7 +184,7 @@ export function ReviewPage() {
     if (nextToPlay) {
       playAudio(nextToPlay.id, nextToPlay.url)
     }
-  }, [sourceId, playAudio])
+  }, [sourceId, playAudio, stopAudio])
 
   const handleCardHoverEnter = useCallback((id: number) => {
     hoverFromCardRef.current = true
