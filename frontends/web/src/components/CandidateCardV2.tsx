@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Film, Info, Loader2, Pencil, Play, Sparkles, Square, X } from 'lucide-react'
+import { BookOpen, Film, Info, Languages, Loader2, Pencil, Play, Sparkles, Square, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, StoredCandidate } from '@/api/types'
 
@@ -516,6 +516,38 @@ export function CandidateCardV2({
                     {renderMeaning(para, candidate.lemma, candidate.surface_form)}
                   </p>
                 ))}
+              {candidate.meaning.translation && (
+                <div
+                  style={{
+                    marginTop: '10px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '6px',
+                    fontSize: '14px',
+                    color: '#cbd5e1',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <Languages size={14} style={{ marginTop: '3px', flexShrink: 0, color: '#94a3b8' }} />
+                  <span>{candidate.meaning.translation}</span>
+                </div>
+              )}
+              {candidate.meaning.synonyms && (
+                <div
+                  style={{
+                    marginTop: '4px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '6px',
+                    fontSize: '14px',
+                    color: '#cbd5e1',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <BookOpen size={14} style={{ marginTop: '3px', flexShrink: 0, color: '#94a3b8' }} />
+                  <span>{candidate.meaning.synonyms}</span>
+                </div>
+              )}
             </div>
           ) : candidate.meaning?.status === 'running' ? (
             <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--td)', display: 'flex', alignItems: 'center', gap: '6px' }}>
