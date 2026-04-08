@@ -9,7 +9,8 @@ data/
 **/*.pyo
 **/*.pyd
 kanban/
-/docs/superpowers/specs
+/docs/superpowers/plans
+/.superpowers/
 /vocabminer.db
 /anything_to_anki.egg-info
 /.superpowers/brainstorm/15821-1775418982
