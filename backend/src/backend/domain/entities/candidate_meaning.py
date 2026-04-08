@@ -14,10 +14,14 @@ class CandidateMeaning:
     """Frozen value object representing the meaning enrichment for a candidate.
 
     1:1 with StoredCandidate. None when no generation has been attempted yet.
+    Translation and synonyms are nullable so legacy rows (generated before
+    the meaning split) remain loadable.
     """
 
     candidate_id: int
     meaning: str | None
+    translation: str | None
+    synonyms: str | None
     ipa: str | None
     status: EnrichmentStatus
     error: str | None

@@ -14,6 +14,8 @@ class TestCandidateMeaning:
         m = CandidateMeaning(
             candidate_id=1,
             meaning="выгорание",
+            translation="выгорание",
+            synonyms="exhaustion, fatigue",
             ipa="ˈbɜːnaʊt",
             status=EnrichmentStatus.DONE,
             error=None,
@@ -21,6 +23,8 @@ class TestCandidateMeaning:
         )
         assert m.candidate_id == 1
         assert m.meaning == "выгорание"
+        assert m.translation == "выгорание"
+        assert m.synonyms == "exhaustion, fatigue"
         assert m.ipa == "ˈbɜːnaʊt"
         assert m.status == EnrichmentStatus.DONE
         assert m.error is None
@@ -29,6 +33,8 @@ class TestCandidateMeaning:
         m = CandidateMeaning(
             candidate_id=1,
             meaning="x",
+            translation=None,
+            synonyms=None,
             ipa=None,
             status=EnrichmentStatus.DONE,
             error=None,
@@ -41,6 +47,8 @@ class TestCandidateMeaning:
         m = CandidateMeaning(
             candidate_id=2,
             meaning=None,
+            translation=None,
+            synonyms=None,
             ipa=None,
             status=EnrichmentStatus.FAILED,
             error="rate limited",
@@ -48,3 +56,19 @@ class TestCandidateMeaning:
         )
         assert m.status == EnrichmentStatus.FAILED
         assert m.error == "rate limited"
+
+    def test_legacy_record_with_null_translation_synonyms(self) -> None:
+        """Old DB rows have meaning but no translation/synonyms — must still load."""
+        m = CandidateMeaning(
+            candidate_id=3,
+            meaning="explain in detail",
+            translation=None,
+            synonyms=None,
+            ipa="/ɪˈlæb.ə.reɪt/",
+            status=EnrichmentStatus.DONE,
+            error=None,
+            generated_at=datetime(2026, 4, 7, tzinfo=UTC),
+        )
+        assert m.meaning == "explain in detail"
+        assert m.translation is None
+        assert m.synonyms is None
