@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator  # noqa: TC003 — used at runtime by @contextmanager
 from contextlib import contextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
@@ -23,6 +24,7 @@ from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
+from backend.domain.value_objects.prompts_config import PromptsConfig
 from backend.domain.value_objects.source_type import SourceType
 from backend.infrastructure.adapters.ai_model_mapping import model_id_for
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
@@ -62,6 +64,7 @@ from backend.infrastructure.persistence.sqla_settings_repository import (
 from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
 )
+from backend.infrastructure.config.prompts_loader import PromptsLoader
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 
 if TYPE_CHECKING:
@@ -106,6 +109,10 @@ class Container:
             "MEDIA_ROOT",
             os.path.join(os.getenv("DATA_DIR", "."), "media"),
         )
+        prompts_path = Path(
+            os.environ.get("PROMPTS_CONFIG_PATH", "config/prompts.yaml")
+        )
+        self._prompts_config: PromptsConfig = PromptsLoader().load(prompts_path)
         self._lazy_media_reconciler: LazyMediaReconciler | None = None  # lazy init on first call
         # Lazy-created by get_redis_pool()
         self._redis_pool: Any = None  # arq has no type stubs — Any is justified
@@ -273,6 +280,9 @@ class Container:
 
     def media_root(self) -> str:
         return self._media_root
+
+    def prompts_config(self) -> PromptsConfig:
+        return self._prompts_config
 
     def lazy_media_reconciler(self) -> LazyMediaReconciler:
         from backend.infrastructure.api.dependencies import get_session_factory
