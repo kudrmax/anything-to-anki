@@ -83,14 +83,6 @@ class AIServiceError(DomainError):
         self.detail = detail
 
 
-class PromptNotFoundError(DomainError):
-    """Raised when a prompt template for the given function key is not found."""
-
-    def __init__(self, function_key: str) -> None:
-        super().__init__(f"Prompt not found for function: {function_key}")
-        self.function_key = function_key
-
-
 class GenerationAlreadyRunningError(DomainError):
     """Raised when trying to start generation while one is already running."""
 
@@ -130,10 +122,6 @@ class FragmentNotInSrtError(PermanentMediaError):
 
 class PermanentAIError(PermanentError):
     """Permanent failure in AI generation."""
-
-
-class InvalidPromptError(PermanentAIError):
-    pass
 
 
 class ConfigError(DomainError):
