@@ -46,6 +46,8 @@ class GenerateMeaningUseCase:
         self._meaning_repo.upsert(CandidateMeaning(
             candidate_id=candidate_id,
             meaning=result.meaning,
+            translation=result.translation,
+            synonyms=result.synonyms,
             ipa=result.ipa,
             status=EnrichmentStatus.DONE,
             error=None,
@@ -54,6 +56,8 @@ class GenerateMeaningUseCase:
         return GenerateMeaningResponseDTO(
             candidate_id=candidate_id,
             meaning=result.meaning,
+            translation=result.translation,
+            synonyms=result.synonyms,
             ipa=result.ipa,
             tokens_used=result.tokens_used,
         )

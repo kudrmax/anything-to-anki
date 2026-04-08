@@ -49,6 +49,8 @@ def test_generate_meaning_happy_path() -> None:
     candidate_repo.get_by_id.return_value = _make_candidate()
     ai_service.generate_meaning.return_value = GenerationResult(
         meaning="explain in detail",
+        translation="разъяснить",
+        synonyms="explain, clarify",
         ipa="/ɪˈlæb.ə.reɪt/",
         tokens_used=42,
     )
@@ -62,6 +64,8 @@ def test_generate_meaning_happy_path() -> None:
     result = use_case.execute(candidate_id=1)
 
     assert result.meaning == "explain in detail"
+    assert result.translation == "разъяснить"
+    assert result.synonyms == "explain, clarify"
     assert result.ipa == "/ɪˈlæb.ə.reɪt/"
     assert result.tokens_used == 42
 
@@ -75,6 +79,8 @@ def test_generate_meaning_happy_path() -> None:
     upserted = meaning_repo.upsert.call_args[0][0]
     assert upserted.candidate_id == 1
     assert upserted.meaning == "explain in detail"
+    assert upserted.translation == "разъяснить"
+    assert upserted.synonyms == "explain, clarify"
     assert upserted.status == EnrichmentStatus.DONE
     assert isinstance(upserted.generated_at, datetime)
 
