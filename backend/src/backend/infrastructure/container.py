@@ -16,7 +16,6 @@ from backend.application.use_cases.get_source_cards import GetSourceCardsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
-from backend.application.use_cases.manage_prompts import ManagePromptsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
@@ -54,9 +53,6 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
 )
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
-)
-from backend.infrastructure.persistence.sqla_prompt_repository import (
-    SqlaPromptRepository,
 )
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
@@ -238,9 +234,6 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
         )
 
-    def manage_prompts_use_case(self, session: Session) -> ManagePromptsUseCase:
-        return ManagePromptsUseCase(prompt_repo=SqlaPromptRepository(session))
-
     def generate_meaning_use_case(self, session: Session) -> GenerateMeaningUseCase:
         import os
 
@@ -250,9 +243,9 @@ class Container:
         ai_service = HttpAIService(url=ai_proxy_url, model=model_id_for(ai_model_key))
         return GenerateMeaningUseCase(
             candidate_repo=SqlaCandidateRepository(session),
-            meaning_repo=SqlaCandidateMeaningRepository(session),  # NEW
+            meaning_repo=SqlaCandidateMeaningRepository(session),
             ai_service=ai_service,
-            prompt_repo=SqlaPromptRepository(session),
+            prompts_config=self._prompts_config,
         )
 
     def meaning_generation_use_case(self, session: Session) -> MeaningGenerationUseCase:
@@ -266,7 +259,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             meaning_repo=SqlaCandidateMeaningRepository(session),
             ai_service=ai_service,
-            prompt_repo=SqlaPromptRepository(session),
+            prompts_config=self._prompts_config,
         )
 
     def get_stats_use_case(self, session: Session) -> GetStatsUseCase:
