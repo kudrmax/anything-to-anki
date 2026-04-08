@@ -17,14 +17,16 @@ def _make_candidate(
     status: CandidateStatus,
     meaning: str | None = None,
     ipa: str | None = None,
+    translation: str | None = None,
+    synonyms: str | None = None,
 ) -> StoredCandidate:
     meaning_obj = None
-    if meaning is not None or ipa is not None:
+    if meaning is not None or ipa is not None or translation is not None or synonyms is not None:
         meaning_obj = CandidateMeaning(
             candidate_id=candidate_id,
             meaning=meaning,
-            translation=None,
-            synonyms=None,
+            translation=translation,
+            synonyms=synonyms,
             ipa=ipa,
             status=EnrichmentStatus.DONE,
             error=None,
@@ -299,6 +301,40 @@ class TestSyncToAnkiUseCase:
         assert "Image" not in note[0]
         assert "Audio" not in note[0]
         self.anki_connector.store_media_file.assert_not_called()
+
+    def test_translation_and_synonyms_from_candidate(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(
+                1, "thug", CandidateStatus.LEARN,
+                meaning="бандит",
+                translation="бандит",
+                synonyms="ruffian, gangster",
+            ),
+        ]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        self.use_case.execute(source_id=1)
+
+        call_args = self.anki_connector.add_notes.call_args
+        note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
+        assert note[0]["Translation"] == "бандит"
+        assert note[0]["Synonyms"] == "ruffian, gangster"
+
+    def test_translation_synonyms_omitted_for_legacy_records(self) -> None:
+        # Legacy candidate has meaning but translation and synonyms are NULL
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "thug", CandidateStatus.LEARN, meaning="бандит"),
+        ]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        self.use_case.execute(source_id=1)
+
+        call_args = self.anki_connector.add_notes.call_args
+        note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
+        assert "Translation" not in note[0]
+        assert "Synonyms" not in note[0]
 
     def test_image_field_skipped_when_file_missing(self) -> None:
         # Media is recorded but the file no longer exists on disk.

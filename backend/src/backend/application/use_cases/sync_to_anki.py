@@ -20,6 +20,8 @@ _DEFAULT_FIELD_SENTENCE: str = "Sentence"
 _DEFAULT_FIELD_TARGET: str = "Target"
 _DEFAULT_FIELD_MEANING: str = "Meaning"
 _DEFAULT_FIELD_IPA: str = "IPA"
+_DEFAULT_FIELD_TRANSLATION: str = "Translation"
+_DEFAULT_FIELD_SYNONYMS: str = "Synonyms"
 _DEFAULT_FIELD_IMAGE: str = "Image"
 _DEFAULT_FIELD_AUDIO: str = "Audio"
 
@@ -67,6 +69,14 @@ class SyncToAnkiUseCase:
             self._settings_repo.get("anki_field_audio", _DEFAULT_FIELD_AUDIO)
             or _DEFAULT_FIELD_AUDIO
         )
+        field_translation = (
+            self._settings_repo.get("anki_field_translation", _DEFAULT_FIELD_TRANSLATION)
+            or _DEFAULT_FIELD_TRANSLATION
+        )
+        field_synonyms = (
+            self._settings_repo.get("anki_field_synonyms", _DEFAULT_FIELD_SYNONYMS)
+            or _DEFAULT_FIELD_SYNONYMS
+        )
 
         candidates = self._candidate_repo.get_by_source(source_id)
         learn_candidates = [c for c in candidates if c.status == CandidateStatus.LEARN]
@@ -92,7 +102,9 @@ class SyncToAnkiUseCase:
 
         active_fields = [
             f for f in [
-                field_sentence, field_target, field_meaning, field_ipa, field_image, field_audio,
+                field_sentence, field_target, field_meaning, field_ipa,
+                field_translation, field_synonyms,
+                field_image, field_audio,
             ]
             if f
         ]
@@ -131,6 +143,18 @@ class SyncToAnkiUseCase:
                     note[field_meaning] = meaning
                 if field_ipa:
                     note[field_ipa] = (candidate.meaning.ipa if candidate.meaning else None) or ""
+                if (
+                    field_translation
+                    and candidate.meaning
+                    and candidate.meaning.translation
+                ):
+                    note[field_translation] = candidate.meaning.translation
+                if (
+                    field_synonyms
+                    and candidate.meaning
+                    and candidate.meaning.synonyms
+                ):
+                    note[field_synonyms] = candidate.meaning.synonyms
                 if (
                     field_image
                     and candidate.media
