@@ -9,4 +9,6 @@ class BatchMeaningResult:
 
     word_index: int
     meaning: str
+    translation: str
+    synonyms: str
     ipa: str | None

@@ -8,5 +8,7 @@ class GenerationResult:
     """Result of AI meaning generation."""
 
     meaning: str
+    translation: str
+    synonyms: str
     ipa: str | None
     tokens_used: int
