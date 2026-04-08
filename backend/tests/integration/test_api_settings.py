@@ -55,6 +55,22 @@ class TestSettingsAPI:
         assert data["anki_field_ipa"] == "IPA"
         assert data["anki_field_image"] == "Image"
         assert data["anki_field_audio"] == "Audio"
+        assert data["anki_field_translation"] == "Translation"
+        assert data["anki_field_synonyms"] == "Synonyms"
+
+    def test_update_translation_synonyms_fields(self, client: TestClient) -> None:
+        response = client.patch(
+            "/api/settings",
+            json={"anki_field_translation": "RU", "anki_field_synonyms": "Syn"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["anki_field_translation"] == "RU"
+        assert data["anki_field_synonyms"] == "Syn"
+        response = client.get("/api/settings")
+        data = response.json()
+        assert data["anki_field_translation"] == "RU"
+        assert data["anki_field_synonyms"] == "Syn"
 
     def test_update_image_audio_fields(self, client: TestClient) -> None:
         response = client.patch(

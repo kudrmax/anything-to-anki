@@ -93,3 +93,21 @@ class TestManageSettingsUseCase:
         req = UpdateSettingsRequest(anki_field_audio="Sound")
         self.use_case.update_settings(req)
         self.settings_repo.set.assert_any_call("anki_field_audio", "Sound")
+
+    def test_get_settings_includes_translation_synonyms_defaults(self) -> None:
+        self.settings_repo.get.return_value = None
+        result = self.use_case.get_settings()
+        assert result.anki_field_translation == "Translation"
+        assert result.anki_field_synonyms == "Synonyms"
+
+    def test_update_translation_field(self) -> None:
+        self.settings_repo.get.return_value = None
+        req = UpdateSettingsRequest(anki_field_translation="RU")
+        self.use_case.update_settings(req)
+        self.settings_repo.set.assert_any_call("anki_field_translation", "RU")
+
+    def test_update_synonyms_field(self) -> None:
+        self.settings_repo.get.return_value = None
+        req = UpdateSettingsRequest(anki_field_synonyms="Syn")
+        self.use_case.update_settings(req)
+        self.settings_repo.set.assert_any_call("anki_field_synonyms", "Syn")
