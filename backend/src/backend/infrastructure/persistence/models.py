@@ -8,7 +8,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.known_word import KnownWord
-from backend.domain.entities.prompt_template import PromptTemplate
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
