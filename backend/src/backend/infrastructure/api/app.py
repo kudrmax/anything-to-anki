@@ -17,7 +17,6 @@ from backend.infrastructure.api.routes import (
     candidates,
     generation,
     known_words,
-    prompts,
     settings,
     sources,
     stats,
@@ -77,7 +76,6 @@ app.include_router(media_router)
 app.include_router(candidates.router)
 app.include_router(known_words.router)
 app.include_router(settings.router)
-app.include_router(prompts.router)
 app.include_router(anki.router)
 app.include_router(stats.router)
 app.include_router(generation.router)
