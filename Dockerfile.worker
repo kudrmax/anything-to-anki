@@ -9,6 +9,8 @@ RUN pip install --no-cache-dir ./backend
 COPY backend/src/ ./backend/src/
 RUN pip install --no-deps --no-cache-dir ./backend
 
+COPY config /app/config
+
 ENV DATA_DIR=/data
 
 CMD ["arq", "backend.infrastructure.workers.WorkerSettings"]

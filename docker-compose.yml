@@ -11,8 +11,10 @@ services:
       ANKI_URL: http://host.docker.internal:8765
       AI_PROXY_URL: ${AI_PROXY_URL:-http://host.docker.internal:8766}
       REDIS_URL: redis://redis:6379
+      PROMPTS_CONFIG_PATH: /app/config/prompts.yaml
     volumes:
       - ./data:/data
+      - ./config:/app/config:ro
     depends_on:
       - redis
 
@@ -24,8 +26,10 @@ services:
       APP_ENV: ${APP_ENV:-development}
       AI_PROXY_URL: ${AI_PROXY_URL:-http://host.docker.internal:8766}
       REDIS_URL: redis://redis:6379
+      PROMPTS_CONFIG_PATH: /app/config/prompts.yaml
     volumes:
       - ./data:/data
+      - ./config:/app/config:ro
     depends_on:
       - redis
 

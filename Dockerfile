@@ -18,6 +18,8 @@ RUN pip install --no-cache-dir ./backend
 COPY backend/src/ ./backend/src/
 RUN pip install --no-deps --no-cache-dir ./backend
 
+COPY config /app/config
+
 COPY --from=frontend /build/dist ./frontend/dist
 
 ENV FRONTEND_DIST=/app/frontend/dist
