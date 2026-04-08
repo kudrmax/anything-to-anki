@@ -236,6 +236,8 @@ export function ReviewPage() {
           ...c,
           meaning: {
             meaning: res.meaning,
+            translation: res.translation,
+            synonyms: res.synonyms,
             ipa: res.ipa,
             status: 'done' as const,
             error: null,

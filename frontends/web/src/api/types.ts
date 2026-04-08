@@ -30,6 +30,8 @@ export type EnrichmentStatus = 'queued' | 'running' | 'done' | 'failed'
 
 export interface CandidateMeaning {
   meaning: string | null
+  translation: string | null
+  synonyms: string | null
   ipa: string | null
   status: EnrichmentStatus
   error: string | null
@@ -112,6 +114,8 @@ export interface Settings {
   anki_field_ipa: string
   anki_field_image: string
   anki_field_audio: string
+  anki_field_translation: string
+  anki_field_synonyms: string
 }
 
 export interface KnownWord {
@@ -139,6 +143,8 @@ export interface CreateNoteTypeResponse {
 export interface GenerateMeaningResult {
   candidate_id: number
   meaning: string
+  translation: string
+  synonyms: string
   ipa: string | null
   tokens_used: number
 }
