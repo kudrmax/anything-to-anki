@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.candidate_meaning import CandidateMeaning
-from backend.domain.exceptions import InvalidPromptError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
@@ -13,9 +12,9 @@ if TYPE_CHECKING:
     from backend.domain.ports.ai_service import AIService
     from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
-    from backend.domain.ports.prompt_repository import PromptRepository
+    from backend.domain.value_objects.prompts_config import PromptsConfig
 
-_GENERATE_MEANING_KEY = "generate_meaning"
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,8 +22,7 @@ class MeaningGenerationUseCase:
     """Generates meanings for a batch of candidates.
 
     One-shot: called by worker per batch (up to 15 candidates).
-    Writes status transitions (RUNNING → DONE) to candidate_meanings.
-    Permanent errors (missing prompt) raise PermanentAIError subclasses.
+    Writes status transitions (RUNNING -> DONE) to candidate_meanings.
     Transient errors (AI service unavailable) propagate for ARQ retry.
     """
 
@@ -33,24 +31,16 @@ class MeaningGenerationUseCase:
         candidate_repo: CandidateRepository,
         meaning_repo: CandidateMeaningRepository,
         ai_service: AIService,
-        prompt_repo: PromptRepository,
+        prompts_config: PromptsConfig,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._meaning_repo = meaning_repo
         self._ai_service = ai_service
-        self._prompt_repo = prompt_repo
+        self._prompts_config = prompts_config
 
     def execute_batch(self, candidate_ids: list[int]) -> None:
         if not candidate_ids:
             return
-
-        # Note: mark_running is done by the worker wrapper in a separate
-        # committed session — so even if this use case rolls back on failure,
-        # the user still sees that we tried.
-
-        prompt = self._prompt_repo.get_by_key(_GENERATE_MEANING_KEY)
-        if prompt is None:
-            raise InvalidPromptError(f"Prompt '{_GENERATE_MEANING_KEY}' not found")
 
         candidates = self._candidate_repo.get_by_ids(candidate_ids)
         # Filter out candidates whose status changed (KNOWN/SKIP) or already have meaning
@@ -66,21 +56,20 @@ class MeaningGenerationUseCase:
             )
             return
 
-        # Format batch prompt
-        parts: list[str] = []
-        for c in active:
-            parts.append(
-                prompt.user_template.format(
-                    lemma=c.lemma, pos=c.pos, context=c.context_fragment
-                )
+        user_template = self._prompts_config.generate_meaning_user_template
+        parts: list[str] = [
+            user_template.format(
+                lemma=c.lemma, pos=c.pos, context=c.context_fragment
             )
+            for c in active
+        ]
         batch_prompt = "\n\n".join(
             f"Word {i}: {part}" for i, part in enumerate(parts, 1)
         )
 
-        # Transient errors propagate → ARQ retries
+        # Transient errors propagate -> ARQ retries
         results = self._ai_service.generate_meanings_batch(
-            prompt.system_prompt, batch_prompt
+            self._prompts_config.generate_meaning_system, batch_prompt
         )
         result_map = {r.word_index: r for r in results}
 
@@ -91,9 +80,6 @@ class MeaningGenerationUseCase:
             r = result_map.get(i)
             if r is None or c.id is None:
                 continue
-            # Pre-upsert guard: check current status. If the user clicked
-            # Cancel while we were calling the AI, the row is now FAILED
-            # ('cancelled by user'). Skip writing to avoid overwriting it.
             current = self._meaning_repo.get_by_candidate_id(c.id)
             if current is None or current.status != EnrichmentStatus.RUNNING:
                 cancelled += 1
