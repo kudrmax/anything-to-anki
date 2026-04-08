@@ -110,6 +110,8 @@ export interface Settings {
   anki_field_target_word: string
   anki_field_meaning: string
   anki_field_ipa: string
+  anki_field_image: string
+  anki_field_audio: string
 }
 
 export interface KnownWord {

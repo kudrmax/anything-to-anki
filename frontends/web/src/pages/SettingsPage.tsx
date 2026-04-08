@@ -159,6 +159,8 @@ export function SettingsPage() {
       form.anki_field_target_word,
       form.anki_field_meaning,
       form.anki_field_ipa,
+      form.anki_field_image,
+      form.anki_field_audio,
     ].filter(Boolean)
     try {
       const result = await api.createNoteType(form.anki_note_type, fields)
@@ -228,6 +230,8 @@ export function SettingsPage() {
                   { key: 'anki_field_target_word', label: 'Target word' },
                   { key: 'anki_field_meaning', label: 'Meaning' },
                   { key: 'anki_field_ipa', label: 'IPA' },
+                  { key: 'anki_field_image', label: 'Image' },
+                  { key: 'anki_field_audio', label: 'Audio' },
                 ] as { key: keyof Settings; label: string }[]
               ).map(({ key, label }, i) => (
                 <div key={key} className="flex items-center gap-3 px-4 py-2.5" style={i > 0 ? { borderTop: '1px solid var(--glass-b)' } : undefined}>
