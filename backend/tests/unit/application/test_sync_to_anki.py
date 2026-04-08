@@ -23,6 +23,8 @@ def _make_candidate(
         meaning_obj = CandidateMeaning(
             candidate_id=candidate_id,
             meaning=meaning,
+            translation=None,
+            synonyms=None,
             ipa=ipa,
             status=EnrichmentStatus.DONE,
             error=None,
@@ -315,6 +317,8 @@ class TestSyncToAnkiUseCase:
             meaning=CandidateMeaning(
                 candidate_id=1,
                 meaning="бандит",
+                translation=None,
+                synonyms=None,
                 ipa=None,
                 status=EnrichmentStatus.DONE,
                 error=None,

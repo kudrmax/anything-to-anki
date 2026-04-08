@@ -98,6 +98,8 @@ class TestCandidateRepository:
             meaning_repo.upsert(CandidateMeaning(
                 candidate_id=created[0].id,
                 meaning=meaning,
+                translation=None,
+                synonyms=None,
                 ipa=None,
                 status=EnrichmentStatus.DONE,
                 error=None,

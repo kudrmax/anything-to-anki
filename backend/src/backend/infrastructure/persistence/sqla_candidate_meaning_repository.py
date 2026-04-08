@@ -57,6 +57,8 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
             self._session.add(CandidateMeaningModel.from_entity(meaning))
         else:
             existing.meaning = meaning.meaning
+            existing.translation = meaning.translation
+            existing.synonyms = meaning.synonyms
             existing.ipa = meaning.ipa
             existing.status = meaning.status.value
             existing.error = meaning.error

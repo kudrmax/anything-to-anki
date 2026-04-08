@@ -24,6 +24,8 @@ def _make_candidate(
         meaning_obj = CandidateMeaning(
             candidate_id=1,
             meaning=meaning,
+            translation=None,
+            synonyms=None,
             ipa=ipa,
             status=EnrichmentStatus.DONE,
             error=None,
