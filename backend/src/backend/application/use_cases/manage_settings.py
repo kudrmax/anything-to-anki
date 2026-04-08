@@ -16,6 +16,8 @@ _DEFAULT_FIELD_SENTENCE: str = "Sentence"
 _DEFAULT_FIELD_TARGET: str = "Target"
 _DEFAULT_FIELD_MEANING: str = "Meaning"
 _DEFAULT_FIELD_IPA: str = "IPA"
+_DEFAULT_FIELD_IMAGE: str = "Image"
+_DEFAULT_FIELD_AUDIO: str = "Audio"
 _DEFAULT_ENABLE_DEFINITIONS: str = "true"
 
 _SETTING_KEYS: dict[str, str] = {
@@ -28,6 +30,8 @@ _SETTING_KEYS: dict[str, str] = {
     "anki_field_target_word": _DEFAULT_FIELD_TARGET,
     "anki_field_meaning": _DEFAULT_FIELD_MEANING,
     "anki_field_ipa": _DEFAULT_FIELD_IPA,
+    "anki_field_image": _DEFAULT_FIELD_IMAGE,
+    "anki_field_audio": _DEFAULT_FIELD_AUDIO,
     "enable_definitions": _DEFAULT_ENABLE_DEFINITIONS,
 }
 

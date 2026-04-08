@@ -75,3 +75,21 @@ class TestManageSettingsUseCase:
     def test_backward_compat_update_cefr_level(self) -> None:
         self.use_case.update_cefr_level("C1")
         self.settings_repo.set.assert_called_once_with("cefr_level", "C1")
+
+    def test_get_settings_includes_image_audio_defaults(self) -> None:
+        self.settings_repo.get.return_value = None
+        result = self.use_case.get_settings()
+        assert result.anki_field_image == "Image"
+        assert result.anki_field_audio == "Audio"
+
+    def test_update_image_field(self) -> None:
+        self.settings_repo.get.return_value = None
+        req = UpdateSettingsRequest(anki_field_image="Picture")
+        self.use_case.update_settings(req)
+        self.settings_repo.set.assert_any_call("anki_field_image", "Picture")
+
+    def test_update_audio_field(self) -> None:
+        self.settings_repo.get.return_value = None
+        req = UpdateSettingsRequest(anki_field_audio="Sound")
+        self.use_case.update_settings(req)
+        self.settings_repo.set.assert_any_call("anki_field_audio", "Sound")
