@@ -53,6 +53,23 @@ class TestSettingsAPI:
         assert data["anki_field_target_word"] == "Target"
         assert data["anki_field_meaning"] == "Meaning"
         assert data["anki_field_ipa"] == "IPA"
+        assert data["anki_field_image"] == "Image"
+        assert data["anki_field_audio"] == "Audio"
+
+    def test_update_image_audio_fields(self, client: TestClient) -> None:
+        response = client.patch(
+            "/api/settings",
+            json={"anki_field_image": "Picture", "anki_field_audio": "Sound"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["anki_field_image"] == "Picture"
+        assert data["anki_field_audio"] == "Sound"
+        # Verify persistence on subsequent GET
+        response = client.get("/api/settings")
+        data = response.json()
+        assert data["anki_field_image"] == "Picture"
+        assert data["anki_field_audio"] == "Sound"
 
     def test_update_cefr_level(self, client: TestClient) -> None:
         response = client.patch("/api/settings", json={"cefr_level": "C1"})
