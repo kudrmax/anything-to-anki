@@ -4,13 +4,19 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException
 
+# These DTOs must be imported at runtime — FastAPI uses them for response
+# validation, not just type annotations. Keeping them under TYPE_CHECKING
+# breaks endpoint serialization at request time with a PydanticUserError.
+from backend.application.dto.prompt_dtos import (  # noqa: TC001
+    PromptTemplateDTO,
+    UpdatePromptRequest,
+)
 from backend.domain.exceptions import PromptNotFoundError
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-    from backend.application.dto.prompt_dtos import PromptTemplateDTO, UpdatePromptRequest
     from backend.infrastructure.container import Container
 
 router = APIRouter(prefix="/prompts", tags=["prompts"])
