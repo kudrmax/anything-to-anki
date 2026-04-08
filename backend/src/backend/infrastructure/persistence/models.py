@@ -161,25 +161,6 @@ class SettingModel(Base):
     value: Mapped[str] = mapped_column(String(200), nullable=False)
 
 
-class PromptTemplateModel(Base):
-    """SQLAlchemy model for AI prompt templates keyed by function."""
-
-    __tablename__ = "prompt_templates"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    function_key: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
-    system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
-    user_template: Mapped[str] = mapped_column(Text, nullable=False)
-
-    def to_entity(self) -> PromptTemplate:
-        return PromptTemplate(
-            id=self.id,
-            function_key=self.function_key,
-            system_prompt=self.system_prompt,
-            user_template=self.user_template,
-        )
-
-
 class AnkiSyncedCardModel(Base):
     """SQLAlchemy model for tracking candidates successfully synced to Anki."""
 

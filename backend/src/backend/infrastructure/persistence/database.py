@@ -49,31 +49,6 @@ def create_tables(session_factory: sessionmaker[Session]) -> None:
     Base.metadata.create_all(engine)
 
 
-_DEFAULT_SYSTEM_PROMPT = (
-    "You are a vocabulary assistant for a B1-B2 English learner. "
-    "Your task is to explain English words clearly and simply, "
-    "using only common everyday English in your explanations.\n\n"
-    "For the 'meaning' field, provide:\n"
-    "- LINE 1: Definition using the word in a natural sentence pattern "
-    "that shows how it works in speech. "
-    'NOT "X means Y". Instead, a real phrase: '
-    '"When you **elaborate** on something, you give more details about it", '
-    '"If you are **reluctant** to do something, you don\'t really want to do it". '
-    "Bold the target word using **bold**. "
-    "Must match the SPECIFIC meaning used in the given context.\n"
-    "- LINE 2: Context explanation \u2014 explain what is happening in the given context "
-    "in simple words. Rephrase the situation. "
-    'NEVER evaluate how well the word fits. No "this word fits perfectly".\n'
-    "- LINE 3: \U0001f1f7\U0001f1fa <short Russian translation, 1-3 words>\n"
-    "- LINE 4: \U0001f4cb <2-3 English synonyms or short phrases> "
-    "(only for the specific meaning used in context)\n\n"
-    "For the 'ipa' field, provide the IPA transcription of the word "
-    "(e.g., /\u026a\u02c8l\u00e6b.\u0259.re\u026at/ for 'elaborate')."
-)
-
-_DEFAULT_USER_TEMPLATE = 'Word: "{lemma}" ({pos})\nContext: "{context}"'
-
-
 def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
     """Apply incremental schema changes that create_all() cannot handle."""
     engine = session_factory.kw["bind"]
@@ -192,29 +167,6 @@ def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
             conn.commit()
         except Exception:
             pass
-
-        # Seed default prompt — idempotent, runs on every startup
-        conn.execute(
-            text(
-                "INSERT OR IGNORE INTO prompt_templates"
-                " (function_key, system_prompt, user_template)"
-                " VALUES (:fk, :sys, :usr)"
-            ),
-            {
-                "fk": "generate_meaning",
-                "sys": _DEFAULT_SYSTEM_PROMPT,
-                "usr": _DEFAULT_USER_TEMPLATE,
-            },
-        )
-        # Force-update prompt to current version (adds IPA support)
-        conn.execute(
-            text(
-                "UPDATE prompt_templates SET system_prompt = :sys"
-                " WHERE function_key = :fk AND system_prompt NOT LIKE '%ipa%'"
-            ),
-            {"fk": "generate_meaning", "sys": _DEFAULT_SYSTEM_PROMPT},
-        )
-        conn.commit()
 
 
 def reset_stuck_processing(session_factory: sessionmaker[Session]) -> None:
