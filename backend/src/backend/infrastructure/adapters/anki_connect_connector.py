@@ -50,21 +50,34 @@ class AnkiConnectConnector(AnkiConnector):
 
     def ensure_note_type(self, model_name: str, fields: list[str]) -> None:
         existing = cast("list[str]", self._invoke("modelNames"))
-        if model_name in existing:
+        if model_name not in existing:
+            self._invoke(
+                "createModel",
+                modelName=model_name,
+                inOrderFields=fields,
+                css=_CARD_CSS,
+                cardTemplates=[
+                    {
+                        "Name": "AnythingToAnki Card",
+                        "Front": _FRONT_TEMPLATE,
+                        "Back": _BACK_TEMPLATE,
+                    }
+                ],
+            )
             return
-        self._invoke(
-            "createModel",
-            modelName=model_name,
-            inOrderFields=fields,
-            css=_CARD_CSS,
-            cardTemplates=[
-                {
-                    "Name": "AnythingToAnki Card",
-                    "Front": _FRONT_TEMPLATE,
-                    "Back": _BACK_TEMPLATE,
-                }
-            ],
+
+        current_fields = cast(
+            "list[str]",
+            self._invoke("modelFieldNames", modelName=model_name),
         )
+        for idx, field in enumerate(fields):
+            if field not in current_fields:
+                self._invoke(
+                    "modelFieldAdd",
+                    modelName=model_name,
+                    fieldName=field,
+                    index=idx,
+                )
 
     def ensure_deck(self, deck_name: str) -> None:
         self._invoke("createDeck", deck=deck_name)
