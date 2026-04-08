@@ -24,9 +24,11 @@ _SINGLE_SCHEMA: dict[str, Any] = {
         "type": "object",
         "properties": {
             "meaning": {"type": "string"},
+            "translation": {"type": "string"},
+            "synonyms": {"type": "string"},
             "ipa": {"type": "string"},
         },
-        "required": ["meaning", "ipa"],
+        "required": ["meaning", "translation", "synonyms", "ipa"],
     },
 }
 
@@ -42,9 +44,17 @@ _BATCH_SCHEMA: dict[str, Any] = {
                     "properties": {
                         "word_index": {"type": "integer"},
                         "meaning": {"type": "string"},
+                        "translation": {"type": "string"},
+                        "synonyms": {"type": "string"},
                         "ipa": {"type": "string"},
                     },
-                    "required": ["word_index", "meaning", "ipa"],
+                    "required": [
+                        "word_index",
+                        "meaning",
+                        "translation",
+                        "synonyms",
+                        "ipa",
+                    ],
                 },
             }
         },
@@ -125,6 +135,8 @@ class ClaudeAIService(AIService):
 
         return GenerationResult(
             meaning=structured["meaning"],
+            translation=structured["translation"],
+            synonyms=structured["synonyms"],
             ipa=structured.get("ipa"),
             tokens_used=tokens_used,
         )
@@ -193,6 +205,8 @@ class ClaudeAIService(AIService):
             BatchMeaningResult(
                 word_index=item["word_index"],
                 meaning=item["meaning"],
+                translation=item["translation"],
+                synonyms=item["synonyms"],
                 ipa=item.get("ipa"),
             )
             for item in results
