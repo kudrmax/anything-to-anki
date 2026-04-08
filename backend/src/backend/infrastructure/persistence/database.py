@@ -233,6 +233,16 @@ def reset_stuck_processing(session_factory: sessionmaker[Session]) -> None:
         session.close()
 
 
+def _count_sources(session: Session) -> int:
+    """Count rows in `sources` table. Extracted as a helper so tests can patch it."""
+    from sqlalchemy import func, select
+
+    from backend.infrastructure.persistence.models import SourceModel
+
+    result = session.execute(select(func.count()).select_from(SourceModel)).scalar()
+    return int(result or 0)
+
+
 def reconcile_media_files(session_factory: sessionmaker[Session], media_root: str) -> None:
     """Remove orphan media files/directories without corresponding DB records.
 
@@ -241,6 +251,12 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
              If not, remove the directory entirely.
     Phase 2: for each `{candidate_id}_{kind}.{ext}` file in a valid source directory,
              verify the candidate exists in DB. If not, remove the file.
+
+    SAFETY GUARD: aborts the entire reconcile if the DB has fewer sources than
+    the on-disk media root has source directories. This catches the case where
+    the wrong DB was loaded (e.g. APP_ENV misconfigured at startup) — in that
+    scenario the dev DB might be empty but the prod media root would have many
+    source dirs, and the old behaviour would `rmtree` all of them.
 
     Orphan DB paths (file missing but DB still has path) are handled by the
     runtime lazy reconciler, not here.
@@ -256,19 +272,37 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
     if not os.path.isdir(media_root):
         return
 
+    numeric_dirs = [
+        e for e in os.listdir(media_root)
+        if e.isdigit() and os.path.isdir(os.path.join(media_root, e))
+    ]
+    if not numeric_dirs:
+        return
+
     session = session_factory()
     try:
+        # Defensive guard: refuse to run if DB has fewer sources than disk dirs.
+        # In a healthy state the DB always has at least as many sources as on-disk
+        # media dirs (a source can have no media yet, but media never exists for a
+        # source that doesn't have a DB row — DeleteSourceUseCase cascades).
+        # If we see the opposite, the wrong DB was almost certainly loaded.
+        db_source_count = _count_sources(session)
+        if db_source_count < len(numeric_dirs):
+            logger.error(
+                "Reconcile ABORTED: DB has %d sources but media_root has %d source "
+                "dirs (%s). This almost certainly means the wrong DB was loaded — "
+                "check APP_ENV. Skipping cleanup to avoid data loss.",
+                db_source_count, len(numeric_dirs), sorted(numeric_dirs),
+            )
+            return
+
         source_repo = SqlaSourceRepository(session)
         candidate_repo = SqlaCandidateRepository(session)
         file_pattern = re.compile(r"^(\d+)_(screenshot|audio)\.")
 
-        for entry in os.listdir(media_root):
-            if not entry.isdigit():
-                continue  # ignore non-source dirs (tmp uploads, etc.)
+        for entry in numeric_dirs:
             source_id = int(entry)
             source_dir = os.path.join(media_root, entry)
-            if not os.path.isdir(source_dir):
-                continue
 
             if source_repo.get_by_id(source_id) is None:
                 shutil.rmtree(source_dir, ignore_errors=True)

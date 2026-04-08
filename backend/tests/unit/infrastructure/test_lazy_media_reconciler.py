@@ -11,7 +11,31 @@ from backend.infrastructure.services.lazy_media_reconciler import LazyMediaRecon
 @pytest.mark.unit
 @pytest.mark.asyncio
 class TestLazyMediaReconciler:
-    async def test_schedule_runs_reconcile_in_background(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    async def test_clears_specified_screenshot_only(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        media_root = tmp_path / "media"
+        (media_root / "1").mkdir(parents=True)
+        # File does NOT exist on disk → reconciler should clear
+
+        session_factory = MagicMock()
+        session = MagicMock()
+        session_factory.return_value = session
+
+        with patch(
+            "backend.infrastructure.services.lazy_media_reconciler.SqlaCandidateMediaRepository"
+        ) as media_cls:
+            media_repo = media_cls.return_value
+            reconciler = LazyMediaReconciler(session_factory, str(media_root))
+
+            await reconciler.schedule(1, "10_screenshot.webp")
+            await asyncio.sleep(0.1)
+
+            media_repo.clear_paths.assert_called_once_with(
+                10, clear_screenshot=True, clear_audio=False,
+            )
+            session.commit.assert_called_once()
+            session.close.assert_called_once()
+
+    async def test_clears_specified_audio_only(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
         media_root = tmp_path / "media"
         (media_root / "1").mkdir(parents=True)
 
@@ -19,43 +43,67 @@ class TestLazyMediaReconciler:
         session = MagicMock()
         session_factory.return_value = session
 
-        # Candidate with nested media object; screenshot file does NOT exist on disk
-        media_mock = MagicMock()
-        media_mock.screenshot_path = str(media_root / "1" / "10_screenshot.webp")
-        media_mock.audio_path = None
-
-        candidate = MagicMock()
-        candidate.id = 10
-        candidate.source_id = 1
-        candidate.media = media_mock
-
-        with (
-            patch("backend.infrastructure.services.lazy_media_reconciler.SqlaCandidateRepository") as cand_cls,
-            patch("backend.infrastructure.services.lazy_media_reconciler.SqlaCandidateMediaRepository") as media_cls,
-        ):
-            cand_repo = cand_cls.return_value
-            cand_repo.get_by_source.return_value = [candidate]
+        with patch(
+            "backend.infrastructure.services.lazy_media_reconciler.SqlaCandidateMediaRepository"
+        ) as media_cls:
             media_repo = media_cls.return_value
-
             reconciler = LazyMediaReconciler(session_factory, str(media_root))
 
-            await reconciler.schedule(1)
-            # Give background task time to run
+            await reconciler.schedule(1, "42_audio.m4a")
             await asyncio.sleep(0.1)
 
             media_repo.clear_paths.assert_called_once_with(
-                10, clear_screenshot=True, clear_audio=False
+                42, clear_screenshot=False, clear_audio=True,
             )
-            session.commit.assert_called_once()
-            session.close.assert_called_once()
 
-    async def test_schedule_dedupes_concurrent_requests(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    async def test_noop_when_file_reappears(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        # Race protection: file exists at reconcile time → no clear
+        media_root = tmp_path / "media"
+        (media_root / "1").mkdir(parents=True)
+        (media_root / "1" / "10_screenshot.webp").write_bytes(b"fake")
+
+        session_factory = MagicMock()
+        session = MagicMock()
+        session_factory.return_value = session
+
+        with patch(
+            "backend.infrastructure.services.lazy_media_reconciler.SqlaCandidateMediaRepository"
+        ) as media_cls:
+            media_repo = media_cls.return_value
+            reconciler = LazyMediaReconciler(session_factory, str(media_root))
+
+            await reconciler.schedule(1, "10_screenshot.webp")
+            await asyncio.sleep(0.1)
+
+            media_repo.clear_paths.assert_not_called()
+            session.commit.assert_not_called()
+
+    async def test_ignores_unknown_filename_shape(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        media_root = tmp_path / "media"
+        (media_root / "1").mkdir(parents=True)
+
+        session_factory = MagicMock()
+        session = MagicMock()
+        session_factory.return_value = session
+
+        with patch(
+            "backend.infrastructure.services.lazy_media_reconciler.SqlaCandidateMediaRepository"
+        ) as media_cls:
+            media_repo = media_cls.return_value
+            reconciler = LazyMediaReconciler(session_factory, str(media_root))
+
+            await reconciler.schedule(1, "weird.txt")
+            await asyncio.sleep(0.1)
+
+            media_repo.clear_paths.assert_not_called()
+
+    async def test_dedupes_concurrent_requests_for_same_file(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
         media_root = tmp_path / "media"
         (media_root / "1").mkdir(parents=True)
         call_count = 0
         release = asyncio.Event()
 
-        async def slow_reconcile(sid: int) -> None:
+        async def slow_reconcile(source_id: int, filename: str) -> None:
             nonlocal call_count
             call_count += 1
             await release.wait()
@@ -63,34 +111,36 @@ class TestLazyMediaReconciler:
         session_factory = MagicMock()
         reconciler = LazyMediaReconciler(session_factory, str(media_root))
         # Monkey-patch the internal worker
-        reconciler._reconcile_source = slow_reconcile  # type: ignore[assignment,method-assign]
+        reconciler._reconcile_one = slow_reconcile  # type: ignore[assignment,method-assign]
 
-        await reconciler.schedule(1)
-        await reconciler.schedule(1)
-        await reconciler.schedule(1)
+        await reconciler.schedule(1, "10_screenshot.webp")
+        await reconciler.schedule(1, "10_screenshot.webp")
+        await reconciler.schedule(1, "10_screenshot.webp")
         await asyncio.sleep(0.02)
         release.set()
         await asyncio.sleep(0.05)
 
         assert call_count == 1  # dedup worked
 
-    async def test_different_source_ids_run_independently(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    async def test_different_files_run_independently(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
         media_root = tmp_path / "media"
-        call_log: list[int] = []
+        (media_root / "1").mkdir(parents=True)
+        call_log: list[tuple[int, str]] = []
         release = asyncio.Event()
 
-        async def slow_reconcile(sid: int) -> None:
-            call_log.append(sid)
+        async def slow_reconcile(source_id: int, filename: str) -> None:
+            call_log.append((source_id, filename))
             await release.wait()
 
         session_factory = MagicMock()
         reconciler = LazyMediaReconciler(session_factory, str(media_root))
-        reconciler._reconcile_source = slow_reconcile  # type: ignore[assignment,method-assign]
+        reconciler._reconcile_one = slow_reconcile  # type: ignore[assignment,method-assign]
 
-        await reconciler.schedule(1)
-        await reconciler.schedule(2)
+        await reconciler.schedule(1, "10_screenshot.webp")
+        await reconciler.schedule(1, "11_screenshot.webp")
+        await reconciler.schedule(2, "10_screenshot.webp")
         await asyncio.sleep(0.02)
         release.set()
         await asyncio.sleep(0.05)
 
-        assert sorted(call_log) == [1, 2]
+        assert sorted(call_log) == [(1, "10_screenshot.webp"), (1, "11_screenshot.webp"), (2, "10_screenshot.webp")]

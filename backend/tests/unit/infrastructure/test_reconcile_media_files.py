@@ -7,10 +7,14 @@ import pytest
 from backend.infrastructure.persistence.database import reconcile_media_files
 
 
+_COUNT_SOURCES = "backend.infrastructure.persistence.database._count_sources"
+
+
 @pytest.mark.unit
 class TestReconcileMediaFiles:
     def test_removes_directory_for_missing_source(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
-        # Setup: media/42/ exists, but source 42 does NOT exist in DB
+        # Setup: media/42/ exists, but source 42 does NOT exist in DB.
+        # Patch _count_sources to return a high number so the safety guard passes.
         media_root = tmp_path / "media"
         (media_root / "42").mkdir(parents=True)
         (media_root / "42" / "1_screenshot.webp").write_bytes(b"x")
@@ -18,7 +22,8 @@ class TestReconcileMediaFiles:
         session = MagicMock()
         session_factory = MagicMock(return_value=session)
 
-        with patch("backend.infrastructure.persistence.sqla_source_repository.SqlaSourceRepository") as src_cls, \
+        with patch(_COUNT_SOURCES, return_value=10), \
+             patch("backend.infrastructure.persistence.sqla_source_repository.SqlaSourceRepository") as src_cls, \
              patch("backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository") as cand_cls:
             src_cls.return_value.get_by_id.return_value = None
             cand_cls.return_value.get_by_id.return_value = None
@@ -37,7 +42,8 @@ class TestReconcileMediaFiles:
         session = MagicMock()
         session_factory = MagicMock(return_value=session)
 
-        with patch("backend.infrastructure.persistence.sqla_source_repository.SqlaSourceRepository") as src_cls, \
+        with patch(_COUNT_SOURCES, return_value=10), \
+             patch("backend.infrastructure.persistence.sqla_source_repository.SqlaSourceRepository") as src_cls, \
              patch("backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository") as cand_cls:
             # source 1 exists
             src_cls.return_value.get_by_id.return_value = MagicMock(id=1)
@@ -59,7 +65,8 @@ class TestReconcileMediaFiles:
         session = MagicMock()
         session_factory = MagicMock(return_value=session)
 
-        with patch("backend.infrastructure.persistence.sqla_source_repository.SqlaSourceRepository"), \
+        with patch(_COUNT_SOURCES, return_value=10), \
+             patch("backend.infrastructure.persistence.sqla_source_repository.SqlaSourceRepository"), \
              patch("backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository"):
             reconcile_media_files(session_factory, str(media_root))
 
@@ -74,7 +81,8 @@ class TestReconcileMediaFiles:
         session = MagicMock()
         session_factory = MagicMock(return_value=session)
 
-        with patch("backend.infrastructure.persistence.sqla_source_repository.SqlaSourceRepository") as src_cls, \
+        with patch(_COUNT_SOURCES, return_value=10), \
+             patch("backend.infrastructure.persistence.sqla_source_repository.SqlaSourceRepository") as src_cls, \
              patch("backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository"):
             src_cls.return_value.get_by_id.return_value = MagicMock(id=1)
             reconcile_media_files(session_factory, str(media_root))
@@ -85,3 +93,68 @@ class TestReconcileMediaFiles:
         session_factory = MagicMock()
         # Should not raise
         reconcile_media_files(session_factory, str(tmp_path / "nonexistent"))
+
+    def test_aborts_when_db_source_count_less_than_disk_dirs(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        # The user's actual incident: dev DB (0 sources) loaded against
+        # prod media root (multiple source dirs) → reconcile would have
+        # rmtree'd them all. The guard must abort and leave files alone.
+        media_root = tmp_path / "media"
+        (media_root / "5").mkdir(parents=True)
+        (media_root / "5" / "441_screenshot.webp").write_bytes(b"prod data")
+        (media_root / "5" / "441_audio.m4a").write_bytes(b"prod audio")
+        (media_root / "10").mkdir(parents=True)
+        (media_root / "10" / "1_screenshot.webp").write_bytes(b"more prod data")
+
+        session = MagicMock()
+        session_factory = MagicMock(return_value=session)
+
+        with patch(_COUNT_SOURCES, return_value=0), \
+             patch("backend.infrastructure.persistence.sqla_source_repository.SqlaSourceRepository") as src_cls, \
+             patch("backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository") as cand_cls:
+            reconcile_media_files(session_factory, str(media_root))
+
+            # Source repo should NEVER be queried — guard aborted before iteration.
+            src_cls.return_value.get_by_id.assert_not_called()
+            cand_cls.return_value.get_by_id.assert_not_called()
+
+        # Files must still exist
+        assert (media_root / "5" / "441_screenshot.webp").exists()
+        assert (media_root / "5" / "441_audio.m4a").exists()
+        assert (media_root / "10" / "1_screenshot.webp").exists()
+
+    def test_aborts_when_db_count_equals_zero_with_one_dir(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        media_root = tmp_path / "media"
+        (media_root / "1").mkdir(parents=True)
+        f = media_root / "1" / "1_screenshot.webp"
+        f.write_bytes(b"data")
+
+        session = MagicMock()
+        session_factory = MagicMock(return_value=session)
+
+        with patch(_COUNT_SOURCES, return_value=0), \
+             patch("backend.infrastructure.persistence.sqla_source_repository.SqlaSourceRepository"), \
+             patch("backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository"):
+            reconcile_media_files(session_factory, str(media_root))
+
+        assert f.exists()
+
+    def test_proceeds_when_db_count_equals_disk_dirs(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        # Edge case: equal counts → guard passes (>= not strict).
+        media_root = tmp_path / "media"
+        (media_root / "1").mkdir(parents=True)
+        (media_root / "1" / "1_screenshot.webp").write_bytes(b"x")
+
+        session = MagicMock()
+        session_factory = MagicMock(return_value=session)
+
+        with patch(_COUNT_SOURCES, return_value=1), \
+             patch("backend.infrastructure.persistence.sqla_source_repository.SqlaSourceRepository") as src_cls, \
+             patch("backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository") as cand_cls:
+            src_cls.return_value.get_by_id.return_value = MagicMock(id=1)
+            cand_cls.return_value.get_by_id.return_value = MagicMock(id=1)
+            reconcile_media_files(session_factory, str(media_root))
+
+        # File preserved (source exists)
+        assert (media_root / "1" / "1_screenshot.webp").exists()
+        # Guard didn't abort — repo WAS queried
+        src_cls.return_value.get_by_id.assert_called_with(1)

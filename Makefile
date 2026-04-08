@@ -70,14 +70,14 @@ prod-up:  ## Запустить в фоне
 	$(call start_ai_proxy,$(PROD_AI_PID),$(PROD_AI_LOG),$(PROD_AI_PORT))
 	PORT=$(PROD_PORT) APP_ENV=production \
 	AI_PROXY_URL=http://host.docker.internal:$(PROD_AI_PORT) \
-	    docker compose -p $(PROD_PROJECT) up -d --build
+	    docker compose -p $(PROD_PROJECT) -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 prod-down:  ## Остановить
-	docker compose -p $(PROD_PROJECT) down
+	docker compose -p $(PROD_PROJECT) -f docker-compose.yml -f docker-compose.prod.yml down
 	$(call stop_ai_proxy,$(PROD_AI_PID),$(PROD_AI_PORT))
 
 prod-logs:  ## Логи контейнера
-	docker compose -p $(PROD_PROJECT) logs -f
+	docker compose -p $(PROD_PROJECT) -f docker-compose.yml -f docker-compose.prod.yml logs -f
 
 prod-logs-ai:  ## Логи ai_proxy
 	tail -f $(PROD_AI_LOG)

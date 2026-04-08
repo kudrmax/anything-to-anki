@@ -29,7 +29,7 @@ async def serve_media_file(
     media_root = container.media_root()
     file_path = os.path.join(media_root, str(source_id), filename)
     if not os.path.exists(file_path):
-        await container.lazy_media_reconciler().schedule(source_id)
+        await container.lazy_media_reconciler().schedule(source_id, filename)
         raise HTTPException(status_code=404, detail="Media file not found")
     return FileResponse(file_path)
 

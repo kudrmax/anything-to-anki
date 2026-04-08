@@ -40,6 +40,20 @@ logging.basicConfig(
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     session_factory = get_session_factory()
     db_url = str(session_factory.kw["bind"].url)
+
+    # Defense-in-depth: refuse to start if APP_ENV says production but the
+    # selected DB URL is the dev DB. Catches the exact misconfiguration that
+    # caused a real data-loss incident: rebuilding the prod compose project
+    # without `APP_ENV=production` → dev DB loaded → reconcile_media_files
+    # rmtree'd /data/media/ source dirs that didn't exist in the dev DB.
+    app_env = os.getenv("APP_ENV", "development")
+    if app_env == "production" and "vocabminer_dev.db" in db_url:
+        raise RuntimeError(
+            f"APP_ENV=production but dev DB URL selected ({db_url}) — "
+            "refusing to start to prevent data loss. Set APP_ENV correctly "
+            "or use `make prod-up`."
+        )
+
     if ":memory:" not in db_url:
         run_alembic_migrations(db_url)
     upgrade_schema(session_factory)
