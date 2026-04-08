@@ -25,6 +25,8 @@ def _make_candidate(cid: int, lemma: str, *, with_meaning: bool = False) -> Stor
         meaning = CandidateMeaning(
             candidate_id=cid,
             meaning="already done",
+            translation=None,
+            synonyms=None,
             ipa=None,
             status=EnrichmentStatus.DONE,
             error=None,
@@ -53,6 +55,8 @@ def _running_meaning(cid: int) -> CandidateMeaning:
     return CandidateMeaning(
         candidate_id=cid,
         meaning=None,
+        translation=None,
+        synonyms=None,
         ipa=None,
         status=EnrichmentStatus.RUNNING,
         error=None,
@@ -90,8 +94,8 @@ def test_execute_batch_happy_path() -> None:
 
     ai_service = MagicMock()
     ai_service.generate_meanings_batch.return_value = [
-        BatchMeaningResult(word_index=1, meaning="explain more", ipa=None),
-        BatchMeaningResult(word_index=2, meaning="unwilling", ipa=None),
+        BatchMeaningResult(word_index=1, meaning="explain more", translation="объяснить", synonyms="explain, elaborate", ipa=None),
+        BatchMeaningResult(word_index=2, meaning="unwilling", translation="неохотный", synonyms="hesitant, unwilling", ipa=None),
     ]
 
     use_case = MeaningGenerationUseCase(
@@ -115,6 +119,10 @@ def test_execute_batch_happy_path() -> None:
     by_id = {m.candidate_id: m for m in upserts}
     assert by_id[1].meaning == "explain more"
     assert by_id[2].meaning == "unwilling"
+    assert by_id[1].translation == "объяснить"
+    assert by_id[1].synonyms == "explain, elaborate"
+    assert by_id[2].translation == "неохотный"
+    assert by_id[2].synonyms == "hesitant, unwilling"
     assert by_id[1].status == EnrichmentStatus.DONE
     assert by_id[2].status == EnrichmentStatus.DONE
 
@@ -132,7 +140,7 @@ def test_execute_batch_skips_candidates_with_meaning() -> None:
 
     ai_service = MagicMock()
     ai_service.generate_meanings_batch.return_value = [
-        BatchMeaningResult(word_index=1, meaning="unwilling", ipa=None),
+        BatchMeaningResult(word_index=1, meaning="unwilling", translation="неохотный", synonyms="hesitant, unwilling", ipa=None),
     ]
 
     use_case = MeaningGenerationUseCase(
@@ -163,6 +171,8 @@ def test_execute_batch_skips_cancelled_candidate() -> None:
     cancelled = CandidateMeaning(
         candidate_id=1,
         meaning=None,
+        translation=None,
+        synonyms=None,
         ipa=None,
         status=EnrichmentStatus.FAILED,
         error="cancelled by user",
@@ -173,7 +183,7 @@ def test_execute_batch_skips_cancelled_candidate() -> None:
 
     ai_service = MagicMock()
     ai_service.generate_meanings_batch.return_value = [
-        BatchMeaningResult(word_index=1, meaning="explain more", ipa=None),
+        BatchMeaningResult(word_index=1, meaning="explain more", translation="объяснить", synonyms="explain, elaborate", ipa=None),
     ]
 
     use_case = MeaningGenerationUseCase(

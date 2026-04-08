@@ -87,6 +87,8 @@ class MeaningGenerationUseCase:
             self._meaning_repo.upsert(CandidateMeaning(
                 candidate_id=c.id,
                 meaning=r.meaning,
+                translation=r.translation,
+                synonyms=r.synonyms,
                 ipa=r.ipa,
                 status=EnrichmentStatus.DONE,
                 error=None,
