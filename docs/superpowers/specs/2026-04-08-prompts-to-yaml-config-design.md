@@ -72,7 +72,7 @@ class PromptsLoader:
 `backend/infrastructure/container.py`:
 - Удалить фабрику `prompt_repository()` / `manage_prompts_use_case()`
 - Добавить поле `_prompts_config: PromptsConfig`, инициализируемое в `__init__` через `PromptsLoader`
-- `generate_meaning_use_case(session)` и `enqueue_meaning_generation_use_case(session)` получают `_prompts_config` вместо `PromptRepository`
+- `generate_meaning_use_case(session)` и `meaning_generation_use_case(session)` получают `_prompts_config` вместо `PromptRepository`
 
 ### Use cases
 
@@ -80,9 +80,15 @@ class PromptsLoader:
 - Убрать поле `_prompt_repo`
 - Добавить поле `_prompts_config: PromptsConfig`
 - Вместо `self._prompt_repo.get_by_key(...)` → использовать `self._prompts_config.generate_meaning_user_template` и `...generate_meaning_system`
-- Убрать ветку `if prompt is None: raise PromptNotFoundError` (валидация теперь при старте приложения)
+- Убрать ветку `if prompt is None: raise PromptNotFoundError` и импорт `PromptNotFoundError`
 
-`backend/application/use_cases/enqueue_meaning_generation.py`: аналогично.
+`backend/application/use_cases/run_generation_job.py` (`MeaningGenerationUseCase`):
+- Аналогично: убрать `_prompt_repo`, добавить `_prompts_config`
+- Убрать ветку `raise InvalidPromptError(...)` и связанный импорт
+- `prompt.user_template.format(...)` → `self._prompts_config.generate_meaning_user_template.format(...)`
+- `prompt.system_prompt` → `self._prompts_config.generate_meaning_system`
+
+**Внимание:** `EnqueueMeaningGenerationUseCase` (`enqueue_meaning_generation.py`) **не использует** `PromptRepository` — менять его не нужно.
 
 ## Что удаляется
 
@@ -90,7 +96,8 @@ class PromptsLoader:
 
 - `backend/domain/entities/prompt_template.py`
 - `backend/domain/ports/prompt_repository.py`
-- `backend/domain/exceptions.py` → `PromptNotFoundError` (если не используется в других местах)
+- `backend/domain/exceptions.py` → `PromptNotFoundError` (проверить грепом, что больше не используется)
+- `backend/domain/exceptions.py` → `InvalidPromptError` (проверить грепом)
 - `backend/application/use_cases/manage_prompts.py`
 - `backend/application/dto/prompt_dtos.py`
 - `backend/infrastructure/persistence/sqla_prompt_repository.py`
