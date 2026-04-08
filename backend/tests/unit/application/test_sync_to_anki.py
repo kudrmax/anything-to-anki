@@ -1,9 +1,10 @@
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.domain.entities.candidate_meaning import CandidateMeaning
+from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import AnkiNotAvailableError
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -239,3 +240,106 @@ class TestSyncToAnkiUseCase:
         call_args = self.anki_connector.add_notes.call_args
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
         assert note[0]["IPA"] == "/θʌɡ/"
+
+    def test_image_field_populated_when_media_present(self) -> None:
+        candidate = _make_candidate(1, "thug", CandidateStatus.LEARN, meaning="бандит")
+        candidate = StoredCandidate(
+            id=candidate.id,
+            source_id=candidate.source_id,
+            lemma=candidate.lemma,
+            pos=candidate.pos,
+            cefr_level=candidate.cefr_level,
+            zipf_frequency=candidate.zipf_frequency,
+            is_sweet_spot=candidate.is_sweet_spot,
+            context_fragment=candidate.context_fragment,
+            fragment_purity=candidate.fragment_purity,
+            occurrences=candidate.occurrences,
+            status=candidate.status,
+            meaning=candidate.meaning,
+            media=CandidateMedia(
+                candidate_id=1,
+                screenshot_path="/tmp/img.png",
+                audio_path="/tmp/snd.mp3",
+                start_ms=0,
+                end_ms=1000,
+                status=EnrichmentStatus.DONE,
+                error=None,
+                generated_at=datetime(2026, 4, 8, tzinfo=UTC),
+            ),
+        )
+        self.candidate_repo.get_by_source.return_value = [candidate]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        with patch("backend.application.use_cases.sync_to_anki.os.path.exists", return_value=True):
+            self.use_case.execute(source_id=1)
+
+        call_args = self.anki_connector.add_notes.call_args
+        note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
+        assert note[0]["Image"] == '<img src="img.png">'
+        assert note[0]["Audio"] == "[sound:snd.mp3]"
+        # Connector should have stored the media files
+        self.anki_connector.store_media_file.assert_any_call("img.png", "/tmp/img.png")
+        self.anki_connector.store_media_file.assert_any_call("snd.mp3", "/tmp/snd.mp3")
+
+    def test_image_audio_fields_absent_when_no_media(self) -> None:
+        # _make_candidate constructs StoredCandidate with media=None
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "thug", CandidateStatus.LEARN, meaning="бандит"),
+        ]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        self.use_case.execute(source_id=1)
+
+        call_args = self.anki_connector.add_notes.call_args
+        note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
+        assert "Image" not in note[0]
+        assert "Audio" not in note[0]
+        self.anki_connector.store_media_file.assert_not_called()
+
+    def test_image_field_skipped_when_file_missing(self) -> None:
+        # Media is recorded but the file no longer exists on disk.
+        candidate = StoredCandidate(
+            id=1,
+            source_id=1,
+            lemma="thug",
+            pos="NOUN",
+            cefr_level="B2",
+            zipf_frequency=3.5,
+            is_sweet_spot=True,
+            context_fragment="context with thug here",
+            fragment_purity="clean",
+            occurrences=1,
+            status=CandidateStatus.LEARN,
+            meaning=CandidateMeaning(
+                candidate_id=1,
+                meaning="бандит",
+                ipa=None,
+                status=EnrichmentStatus.DONE,
+                error=None,
+                generated_at=datetime(2026, 4, 8, tzinfo=UTC),
+            ),
+            media=CandidateMedia(
+                candidate_id=1,
+                screenshot_path="/tmp/missing.png",
+                audio_path="/tmp/missing.mp3",
+                start_ms=0,
+                end_ms=1000,
+                status=EnrichmentStatus.DONE,
+                error=None,
+                generated_at=datetime(2026, 4, 8, tzinfo=UTC),
+            ),
+        )
+        self.candidate_repo.get_by_source.return_value = [candidate]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        with patch("backend.application.use_cases.sync_to_anki.os.path.exists", return_value=False):
+            self.use_case.execute(source_id=1)
+
+        call_args = self.anki_connector.add_notes.call_args
+        note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
+        assert "Image" not in note[0]
+        assert "Audio" not in note[0]
+        self.anki_connector.store_media_file.assert_not_called()
