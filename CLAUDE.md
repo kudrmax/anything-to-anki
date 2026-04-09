@@ -1,71 +1,153 @@
-# anything-to-anki
+# AnythingToAnki
 
-## Архитектура: Clean Architecture
+## Продукт
 
-Проект строго следует Clean Architecture (Uncle Bob). Три слоя в backend, фронтенды полностью отделены.
+**AnythingToAnki** — локальный инструмент для изучения английского из потребляемого контента: источник (текст/субтитры/видео/lyrics) → извлечение текста → сегментация на фразы → отбор target'ов → AI-генерация → карточки Anki через AnkiConnect. На сервер никогда не поднимается.
 
-### Правило зависимостей (НАРУШЕНИЕ = БЛОКЕР)
+### Продуктовое видение
 
+**Карточка = фраза с target'ом, а не голое слово.** Лицевая сторона — логически законченная фраза, внутри которой выделен один target для изучения. Идеал: target — единственный незнакомый элемент, всё остальное уже знакомо. Так слово запоминается в живом контексте, а не в вакууме.
+
+**Target** — это слово (`procrastinate`), фразовый глагол (`give in`) или коллокация (`make a decision`). Все три равноправны.
+
+**Pipeline:**
 ```
-frontends/* ──► application (use cases, DTOs)
-                    │
-                    ▼
-               domain (entities, ports)
-                    ▲
-                    │
-              infrastructure (реализует порты)
+Источник ─► Извлечение текста ─► Сегментация на фразы ─► Отбор target'ов ─► Карточки
 ```
 
-- **domain** не импортирует НИЧЕГО из application, infrastructure или frontends
-- **application** импортирует ТОЛЬКО из domain
-- **infrastructure** реализует интерфейсы из domain/ports
-- **frontends** зависят от backend как от пакета, импортируют use cases и DTOs
+Сегментация — через синтаксический анализ зависимостей (spaCy), не простой split по пунктуации. Отбор target'ов — по частотности (wordfreq), CEFR (cefrpy), словарю фразовых глаголов, с исключением известных пользователю слов. Среди фраз с одним и тем же target'ом приоритет тем, где всё остальное уже знакомо.
 
-### Слои backend
+**Детали алгоритмов намеренно не фиксируются** — они меняются. Зафиксирована только продуктовая цель.
 
-- `domain/entities/` — бизнес-сущности (dataclasses)
-- `domain/value_objects/` — неизменяемые объекты-значения (frozen dataclasses, enums)
-- `domain/ports/` — интерфейсы (ABC) для внешних зависимостей
-- `domain/exceptions.py` — доменные исключения
-- `application/use_cases/` — сценарии использования
-- `application/dto/` — входные/выходные модели (pydantic)
-- `infrastructure/` — реализации портов, внешние сервисы, БД
-- `infrastructure/container.py` — DI-контейнер, единственное место сборки зависимостей
+---
 
-### Backend vs Frontend
+## Навигация по справочникам
 
-- `backend/` и `frontends/` — полностью независимые top-level компоненты
-- Backend не знает о существовании фронтендов
-- Фронтенд — заменяемый presentation layer, НЕ содержит бизнес-логики
-- Каждый фронтенд — отдельный пакет со своим pyproject.toml
+Детальное описание того, как всё устроено, живёт в `docs/`. Читать по мере необходимости:
 
-### Порты и адаптеры
+- **[docs/project-map.md](docs/project-map.md)** — структура репозитория, что где лежит
+- **[docs/architecture.md](docs/architecture.md)** — Clean Architecture, слои, порты и адаптеры
+- **[docs/workers.md](docs/workers.md)** — arq, очереди, жизненный цикл задачи
+- **[docs/ai-integration.md](docs/ai-integration.md)** — ai_proxy, адаптеры, промпты
+- **[docs/running.md](docs/running.md)** — запуск dev/prod, `make`-команды, env vars
+- **[docs/migrations.md](docs/migrations.md)** — как добавить Alembic-миграцию
+- **[docs/testing.md](docs/testing.md)** — структура тестов и запуск
+- **[docs/verify-before-done.md](docs/verify-before-done.md)** — чек-лист перед завершением задачи
 
-- Интерфейсы (ABC) определяются в `domain/ports/`
-- Реализации — в `infrastructure/`
-- Use cases получают зависимости через конструктор (constructor injection)
-- Сборка зависимостей — только в `infrastructure/container.py`
+---
 
-## Код
+## Архитектура — главное правило
 
-- Строгая типизация: type hints везде, `mypy --strict`
-- Сущности — `dataclasses` (frozen где возможно)
-- DTOs — `pydantic` models
-- Composition over inheritance
-- Никаких plain dicts для структурированных данных
-- `Any` запрещён без явного обоснования в комментарии
+Clean Architecture: `domain ◄── application ◄── infrastructure`, `frontends ─► application`. Подробности — `docs/architecture.md`.
 
-## Тесты
+> # КРИТИЧЕСКОЕ ПРАВИЛО: backend ↔ frontend — полная изоляция
+>
+> **Вся бизнес-логика в backend. Frontend — заменяемый презентационный слой.**
+>
+> Каждая строчка фронта пишется исходя из того, что завтра рядом может появиться другой фронтенд (iOS, Android, Telegram-бот, CLI). Любая логика во фронте — это дублирование при расширении.
+>
+> - Бизнес-логика — только в backend (use cases, domain services)
+> - Frontend: рендер, локальный UI-state, вызов API, форматирование под UI
+> - Frontend НЕ делает: валидацию бизнес-правил, вычисление статусов, кэш с бизнес-семантикой
+> - Backend НЕ знает о существовании фронтенда (никаких `if client == "web"`)
+> - Рука тянется описать логику во фронте — **стоп**, переносим в backend
+>
+> **Тест:** «Если завтра я добавлю Telegram-бота — сколько логики придётся дублировать?» Ответ должен быть «ноль».
 
-- `tests/unit/domain/` — чистый Python, без моков
-- `tests/unit/application/` — моки только для портов (ABC)
-- `tests/integration/` — реальные реализации infrastructure
-- Маркеры pytest: `@pytest.mark.unit`, `@pytest.mark.integration`
-- Запуск: `make test`
+---
 
-## Запрещено
+## Dev/Prod — главное правило
 
-- Импорт infrastructure в domain или application
+Два независимых окружения: **dev** (`17832`, `app_dev.db`, ai_proxy `:8766`) и **prod** (`17833`, `app_prod.db`, ai_proxy `:8767`). Команды — `make dev-up/down`, `make prod-up/down`. Подробности — `docs/running.md`.
+
+> # КРИТИЧЕСКОЕ ПРАВИЛО: dev и prod — полная изоляция
+>
+> **Никогда не запускать одно окружение на данных другого.** Был реальный data-loss инцидент. В `app.py` есть safety guard (отказ стартовать, если `APP_ENV=production`, но БД-URL содержит `app_dev.db`) — не трогать.
+>
+> - Эксперименты, отладка, незаконченные фичи — **только в dev**. В prod уходит только проверенное
+> - Никаких ручных манипуляций с `data/app_prod.db`
+> - Никогда не копировать dev-БД поверх prod-БД и наоборот
+
+---
+
+## Стандарты кода
+
+- **Типизация:** `mypy --strict`, все параметры и возвращаемые значения аннотированы. `Any` запрещён без комментария с обоснованием
+- **`dataclass` vs `pydantic`:** `dataclass` (frozen) — для `domain/entities` и `domain/value_objects`. `pydantic` — для `application/dto` и конфигов
+- **Никаких plain `dict[str, Any]`** для структурированных данных. Только dataclass или pydantic
+- **Composition over inheritance.** Наследование только для реализации портов (ABC)
+- **Именованные константы** вместо магических чисел/строк (UPPER_SNAKE_CASE)
+- **Линтер — `ruff`,** конфиг единый в `pyproject.toml`. Правила и line-length — там, не здесь
+- **Перед завершением задачи** — прогнать чек-лист из `docs/verify-before-done.md`
+
+---
+
+## Git и коммиты
+
+**Формат — conventional commits:** `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`. Subject ≤ 72 символов, imperative mood, без тикетов. Примеры из истории: `feat: sync translation and synonyms to Anki`, `refactor: remove prompt editor from frontend`.
+
+> # ПРАВИЛА git-операций
+>
+> **Можно без подтверждения:** `git add`, `git commit`, `git checkout -b`, все чтение-операции (`status`, `diff`, `log`, `show`, `blame`).
+>
+> **Только по явной команде:** `push`, `pull` с изменениями, `rebase`, `merge`, `cherry-pick`, `reset --hard`, `tag`, `worktree add/remove`, любые `--force`, `--no-verify`, `git clean -f`, `git restore .`, `git checkout .`.
+
+> # КРИТИЧЕСКОЕ ПРАВИЛО: никогда не подписывать коммиты Claude
+>
+> Не добавлять `Co-Authored-By: Claude`, не добавлять `🤖 Generated with Claude Code`, не упоминать Claude, Anthropic, AI в commit message или PR description. Коммит должен выглядеть так, будто его написал сам пользователь.
+
+---
+
+## Работа с багами
+
+> # ПРАВИЛО 1: Найденный баг = сообщил + разобрался
+>
+> Баг нельзя замалчивать, даже если он не относится к текущей задаче и существовал до твоих изменений. Варианты: фикс сразу после основной задачи (если дешёвый) или явное сообщение пользователю с заведением задачи. **Запрещено:** «этот баг был до меня», «это не моя задача». Баг есть — либо фиксим, либо эскалируем.
+
+> # ПРАВИЛО 2: Фикс = устранение причины, не маскировка симптома
+>
+> Первая задача при починке бага — понять **корень** проблемы, а не сделать так, чтобы симптом перестал проявляться.
+>
+> **Пример запрещённого подхода:** «Job'ы иногда зависают в `RUNNING` → добавим фоновую задачу, которая через 5 минут переводит такие job'ы в `FAILED`». Это маскировка, а не решение. Мы не знаем **почему** они зависают (deadlock, race, OOM, зависший HTTP?) — автоматическая подчистка прячет реальную проблему.
+>
+> **Правильно:** собрать логи → воспроизвести → найти место в коде где теряется контроль → починить именно там → только после этого закрывать задачу.
+>
+> **Временный workaround** допустим только если: (1) заведена задача на настоящий фикс, (2) в коде комментарий `# WORKAROUND: ...`, (3) пользователь явно согласился.
+
+---
+
+## Запрещено (red lines)
+
+Нарушение любого пункта — блокер.
+
+**Архитектура:**
+- Импорт `infrastructure` или `frontends` в `domain` или `application`
+- Импорт `application` в `domain`
+- Прямое создание `infrastructure`-объектов в use cases (только через DI из `container.py`)
 - Бизнес-логика во фронтендах
-- Прямое создание infrastructure-объектов в use cases (только DI)
-- Plain dicts вместо dataclass/pydantic для структурированных данных
+- Backend, знающий о конкретном фронтенде (`if client == "web"` и т.п.)
+
+**Данные:**
+- `plain dict` для структурированных данных (только `dataclass` / `pydantic`)
+- Inline `ALTER TABLE` / `CREATE TABLE` в Python-коде (только Alembic, см. `docs/migrations.md`)
+- Запуск prod на dev-БД и наоборот
+- `Any` без объяснения в комментарии
+
+**Процесс:**
+- Запрещённые git-операции без явной команды (см. блок «Git и коммиты»)
+- Подпись коммитов именем Claude в любом виде
+- Скип сломавшихся тестов / отключение правил линтера без обоснования
+- `--no-verify` и обходы pre-commit проверок
+- Прямое редактирование `data/app_prod.db` без понимания последствий
+- Маскировка симптомов бага вместо устранения причины
+
+---
+
+## Подводные камни
+
+- **Docker networking:** не добавлять `extra_hosts: host-gateway` — ломает `host.docker.internal` на macOS
+- **`claude-agent-sdk` → Keychain:** SDK не работает в контейнере, только через `ai_proxy` на хосте (см. `docs/ai-integration.md`)
+- **Safety guard в `app.py` startup** (отказ стартовать prod на dev-БД) — не трогать, не ослаблять
+- **Frontend build check** — `npm run build`, не `tsc --noEmit` (см. `docs/verify-before-done.md`)
+- **dev/prod шерят `data/`** — разные БД, но общий `data/media/` и конфиги. Архитектурный долг, запланирован фикс. До фикса — не трогать `data/media/` руками
+- **Миграции — только Alembic,** никаких inline `ALTER TABLE` или `execute(text(...))` для DDL

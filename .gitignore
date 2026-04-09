@@ -1,5 +1,5 @@
-vocabminer.db
-vocabminer_dev.db
+app_prod.db
+app_dev.db
 data/
 .pids/
 .logs/
@@ -11,6 +11,5 @@ data/
 kanban/
 /docs/superpowers/plans
 /.superpowers/
-/vocabminer.db
 /anything_to_anki.egg-info
 /.superpowers/brainstorm/15821-1775418982
