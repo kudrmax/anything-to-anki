@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -7,6 +8,8 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+
+logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 15
 
@@ -60,6 +63,18 @@ class EnqueueMeaningGenerationUseCase:
                 sort_order=sort_order,
             )
         if not all_ids:
+            logger.info(
+                "enqueue_meaning_generation: no candidates without meaning "
+                "(source_id=%d, sort_order=%s)",
+                source_id, sort_order.value if sort_order else None,
+            )
             return []
         self._meaning_repo.mark_queued_bulk(all_ids)
-        return [all_ids[i:i + BATCH_SIZE] for i in range(0, len(all_ids), BATCH_SIZE)]
+        batches = [all_ids[i:i + BATCH_SIZE] for i in range(0, len(all_ids), BATCH_SIZE)]
+        logger.info(
+            "enqueue_meaning_generation: queued (source_id=%d, total=%d, batches=%d, "
+            "sort_order=%s)",
+            source_id, len(all_ids), len(batches),
+            sort_order.value if sort_order else None,
+        )
+        return batches

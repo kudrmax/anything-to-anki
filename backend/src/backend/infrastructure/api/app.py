@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import os
 from collections.abc import AsyncGenerator  # noqa: TC003
 from contextlib import asynccontextmanager
@@ -22,16 +21,14 @@ from backend.infrastructure.api.routes import (
     stats,
 )
 from backend.infrastructure.api.routes.media import router as media_router
+from backend.infrastructure.logging_setup import configure_logging
 from backend.infrastructure.persistence.database import (
     reconcile_media_files,
     reset_stuck_processing,
     run_alembic_migrations,
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+configure_logging("app")
 
 
 @asynccontextmanager

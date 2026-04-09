@@ -106,7 +106,13 @@ async def cancel_meaning_queue(
             elif i > 10 and cancelled_batches == 0:
                 break
         except Exception:  # noqa: BLE001
-            pass
+            logger.warning(
+                "generation.cancel: best-effort batch abort failed "
+                "(source_id=%d, batch_index=%d)",
+                source_id,
+                i,
+                exc_info=True,
+            )
 
     return {"cancelled": len(affected_ids)}
 
@@ -124,6 +130,9 @@ async def retry_failed_meanings(
         source_id, EnrichmentStatus.FAILED
     )
     if not failed_ids:
+        logger.info(
+            "generation.retry_failed: no failed candidates (source_id=%d)", source_id,
+        )
         return {"enqueued": 0, "batches": 0}
 
     meaning_repo.mark_queued_bulk(failed_ids)
@@ -143,4 +152,9 @@ async def retry_failed_meanings(
             _job_id=job_id,
             _defer_until=base + timedelta(milliseconds=i),
         )
+    logger.info(
+        "generation.retry_failed: re-enqueued "
+        "(source_id=%d, total=%d, batches=%d)",
+        source_id, len(failed_ids), len(batches),
+    )
     return {"enqueued": len(failed_ids), "batches": len(batches)}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import TYPE_CHECKING
 
@@ -7,6 +8,8 @@ from backend.application.dto.anki_dtos import SyncResultDTO
 from backend.application.utils.highlight import highlight_all_forms
 from backend.domain.exceptions import AnkiNotAvailableError
 from backend.domain.value_objects.candidate_status import CandidateStatus
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from backend.domain.ports.anki_connector import AnkiConnector
@@ -82,6 +85,10 @@ class SyncToAnkiUseCase:
         learn_candidates = [c for c in candidates if c.status == CandidateStatus.LEARN]
 
         total = len(learn_candidates)
+        logger.info(
+            "sync_to_anki: start (source_id=%d, deck=%s, learn_candidates=%d)",
+            source_id, deck_name, total,
+        )
         if total == 0:
             return SyncResultDTO(total=0, added=0, skipped=0, errors=0)
 
@@ -201,13 +208,32 @@ class SyncToAnkiUseCase:
                         self._anki_sync_repo.mark_synced(candidate.id, existing[0])  # type: ignore[arg-type]
                         skipped += 1
                         skipped_lemmas.append(candidate.lemma)
+                        logger.info(
+                            "sync_to_anki: duplicate matched existing note "
+                            "(candidate_id=%s, lemma=%s, note_id=%s)",
+                            candidate.id, candidate.lemma, existing[0],
+                        )
                     else:
                         errors += 1
                         error_lemmas.append(candidate.lemma)
+                        logger.exception(
+                            "sync_to_anki: duplicate reported but no existing note "
+                            "(candidate_id=%s, lemma=%s)",
+                            candidate.id, candidate.lemma,
+                        )
                 else:
                     errors += 1
                     error_lemmas.append(candidate.lemma)
+                    logger.exception(
+                        "sync_to_anki: candidate sync failed "
+                        "(candidate_id=%s, lemma=%s)",
+                        candidate.id, candidate.lemma,
+                    )
 
+        logger.info(
+            "sync_to_anki: done (source_id=%d, deck=%s, added=%d, skipped=%d, errors=%d)",
+            source_id, deck_name, added, skipped, errors,
+        )
         return SyncResultDTO(
             total=total, added=added, skipped=skipped, errors=errors,
             skipped_lemmas=skipped_lemmas, error_lemmas=error_lemmas,

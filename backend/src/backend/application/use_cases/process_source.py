@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest
@@ -25,6 +26,8 @@ if TYPE_CHECKING:
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.structured_srt_parser import StructuredSrtParser
     from backend.domain.value_objects.parsed_srt import ParsedSrt
+
+logger = logging.getLogger(__name__)
 
 _ALLOWED_START_STATUSES = frozenset({SourceStatus.NEW, SourceStatus.ERROR})
 
@@ -67,6 +70,10 @@ class ProcessSourceUseCase:
         stage: ProcessingStage,
         on_stage_commit: Callable[[], None] | None,
     ) -> None:
+        logger.info(
+            "process_source: stage transition (source_id=%d, stage=%s)",
+            source_id, stage.value,
+        )
         self._source_repo.update_status(
             source_id, SourceStatus.PROCESSING, processing_stage=stage,
         )
@@ -80,6 +87,7 @@ class ProcessSourceUseCase:
         on_stage_commit: Callable[[], None] | None = None,
     ) -> None:
         """Run the full pipeline and save results. Call in background thread."""
+        logger.info("process_source: execute start (source_id=%d)", source_id)
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
@@ -154,4 +162,9 @@ class ProcessSourceUseCase:
                     ))
         self._source_repo.update_status(
             source_id, SourceStatus.DONE, cleaned_text=result.cleaned_text,
+        )
+        logger.info(
+            "process_source: done (source_id=%d, candidates_created=%d, "
+            "with_timecodes=%d)",
+            source_id, len(created), len(timecode_map),
         )
