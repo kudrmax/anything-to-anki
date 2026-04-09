@@ -51,9 +51,14 @@ _check_env:
 
 ##@ Запуск (читает .env)
 up: _check_env  ## Запустить (ai_proxy + docker compose)
-	@echo "→ http://localhost:$(PORT)  (instance: $(INSTANCE_ENV_NAME))"
 	$(call start_ai_proxy)
 	docker compose up -d --build
+	@printf "\n\033[1;32m"
+	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+	@printf "  AnythingToAnki  [instance: %s]\n" "$(INSTANCE_ENV_NAME)"
+	@printf "  → http://localhost:%s\n" "$(PORT)"
+	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+	@printf "\033[0m\n"
 
 down:  ## Остановить
 	docker compose down
