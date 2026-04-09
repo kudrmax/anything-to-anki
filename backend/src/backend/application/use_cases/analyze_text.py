@@ -10,10 +10,12 @@ from backend.application.dto.analysis_dtos import (
 )
 from backend.domain.entities.word_candidate import WordCandidate
 from backend.domain.exceptions import TextTooShortError
-from backend.domain.services.boundary_cleaner import BoundaryCleaner
 from backend.domain.services.candidate_filter import CandidateFilter
 from backend.domain.services.clause_finder import ClauseFinder
 from backend.domain.services.fragment_extractor import FragmentExtractor
+from backend.domain.services.fragment_selection.cleanup.cleaner import (
+    RuleDrivenBoundaryCleaner,
+)
 from backend.domain.services.fragment_selection.rendering import render_fragment
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.fragment_selection_config import (
@@ -52,11 +54,13 @@ class AnalyzeTextUseCase:
         self._phrasal_verb_detector = phrasal_verb_detector
         self._candidate_filter = CandidateFilter()
         self._fragment_extractor = FragmentExtractor()
-        self._boundary_cleaner = BoundaryCleaner()
-        self._clause_finder = ClauseFinder()
         self._fragment_config = (
             fragment_selection_config or FragmentSelectionConfig()
         )
+        self._boundary_cleaner = RuleDrivenBoundaryCleaner(
+            config=self._fragment_config.cleanup
+        )
+        self._clause_finder = ClauseFinder()
 
     def execute(self, request: AnalyzeTextRequest) -> AnalyzeTextResponse:
         user_level = CEFRLevel.from_str(request.user_level)
