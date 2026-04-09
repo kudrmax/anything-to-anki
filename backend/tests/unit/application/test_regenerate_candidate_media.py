@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from backend.application.use_cases.regenerate_candidate_media import (
     RegenerateCandidateMediaUseCase,
 )
-from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.value_objects.parsed_srt import ParsedSrt
 from backend.domain.value_objects.source_type import SourceType
 from backend.domain.value_objects.subtitle_block import SubtitleBlock
+
+if TYPE_CHECKING:
+    from backend.domain.entities.candidate_media import CandidateMedia
 
 
 def _make_parsed_srt() -> ParsedSrt:
@@ -35,7 +37,10 @@ class TestRegenerateCandidateMedia:
         source.id = 42
         source.source_type = SourceType.VIDEO
         source.video_path = "/videos/movie.mkv"
-        source.raw_text = "1\n00:00:01,000 --> 00:00:02,000\nHello world.\n\n2\n00:00:03,000 --> 00:00:04,000\nHow are you?\n"
+        source.raw_text = (
+            "1\n00:00:01,000 --> 00:00:02,000\nHello world.\n\n"
+            "2\n00:00:03,000 --> 00:00:04,000\nHow are you?\n"
+        )
         source.audio_track_index = None
 
         candidate_repo = MagicMock()
@@ -56,8 +61,11 @@ class TestRegenerateCandidateMedia:
             media_root="/tmp/media",
         )
 
-        with patch("backend.application.use_cases.regenerate_candidate_media.os.makedirs"), \
-             patch("backend.application.use_cases.regenerate_candidate_media.os.path.exists", return_value=True):
+        base = "backend.application.use_cases.regenerate_candidate_media.os"
+        with (
+            patch(f"{base}.makedirs"),
+            patch(f"{base}.path.exists", return_value=True),
+        ):
             uc.execute(candidate_id=10)
 
         # Screenshot extracted at midpoint (3500 ms)
@@ -114,8 +122,11 @@ class TestRegenerateCandidateMedia:
             media_root="/tmp/media",
         )
 
-        with patch("backend.application.use_cases.regenerate_candidate_media.os.makedirs"), \
-             patch("backend.application.use_cases.regenerate_candidate_media.os.path.exists", return_value=True):
+        base = "backend.application.use_cases.regenerate_candidate_media.os"
+        with (
+            patch(f"{base}.makedirs"),
+            patch(f"{base}.path.exists", return_value=True),
+        ):
             uc.execute(candidate_id=10)
 
         audio_call = media_extractor.extract_audio.call_args
@@ -184,9 +195,12 @@ class TestRegenerateCandidateMedia:
             media_root="/tmp/media",
         )
 
-        with patch("backend.application.use_cases.regenerate_candidate_media.os.path.exists", return_value=False):
-            with pytest.raises(ValueError, match="Video file missing"):
-                uc.execute(candidate_id=10)
+        exists_path = "backend.application.use_cases.regenerate_candidate_media.os.path.exists"
+        with (
+            patch(exists_path, return_value=False),
+            pytest.raises(ValueError, match="Video file missing"),
+        ):
+            uc.execute(candidate_id=10)
 
     def test_raises_if_fragment_not_in_srt(self) -> None:
         candidate = MagicMock()
@@ -217,6 +231,9 @@ class TestRegenerateCandidateMedia:
             media_root="/tmp/media",
         )
 
-        with patch("backend.application.use_cases.regenerate_candidate_media.os.path.exists", return_value=True):
-            with pytest.raises(ValueError, match="Fragment not found"):
-                uc.execute(candidate_id=10)
+        exists_path = "backend.application.use_cases.regenerate_candidate_media.os.path.exists"
+        with (
+            patch(exists_path, return_value=True),
+            pytest.raises(ValueError, match="Fragment not found"),
+        ):
+            uc.execute(candidate_id=10)

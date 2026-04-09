@@ -1,11 +1,16 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, call
 
 import pytest
-
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import SourceIsProcessingError, SourceNotFoundError
 from backend.domain.value_objects.source_status import SourceStatus
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.mark.unit
@@ -50,7 +55,7 @@ class TestDeleteSourceUseCase:
         self.candidate_repo.delete_by_source.assert_not_called()
         self.source_repo.delete.assert_not_called()
 
-    def test_deletes_media_directory_when_present(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    def test_deletes_media_directory_when_present(self, tmp_path: Path) -> None:
         # Simulate a media directory with files
         media_root = tmp_path / "media"
         source_media = media_root / "42"
@@ -76,7 +81,7 @@ class TestDeleteSourceUseCase:
         candidate_repo.delete_by_source.assert_called_once_with(42)
         source_repo.delete.assert_called_once_with(42)
 
-    def test_delete_does_not_fail_if_media_dir_missing(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    def test_delete_does_not_fail_if_media_dir_missing(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         media_root.mkdir()
 

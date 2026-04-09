@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 

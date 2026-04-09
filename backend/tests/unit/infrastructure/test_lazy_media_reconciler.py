@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import asyncio
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 class TestLazyMediaReconciler:
-    async def test_clears_specified_screenshot_only(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    async def test_clears_specified_screenshot_only(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         (media_root / "1").mkdir(parents=True)
         # File does NOT exist on disk → reconciler should clear
@@ -35,7 +38,7 @@ class TestLazyMediaReconciler:
             session.commit.assert_called_once()
             session.close.assert_called_once()
 
-    async def test_clears_specified_audio_only(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    async def test_clears_specified_audio_only(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         (media_root / "1").mkdir(parents=True)
 
@@ -56,7 +59,7 @@ class TestLazyMediaReconciler:
                 42, clear_screenshot=False, clear_audio=True,
             )
 
-    async def test_noop_when_file_reappears(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    async def test_noop_when_file_reappears(self, tmp_path: Path) -> None:
         # Race protection: file exists at reconcile time → no clear
         media_root = tmp_path / "media"
         (media_root / "1").mkdir(parents=True)
@@ -78,7 +81,7 @@ class TestLazyMediaReconciler:
             media_repo.clear_paths.assert_not_called()
             session.commit.assert_not_called()
 
-    async def test_ignores_unknown_filename_shape(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    async def test_ignores_unknown_filename_shape(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         (media_root / "1").mkdir(parents=True)
 
@@ -97,7 +100,7 @@ class TestLazyMediaReconciler:
 
             media_repo.clear_paths.assert_not_called()
 
-    async def test_dedupes_concurrent_requests_for_same_file(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    async def test_dedupes_concurrent_requests_for_same_file(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         (media_root / "1").mkdir(parents=True)
         call_count = 0
@@ -122,7 +125,7 @@ class TestLazyMediaReconciler:
 
         assert call_count == 1  # dedup worked
 
-    async def test_different_files_run_independently(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    async def test_different_files_run_independently(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         (media_root / "1").mkdir(parents=True)
         call_log: list[tuple[int, str]] = []
@@ -143,4 +146,8 @@ class TestLazyMediaReconciler:
         release.set()
         await asyncio.sleep(0.05)
 
-        assert sorted(call_log) == [(1, "10_screenshot.webp"), (1, "11_screenshot.webp"), (2, "10_screenshot.webp")]
+        assert sorted(call_log) == [
+            (1, "10_screenshot.webp"),
+            (1, "11_screenshot.webp"),
+            (2, "10_screenshot.webp"),
+        ]

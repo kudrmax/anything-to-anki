@@ -1,18 +1,21 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
-
 from backend.application.use_cases.get_media_storage_stats import (
     GetMediaStorageStatsUseCase,
 )
 from backend.domain.value_objects.source_type import SourceType
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 @pytest.mark.unit
 class TestGetMediaStorageStats:
-    def test_aggregates_sizes_per_source(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    def test_aggregates_sizes_per_source(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         (media_root / "1").mkdir(parents=True)
         (media_root / "2").mkdir(parents=True)
@@ -55,7 +58,7 @@ class TestGetMediaStorageStats:
         assert by_id[2].screenshot_count == 2
         assert by_id[2].audio_count == 0
 
-    def test_skips_non_video_sources(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    def test_skips_non_video_sources(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         media_root.mkdir()
 
@@ -75,7 +78,7 @@ class TestGetMediaStorageStats:
 
         assert stats == []
 
-    def test_returns_zero_for_video_without_media_dir(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    def test_returns_zero_for_video_without_media_dir(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         media_root.mkdir()
 
@@ -100,7 +103,7 @@ class TestGetMediaStorageStats:
         assert stats[0].screenshot_count == 0
         assert stats[0].audio_count == 0
 
-    def test_uses_default_title_when_source_title_is_none(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    def test_uses_default_title_when_source_title_is_none(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         media_root.mkdir()
 

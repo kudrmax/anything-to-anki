@@ -1,6 +1,8 @@
+from dataclasses import FrozenInstanceError
+
 import pytest
-from backend.domain.value_objects.subtitle_block import SubtitleBlock
 from backend.domain.value_objects.parsed_srt import ParsedSrt
+from backend.domain.value_objects.subtitle_block import SubtitleBlock
 from backend.domain.value_objects.subtitle_track_info import SubtitleTrackInfo
 
 
@@ -8,7 +10,7 @@ from backend.domain.value_objects.subtitle_track_info import SubtitleTrackInfo
 class TestSubtitleBlock:
     def test_is_frozen(self) -> None:
         block = SubtitleBlock(start_ms=1000, end_ms=2000, char_start=0, char_end=10)
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             block.start_ms = 999  # type: ignore[misc]
 
     def test_fields(self) -> None:
@@ -23,7 +25,7 @@ class TestSubtitleBlock:
 class TestParsedSrt:
     def test_is_frozen(self) -> None:
         p = ParsedSrt(text="hello", blocks=[])
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             p.text = "bye"  # type: ignore[misc]
 
     def test_fields(self) -> None:
@@ -37,7 +39,7 @@ class TestParsedSrt:
 class TestSubtitleTrackInfo:
     def test_is_frozen(self) -> None:
         t = SubtitleTrackInfo(index=0, language="eng", title="English", codec="subrip")
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             t.index = 999  # type: ignore[misc]
 
     def test_fields(self) -> None:

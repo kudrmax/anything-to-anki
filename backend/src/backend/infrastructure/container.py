@@ -23,7 +23,6 @@ from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
-from backend.domain.value_objects.prompts_config import PromptsConfig
 from backend.domain.value_objects.source_type import SourceType
 from backend.infrastructure.adapters.ai_model_mapping import model_id_for
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
@@ -39,6 +38,7 @@ from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyze
 from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
 )
+from backend.infrastructure.config.prompts_loader import PromptsLoader
 from backend.infrastructure.persistence.sqla_anki_sync_repository import (
     SqlaAnkiSyncRepository,
 )
@@ -60,7 +60,6 @@ from backend.infrastructure.persistence.sqla_settings_repository import (
 from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
 )
-from backend.infrastructure.config.prompts_loader import PromptsLoader
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 
 if TYPE_CHECKING:
@@ -78,6 +77,7 @@ if TYPE_CHECKING:
         RegenerateCandidateMediaUseCase,
     )
     from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
+    from backend.domain.value_objects.prompts_config import PromptsConfig
 
 
 class Container:

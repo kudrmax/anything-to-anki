@@ -119,7 +119,8 @@ class TestFragmentExtractor:
 
     def test_short_sentence_returns_full_sentence(self) -> None:
         """Если предложение ≤ MAX_FRAGMENT_WORDS content words — возвращается целиком."""
-        # "I tell you my darkest whimsical story" — 5 content words (tell, darkest, whimsical, story + you)
+        # "I tell you my darkest whimsical story" — 5 content words
+        # (tell, darkest, whimsical, story + you)
         # target = whimsical (index 5), его синтаксическое поддерево = 1 слово,
         # но предложение короткое — берётся целиком.
         tokens = [
@@ -138,7 +139,7 @@ class TestFragmentExtractor:
     def test_long_sentence_min_raised_falls_to_window(self) -> None:
         """Длинное предложение (> MAX): маленький фрагмент (< MIN=5) → window trim."""
         # 15 слов в одном предложении; root (token 7) — голова всех остальных.
-        # target = token 0: его поддерево = 1 слово, голова root → поддерево = 15 слов > MAX → trim.
+        # target = token 0: его поддерево = 1 слово, голова root → 15 слов > MAX → trim.
         tokens = [_make_token(i, f"word{i}", head_index=7) for i in range(15)]
         tokens[7] = _make_token(7, "root", children=tuple(i for i in range(15) if i != 7))
         result = self.extractor.extract(tokens, 0)

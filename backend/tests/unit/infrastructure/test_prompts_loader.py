@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
-
 from backend.domain.exceptions import ConfigError
 from backend.infrastructure.config.prompts_loader import PromptsLoader
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
 VALID_YAML = """
 ai:
