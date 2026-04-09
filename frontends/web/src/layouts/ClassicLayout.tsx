@@ -27,7 +27,7 @@ export function ClassicLayout() {
           <span className="flex items-center gap-2">
             <img src="/anki-logo.png" alt="Anki" className="w-7 h-7 rounded-lg object-cover" />
             Anything to <span className="grad-text">Anki</span>
-            {import.meta.env.VITE_APP_ENV !== 'production' && (
+            {import.meta.env.VITE_INSTANCE_ENV_NAME && (
               <span style={{
                 fontSize: '10px',
                 fontWeight: 600,
@@ -39,7 +39,7 @@ export function ClassicLayout() {
                 border: '1px solid rgba(255,160,0,0.3)',
                 lineHeight: '16px',
               }}>
-                dev
+                {import.meta.env.VITE_INSTANCE_ENV_NAME}
               </span>
             )}
           </span>
