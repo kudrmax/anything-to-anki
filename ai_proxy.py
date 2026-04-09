@@ -12,6 +12,7 @@ import argparse
 import logging
 import shutil
 import sys
+from pathlib import Path
 from typing import Any
 
 import uvicorn
@@ -22,11 +23,14 @@ from claude_agent_sdk.types import TextBlock
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ValidationError
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    stream=sys.stdout,
-)
+# Make backend importable when ai_proxy is launched directly from the repo root.
+_BACKEND_SRC = Path(__file__).parent / "backend" / "src"
+if _BACKEND_SRC.exists() and str(_BACKEND_SRC) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_SRC))
+
+from backend.infrastructure.logging_setup import configure_logging  # noqa: E402
+
+configure_logging("ai_proxy")
 logger = logging.getLogger("ai_proxy")
 
 # Use the system-installed claude CLI (has Keychain auth) instead of the bundled one.

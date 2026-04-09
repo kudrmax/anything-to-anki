@@ -26,7 +26,9 @@ from arq.connections import RedisSettings
 
 from backend.domain.exceptions import PermanentAIError, PermanentMediaError
 from backend.infrastructure.container import Container
+from backend.infrastructure.logging_setup import configure_logging
 
+configure_logging("worker")
 logger = logging.getLogger(__name__)
 
 
