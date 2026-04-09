@@ -10,12 +10,6 @@
 
   Фикс: добавить endpoint (`GET /sources/{id}/meanings/failed`, возвращающий `[{candidate_id, error}]`) и показать в UI. #tech #product
 
-- [важность: med, срочность: low] Migrate upgrade_schema to Alembic
-
-  В `backend/src/backend/infrastructure/persistence/database.py` живёт `upgrade_schema()` с кучей inline `ALTER TABLE` / `CREATE TABLE IF NOT EXISTS` в try/except. Параллельная Alembic'у система миграций, техдолг. `CLAUDE.md` уже декларирует «только Alembic», но код не соответствует.
-
-  Фикс: для каждого изменения из `upgrade_schema` завести Alembic-ревизию (идемпотентную — живые БД уже содержат все эти изменения, либо ревизии с проверкой существования колонок, либо `alembic stamp`), удалить функцию и её вызов из lifespan, проверить на обоих окружениях. #tech #refactor
-
 - [важность: med, срочность: med] Fix 117 pre-existing ruff errors
 
   `make lint` сейчас красный — ~117 ошибок, в основном E501 (line-too-long) в тестах и fixture'ах. Блокирует чистые запуски gate перед «готово» (`docs/verify-before-done.md`). Pre-existing, не относится к изменениям текущей сессии.
@@ -47,3 +41,9 @@
   Сейчас dev и prod шерят `data/` — разные БД (`app_dev.db` / `app_prod.db`), но общий `data/media/` и конфиги. Именно из-за этого был data-loss инцидент (prod-контейнер стартанул без `APP_ENV=production`, выбрал dev-БД, `reconcile_media_files` снёс prod-медиа). Текущие защиты — `app.py` startup guard + guard внутри `reconcile_media_files` — это костыли.
 
   Фикс: развести пути через `MEDIA_ROOT`/`DATA_DIR` в compose (например, `data/prod/{app.db,media}` и `data/dev/{app.db,media}`), мигрировать существующие файлы, после этого упростить или убрать safety guard'ы. Упомянуто в `CLAUDE.md` как запланированный фикс. #tech #refactor~~ (2026-04-09)
+
+- ~~[важность: med, срочность: low] Migrate upgrade_schema to Alembic
+
+  В `backend/src/backend/infrastructure/persistence/database.py` живёт `upgrade_schema()` с кучей inline `ALTER TABLE` / `CREATE TABLE IF NOT EXISTS` в try/except. Параллельная Alembic'у система миграций, техдолг. `CLAUDE.md` уже декларирует «только Alembic», но код не соответствует.
+
+  Фикс: для каждого изменения из `upgrade_schema` завести Alembic-ревизию (идемпотентную — живые БД уже содержат все эти изменения, либо ревизии с проверкой существования колонок, либо `alembic stamp`), удалить функцию и её вызов из lifespan, проверить на обоих окружениях. #tech #refactor~~ (2026-04-09)
