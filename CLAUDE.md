@@ -58,15 +58,17 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 ## Dev/Prod — главное правило
 
-Два независимых окружения: **dev** (`17832`, `app_dev.db`, ai_proxy `:8766`) и **prod** (`17833`, `app_prod.db`, ai_proxy `:8767`). Команды — `make dev-up/down`, `make prod-up/down`. Подробности — `docs/running.md`.
+Две независимые рабочие копии проекта: `anything-to-anki/` (dev) и `anything-to-anki-prod/` (prod). У каждой — своя `./data/`, свой `./.env`, свои docker-контейнеры. В каждой копии команды одинаковые: `make up/down/logs`. Подробности — `docs/running.md`.
 
-> # КРИТИЧЕСКОЕ ПРАВИЛО: dev и prod — полная изоляция
+> # КРИТИЧЕСКОЕ ПРАВИЛО: две рабочие копии, никакого общего состояния
 >
-> **Никогда не запускать одно окружение на данных другого.** Был реальный data-loss инцидент. В `app.py` есть safety guard (отказ стартовать, если `APP_ENV=production`, но БД-URL содержит `app_dev.db`) — не трогать.
+> **Код не знает про dev/prod.** `INSTANCE_ENV_NAME` в `.env` — это только визуальный лейбл в UI, он не переключает логику. Изоляция — физическая: dev- и prod-процессы видят только свою `./data/`, потому что запускаются из разных папок.
 >
-> - Эксперименты, отладка, незаконченные фичи — **только в dev**. В prod уходит только проверенное
-> - Никаких ручных манипуляций с `data/app_prod.db`
-> - Никогда не копировать dev-БД поверх prod-БД и наоборот
+> - Разработка, эксперименты, ветки — **только в dev-копии**
+> - Реальное использование продукта — **только в prod-копии**
+> - Обновление prod: `cd ../anything-to-anki-prod && git pull && make down && make up`
+> - Никаких правок кода в prod-копии — только `git`-операции и `make`
+> - Никаких `cp data/... ../anything-to-anki-prod/data/...` между копиями
 
 ---
 
@@ -100,7 +102,7 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 ## Работа с багами
 
-**Первым делом при любой проблеме — логи, а не вопросы пользователю.** Все логи доступны через `make dev-logs` / `make prod-logs` (app + worker + redis + ai_proxy одним потоком). Если какой-то лог не попадает в `make *-logs` — это баг в Makefile, сначала добавить таргет, потом продолжать.
+**Первым делом при любой проблеме — логи, а не вопросы пользователю.** Все логи доступны через `make logs` в соответствующей копии (app + worker + redis + ai_proxy одним потоком). Если какой-то лог не попадает в `make logs` — это баг в Makefile, сначала добавить, потом продолжать.
 
 > # ПРАВИЛО 1: Найденный баг = сообщил + разобрался
 >
@@ -132,7 +134,6 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 **Данные:**
 - `plain dict` для структурированных данных (только `dataclass` / `pydantic`)
 - Inline `ALTER TABLE` / `CREATE TABLE` в Python-коде (только Alembic, см. `docs/migrations.md`)
-- Запуск prod на dev-БД и наоборот
 - `Any` без объяснения в комментарии
 
 **Процесс:**
@@ -140,7 +141,7 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 - Подпись коммитов именем Claude в любом виде
 - Скип сломавшихся тестов / отключение правил линтера без обоснования
 - `--no-verify` и обходы pre-commit проверок
-- Прямое редактирование `data/app_prod.db` без понимания последствий
+- Прямое редактирование `data/app.db` в prod-копии без понимания последствий
 - Маскировка симптомов бага вместо устранения причины
 
 ---
@@ -149,7 +150,5 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 - **Docker networking:** не добавлять `extra_hosts: host-gateway` — ломает `host.docker.internal` на macOS
 - **`claude-agent-sdk` → Keychain:** SDK не работает в контейнере, только через `ai_proxy` на хосте (см. `docs/ai-integration.md`)
-- **Safety guard в `app.py` startup** (отказ стартовать prod на dev-БД) — не трогать, не ослаблять
 - **Frontend build check** — `npm run build`, не `tsc --noEmit` (см. `docs/verify-before-done.md`)
-- **dev/prod шерят `data/`** — разные БД, но общий `data/media/` и конфиги. Архитектурный долг, запланирован фикс. До фикса — не трогать `data/media/` руками
 - **Миграции — только Alembic,** никаких inline `ALTER TABLE` или `execute(text(...))` для DDL
