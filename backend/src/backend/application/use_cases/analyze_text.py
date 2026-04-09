@@ -17,6 +17,7 @@ from backend.domain.services.boundary_cleaner import (
 from backend.domain.services.candidate_filter import CandidateFilter
 from backend.domain.services.clause_finder import ClauseFinder
 from backend.domain.services.fragment_extractor import FragmentExtractor
+from backend.domain.services.fragment_selection.rendering import render_fragment
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
 logger = logging.getLogger(__name__)
@@ -108,7 +109,7 @@ class AnalyzeTextUseCase:
                     protected_indices=frozenset({token.index}),
                     user_level=user_level,
                 )
-                fragment = self._fragment_extractor.render(tokens, fragment_indices)
+                fragment = render_fragment(tokens, fragment_indices)
                 unknown_count = self._count_unknowns_in_fragment(
                     fragment_indices, tokens, user_level
                 )
@@ -166,7 +167,7 @@ class AnalyzeTextUseCase:
                     ),
                     user_level=user_level,
                 )
-                fragment = self._fragment_extractor.render(tokens, fragment_indices)
+                fragment = render_fragment(tokens, fragment_indices)
                 unknown_count = self._count_unknowns_in_fragment(
                     fragment_indices, tokens, user_level
                 )
