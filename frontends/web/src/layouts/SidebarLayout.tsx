@@ -39,21 +39,29 @@ export function SidebarLayout() {
           <span className="flex items-center gap-2">
             <img src="/anki-logo.png" alt="Anki" className="w-7 h-7 rounded-lg object-cover" />
             Anything to <span className="grad-text">Anki</span>
-            {import.meta.env.VITE_INSTANCE_ENV_NAME && (
-              <span style={{
-                fontSize: '10px',
-                fontWeight: 600,
-                letterSpacing: '0.05em',
-                padding: '1px 6px',
-                borderRadius: '4px',
-                background: 'rgba(255,160,0,0.15)',
-                color: '#ffaa33',
-                border: '1px solid rgba(255,160,0,0.3)',
-                lineHeight: '16px',
-              }}>
-                {import.meta.env.VITE_INSTANCE_ENV_NAME}
-              </span>
-            )}
+            {import.meta.env.VITE_INSTANCE_ENV_NAME && (() => {
+              // Visual-only color mapping: distinguishes instance tabs at a glance.
+              // NOT a logic switch — just a presentation detail for the human.
+              const isProd = import.meta.env.VITE_INSTANCE_ENV_NAME === 'prod';
+              const fg = isProd ? '#22c55e' : '#ffaa33';
+              const bg = isProd ? 'rgba(34,197,94,0.15)' : 'rgba(255,160,0,0.15)';
+              const bd = isProd ? 'rgba(34,197,94,0.3)' : 'rgba(255,160,0,0.3)';
+              return (
+                <span style={{
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  letterSpacing: '0.05em',
+                  padding: '1px 6px',
+                  borderRadius: '4px',
+                  background: bg,
+                  color: fg,
+                  border: `1px solid ${bd}`,
+                  lineHeight: '16px',
+                }}>
+                  {import.meta.env.VITE_INSTANCE_ENV_NAME}
+                </span>
+              );
+            })()}
           </span>
         </button>
       </header>
