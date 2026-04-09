@@ -17,6 +17,7 @@ dependencies = [
     "arq>=0.26",
     "redis>=5.0",
     "PyYAML>=6.0",
+    "structlog>=24.1",
 ]
 
 [project.optional-dependencies]
