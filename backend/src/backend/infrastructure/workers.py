@@ -7,9 +7,14 @@ enqueued from the FastAPI app. Each job function:
 1. Marks candidates as RUNNING in a SEPARATE committed session — so even
    if the use case rolls back on failure, the user still sees that we tried.
 2. Runs the use case in its own session.
-3. On PermanentError → mark FAILED and return (no retry).
-4. On other exceptions → re-raise so ARQ retries (per max_tries),
-   except on the LAST try where we mark FAILED ourselves.
+3. On ANY exception → mark FAILED with the error text and return normally.
+
+We do NOT rely on ARQ automatic retries: ARQ 0.27 only retries on
+``arq.Retry`` / ``asyncio.CancelledError`` / ``arq.worker.RetryJob``; a plain
+``Exception`` bubbles out as a hard failure and the job is dropped from Redis.
+If we let it bubble out, the RUNNING row would never transition to FAILED.
+So the worker always catches and marks the row itself. User-initiated retries
+go through the UI (re-enqueue of FAILED rows).
 """
 from __future__ import annotations
 
@@ -24,13 +29,10 @@ from backend.infrastructure.container import Container
 
 logger = logging.getLogger(__name__)
 
-_MAX_TRIES = 2
-
 
 async def extract_media_for_candidate(ctx: dict[str, Any], candidate_id: int) -> None:
     """Single-candidate media extraction job."""
     container: Container = ctx["container"]
-    job_try = ctx.get("job_try", 1)
 
     # Step 1: mark RUNNING in its own committed session
     with container.session_scope() as session:
@@ -50,19 +52,14 @@ async def extract_media_for_candidate(ctx: dict[str, Any], candidate_id: int) ->
             container.candidate_media_repository(session).mark_failed(
                 candidate_id, str(exc)
             )
-        return
     except Exception as exc:
-        if job_try >= _MAX_TRIES:
-            logger.warning(
-                "extract_media_for_candidate: exhausted retries for candidate %d: %s",
-                candidate_id, exc,
+        logger.exception(
+            "extract_media_for_candidate: error for candidate %d", candidate_id,
+        )
+        with container.session_scope() as session:
+            container.candidate_media_repository(session).mark_failed(
+                candidate_id, f"{type(exc).__name__}: {exc}"
             )
-            with container.session_scope() as session:
-                container.candidate_media_repository(session).mark_failed(
-                    candidate_id, f"Failed after {_MAX_TRIES} attempts: {exc}"
-                )
-            return
-        raise  # let ARQ retry
 
 
 async def generate_meanings_batch(
@@ -70,7 +67,6 @@ async def generate_meanings_batch(
 ) -> None:
     """Batch meaning generation job (up to 15 candidates)."""
     container: Container = ctx["container"]
-    job_try = ctx.get("job_try", 1)
 
     # Step 1: mark all RUNNING in own committed session
     with container.session_scope() as session:
@@ -92,19 +88,14 @@ async def generate_meanings_batch(
             container.candidate_meaning_repository(session).mark_batch_failed(
                 candidate_ids, str(exc)
             )
-        return
     except Exception as exc:
-        if job_try >= _MAX_TRIES:
-            logger.warning(
-                "generate_meanings_batch: exhausted retries for batch of %d: %s",
-                len(candidate_ids), exc,
+        logger.exception(
+            "generate_meanings_batch: error for batch of %d", len(candidate_ids),
+        )
+        with container.session_scope() as session:
+            container.candidate_meaning_repository(session).mark_batch_failed(
+                candidate_ids, f"{type(exc).__name__}: {exc}"
             )
-            with container.session_scope() as session:
-                container.candidate_meaning_repository(session).mark_batch_failed(
-                    candidate_ids, f"Failed after {_MAX_TRIES} attempts: {exc}"
-                )
-            return
-        raise  # let ARQ retry
 
 
 async def startup(ctx: dict[str, Any]) -> None:
@@ -125,4 +116,4 @@ class WorkerSettings:
     on_shutdown = shutdown
     max_jobs = 1       # strict sequential processing per user request
     job_timeout = 600  # 10 minutes per job
-    max_tries = _MAX_TRIES
+    max_tries = 1      # no ARQ-level retries; worker handles errors and marks FAILED

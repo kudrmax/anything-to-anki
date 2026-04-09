@@ -26,6 +26,8 @@ def _candidate_to_dto(c: StoredCandidate) -> StoredCandidateDTO:
     if c.meaning is not None:
         meaning_dto = CandidateMeaningDTO(
             meaning=c.meaning.meaning,
+            translation=c.meaning.translation,
+            synonyms=c.meaning.synonyms,
             ipa=c.meaning.ipa,
             status=c.meaning.status.value,
             error=c.meaning.error,

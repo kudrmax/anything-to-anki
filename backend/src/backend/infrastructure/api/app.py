@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # without `APP_ENV=production` → dev DB loaded → reconcile_media_files
     # rmtree'd /data/media/ source dirs that didn't exist in the dev DB.
     app_env = os.getenv("APP_ENV", "development")
-    if app_env == "production" and "vocabminer_dev.db" in db_url:
+    if app_env == "production" and "app_dev.db" in db_url:
         raise RuntimeError(
             f"APP_ENV=production but dev DB URL selected ({db_url}) — "
             "refusing to start to prevent data loss. Set APP_ENV correctly "
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
 
-app = FastAPI(title="VocabMiner API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="AnythingToAnki API", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

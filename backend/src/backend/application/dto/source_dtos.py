@@ -39,6 +39,8 @@ class CandidateMeaningDTO(BaseModel):
     """Meaning enrichment of a candidate (1:1)."""
 
     meaning: str | None
+    translation: str | None
+    synonyms: str | None
     ipa: str | None
     status: str  # 'queued' | 'running' | 'done' | 'failed'
     error: str | None

@@ -17,7 +17,7 @@ class Base(DeclarativeBase):
 
 def default_db_url() -> str:
     data_dir = os.getenv("DATA_DIR", ".")
-    db_file = "vocabminer.db" if os.getenv("APP_ENV") == "production" else "vocabminer_dev.db"
+    db_file = "app_prod.db" if os.getenv("APP_ENV") == "production" else "app_dev.db"
     return f"sqlite:///{data_dir}/{db_file}"
 
 

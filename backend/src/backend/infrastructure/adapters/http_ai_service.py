@@ -30,6 +30,8 @@ class HttpAIService(AIService):
             data = response.json()
             return GenerationResult(
                 meaning=data["meaning"],
+                translation=data["translation"],
+                synonyms=data["synonyms"],
                 ipa=data.get("ipa"),
                 tokens_used=data.get("tokens_used", 0),
             )
@@ -54,7 +56,11 @@ class HttpAIService(AIService):
                     "user_prompt": user_prompt,
                     "model": self._model,
                 },
-                timeout=300.0,
+                # Batch of 15 candidates with 4 output fields (meaning,
+                # translation, synonyms, ipa) can take ~5-7 minutes.
+                # Worker job_timeout is 600s — keep httpx strictly under
+                # it so worker can catch and mark_batch_failed cleanly.
+                timeout=540.0,
             )
             response.raise_for_status()
             data = response.json()
@@ -62,6 +68,8 @@ class HttpAIService(AIService):
                 BatchMeaningResult(
                     word_index=item["word_index"],
                     meaning=item["meaning"],
+                    translation=item["translation"],
+                    synonyms=item["synonyms"],
                     ipa=item.get("ipa"),
                 )
                 for item in data["results"]
