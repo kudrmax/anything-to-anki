@@ -1,23 +1,19 @@
-.PHONY: dev-up dev-down dev-logs \
-        prod-up prod-down prod-logs \
-        test lint typecheck help _python_dev
+.PHONY: up down logs test lint typecheck help _python_dev _check_env
+
+# Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
+# docker compose читает .env сам — это только для ai_proxy и echo.
+ifneq (,$(wildcard ./.env))
+    include .env
+    export
+endif
 
 # ── Константы ─────────────────────────────────────────────────────
-DEV_PROJECT  := anything-anki-dev
-PROD_PROJECT := anything-anki-prod
-DEV_PORT     := 17832
-PROD_PORT    := 17833
-DEV_AI_PORT  := 8766
-PROD_AI_PORT := 8767
-DEV_AI_PID   := .pids/ai_proxy_dev.pid
-PROD_AI_PID  := .pids/ai_proxy_prod.pid
-DEV_AI_LOG   := .logs/ai_proxy_dev.log
-PROD_AI_LOG  := .logs/ai_proxy_prod.log
-AI_VENV      := .venv-ai-proxy
+AI_VENV := .venv-ai-proxy
+AI_PID  := .pids/ai_proxy.pid
+AI_LOG  := .logs/ai_proxy.log
 
 # ── Вспомогательные макросы ────────────────────────────────────────
-# Убить ai_proxy на порту $(1).
-# Ищем процесс по порту (lsof), затем проверяем что это именно ai_proxy (grep по args),
+# Убить ai_proxy на порту $(1). Проверяем что это именно ai_proxy (grep по args),
 # чтобы случайно не убить чужой процесс на том же порту.
 define kill_ai_proxy_on_port
 	@pid=$$(lsof -ti :$(1) 2>/dev/null); \
@@ -28,58 +24,45 @@ define kill_ai_proxy_on_port
 	fi
 endef
 
-# Всегда перезапускает ai_proxy: убивает старый процесс (если есть) и стартует новый.
-# Аргументы: $(1) PID-файл, $(2) лог-файл, $(3) порт.
-# Использует отдельный лёгкий venv (AI_VENV) — создаётся автоматически при первом запуске.
+# Всегда перезапускает ai_proxy: убивает старый процесс и стартует новый.
+# Использует AI_PROXY_PORT из .env.
 define start_ai_proxy
 	@mkdir -p .pids .logs
 	@[ -d $(AI_VENV) ] || (echo "Creating AI proxy venv..." && \
 	    python3 -m venv $(AI_VENV) && \
 	    $(AI_VENV)/bin/pip install -e ".[ai-proxy]")
-	$(call kill_ai_proxy_on_port,$(3))
-	@$(AI_VENV)/bin/python ai_proxy.py --port $(3) >> $(2) 2>&1 & echo $$! > $(1); \
-	    echo "AI proxy started on port $(3) (PID $$(cat $(1)))"
+	$(call kill_ai_proxy_on_port,$(AI_PROXY_PORT))
+	@$(AI_VENV)/bin/python ai_proxy.py --port $(AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > $(AI_PID); \
+	    echo "AI proxy started on port $(AI_PROXY_PORT) (PID $$(cat $(AI_PID)))"
 endef
 
-# Остановить ai_proxy: убить процесс на порту $(2), удалить PID-файл $(1).
+# Остановить ai_proxy.
 define stop_ai_proxy
-	$(call kill_ai_proxy_on_port,$(2))
-	@rm -f $(1)
+	$(call kill_ai_proxy_on_port,$(AI_PROXY_PORT))
+	@rm -f $(AI_PID)
 endef
 
-##@ Dev (localhost:17832, dev БД, ai_proxy :8766)
-dev-up:  ## Запустить в фоне
-	@echo "→ http://localhost:$(DEV_PORT)"
-	$(call start_ai_proxy,$(DEV_AI_PID),$(DEV_AI_LOG),$(DEV_AI_PORT))
-	AI_PROXY_URL=http://host.docker.internal:$(DEV_AI_PORT) \
-	    docker compose -p $(DEV_PROJECT) up -d --build
+# Проверить что .env существует.
+_check_env:
+	@if [ ! -f .env ]; then \
+	    echo "ERROR: .env file missing. Copy .env.example to .env and fill in values."; \
+	    exit 1; \
+	fi
 
-dev-down:  ## Остановить
-	docker compose -p $(DEV_PROJECT) down
-	$(call stop_ai_proxy,$(DEV_AI_PID),$(DEV_AI_PORT))
+##@ Запуск (читает .env)
+up: _check_env  ## Запустить (ai_proxy + docker compose)
+	@echo "→ http://localhost:$(PORT)  (instance: $(INSTANCE_ENV_NAME))"
+	$(call start_ai_proxy)
+	docker compose up -d --build
 
-dev-logs:  ## Логи всех сервисов: app + worker + redis + ai_proxy
+down:  ## Остановить
+	docker compose down
+	$(call stop_ai_proxy)
+
+logs:  ## Логи app + worker + redis + ai_proxy одним потоком
 	@trap 'kill 0' INT TERM; \
-	docker compose -p $(DEV_PROJECT) logs -f & \
-	tail -F $(DEV_AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy_dev    | /' & \
-	wait
-
-##@ Prod (localhost:17833, prod БД, ai_proxy :8767)
-prod-up:  ## Запустить в фоне
-	@echo "→ http://localhost:$(PROD_PORT)"
-	$(call start_ai_proxy,$(PROD_AI_PID),$(PROD_AI_LOG),$(PROD_AI_PORT))
-	PORT=$(PROD_PORT) APP_ENV=production \
-	AI_PROXY_URL=http://host.docker.internal:$(PROD_AI_PORT) \
-	    docker compose -p $(PROD_PROJECT) -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-
-prod-down:  ## Остановить
-	docker compose -p $(PROD_PROJECT) -f docker-compose.yml -f docker-compose.prod.yml down
-	$(call stop_ai_proxy,$(PROD_AI_PID),$(PROD_AI_PORT))
-
-prod-logs:  ## Логи всех сервисов: app + worker + redis + ai_proxy
-	@trap 'kill 0' INT TERM; \
-	docker compose -p $(PROD_PROJECT) -f docker-compose.yml -f docker-compose.prod.yml logs -f & \
-	tail -F $(PROD_AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy_prod   | /' & \
+	docker compose logs -f & \
+	tail -F $(AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy        | /' & \
 	wait
 
 ##@ Разработка
