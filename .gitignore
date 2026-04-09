@@ -1,5 +1,6 @@
 app_prod.db
 app_dev.db
+app.db
 data/
 .env
 .pids/
