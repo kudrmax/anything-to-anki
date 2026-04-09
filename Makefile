@@ -1,5 +1,5 @@
-.PHONY: dev-up dev-down dev-logs dev-logs-ai \
-        prod-up prod-down prod-logs prod-logs-ai \
+.PHONY: dev-up dev-down dev-logs \
+        prod-up prod-down prod-logs \
         test lint typecheck help _python_dev
 
 # ── Константы ─────────────────────────────────────────────────────
@@ -58,11 +58,11 @@ dev-down:  ## Остановить
 	docker compose -p $(DEV_PROJECT) down
 	$(call stop_ai_proxy,$(DEV_AI_PID),$(DEV_AI_PORT))
 
-dev-logs:  ## Логи контейнера
-	docker compose -p $(DEV_PROJECT) logs -f
-
-dev-logs-ai:  ## Логи ai_proxy
-	tail -f $(DEV_AI_LOG)
+dev-logs:  ## Логи всех сервисов: app + worker + redis + ai_proxy
+	@trap 'kill 0' INT TERM; \
+	docker compose -p $(DEV_PROJECT) logs -f & \
+	tail -F $(DEV_AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy_dev    | /' & \
+	wait
 
 ##@ Prod (localhost:17833, prod БД, ai_proxy :8767)
 prod-up:  ## Запустить в фоне
@@ -76,11 +76,11 @@ prod-down:  ## Остановить
 	docker compose -p $(PROD_PROJECT) -f docker-compose.yml -f docker-compose.prod.yml down
 	$(call stop_ai_proxy,$(PROD_AI_PID),$(PROD_AI_PORT))
 
-prod-logs:  ## Логи контейнера
-	docker compose -p $(PROD_PROJECT) -f docker-compose.yml -f docker-compose.prod.yml logs -f
-
-prod-logs-ai:  ## Логи ai_proxy
-	tail -f $(PROD_AI_LOG)
+prod-logs:  ## Логи всех сервисов: app + worker + redis + ai_proxy
+	@trap 'kill 0' INT TERM; \
+	docker compose -p $(PROD_PROJECT) -f docker-compose.yml -f docker-compose.prod.yml logs -f & \
+	tail -F $(PROD_AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy_prod   | /' & \
+	wait
 
 ##@ Разработка
 _python_dev:
