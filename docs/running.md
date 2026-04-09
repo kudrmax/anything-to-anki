@@ -1,43 +1,80 @@
-# Dev/Prod флоу
+# Запуск
 
-Инструмент запускается **только локально**. В проекте два полностью независимых окружения — `dev` и `prod`, каждое со своей БД, портом и экземпляром `ai_proxy`.
+Проект клонирован в две независимые рабочие копии: `anything-to-anki/` (dev) и `anything-to-anki-prod/` (prod). В каждой — одинаковый набор команд, поведение различается через локальный `.env`.
 
-## Характеристики окружений
+## Характеристики копий
 
 | | dev | prod |
 |---|---|---|
 | Web порт | `17832` | `17833` |
 | ai_proxy порт | `8766` | `8767` |
-| БД | `data/app_dev.db` | `data/app_prod.db` |
+| БД | `./data/app.db` (в dev-папке) | `./data/app.db` (в prod-папке) |
+| `INSTANCE_ENV_NAME` | `dev` | `prod` |
 | Docker project | `anything-anki-dev` | `anything-anki-prod` |
-| `APP_ENV` | `development` (default) | `production` |
 | URL | http://localhost:17832 | http://localhost:17833 |
 
-## Основные команды
+Значения задаются в `./.env` каждой копии. Шаблон — `.env.example` (коммитится в git). При первом запуске в новой копии: `cp .env.example .env` и при необходимости отредактировать (в prod-копии — поменять значения на prod-шные).
+
+## Команды (в каждой копии)
 
 ```
-make dev-up         # Поднять dev (ai_proxy на хосте + контейнеры в фоне)
-make dev-down       # Остановить dev
-make dev-logs       # Все логи dev: app + worker + redis + ai_proxy одним потоком
+make up           # Поднять (ai_proxy на хосте + docker compose в фоне)
+make down         # Остановить
+make logs         # Все логи: app + worker + redis + ai_proxy одним потоком
 
-make prod-up        # Поднять prod
-make prod-down      # Остановить prod
-make prod-logs      # Все логи prod: app + worker + redis + ai_proxy одним потоком
-
-make help           # Все команды с описанием
+make test         # Запустить backend-тесты
+make lint         # ruff
+make typecheck    # mypy
+make help         # Все команды с описанием
 ```
 
-## Ключевые env vars
+## Ключевые env vars (в `.env`)
 
-Проставляются в docker-compose / Makefile, вручную обычно не нужны.
+- `INSTANCE_ENV_NAME` — визуальный лейбл копии. Отображается в UI бейджем. **Не** переключатель логики.
+- `PORT` — порт web-приложения на localhost.
+- `AI_PROXY_PORT` — порт ai_proxy на хосте.
+- `COMPOSE_PROJECT_NAME` — имя docker compose проекта (обязано отличаться между копиями).
 
-- `APP_ENV` — `development` или `production`. Определяет какая БД выбирается в `database.py`
-- `DATA_DIR` — путь к данным (`/data` в контейнере, `.` локально)
-- `AI_PROXY_URL` — адрес ai_proxy (`host.docker.internal:{8766|8767}`)
-- `ANKI_URL` — адрес AnkiConnect (`host.docker.internal:8765`)
-- `REDIS_URL` — `redis://redis:6379` внутри compose
-- `PROMPTS_CONFIG_PATH` — путь к `prompts.yaml` внутри контейнера (`/app/config/prompts.yaml`)
+В контейнер также пробрасываются:
+- `DATA_DIR=/data` — путь к данным внутри контейнера (задаётся в `Dockerfile`, трогать не нужно).
+- `AI_PROXY_URL`, `ANKI_URL`, `REDIS_URL`, `PROMPTS_CONFIG_PATH` — задаются в `docker-compose.yml`.
 
-## Прод-инцидент и защита
+## Обновление prod до новой версии
 
-Был реальный data-loss инцидент: prod-контейнер поднялся без `APP_ENV=production`, выбрал dev-БД, и `reconcile_media_files` начал удалять prod-медиа, которых в dev-БД нет. Поэтому в коде стоит safety guard в `app.py` (отказ стартовать, если `APP_ENV=production`, но БД-URL содержит `app_dev.db`). **Эту проверку не трогать.**
+1. Закоммитить работу в dev-копии (и запушить, если есть remote).
+2. Перейти в prod-копию:
+   ```bash
+   cd ~/PycharmProjects/anything-to-anki-prod
+   git pull origin master
+   make down && make up
+   ```
+
+Данные в `./data/` не трогаются — git их игнорирует. Alembic миграции отработают автоматически при старте.
+
+## Откат prod
+
+```bash
+cd ~/PycharmProjects/anything-to-anki-prod
+git log --oneline -10       # найти предыдущий рабочий коммит
+git checkout <sha>
+make down && make up
+```
+
+⚠ Откат НЕ откатывает Alembic-миграции. Если обновление включало миграцию, после отката нужно вручную решить, что делать со схемой. Политика: не выкатывать миграции вместе с непроверенным кодом.
+
+## Создание prod-копии (один раз)
+
+```bash
+cd ~/PycharmProjects
+git clone anything-to-anki anything-to-anki-prod
+cd anything-to-anki-prod
+cp .env.example .env
+# Отредактировать .env:
+#   INSTANCE_ENV_NAME=prod
+#   PORT=17833
+#   AI_PROXY_PORT=8767
+#   COMPOSE_PROJECT_NAME=anything-anki-prod
+make up
+```
+
+Remote у нового clone по умолчанию указывает на dev-папку через `file://`. Этого достаточно для solo-workflow. Если захочется GitHub: `git remote set-url origin git@github.com:…/anything-to-anki.git`.
