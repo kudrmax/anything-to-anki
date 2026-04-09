@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from datetime import UTC
 from typing import TYPE_CHECKING
@@ -11,6 +12,8 @@ from backend.infrastructure.api.dependencies import (
     get_container,
     get_db_session,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -112,7 +115,11 @@ async def cancel_media_queue(
             if result:
                 aborted += 1
         except Exception:  # noqa: BLE001
-            pass
+            logger.warning(
+                "media.cancel: best-effort job abort failed (candidate_id=%d)",
+                cid,
+                exc_info=True,
+            )
     return {"cancelled": len(affected_ids)}
 
 
@@ -129,6 +136,9 @@ async def retry_failed_media(
         source_id, EnrichmentStatus.FAILED
     )
     if not failed_ids:
+        logger.info(
+            "media.retry_failed: no failed candidates (source_id=%d)", source_id,
+        )
         return {"enqueued": 0}
 
     media_repo.mark_queued_bulk(failed_ids)
@@ -146,4 +156,8 @@ async def retry_failed_media(
             _job_id=f"media_{cid}_retry_{ts_ms}",
             _defer_until=base + timedelta(milliseconds=i),
         )
+    logger.info(
+        "media.retry_failed: re-enqueued (source_id=%d, count=%d)",
+        source_id, len(failed_ids),
+    )
     return {"enqueued": len(failed_ids)}

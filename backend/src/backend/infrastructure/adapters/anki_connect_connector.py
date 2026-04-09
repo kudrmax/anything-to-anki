@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import cast
 
 import httpx
 
 from backend.domain.ports.anki_connector import AnkiConnector
+
+logger = logging.getLogger(__name__)
 
 _ANKI_URL = os.getenv("ANKI_URL", "http://localhost:8765")
 _VERSION = 6
@@ -46,6 +49,7 @@ class AnkiConnectConnector(AnkiConnector):
             self._invoke("version")
             return True
         except (httpx.ConnectError, httpx.TimeoutException, Exception):  # noqa: BLE001
+            logger.debug("AnkiConnect.is_available probe failed", exc_info=True)
             return False
 
     def ensure_note_type(self, model_name: str, fields: list[str]) -> None:
@@ -114,6 +118,12 @@ class AnkiConnectConnector(AnkiConnector):
             raw_fields = self._invoke("modelFieldNames", modelName=model_name)
             return cast("list[str]", raw_fields)
         except Exception:  # noqa: BLE001
+            logger.debug(
+                "AnkiConnect.get_model_field_names: model not found or error "
+                "(model=%s)",
+                model_name,
+                exc_info=True,
+            )
             return None
 
     def store_media_file(self, filename: str, file_path: str) -> None:
