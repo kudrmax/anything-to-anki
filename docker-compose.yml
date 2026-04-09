@@ -3,13 +3,12 @@ services:
     build:
       context: .
       args:
-        VITE_APP_ENV: ${APP_ENV:-development}
+        VITE_INSTANCE_ENV_NAME: ${INSTANCE_ENV_NAME}
     ports:
-      - "${PORT:-17832}:8000"
+      - "${PORT}:8000"
     environment:
-      APP_ENV: ${APP_ENV:-development}
       ANKI_URL: http://host.docker.internal:8765
-      AI_PROXY_URL: ${AI_PROXY_URL:-http://host.docker.internal:8766}
+      AI_PROXY_URL: http://host.docker.internal:${AI_PROXY_PORT}
       REDIS_URL: redis://redis:6379
       PROMPTS_CONFIG_PATH: /app/config/prompts.yaml
     volumes:
@@ -23,8 +22,7 @@ services:
       context: .
       dockerfile: Dockerfile.worker
     environment:
-      APP_ENV: ${APP_ENV:-development}
-      AI_PROXY_URL: ${AI_PROXY_URL:-http://host.docker.internal:8766}
+      AI_PROXY_URL: http://host.docker.internal:${AI_PROXY_PORT}
       REDIS_URL: redis://redis:6379
       PROMPTS_CONFIG_PATH: /app/config/prompts.yaml
     volumes:
