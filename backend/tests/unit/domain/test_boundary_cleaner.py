@@ -14,13 +14,14 @@ def _tok(
     children: tuple[int, ...] = (),
     head_index: int | None = None,
     dep: str = "",
+    tag: str | None = None,
 ) -> TokenData:
     return TokenData(
         index=index,
         text=text,
         lemma=lemma if lemma is not None else text.lower(),
         pos=pos,
-        tag=pos,
+        tag=tag if tag is not None else pos,
         head_index=head_index if head_index is not None else index,
         children_indices=children,
         is_punct=is_punct,
@@ -121,6 +122,37 @@ class TestBoundaryCleaner:
         ]
         result = self.cleaner.clean(tokens, list(range(6)))
         assert result == [0, 1, 2, 3, 4]
+
+    def test_strips_trailing_possessive_pronoun(self) -> None:
+        # "w0..w4 hit its" — 'its' is PRP$, dangling without its noun
+        tokens = [
+            *_content(0, 4),
+            _tok(4, "hit", "VERB", tag="VBN"),
+            _tok(5, "its", "PRON", lemma="its", tag="PRP$", dep="poss"),
+        ]
+        result = self.cleaner.clean(tokens, list(range(6)))
+        assert result == [0, 1, 2, 3, 4]
+
+    def test_strips_trailing_dangling_aux(self) -> None:
+        # "w0..w4 to have" — 'have' is AUX dep=aux, head verb outside fragment
+        tokens = [
+            *_content(0, 5),
+            _tok(5, "to", "PART", tag="TO", dep="aux", head_index=99),
+            _tok(6, "have", "AUX", tag="VB", dep="aux", head_index=99),
+        ]
+        result = self.cleaner.clean(tokens, list(range(7)))
+        assert result == [0, 1, 2, 3, 4]
+
+    def test_keeps_aux_when_main_verb_in_fragment(self) -> None:
+        # "w0..w3 to run" — 'to' aux of 'run' which is in fragment, keep both
+        tokens = [
+            *_content(0, 3),
+            _tok(3, "to", "PART", tag="TO", dep="aux", head_index=4),
+            _tok(4, "run", "VERB", tag="VB"),
+            _tok(5, "fast", "ADV"),
+        ]
+        result = self.cleaner.clean(tokens, list(range(6)))
+        assert result == [0, 1, 2, 3, 4, 5]
 
     def test_keeps_object_pronoun_after_preposition(self) -> None:
         # "w0 w1 w2 w3 with you" — 'you' is pobj of 'with' (in fragment) → keep

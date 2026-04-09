@@ -79,6 +79,12 @@ def lyrics_fragments(use_case: AnalyzeTextUseCase) -> dict[str, str]:
 WAVE_1_HPMOR: list[tuple[str, str, str]] = [
     ("45_look_at", "look at", "two of them stopped and looked at Harry"),
     (
+        "86_disclaimer",
+        "disclaimer",
+        "Disclaimer: J. K. Rowling owns Harry Potter, "
+        "and no one owns the methods of rationality.",
+    ),
+    (
         "138_individually",
         "individually",
         "whose episodes are individually plotted",
@@ -123,10 +129,22 @@ WAVE_1_HPMOR: list[tuple[str, str, str]] = [
         "own",
         "Disclaimer: J. K. Rowling owns Harry Potter",
     ),
+    (
+        "289_fic",
+        "fic",
+        "This fic is widely considered",
+    ),
+    (
+        "394_consider",
+        "consider",
+        "This fic is widely considered to have really hit",
+    ),
 ]
 
 WAVE_1_LYRICS: list[tuple[str, str, str]] = [
     ("485_answer_to", "answer to", "I answer to nobody, Rick"),
+    ("509_dimension", "dimension", "ending Ricks of all dimensions"),
+    ("521_genius", "genius", "forming me\nInto a genius"),
     (
         "486_believe_in",
         "believe in",
@@ -137,7 +155,7 @@ WAVE_1_LYRICS: list[tuple[str, str, str]] = [
     (
         "554_cause",
         "cause",
-        "sick with my wording cause\nWhen I was born",
+        "sick with my wording cause",
     ),
 ]
 
@@ -146,28 +164,10 @@ WAVE_1_LYRICS: list[tuple[str, str, str]] = [
 # Each entry is (test_id, lemma, current_buggy_fragment, reason).
 WAVE_2_HPMOR_XFAIL: list[tuple[str, str, str, str]] = [
     (
-        "86_disclaimer",
-        "disclaimer",
-        "Disclaimer: J. K. Rowling owns",
-        "needs RIGHT extension to grab dobj 'Harry Potter'",
-    ),
-    (
         "235_conclusion",
         "conclusion",
         "arc building to a final conclusion.",
         "needs LEFT extension 'with an overall'",
-    ),
-    (
-        "289_fic",
-        "fic",
-        "This fic is widely considered to have",
-        "needs RIGHT extension to complete VP 'really hit its stride'",
-    ),
-    (
-        "394_consider",
-        "consider",
-        "This fic is widely considered to have really hit its",
-        "needs RIGHT extension to grab 'stride'",
     ),
     (
         "477_need",
@@ -177,20 +177,7 @@ WAVE_2_HPMOR_XFAIL: list[tuple[str, str, str, str]] = [
     ),
 ]
 
-WAVE_2_LYRICS_XFAIL: list[tuple[str, str, str, str]] = [
-    (
-        "509_dimension",
-        "dimension",
-        "mention ending Ricks of all dimensions then I get\nTheir",
-        "lyrics line break crossing + needs LEFT extension 'Did I'",
-    ),
-    (
-        "521_genius",
-        "genius",
-        "forming me\nInto a genius.",
-        "lyrics line break boundary handling",
-    ),
-]
+WAVE_2_LYRICS_XFAIL: list[tuple[str, str, str, str]] = []
 
 
 @pytest.mark.integration

@@ -12,9 +12,13 @@ MIN_FRAGMENT_CONTENT_WORDS: int = 5
 _LEFT_STRIP_POS = frozenset({"CCONJ", "SCONJ"})
 
 # POS tags that may be stripped from the RIGHT edge.
-# DET / ADP / PRON have additional conditions checked in code.
+# DET / ADP / PRON / PART have additional conditions checked in code.
 # INTJ at right edge ("please", "yeah", "oh") is almost always a discourse tail.
 _RIGHT_STRIP_POS = frozenset({"CCONJ", "SCONJ", "DET", "INTJ"})
+
+# AUX dependency labels that mean "auxiliary helping a verb that's not in the
+# fragment" — these are dangling helpers like trailing "have" in "...to have".
+_AUX_DEPS = frozenset({"aux", "auxpass"})
 
 # Subject pronouns that look incomplete when dangling at the right edge.
 _RIGHT_STRIP_PRON_LEMMAS = frozenset(
@@ -148,6 +152,18 @@ class BoundaryCleaner:
         # Relative / demonstrative pronouns dangling at right ("...i.e., that")
         if token.pos == "PRON" and token.lemma.lower() in _LEFT_STRIP_RELATIVIZERS:
             return self._meets_min_after(tokens, indices[:-1])
+
+        # Possessive pronouns dangling at right ("...hit its") — they expect
+        # a noun that isn't in the fragment.
+        if token.pos == "PRON" and token.tag == "PRP$":
+            return self._meets_min_after(tokens, indices[:-1])
+
+        # Auxiliary verb / infinitive marker whose main verb is outside the
+        # fragment ("...considered to have").
+        if token.pos in {"AUX", "PART"} and token.dep in _AUX_DEPS:
+            if token.head_index not in indices:
+                return self._meets_min_after(tokens, indices[:-1])
+            return False
 
         return False
 
