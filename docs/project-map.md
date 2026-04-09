@@ -6,15 +6,15 @@ anything-to-anki/
 ├── frontends/web/                        # React 19 + Vite + TailwindCSS
 ├── ai_proxy.py                           # FastAPI-обёртка над claude-agent-sdk, на хосте
 ├── config/                               # Конфигурация (prompts.yaml и др.), read-only в контейнере
-├── data/                                 # Docker volume (в .gitignore)
-│   ├── app_prod.db / app_dev.db          # SQLite обоих окружений
+├── data/                                 # Docker volume (в .gitignore), своя в каждой рабочей копии
+│   ├── app.db                            # SQLite (своя в dev- и в prod-копии)
 │   ├── media/                            # Скриншоты и аудио из видео
 │   └── redis/                            # Redis persistence
 ├── anki-templates/                       # Шаблоны карточек Anki
 ├── docs/                                 # Спецификации, планы, справочная документация
 ├── Dockerfile / Dockerfile.worker        # app-образ и worker-образ
-├── docker-compose.yml                    # Dev конфиг
-├── docker-compose.prod.yml               # Prod overlay
+├── docker-compose.yml                    # Единый compose-конфиг для обеих копий
+├── .env.example                          # Шаблон локального .env для рабочей копии
 └── Makefile                              # Все команды запуска и проверок
 ```
 
