@@ -14,10 +14,28 @@ from backend.domain.services.fragment_selection.cleanup.rules import (
     RightPossessivePronounRule,
     RightRelativePronounRule,
 )
+from backend.domain.services.fragment_selection.sources.ancestor_chain import (
+    AncestorChainSource,
+)
+from backend.domain.services.fragment_selection.sources.legacy_extractor import (
+    LegacyExtractorSource,
+)
+from backend.domain.services.fragment_selection.sources.sentence import (
+    SentenceSource,
+)
+from backend.domain.services.fragment_selection.sources.verb_subtree import (
+    VerbSubtreeSource,
+)
 
 if TYPE_CHECKING:
     from backend.domain.services.fragment_selection.cleanup.rules import StripRule
-    from backend.domain.value_objects.fragment_selection_config import CleanupConfig
+    from backend.domain.services.fragment_selection.sources.base import (
+        CandidateSource,
+    )
+    from backend.domain.value_objects.fragment_selection_config import (
+        CandidateSourcesConfig,
+        CleanupConfig,
+    )
 
 
 StripRuleFactory = type[
@@ -48,3 +66,25 @@ STRIP_RULES: dict[str, StripRuleFactory] = {
 def build_strip_rules(config: CleanupConfig) -> list[StripRule]:
     """Instantiate enabled strip rules in config order."""
     return [STRIP_RULES[name](config) for name in config.enabled_rules]
+
+
+CandidateSourceFactory = type[
+    VerbSubtreeSource
+    | AncestorChainSource
+    | SentenceSource
+    | LegacyExtractorSource
+]
+
+CANDIDATE_SOURCES: dict[str, CandidateSourceFactory] = {
+    "verb_subtree": VerbSubtreeSource,
+    "ancestor_chain": AncestorChainSource,
+    "sentence": SentenceSource,
+    "legacy_extractor": LegacyExtractorSource,
+}
+
+
+def build_candidate_sources(
+    config: CandidateSourcesConfig,
+) -> list[CandidateSource]:
+    """Instantiate enabled candidate sources in config order."""
+    return [CANDIDATE_SOURCES[name]() for name in config.enabled_sources]
