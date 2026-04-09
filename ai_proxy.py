@@ -9,19 +9,18 @@ Requires: pip install claude-agent-sdk fastapi uvicorn
 from __future__ import annotations
 
 import argparse
-import asyncio
 import logging
 import shutil
 import sys
 from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 
 # Import directly — this script runs on the host where claude-agent-sdk is installed.
 from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, ResultMessage, query
 from claude_agent_sdk.types import TextBlock
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, ValidationError
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,9 +43,11 @@ _SINGLE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "meaning": {"type": "string"},
+        "translation": {"type": "string"},
+        "synonyms": {"type": "string"},
         "ipa": {"type": "string"},
     },
-    "required": ["meaning", "ipa"],
+    "required": ["meaning", "translation", "synonyms", "ipa"],
 }
 
 _BATCH_SCHEMA: dict[str, Any] = {
@@ -59,9 +60,13 @@ _BATCH_SCHEMA: dict[str, Any] = {
                 "properties": {
                     "word_index": {"type": "integer"},
                     "meaning": {"type": "string"},
+                    "translation": {"type": "string"},
+                    "synonyms": {"type": "string"},
                     "ipa": {"type": "string"},
                 },
-                "required": ["word_index", "meaning", "ipa"],
+                "required": [
+                    "word_index", "meaning", "translation", "synonyms", "ipa",
+                ],
             },
         }
     },
@@ -134,12 +139,22 @@ class GenerateRequest(BaseModel):
 
 class GenerateResponse(BaseModel):
     meaning: str
-    ipa: str | None
+    translation: str
+    synonyms: str
+    ipa: str | None = None
     tokens_used: int
 
 
+class BatchItem(BaseModel):
+    word_index: int
+    meaning: str
+    translation: str
+    synonyms: str
+    ipa: str | None = None
+
+
 class BatchGenerateResponse(BaseModel):
-    results: list[dict[str, str | int | None]]
+    results: list[BatchItem]
     tokens_used: int
 
 
@@ -150,17 +165,27 @@ async def generate_meaning(req: GenerateRequest) -> GenerateResponse:
             req.system_prompt, req.user_prompt, req.model, _SINGLE_SCHEMA
         )
     except Exception as e:
-        logger.exception("generate-meaning failed: %s", e)
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        logger.exception("generate-meaning: AI call failed")
+        raise HTTPException(status_code=502, detail=f"AI call failed: {e}") from e
     if not isinstance(data, dict):
         logger.error("generate-meaning: unexpected response type %s: %r", type(data), data)
         raise HTTPException(status_code=502, detail="Unexpected AI response format")
+    try:
+        resp = GenerateResponse(
+            meaning=data.get("meaning", ""),
+            translation=data.get("translation", ""),
+            synonyms=data.get("synonyms", ""),
+            ipa=data.get("ipa") or None,
+            tokens_used=tokens_used,
+        )
+    except ValidationError as e:
+        logger.error("generate-meaning response schema mismatch: %s\nraw=%r", e, data)
+        raise HTTPException(
+            status_code=502,
+            detail=f"AI response schema mismatch (ai_proxy<->backend drift): {e}",
+        ) from e
     logger.info("generate-meaning OK, tokens=%d", tokens_used)
-    return GenerateResponse(
-        meaning=data.get("meaning", ""),
-        ipa=data.get("ipa") or None,
-        tokens_used=tokens_used,
-    )
+    return resp
 
 
 @app.post("/generate-meanings-batch")
@@ -170,13 +195,26 @@ async def generate_meanings_batch(req: GenerateRequest) -> BatchGenerateResponse
             req.system_prompt, req.user_prompt, req.model, _BATCH_SCHEMA
         )
     except Exception as e:
-        logger.exception("generate-meanings-batch failed: %s", e)
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        logger.exception("generate-meanings-batch: AI call failed")
+        raise HTTPException(status_code=502, detail=f"AI call failed: {e}") from e
     if not isinstance(data, dict) or "results" not in data:
         logger.error("generate-meanings-batch: unexpected response: %r", data)
         raise HTTPException(status_code=502, detail="Unexpected AI response format")
-    logger.info("generate-meanings-batch OK, results=%d, tokens=%d", len(data["results"]), tokens_used)
-    return BatchGenerateResponse(results=data["results"], tokens_used=tokens_used)
+    try:
+        resp = BatchGenerateResponse(
+            results=data["results"], tokens_used=tokens_used,
+        )
+    except ValidationError as e:
+        logger.error("generate-meanings-batch response schema mismatch: %s\nraw=%r", e, data)
+        raise HTTPException(
+            status_code=502,
+            detail=f"AI response schema mismatch (ai_proxy<->backend drift): {e}",
+        ) from e
+    logger.info(
+        "generate-meanings-batch OK, results=%d, tokens=%d",
+        len(resp.results), tokens_used,
+    )
+    return resp
 
 
 @app.get("/health")
