@@ -1,6 +1,7 @@
 app_prod.db
 app_dev.db
 data/
+.env
 .pids/
 .logs/
 .venv*/
