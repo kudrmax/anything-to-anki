@@ -88,6 +88,8 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 **Формат — conventional commits:** `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`. Subject ≤ 72 символов, imperative mood, без тикетов. Примеры из истории: `feat: sync translation and synonyms to Anki`, `refactor: remove prompt editor from frontend`.
 
+**Мёрж feature-веток — только через merge-коммит (`git merge --no-ff`), НИКОГДА fast-forward.** Merge-коммит сохраняет в истории границы feature-ветки: видно, что набор коммитов пришёл вместе как единое логическое изменение. Fast-forward эту границу теряет.
+
 > # ПРАВИЛА git-операций
 >
 > **Можно без подтверждения:** `git add`, `git commit`, `git checkout -b`, все чтение-операции (`status`, `diff`, `log`, `show`, `blame`).
