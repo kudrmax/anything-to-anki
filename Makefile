@@ -12,6 +12,14 @@ AI_VENV := .venv-ai-proxy
 AI_PID  := .pids/ai_proxy.pid
 AI_LOG  := .logs/ai_proxy.log
 
+# Цвет баннера: зелёный для prod, жёлтый для всего остального (dev и т.п.).
+# Чисто визуальная разметка — совпадает с цветом бейджа в UI.
+ifeq ($(INSTANCE_ENV_NAME),prod)
+BANNER_COLOR := \033[1;32m
+else
+BANNER_COLOR := \033[1;33m
+endif
+
 # ── Вспомогательные макросы ────────────────────────────────────────
 # Убить ai_proxy на порту $(1). Проверяем что это именно ai_proxy (grep по args),
 # чтобы случайно не убить чужой процесс на том же порту.
@@ -53,7 +61,7 @@ _check_env:
 up: _check_env  ## Запустить (ai_proxy + docker compose)
 	$(call start_ai_proxy)
 	docker compose up -d --build
-	@printf "\n\033[1;32m"
+	@printf "\n$(BANNER_COLOR)"
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "  AnythingToAnki  [instance: %s]\n" "$(INSTANCE_ENV_NAME)"
 	@printf "  → http://localhost:%s\n" "$(PORT)"
