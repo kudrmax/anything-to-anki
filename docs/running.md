@@ -18,13 +18,11 @@
 ```
 make dev-up         # Поднять dev (ai_proxy на хосте + контейнеры в фоне)
 make dev-down       # Остановить dev
-make dev-logs       # Логи контейнеров dev
-make dev-logs-ai    # Логи ai_proxy dev
+make dev-logs       # Все логи dev: app + worker + redis + ai_proxy одним потоком
 
 make prod-up        # Поднять prod
 make prod-down      # Остановить prod
-make prod-logs      # Логи контейнеров prod
-make prod-logs-ai   # Логи ai_proxy prod
+make prod-logs      # Все логи prod: app + worker + redis + ai_proxy одним потоком
 
 make help           # Все команды с описанием
 ```

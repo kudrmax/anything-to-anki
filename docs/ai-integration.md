@@ -17,7 +17,7 @@ backend (в Docker)  ──HTTP──►  ai_proxy.py (на хосте)  ──S
 
 - **Dev**: ai_proxy на `:8766`, prod: `:8767` — два независимых процесса, чтобы не мешали друг другу
 - Запуск/остановка — автоматически через `make dev-up` / `make dev-down` (см. Makefile, `start_ai_proxy` / `stop_ai_proxy`)
-- Логи — `make dev-logs-ai` (файл `.logs/ai_proxy_dev.log`)
+- Логи — `make dev-logs` / `make prod-logs` (ai_proxy идёт одним потоком со всеми сервисами, префикс `ai_proxy_dev` / `ai_proxy_prod`). Сам файл лога лежит в `.logs/ai_proxy_dev.log` / `.logs/ai_proxy_prod.log`
 
 ## Два адаптера в `infrastructure/adapters/`
 
