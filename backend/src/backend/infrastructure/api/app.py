@@ -26,7 +26,6 @@ from backend.infrastructure.persistence.database import (
     reconcile_media_files,
     reset_stuck_processing,
     run_alembic_migrations,
-    upgrade_schema,
 )
 
 logging.basicConfig(
@@ -42,7 +41,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     if ":memory:" not in db_url:
         run_alembic_migrations(db_url)
-    upgrade_schema(session_factory)
     reset_stuck_processing(session_factory)
     media_root = os.environ.get("MEDIA_ROOT", os.path.join(os.getenv("DATA_DIR", "."), "media"))
     reconcile_media_files(session_factory, media_root)

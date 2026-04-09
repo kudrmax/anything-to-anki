@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 
-from sqlalchemy import create_engine, text, update
+from sqlalchemy import create_engine, update
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from backend.domain.value_objects.source_status import SourceStatus
@@ -46,126 +46,6 @@ def create_tables(session_factory: sessionmaker[Session]) -> None:
     """Create all tables from model metadata."""
     engine = session_factory.kw["bind"]
     Base.metadata.create_all(engine)
-
-
-def upgrade_schema(session_factory: sessionmaker[Session]) -> None:
-    """Apply incremental schema changes that create_all() cannot handle."""
-    engine = session_factory.kw["bind"]
-    with engine.connect() as conn:
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN ai_meaning TEXT"))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists — safe to ignore
-
-        try:
-            conn.execute(text(
-                "ALTER TABLE sources ADD COLUMN source_type VARCHAR(20) NOT NULL DEFAULT 'text'"
-            ))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists — safe to ignore
-
-        try:
-            conn.execute(text(
-                "ALTER TABLE candidates ADD COLUMN is_phrasal_verb BOOLEAN NOT NULL DEFAULT 0"
-            ))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists — safe to ignore
-
-        try:
-            conn.execute(text("ALTER TABLE candidates ADD COLUMN definition TEXT"))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists — safe to ignore
-
-        try:
-            conn.execute(text("ALTER TABLE sources ADD COLUMN processing_stage VARCHAR(30)"))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists — safe to ignore
-
-        try:
-            conn.execute(text("ALTER TABLE sources ADD COLUMN title VARCHAR(200)"))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists — safe to ignore
-
-        conn.execute(text(
-            "CREATE TABLE IF NOT EXISTS generation_jobs ("
-            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-            "source_id INTEGER, "
-            "status VARCHAR(20) NOT NULL DEFAULT 'pending', "
-            "total_candidates INTEGER NOT NULL, "
-            "processed_candidates INTEGER NOT NULL DEFAULT 0, "
-            "failed_candidates INTEGER NOT NULL DEFAULT 0, "
-            "skipped_candidates INTEGER NOT NULL DEFAULT 0, "
-            "candidate_ids_json TEXT NOT NULL DEFAULT '[]', "
-            "created_at DATETIME NOT NULL DEFAULT (datetime('now'))"
-            ")"
-        ))
-        conn.commit()
-
-        try:
-            conn.execute(text(
-                "ALTER TABLE generation_jobs"
-                " ADD COLUMN candidate_ids_json TEXT NOT NULL DEFAULT '[]'"
-            ))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists — safe to ignore
-
-        try:
-            conn.execute(text(
-                "ALTER TABLE generation_jobs"
-                " ADD COLUMN skipped_candidates INTEGER NOT NULL DEFAULT 0"
-            ))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists — safe to ignore
-
-        # --- Video media attachments ---
-        try:
-            conn.execute(text("ALTER TABLE sources ADD COLUMN video_path TEXT"))
-            conn.commit()
-        except Exception:
-            pass
-
-        try:
-            conn.execute(text("ALTER TABLE sources ADD COLUMN audio_track_index INTEGER"))
-            conn.commit()
-        except Exception:
-            pass
-
-        conn.execute(text(
-            "CREATE TABLE IF NOT EXISTS media_extraction_jobs ("
-            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-            "source_id INTEGER, "
-            "status VARCHAR(20) NOT NULL DEFAULT 'pending', "
-            "total_candidates INTEGER NOT NULL, "
-            "processed_candidates INTEGER NOT NULL DEFAULT 0, "
-            "failed_candidates INTEGER NOT NULL DEFAULT 0, "
-            "skipped_candidates INTEGER NOT NULL DEFAULT 0, "
-            "candidate_ids_json TEXT NOT NULL DEFAULT '[]', "
-            "created_at DATETIME NOT NULL DEFAULT (datetime('now'))"
-            ")"
-        ))
-        conn.commit()
-
-        # Rename settings key: anki_field_screenshot → anki_field_image
-        try:
-            conn.execute(text(
-                "UPDATE settings SET key = 'anki_field_image' "
-                "WHERE key = 'anki_field_screenshot' "
-                "AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'anki_field_image')"
-            ))
-            conn.execute(text(
-                "DELETE FROM settings WHERE key = 'anki_field_screenshot'"
-            ))
-            conn.commit()
-        except Exception:
-            pass
 
 
 def reset_stuck_processing(session_factory: sessionmaker[Session]) -> None:
