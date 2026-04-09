@@ -1,7 +1,7 @@
 import pytest
 from backend.application.utils.timecode_mapping import find_timecodes
-from backend.domain.value_objects.subtitle_block import SubtitleBlock
 from backend.domain.value_objects.parsed_srt import ParsedSrt
+from backend.domain.value_objects.subtitle_block import SubtitleBlock
 
 
 def _make_parsed_srt() -> ParsedSrt:

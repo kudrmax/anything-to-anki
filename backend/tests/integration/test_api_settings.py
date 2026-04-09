@@ -100,7 +100,10 @@ class TestSettingsAPI:
         assert response.json()["anki_deck_name"] == "MyDeck"
 
     def test_update_both(self, client: TestClient) -> None:
-        response = client.patch("/api/settings", json={"cefr_level": "C2", "anki_deck_name": "Learning"})
+        response = client.patch(
+            "/api/settings",
+            json={"cefr_level": "C2", "anki_deck_name": "Learning"},
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["cefr_level"] == "C2"

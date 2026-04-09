@@ -1,14 +1,20 @@
-import pytest
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
+
+import pytest
 from backend.application.use_cases.process_source import ProcessSourceUseCase
-from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.source_status import SourceStatus
-from backend.domain.value_objects.source_type import SourceType
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.parsed_srt import ParsedSrt
+from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.source_type import SourceType
 from backend.domain.value_objects.subtitle_block import SubtitleBlock
+
+if TYPE_CHECKING:
+    from backend.domain.entities.candidate_media import CandidateMedia
 
 
 def _make_source(source_type: SourceType, raw_text: str = "") -> Source:
@@ -32,7 +38,11 @@ def _make_candidate(fragment: str) -> StoredCandidate:
 
 @pytest.mark.unit
 class TestProcessVideoSource:
-    def _make_use_case(self, source: Source, candidates: list[StoredCandidate]) -> ProcessSourceUseCase:
+    def _make_use_case(
+        self,
+        source: Source,
+        candidates: list[StoredCandidate],
+    ) -> ProcessSourceUseCase:
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = source
         candidate_repo = MagicMock()

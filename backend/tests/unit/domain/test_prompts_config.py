@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from backend.domain.value_objects.prompts_config import PromptsConfig
 
 

@@ -375,7 +375,8 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        with patch("backend.application.use_cases.sync_to_anki.os.path.exists", return_value=False):
+        exists_path = "backend.application.use_cases.sync_to_anki.os.path.exists"
+        with patch(exists_path, return_value=False):
             self.use_case.execute(source_id=1)
 
         call_args = self.anki_connector.add_notes.call_args

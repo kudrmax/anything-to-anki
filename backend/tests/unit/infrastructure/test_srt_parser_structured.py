@@ -1,7 +1,6 @@
 import pytest
 from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 
-
 SRT_SIMPLE = """\
 1
 00:00:01,200 --> 00:00:02,500

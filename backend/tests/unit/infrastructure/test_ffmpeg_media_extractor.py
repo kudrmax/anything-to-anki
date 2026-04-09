@@ -4,7 +4,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from backend.infrastructure.adapters.ffmpeg_media_extractor import (
     _AUDIO_BITRATE,
     _AUDIO_CHANNELS,
@@ -17,7 +16,9 @@ from backend.infrastructure.adapters.ffmpeg_media_extractor import (
 @pytest.mark.unit
 class TestFfmpegMediaExtractorScreenshot:
     @patch("backend.infrastructure.adapters.ffmpeg_media_extractor.subprocess.run")
-    def test_extract_screenshot_uses_webp_with_scale_and_quality(self, mock_run: MagicMock) -> None:
+    def test_extract_screenshot_uses_webp_with_scale_and_quality(
+        self, mock_run: MagicMock,
+    ) -> None:
         mock_run.return_value = MagicMock(returncode=0)
         extractor = FfmpegMediaExtractor()
 
@@ -85,7 +86,9 @@ class TestFfmpegMediaExtractorAudio:
         mock_run.return_value = MagicMock(returncode=0)
         extractor = FfmpegMediaExtractor()
 
-        extractor.extract_audio("/videos/movie.mkv", 1000, 4000, "/media/1_audio.m4a", audio_track_index=2)
+        extractor.extract_audio(
+            "/videos/movie.mkv", 1000, 4000, "/media/1_audio.m4a", audio_track_index=2,
+        )
 
         args = mock_run.call_args[0][0]
         assert "-map" in args

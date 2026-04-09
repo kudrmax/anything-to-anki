@@ -71,11 +71,16 @@ class TestRegexSrtParser:
             "1\n00:00:01,335 --> 00:00:03,879\n(DISCORDANT JAZZ MUSIC PLAYING)\n\n"
             "2\n00:00:24,258 --> 00:00:29,258\nSubtitles by explosiveskull\n"
             "\U0001d544_\U0001d540_\U0001d542\U0001d53c\U0001d563\U0001d53c\U0001d53b\U0001d546\U0001d563\U0001d53c\U0001d563\U0001d563\n\n"
-            "3\n00:00:32,741 --> 00:00:34,952\nJOE: <i>All right, let's try somethin' else.</i>\n\n"
-            "4\n00:00:37,746 --> 00:00:42,334\n{\\an8}<i>Uh, from the top.\nReady. One, two, three.</i>"
+            "3\n00:00:32,741 --> 00:00:34,952\n"
+            "JOE: <i>All right, let's try somethin' else.</i>\n\n"
+            "4\n00:00:37,746 --> 00:00:42,334\n"
+            "{\\an8}<i>Uh, from the top.\nReady. One, two, three.</i>"
         )
         result = self.parser.parse(srt)
-        assert result == "All right, let's try somethin' else.\nUh, from the top.\nReady. One, two, three."
+        assert result == (
+            "All right, let's try somethin' else.\n"
+            "Uh, from the top.\nReady. One, two, three."
+        )
 
     def test_multiline_subtitle_block_preserved(self) -> None:
         srt = (

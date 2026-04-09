@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
-
 from backend.application.dto.media_dtos import CleanupMediaKind
 from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _make_candidate(cid: int, screenshot_path: str | None, audio_path: str | None) -> MagicMock:
@@ -28,7 +31,7 @@ def _make_candidate(cid: int, screenshot_path: str | None, audio_path: str | Non
 
 @pytest.mark.unit
 class TestCleanupMedia:
-    def test_all_removes_files_and_clears_db(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    def test_all_removes_files_and_clears_db(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         source_dir = media_root / "1"
         source_dir.mkdir(parents=True)
@@ -57,7 +60,7 @@ class TestCleanupMedia:
         # Empty source dir is removed
         assert not source_dir.exists()
 
-    def test_images_only_leaves_audio(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    def test_images_only_leaves_audio(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         source_dir = media_root / "1"
         source_dir.mkdir(parents=True)
@@ -85,7 +88,7 @@ class TestCleanupMedia:
         )
         assert source_dir.exists()  # non-empty
 
-    def test_audio_only_leaves_screenshots(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    def test_audio_only_leaves_screenshots(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         source_dir = media_root / "1"
         source_dir.mkdir(parents=True)
@@ -112,7 +115,7 @@ class TestCleanupMedia:
             10, clear_screenshot=False, clear_audio=True
         )
 
-    def test_missing_file_on_disk_still_clears_db(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    def test_missing_file_on_disk_still_clears_db(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         source_dir = media_root / "1"
         source_dir.mkdir(parents=True)
@@ -131,7 +134,7 @@ class TestCleanupMedia:
 
         media_repo.clear_paths.assert_called_once()
 
-    def test_candidate_without_media_skipped(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    def test_candidate_without_media_skipped(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         source_dir = media_root / "1"
         source_dir.mkdir(parents=True)

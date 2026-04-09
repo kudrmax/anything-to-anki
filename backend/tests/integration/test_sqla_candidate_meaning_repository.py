@@ -3,15 +3,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.mark.integration

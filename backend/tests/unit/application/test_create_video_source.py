@@ -1,7 +1,8 @@
-import pytest
 from unittest.mock import MagicMock
-from backend.application.use_cases.create_source import CreateSourceUseCase
+
+import pytest
 from backend.application.dto.video_dtos import TrackSelectionRequired, VideoSourceCreated
+from backend.application.use_cases.create_source import CreateSourceUseCase
 from backend.domain.value_objects.audio_track_info import AudioTrackInfo
 from backend.domain.value_objects.subtitle_track_info import SubtitleTrackInfo
 

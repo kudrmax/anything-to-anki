@@ -3,7 +3,6 @@ from __future__ import annotations
 from unittest.mock import call, patch
 
 import pytest
-
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
 
 

@@ -1,18 +1,22 @@
 from __future__ import annotations
 
-import pytest
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
+from typing import TYPE_CHECKING
 
+import pytest
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
-def _insert_candidate(session, cid: int) -> None:
+def _insert_candidate(session: Session, cid: int) -> None:
     session.execute(text(
         "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
         "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "

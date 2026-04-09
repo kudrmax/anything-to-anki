@@ -4,7 +4,6 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
-
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import CandidateNotFoundError
@@ -12,7 +11,6 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.generation_result import GenerationResult
 from backend.domain.value_objects.prompts_config import PromptsConfig
-
 
 _CONFIG = PromptsConfig(
     generate_meaning_user_template='Word: "{lemma}" ({pos})\nContext: "{context}"',

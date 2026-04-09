@@ -1,5 +1,4 @@
 import pytest
-
 from backend.application.utils.highlight import highlight_all_forms, strip_markdown
 
 

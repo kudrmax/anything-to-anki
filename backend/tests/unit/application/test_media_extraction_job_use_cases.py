@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -16,7 +16,7 @@ from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 
 def _make_candidate(
-    id: int,
+    cid: int,
     fragment: str = "hello world",
     start_ms: int | None = 1000,
     end_ms: int | None = 2000,
@@ -24,7 +24,7 @@ def _make_candidate(
 ) -> StoredCandidate:
     if media is None and start_ms is not None:
         media = CandidateMedia(
-            candidate_id=id,
+            candidate_id=cid,
             screenshot_path=None,
             audio_path=None,
             start_ms=start_ms,
@@ -34,7 +34,7 @@ def _make_candidate(
             generated_at=None,
         )
     return StoredCandidate(
-        id=id, source_id=1, lemma="test", pos="NOUN",
+        id=cid, source_id=1, lemma="test", pos="NOUN",
         cefr_level="B1", zipf_frequency=3.5, is_sweet_spot=True,
         context_fragment=fragment, fragment_purity="clean", occurrences=1,
         status=CandidateStatus.LEARN,
@@ -91,8 +91,11 @@ class TestMediaExtractionUseCase:
             generated_at=None,
         )
 
-        with patch("backend.application.use_cases.run_media_extraction_job.os.path.exists", return_value=True), \
-             patch("backend.application.use_cases.run_media_extraction_job.os.makedirs"):
+        base = "backend.application.use_cases.run_media_extraction_job.os"
+        with (
+            patch(f"{base}.path.exists", return_value=True),
+            patch(f"{base}.makedirs"),
+        ):
             uc.execute_one(10)
 
         # mark_running is now called by the worker wrapper, not the use case
@@ -162,9 +165,9 @@ class TestMediaExtractionUseCase:
 
         uc, _, _, _, _ = self._make_uc(candidate=candidate, source=source)
 
-        with patch("backend.application.use_cases.run_media_extraction_job.os.path.exists", return_value=False):
-            with pytest.raises(BadVideoFormatError):
-                uc.execute_one(10)
+        exists_path = "backend.application.use_cases.run_media_extraction_job.os.path.exists"
+        with patch(exists_path, return_value=False), pytest.raises(BadVideoFormatError):
+            uc.execute_one(10)
 
     def test_execute_one_propagates_extractor_error(self) -> None:
         candidate = _make_candidate(10)
@@ -173,7 +176,10 @@ class TestMediaExtractionUseCase:
         uc, _, _, _, media_extractor = self._make_uc(candidate=candidate, source=source)
         media_extractor.extract_screenshot.side_effect = OSError("ffmpeg crashed")
 
-        with patch("backend.application.use_cases.run_media_extraction_job.os.path.exists", return_value=True), \
-             patch("backend.application.use_cases.run_media_extraction_job.os.makedirs"):
-            with pytest.raises(OSError, match="ffmpeg crashed"):
-                uc.execute_one(10)
+        base = "backend.application.use_cases.run_media_extraction_job.os"
+        with (
+            patch(f"{base}.path.exists", return_value=True),
+            patch(f"{base}.makedirs"),
+            pytest.raises(OSError, match="ffmpeg crashed"),
+        ):
+            uc.execute_one(10)

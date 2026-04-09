@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
@@ -14,6 +14,9 @@ from backend.infrastructure.persistence.models import SourceModel, StoredCandida
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 @pytest.fixture()
@@ -132,7 +135,10 @@ class TestVerifyNoteTypeAPI:
         ):
             response = client.post(
                 "/anki/verify-note-type",
-                json={"note_type": "AnythingToAnkiType", "required_fields": ["Sentence", "Target"]},
+                json={
+                    "note_type": "AnythingToAnkiType",
+                    "required_fields": ["Sentence", "Target"],
+                },
             )
         assert response.status_code == 200
         data = response.json()
@@ -206,7 +212,8 @@ class TestSyncToAnkiAPI:
             "backend.infrastructure.adapters.anki_connect_connector.AnkiConnectConnector.is_available",
             return_value=False,
         ):
-            # Need at least one learn candidate - with empty source there are none, so total=0 and returns 200
+            # Need at least one learn candidate - with empty source there are none,
+            # so total=0 and returns 200
             response = client.post(f"/sources/{source_id}/sync-to-anki")
         assert response.status_code == 200
         assert response.json()["total"] == 0

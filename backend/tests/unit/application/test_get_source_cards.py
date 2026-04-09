@@ -70,7 +70,12 @@ class TestGetSourceCardsUseCase:
 
     def test_returns_only_learn_candidates(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
-            _make_candidate("burnout", CandidateStatus.LEARN, "leads to burnout quickly", meaning="physical collapse"),
+            _make_candidate(
+                "burnout",
+                CandidateStatus.LEARN,
+                "leads to burnout quickly",
+                meaning="physical collapse",
+            ),
             _make_candidate("pursuit", CandidateStatus.SKIP),
             _make_candidate("relentless", CandidateStatus.PENDING),
         ]
@@ -136,7 +141,11 @@ class TestGetSourceCardsUseCase:
 
     def test_meaning_strips_markdown_and_highlights(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
-            _make_candidate("burnout", CandidateStatus.LEARN, meaning="**burnout** means exhaustion"),
+            _make_candidate(
+                "burnout",
+                CandidateStatus.LEARN,
+                meaning="**burnout** means exhaustion",
+            ),
         ]
         result = self.use_case.execute(source_id=1)
         assert result[0].meaning is not None
@@ -145,14 +154,22 @@ class TestGetSourceCardsUseCase:
 
     def test_screenshot_url_generated_from_path(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
-            _make_candidate("burnout", CandidateStatus.LEARN, screenshot_path="/tmp/media/burnout_123.jpg"),
+            _make_candidate(
+                "burnout",
+                CandidateStatus.LEARN,
+                screenshot_path="/tmp/media/burnout_123.jpg",
+            ),
         ]
         result = self.use_case.execute(source_id=1)
         assert result[0].screenshot_url == "/media/1/burnout_123.jpg"
 
     def test_audio_url_generated_from_path(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
-            _make_candidate("burnout", CandidateStatus.LEARN, audio_path="/tmp/media/burnout_456.mp3"),
+            _make_candidate(
+                "burnout",
+                CandidateStatus.LEARN,
+                audio_path="/tmp/media/burnout_456.mp3",
+            ),
         ]
         result = self.use_case.execute(source_id=1)
         assert result[0].audio_url == "/media/1/burnout_456.mp3"
@@ -184,7 +201,11 @@ class TestGetSourceCardsUseCase:
             media_base_url="/custom/media",
         )
         self.candidate_repo.get_by_source.return_value = [
-            _make_candidate("burnout", CandidateStatus.LEARN, screenshot_path="/tmp/burnout_123.jpg"),
+            _make_candidate(
+                "burnout",
+                CandidateStatus.LEARN,
+                screenshot_path="/tmp/burnout_123.jpg",
+            ),
         ]
         result = use_case.execute(source_id=1)
         assert result[0].screenshot_url == "/custom/media/1/burnout_123.jpg"
