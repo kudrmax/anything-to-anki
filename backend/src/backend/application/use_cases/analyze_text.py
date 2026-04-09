@@ -9,6 +9,7 @@ from backend.application.dto.analysis_dtos import (
 )
 from backend.domain.entities.word_candidate import WordCandidate
 from backend.domain.exceptions import TextTooShortError
+from backend.domain.services.boundary_cleaner import BoundaryCleaner
 from backend.domain.services.candidate_filter import CandidateFilter
 from backend.domain.services.fragment_extractor import FragmentExtractor
 from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -42,6 +43,7 @@ class AnalyzeTextUseCase:
         self._phrasal_verb_detector = phrasal_verb_detector
         self._candidate_filter = CandidateFilter()
         self._fragment_extractor = FragmentExtractor()
+        self._boundary_cleaner = BoundaryCleaner()
 
     def execute(self, request: AnalyzeTextRequest) -> AnalyzeTextResponse:
         user_level = CEFRLevel.from_str(request.user_level)
@@ -75,10 +77,15 @@ class AnalyzeTextUseCase:
             key = (token.lemma.lower(), token.pos)
             if key not in candidate_map:
                 freq = self._frequency_provider.get_frequency(token.lemma.lower())
-                fragment = self._fragment_extractor.extract(tokens, token.index)
                 fragment_indices = self._fragment_extractor.extract_indices(
                     tokens, token.index
                 )
+                fragment_indices = self._boundary_cleaner.clean(
+                    tokens,
+                    fragment_indices,
+                    protected_indices=frozenset({token.index}),
+                )
+                fragment = self._fragment_extractor.render(tokens, fragment_indices)
                 unknown_count = self._count_unknowns_in_fragment(
                     fragment_indices, tokens, user_level
                 )
@@ -124,10 +131,17 @@ class AnalyzeTextUseCase:
 
             if key not in candidate_map:
                 freq = self._frequency_provider.get_frequency(match.lemma)
-                fragment = self._fragment_extractor.extract(tokens, match.verb_index)
                 fragment_indices = self._fragment_extractor.extract_indices(
                     tokens, match.verb_index
                 )
+                fragment_indices = self._boundary_cleaner.clean(
+                    tokens,
+                    fragment_indices,
+                    protected_indices=frozenset(
+                        {match.verb_index, match.particle_index}
+                    ),
+                )
+                fragment = self._fragment_extractor.render(tokens, fragment_indices)
                 unknown_count = self._count_unknowns_in_fragment(
                     fragment_indices, tokens, user_level
                 )

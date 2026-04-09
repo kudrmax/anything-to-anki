@@ -57,6 +57,15 @@ class FragmentExtractor:
         parts = [tokens[i].text + tokens[i].whitespace_after for i in sorted_indices]
         return "".join(parts).strip()
 
+    @staticmethod
+    def render(tokens: list[TokenData], indices: list[int]) -> str:
+        """Render fragment text from token indices, preserving original whitespace."""
+        if not indices:
+            return ""
+        sorted_indices = sorted(indices)
+        parts = [tokens[i].text + tokens[i].whitespace_after for i in sorted_indices]
+        return "".join(parts).strip()
+
     def extract_indices(self, tokens: list[TokenData], target_index: int) -> list[int]:
         """Extract fragment and return the token indices (for unknown-word counting)."""
         if not tokens or target_index < 0 or target_index >= len(tokens):
