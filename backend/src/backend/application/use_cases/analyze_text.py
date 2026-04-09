@@ -10,15 +10,15 @@ from backend.application.dto.analysis_dtos import (
 )
 from backend.domain.entities.word_candidate import WordCandidate
 from backend.domain.exceptions import TextTooShortError
-from backend.domain.services.boundary_cleaner import (
-    MIN_FRAGMENT_CONTENT_WORDS,
-    BoundaryCleaner,
-)
+from backend.domain.services.boundary_cleaner import BoundaryCleaner
 from backend.domain.services.candidate_filter import CandidateFilter
 from backend.domain.services.clause_finder import ClauseFinder
 from backend.domain.services.fragment_extractor import FragmentExtractor
 from backend.domain.services.fragment_selection.rendering import render_fragment
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.fragment_selection_config import (
+    FragmentSelectionConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +32,6 @@ if TYPE_CHECKING:
 
 DIRTY_THRESHOLD: int = 2
 
-# Hard cap on fragment length: pieces longer than this get a heavy penalty
-# in candidate ranking. Below this, length is not a ranking factor — only
-# unknown_count and edge cleanliness matter.
-LENGTH_HARD_CAP_CONTENT_WORDS: int = 25
-
 
 class AnalyzeTextUseCase:
     """Orchestrates the full text analysis pipeline (layers 2-3)."""
@@ -48,6 +43,7 @@ class AnalyzeTextUseCase:
         cefr_classifier: CEFRClassifier,
         frequency_provider: FrequencyProvider,
         phrasal_verb_detector: PhrasalVerbDetector,
+        fragment_selection_config: FragmentSelectionConfig | None = None,
     ) -> None:
         self._text_cleaner = text_cleaner
         self._text_analyzer = text_analyzer
@@ -58,6 +54,9 @@ class AnalyzeTextUseCase:
         self._fragment_extractor = FragmentExtractor()
         self._boundary_cleaner = BoundaryCleaner()
         self._clause_finder = ClauseFinder()
+        self._fragment_config = (
+            fragment_selection_config or FragmentSelectionConfig()
+        )
 
     def execute(self, request: AnalyzeTextRequest) -> AnalyzeTextResponse:
         user_level = CEFRLevel.from_str(request.user_level)
@@ -276,7 +275,7 @@ class AnalyzeTextUseCase:
                 for idx in cleaned
                 if tokens[idx].is_alpha and not tokens[idx].is_punct
             )
-            if content_count < MIN_FRAGMENT_CONTENT_WORDS:
+            if content_count < self._fragment_config.cleanup.min_fragment_content_words:
                 continue
             cleaned_candidates.append(cleaned)
 
@@ -293,7 +292,11 @@ class AnalyzeTextUseCase:
                 for idx in indices
                 if tokens[idx].is_alpha and not tokens[idx].is_punct
             )
-            length_penalty = max(0, content_count - LENGTH_HARD_CAP_CONTENT_WORDS)
+            length_penalty = max(
+                0,
+                content_count
+                - self._fragment_config.scoring.length_hard_cap_content_words,
+            )
             return (unknown, length_penalty, content_count)
 
         return min(cleaned_candidates, key=score)
