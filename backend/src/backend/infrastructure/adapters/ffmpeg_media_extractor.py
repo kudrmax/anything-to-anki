@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import subprocess
 
 from backend.domain.ports.media_extractor import MediaExtractor
+
+logger = logging.getLogger(__name__)
 
 _SCREENSHOT_MAX_WIDTH: int = 640
 _SCREENSHOT_WEBP_QUALITY: int = 75
@@ -15,20 +18,26 @@ class FfmpegMediaExtractor(MediaExtractor):
 
     def extract_screenshot(self, video_path: str, timestamp_ms: int, out_path: str) -> None:
         ts_s = timestamp_ms / 1000.0
-        subprocess.run(
-            [
-                "ffmpeg", "-y",
-                "-ss", str(ts_s),
-                "-i", video_path,
-                "-vframes", "1",
-                "-vf", f"scale='min({_SCREENSHOT_MAX_WIDTH},iw)':'-2'",
-                "-c:v", "libwebp",
-                "-quality", str(_SCREENSHOT_WEBP_QUALITY),
-                out_path,
-            ],
-            capture_output=True,
-            check=True,
-        )
+        cmd = [
+            "ffmpeg", "-y",
+            "-ss", str(ts_s),
+            "-i", video_path,
+            "-vframes", "1",
+            "-vf", f"scale='min({_SCREENSHOT_MAX_WIDTH},iw)':'-2'",
+            "-c:v", "libwebp",
+            "-quality", str(_SCREENSHOT_WEBP_QUALITY),
+            out_path,
+        ]
+        logger.debug("ffmpeg.screenshot: running (out=%s, ts_ms=%d)", out_path, timestamp_ms)
+        try:
+            subprocess.run(cmd, capture_output=True, check=True)
+        except subprocess.CalledProcessError as exc:
+            stderr = exc.stderr.decode("utf-8", errors="replace") if exc.stderr else ""
+            logger.exception(
+                "ffmpeg.screenshot: failed (out=%s, ts_ms=%d, stderr=%s)",
+                out_path, timestamp_ms, stderr[:1000],
+            )
+            raise
 
     def extract_audio(
         self,
@@ -55,4 +64,16 @@ class FfmpegMediaExtractor(MediaExtractor):
             "-ac", str(_AUDIO_CHANNELS),
             out_path,
         ]
-        subprocess.run(args, capture_output=True, check=True)
+        logger.debug(
+            "ffmpeg.audio: running (out=%s, start_ms=%d, end_ms=%d, track=%s)",
+            out_path, start_ms, end_ms, audio_track_index,
+        )
+        try:
+            subprocess.run(args, capture_output=True, check=True)
+        except subprocess.CalledProcessError as exc:
+            stderr = exc.stderr.decode("utf-8", errors="replace") if exc.stderr else ""
+            logger.exception(
+                "ffmpeg.audio: failed (out=%s, start_ms=%d, end_ms=%d, stderr=%s)",
+                out_path, start_ms, end_ms, stderr[:1000],
+            )
+            raise

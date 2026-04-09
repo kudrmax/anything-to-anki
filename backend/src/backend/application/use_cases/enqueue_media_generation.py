@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
@@ -55,6 +58,16 @@ class EnqueueMediaGenerationUseCase:
                 sort_order=sort_order,
             )
         if not eligible_ids:
+            logger.info(
+                "enqueue_media_generation: no eligible candidates "
+                "(source_id=%d, sort_order=%s)",
+                source_id, sort_order.value if sort_order else None,
+            )
             return []
         self._media_repo.mark_queued_bulk(eligible_ids)
+        logger.info(
+            "enqueue_media_generation: queued (source_id=%d, count=%d, sort_order=%s)",
+            source_id, len(eligible_ids),
+            sort_order.value if sort_order else None,
+        )
         return eligible_ids

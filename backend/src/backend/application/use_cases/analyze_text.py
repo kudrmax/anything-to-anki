@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from backend.application.dto.analysis_dtos import (
@@ -12,6 +13,8 @@ from backend.domain.exceptions import TextTooShortError
 from backend.domain.services.candidate_filter import CandidateFilter
 from backend.domain.services.fragment_extractor import FragmentExtractor
 from backend.domain.value_objects.cefr_level import CEFRLevel
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from backend.domain.entities.token_data import TokenData
@@ -45,15 +48,27 @@ class AnalyzeTextUseCase:
 
     def execute(self, request: AnalyzeTextRequest) -> AnalyzeTextResponse:
         user_level = CEFRLevel.from_str(request.user_level)
+        logger.info(
+            "analyze_text: start (raw_text_len=%d, user_level=%s)",
+            len(request.raw_text or ""), user_level.name,
+        )
 
         # Layer 2: clean text
         cleaned = self._text_cleaner.clean(request.raw_text)
         if not cleaned.strip():
+            logger.warning(
+                "analyze_text: cleaned text is empty (raw_text_len=%d)",
+                len(request.raw_text or ""),
+            )
             raise TextTooShortError()
 
         # Layer 3: analyze
         tokens = self._text_analyzer.analyze(cleaned)
         if not tokens:
+            logger.info(
+                "analyze_text: no tokens after analysis (cleaned_len=%d)",
+                len(cleaned),
+            )
             return AnalyzeTextResponse(
                 cleaned_text=cleaned,
                 candidates=[],
@@ -101,6 +116,10 @@ class AnalyzeTextUseCase:
 
         unique_lemmas = len({t.lemma.lower() for t in tokens if t.is_alpha})
 
+        logger.info(
+            "analyze_text: done (total_tokens=%d, unique_lemmas=%d, candidates=%d)",
+            len(tokens), unique_lemmas, len(candidates),
+        )
         return AnalyzeTextResponse(
             cleaned_text=cleaned,
             candidates=[self._to_dto(c) for c in candidates],
