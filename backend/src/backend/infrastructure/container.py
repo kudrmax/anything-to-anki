@@ -69,6 +69,9 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session, sessionmaker
 
     from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
+    from backend.application.use_cases.cleanup_youtube_video import CleanupYoutubeVideoUseCase
+    from backend.application.use_cases.create_source_from_url import CreateSourceFromUrlUseCase
+    from backend.application.use_cases.download_video import DownloadVideoUseCase
     from backend.application.use_cases.enqueue_meaning_generation import (
         EnqueueMeaningGenerationUseCase,
     )
@@ -105,6 +108,14 @@ class Container:
         self._fragment_selection_config = FragmentSelectionConfig()
         self._subtitle_extractor = FfmpegSubtitleExtractor()
         self._media_extractor = FfmpegMediaExtractor()
+
+        from backend.infrastructure.adapters.ytdlp_subtitle_fetcher import YtDlpSubtitleFetcher
+        from backend.infrastructure.adapters.ytdlp_video_downloader import YtDlpVideoDownloader
+
+        self._url_fetchers: list = [YtDlpSubtitleFetcher()]
+        self._video_downloader = YtDlpVideoDownloader()
+        self._videos_dir = os.path.join(os.getenv("DATA_DIR", "."), "videos")
+
         self._media_root = os.environ.get(
             "MEDIA_ROOT",
             os.path.join(os.getenv("DATA_DIR", "."), "media"),
@@ -333,6 +344,28 @@ class Container:
             structured_srt_parser=self._srt_parser,
             media_extractor=self._media_extractor,
             media_root=self._media_root,
+        )
+
+    def create_source_from_url_use_case(self, session: Session) -> CreateSourceFromUrlUseCase:
+        from backend.application.use_cases.create_source_from_url import CreateSourceFromUrlUseCase
+        return CreateSourceFromUrlUseCase(
+            source_repo=SqlaSourceRepository(session),
+            fetchers=self._url_fetchers,
+        )
+
+    def download_video_use_case(self, session: Session) -> DownloadVideoUseCase:
+        from backend.application.use_cases.download_video import DownloadVideoUseCase
+        return DownloadVideoUseCase(
+            source_repo=SqlaSourceRepository(session),
+            video_downloader=self._video_downloader,
+            videos_dir=self._videos_dir,
+        )
+
+    def cleanup_youtube_video_use_case(self, session: Session) -> CleanupYoutubeVideoUseCase:
+        from backend.application.use_cases.cleanup_youtube_video import CleanupYoutubeVideoUseCase
+        return CleanupYoutubeVideoUseCase(
+            source_repo=SqlaSourceRepository(session),
+            media_repo=SqlaCandidateMediaRepository(session),
         )
 
     def candidate_meaning_repository(self, session: Session) -> SqlaCandidateMeaningRepository:
