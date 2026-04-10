@@ -70,6 +70,10 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 > - Никаких правок кода в prod-копии — только `git`-операции и `make`
 > - Никаких `cp data/... ../anything-to-anki-prod/data/...` между копиями
 
+### Worktree
+
+В worktree: `make copy-dev-db` (копирует `data/app.db` из main), потом `make up-worktree`. Команда `up-worktree` использует `WORKTREE_PORT`/`WORKTREE_AI_PROXY_PORT` из `.env` и автоматически сносит предыдущий worktree, если он запущен.
+
 ---
 
 ## Стандарты кода
