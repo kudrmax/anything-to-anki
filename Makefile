@@ -1,4 +1,4 @@
-.PHONY: up down logs test lint typecheck help _python_dev _check_env
+.PHONY: up down logs test coverage lint typecheck help _python_dev _check_env
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # docker compose читает .env сам — это только для ai_proxy и echo.
@@ -85,6 +85,9 @@ _python_dev:
 
 test: _python_dev  ## Запустить тесты
 	.venv/bin/python -m pytest
+
+coverage: _python_dev  ## Тесты с отчётом покрытия
+	.venv/bin/python -m pytest --cov --cov-report=term
 
 lint: _python_dev  ## Линтинг (ruff)
 	.venv/bin/ruff check .
