@@ -103,23 +103,9 @@ async def cancel_media_queue(
     if not affected_ids:
         return {"cancelled": 0}
 
-    media_repo.mark_batch_failed(affected_ids, "cancelled by user")
+    media_repo.mark_batch_cancelled(affected_ids)
     session.commit()
 
-    # Best-effort: abort per-candidate jobs that haven't started yet
-    redis = await container.get_redis_pool()
-    aborted = 0
-    for cid in affected_ids:
-        try:
-            result = await redis.abort_job(f"media_{cid}")
-            if result:
-                aborted += 1
-        except Exception:  # noqa: BLE001
-            logger.warning(
-                "media.cancel: best-effort job abort failed (candidate_id=%d)",
-                cid,
-                exc_info=True,
-            )
     return {"cancelled": len(affected_ids)}
 
 

@@ -90,29 +90,8 @@ async def cancel_meaning_queue(
     if not affected_ids:
         return {"cancelled": 0}
 
-    # Mark all FAILED with cancellation marker — worker's pre-upsert guard
-    # will see this status and skip writing results for the running batch.
-    meaning_repo.mark_batch_failed(affected_ids, "cancelled by user")
+    meaning_repo.mark_batch_cancelled(affected_ids)
     session.commit()
-
-    # Best-effort: also abort batch jobs that haven't started yet
-    redis = await container.get_redis_pool()
-    cancelled_batches = 0
-    for i in range(100):
-        try:
-            result = await redis.abort_job(f"meaning_{source_id}_{i}")
-            if result:
-                cancelled_batches += 1
-            elif i > 10 and cancelled_batches == 0:
-                break
-        except Exception:  # noqa: BLE001
-            logger.warning(
-                "generation.cancel: best-effort batch abort failed "
-                "(source_id=%d, batch_index=%d)",
-                source_id,
-                i,
-                exc_info=True,
-            )
 
     return {"cancelled": len(affected_ids)}
 

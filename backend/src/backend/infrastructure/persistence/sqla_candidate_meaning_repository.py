@@ -165,6 +165,10 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
         self._session.execute(
             update(CandidateMeaningModel)
             .where(CandidateMeaningModel.candidate_id == candidate_id)
+            .where(CandidateMeaningModel.status.in_([
+                EnrichmentStatus.QUEUED.value,
+                EnrichmentStatus.IDLE.value,
+            ]))
             .values(status=EnrichmentStatus.RUNNING.value)
         )
         self._session.flush()
@@ -184,6 +188,16 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
             update(CandidateMeaningModel)
             .where(CandidateMeaningModel.candidate_id.in_(candidate_ids))
             .values(status=EnrichmentStatus.FAILED.value, error=error)
+        )
+        self._session.flush()
+
+    def mark_batch_cancelled(self, candidate_ids: list[int]) -> None:
+        if not candidate_ids:
+            return
+        self._session.execute(
+            update(CandidateMeaningModel)
+            .where(CandidateMeaningModel.candidate_id.in_(candidate_ids))
+            .values(status=EnrichmentStatus.CANCELLED.value, error="cancelled by user")
         )
         self._session.flush()
 

@@ -25,6 +25,7 @@ from typing import Any
 from arq.connections import RedisSettings
 
 from backend.domain.exceptions import PermanentAIError, PermanentMediaError
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.container import Container
 from backend.infrastructure.logging_setup import configure_logging
@@ -40,6 +41,16 @@ async def extract_media_for_candidate(ctx: dict[str, Any], candidate_id: int) ->
     # Step 1: mark RUNNING in its own committed session
     with container.session_scope() as session:
         container.candidate_media_repository(session).mark_running(candidate_id)
+
+    # Step 1b: verify mark_running took effect (may have been cancelled)
+    with container.session_scope() as session:
+        media = container.candidate_media_repository(session).get_by_candidate_id(candidate_id)
+        if media is None or media.status != EnrichmentStatus.RUNNING:
+            logger.info(
+                "extract_media_for_candidate: skipped %d (cancelled before start)",
+                candidate_id,
+            )
+            return
 
     # Step 2: run extraction
     try:
@@ -86,6 +97,21 @@ async def generate_meanings_batch(
         meaning_repo = container.candidate_meaning_repository(session)
         for cid in candidate_ids:
             meaning_repo.mark_running(cid)
+
+    # Step 1b: verify at least one is still RUNNING (may have been cancelled)
+    with container.session_scope() as session:
+        meaning_repo = container.candidate_meaning_repository(session)
+        still_running = [
+            cid for cid in candidate_ids
+            if (m := meaning_repo.get_by_candidate_id(cid)) is not None
+            and m.status == EnrichmentStatus.RUNNING
+        ]
+        if not still_running:
+            logger.info(
+                "generate_meanings_batch: all %d candidates cancelled before start",
+                len(candidate_ids),
+            )
+            return
 
     # Step 2: run generation
     try:
