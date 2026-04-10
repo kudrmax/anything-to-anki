@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Film, Loader2, Sparkles } from 'lucide-react'
+import { Film, Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import type {
   CandidateSortOrder,
@@ -13,6 +13,7 @@ import type {
 } from '@/api/types'
 import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
 import { TextAnnotator } from '@/components/TextAnnotator'
+import { TextSelectionPopover } from '@/components/TextSelectionPopover'
 import { autoPlayAudioPref } from '@/lib/preferences'
 
 function audioUrlForCandidate(candidate: StoredCandidate, sourceId: number): string | null {
@@ -30,7 +31,6 @@ export function ReviewPage() {
   const [candidates, setCandidates] = useState<StoredCandidate[]>([])
   const [loading, setLoading] = useState(true)
   const [hoveredId, setHoveredId] = useState<number | null>(null)
-  const [editingFragmentFor, setEditingFragmentFor] = useState<number | null>(null)
   const candidatesPanelRef = useRef<HTMLDivElement>(null)
   const autoSaveRef = useRef(false)
   const textPanelRef = useRef<HTMLDivElement>(null)
@@ -44,6 +44,18 @@ export function ReviewPage() {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('reviewPage.sortOrder') : null
     return saved === 'chronological' || saved === 'relevance' ? saved : 'relevance'
   })
+
+  type InteractionMode =
+    | { type: 'idle' }
+    | { type: 'adding' }
+    | { type: 'editing'; candidateId: number; lemma: string; pos: string; originalFragment: string }
+
+  const [interactionMode, setInteractionMode] = useState<InteractionMode>({ type: 'idle' })
+  const [popoverState, setPopoverState] = useState<{
+    phrase: string
+    position: { x: number; y: number; yBottom: number }
+  } | null>(null)
+  const [flashCandidateId, setFlashCandidateId] = useState<number | null>(null)
 
   useEffect(() => {
     localStorage.setItem('reviewPage.sortOrder', sortOrder)
@@ -197,27 +209,61 @@ export function ReviewPage() {
     setHoveredId(id)
   }, [])
 
-  const handleEditFragment = useCallback((candidateId: number) => {
-    setEditingFragmentFor(candidateId)
+  const handleStartAdding = useCallback(() => {
+    setInteractionMode({ type: 'adding' })
+    setPopoverState(null)
   }, [])
 
-  const handleCancelEditFragment = useCallback(() => {
-    setEditingFragmentFor(null)
+  const handleStartEditing = useCallback((candidateId: number) => {
+    const candidate = candidatesRef.current.find(c => c.id === candidateId)
+    if (!candidate) return
+    setInteractionMode({
+      type: 'editing',
+      candidateId,
+      lemma: candidate.lemma,
+      pos: candidate.pos,
+      originalFragment: candidate.context_fragment,
+    })
+    setPopoverState(null)
   }, [])
 
-  const handleSetFragment = useCallback(async (fragment: string) => {
-    if (editingFragmentFor === null) return
-    await api.updateCandidateFragment(editingFragmentFor, fragment)
-    setCandidates((prev) =>
-      prev.map((c) => (c.id === editingFragmentFor ? { ...c, context_fragment: fragment } : c)),
+  const handleCancelMode = useCallback(() => {
+    setInteractionMode({ type: 'idle' })
+    setPopoverState(null)
+    window.getSelection()?.removeAllRanges()
+  }, [])
+
+  const handleTextSelected = useCallback((
+    phrase: string,
+    position: { x: number; y: number; yBottom: number },
+  ) => {
+    if (interactionMode.type === 'idle') return
+    setPopoverState({ phrase, position })
+  }, [interactionMode.type])
+
+  const handlePopoverCancel = useCallback(() => {
+    setPopoverState(null)
+    window.getSelection()?.removeAllRanges()
+  }, [])
+
+  const handleSetBoundary = useCallback(async (phrase: string) => {
+    if (interactionMode.type !== 'editing') return
+    await api.updateCandidateFragment(interactionMode.candidateId, phrase)
+    setCandidates(prev =>
+      prev.map(c => c.id === interactionMode.candidateId ? { ...c, context_fragment: phrase } : c),
     )
-    setEditingFragmentFor(null)
-  }, [editingFragmentFor])
+    setInteractionMode({ type: 'idle' })
+    setPopoverState(null)
+    window.getSelection()?.removeAllRanges()
+  }, [interactionMode])
 
-  const handleManualAdd = useCallback(async (surfaceForm: string, contextFragment: string) => {
-    await api.addManualCandidate(sourceId, surfaceForm, contextFragment)
-    // Re-fetch from backend so sort_order is applied consistently
+  const handleAddWord = useCallback(async (target: string, context: string) => {
+    const result = await api.addManualCandidate(sourceId, target, context)
+    setInteractionMode({ type: 'idle' })
+    setPopoverState(null)
+    window.getSelection()?.removeAllRanges()
     await loadCandidates()
+    setFlashCandidateId(result.id)
   }, [sourceId, loadCandidates])
 
   const handleWordClick = useCallback((candidateId: number) => {
@@ -390,6 +436,38 @@ export function ReviewPage() {
     void api.updateSourceStatus(sourceId, newStatus)
   }, [candidates, loading, sourceId])
 
+  useEffect(() => {
+    if (interactionMode.type === 'idle') return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !popoverState) {
+        handleCancelMode()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [interactionMode.type, popoverState, handleCancelMode])
+
+  useEffect(() => {
+    if (flashCandidateId === null) return
+    const timer = setTimeout(() => {
+      const el = candidatesPanelRef.current?.querySelector(
+        `[data-candidate-id="${flashCandidateId}"]`,
+      ) as HTMLElement | null
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        // Wait for scroll to finish before starting flash
+        setTimeout(() => {
+          el.classList.add('card-flash')
+          el.addEventListener('animationend', () => {
+            el.classList.remove('card-flash')
+          }, { once: true })
+        }, 500)
+      }
+      setFlashCandidateId(null)
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [flashCandidateId])
+
   const pendingCandidates = useMemo(
     () => candidates.filter((c) => c.status === 'pending'),
     [candidates],
@@ -407,10 +485,6 @@ export function ReviewPage() {
   const hasFailedMeaning = (queueSummary?.meaning.failed ?? 0) > 0
   const hasInflightMedia = ((queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)) > 0
   const hasFailedMedia = (queueSummary?.media.failed ?? 0) > 0
-
-  const editingCandidate = editingFragmentFor !== null
-    ? candidates.find((c) => c.id === editingFragmentFor)
-    : null
 
   const markedCount = ratedCandidates.length
   const learnCount = candidates.filter((c) => c.status === 'learn').length
@@ -436,46 +510,198 @@ export function ReviewPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Page sub-header */}
+      {/* Unified toolbar */}
       <header
-        className="shrink-0 px-6 py-3 flex items-center justify-between gap-4"
+        className="shrink-0 px-4 py-2 flex items-center gap-3"
         style={{ borderBottom: '1px solid var(--glass-b)' }}
       >
+        {/* Back */}
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-1.5 text-sm transition-opacity hover:opacity-100 cursor-pointer"
-          style={{ color: 'var(--tm)', opacity: 0.8 }}
+          className="text-sm transition-opacity hover:opacity-100 cursor-pointer"
+          style={{ color: 'var(--tm)', opacity: 0.7 }}
         >
-          <ArrowLeft size={14} />
-          Back
+          ←
         </button>
 
-        <div className="flex-1 max-w-sm">
-          <div className="flex items-center justify-between text-xs mb-1" style={{ color: 'var(--tm)' }}>
-            <span>Marked: {markedCount} / {candidates.length}</span>
-            <span style={{ color: 'var(--td)' }}>To learn: {learnCount}</span>
-          </div>
-          <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--glass-b)' }}>
-            <div
-              className="h-full transition-all duration-300"
-              style={{ width: `${progress}%`, background: 'var(--grad)' }}
-            />
-          </div>
+        {/* Progress */}
+        <span className="text-xs tabular-nums" style={{ color: 'var(--tm)' }}>
+          {markedCount} / {candidates.length}
+        </span>
+        <div
+          className="h-1 rounded-full overflow-hidden"
+          style={{ width: 80, background: 'var(--glass-b)' }}
+        >
+          <div
+            className="h-full transition-all duration-300"
+            style={{ width: `${progress}%`, background: 'var(--grad)' }}
+          />
         </div>
+        <span className="text-xs" style={{ color: 'var(--td)' }}>
+          learn: {learnCount}
+        </span>
 
-        <div className="flex items-center gap-2">
+        {/* Sort toggle */}
+        {candidates.length > 0 && (
+          <div className="flex p-[2px] rounded-md" style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)' }}>
+            <button
+              onClick={() => setSortOrder('relevance')}
+              className="px-2 py-[2px] rounded-[5px] text-[10px] font-medium transition-all cursor-pointer"
+              style={
+                sortOrder === 'relevance'
+                  ? { background: 'var(--accent)', color: '#fff' }
+                  : { background: 'transparent', color: 'var(--tm)' }
+              }
+              title="Sort by relevance"
+            >
+              A↓
+            </button>
+            <button
+              onClick={() => setSortOrder('chronological')}
+              className="px-2 py-[2px] rounded-[5px] text-[10px] font-medium transition-all cursor-pointer"
+              style={
+                sortOrder === 'chronological'
+                  ? { background: 'var(--accent)', color: '#fff' }
+                  : { background: 'transparent', color: 'var(--tm)' }
+              }
+              title="Sort chronologically"
+            >
+              T↓
+            </button>
+          </div>
+        )}
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Generate Meanings button */}
+        {candidates.length > 0 && (
+          hasInflightMeaning ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--tm)' }}>
+                <Loader2 size={12} className="animate-spin" />
+                Meanings ({(queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)})
+              </span>
+              <button
+                onClick={() => void handleCancelMeanings()}
+                className="text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+                style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : hasFailedMeaning ? (
+            <button
+              onClick={() => void handleRetryFailedMeanings()}
+              className="text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}
+            >
+              Retry meanings ({queueSummary?.meaning.failed})
+            </button>
+          ) : (
+            <button
+              onClick={() => void handleGenerateMeanings()}
+              disabled={generatingIds.size > 0}
+              className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
+              style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+            >
+              <Sparkles size={12} />
+              Meanings
+            </button>
+          )
+        )}
+
+        {/* Generate Media button (video only) */}
+        {source && source.source_type === 'video' && (
+          hasInflightMedia ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--tm)' }}>
+                <Loader2 size={12} className="animate-spin" />
+                Media ({(queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)})
+              </span>
+              <button
+                onClick={() => void handleCancelMedia()}
+                className="text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+                style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : hasFailedMedia ? (
+            <button
+              onClick={() => void handleRetryFailedMedia()}
+              className="text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}
+            >
+              Retry media ({queueSummary?.media.failed})
+            </button>
+          ) : (
+            <button
+              onClick={() => void handleGenerateMedia()}
+              className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+              style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+            >
+              <Film size={12} />
+              Media
+            </button>
+          )
+        )}
+
+        {/* Separator */}
+        <div className="h-4 w-px" style={{ background: 'var(--glass-b)' }} />
+
+        {/* Add button / mode banner */}
+        {interactionMode.type === 'idle' ? (
           <button
-            onClick={() => navigate(`/sources/${sourceId}/export`)}
-            className="rounded-lg px-4 py-1.5 text-sm font-medium transition-all cursor-pointer hover:brightness-110"
-            style={{
-              border:  '1px solid var(--ag)',
-              color:   'var(--accent)',
-              background: 'var(--abg)',
-            }}
+            onClick={handleStartAdding}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+            style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
           >
-            Export →
+            + Add
           </button>
-        </div>
+        ) : interactionMode.type === 'adding' ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
+              Select phrase in text to add
+            </span>
+            <button
+              onClick={handleCancelMode}
+              className="text-xs px-2 py-1 rounded-lg cursor-pointer transition-opacity hover:opacity-100"
+              style={{ color: 'var(--td)', opacity: 0.7 }}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : interactionMode.type === 'editing' ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
+              Select new boundary for <strong>{interactionMode.lemma}</strong>
+            </span>
+            <button
+              onClick={handleCancelMode}
+              className="text-xs px-2 py-1 rounded-lg cursor-pointer transition-opacity hover:opacity-100"
+              style={{ color: 'var(--td)', opacity: 0.7 }}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : null}
+
+        {/* Separator */}
+        <div className="h-4 w-px" style={{ background: 'var(--glass-b)' }} />
+
+        {/* Export */}
+        <button
+          onClick={() => navigate(`/sources/${sourceId}/export`)}
+          className="rounded-lg px-3 py-1 text-xs font-medium transition-all cursor-pointer hover:brightness-110"
+          style={{
+            border: '1px solid var(--ag)',
+            color: 'var(--accent)',
+            background: 'var(--abg)',
+          }}
+        >
+          Export →
+        </button>
       </header>
 
       {/* Split panels */}
@@ -485,110 +711,14 @@ export function ReviewPage() {
           ref={candidatesPanelRef}
           className="overflow-y-auto p-4 flex flex-col gap-3"
           style={{
-            // Fixed 832px on wide screens (so toggling sidebar doesn't reflow the candidates panel),
-            // shrinks proportionally on narrow viewports, never below 360px (tablet-friendly).
             width: 'clamp(360px, 832px, 60vw)',
             flexShrink: 0,
             borderRight: '1px solid var(--glass-b)',
+            opacity: interactionMode.type !== 'idle' ? 0.4 : 1,
+            transition: 'opacity 200ms ease',
+            pointerEvents: interactionMode.type !== 'idle' ? 'none' : 'auto',
           }}
         >
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-3">
-              <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--td)' }}>
-                Candidates {candidates.length > 0 && `(${candidates.length})`}
-              </h2>
-              {candidates.length > 0 && (
-                <div className="flex p-[2px] rounded-md" style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)' }}>
-                  {(['relevance', 'chronological'] as const).map((opt) => (
-                    <button
-                      key={opt}
-                      onClick={() => setSortOrder(opt)}
-                      className="px-2.5 py-[3px] rounded-[5px] text-[10px] font-medium uppercase tracking-wider transition-all cursor-pointer"
-                      style={
-                        sortOrder === opt
-                          ? { background: 'var(--accent)', color: '#fff' }
-                          : { background: 'transparent', color: 'var(--tm)' }
-                      }
-                    >
-                      {opt === 'relevance' ? 'By relevance' : 'Chronologically'}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              {candidates.length > 0 && (
-                hasInflightMeaning ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs" style={{ color: 'var(--tm)' }}>
-                      Meanings: {(queueSummary?.meaning.running ?? 0) > 0 ? 'running' : 'queued'}
-                      {' '}({(queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)})
-                    </span>
-                    <button
-                      onClick={() => void handleCancelMeanings()}
-                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-                      style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => void handleGenerateMeanings()}
-                    disabled={generatingIds.size > 0}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
-                    style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
-                  >
-                    <Sparkles size={12} />
-                    Generate Meanings
-                  </button>
-                )
-              )}
-              {hasFailedMeaning && !hasInflightMeaning && (
-                <button
-                  onClick={() => void handleRetryFailedMeanings()}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-                  style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}
-                >
-                  Retry failed ({queueSummary?.meaning.failed})
-                </button>
-              )}
-              {source && source.source_type === 'video' && (
-                hasInflightMedia ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--tm)' }}>
-                      <Loader2 size={12} className="animate-spin" />
-                      Media ({(queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)})
-                    </span>
-                    <button
-                      onClick={() => void handleCancelMedia()}
-                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-                      style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : hasFailedMedia ? (
-                  <button
-                    onClick={() => void handleRetryFailedMedia()}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-                    style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}
-                  >
-                    Retry media ({queueSummary?.media.failed})
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => void handleGenerateMedia()}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-                    style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
-                  >
-                    <Film size={12} />
-                    Generate Media
-                  </button>
-                )
-              )}
-            </div>
-          </div>
 
           {candidates.length === 0 ? (
             <div className="rounded-xl border border-dashed p-6 text-center" style={{ borderColor: 'var(--glass-b)' }}>
@@ -609,9 +739,9 @@ export function ReviewPage() {
                 onHoverEnter={handleCardHoverEnter}
                 onHoverLeave={() => setHoveredId(null)}
                 onMark={handleMark}
-                onEditFragment={handleEditFragment}
-                onCancelEditFragment={handleCancelEditFragment}
-                isEditingFragment={editingFragmentFor === c.id}
+                onEditFragment={handleStartEditing}
+                onCancelEditFragment={handleCancelMode}
+                isEditingFragment={interactionMode.type === 'editing' && interactionMode.candidateId === c.id}
                 onGenerateMeaning={(id) => void handleGenerate(id)}
                 isGenerating={generatingIds.has(c.id)}
                 onFollowUp={(id, action, text) => void handleFollowUp(id, action, text)}
@@ -646,9 +776,9 @@ export function ReviewPage() {
                   onHoverEnter={handleCardHoverEnter}
                   onHoverLeave={() => setHoveredId(null)}
                   onMark={handleMark}
-                  onEditFragment={handleEditFragment}
-                  onCancelEditFragment={handleCancelEditFragment}
-                  isEditingFragment={editingFragmentFor === c.id}
+                  onEditFragment={handleStartEditing}
+                  onCancelEditFragment={handleCancelMode}
+                  isEditingFragment={interactionMode.type === 'editing' && interactionMode.candidateId === c.id}
                   onGenerateMeaning={(id) => void handleGenerate(id)}
                   isGenerating={generatingIds.has(c.id)}
                   screenshotUrl={mediaMap[c.id]?.screenshotUrl}
@@ -666,30 +796,16 @@ export function ReviewPage() {
         </div>
 
         {/* Right: text */}
-        <div ref={textPanelRef} className="flex-1 overflow-y-auto p-6">
-          <h2 className="text-xs font-medium uppercase tracking-wider mb-4" style={{ color: 'var(--td)' }}>
-            Source text
-          </h2>
-
-          {editingFragmentFor !== null && (
-            <div
-              className="mb-4 flex items-center justify-between rounded-lg px-3 py-2 text-xs"
-              style={{ background: 'var(--abg)', border: '1px solid var(--ag)' }}
-            >
-              <span style={{ color: 'var(--accent)' }}>
-                ✏ Selecting boundary for:{' '}
-                <strong>{editingCandidate?.lemma ?? '…'}</strong>
-              </span>
-              <button
-                onClick={handleCancelEditFragment}
-                className="cursor-pointer transition-opacity hover:opacity-100"
-                style={{ color: 'var(--tm)', opacity: 0.7 }}
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-
+        <div
+          ref={textPanelRef}
+          className="flex-1 overflow-y-auto p-6"
+          style={{
+            ...(interactionMode.type !== 'idle' && {
+              boxShadow: 'inset 0 0 20px rgba(139,92,246,0.05)',
+              outline: '1.5px solid rgba(139,92,246,0.3)',
+            }),
+          }}
+        >
           <TextAnnotator
             text={annotationText}
             candidates={candidates}
@@ -697,11 +813,31 @@ export function ReviewPage() {
             ratedIds={ratedIds}
             onWordClick={handleWordClick}
             onWordHover={handleTextHover}
-            onManualAdd={handleManualAdd}
-            editingFragmentFor={editingFragmentFor}
-            editingFragmentLemma={editingCandidate?.lemma ?? null}
-            onSetFragment={handleSetFragment}
+            onTextSelected={handleTextSelected}
+            editingFragmentFor={interactionMode.type === 'editing' ? interactionMode.candidateId : null}
+            disableHoverDimming={interactionMode.type === 'adding'}
           />
+          {popoverState && interactionMode.type === 'editing' && (
+            <TextSelectionPopover
+              mode="edit"
+              selectedText={popoverState.phrase}
+              position={popoverState.position}
+              onCancel={handlePopoverCancel}
+              lemma={interactionMode.lemma}
+              pos={interactionMode.pos}
+              originalFragment={interactionMode.originalFragment}
+              onSetBoundary={handleSetBoundary}
+            />
+          )}
+          {popoverState && interactionMode.type === 'adding' && (
+            <TextSelectionPopover
+              mode="add"
+              selectedText={popoverState.phrase}
+              position={popoverState.position}
+              onCancel={handlePopoverCancel}
+              onAddWord={handleAddWord}
+            />
+          )}
         </div>
       </div>
 
