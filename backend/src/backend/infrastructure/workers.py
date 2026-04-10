@@ -25,6 +25,7 @@ from typing import Any
 from arq.connections import RedisSettings
 
 from backend.domain.exceptions import PermanentAIError, PermanentMediaError
+from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.container import Container
 from backend.infrastructure.logging_setup import configure_logging
 
@@ -45,6 +46,16 @@ async def extract_media_for_candidate(ctx: dict[str, Any], candidate_id: int) ->
         with container.session_scope() as session:
             use_case = container.media_extraction_use_case(session)
             use_case.execute_one(candidate_id)
+
+        # Check if all media done → clean up YouTube video
+        with container.session_scope() as session:
+            from backend.infrastructure.persistence.sqla_candidate_repository import (
+                SqlaCandidateRepository,
+            )
+            cand = SqlaCandidateRepository(session).get_by_id(candidate_id)
+            if cand is not None:
+                cleanup = container.cleanup_youtube_video_use_case(session)
+                cleanup.execute(cand.source_id)
     except PermanentMediaError as exc:
         logger.warning(
             "extract_media_for_candidate: permanent error for candidate %d: %s",
@@ -100,6 +111,30 @@ async def generate_meanings_batch(
             )
 
 
+async def download_youtube_video(ctx: dict[str, Any], source_id: int) -> None:
+    """Download YouTube video for later media extraction."""
+    container: Container = ctx["container"]
+
+    try:
+        with container.session_scope() as session:
+            use_case = container.download_video_use_case(session)
+            use_case.execute(source_id)
+    except Exception as exc:
+        logger.exception(
+            "download_youtube_video: error for source %d", source_id,
+        )
+        with container.session_scope() as session:
+            from backend.infrastructure.persistence.sqla_source_repository import (
+                SqlaSourceRepository,
+            )
+            repo = SqlaSourceRepository(session)
+            repo.update_status(
+                source_id,
+                SourceStatus.ERROR,
+                error_message=f"Video download failed: {exc}",
+            )
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     logger.info("ARQ worker starting up")
     ctx["container"] = Container()
@@ -110,7 +145,7 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
-    functions = [extract_media_for_candidate, generate_meanings_batch]
+    functions = [extract_media_for_candidate, generate_meanings_batch, download_youtube_video]
     redis_settings = RedisSettings.from_dsn(
         os.environ.get("REDIS_URL", "redis://localhost:6379")
     )
