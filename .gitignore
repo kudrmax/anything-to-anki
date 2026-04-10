@@ -19,3 +19,4 @@ kanban/
 .coverage
 coverage-*.json
 htmlcov/
+/.claude/worktrees
