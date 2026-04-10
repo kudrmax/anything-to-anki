@@ -176,16 +176,15 @@ export function ReviewPage() {
 
     // Capture the next pending candidate BEFORE marking — once we mark,
     // this one is removed from the pending list and 'next' shifts.
+    const pending = candidatesRef.current.filter((c) => c.status === 'pending')
+    const idx = pending.findIndex((c) => c.id === candidateId)
+    const nextPending = idx >= 0 && idx + 1 < pending.length ? pending[idx + 1] : null
+
     let nextToPlay: { id: number; url: string } | null = null
-    if (autoPlayAudioPref.read()) {
-      const pending = candidatesRef.current.filter((c) => c.status === 'pending')
-      const idx = pending.findIndex((c) => c.id === candidateId)
-      if (idx >= 0 && idx + 1 < pending.length) {
-        const next = pending[idx + 1]
-        const url = audioUrlForCandidate(next, sourceId)
-        if (url && next.id !== null) {
-          nextToPlay = { id: next.id, url }
-        }
+    if (nextPending && autoPlayAudioPref.read()) {
+      const url = audioUrlForCandidate(nextPending, sourceId)
+      if (url && nextPending.id !== null) {
+        nextToPlay = { id: nextPending.id, url }
       }
     }
 
@@ -193,6 +192,10 @@ export function ReviewPage() {
     setCandidates((prev) =>
       prev.map((c) => (c.id === candidateId ? { ...c, status } : c)),
     )
+
+    // Sync right panel context to the next pending candidate
+    hoverFromCardRef.current = true
+    setHoveredId(nextPending?.id ?? null)
 
     if (nextToPlay) {
       playAudio(nextToPlay.id, nextToPlay.url)
