@@ -52,6 +52,7 @@ export function ReviewPage() {
   const [queueSummary, setQueueSummary] = useState<QueueSummary | null>(null)
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
   const [vpnBlocked, setVpnBlocked] = useState(false)
+  const [downloadingVideo, setDownloadingVideo] = useState(false)
   const [mediaMap, setMediaMap] = useState<Record<number, { screenshotUrl: string | null; audioUrl: string | null }>>({})
   const [sortOrder, setSortOrder] = useState<CandidateSortOrder>(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('reviewPage.sortOrder') : null
@@ -634,16 +635,37 @@ export function ReviewPage() {
 
         {/* Download Media button (YouTube source without downloaded video) */}
         {source && source.content_type === 'video' && !source.video_downloaded && (
-          <button
-            onClick={() => void api.downloadVideo(source.id).then(() =>
-              api.getSource(sourceId, sortOrder).then(setSource).catch(() => undefined)
-            )}
-            className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-            style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
-          >
-            <Film size={12} />
-            Download Media
-          </button>
+          downloadingVideo ? (
+            <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--tm)' }}>
+              <Loader2 size={12} className="animate-spin" />
+              Downloading video…
+            </span>
+          ) : (
+            <button
+              onClick={async () => {
+                setDownloadingVideo(true)
+                try {
+                  await api.downloadVideo(source.id)
+                  const poll = setInterval(() => {
+                    void api.getSource(sourceId, sortOrder).then((updated) => {
+                      setSource(updated)
+                      if (updated.video_downloaded) {
+                        clearInterval(poll)
+                        setDownloadingVideo(false)
+                      }
+                    }).catch(() => undefined)
+                  }, 3000)
+                } catch {
+                  setDownloadingVideo(false)
+                }
+              }}
+              className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+              style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+            >
+              <Film size={12} />
+              Download Media
+            </button>
+          )
         )}
 
         {/* Generate Media button (video only, after video is downloaded) */}
