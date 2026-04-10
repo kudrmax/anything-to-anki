@@ -16,6 +16,18 @@ import { TextAnnotator } from '@/components/TextAnnotator'
 import { TextSelectionPopover } from '@/components/TextSelectionPopover'
 import { autoPlayAudioPref } from '@/lib/preferences'
 
+const VPN_ERROR_MARKER = 'Blocked country'
+
+function isVpnError(e: unknown): boolean {
+  return e instanceof Error && e.message.includes(VPN_ERROR_MARKER)
+}
+
+function hasCandidateVpnErrors(candidates: StoredCandidate[]): boolean {
+  return candidates.some(
+    (c) => c.meaning?.status === 'failed' && c.meaning.error?.includes(VPN_ERROR_MARKER),
+  )
+}
+
 function audioUrlForCandidate(candidate: StoredCandidate, sourceId: number): string | null {
   const path = candidate.media?.audio_path
   if (!path) return null
@@ -39,6 +51,7 @@ export function ReviewPage() {
   const [regeneratingMediaIds, setRegeneratingMediaIds] = useState<Set<number>>(new Set())
   const [queueSummary, setQueueSummary] = useState<QueueSummary | null>(null)
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
+  const [vpnBlocked, setVpnBlocked] = useState(false)
   const [mediaMap, setMediaMap] = useState<Record<number, { screenshotUrl: string | null; audioUrl: string | null }>>({})
   const [sortOrder, setSortOrder] = useState<CandidateSortOrder>(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('reviewPage.sortOrder') : null
@@ -112,6 +125,7 @@ export function ReviewPage() {
       api.getSourceCards(sourceId).catch(() => [] as CardPreview[]),
     ])
     setCandidates(cands)
+    if (hasCandidateVpnErrors(cands)) setVpnBlocked(true)
     const map: Record<number, { screenshotUrl: string | null; audioUrl: string | null }> = {}
     for (const card of cards) {
       map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }
@@ -298,7 +312,8 @@ export function ReviewPage() {
       )
       setToast({ text: `Tokens used: ${res.tokens_used}`, key: Date.now() })
     } catch (e) {
-      setToast({ text: e instanceof Error ? e.message : 'Generation failed', key: Date.now() })
+      if (isVpnError(e)) setVpnBlocked(true)
+      else setToast({ text: e instanceof Error ? e.message : 'Generation failed', key: Date.now() })
     } finally {
       setGeneratingIds((prev) => {
         const next = new Set(prev)
@@ -329,7 +344,8 @@ export function ReviewPage() {
       )
       setToast({ text: `Tokens used: ${res.tokens_used}`, key: Date.now() })
     } catch (e) {
-      setToast({ text: e instanceof Error ? e.message : 'Follow-up failed', key: Date.now() })
+      if (isVpnError(e)) setVpnBlocked(true)
+      else setToast({ text: e instanceof Error ? e.message : 'Follow-up failed', key: Date.now() })
     } finally {
       setGeneratingIds((prev) => {
         const next = new Set(prev)
@@ -345,7 +361,8 @@ export function ReviewPage() {
       await loadCandidates()
       await loadQueueSummary()
     } catch (e) {
-      setToast({ text: e instanceof Error ? e.message : 'Failed to enqueue meanings', key: Date.now() })
+      if (isVpnError(e)) setVpnBlocked(true)
+      else setToast({ text: e instanceof Error ? e.message : 'Failed to enqueue meanings', key: Date.now() })
     }
   }, [sourceId, sortOrder, loadCandidates, loadQueueSummary])
 
@@ -385,7 +402,8 @@ export function ReviewPage() {
       await loadCandidates()
       await loadQueueSummary()
     } catch (e) {
-      setToast({ text: e instanceof Error ? e.message : 'Failed to retry', key: Date.now() })
+      if (isVpnError(e)) setVpnBlocked(true)
+      else setToast({ text: e instanceof Error ? e.message : 'Failed to retry', key: Date.now() })
     }
   }, [sourceId, loadCandidates, loadQueueSummary])
 
@@ -706,6 +724,22 @@ export function ReviewPage() {
           Export →
         </button>
       </header>
+
+      {vpnBlocked && (
+        <div
+          className="shrink-0 px-4 py-2.5 flex items-center justify-between text-xs font-medium"
+          style={{ background: 'rgba(239,68,68,.15)', borderBottom: '1px solid rgba(239,68,68,.3)', color: '#f87171' }}
+        >
+          <span>AI unavailable — turn on VPN</span>
+          <button
+            onClick={() => setVpnBlocked(false)}
+            className="ml-4 opacity-60 hover:opacity-100 cursor-pointer"
+            style={{ color: '#f87171' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Split panels */}
       <div className="flex-1 overflow-hidden flex">

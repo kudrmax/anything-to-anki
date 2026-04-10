@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import httpx
 import uvicorn
 
 # Import directly — this script runs on the host where claude-agent-sdk is installed.
@@ -80,12 +81,41 @@ _BATCH_SCHEMA: dict[str, Any] = {
 }
 
 
+BLOCKED_COUNTRIES: frozenset[str] = frozenset({"RU"})
+_COUNTRY_CHECK_TIMEOUT = 5
+
+
+async def _get_country() -> str | None:
+    """Return ISO country code for the host's public IP, or None on failure."""
+    try:
+        async with httpx.AsyncClient(timeout=_COUNTRY_CHECK_TIMEOUT) as client:
+            resp = await client.get("https://ipinfo.io/json")
+            resp.raise_for_status()
+            return resp.json().get("country")  # type: ignore[no-any-return]
+    except Exception:
+        logger.warning("Country check failed (network error)")
+        return None
+
+
+def _ensure_country_allowed(country: str | None) -> None:
+    """Raise HTTPException(503) if country is in the blocklist."""
+    if country is not None and country in BLOCKED_COUNTRIES:
+        logger.error("Blocked country detected: %s. Turn on VPN.", country)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Blocked country: {country}. Turn on VPN.",
+        )
+
+
 async def _generate_structured(
     system_prompt: str,
     user_prompt: str,
     model: str,
     schema: dict[str, Any],
 ) -> tuple[Any, int]:
+    country = await _get_country()
+    _ensure_country_allowed(country)
+
     # Note: max_turns is NOT set — structured output requires multiple internal turns
     # (tool invocation turn + final result turn). Setting max_turns=1 causes error_max_turns.
     def _on_stderr(line: str) -> None:

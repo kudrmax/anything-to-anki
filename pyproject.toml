@@ -10,6 +10,7 @@ ai-proxy = [
     "pydantic>=2.0",
     "claude-agent-sdk>=0.1.56",
     "structlog>=24.0",
+    "httpx[socks]>=0.27",
 ]
 
 [build-system]
