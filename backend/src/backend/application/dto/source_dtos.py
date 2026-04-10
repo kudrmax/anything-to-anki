@@ -29,6 +29,9 @@ class SourceDTO(BaseModel):
     raw_text_preview: str
     status: str
     source_type: str
+    content_type: str
+    source_url: str | None = None
+    video_downloaded: bool = False
     created_at: datetime
     candidate_count: int
     learn_count: int
@@ -88,6 +91,9 @@ class SourceDetailDTO(BaseModel):
     cleaned_text: str | None
     status: str
     source_type: str
+    content_type: str
+    source_url: str | None = None
+    video_downloaded: bool = False
     error_message: str | None
     processing_stage: str | None = None
     created_at: datetime
