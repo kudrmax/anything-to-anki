@@ -632,8 +632,22 @@ export function ReviewPage() {
           )
         )}
 
-        {/* Generate Media button (video only) */}
-        {source && source.source_type === 'video' && (
+        {/* Download Media button (YouTube source without downloaded video) */}
+        {source && source.content_type === 'video' && !source.video_downloaded && (
+          <button
+            onClick={() => void api.downloadVideo(source.id).then(() =>
+              api.getSource(sourceId, sortOrder).then(setSource).catch(() => undefined)
+            )}
+            className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+            style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+          >
+            <Film size={12} />
+            Download Media
+          </button>
+        )}
+
+        {/* Generate Media button (video only, after video is downloaded) */}
+        {source && source.content_type === 'video' && source.video_downloaded && (
           hasInflightMedia ? (
             <div className="flex items-center gap-2">
               <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--tm)' }}>
@@ -784,7 +798,7 @@ export function ReviewPage() {
                 onFollowUp={(id, action, text) => void handleFollowUp(id, action, text)}
                 screenshotUrl={mediaMap[c.id]?.screenshotUrl}
                 audioUrl={mediaMap[c.id]?.audioUrl}
-                onRegenerateMedia={source?.source_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
+                onRegenerateMedia={source?.content_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                 isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
                 hasMediaTimecodes={c.media?.start_ms != null}
                 isAudioPlaying={playingCandidateId === c.id}
@@ -820,7 +834,7 @@ export function ReviewPage() {
                   isGenerating={generatingIds.has(c.id)}
                   screenshotUrl={mediaMap[c.id]?.screenshotUrl}
                   audioUrl={mediaMap[c.id]?.audioUrl}
-                  onRegenerateMedia={source?.source_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
+                  onRegenerateMedia={source?.content_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                   isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
                   hasMediaTimecodes={c.media?.start_ms != null}
                   isAudioPlaying={playingCandidateId === c.id}

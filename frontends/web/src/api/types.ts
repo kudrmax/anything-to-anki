@@ -6,7 +6,9 @@ export type SourceStatus =
   | 'partially_reviewed'
   | 'reviewed'
 
-export type SourceType = 'text' | 'lyrics' | 'subtitles' | 'book' | 'video' | 'article'
+export type InputMethod = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file' | 'video_file' | 'youtube_url'
+export type ContentType = 'text' | 'lyrics' | 'video'
+export type SourceType = InputMethod
 
 export type ProcessingStage = 'cleaning_source' | 'analyzing_text'
 
@@ -20,6 +22,9 @@ export interface SourceSummary {
   raw_text_preview: string
   status: SourceStatus
   source_type: SourceType
+  content_type: ContentType
+  source_url: string | null
+  video_downloaded: boolean
   created_at: string
   candidate_count: number
   learn_count: number
@@ -73,6 +78,9 @@ export interface SourceDetail {
   cleaned_text: string | null
   status: SourceStatus
   source_type: SourceType
+  content_type: ContentType
+  source_url: string | null
+  video_downloaded: boolean
   error_message: string | null
   processing_stage: ProcessingStage | null
   created_at: string
