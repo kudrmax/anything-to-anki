@@ -319,7 +319,7 @@ function AddWordContent({
             style={{
               color: 'var(--tm)',
               opacity: hasSelection && !selected.has(i) ? 0.5 : 1,
-              background: selected.has(i) ? 'rgba(139,92,246,0.2)' : 'transparent',
+              background: selected.has(i) ? 'var(--abg)' : 'transparent',
               borderBottom: selected.has(i) ? '2px solid var(--accent)' : '2px solid transparent',
               borderRadius: '2px',
               padding: '1px 2px',
@@ -373,6 +373,9 @@ function AddWordContent({
 
 export function TextSelectionPopover(props: TextSelectionPopoverProps) {
   const { mode, selectedText, position, onCancel } = props
+
+  if (mode === 'edit' && (!props.lemma || !props.originalFragment || !props.onSetBoundary)) return null
+  if (mode === 'add' && !props.onAddWord) return null
 
   return (
     <PopoverShell position={position} onCancel={onCancel}>
