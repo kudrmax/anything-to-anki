@@ -169,6 +169,44 @@ class TestMediaExtractionUseCase:
         with patch(exists_path, return_value=False), pytest.raises(BadVideoFormatError):
             uc.execute_one(10)
 
+    def test_execute_one_raises_permanent_when_source_not_found(self) -> None:
+        """source_repo.get_by_id returns None → PermanentMediaError (line 62)."""
+        candidate = _make_candidate(10)
+        uc, _, _, source_repo, _ = self._make_uc(candidate=candidate, source=None)
+        # source_repo already returns None by default from _make_uc
+
+        with pytest.raises(PermanentMediaError, match="Source .* not found"):
+            uc.execute_one(10)
+
+    def test_execute_one_skips_upsert_when_cancelled_during_ffmpeg(self) -> None:
+        """If the user cancels while ffmpeg runs, the row's status changes
+        from RUNNING to FAILED. The use case must skip the upsert to avoid
+        overwriting the user's cancellation (lines 87-91)."""
+        candidate = _make_candidate(10)
+        source = _make_source("/tmp/movie.mp4")
+
+        uc, _, media_repo, _, _ = self._make_uc(candidate, source)
+        # Pre-upsert check: status is FAILED (cancelled by user)
+        media_repo.get_by_candidate_id.return_value = CandidateMedia(
+            candidate_id=10,
+            screenshot_path=None,
+            audio_path=None,
+            start_ms=1000,
+            end_ms=2000,
+            status=EnrichmentStatus.FAILED,
+            error="cancelled by user",
+            generated_at=None,
+        )
+
+        base = "backend.application.use_cases.run_media_extraction_job.os"
+        with (
+            patch(f"{base}.path.exists", return_value=True),
+            patch(f"{base}.makedirs"),
+        ):
+            uc.execute_one(10)
+
+        media_repo.upsert.assert_not_called()
+
     def test_execute_one_propagates_extractor_error(self) -> None:
         candidate = _make_candidate(10)
         source = _make_source("/tmp/movie.mp4")
