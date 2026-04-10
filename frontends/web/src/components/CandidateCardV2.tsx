@@ -626,12 +626,6 @@ export function CandidateCardV2({
             &ldquo;{highlightWord(candidate.context_fragment, candidate.lemma, candidate.surface_form)}&rdquo;
           </p>
 
-          {isEditingFragment && (
-            <p style={{ margin: '0 0 10px', fontSize: '12px', color: 'var(--accent)', opacity: 0.8 }}>
-              Select new boundary in text →
-            </p>
-          )}
-
           {candidate.meaning?.meaning ? (
             <div style={{ marginTop: '10px' }}>
               {candidate.meaning.meaning
