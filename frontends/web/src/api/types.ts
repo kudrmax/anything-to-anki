@@ -188,3 +188,10 @@ export interface SourceMediaStats {
 }
 
 export type CleanupMediaKind = 'all' | 'images' | 'audio'
+
+export type FollowUpAction =
+  | 'give_examples'
+  | 'explain_detail'
+  | 'explain_simpler'
+  | 'how_to_say'
+  | 'free_question'

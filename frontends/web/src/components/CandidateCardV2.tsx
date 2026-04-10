@@ -1,7 +1,14 @@
-import { useState } from 'react'
-import { BookOpen, Film, Info, Languages, Loader2, Pencil, Play, Sparkles, Square, X } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { BookOpen, ChevronDown, Film, Info, Languages, Loader2, MessageCircle, Pencil, Play, Sparkles, Square, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { CandidateStatus, StoredCandidate } from '@/api/types'
+import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
+
+const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string }[] = [
+  { action: 'give_examples', label: 'Give examples' },
+  { action: 'explain_detail', label: 'Explain in detail' },
+  { action: 'explain_simpler', label: 'Explain simpler' },
+  { action: 'how_to_say', label: 'How to say it' },
+]
 
 interface CandidateCardV2Props {
   candidate: StoredCandidate
@@ -16,6 +23,7 @@ interface CandidateCardV2Props {
   isEditingFragment?: boolean
   onGenerateMeaning?: (id: number) => void
   isGenerating?: boolean
+  onFollowUp?: (id: number, action: FollowUpAction, text?: string) => void
   screenshotUrl?: string | null
   audioUrl?: string | null
   onRegenerateMedia?: (id: number) => void
@@ -178,6 +186,7 @@ export function CandidateCardV2({
   isEditingFragment,
   onGenerateMeaning,
   isGenerating,
+  onFollowUp,
   screenshotUrl,
   audioUrl,
   onRegenerateMedia,
@@ -188,6 +197,10 @@ export function CandidateCardV2({
   onStopAudio,
 }: CandidateCardV2Props) {
   const [showInfo, setShowInfo] = useState(false)
+  const [showFollowUp, setShowFollowUp] = useState(false)
+  const [showFreeInput, setShowFreeInput] = useState(false)
+  const [freeText, setFreeText] = useState('')
+  const followUpRef = useRef<HTMLDivElement>(null)
 
   const toggleAudio = (url: string) => {
     if (isAudioPlaying) {
@@ -273,6 +286,82 @@ export function CandidateCardV2({
             >
               {isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
             </ToolbarButton>
+          )}
+          {onFollowUp && candidate.meaning?.meaning && (
+            <div
+              className="relative"
+              ref={followUpRef}
+              onMouseLeave={() => { setShowFollowUp(false); setShowFreeInput(false) }}
+            >
+              <ToolbarButton
+                onClick={() => setShowFollowUp((v) => !v)}
+                disabled={isGenerating}
+                ariaLabel="Follow-up actions"
+                title="Ask a follow-up about this word"
+              >
+                <MessageCircle size={11} />
+                <ChevronDown size={9} style={{ marginLeft: '-2px' }} />
+              </ToolbarButton>
+              {showFollowUp && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: '4px',
+                  background: 'rgba(15,17,30,0.95)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: '8px',
+                  padding: '4px 0',
+                  zIndex: 20,
+                  minWidth: '180px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                }}>
+                  {FOLLOW_UP_PRESETS.map((preset) => (
+                    <button
+                      key={preset.action}
+                      onClick={() => {
+                        onFollowUp(candidate.id, preset.action)
+                        setShowFollowUp(false)
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
+                      style={{ color: '#cbd5e1' }}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                  <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+                  {showFreeInput ? (
+                    <div className="px-3 py-1.5 flex gap-1">
+                      <input
+                        type="text"
+                        value={freeText}
+                        onChange={(e) => setFreeText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && freeText.trim()) {
+                            onFollowUp(candidate.id, 'free_question', freeText.trim())
+                            setFreeText('')
+                            setShowFollowUp(false)
+                            setShowFreeInput(false)
+                          }
+                        }}
+                        placeholder="Your question..."
+                        autoFocus
+                        className="flex-1 px-2 py-1 rounded text-xs bg-white/[0.06] border border-white/[0.1] outline-none"
+                        style={{ color: '#cbd5e1' }}
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowFreeInput(true)}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
+                      style={{ color: '#94a3b8' }}
+                    >
+                      Ask a question...
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
           {onRegenerateMedia && hasMediaTimecodes && (
             <ToolbarButton

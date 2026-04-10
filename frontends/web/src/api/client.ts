@@ -5,6 +5,7 @@ import type {
   CandidateStatus,
   CleanupMediaKind,
   CreateNoteTypeResponse,
+  FollowUpAction,
   GenerateMeaningResult,
   KnownWord,
   QueueSummary,
@@ -96,8 +97,13 @@ export const api = {
 
   deleteSource: (id: number) => reqVoid(`/sources/${id}`, { method: 'DELETE' }),
 
-  generateMeaning: (candidateId: number) =>
-    req<GenerateMeaningResult>(`/candidates/${candidateId}/generate-meaning`, { method: 'POST' }),
+  generateMeaning: (candidateId: number, followUpAction?: FollowUpAction, followUpText?: string) =>
+    req<GenerateMeaningResult>(`/candidates/${candidateId}/generate-meaning`, {
+      method: 'POST',
+      body: followUpAction
+        ? JSON.stringify({ action: followUpAction, ...(followUpText ? { text: followUpText } : {}) })
+        : undefined,
+    }),
 
   regenerateCandidateMedia: (candidateId: number) =>
     req<{ status: string }>(`/candidates/${candidateId}/regenerate-media`, { method: 'POST' }),
