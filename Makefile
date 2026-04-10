@@ -37,8 +37,8 @@ endef
 define start_ai_proxy
 	@mkdir -p .pids .logs
 	@[ -d $(AI_VENV) ] || (echo "Creating AI proxy venv..." && \
-	    python3 -m venv $(AI_VENV) && \
-	    $(AI_VENV)/bin/pip install -e ".[ai-proxy]")
+	    python3 -m venv $(AI_VENV))
+	@$(AI_VENV)/bin/pip install -e ".[ai-proxy]"
 	$(call kill_ai_proxy_on_port,$(AI_PROXY_PORT))
 	@$(AI_VENV)/bin/python ai_proxy.py --port $(AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > $(AI_PID); \
 	    echo "AI proxy started on port $(AI_PROXY_PORT) (PID $$(cat $(AI_PID)))"
