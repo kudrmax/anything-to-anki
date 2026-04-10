@@ -89,6 +89,9 @@ test: _python_dev  ## Запустить тесты
 coverage: _python_dev  ## Тесты с отчётом покрытия
 	.venv/bin/python -m pytest --cov --cov-report=term
 
+test-ai: _python_dev  ## Интеграционные тесты AI (реальный ai_proxy + Claude API)
+	.venv/bin/python -m pytest -m ai_integration -v
+
 lint: _python_dev  ## Линтинг (ruff)
 	.venv/bin/ruff check .
 
