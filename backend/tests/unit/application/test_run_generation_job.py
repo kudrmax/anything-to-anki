@@ -178,6 +178,73 @@ def test_execute_batch_skips_candidates_with_meaning() -> None:
 
 
 @pytest.mark.unit
+def test_execute_batch_returns_early_when_all_candidates_filtered() -> None:
+    """If every candidate in the batch is either KNOWN/SKIP or already has a
+    meaning, the use case must return without calling the AI service.
+    Covers lines 54-57 (the early-return log path)."""
+    c_already_done = _make_candidate(1, "done", with_meaning=True)
+    c_known = _make_candidate(2, "known")
+    # Change c_known's status to KNOWN via dataclass replace (frozen is False).
+    c_known.status = CandidateStatus.KNOWN
+
+    candidate_repo = MagicMock()
+    candidate_repo.get_by_ids.return_value = [c_already_done, c_known]
+
+    meaning_repo = MagicMock()
+    ai_service = MagicMock()
+
+    use_case = MeaningGenerationUseCase(
+        candidate_repo=candidate_repo,
+        meaning_repo=meaning_repo,
+        ai_service=ai_service,
+        prompts_config=_CONFIG,
+    )
+    use_case.execute_batch([1, 2])
+
+    ai_service.generate_meanings_batch.assert_not_called()
+    meaning_repo.upsert.assert_not_called()
+
+
+@pytest.mark.unit
+def test_execute_batch_skips_candidate_without_ai_result() -> None:
+    """When the AI returns fewer results than requested (e.g. word_index=2
+    missing), the loop must ``continue`` for missing indexes rather than
+    raising KeyError or writing an incomplete row. Covers line 82."""
+    c1 = _make_candidate(1, "first")
+    c2 = _make_candidate(2, "second")
+
+    candidate_repo = MagicMock()
+    candidate_repo.get_by_ids.return_value = [c1, c2]
+
+    meaning_repo = MagicMock()
+    meaning_repo.get_by_candidate_id.side_effect = lambda cid: _running_meaning(cid)
+
+    ai_service = MagicMock()
+    # Only one result, for word_index=1 — word_index=2 is missing.
+    ai_service.generate_meanings_batch.return_value = [
+        BatchMeaningResult(
+            word_index=1,
+            meaning="m",
+            translation="t",
+            synonyms="s",
+            ipa=None,
+        ),
+    ]
+
+    use_case = MeaningGenerationUseCase(
+        candidate_repo=candidate_repo,
+        meaning_repo=meaning_repo,
+        ai_service=ai_service,
+        prompts_config=_CONFIG,
+    )
+    use_case.execute_batch([1, 2])
+
+    # Only c1 should be upserted; c2 silently skipped.
+    assert meaning_repo.upsert.call_count == 1
+    assert meaning_repo.upsert.call_args.args[0].candidate_id == 1
+
+
+@pytest.mark.unit
 def test_execute_batch_skips_cancelled_candidate() -> None:
     c1 = _make_candidate(1, "elaborate")
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from backend.domain.exceptions import (
@@ -21,6 +21,8 @@ from backend.domain.exceptions import (
 from backend.infrastructure.workers import (
     extract_media_for_candidate,
     generate_meanings_batch,
+    shutdown,
+    startup,
 )
 
 if TYPE_CHECKING:
@@ -167,3 +169,30 @@ async def test_extract_media_on_unexpected_error_marks_failed() -> None:
     _, err_arg = media_repo.mark_failed.call_args.args
     assert "OSError" in err_arg
     assert "ffmpeg crashed" in err_arg
+
+
+# --- startup / shutdown ------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_startup_installs_container_in_ctx() -> None:
+    """ARQ calls on_startup once at worker boot. We patch Container to
+    avoid pulling in the full DI graph (which would need spaCy, redis, etc)."""
+    ctx: dict[str, object] = {}
+    sentinel = MagicMock(name="container_instance")
+    with patch(
+        "backend.infrastructure.workers.Container", return_value=sentinel
+    ) as ctor:
+        await startup(ctx)
+    ctor.assert_called_once_with()
+    assert ctx["container"] is sentinel
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_shutdown_runs_without_error() -> None:
+    """ARQ calls on_shutdown at worker exit. It just logs — make sure no
+    exception is raised even when ctx is empty or missing ``container``."""
+    await shutdown({})
+    await shutdown({"container": MagicMock()})

@@ -39,9 +39,22 @@ testpaths = ["backend/tests"]
 markers = [
     "unit: unit tests (no external dependencies)",
     "integration: integration tests (may require external services)",
+    "ai_integration: end-to-end tests through real ai_proxy + Claude API (slow, needs auth)",
 ]
-addopts = "-v --strict-markers"
+addopts = "-v --strict-markers -m 'not ai_integration'"
 asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["backend/src/backend"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "raise NotImplementedError",
+]
 
 [tool.ruff]
 target-version = "py312"
