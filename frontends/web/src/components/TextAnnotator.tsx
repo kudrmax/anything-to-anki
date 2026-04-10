@@ -92,8 +92,6 @@ function buildSegments(text: string, candidates: StoredCandidate[]): TextSegment
   return segments
 }
 
-type PopoverPosition = { x: number; y: number; yBottom: number }
-
 export function TextAnnotator({
   text,
   candidates,
