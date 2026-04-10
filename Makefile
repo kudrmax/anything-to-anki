@@ -1,4 +1,4 @@
-.PHONY: up down logs test coverage lint typecheck help _python_dev _check_env
+.PHONY: up up-worktree down logs test coverage lint typecheck help _python_dev _check_env copy-dev-db
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # docker compose читает .env сам — это только для ai_proxy и echo.
@@ -68,6 +68,31 @@ up: _check_env  ## Запустить (ai_proxy + docker compose)
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "\033[0m\n"
 
+up-worktree: _check_env copy-dev-db  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий worktree)
+	@# Остановить предыдущий worktree на этих портах (если есть)
+	@containers=$$(docker ps --format '{{.ID}} {{.Ports}}' | grep '$(WORKTREE_PORT)->' | awk '{print $$1}'); \
+	if [ -n "$$containers" ]; then \
+	    echo "Stopping previous worktree on port $(WORKTREE_PORT)..."; \
+	    echo "$$containers" | xargs docker stop; \
+	fi
+	$(call kill_ai_proxy_on_port,$(WORKTREE_AI_PROXY_PORT))
+	@mkdir -p .pids .logs
+	@[ -d $(AI_VENV) ] || (echo "Creating AI proxy venv..." && \
+	    python3 -m venv $(AI_VENV))
+	@$(AI_VENV)/bin/pip install -e ".[ai-proxy]"
+	@$(AI_VENV)/bin/python ai_proxy.py --port $(WORKTREE_AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > $(AI_PID); \
+	    echo "AI proxy started on port $(WORKTREE_AI_PROXY_PORT) (PID $$(cat $(AI_PID)))"
+	PORT=$(WORKTREE_PORT) AI_PROXY_PORT=$(WORKTREE_AI_PROXY_PORT) \
+	    COMPOSE_PROJECT_NAME=anything-anki-worktree \
+	    INSTANCE_ENV_NAME=worktree \
+	    docker compose up -d --build
+	@printf "\n$(BANNER_COLOR)"
+	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+	@printf "  AnythingToAnki  [worktree]\n"
+	@printf "  → http://localhost:%s\n" "$(WORKTREE_PORT)"
+	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+	@printf "\033[0m\n"
+
 down:  ## Остановить
 	docker compose down
 	$(call stop_ai_proxy)
@@ -99,32 +124,19 @@ typecheck: _python_dev  ## Проверка типов (mypy)
 	.venv/bin/mypy backend/src
 
 ##@ Worktree
-worktree-setup:  ## Изолированная среда из dev-копии (для git worktree)
+copy-dev-db:  ## Скопировать data/app.db из main worktree
 	@main=$$(git worktree list --porcelain | head -1 | awk '{print $$2}'); \
 	if [ "$$main" = "$$(pwd)" ]; then \
 	    echo "Already in the main worktree, nothing to do."; \
 	    exit 0; \
 	fi; \
-	hash=$$(basename "$$(pwd)" | tail -c 9); \
-	if [ -f .env ]; then \
-	    echo ".env already exists, skipping"; \
-	else \
-	    cp "$$main/.env" .env; \
-	    sed -i '' "s/^PORT=.*/PORT=17833/" .env; \
-	    sed -i '' "s/^AI_PROXY_PORT=.*/AI_PROXY_PORT=8767/" .env; \
-	    sed -i '' "s/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=anything-anki-wt-$$hash/" .env; \
-	    sed -i '' "s/^INSTANCE_ENV_NAME=.*/INSTANCE_ENV_NAME=wt-$$hash/" .env; \
-	    echo "Created .env (PORT=17833, AI_PROXY_PORT=8767, project=anything-anki-wt-$$hash)"; \
-	fi; \
 	mkdir -p data; \
 	if [ -f "$$main/data/app.db" ] && [ ! -f data/app.db ]; then \
 	    cp "$$main/data/app.db" data/app.db; \
-	    echo "Copied app.db (dev snapshot)"; \
+	    echo "Copied app.db from main worktree"; \
 	elif [ -f data/app.db ]; then \
 	    echo "data/app.db already exists, skipping"; \
-	fi; \
-	echo ""; \
-	echo "Done. Run 'make up' to start."
+	fi
 
 ##@ Прочее
 help:  ## Показать доступные команды

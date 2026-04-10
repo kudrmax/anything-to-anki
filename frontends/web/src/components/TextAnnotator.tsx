@@ -9,10 +9,9 @@ interface TextAnnotatorProps {
   ratedIds: Set<number>
   onWordClick: (candidateId: number) => void
   onWordHover: (candidateId: number | null) => void
-  // New: emit selection events instead of managing popovers
   onTextSelected?: (phrase: string, position: { x: number; y: number; yBottom: number }) => void
-  // Keep: needed for dimming effect during edit mode
   editingFragmentFor?: number | null
+  disableHoverDimming?: boolean
 }
 
 const CEFR_HIGHLIGHT: Record<string, string> = {
@@ -101,6 +100,7 @@ export function TextAnnotator({
   onWordHover,
   onTextSelected,
   editingFragmentFor,
+  disableHoverDimming,
 }: TextAnnotatorProps) {
   const segments = buildSegments(text, candidates)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -143,7 +143,7 @@ export function TextAnnotator({
     }
   }
 
-  const isDimming = effectiveHoveredId !== null
+  const isDimming = !disableHoverDimming && effectiveHoveredId !== null
 
   return (
     <div

@@ -812,6 +812,7 @@ export function ReviewPage() {
             onWordHover={handleTextHover}
             onTextSelected={handleTextSelected}
             editingFragmentFor={interactionMode.type === 'editing' ? interactionMode.candidateId : null}
+            disableHoverDimming={interactionMode.type === 'adding'}
           />
           {popoverState && interactionMode.type === 'editing' && (
             <TextSelectionPopover
