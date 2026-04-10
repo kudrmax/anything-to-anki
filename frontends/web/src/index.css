@@ -199,7 +199,10 @@ body {
   border-width: 0.5px;
   border-radius: var(--card-radius);
   position: relative;
-  overflow: hidden;
+}
+[data-theme="liquid-glass"] .glass-card > * {
+  position: relative;
+  z-index: 3;
 }
 
 [data-theme="liquid-glass"] .glass-card::after {
