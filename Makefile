@@ -98,6 +98,34 @@ lint: _python_dev  ## Линтинг (ruff)
 typecheck: _python_dev  ## Проверка типов (mypy)
 	.venv/bin/mypy backend/src
 
+##@ Worktree
+worktree-setup:  ## Изолированная среда из dev-копии (для git worktree)
+	@main=$$(git worktree list --porcelain | head -1 | awk '{print $$2}'); \
+	if [ "$$main" = "$$(pwd)" ]; then \
+	    echo "Already in the main worktree, nothing to do."; \
+	    exit 0; \
+	fi; \
+	hash=$$(basename "$$(pwd)" | tail -c 9); \
+	if [ -f .env ]; then \
+	    echo ".env already exists, skipping"; \
+	else \
+	    cp "$$main/.env" .env; \
+	    sed -i '' "s/^PORT=.*/PORT=17833/" .env; \
+	    sed -i '' "s/^AI_PROXY_PORT=.*/AI_PROXY_PORT=8767/" .env; \
+	    sed -i '' "s/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=anything-anki-wt-$$hash/" .env; \
+	    sed -i '' "s/^INSTANCE_ENV_NAME=.*/INSTANCE_ENV_NAME=wt-$$hash/" .env; \
+	    echo "Created .env (PORT=17833, AI_PROXY_PORT=8767, project=anything-anki-wt-$$hash)"; \
+	fi; \
+	mkdir -p data; \
+	if [ -f "$$main/data/app.db" ] && [ ! -f data/app.db ]; then \
+	    cp "$$main/data/app.db" data/app.db; \
+	    echo "Copied app.db (dev snapshot)"; \
+	elif [ -f data/app.db ]; then \
+	    echo "data/app.db already exists, skipping"; \
+	fi; \
+	echo ""; \
+	echo "Done. Run 'make up' to start."
+
 ##@ Прочее
 help:  ## Показать доступные команды
 	@awk 'BEGIN {FS = ":.*##"; printf "\n"} \
