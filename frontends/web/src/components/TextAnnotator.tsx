@@ -1,8 +1,6 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef } from 'react'
 import type { StoredCandidate } from '@/api/types'
 import { cn } from '@/lib/utils'
-import { SelectionPopover } from '@/components/SelectionPopover'
-import { SetContextPopover } from '@/components/SetContextPopover'
 
 interface TextAnnotatorProps {
   text: string
@@ -11,10 +9,10 @@ interface TextAnnotatorProps {
   ratedIds: Set<number>
   onWordClick: (candidateId: number) => void
   onWordHover: (candidateId: number | null) => void
-  onManualAdd?: (surfaceForm: string, contextFragment: string) => Promise<void>
+  // New: emit selection events instead of managing popovers
+  onTextSelected?: (phrase: string, position: { x: number; y: number; yBottom: number }) => void
+  // Keep: needed for dimming effect during edit mode
   editingFragmentFor?: number | null
-  editingFragmentLemma?: string | null
-  onSetFragment?: (fragment: string) => Promise<void>
 }
 
 const CEFR_HIGHLIGHT: Record<string, string> = {
@@ -96,10 +94,6 @@ function buildSegments(text: string, candidates: StoredCandidate[]): TextSegment
 
 type PopoverPosition = { x: number; y: number; yBottom: number }
 
-type PopoverState =
-  | { mode: 'add'; phrase: string; position: PopoverPosition }
-  | { mode: 'set-context'; phrase: string; position: PopoverPosition }
-
 export function TextAnnotator({
   text,
   candidates,
@@ -107,15 +101,12 @@ export function TextAnnotator({
   ratedIds,
   onWordClick,
   onWordHover,
-  onManualAdd,
+  onTextSelected,
   editingFragmentFor,
-  editingFragmentLemma,
-  onSetFragment,
 }: TextAnnotatorProps) {
   const segments = buildSegments(text, candidates)
   const containerRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
-  const [popover, setPopover] = useState<PopoverState | null>(null)
 
   // In edit mode, always highlight the fragment being edited regardless of hover
   const effectiveHoveredId = editingFragmentFor != null ? editingFragmentFor : hoveredCandidateId
@@ -133,32 +124,12 @@ export function TextAnnotator({
 
     const range = sel.getRangeAt(0)
     const rect = range.getBoundingClientRect()
-    const position: PopoverPosition = { x: rect.left + rect.width / 2, y: rect.top, yBottom: rect.bottom }
-
-    if (editingFragmentFor != null && onSetFragment) {
-      setPopover({ mode: 'set-context', phrase, position })
-    } else if (onManualAdd) {
-      setPopover({ mode: 'add', phrase, position })
-    }
-  }, [editingFragmentFor, onSetFragment, onManualAdd])
-
-  const handlePopoverAdd = useCallback(async (targetTokens: string[], contextFragment: string) => {
-    const surfaceForm = targetTokens.join(' ')
-    await onManualAdd?.(surfaceForm, contextFragment)
-    setPopover(null)
-    window.getSelection()?.removeAllRanges()
-  }, [onManualAdd])
-
-  const handlePopoverSet = useCallback(async (fragment: string) => {
-    await onSetFragment?.(fragment)
-    setPopover(null)
-    window.getSelection()?.removeAllRanges()
-  }, [onSetFragment])
-
-  const handlePopoverClose = useCallback(() => {
-    setPopover(null)
-    window.getSelection()?.removeAllRanges()
-  }, [])
+    onTextSelected?.(phrase, {
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+      yBottom: rect.bottom,
+    })
+  }, [onTextSelected])
 
   // Find fragment bounds in the full text for the effective hovered candidate
   let fragmentStart = -1
@@ -177,7 +148,6 @@ export function TextAnnotator({
   const isDimming = effectiveHoveredId !== null
 
   return (
-    <>
     <div
       ref={containerRef}
       onMouseDown={handleMouseDown}
@@ -248,23 +218,5 @@ export function TextAnnotator({
         )
       })}
     </div>
-    {popover?.mode === 'add' && (
-      <SelectionPopover
-        phrase={popover.phrase}
-        position={popover.position}
-        onAdd={handlePopoverAdd}
-        onClose={handlePopoverClose}
-      />
-    )}
-    {popover?.mode === 'set-context' && (
-      <SetContextPopover
-        phrase={popover.phrase}
-        lemma={editingFragmentLemma ?? ''}
-        position={popover.position}
-        onSet={handlePopoverSet}
-        onClose={handlePopoverClose}
-      />
-    )}
-    </>
   )
 }
