@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from backend.application.utils.timecode_mapping import find_timecodes
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
-from backend.domain.value_objects.source_type import SourceType
+from backend.domain.value_objects.content_type import ContentType
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
@@ -48,7 +48,7 @@ class RegenerateCandidateMediaUseCase:
         source = self._source_repo.get_by_id(candidate.source_id)
         if source is None:
             raise ValueError(f"Source {candidate.source_id} not found")
-        if source.source_type != SourceType.VIDEO:
+        if source.content_type != ContentType.VIDEO:
             raise ValueError(f"Source {source.id} is not a video")
         if source.video_path is None or not os.path.exists(source.video_path):
             raise ValueError(f"Video file missing for source {source.id}")

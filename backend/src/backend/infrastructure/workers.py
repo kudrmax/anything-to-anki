@@ -25,6 +25,8 @@ from typing import Any
 from arq.connections import RedisSettings
 
 from backend.domain.exceptions import PermanentAIError, PermanentMediaError
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.container import Container
 from backend.infrastructure.logging_setup import configure_logging
 
@@ -40,11 +42,31 @@ async def extract_media_for_candidate(ctx: dict[str, Any], candidate_id: int) ->
     with container.session_scope() as session:
         container.candidate_media_repository(session).mark_running(candidate_id)
 
+    # Step 1b: verify mark_running took effect (may have been cancelled)
+    with container.session_scope() as session:
+        media = container.candidate_media_repository(session).get_by_candidate_id(candidate_id)
+        if media is None or media.status != EnrichmentStatus.RUNNING:
+            logger.info(
+                "extract_media_for_candidate: skipped %d (cancelled before start)",
+                candidate_id,
+            )
+            return
+
     # Step 2: run extraction
     try:
         with container.session_scope() as session:
             use_case = container.media_extraction_use_case(session)
             use_case.execute_one(candidate_id)
+
+        # Check if all media done → clean up YouTube video
+        with container.session_scope() as session:
+            from backend.infrastructure.persistence.sqla_candidate_repository import (
+                SqlaCandidateRepository,
+            )
+            cand = SqlaCandidateRepository(session).get_by_id(candidate_id)
+            if cand is not None:
+                cleanup = container.cleanup_youtube_video_use_case(session)
+                cleanup.execute(cand.source_id)
     except PermanentMediaError as exc:
         logger.warning(
             "extract_media_for_candidate: permanent error for candidate %d: %s",
@@ -76,6 +98,21 @@ async def generate_meanings_batch(
         for cid in candidate_ids:
             meaning_repo.mark_running(cid)
 
+    # Step 1b: verify at least one is still RUNNING (may have been cancelled)
+    with container.session_scope() as session:
+        meaning_repo = container.candidate_meaning_repository(session)
+        still_running = [
+            cid for cid in candidate_ids
+            if (m := meaning_repo.get_by_candidate_id(cid)) is not None
+            and m.status == EnrichmentStatus.RUNNING
+        ]
+        if not still_running:
+            logger.info(
+                "generate_meanings_batch: all %d candidates cancelled before start",
+                len(candidate_ids),
+            )
+            return
+
     # Step 2: run generation
     try:
         with container.session_scope() as session:
@@ -100,6 +137,30 @@ async def generate_meanings_batch(
             )
 
 
+async def download_youtube_video(ctx: dict[str, Any], source_id: int) -> None:
+    """Download YouTube video for later media extraction."""
+    container: Container = ctx["container"]
+
+    try:
+        with container.session_scope() as session:
+            use_case = container.download_video_use_case(session)
+            use_case.execute(source_id)
+    except Exception as exc:
+        logger.exception(
+            "download_youtube_video: error for source %d", source_id,
+        )
+        with container.session_scope() as session:
+            from backend.infrastructure.persistence.sqla_source_repository import (
+                SqlaSourceRepository,
+            )
+            repo = SqlaSourceRepository(session)
+            repo.update_status(
+                source_id,
+                SourceStatus.ERROR,
+                error_message=f"Video download failed: {exc}",
+            )
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     logger.info("ARQ worker starting up")
     ctx["container"] = Container()
@@ -110,7 +171,7 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
-    functions = [extract_media_for_candidate, generate_meanings_batch]
+    functions = [extract_media_for_candidate, generate_meanings_batch, download_youtube_video]
     redis_settings = RedisSettings.from_dsn(
         os.environ.get("REDIS_URL", "redis://localhost:6379")
     )

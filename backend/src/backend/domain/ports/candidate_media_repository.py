@@ -22,6 +22,9 @@ class CandidateMediaRepository(ABC):
     def get_all_by_source(self, source_id: int) -> dict[int, CandidateMedia]: ...
 
     @abstractmethod
+    def get_all_by_source_id(self, source_id: int) -> list[CandidateMedia]: ...
+
+    @abstractmethod
     def get_by_candidate_ids(self, candidate_ids: list[int]) -> dict[int, CandidateMedia]: ...
 
     @abstractmethod
@@ -73,6 +76,10 @@ class CandidateMediaRepository(ABC):
     @abstractmethod
     def mark_batch_failed(self, candidate_ids: list[int], error: str) -> None:
         """Bulk FAILED for a whole batch (used by worker on_job_end)."""
+
+    @abstractmethod
+    def mark_batch_cancelled(self, candidate_ids: list[int]) -> None:
+        """Bulk CANCELLED for a whole batch (used by cancel endpoint)."""
 
     @abstractmethod
     def get_candidate_ids_by_status(

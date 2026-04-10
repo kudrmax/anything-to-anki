@@ -32,7 +32,7 @@ def highlight_all_forms(text: str, lemma: str, surface_form: str | None) -> str:
 
     Note: irregular forms without surface_form (ran←run, went←go) are not matched.
     """
-    text = markdown_to_html(text)
+    text = strip_markdown(text)
 
     patterns: list[str] = []
 

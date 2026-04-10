@@ -5,6 +5,8 @@ from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -20,8 +22,10 @@ class TestGetSourcesUseCase:
 
     def test_list_all(self) -> None:
         self.source_repo.list_all.return_value = [
-            Source(id=1, raw_text="Text one", status=SourceStatus.NEW),
-            Source(id=2, raw_text="Text two", status=SourceStatus.DONE),
+            Source(id=1, raw_text="Text one", status=SourceStatus.NEW,
+                   input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT),
+            Source(id=2, raw_text="Text two", status=SourceStatus.DONE,
+                   input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT),
         ]
         self.candidate_repo.get_by_source.return_value = []
         result = self.use_case.list_all()
@@ -32,7 +36,8 @@ class TestGetSourcesUseCase:
         from backend.domain.entities.stored_candidate import StoredCandidate
 
         self.source_repo.list_all.return_value = [
-            Source(id=1, raw_text="Text one", status=SourceStatus.DONE),
+            Source(id=1, raw_text="Text one", status=SourceStatus.DONE,
+                   input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT),
         ]
         make_candidate = lambda status: StoredCandidate(  # noqa: E731
             id=1, source_id=1, lemma="word", pos="NOUN", cefr_level="B2",
@@ -52,6 +57,7 @@ class TestGetSourcesUseCase:
     def test_get_by_id_found(self) -> None:
         self.source_repo.get_by_id.return_value = Source(
             id=1, raw_text="Hello", status=SourceStatus.DONE,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
         )
         self.candidate_repo.get_by_source.return_value = []
         result = self.use_case.get_by_id(1)

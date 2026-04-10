@@ -9,21 +9,23 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.parsed_srt import ParsedSrt
+from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
-from backend.domain.value_objects.source_type import SourceType
 from backend.domain.value_objects.subtitle_block import SubtitleBlock
 
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
 
 
-def _make_source(source_type: SourceType, raw_text: str = "") -> Source:
+def _make_source(input_method: InputMethod, raw_text: str = "") -> Source:
     return Source(
         id=1,
         raw_text=raw_text,
         status=SourceStatus.PROCESSING,
-        source_type=source_type,
-        video_path="/tmp/movie.mp4" if source_type == SourceType.VIDEO else None,
+        input_method=input_method,
+        content_type=ContentType.VIDEO if input_method == InputMethod.VIDEO_FILE else ContentType.TEXT,
+        video_path="/tmp/movie.mp4" if input_method == InputMethod.VIDEO_FILE else None,
     )
 
 
@@ -88,7 +90,7 @@ class TestProcessVideoSource:
 
     def test_video_source_sets_timecodes_on_candidates(self) -> None:
         fragment = "you should\ngo back"  # spans both blocks
-        source = _make_source(SourceType.VIDEO, raw_text="")
+        source = _make_source(InputMethod.VIDEO_FILE, raw_text="")
         candidate = _make_candidate(fragment)
         uc = self._make_use_case(source, [candidate])
         uc.execute(source_id=1)
@@ -102,7 +104,7 @@ class TestProcessVideoSource:
         assert upserted.audio_path is None
 
     def test_non_video_source_no_timecodes(self) -> None:
-        source = _make_source(SourceType.TEXT, raw_text="plain text")
+        source = _make_source(InputMethod.TEXT_PASTED, raw_text="plain text")
         candidate = _make_candidate("plain text")
         uc = self._make_use_case(source, [candidate])
         uc.execute(source_id=1)

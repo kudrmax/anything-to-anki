@@ -49,6 +49,12 @@ export const api = {
       body: JSON.stringify({ raw_text, source_type, ...(title ? { title } : {}) }),
     }),
 
+  createUrlSource: (url: string, title?: string) =>
+    req<{ id: number; status: string }>('/sources/url', {
+      method: 'POST',
+      body: JSON.stringify({ url, ...(title ? { title } : {}) }),
+    }),
+
   renameSource: (id: number, title: string) =>
     req<{ id: number; title: string }>(`/sources/${id}/title`, {
       method: 'PATCH',
@@ -107,6 +113,9 @@ export const api = {
 
   regenerateCandidateMedia: (candidateId: number) =>
     req<{ status: string }>(`/candidates/${candidateId}/regenerate-media`, { method: 'POST' }),
+
+  downloadVideo: (sourceId: number) =>
+    req<{ status: string }>(`/sources/${sourceId}/download-video`, { method: 'POST' }),
 
   enqueueMeaningGeneration: (sourceId: number, sort: CandidateSortOrder = 'relevance') =>
     req<{ enqueued: number; batches: number }>(

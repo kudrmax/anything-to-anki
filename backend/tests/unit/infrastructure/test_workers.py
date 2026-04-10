@@ -18,6 +18,7 @@ from backend.domain.exceptions import (
     PermanentAIError,
     PermanentMediaError,
 )
+from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.infrastructure.workers import (
     extract_media_for_candidate,
     generate_meanings_batch,
@@ -27,6 +28,13 @@ from backend.infrastructure.workers import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+
+def _make_running_entity() -> MagicMock:
+    """Return a mock enrichment entity whose status is RUNNING."""
+    entity = MagicMock()
+    entity.status = EnrichmentStatus.RUNNING
+    return entity
 
 
 def _make_container(
@@ -43,8 +51,16 @@ def _make_container(
         yield MagicMock(name="session")
 
     container.session_scope.side_effect = _scope
-    container.candidate_meaning_repository.return_value = meaning_repo or MagicMock()
-    container.candidate_media_repository.return_value = media_repo or MagicMock()
+
+    # Default repos with get_by_candidate_id returning RUNNING entities
+    # so Step 1b (cancel guard) does not short-circuit the happy path.
+    default_meaning_repo = MagicMock()
+    default_meaning_repo.get_by_candidate_id.return_value = _make_running_entity()
+    default_media_repo = MagicMock()
+    default_media_repo.get_by_candidate_id.return_value = _make_running_entity()
+
+    container.candidate_meaning_repository.return_value = meaning_repo or default_meaning_repo
+    container.candidate_media_repository.return_value = media_repo or default_media_repo
     container.meaning_generation_use_case.return_value = (
         meaning_use_case or MagicMock()
     )
@@ -61,6 +77,7 @@ async def test_generate_meanings_batch_happy_path_marks_running_only() -> None:
     """On success, worker marks RUNNING and lets the use case write DONE.
     mark_batch_failed must NOT be called."""
     meaning_repo = MagicMock()
+    meaning_repo.get_by_candidate_id.return_value = _make_running_entity()
     use_case = MagicMock()
     container = _make_container(meaning_repo=meaning_repo, meaning_use_case=use_case)
 
@@ -81,6 +98,7 @@ async def test_generate_meanings_batch_on_ai_error_marks_failed_and_does_not_rai
     the worker raised expecting ARQ to retry — which ARQ 0.27 does not do
     for plain Exceptions, leaving rows stuck in RUNNING."""
     meaning_repo = MagicMock()
+    meaning_repo.get_by_candidate_id.return_value = _make_running_entity()
     use_case = MagicMock()
     use_case.execute_batch.side_effect = AIServiceError("AI proxy error: 500")
     container = _make_container(meaning_repo=meaning_repo, meaning_use_case=use_case)
@@ -98,6 +116,7 @@ async def test_generate_meanings_batch_on_ai_error_marks_failed_and_does_not_rai
 @pytest.mark.asyncio
 async def test_generate_meanings_batch_on_permanent_error_marks_failed() -> None:
     meaning_repo = MagicMock()
+    meaning_repo.get_by_candidate_id.return_value = _make_running_entity()
     use_case = MagicMock()
     use_case.execute_batch.side_effect = PermanentAIError("blocked by safety")
     container = _make_container(meaning_repo=meaning_repo, meaning_use_case=use_case)
@@ -113,6 +132,7 @@ async def test_generate_meanings_batch_on_unexpected_error_marks_failed() -> Non
     """Even an unexpected exception (e.g. SQL integrity, KeyError) must be
     caught so the batch never gets stuck in RUNNING."""
     meaning_repo = MagicMock()
+    meaning_repo.get_by_candidate_id.return_value = _make_running_entity()
     use_case = MagicMock()
     use_case.execute_batch.side_effect = RuntimeError("boom")
     container = _make_container(meaning_repo=meaning_repo, meaning_use_case=use_case)
@@ -132,6 +152,7 @@ async def test_generate_meanings_batch_on_unexpected_error_marks_failed() -> Non
 @pytest.mark.asyncio
 async def test_extract_media_happy_path() -> None:
     media_repo = MagicMock()
+    media_repo.get_by_candidate_id.return_value = _make_running_entity()
     use_case = MagicMock()
     container = _make_container(media_repo=media_repo, media_use_case=use_case)
 
@@ -146,6 +167,7 @@ async def test_extract_media_happy_path() -> None:
 @pytest.mark.asyncio
 async def test_extract_media_on_permanent_error_marks_failed() -> None:
     media_repo = MagicMock()
+    media_repo.get_by_candidate_id.return_value = _make_running_entity()
     use_case = MagicMock()
     use_case.execute_one.side_effect = PermanentMediaError("no subtitle window")
     container = _make_container(media_repo=media_repo, media_use_case=use_case)
@@ -159,6 +181,7 @@ async def test_extract_media_on_permanent_error_marks_failed() -> None:
 @pytest.mark.asyncio
 async def test_extract_media_on_unexpected_error_marks_failed() -> None:
     media_repo = MagicMock()
+    media_repo.get_by_candidate_id.return_value = _make_running_entity()
     use_case = MagicMock()
     use_case.execute_one.side_effect = OSError("ffmpeg crashed")
     container = _make_container(media_repo=media_repo, media_use_case=use_case)
@@ -169,6 +192,43 @@ async def test_extract_media_on_unexpected_error_marks_failed() -> None:
     _, err_arg = media_repo.mark_failed.call_args.args
     assert "OSError" in err_arg
     assert "ffmpeg crashed" in err_arg
+
+
+# --- cancellation guard tests ------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_extract_media_skips_if_cancelled_before_start() -> None:
+    """If mark_running was a no-op (CANCELLED status), worker must skip extraction."""
+    media_repo = MagicMock()
+    cancelled_entity = MagicMock()
+    cancelled_entity.status = EnrichmentStatus.CANCELLED
+    media_repo.get_by_candidate_id.return_value = cancelled_entity
+    use_case = MagicMock()
+    container = _make_container(media_repo=media_repo, media_use_case=use_case)
+
+    await extract_media_for_candidate({"container": container}, 42)
+
+    use_case.execute_one.assert_not_called()
+    media_repo.mark_failed.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_generate_meanings_batch_skips_if_all_cancelled() -> None:
+    """If all candidates were cancelled before worker started, skip generation."""
+    meaning_repo = MagicMock()
+    cancelled_entity = MagicMock()
+    cancelled_entity.status = EnrichmentStatus.CANCELLED
+    meaning_repo.get_by_candidate_id.return_value = cancelled_entity
+    use_case = MagicMock()
+    container = _make_container(meaning_repo=meaning_repo, meaning_use_case=use_case)
+
+    await generate_meanings_batch({"container": container}, [1, 2, 3])
+
+    use_case.execute_batch.assert_not_called()
+    meaning_repo.mark_batch_failed.assert_not_called()
 
 
 # --- startup / shutdown ------------------------------------------------------

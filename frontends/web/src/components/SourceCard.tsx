@@ -143,7 +143,7 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
 
         <div className="flex items-center gap-2 text-xs mt-0.5">
           <span style={{ color: 'var(--tm)' }}>{formatDate(source.created_at)}</span>
-          {source.source_type === 'lyrics' && (
+          {source.source_type === 'lyrics_pasted' && (
             <span
               className="px-1.5 py-0.5 rounded text-[10px] font-medium"
               style={{ background: 'rgba(139,92,246,.15)', color: 'rgba(167,139,250,.9)' }}

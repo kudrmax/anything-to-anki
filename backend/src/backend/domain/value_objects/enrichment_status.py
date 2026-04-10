@@ -19,3 +19,4 @@ class EnrichmentStatus(Enum):
     RUNNING = "running"
     DONE = "done"
     FAILED = "failed"
+    CANCELLED = "cancelled"

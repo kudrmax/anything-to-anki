@@ -130,3 +130,11 @@ class ConfigError(DomainError):
     def __init__(self, detail: str) -> None:
         super().__init__(f"Config error: {detail}")
         self.detail = detail
+
+
+class SubtitlesNotAvailableError(Exception):
+    """Raised when a URL source has no subtitles available."""
+
+
+class UnsupportedUrlError(Exception):
+    """Raised when no fetcher can handle the given URL."""

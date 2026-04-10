@@ -71,6 +71,10 @@ class CandidateMeaningRepository(ABC):
         """Bulk FAILED for a whole batch (used by worker on_job_end)."""
 
     @abstractmethod
+    def mark_batch_cancelled(self, candidate_ids: list[int]) -> None:
+        """Bulk CANCELLED for a whole batch (used by cancel endpoint)."""
+
+    @abstractmethod
     def get_candidate_ids_by_status(
         self, source_id: int, status: EnrichmentStatus,
     ) -> list[int]:

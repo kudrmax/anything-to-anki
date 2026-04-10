@@ -4,6 +4,8 @@ import pytest
 from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import SourceNotFoundError
+from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -16,6 +18,7 @@ class TestRenameSourceUseCase:
     def test_rename_success(self) -> None:
         self.source_repo.get_by_id.return_value = Source(
             id=1, raw_text="Text", status=SourceStatus.NEW, title="Old",
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
         )
         self.use_case.execute(1, "New Title")
         self.source_repo.update_title.assert_called_once_with(1, "New Title")
@@ -23,6 +26,7 @@ class TestRenameSourceUseCase:
     def test_rename_strips_whitespace(self) -> None:
         self.source_repo.get_by_id.return_value = Source(
             id=1, raw_text="Text", status=SourceStatus.NEW, title="Old",
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
         )
         self.use_case.execute(1, "  Trimmed  ")
         self.source_repo.update_title.assert_called_once_with(1, "Trimmed")

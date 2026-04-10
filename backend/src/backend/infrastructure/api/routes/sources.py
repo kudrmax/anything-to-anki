@@ -46,10 +46,37 @@ def create_source(
 ) -> dict[str, Any]:
     try:
         use_case = container.create_source_use_case(session)
-        source = use_case.execute(request.raw_text, request.source_type, request.title)
+        source = use_case.execute(request.raw_text, request.input_method, request.title)
         session.commit()
         return {"id": source.id, "status": source.status.value}
     except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/url", status_code=201)
+def create_url_source(
+    body: dict[str, Any],
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, Any]:
+    from backend.domain.exceptions import SubtitlesNotAvailableError, UnsupportedUrlError
+
+    url = body.get("url", "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+    title = body.get("title")
+
+    use_case = container.create_source_from_url_use_case(session)
+    try:
+        source = use_case.execute(url, title_override=title)
+        session.commit()
+        return {"id": source.id, "status": source.status.value}
+    except SubtitlesNotAvailableError as e:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "subtitles_not_available", "message": str(e)},
+        ) from e
+    except UnsupportedUrlError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
@@ -120,6 +147,27 @@ async def process_source(
 
     asyncio.create_task(_process_background(source_id, container, session_factory))
     return {"status": "processing"}
+
+
+@router.post("/{source_id}/download-video", status_code=202)
+async def download_video(
+    source_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, str]:
+    from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
+    repo = SqlaSourceRepository(session)
+    source = repo.get_by_id(source_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail=f"Source {source_id} not found")
+    if source.source_url is None:
+        raise HTTPException(status_code=400, detail="Source has no URL")
+    if source.video_path is not None:
+        raise HTTPException(status_code=409, detail="Video already downloaded")
+
+    pool = await container.get_redis_pool()
+    await pool.enqueue_job("download_youtube_video", source_id)
+    return {"status": "downloading"}
 
 
 async def _process_background(

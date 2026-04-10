@@ -22,6 +22,8 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -36,6 +38,8 @@ def _make_source(
         raw_text=raw,
         cleaned_text=cleaned,
         status=SourceStatus.DONE,
+        input_method=InputMethod.TEXT_PASTED,
+        content_type=ContentType.TEXT,
     )
 
 

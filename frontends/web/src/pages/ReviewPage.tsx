@@ -16,6 +16,18 @@ import { TextAnnotator } from '@/components/TextAnnotator'
 import { TextSelectionPopover } from '@/components/TextSelectionPopover'
 import { autoPlayAudioPref } from '@/lib/preferences'
 
+const VPN_ERROR_MARKER = 'Blocked country'
+
+function isVpnError(e: unknown): boolean {
+  return e instanceof Error && e.message.includes(VPN_ERROR_MARKER)
+}
+
+function hasCandidateVpnErrors(candidates: StoredCandidate[]): boolean {
+  return candidates.some(
+    (c) => c.meaning?.status === 'failed' && c.meaning.error?.includes(VPN_ERROR_MARKER),
+  )
+}
+
 function audioUrlForCandidate(candidate: StoredCandidate, sourceId: number): string | null {
   const path = candidate.media?.audio_path
   if (!path) return null
@@ -39,6 +51,8 @@ export function ReviewPage() {
   const [regeneratingMediaIds, setRegeneratingMediaIds] = useState<Set<number>>(new Set())
   const [queueSummary, setQueueSummary] = useState<QueueSummary | null>(null)
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
+  const [vpnBlocked, setVpnBlocked] = useState(false)
+  const [downloadingVideo, setDownloadingVideo] = useState(false)
   const [mediaMap, setMediaMap] = useState<Record<number, { screenshotUrl: string | null; audioUrl: string | null }>>({})
   const [sortOrder, setSortOrder] = useState<CandidateSortOrder>(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('reviewPage.sortOrder') : null
@@ -112,6 +126,7 @@ export function ReviewPage() {
       api.getSourceCards(sourceId).catch(() => [] as CardPreview[]),
     ])
     setCandidates(cands)
+    if (hasCandidateVpnErrors(cands)) setVpnBlocked(true)
     const map: Record<number, { screenshotUrl: string | null; audioUrl: string | null }> = {}
     for (const card of cards) {
       map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }
@@ -298,7 +313,8 @@ export function ReviewPage() {
       )
       setToast({ text: `Tokens used: ${res.tokens_used}`, key: Date.now() })
     } catch (e) {
-      setToast({ text: e instanceof Error ? e.message : 'Generation failed', key: Date.now() })
+      if (isVpnError(e)) setVpnBlocked(true)
+      else setToast({ text: e instanceof Error ? e.message : 'Generation failed', key: Date.now() })
     } finally {
       setGeneratingIds((prev) => {
         const next = new Set(prev)
@@ -329,7 +345,8 @@ export function ReviewPage() {
       )
       setToast({ text: `Tokens used: ${res.tokens_used}`, key: Date.now() })
     } catch (e) {
-      setToast({ text: e instanceof Error ? e.message : 'Follow-up failed', key: Date.now() })
+      if (isVpnError(e)) setVpnBlocked(true)
+      else setToast({ text: e instanceof Error ? e.message : 'Follow-up failed', key: Date.now() })
     } finally {
       setGeneratingIds((prev) => {
         const next = new Set(prev)
@@ -345,7 +362,8 @@ export function ReviewPage() {
       await loadCandidates()
       await loadQueueSummary()
     } catch (e) {
-      setToast({ text: e instanceof Error ? e.message : 'Failed to enqueue meanings', key: Date.now() })
+      if (isVpnError(e)) setVpnBlocked(true)
+      else setToast({ text: e instanceof Error ? e.message : 'Failed to enqueue meanings', key: Date.now() })
     }
   }, [sourceId, sortOrder, loadCandidates, loadQueueSummary])
 
@@ -385,7 +403,8 @@ export function ReviewPage() {
       await loadCandidates()
       await loadQueueSummary()
     } catch (e) {
-      setToast({ text: e instanceof Error ? e.message : 'Failed to retry', key: Date.now() })
+      if (isVpnError(e)) setVpnBlocked(true)
+      else setToast({ text: e instanceof Error ? e.message : 'Failed to retry', key: Date.now() })
     }
   }, [sourceId, loadCandidates, loadQueueSummary])
 
@@ -614,8 +633,43 @@ export function ReviewPage() {
           )
         )}
 
-        {/* Generate Media button (video only) */}
-        {source && source.source_type === 'video' && (
+        {/* Download Media button (YouTube source without downloaded video) */}
+        {source && source.content_type === 'video' && !source.video_downloaded && (
+          downloadingVideo ? (
+            <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--tm)' }}>
+              <Loader2 size={12} className="animate-spin" />
+              Downloading video…
+            </span>
+          ) : (
+            <button
+              onClick={async () => {
+                setDownloadingVideo(true)
+                try {
+                  await api.downloadVideo(source.id)
+                  const poll = setInterval(() => {
+                    void api.getSource(sourceId, sortOrder).then((updated) => {
+                      setSource(updated)
+                      if (updated.video_downloaded) {
+                        clearInterval(poll)
+                        setDownloadingVideo(false)
+                      }
+                    }).catch(() => undefined)
+                  }, 3000)
+                } catch {
+                  setDownloadingVideo(false)
+                }
+              }}
+              className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+              style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+            >
+              <Film size={12} />
+              Download Media
+            </button>
+          )
+        )}
+
+        {/* Generate Media button (video only, after video is downloaded) */}
+        {source && source.content_type === 'video' && source.video_downloaded && (
           hasInflightMedia ? (
             <div className="flex items-center gap-2">
               <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--tm)' }}>
@@ -707,6 +761,22 @@ export function ReviewPage() {
         </button>
       </header>
 
+      {vpnBlocked && (
+        <div
+          className="shrink-0 px-4 py-2.5 flex items-center justify-between text-xs font-medium"
+          style={{ background: 'rgba(239,68,68,.15)', borderBottom: '1px solid rgba(239,68,68,.3)', color: '#f87171' }}
+        >
+          <span>AI unavailable — turn on VPN</span>
+          <button
+            onClick={() => setVpnBlocked(false)}
+            className="ml-4 opacity-60 hover:opacity-100 cursor-pointer"
+            style={{ color: '#f87171' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Split panels */}
       <div className="flex-1 overflow-hidden flex">
         {/* Left: candidates */}
@@ -750,7 +820,7 @@ export function ReviewPage() {
                 onFollowUp={(id, action, text) => void handleFollowUp(id, action, text)}
                 screenshotUrl={mediaMap[c.id]?.screenshotUrl}
                 audioUrl={mediaMap[c.id]?.audioUrl}
-                onRegenerateMedia={source?.source_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
+                onRegenerateMedia={source?.content_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                 isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
                 hasMediaTimecodes={c.media?.start_ms != null}
                 isAudioPlaying={playingCandidateId === c.id}
@@ -786,7 +856,7 @@ export function ReviewPage() {
                   isGenerating={generatingIds.has(c.id)}
                   screenshotUrl={mediaMap[c.id]?.screenshotUrl}
                   audioUrl={mediaMap[c.id]?.audioUrl}
-                  onRegenerateMedia={source?.source_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
+                  onRegenerateMedia={source?.content_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                   isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
                   hasMediaTimecodes={c.media?.start_ms != null}
                   isAudioPlaying={playingCandidateId === c.id}

@@ -3,7 +3,9 @@ from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
@@ -27,7 +29,8 @@ from sqlalchemy.orm import Session
 class TestSourceRepository:
     def test_create_and_get(self, db_session: Session) -> None:
         repo = SqlaSourceRepository(db_session)
-        source = Source(raw_text="Hello world", status=SourceStatus.NEW)
+        source = Source(raw_text="Hello world", status=SourceStatus.NEW,
+                        input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT)
         created = repo.create(source)
         assert created.id is not None
         assert created.raw_text == "Hello world"
@@ -39,14 +42,17 @@ class TestSourceRepository:
 
     def test_list_all(self, db_session: Session) -> None:
         repo = SqlaSourceRepository(db_session)
-        repo.create(Source(raw_text="Text 1", status=SourceStatus.NEW))
-        repo.create(Source(raw_text="Text 2", status=SourceStatus.NEW))
+        repo.create(Source(raw_text="Text 1", status=SourceStatus.NEW,
+                            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT))
+        repo.create(Source(raw_text="Text 2", status=SourceStatus.NEW,
+                            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT))
         sources = repo.list_all()
         assert len(sources) == 2
 
     def test_update_status(self, db_session: Session) -> None:
         repo = SqlaSourceRepository(db_session)
-        source = repo.create(Source(raw_text="Test", status=SourceStatus.NEW))
+        source = repo.create(Source(raw_text="Test", status=SourceStatus.NEW,
+                                     input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT))
         assert source.id is not None
         repo.update_status(source.id, SourceStatus.DONE, cleaned_text="Cleaned test")
         updated = repo.get_by_id(source.id)
@@ -56,7 +62,8 @@ class TestSourceRepository:
 
     def test_update_status_error(self, db_session: Session) -> None:
         repo = SqlaSourceRepository(db_session)
-        source = repo.create(Source(raw_text="Test", status=SourceStatus.NEW))
+        source = repo.create(Source(raw_text="Test", status=SourceStatus.NEW,
+                                     input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT))
         assert source.id is not None
         repo.update_status(source.id, SourceStatus.ERROR, error_message="Something broke")
         updated = repo.get_by_id(source.id)
@@ -73,7 +80,8 @@ class TestSourceRepository:
 class TestCandidateRepository:
     def _create_source(self, db_session: Session) -> int:
         repo = SqlaSourceRepository(db_session)
-        source = repo.create(Source(raw_text="Test", status=SourceStatus.DONE))
+        source = repo.create(Source(raw_text="Test", status=SourceStatus.DONE,
+                                     input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT))
         assert source.id is not None
         return source.id
 

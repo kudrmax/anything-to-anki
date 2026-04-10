@@ -12,7 +12,8 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
-from backend.domain.value_objects.source_type import SourceType
+from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.input_method import InputMethod
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -42,7 +43,7 @@ class ProcessSourceUseCase:
         known_word_repo: KnownWordRepository,
         settings_repo: SettingsRepository,
         analyze_text_use_case: AnalyzeTextUseCase,
-        source_parsers: dict[SourceType, SourceParser] | None = None,
+        source_parsers: dict[InputMethod, SourceParser] | None = None,
         structured_srt_parser: StructuredSrtParser | None = None,
         media_repo: CandidateMediaRepository | None = None,
     ) -> None:
@@ -51,7 +52,7 @@ class ProcessSourceUseCase:
         self._known_word_repo = known_word_repo
         self._settings_repo = settings_repo
         self._analyze_text = analyze_text_use_case
-        self._source_parsers: dict[SourceType, SourceParser] = source_parsers or {}
+        self._source_parsers: dict[InputMethod, SourceParser] = source_parsers or {}
         self._structured_srt_parser = structured_srt_parser
         self._media_repo = media_repo
 
@@ -98,11 +99,11 @@ class ProcessSourceUseCase:
 
         parsed_srt: ParsedSrt | None = None
 
-        if source.source_type == SourceType.VIDEO and self._structured_srt_parser:
+        if source.content_type == ContentType.VIDEO and self._structured_srt_parser:
             parsed_srt = self._structured_srt_parser.parse_structured(source.raw_text)
             raw_text = parsed_srt.text
         else:
-            parser = self._source_parsers.get(source.source_type)
+            parser = self._source_parsers.get(source.input_method)
             raw_text = parser.parse(source.raw_text) if parser else source.raw_text
 
         # Stage 2: text analysis (cleaning + tokenization + filtering)

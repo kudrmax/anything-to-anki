@@ -5,8 +5,9 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.video_dtos import TrackSelectionRequired, VideoSourceCreated
 from backend.domain.entities.source import Source
+from backend.domain.value_objects.content_type import ContentType, resolve_content_type
+from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
-from backend.domain.value_objects.source_type import SourceType
 
 if TYPE_CHECKING:
     from backend.domain.ports.audio_track_lister import AudioTrackLister
@@ -34,7 +35,7 @@ class CreateSourceUseCase:
     def execute(
         self,
         raw_text: str,
-        source_type: SourceType = SourceType.TEXT,
+        input_method: InputMethod = InputMethod.TEXT_PASTED,
         title: str | None = None,
     ) -> Source:
         if not raw_text.strip():
@@ -44,7 +45,8 @@ class CreateSourceUseCase:
         source = Source(
             raw_text=raw_text,
             status=SourceStatus.NEW,
-            source_type=source_type,
+            input_method=input_method,
+            content_type=resolve_content_type(input_method),
             title=resolved_title,
         )
         return self._source_repo.create(source)
@@ -114,7 +116,8 @@ class CreateSourceUseCase:
         source = Source(
             raw_text=raw_srt,
             status=SourceStatus.NEW,
-            source_type=SourceType.VIDEO,
+            input_method=InputMethod.VIDEO_FILE,
+            content_type=ContentType.VIDEO,
             title=resolved_title,
             video_path=video_path,
             audio_track_index=resolved_audio_index,

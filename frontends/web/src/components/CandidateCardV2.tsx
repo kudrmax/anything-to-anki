@@ -735,6 +735,8 @@ export function CandidateCardV2({
             <p style={{ margin: '10px 0 0', fontSize: '13px', color: '#f87171' }} title={candidate.meaning.error ?? undefined}>
               Failed to generate
             </p>
+          ) : candidate.meaning?.status === 'cancelled' ? (
+            <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--td)' }}>Cancelled</p>
           ) : null}
         </div>
       </div>

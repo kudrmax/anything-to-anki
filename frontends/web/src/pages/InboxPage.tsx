@@ -120,7 +120,27 @@ export function InboxPage() {
     setError(null)
 
     if (activeTab === 'url') {
-      setToast({ text: 'This feature is not implemented yet', key: Date.now() })
+      if (!urlInput.trim()) {
+        setError('Please enter a URL')
+        return
+      }
+      setAdding(true)
+      try {
+        const result = await api.createUrlSource(urlInput.trim(), title.trim() || undefined)
+        await loadSources()
+        setUrlInput('')
+        setTitle('')
+        startPolling(result.id)
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (msg.includes('subtitles_not_available')) {
+          setToast({ text: 'Субтитры для видео не получилось получить', key: Date.now() })
+        } else {
+          setError(msg)
+        }
+      } finally {
+        setAdding(false)
+      }
       return
     }
 
@@ -181,6 +201,9 @@ export function InboxPage() {
         raw_text_preview: textInput.trim().slice(0, 100),
         status: 'new',
         source_type: textSourceType,
+        content_type: textSourceType === 'lyrics_pasted' ? 'lyrics' : 'text',
+        source_url: null,
+        video_downloaded: false,
         created_at: new Date().toISOString(),
         candidate_count: 0,
         learn_count: 0,
@@ -373,7 +396,7 @@ export function InboxPage() {
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[11px]" style={{ color: 'var(--td)' }}>Source type</span>
                   <div className="flex gap-1.5 flex-wrap">
-                    {(['text', 'lyrics', 'subtitles'] as const).map((t) => (
+                    {(['text_pasted', 'lyrics_pasted', 'subtitles_file'] as const).map((t) => (
                       <button
                         key={t}
                         onClick={() => setTextSourceType(t)}
@@ -384,7 +407,7 @@ export function InboxPage() {
                             : { background: 'var(--glass)', color: 'var(--tm)', border: '1px solid var(--glass-b)' }
                         }
                       >
-                        {t}
+                        {t === 'text_pasted' ? 'text' : t === 'lyrics_pasted' ? 'lyrics' : 'subtitles'}
                       </button>
                     ))}
                   </div>
@@ -393,9 +416,9 @@ export function InboxPage() {
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
                   placeholder={
-                    textSourceType === 'lyrics'
+                    textSourceType === 'lyrics_pasted'
                       ? 'Paste song lyrics here…'
-                      : textSourceType === 'subtitles'
+                      : textSourceType === 'subtitles_file'
                         ? 'Paste .srt subtitle content here…'
                         : 'Paste text here…'
                   }
