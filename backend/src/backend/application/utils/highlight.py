@@ -12,8 +12,18 @@ def strip_markdown(text: str) -> str:
     return text
 
 
+def markdown_to_html(text: str) -> str:
+    """Convert basic markdown to HTML: **bold**, *italic*, --- → <hr>."""
+    text = re.sub(r'\*{2}(.+?)\*{2}', r'<b>\1</b>', text, flags=re.DOTALL)
+    text = re.sub(r'_{2}(.+?)_{2}', r'<b>\1</b>', text, flags=re.DOTALL)
+    text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text, flags=re.DOTALL)
+    text = re.sub(r'_(.+?)_', r'<i>\1</i>', text, flags=re.DOTALL)
+    text = re.sub(r'^---+$', '<hr>', text, flags=re.MULTILINE)
+    return text
+
+
 def highlight_all_forms(text: str, lemma: str, surface_form: str | None) -> str:
-    """Strip markdown, then wrap ALL occurrences of target word forms with <b> tags.
+    """Convert markdown to HTML, then wrap ALL occurrences of target word forms with <b> tags.
 
     Matches:
     - surface_form exactly (e.g. "gave up") when provided
@@ -22,7 +32,7 @@ def highlight_all_forms(text: str, lemma: str, surface_form: str | None) -> str:
 
     Note: irregular forms without surface_form (ran←run, went←go) are not matched.
     """
-    text = strip_markdown(text)
+    text = markdown_to_html(text)
 
     patterns: list[str] = []
 

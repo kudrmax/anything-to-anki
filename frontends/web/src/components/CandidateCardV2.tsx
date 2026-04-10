@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { BookOpen, ChevronDown, Film, Info, Languages, Loader2, MessageCircle, Pencil, Play, Sparkles, Square, X } from 'lucide-react'
+import { BookOpen, ChevronDown, Film, Info, Languages, Loader2, Pencil, Play, Sparkles, Square, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 
@@ -126,21 +126,45 @@ function highlightWord(fragment: string, lemma: string, surfaceForm: string | nu
 }
 
 function renderMeaning(text: string, lemma: string, surfaceForm: string | null): React.ReactElement {
-  const clean = stripMarkdown(text)
   const pattern = buildHighlightPattern(lemma, surfaceForm)
   const parts: React.ReactNode[] = []
-  let last = 0
-  let match: RegExpExecArray | null
-  while ((match = pattern.exec(clean)) !== null) {
-    if (match.index > last) parts.push(clean.slice(last, match.index))
-    parts.push(
-      <span key={match.index} style={{ fontWeight: 700, color: '#eef0ff' }}>
-        {match[0]}
-      </span>,
-    )
-    last = match.index + match[0].length
+  // Split by **bold** markers first
+  const boldPattern = /\*{2}(.+?)\*{2}/g
+  let idx = 0
+  let boldMatch: RegExpExecArray | null
+
+  const addTextWithHighlight = (segment: string, bold: boolean, keyPrefix: string) => {
+    const p = new RegExp(pattern.source, pattern.flags)
+    let last = 0
+    let m: RegExpExecArray | null
+    while ((m = p.exec(segment)) !== null) {
+      if (m.index > last) {
+        const t = segment.slice(last, m.index)
+        parts.push(bold ? <b key={`${keyPrefix}-b-${last}`}>{t}</b> : t)
+      }
+      parts.push(
+        <span key={`${keyPrefix}-h-${m.index}`} style={{ fontWeight: 700, color: '#eef0ff' }}>
+          {m[0]}
+        </span>,
+      )
+      last = m.index + m[0].length
+    }
+    if (last < segment.length) {
+      const t = segment.slice(last)
+      parts.push(bold ? <b key={`${keyPrefix}-b-${last}`}>{t}</b> : t)
+    }
   }
-  if (last < clean.length) parts.push(clean.slice(last))
+
+  while ((boldMatch = boldPattern.exec(text)) !== null) {
+    if (boldMatch.index > idx) {
+      addTextWithHighlight(text.slice(idx, boldMatch.index), false, `t${idx}`)
+    }
+    addTextWithHighlight(boldMatch[1], true, `b${boldMatch.index}`)
+    idx = boldMatch.index + boldMatch[0].length
+  }
+  if (idx < text.length) {
+    addTextWithHighlight(text.slice(idx), false, `t${idx}`)
+  }
   return <>{parts}</>
 }
 
@@ -277,7 +301,7 @@ export function CandidateCardV2({
         gap: '8px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {onGenerateMeaning && (
+          {onGenerateMeaning && !candidate.meaning?.meaning && (
             <ToolbarButton
               onClick={() => onGenerateMeaning(candidate.id)}
               disabled={isGenerating}
@@ -287,7 +311,7 @@ export function CandidateCardV2({
               {isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
             </ToolbarButton>
           )}
-          {onFollowUp && candidate.meaning?.meaning && (
+          {onGenerateMeaning && candidate.meaning?.meaning && (
             <div
               className="relative"
               ref={followUpRef}
@@ -296,27 +320,43 @@ export function CandidateCardV2({
               <ToolbarButton
                 onClick={() => setShowFollowUp((v) => !v)}
                 disabled={isGenerating}
-                ariaLabel="Follow-up actions"
-                title="Ask a follow-up about this word"
+                ariaLabel="AI actions"
+                title="Regenerate or ask a follow-up"
+                className="w-9"
               >
-                <MessageCircle size={11} />
-                <ChevronDown size={9} style={{ marginLeft: '-2px' }} />
+                {isGenerating
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : <><Sparkles size={12} /><ChevronDown size={9} style={{ marginLeft: '3px' }} /></>
+                }
               </ToolbarButton>
               {showFollowUp && (
                 <div style={{
                   position: 'absolute',
                   top: '100%',
                   left: 0,
-                  marginTop: '4px',
-                  background: 'rgba(15,17,30,0.95)',
+                  zIndex: 50,
+                  paddingTop: '4px',
+                }}>
+                <div style={{
+                  background: '#0f111e',
                   border: '1px solid rgba(255,255,255,0.12)',
                   borderRadius: '8px',
                   padding: '4px 0',
-                  zIndex: 20,
                   minWidth: '180px',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
                 }}>
-                  {FOLLOW_UP_PRESETS.map((preset) => (
+                  <button
+                    onClick={() => {
+                      onGenerateMeaning(candidate.id)
+                      setShowFollowUp(false)
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
+                    style={{ color: '#cbd5e1' }}
+                  >
+                    Regenerate all
+                  </button>
+                  <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+                  {onFollowUp && FOLLOW_UP_PRESETS.map((preset) => (
                     <button
                       key={preset.action}
                       onClick={() => {
@@ -329,36 +369,41 @@ export function CandidateCardV2({
                       {preset.label}
                     </button>
                   ))}
-                  <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
-                  {showFreeInput ? (
-                    <div className="px-3 py-1.5 flex gap-1">
-                      <input
-                        type="text"
-                        value={freeText}
-                        onChange={(e) => setFreeText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && freeText.trim()) {
-                            onFollowUp(candidate.id, 'free_question', freeText.trim())
-                            setFreeText('')
-                            setShowFollowUp(false)
-                            setShowFreeInput(false)
-                          }
-                        }}
-                        placeholder="Your question..."
-                        autoFocus
-                        className="flex-1 px-2 py-1 rounded text-xs bg-white/[0.06] border border-white/[0.1] outline-none"
-                        style={{ color: '#cbd5e1' }}
-                      />
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setShowFreeInput(true)}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
-                      style={{ color: '#94a3b8' }}
-                    >
-                      Ask a question...
-                    </button>
+                  {onFollowUp && (
+                    <>
+                      <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+                      {showFreeInput ? (
+                        <div className="px-3 py-1.5 flex gap-1">
+                          <input
+                            type="text"
+                            value={freeText}
+                            onChange={(e) => setFreeText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && freeText.trim()) {
+                                onFollowUp(candidate.id, 'free_question', freeText.trim())
+                                setFreeText('')
+                                setShowFollowUp(false)
+                                setShowFreeInput(false)
+                              }
+                            }}
+                            placeholder="Your question..."
+                            autoFocus
+                            className="flex-1 px-2 py-1 rounded text-xs bg-white/[0.06] border border-white/[0.1] outline-none"
+                            style={{ color: '#cbd5e1' }}
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setShowFreeInput(true)}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
+                          style={{ color: '#94a3b8' }}
+                        >
+                          Ask a question...
+                        </button>
+                      )}
+                    </>
                   )}
+                </div>
                 </div>
               )}
             </div>
@@ -592,19 +637,23 @@ export function CandidateCardV2({
               {candidate.meaning.meaning
                 .split(/\n+/)
                 .filter((p) => p.trim().length > 0)
-                .map((para, i) => (
-                  <p
-                    key={i}
-                    style={{
-                      margin: i === 0 ? 0 : '8px 0 0',
-                      fontSize: '15px',
-                      lineHeight: 1.55,
-                      color: '#cbd5e1',
-                    }}
-                  >
-                    {renderMeaning(para, candidate.lemma, candidate.surface_form)}
-                  </p>
-                ))}
+                .map((para, i) =>
+                  /^---+$/.test(para.trim()) ? (
+                    <hr key={i} style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)', margin: '12px 0' }} />
+                  ) : (
+                    <p
+                      key={i}
+                      style={{
+                        margin: i === 0 ? 0 : '8px 0 0',
+                        fontSize: '15px',
+                        lineHeight: 1.55,
+                        color: '#cbd5e1',
+                      }}
+                    >
+                      {renderMeaning(para, candidate.lemma, candidate.surface_form)}
+                    </p>
+                  ),
+                )}
               {candidate.meaning.translation && (
                 <div
                   style={{
@@ -635,6 +684,22 @@ export function CandidateCardV2({
                 >
                   <BookOpen size={14} style={{ marginTop: '3px', flexShrink: 0, color: '#94a3b8' }} />
                   <span>{candidate.meaning.synonyms}</span>
+                </div>
+              )}
+              {candidate.meaning.ipa && (
+                <div
+                  style={{
+                    marginTop: '4px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '6px',
+                    fontSize: '14px',
+                    color: '#cbd5e1',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <span style={{ fontSize: '13px', marginTop: '1px', flexShrink: 0, color: '#94a3b8' }}>🔊</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: '13px' }}>{candidate.meaning.ipa}</span>
                 </div>
               )}
               {candidate.meaning.examples && (
