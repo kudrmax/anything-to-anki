@@ -41,6 +41,18 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
         rows = self._session.execute(stmt).scalars().all()
         return {row.candidate_id: row.to_entity() for row in rows}
 
+    def get_all_by_source_id(self, source_id: int) -> list[CandidateMedia]:
+        stmt = (
+            select(CandidateMediaModel)
+            .join(
+                StoredCandidateModel,
+                StoredCandidateModel.id == CandidateMediaModel.candidate_id,
+            )
+            .where(StoredCandidateModel.source_id == source_id)
+        )
+        rows = self._session.execute(stmt).scalars().all()
+        return [row.to_entity() for row in rows]
+
     def get_by_candidate_ids(self, candidate_ids: list[int]) -> dict[int, CandidateMedia]:
         if not candidate_ids:
             return {}

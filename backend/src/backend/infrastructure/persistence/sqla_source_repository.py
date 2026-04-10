@@ -40,6 +40,14 @@ class SqlaSourceRepository(SourceRepository):
         model.title = title
         self._session.flush()
 
+    def update_video_path(self, source_id: int, video_path: str | None) -> None:
+        model = self._session.get(SourceModel, source_id)
+        if model is None:
+            from backend.domain.exceptions import SourceNotFoundError
+            raise SourceNotFoundError(source_id)
+        model.video_path = video_path
+        self._session.flush()
+
     def delete(self, source_id: int) -> None:
         model = self._session.get(SourceModel, source_id)
         if model is not None:

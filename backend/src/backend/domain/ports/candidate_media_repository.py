@@ -22,6 +22,9 @@ class CandidateMediaRepository(ABC):
     def get_all_by_source(self, source_id: int) -> dict[int, CandidateMedia]: ...
 
     @abstractmethod
+    def get_all_by_source_id(self, source_id: int) -> list[CandidateMedia]: ...
+
+    @abstractmethod
     def get_by_candidate_ids(self, candidate_ids: list[int]) -> dict[int, CandidateMedia]: ...
 
     @abstractmethod
