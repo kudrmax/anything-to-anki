@@ -23,6 +23,9 @@ from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
+from backend.domain.value_objects.fragment_selection_config import (
+    FragmentSelectionConfig,
+)
 from backend.domain.value_objects.source_type import SourceType
 from backend.infrastructure.adapters.ai_model_mapping import model_id_for
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
@@ -99,6 +102,7 @@ class Container:
         self._frequency_provider = WordfreqFrequencyProvider()
         self._anki_connector = AnkiConnectConnector()
         self._phrasal_verb_dictionary = JsonPhrasalVerbDictionary()
+        self._fragment_selection_config = FragmentSelectionConfig()
         self._subtitle_extractor = FfmpegSubtitleExtractor()
         self._media_extractor = FfmpegMediaExtractor()
         self._media_root = os.environ.get(
@@ -154,6 +158,7 @@ class Container:
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
+            fragment_selection_config=self._fragment_selection_config,
         )
 
     def create_source_use_case(self, session: Session) -> CreateSourceUseCase:

@@ -1,13 +1,12 @@
-"""End-to-end test of FragmentExtractor + BoundaryCleaner against the 20 real
+"""End-to-end test of the fragment selection pipeline against the 20 real
 'bad fragment' cases collected by the user from HPMOR (source 1) and
 'Evil Morty' lyrics (source 2).
 
 For each case we:
 1. Run real spaCy on the full sentence containing the target.
 2. Find the target token by surface form (and an occurrence index when needed).
-3. Run FragmentExtractor.extract_indices to get the original (bad) indices.
-4. Run BoundaryCleaner.clean to get the cleaned indices.
-5. Render text from cleaned indices.
+3. Call ``FragmentSelector.select`` to obtain the cleaned fragment indices.
+4. Render text from those indices.
 
 The test asserts the cleaned text matches a hand-written 'expected' value.
 Where Wave 1 (pure trim) cannot reach the expected value (because extension
@@ -17,10 +16,23 @@ target of Wave 2 (clause segmentation + generate-and-rank).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
-from backend.domain.services.boundary_cleaner import BoundaryCleaner
-from backend.domain.services.fragment_extractor import FragmentExtractor
+from backend.domain.services.fragment_selection import FragmentSelector
+from backend.domain.services.fragment_selection.rendering import render_fragment
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from backend.domain.entities.token_data import TokenData
+
+
+def _zero_unknown_counter(
+    _indices: Sequence[int], _tokens: list[TokenData]
+) -> int:
+    return 0
 
 # Sentences from HPMOR (source 1).
 S_DISCLAIMER = (
@@ -89,8 +101,7 @@ class TestBoundaryCleanerRealCases:
     @classmethod
     def setup_class(cls) -> None:
         cls.analyzer = SpaCyTextAnalyzer()
-        cls.extractor = FragmentExtractor()
-        cls.cleaner = BoundaryCleaner()
+        cls.selector = FragmentSelector()
 
     def _run(
         self,
@@ -111,7 +122,10 @@ class TestBoundaryCleanerRealCases:
         target_idx: int | None = None
         seen = 0
         for t in tokens:
-            if t.text.lower() == target_text.lower() or t.lemma.lower() == target_text.lower():
+            if (
+                t.text.lower() == target_text.lower()
+                or t.lemma.lower() == target_text.lower()
+            ):
                 if seen == target_occurrence:
                     target_idx = t.index
                     break
@@ -129,14 +143,18 @@ class TestBoundaryCleanerRealCases:
                     protected.add(t.index)
                     break
 
-        # Pipeline: extract indices → cleanup → render.
-        raw_indices = self.extractor.extract_indices(tokens, target_idx)
-        raw_text = self.extractor.render(tokens, raw_indices)
-        cleaned_indices = self.cleaner.clean(
-            tokens, raw_indices, protected_indices=frozenset(protected)
+        # Pipeline: FragmentSelector does generate → clean → score → pick.
+        cleaned_indices = self.selector.select(
+            tokens=tokens,
+            target_index=target_idx,
+            protected_indices=frozenset(protected),
+            unknown_counter=_zero_unknown_counter,
         )
-        cleaned_text = self.extractor.render(tokens, cleaned_indices)
-        return raw_text, cleaned_text
+        cleaned_text = render_fragment(tokens, cleaned_indices)
+        # "raw_text" had historical meaning of pre-cleanup fragment; with
+        # the new pipeline the raw phase is internal. Return the cleaned
+        # text as raw too so the signature is preserved.
+        return cleaned_text, cleaned_text
 
     # ---------------------------------------------------------- HPMOR cases
 
@@ -152,10 +170,6 @@ class TestBoundaryCleanerRealCases:
         assert "as though" not in cleaned
         assert "looked at Harry" in cleaned
 
-    @pytest.mark.xfail(
-        reason="Wave 2: needs RIGHT extension to grab dobj 'Harry Potter'",
-        strict=False,
-    )
     def test_86_disclaimer(self) -> None:
         _, cleaned = self._run(S_DISCLAIMER, "disclaimer")
         assert "Harry Potter" in cleaned
@@ -268,10 +282,6 @@ class TestBoundaryCleanerRealCases:
         assert "Did I mention" in cleaned
         assert "Their" not in cleaned
 
-    @pytest.mark.xfail(
-        reason="Wave 2/3: lyrics line break boundary handling",
-        strict=False,
-    )
     def test_521_genius(self) -> None:
         _, cleaned = self._run(S_GENIUS, "genius")
         # Either expansion is acceptable; "Into a genius" must be present and
