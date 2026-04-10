@@ -14,7 +14,8 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
-from backend.domain.value_objects.source_type import SourceType
+from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.input_method import InputMethod
 from backend.infrastructure.persistence.database import Base
 
 
@@ -28,7 +29,9 @@ class SourceModel(Base):
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     cleaned_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="new")
-    source_type: Mapped[str] = mapped_column(String(20), nullable=False, default="text")
+    input_method: Mapped[str] = mapped_column(String(20), nullable=False, default="text_pasted")
+    content_type: Mapped[str] = mapped_column(String(10), nullable=False, default="text")
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     processing_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     video_path: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -44,7 +47,9 @@ class SourceModel(Base):
             title=self.title,
             cleaned_text=self.cleaned_text,
             status=SourceStatus(self.status),
-            source_type=SourceType(self.source_type),
+            input_method=InputMethod(self.input_method),
+            content_type=ContentType(self.content_type),
+            source_url=self.source_url,
             error_message=self.error_message,
             processing_stage=(
                 ProcessingStage(self.processing_stage) if self.processing_stage else None
@@ -60,7 +65,9 @@ class SourceModel(Base):
             raw_text=source.raw_text,
             title=source.title,
             status=source.status.value,
-            source_type=source.source_type.value,
+            input_method=source.input_method.value,
+            content_type=source.content_type.value,
+            source_url=source.source_url,
             video_path=source.video_path,
             audio_track_index=source.audio_track_index,
             created_at=source.created_at,
