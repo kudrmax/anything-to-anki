@@ -6,6 +6,7 @@ import type {
   CandidateSortOrder,
   CandidateStatus,
   CardPreview,
+  FollowUpAction,
   QueueSummary,
   SourceDetail,
   StoredCandidate,
@@ -238,6 +239,7 @@ export function ReviewPage() {
             meaning: res.meaning,
             translation: res.translation,
             synonyms: res.synonyms,
+            examples: res.examples,
             ipa: res.ipa,
             status: 'done' as const,
             error: null,
@@ -248,6 +250,37 @@ export function ReviewPage() {
       setToast({ text: `Tokens used: ${res.tokens_used}`, key: Date.now() })
     } catch (e) {
       setToast({ text: e instanceof Error ? e.message : 'Generation failed', key: Date.now() })
+    } finally {
+      setGeneratingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(candidateId)
+        return next
+      })
+    }
+  }, [])
+
+  const handleFollowUp = useCallback(async (candidateId: number, action: FollowUpAction, text?: string) => {
+    setGeneratingIds((prev) => new Set(prev).add(candidateId))
+    try {
+      const res = await api.generateMeaning(candidateId, action, text)
+      setCandidates((prev) =>
+        prev.map((c) => (c.id === candidateId ? {
+          ...c,
+          meaning: {
+            meaning: res.meaning,
+            translation: res.translation,
+            synonyms: res.synonyms,
+            examples: res.examples,
+            ipa: res.ipa,
+            status: 'done' as const,
+            error: null,
+            generated_at: null,
+          },
+        } : c)),
+      )
+      setToast({ text: `Tokens used: ${res.tokens_used}`, key: Date.now() })
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Follow-up failed', key: Date.now() })
     } finally {
       setGeneratingIds((prev) => {
         const next = new Set(prev)
@@ -581,6 +614,7 @@ export function ReviewPage() {
                 isEditingFragment={editingFragmentFor === c.id}
                 onGenerateMeaning={(id) => void handleGenerate(id)}
                 isGenerating={generatingIds.has(c.id)}
+                onFollowUp={(id, action, text) => void handleFollowUp(id, action, text)}
                 screenshotUrl={mediaMap[c.id]?.screenshotUrl}
                 audioUrl={mediaMap[c.id]?.audioUrl}
                 onRegenerateMedia={source?.source_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}

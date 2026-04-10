@@ -41,6 +41,7 @@ class CandidateMeaningDTO(BaseModel):
     meaning: str | None
     translation: str | None
     synonyms: str | None
+    examples: str | None
     ipa: str | None
     status: str  # 'queued' | 'running' | 'done' | 'failed'
     error: str | None

@@ -10,6 +10,7 @@ class GenerateMeaningResponseDTO(BaseModel):
     meaning: str
     translation: str
     synonyms: str
+    examples: str
     ipa: str | None = None
     tokens_used: int
 

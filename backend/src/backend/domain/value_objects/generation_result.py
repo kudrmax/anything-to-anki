@@ -10,5 +10,6 @@ class GenerationResult:
     meaning: str
     translation: str
     synonyms: str
+    examples: str
     ipa: str | None
     tokens_used: int

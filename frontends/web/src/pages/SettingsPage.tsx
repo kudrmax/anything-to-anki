@@ -140,6 +140,7 @@ export function SettingsPage() {
       form.anki_field_ipa,
       form.anki_field_translation,
       form.anki_field_synonyms,
+      form.anki_field_examples,
     ].filter(Boolean)
     try {
       const result = await api.verifyNoteType(form.anki_note_type, requiredFields)
@@ -163,6 +164,7 @@ export function SettingsPage() {
       form.anki_field_ipa,
       form.anki_field_translation,
       form.anki_field_synonyms,
+      form.anki_field_examples,
       form.anki_field_image,
       form.anki_field_audio,
     ].filter(Boolean)
@@ -238,6 +240,7 @@ export function SettingsPage() {
                   { key: 'anki_field_audio', label: 'Audio' },
                   { key: 'anki_field_translation', label: 'Translation' },
                   { key: 'anki_field_synonyms', label: 'Synonyms' },
+                  { key: 'anki_field_examples', label: 'Examples' },
                 ] as { key: keyof Settings; label: string }[]
               ).map(({ key, label }, i) => (
                 <div key={key} className="flex items-center gap-3 px-4 py-2.5" style={i > 0 ? { borderTop: '1px solid var(--glass-b)' } : undefined}>

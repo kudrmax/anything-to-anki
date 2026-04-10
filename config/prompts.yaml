@@ -12,5 +12,7 @@ ai:
         For the 'translation' field, provide a short Russian translation of the word (1-3 words). Short, natural — not a dictionary entry. Must match the SPECIFIC meaning used in the given context.
       synonyms: |-
         For the 'synonyms' field, provide 2-3 English synonyms or short phrases for the specific meaning used in context.
+      examples: |-
+        For the 'examples' field, provide 2-3 short example sentences showing how this word is used in different contexts. Each example on a new line. Bold the target word using **bold**. Use natural, everyday English at B1-B2 level. Vary the contexts (work, daily life, social situations).
       ipa: |-
         For the 'ipa' field, provide the IPA transcription of the word (e.g., /ɪˈlæb.ə.reɪt/ for 'elaborate').

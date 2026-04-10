@@ -23,6 +23,8 @@ ai:
         For the 'translation' field, provide a short Russian translation.
       synonyms: |
         For the 'synonyms' field, provide 2-3 synonyms.
+      examples: |
+        For the 'examples' field, provide 2-3 example sentences.
       ipa: |
         For the 'ipa' field, provide the IPA transcription.
 """
@@ -54,6 +56,8 @@ def test_load_joins_system_sections_in_order(valid_config_file: Path) -> None:
         "For the 'translation' field, provide a short Russian translation.\n"
         "\n\n"
         "For the 'synonyms' field, provide 2-3 synonyms.\n"
+        "\n\n"
+        "For the 'examples' field, provide 2-3 example sentences.\n"
         "\n\n"
         "For the 'ipa' field, provide the IPA transcription.\n"
     )
@@ -92,6 +96,7 @@ def test_load_missing_system_section_raises(tmp_path: Path) -> None:
         "    user_template: 'x'\n"
         "    system:\n"
         "      intro: x\n"
+        "      examples: e\n"
         "      ipa: z\n"
     )
     with pytest.raises(ConfigError) as exc_info:
@@ -118,6 +123,7 @@ def test_load_missing_translation_section_raises(tmp_path: Path) -> None:
         "      intro: x\n"
         "      meaning: y\n"
         "      synonyms: s\n"
+        "      examples: e\n"
         "      ipa: z\n"
     )
     with pytest.raises(ConfigError) as exc_info:
@@ -136,6 +142,7 @@ def test_load_missing_synonyms_section_raises(tmp_path: Path) -> None:
         "      intro: x\n"
         "      meaning: y\n"
         "      translation: t\n"
+        "      examples: e\n"
         "      ipa: z\n"
     )
     with pytest.raises(ConfigError) as exc_info:

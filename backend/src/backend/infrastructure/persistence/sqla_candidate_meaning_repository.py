@@ -59,6 +59,7 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
             existing.meaning = meaning.meaning
             existing.translation = meaning.translation
             existing.synonyms = meaning.synonyms
+            existing.examples = meaning.examples
             existing.ipa = meaning.ipa
             existing.status = meaning.status.value
             existing.error = meaning.error

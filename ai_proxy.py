@@ -49,9 +49,10 @@ _SINGLE_SCHEMA: dict[str, Any] = {
         "meaning": {"type": "string"},
         "translation": {"type": "string"},
         "synonyms": {"type": "string"},
+        "examples": {"type": "string"},
         "ipa": {"type": "string"},
     },
-    "required": ["meaning", "translation", "synonyms", "ipa"],
+    "required": ["meaning", "translation", "synonyms", "examples", "ipa"],
 }
 
 _BATCH_SCHEMA: dict[str, Any] = {
@@ -66,10 +67,11 @@ _BATCH_SCHEMA: dict[str, Any] = {
                     "meaning": {"type": "string"},
                     "translation": {"type": "string"},
                     "synonyms": {"type": "string"},
+                    "examples": {"type": "string"},
                     "ipa": {"type": "string"},
                 },
                 "required": [
-                    "word_index", "meaning", "translation", "synonyms", "ipa",
+                    "word_index", "meaning", "translation", "synonyms", "examples", "ipa",
                 ],
             },
         }
@@ -145,6 +147,7 @@ class GenerateResponse(BaseModel):
     meaning: str
     translation: str
     synonyms: str
+    examples: str
     ipa: str | None = None
     tokens_used: int
 
@@ -154,6 +157,7 @@ class BatchItem(BaseModel):
     meaning: str
     translation: str
     synonyms: str
+    examples: str
     ipa: str | None = None
 
 
@@ -179,6 +183,7 @@ async def generate_meaning(req: GenerateRequest) -> GenerateResponse:
             meaning=data.get("meaning", ""),
             translation=data.get("translation", ""),
             synonyms=data.get("synonyms", ""),
+            examples=data.get("examples", ""),
             ipa=data.get("ipa") or None,
             tokens_used=tokens_used,
         )

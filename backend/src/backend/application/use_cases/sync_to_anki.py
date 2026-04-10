@@ -27,6 +27,7 @@ _DEFAULT_FIELD_TRANSLATION: str = "Translation"
 _DEFAULT_FIELD_SYNONYMS: str = "Synonyms"
 _DEFAULT_FIELD_IMAGE: str = "Image"
 _DEFAULT_FIELD_AUDIO: str = "Audio"
+_DEFAULT_FIELD_EXAMPLES: str = "Examples"
 
 
 class SyncToAnkiUseCase:
@@ -80,6 +81,10 @@ class SyncToAnkiUseCase:
             self._settings_repo.get("anki_field_synonyms", _DEFAULT_FIELD_SYNONYMS)
             or _DEFAULT_FIELD_SYNONYMS
         )
+        field_examples = (
+            self._settings_repo.get("anki_field_examples", _DEFAULT_FIELD_EXAMPLES)
+            or _DEFAULT_FIELD_EXAMPLES
+        )
 
         candidates = self._candidate_repo.get_by_source(source_id)
         learn_candidates = [c for c in candidates if c.status == CandidateStatus.LEARN]
@@ -110,7 +115,7 @@ class SyncToAnkiUseCase:
         active_fields = [
             f for f in [
                 field_sentence, field_target, field_meaning, field_ipa,
-                field_translation, field_synonyms,
+                field_translation, field_synonyms, field_examples,
                 field_image, field_audio,
             ]
             if f
@@ -162,6 +167,12 @@ class SyncToAnkiUseCase:
                     and candidate.meaning.synonyms
                 ):
                     note[field_synonyms] = candidate.meaning.synonyms
+                if (
+                    field_examples
+                    and candidate.meaning
+                    and candidate.meaning.examples
+                ):
+                    note[field_examples] = candidate.meaning.examples
                 if (
                     field_image
                     and candidate.media

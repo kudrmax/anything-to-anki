@@ -25,6 +25,7 @@ def _make_candidate(cid: int, lemma: str, *, with_meaning: bool = False) -> Stor
             meaning="already done",
             translation=None,
             synonyms=None,
+            examples=None,
             ipa=None,
             status=EnrichmentStatus.DONE,
             error=None,
@@ -55,6 +56,7 @@ def _running_meaning(cid: int) -> CandidateMeaning:
         meaning=None,
         translation=None,
         synonyms=None,
+        examples=None,
         ipa=None,
         status=EnrichmentStatus.RUNNING,
         error=None,
@@ -97,6 +99,7 @@ def test_execute_batch_happy_path() -> None:
             meaning="explain more",
             translation="объяснить",
             synonyms="explain, elaborate",
+            examples="",
             ipa=None,
         ),
         BatchMeaningResult(
@@ -104,6 +107,7 @@ def test_execute_batch_happy_path() -> None:
             meaning="unwilling",
             translation="неохотный",
             synonyms="hesitant, unwilling",
+            examples="",
             ipa=None,
         ),
     ]
@@ -155,6 +159,7 @@ def test_execute_batch_skips_candidates_with_meaning() -> None:
             meaning="unwilling",
             translation="неохотный",
             synonyms="hesitant, unwilling",
+            examples="",
             ipa=None,
         ),
     ]
@@ -227,6 +232,7 @@ def test_execute_batch_skips_candidate_without_ai_result() -> None:
             meaning="m",
             translation="t",
             synonyms="s",
+            examples="",
             ipa=None,
         ),
     ]
@@ -256,6 +262,7 @@ def test_execute_batch_skips_cancelled_candidate() -> None:
         meaning=None,
         translation=None,
         synonyms=None,
+        examples=None,
         ipa=None,
         status=EnrichmentStatus.FAILED,
         error="cancelled by user",
@@ -271,6 +278,7 @@ def test_execute_batch_skips_cancelled_candidate() -> None:
             meaning="explain more",
             translation="объяснить",
             synonyms="explain, elaborate",
+            examples="",
             ipa=None,
         ),
     ]
