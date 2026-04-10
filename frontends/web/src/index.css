@@ -82,3 +82,21 @@ body {
 .card-slide-in {
   animation: card-enter 220ms ease-out both;
 }
+
+@keyframes card-flash {
+  0%   { box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.6), 0 0 16px rgba(99, 102, 241, 0.2); }
+  100% { box-shadow: 0 0 0 0px rgba(99, 102, 241, 0), 0 0 0px rgba(99, 102, 241, 0); }
+}
+
+.card-flash {
+  animation: card-flash 2s ease-out forwards;
+}
+
+@keyframes popover-fade-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(calc(-100% - 8px)) scale(0.97); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(calc(-100% - 8px)) scale(1); }
+}
+
+.popover-fade-in {
+  animation: popover-fade-in 150ms ease;
+}
