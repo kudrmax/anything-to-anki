@@ -455,10 +455,13 @@ export function ReviewPage() {
       ) as HTMLElement | null
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        el.classList.add('card-flash')
-        el.addEventListener('animationend', () => {
-          el.classList.remove('card-flash')
-        }, { once: true })
+        // Wait for scroll to finish before starting flash
+        setTimeout(() => {
+          el.classList.add('card-flash')
+          el.addEventListener('animationend', () => {
+            el.classList.remove('card-flash')
+          }, { once: true })
+        }, 500)
       }
       setFlashCandidateId(null)
     }, 100)
