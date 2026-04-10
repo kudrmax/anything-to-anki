@@ -29,7 +29,9 @@ from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbMatch
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.frequency_band import FrequencyBand
+from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -67,6 +69,8 @@ def _source(
         raw_text=raw,
         cleaned_text=cleaned,
         status=SourceStatus.DONE,
+        input_method=InputMethod.TEXT_PASTED,
+        content_type=ContentType.TEXT,
     )
 
 

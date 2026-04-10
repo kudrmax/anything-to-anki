@@ -8,8 +8,9 @@ from backend.application.dto.analysis_dtos import (
 from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import SourceAlreadyProcessedError, SourceNotFoundError
+from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
-from backend.domain.value_objects.source_type import SourceType
 
 
 def _make_use_case() -> tuple[ProcessSourceUseCase, dict[str, MagicMock]]:
@@ -36,6 +37,7 @@ class TestProcessSourceStart:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
             id=1, raw_text="Text", status=SourceStatus.NEW,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
         )
         uc.start(1)
         mocks["source_repo"].update_status.assert_called_once_with(
@@ -52,6 +54,7 @@ class TestProcessSourceStart:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
             id=1, raw_text="Text", status=SourceStatus.DONE,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
         )
         with pytest.raises(SourceAlreadyProcessedError):
             uc.start(1)
@@ -60,6 +63,7 @@ class TestProcessSourceStart:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
             id=1, raw_text="Text", status=SourceStatus.ERROR,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
         )
         uc.start(1)
         mocks["source_repo"].update_status.assert_called_once()
@@ -71,6 +75,7 @@ class TestProcessSourceExecute:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
             id=1, raw_text="Hello world", status=SourceStatus.PROCESSING,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
         )
         mocks["settings_repo"].get.return_value = "B1"
         mocks["known_word_repo"].get_all_pairs.return_value = set()
@@ -98,6 +103,7 @@ class TestProcessSourceExecute:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
             id=1, raw_text="Hello", status=SourceStatus.PROCESSING,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
         )
         mocks["settings_repo"].get.return_value = "B1"
         mocks["known_word_repo"].get_all_pairs.return_value = {("pursuit", "NOUN")}
@@ -153,8 +159,8 @@ def _make_use_case_with_parsers() -> tuple[ProcessSourceUseCase, dict[str, Magic
         settings_repo=mocks["settings_repo"],
         analyze_text_use_case=mocks["analyze_text"],
         source_parsers={
-            SourceType.LYRICS: lyrics_parser,
-            SourceType.SUBTITLES: subtitles_parser,
+            InputMethod.LYRICS_PASTED: lyrics_parser,
+            InputMethod.SUBTITLES_FILE: subtitles_parser,
         },
     )
     return uc, mocks
@@ -169,7 +175,7 @@ class TestProcessSourceParsers:
         mocks["lyrics_parser"].parse.return_value = parsed
         mocks["source_repo"].get_by_id.return_value = Source(
             id=1, raw_text=raw, status=SourceStatus.PROCESSING,
-            source_type=SourceType.LYRICS,
+            input_method=InputMethod.LYRICS_PASTED, content_type=ContentType.LYRICS,
         )
         uc.execute(1)
         mocks["lyrics_parser"].parse.assert_called_once_with(raw)
@@ -183,7 +189,7 @@ class TestProcessSourceParsers:
         mocks["subtitles_parser"].parse.return_value = parsed
         mocks["source_repo"].get_by_id.return_value = Source(
             id=2, raw_text=raw, status=SourceStatus.PROCESSING,
-            source_type=SourceType.SUBTITLES,
+            input_method=InputMethod.SUBTITLES_FILE, content_type=ContentType.TEXT,
         )
         uc.execute(2)
         mocks["subtitles_parser"].parse.assert_called_once_with(raw)
@@ -195,7 +201,7 @@ class TestProcessSourceParsers:
         raw = "Plain text content here."
         mocks["source_repo"].get_by_id.return_value = Source(
             id=3, raw_text=raw, status=SourceStatus.PROCESSING,
-            source_type=SourceType.TEXT,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
         )
         uc.execute(3)
         mocks["lyrics_parser"].parse.assert_not_called()

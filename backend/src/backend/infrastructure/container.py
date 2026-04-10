@@ -26,7 +26,7 @@ from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
 from backend.domain.value_objects.fragment_selection_config import (
     FragmentSelectionConfig,
 )
-from backend.domain.value_objects.source_type import SourceType
+from backend.domain.value_objects.input_method import InputMethod
 from backend.infrastructure.adapters.ai_model_mapping import model_id_for
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
 from backend.infrastructure.adapters.cefrpy_classifier import CefrpyCEFRClassifier
@@ -194,8 +194,8 @@ class Container:
             settings_repo=SqlaSettingsRepository(session),
             analyze_text_use_case=self.analyze_text_use_case(),
             source_parsers={
-                SourceType.LYRICS: self._lyrics_parser,
-                SourceType.SUBTITLES: self._srt_parser,
+                InputMethod.LYRICS_PASTED: self._lyrics_parser,
+                InputMethod.SUBTITLES_FILE: self._srt_parser,
             },
             structured_srt_parser=self._srt_parser,
             media_repo=SqlaCandidateMediaRepository(session),

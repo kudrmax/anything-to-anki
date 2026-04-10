@@ -7,8 +7,8 @@ import pytest
 from backend.application.use_cases.regenerate_candidate_media import (
     RegenerateCandidateMediaUseCase,
 )
+from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.parsed_srt import ParsedSrt
-from backend.domain.value_objects.source_type import SourceType
 from backend.domain.value_objects.subtitle_block import SubtitleBlock
 
 if TYPE_CHECKING:
@@ -35,7 +35,7 @@ class TestRegenerateCandidateMedia:
 
         source = MagicMock()
         source.id = 42
-        source.source_type = SourceType.VIDEO
+        source.content_type = ContentType.VIDEO
         source.video_path = "/videos/movie.mkv"
         source.raw_text = (
             "1\n00:00:01,000 --> 00:00:02,000\nHello world.\n\n"
@@ -99,7 +99,7 @@ class TestRegenerateCandidateMedia:
 
         source = MagicMock()
         source.id = 42
-        source.source_type = SourceType.VIDEO
+        source.content_type = ContentType.VIDEO
         source.video_path = "/videos/movie.mkv"
         source.raw_text = "irrelevant — parser is mocked"
         source.audio_track_index = 2
@@ -153,7 +153,7 @@ class TestRegenerateCandidateMedia:
         candidate.id = 10
         candidate.source_id = 42
         source = MagicMock()
-        source.source_type = SourceType.TEXT
+        source.content_type = ContentType.TEXT
 
         candidate_repo = MagicMock()
         candidate_repo.get_by_id.return_value = candidate
@@ -178,7 +178,7 @@ class TestRegenerateCandidateMedia:
         candidate.source_id = 42
         source = MagicMock()
         source.id = 42
-        source.source_type = SourceType.VIDEO
+        source.content_type = ContentType.VIDEO
         source.video_path = "/videos/missing.mkv"
 
         candidate_repo = MagicMock()
@@ -210,7 +210,7 @@ class TestRegenerateCandidateMedia:
 
         source = MagicMock()
         source.id = 42
-        source.source_type = SourceType.VIDEO
+        source.content_type = ContentType.VIDEO
         source.video_path = "/videos/movie.mkv"
         source.raw_text = "irrelevant"
         source.audio_track_index = None

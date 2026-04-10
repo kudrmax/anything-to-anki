@@ -4,14 +4,14 @@ from datetime import datetime  # noqa: TC003
 
 from pydantic import BaseModel
 
-from backend.domain.value_objects.source_type import SourceType
+from backend.domain.value_objects.input_method import InputMethod
 
 
 class CreateSourceRequest(BaseModel):
     """Input for creating a new text source."""
 
     raw_text: str
-    source_type: SourceType = SourceType.TEXT
+    input_method: InputMethod = InputMethod.TEXT_PASTED
     title: str | None = None
 
 

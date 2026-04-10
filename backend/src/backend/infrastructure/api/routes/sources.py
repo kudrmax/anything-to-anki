@@ -46,7 +46,7 @@ def create_source(
 ) -> dict[str, Any]:
     try:
         use_case = container.create_source_use_case(session)
-        source = use_case.execute(request.raw_text, request.source_type, request.title)
+        source = use_case.execute(request.raw_text, request.input_method, request.title)
         session.commit()
         return {"id": source.id, "status": source.status.value}
     except ValueError as e:
