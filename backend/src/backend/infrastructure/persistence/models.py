@@ -184,6 +184,7 @@ class CandidateMeaningModel(Base):
     meaning: Mapped[str | None] = mapped_column(Text, nullable=True)
     translation: Mapped[str | None] = mapped_column(Text, nullable=True)
     synonyms: Mapped[str | None] = mapped_column(Text, nullable=True)
+    examples: Mapped[str | None] = mapped_column(Text, nullable=True)
     ipa: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="done")
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -195,6 +196,7 @@ class CandidateMeaningModel(Base):
             meaning=self.meaning,
             translation=self.translation,
             synonyms=self.synonyms,
+            examples=self.examples,
             ipa=self.ipa,
             status=EnrichmentStatus(self.status),
             error=self.error,
@@ -208,6 +210,7 @@ class CandidateMeaningModel(Base):
             meaning=entity.meaning,
             translation=entity.translation,
             synonyms=entity.synonyms,
+            examples=entity.examples,
             ipa=entity.ipa,
             status=entity.status.value,
             error=entity.error,

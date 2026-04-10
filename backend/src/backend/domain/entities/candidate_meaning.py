@@ -22,6 +22,7 @@ class CandidateMeaning:
     meaning: str | None
     translation: str | None
     synonyms: str | None
+    examples: str | None
     ipa: str | None
     status: EnrichmentStatus
     error: str | None

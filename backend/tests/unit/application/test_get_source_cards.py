@@ -26,6 +26,7 @@ def _make_candidate(
             meaning=meaning,
             translation=None,
             synonyms=None,
+            examples=None,
             ipa=ipa,
             status=EnrichmentStatus.DONE,
             error=None,

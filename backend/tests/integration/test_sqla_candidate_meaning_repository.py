@@ -46,6 +46,7 @@ class TestSqlaCandidateMeaningRepository:
                 meaning="hello",
                 translation=None,
                 synonyms=None,
+                examples=None,
                 ipa="həˈloʊ",
                 status=EnrichmentStatus.DONE,
                 error=None,
@@ -64,12 +65,12 @@ class TestSqlaCandidateMeaningRepository:
         with self._Session() as s:
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning="v1", translation=None, synonyms=None,
+                candidate_id=1, meaning="v1", translation=None, synonyms=None, examples=None,
                 ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
             ))
             s.commit()
             repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning="v2", translation=None, synonyms=None,
+                candidate_id=1, meaning="v2", translation=None, synonyms=None, examples=None,
                 ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
             ))
             s.commit()
@@ -92,11 +93,11 @@ class TestSqlaCandidateMeaningRepository:
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning="m1", translation=None, synonyms=None,
+                candidate_id=1, meaning="m1", translation=None, synonyms=None, examples=None,
                 ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
             ))
             repo.upsert(CandidateMeaning(
-                candidate_id=2, meaning="m2", translation=None, synonyms=None,
+                candidate_id=2, meaning="m2", translation=None, synonyms=None, examples=None,
                 ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
             ))
             s.commit()
@@ -117,11 +118,11 @@ class TestSqlaCandidateMeaningRepository:
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning="m1", translation=None, synonyms=None,
+                candidate_id=1, meaning="m1", translation=None, synonyms=None, examples=None,
                 ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
             ))
             repo.upsert(CandidateMeaning(
-                candidate_id=2, meaning="m2", translation=None, synonyms=None,
+                candidate_id=2, meaning="m2", translation=None, synonyms=None, examples=None,
                 ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
             ))
             s.commit()
@@ -147,7 +148,7 @@ class TestSqlaCandidateMeaningRepository:
             repo = SqlaCandidateMeaningRepository(s)
             # candidate 1 has meaning, candidate 2 does not
             repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning="x", translation=None, synonyms=None,
+                candidate_id=1, meaning="x", translation=None, synonyms=None, examples=None,
                 ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
             ))
             s.commit()
@@ -182,7 +183,7 @@ class TestSqlaCandidateMeaningRepository:
             # candidate 1: no existing row (will be created)
             # candidate 2: existing row with meaning (will be flipped to QUEUED, meaning preserved)
             repo.upsert(CandidateMeaning(
-                candidate_id=2, meaning="existing", translation=None, synonyms=None,
+                candidate_id=2, meaning="existing", translation=None, synonyms=None, examples=None,
                 ipa=None, status=EnrichmentStatus.FAILED, error="old error", generated_at=None,
             ))
             s.commit()
@@ -202,7 +203,7 @@ class TestSqlaCandidateMeaningRepository:
         with self._Session() as s:
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning=None, translation=None, synonyms=None,
+                candidate_id=1, meaning=None, translation=None, synonyms=None, examples=None,
                 ipa=None, status=EnrichmentStatus.QUEUED, error=None, generated_at=None,
             ))
             s.commit()
@@ -216,7 +217,7 @@ class TestSqlaCandidateMeaningRepository:
         with self._Session() as s:
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning=None, translation=None, synonyms=None,
+                candidate_id=1, meaning=None, translation=None, synonyms=None, examples=None,
                 ipa=None, status=EnrichmentStatus.RUNNING, error=None, generated_at=None,
             ))
             s.commit()
@@ -258,11 +259,11 @@ class TestSqlaCandidateMeaningRepository:
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning="x", translation=None, synonyms=None,
+                candidate_id=1, meaning="x", translation=None, synonyms=None, examples=None,
                 ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
             ))
             repo.upsert(CandidateMeaning(
-                candidate_id=2, meaning=None, translation=None, synonyms=None,
+                candidate_id=2, meaning=None, translation=None, synonyms=None, examples=None,
                 ipa=None, status=EnrichmentStatus.FAILED, error="boom", generated_at=None,
             ))
             s.commit()
@@ -277,6 +278,7 @@ class TestSqlaCandidateMeaningRepository:
                 meaning="explain in detail",
                 translation="разъяснить",
                 synonyms="explain, clarify",
+                examples=None,
                 ipa=None,
                 status=EnrichmentStatus.DONE,
                 error=None,
@@ -293,12 +295,12 @@ class TestSqlaCandidateMeaningRepository:
         with self._Session() as s:
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning="test", translation="тест", synonyms="check",
+                candidate_id=1, meaning="test", translation="тест", synonyms="check", examples=None,
                 ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
             ))
             s.commit()
             repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning="test", translation="обновлено", synonyms="updated",
+                candidate_id=1, meaning="test", translation="обновлено", synonyms="updated", examples=None,
                 ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
             ))
             s.commit()

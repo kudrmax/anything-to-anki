@@ -548,6 +548,34 @@ export function CandidateCardV2({
                   <span>{candidate.meaning.synonyms}</span>
                 </div>
               )}
+              {candidate.meaning.examples && (
+                <div
+                  style={{
+                    marginTop: '10px',
+                    padding: '8px 12px',
+                    background: 'rgba(255,255,255,0.03)',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                  }}
+                >
+                  {candidate.meaning.examples
+                    .split(/\n+/)
+                    .filter((l) => l.trim().length > 0)
+                    .map((line, i) => (
+                      <p
+                        key={i}
+                        style={{
+                          margin: i === 0 ? 0 : '4px 0 0',
+                          fontSize: '13px',
+                          lineHeight: 1.5,
+                          color: '#94a3b8',
+                        }}
+                      >
+                        {renderMeaning(line, candidate.lemma, candidate.surface_form)}
+                      </p>
+                    ))}
+                </div>
+              )}
             </div>
           ) : candidate.meaning?.status === 'running' ? (
             <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--td)', display: 'flex', alignItems: 'center', gap: '6px' }}>

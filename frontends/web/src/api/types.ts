@@ -32,6 +32,7 @@ export interface CandidateMeaning {
   meaning: string | null
   translation: string | null
   synonyms: string | null
+  examples: string | null
   ipa: string | null
   status: EnrichmentStatus
   error: string | null
@@ -116,6 +117,7 @@ export interface Settings {
   anki_field_audio: string
   anki_field_translation: string
   anki_field_synonyms: string
+  anki_field_examples: string
 }
 
 export interface KnownWord {
@@ -145,6 +147,7 @@ export interface GenerateMeaningResult {
   meaning: string
   translation: string
   synonyms: string
+  examples: string
   ipa: string | null
   tokens_used: number
 }

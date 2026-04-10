@@ -100,6 +100,7 @@ class TestCandidateRepository:
                 meaning=meaning,
                 translation=None,
                 synonyms=None,
+                examples=None,
                 ipa=None,
                 status=EnrichmentStatus.DONE,
                 error=None,

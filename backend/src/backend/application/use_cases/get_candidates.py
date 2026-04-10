@@ -23,6 +23,7 @@ def _to_dto(c: StoredCandidate) -> StoredCandidateDTO:
             meaning=c.meaning.meaning,
             translation=c.meaning.translation,
             synonyms=c.meaning.synonyms,
+            examples=c.meaning.examples,
             ipa=c.meaning.ipa,
             status=c.meaning.status.value,
             error=c.meaning.error,

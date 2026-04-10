@@ -16,6 +16,7 @@ _SECTION_ORDER: tuple[str, ...] = (
     "meaning",
     "translation",
     "synonyms",
+    "examples",
     "ipa",
 )
 

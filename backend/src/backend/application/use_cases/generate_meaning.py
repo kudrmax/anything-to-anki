@@ -48,6 +48,7 @@ class GenerateMeaningUseCase:
             meaning=result.meaning,
             translation=result.translation,
             synonyms=result.synonyms,
+            examples=result.examples,
             ipa=result.ipa,
             status=EnrichmentStatus.DONE,
             error=None,
@@ -58,6 +59,7 @@ class GenerateMeaningUseCase:
             meaning=result.meaning,
             translation=result.translation,
             synonyms=result.synonyms,
+            examples=result.examples,
             ipa=result.ipa,
             tokens_used=result.tokens_used,
         )

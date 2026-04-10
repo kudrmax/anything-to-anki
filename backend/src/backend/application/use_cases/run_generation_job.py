@@ -89,6 +89,7 @@ class MeaningGenerationUseCase:
                 meaning=r.meaning,
                 translation=r.translation,
                 synonyms=r.synonyms,
+                examples=r.examples,
                 ipa=r.ipa,
                 status=EnrichmentStatus.DONE,
                 error=None,

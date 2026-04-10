@@ -43,6 +43,7 @@ class HttpAIService(AIService):
                 meaning=data["meaning"],
                 translation=data["translation"],
                 synonyms=data["synonyms"],
+                examples=data.get("examples", ""),
                 ipa=data.get("ipa"),
                 tokens_used=data.get("tokens_used", 0),
             )
@@ -91,6 +92,7 @@ class HttpAIService(AIService):
                     meaning=item["meaning"],
                     translation=item["translation"],
                     synonyms=item["synonyms"],
+                    examples=item.get("examples", ""),
                     ipa=item.get("ipa"),
                 )
                 for item in data["results"]

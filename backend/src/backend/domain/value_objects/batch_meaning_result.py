@@ -11,4 +11,5 @@ class BatchMeaningResult:
     meaning: str
     translation: str
     synonyms: str
+    examples: str
     ipa: str | None

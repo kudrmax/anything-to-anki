@@ -49,6 +49,7 @@ def test_generate_meaning_happy_path() -> None:
         meaning="explain in detail",
         translation="разъяснить",
         synonyms="explain, clarify",
+        examples="Could you **elaborate** on that point?",
         ipa="/ɪˈlæb.ə.reɪt/",
         tokens_used=42,
     )
