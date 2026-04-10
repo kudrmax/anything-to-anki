@@ -31,7 +31,7 @@ export interface SourceSummary {
   processing_stage: ProcessingStage | null
 }
 
-export type EnrichmentStatus = 'queued' | 'running' | 'done' | 'failed'
+export type EnrichmentStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
 
 export interface CandidateMeaning {
   meaning: string | null
