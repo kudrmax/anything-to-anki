@@ -1,5 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { LayoutDashboard, Settings } from 'lucide-react'
+import { AmbientBlobs } from '@/components/AmbientBlobs'
 
 const NAV = [
   { icon: LayoutDashboard, label: 'Inbox', path: '/' },
@@ -17,6 +18,7 @@ export function SidebarLayout() {
 
   return (
     <div className="flex flex-col font-sans" style={{ height: '100dvh', color: 'var(--text)' }}>
+      <AmbientBlobs />
       {/* App header */}
       <header
         className="shrink-0 flex items-center px-6"

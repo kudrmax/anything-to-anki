@@ -25,6 +25,42 @@
   --header-h:  56px;
   --sh:        0 8px 32px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.3);
   --sh2:       0 20px 52px rgba(129,140,248,.22), 0 4px 16px rgba(0,0,0,.4);
+
+  /* Status colors (shared across all themes) */
+  --status-learn: #34d399;
+  --status-learn-bg: rgba(52,211,153,0.2);
+  --status-learn-border: rgba(52,211,153,0.35);
+  --status-learn-active-bg: rgba(16,185,129,0.35);
+  --status-learn-active-border: rgba(52,211,153,0.5);
+
+  --status-know: #38bdf8;
+  --status-know-bg: rgba(56,189,248,0.15);
+  --status-know-border: rgba(56,189,248,0.3);
+  --status-know-active-bg: rgba(14,165,233,0.3);
+  --status-know-active-border: rgba(56,189,248,0.5);
+
+  --status-skip: #f87171;
+  --status-skip-bg: rgba(239,68,68,0.15);
+  --status-skip-border: rgba(239,68,68,0.3);
+  --status-skip-active-bg: rgba(239,68,68,0.3);
+  --status-skip-active-border: rgba(239,68,68,0.5);
+
+  /* Text hierarchy */
+  --text-primary: var(--text);
+  --text-muted-light: #cbd5e1;
+  --text-highlight: #c4b5fd;
+  --error: #f87171;
+
+  /* Surfaces */
+  --surface-menu: #0f111e;
+  --surface-divider: rgba(255,255,255,0.06);
+
+  /* Typography */
+  --font-body: 'Inter', system-ui, sans-serif;
+
+  /* Shape */
+  --card-radius: 12px;
+  --btn-radius: 6px;
 }
 
 * {
@@ -36,7 +72,7 @@ body {
   background: var(--mesh), var(--base);
   background-attachment: fixed;
   color: var(--text);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -101,4 +137,147 @@ body {
 
 .popover-fade-in {
   animation: popover-fade-in 150ms ease;
+}
+
+/* ── Liquid Glass Theme ── */
+[data-theme="liquid-glass"] {
+  --mesh: none;
+  --base: #050508;
+  --glass: rgba(255,255,255,.06);
+  --glass-b: rgba(255,255,255,.12);
+  --blur: blur(40px) saturate(180%);
+  --text: #f5f5f7;
+  --tm: rgba(255,255,255,.45);
+  --td: rgba(255,255,255,.2);
+  --accent: #0a84ff;
+  --ag: rgba(10,132,255,.25);
+  --abg: rgba(10,132,255,.1);
+  --ibg: rgba(255,255,255,.05);
+  --ib: rgba(10,132,255,.25);
+  --grad: linear-gradient(135deg, #0a84ff, #5ac8fa);
+  --header-bg: rgba(255,255,255,.04);
+  --sh: 0 8px 40px rgba(0,0,0,.2), inset 0 0.5px 0 rgba(255,255,255,.09);
+  --sh2: 0 12px 48px rgba(0,0,0,.25), inset 0 0.5px 0 rgba(255,255,255,.12);
+
+  --text-primary: #f5f5f7;
+  --text-muted-light: rgba(255,255,255,.5);
+  --text-highlight: #5ac8fa;
+  --error: #ff453a;
+
+  --surface-menu: rgba(255,255,255,.06);
+  --surface-divider: rgba(255,255,255,.06);
+
+  --status-learn: #30d158;
+  --status-learn-bg: rgba(48,209,88,.08);
+  --status-learn-border: rgba(48,209,88,.18);
+  --status-learn-active-bg: rgba(48,209,88,.16);
+  --status-learn-active-border: rgba(48,209,88,.3);
+
+  --status-know: #0a84ff;
+  --status-know-bg: rgba(10,132,255,.07);
+  --status-know-border: rgba(10,132,255,.16);
+  --status-know-active-bg: rgba(10,132,255,.14);
+  --status-know-active-border: rgba(10,132,255,.25);
+
+  --status-skip: #ff453a;
+  --status-skip-bg: rgba(255,69,58,.06);
+  --status-skip-border: rgba(255,69,58,.12);
+  --status-skip-active-bg: rgba(255,69,58,.12);
+  --status-skip-active-border: rgba(255,69,58,.2);
+
+  --card-radius: 20px;
+  --btn-radius: 100px;
+  --font-body: -apple-system, 'SF Pro Display', system-ui, sans-serif;
+}
+
+/* ── Liquid Glass overrides ── */
+[data-theme="liquid-glass"] body {
+  background: #050508;
+}
+
+[data-theme="liquid-glass"] .glass-card {
+  border-width: 0.5px;
+  border-radius: var(--card-radius);
+  position: relative;
+  overflow: hidden;
+}
+
+[data-theme="liquid-glass"] .glass-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 5%; right: 5%;
+  height: 0.5px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.35) 30%, rgba(255,255,255,.45) 50%, rgba(255,255,255,.35) 70%, transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+[data-theme="liquid-glass"] .glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(165deg, rgba(255,255,255,.07) 0%, transparent 40%, rgba(255,255,255,.015) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  [data-theme="liquid-glass"] .glass-card {
+    background: rgba(255,255,255,.12);
+  }
+}
+
+/* ── Book Theme ── */
+[data-theme="book"] {
+  --mesh: none;
+  --base: #1c1917;
+  --glass: rgba(35,31,27,.8);
+  --glass-b: rgba(53,47,41,.6);
+  --blur: none;
+  --text: #e7e5e4;
+  --tm: #a8a29e;
+  --td: #78716c;
+  --accent: #d6a756;
+  --ag: rgba(214,167,86,.25);
+  --abg: rgba(214,167,86,.08);
+  --ibg: rgba(214,167,86,.06);
+  --ib: rgba(214,167,86,.25);
+  --grad: linear-gradient(135deg, #d6a756, #c4914a);
+  --header-bg: rgba(28,25,23,.92);
+  --sh: 0 2px 12px rgba(0,0,0,.2);
+  --sh2: 0 4px 24px rgba(0,0,0,.25);
+
+  --text-primary: #e7e5e4;
+  --text-muted-light: #a8a29e;
+  --text-highlight: #d6a756;
+  --error: #f87171;
+
+  --surface-menu: #231f1b;
+  --surface-divider: rgba(53,47,41,.5);
+
+  --card-radius: 4px;
+  --btn-radius: 20px;
+  --font-body: Georgia, 'Times New Roman', serif;
+}
+
+/* ── Book overrides ── */
+[data-theme="book"] body {
+  background: var(--base);
+}
+
+[data-theme="book"] .glass-card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: var(--card-radius);
+  border-bottom: 1px solid var(--glass-b);
+}
+
+[data-theme="book"] .glass-card:hover {
+  border-color: var(--accent);
+  transform: none;
+}
+
+[data-theme="book"] [data-context-fragment] {
+  font-style: italic;
 }

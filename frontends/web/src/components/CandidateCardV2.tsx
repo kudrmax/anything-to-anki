@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { BookOpen, ChevronDown, Film, Info, Languages, Loader2, Pencil, Play, Sparkles, Square, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTheme } from '@/lib/ThemeProvider'
+import LiquidGlass from 'liquid-glass-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 
 const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string }[] = [
@@ -55,15 +57,15 @@ const STATUS_BG: Partial<Record<CandidateStatus, string>> = {
 }
 
 const MARK_BUTTONS: { status: CandidateStatus; label: string; bg: string; color: string; border: string }[] = [
-  { status: 'learn', label: 'Learn', bg: 'rgba(52,211,153,0.2)',  color: '#34d399', border: 'rgba(52,211,153,0.35)' },
-  { status: 'known', label: 'Know',  bg: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: 'rgba(56,189,248,0.3)' },
-  { status: 'skip',  label: 'Skip',  bg: 'rgba(239,68,68,0.15)',  color: '#f87171', border: 'rgba(239,68,68,0.3)' },
+  { status: 'learn', label: 'Learn', bg: 'var(--status-learn-bg)', color: 'var(--status-learn)', border: 'var(--status-learn-border)' },
+  { status: 'known', label: 'Know', bg: 'var(--status-know-bg)', color: 'var(--status-know)', border: 'var(--status-know-border)' },
+  { status: 'skip', label: 'Skip', bg: 'var(--status-skip-bg)', color: 'var(--status-skip)', border: 'var(--status-skip-border)' },
 ]
 
 const MARK_ACTIVE: Record<string, { bg: string; color: string; border: string }> = {
-  learn: { bg: 'rgba(16,185,129,0.35)', color: '#34d399', border: 'rgba(52,211,153,0.5)' },
-  known: { bg: 'rgba(14,165,233,0.3)',  color: '#38bdf8', border: 'rgba(56,189,248,0.5)' },
-  skip:  { bg: 'rgba(239,68,68,0.3)',   color: '#f87171', border: 'rgba(239,68,68,0.5)' },
+  learn: { bg: 'var(--status-learn-active-bg)', color: 'var(--status-learn)', border: 'var(--status-learn-active-border)' },
+  known: { bg: 'var(--status-know-active-bg)', color: 'var(--status-know)', border: 'var(--status-know-active-border)' },
+  skip: { bg: 'var(--status-skip-active-bg)', color: 'var(--status-skip)', border: 'var(--status-skip-active-border)' },
 }
 
 const CEFR_PILL_COLOR: Record<string, { bg: string; color: string }> = {
@@ -71,7 +73,7 @@ const CEFR_PILL_COLOR: Record<string, { bg: string; color: string }> = {
   C1: { bg: 'rgba(234,88,12,0.2)',  color: '#fb923c' },
   C2: { bg: 'rgba(225,29,72,0.2)',  color: '#fb7185' },
 }
-const CEFR_PILL_DEFAULT = { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8' }
+const CEFR_PILL_DEFAULT = { bg: 'rgba(148,163,184,0.15)', color: 'var(--tm)' }
 
 function stripMarkdown(text: string): string {
   return text
@@ -111,11 +113,11 @@ function highlightWord(fragment: string, lemma: string, surfaceForm: string | nu
     <>
       {before}
       <span style={{
-        color: '#eef0ff',
+        color: 'var(--text-primary)',
         fontWeight: 700,
         fontSize: '22px',
         textDecoration: 'underline',
-        textDecorationColor: '#818cf8',
+        textDecorationColor: 'var(--accent)',
         textUnderlineOffset: '4px',
       }}>
         {match[0]}
@@ -143,7 +145,7 @@ function renderMeaning(text: string, lemma: string, surfaceForm: string | null):
         parts.push(bold ? <b key={`${keyPrefix}-b-${last}`}>{t}</b> : t)
       }
       parts.push(
-        <span key={`${keyPrefix}-h-${m.index}`} style={{ fontWeight: 700, color: '#eef0ff' }}>
+        <span key={`${keyPrefix}-h-${m.index}`} style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
           {m[0]}
         </span>,
       )
@@ -220,6 +222,7 @@ export function CandidateCardV2({
   onPlayAudio,
   onStopAudio,
 }: CandidateCardV2Props) {
+  const { theme } = useTheme()
   const [showInfo, setShowInfo] = useState(false)
   const [showFollowUp, setShowFollowUp] = useState(false)
   const [showFreeInput, setShowFreeInput] = useState(false)
@@ -257,7 +260,7 @@ export function CandidateCardV2({
 
   const cefrPillColor = CEFR_PILL_COLOR[candidate.cefr_level ?? ''] ?? CEFR_PILL_DEFAULT
 
-  return (
+  const cardContent = (
     <div
       data-candidate-id={candidate.id}
       onMouseEnter={() => onHoverEnter(candidate.id)}
@@ -286,7 +289,7 @@ export function CandidateCardV2({
           width: '3px',
           height: '100%',
           borderRadius: '12px 0 0 12px',
-          background: 'linear-gradient(180deg, #818cf8, #67e8f9)',
+          background: 'var(--grad)',
           position: 'absolute',
           left: 0,
           top: 0,
@@ -338,7 +341,7 @@ export function CandidateCardV2({
                   paddingTop: '4px',
                 }}>
                 <div style={{
-                  background: '#0f111e',
+                  background: 'var(--surface-menu)',
                   border: '1px solid rgba(255,255,255,0.12)',
                   borderRadius: '8px',
                   padding: '4px 0',
@@ -351,7 +354,7 @@ export function CandidateCardV2({
                       setShowFollowUp(false)
                     }}
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
-                    style={{ color: '#cbd5e1' }}
+                    style={{ color: 'var(--text-muted-light)' }}
                   >
                     Regenerate all
                   </button>
@@ -364,7 +367,7 @@ export function CandidateCardV2({
                         setShowFollowUp(false)
                       }}
                       className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
-                      style={{ color: '#cbd5e1' }}
+                      style={{ color: 'var(--text-muted-light)' }}
                     >
                       {preset.label}
                     </button>
@@ -389,14 +392,14 @@ export function CandidateCardV2({
                             placeholder="Your question..."
                             autoFocus
                             className="flex-1 px-2 py-1 rounded text-xs bg-white/[0.06] border border-white/[0.1] outline-none"
-                            style={{ color: '#cbd5e1' }}
+                            style={{ color: 'var(--text-muted-light)' }}
                           />
                         </div>
                       ) : (
                         <button
                           onClick={() => setShowFreeInput(true)}
                           className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
-                          style={{ color: '#94a3b8' }}
+                          style={{ color: 'var(--tm)' }}
                         >
                           Ask a question...
                         </button>
@@ -458,7 +461,7 @@ export function CandidateCardV2({
                 boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
               }}>
                 {candidate.meaning?.ipa && (
-                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--tm)' }}>
                     {candidate.meaning.ipa}
                   </span>
                 )}
@@ -481,7 +484,7 @@ export function CandidateCardV2({
                 className="cursor-pointer transition-colors"
                 style={{
                   padding: '4px 14px',
-                  borderRadius: '6px',
+                  borderRadius: 'var(--btn-radius)',
                   fontSize: '11px',
                   fontWeight: isActive ? 700 : 600,
                   border: `1px solid ${isActive ? active.border : btn.border}`,
@@ -539,7 +542,7 @@ export function CandidateCardV2({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#818cf8',
+                      color: 'var(--accent)',
                       cursor: 'pointer',
                       backdropFilter: 'blur(4px)',
                     }}
@@ -569,7 +572,7 @@ export function CandidateCardV2({
                 )}
                 {mediaStatus === 'queued' && 'Queued'}
                 {mediaStatus === 'failed' && (
-                  <span style={{ color: '#f87171' }} title={candidate.media?.error ?? undefined}>
+                  <span style={{ color: 'var(--error)' }} title={candidate.media?.error ?? undefined}>
                     Failed
                   </span>
                 )}
@@ -614,13 +617,13 @@ export function CandidateCardV2({
             </span>
           )}
 
-          <p style={{
+          <p data-context-fragment style={{
             // Compensate for line-box leading: with line-height 1.5 on a 17px font,
             // the visible cap-line of the first character sits ~9px below the line
             // box top. Without this offset the text appears lower than the image top.
             margin: '-9px 0 6px',
             fontSize: '17px',
-            color: '#c4b5fd',
+            color: 'var(--text-highlight)',
             lineHeight: 1.5,
           }}>
             &ldquo;{highlightWord(candidate.context_fragment, candidate.lemma, candidate.surface_form)}&rdquo;
@@ -641,7 +644,7 @@ export function CandidateCardV2({
                         margin: i === 0 ? 0 : '8px 0 0',
                         fontSize: '15px',
                         lineHeight: 1.55,
-                        color: '#cbd5e1',
+                        color: 'var(--text-muted-light)',
                       }}
                     >
                       {renderMeaning(para, candidate.lemma, candidate.surface_form)}
@@ -656,11 +659,11 @@ export function CandidateCardV2({
                     alignItems: 'flex-start',
                     gap: '6px',
                     fontSize: '14px',
-                    color: '#cbd5e1',
+                    color: 'var(--text-muted-light)',
                     lineHeight: 1.5,
                   }}
                 >
-                  <Languages size={14} style={{ marginTop: '3px', flexShrink: 0, color: '#94a3b8' }} />
+                  <Languages size={14} style={{ marginTop: '3px', flexShrink: 0, color: 'var(--tm)' }} />
                   <span>{candidate.meaning.translation}</span>
                 </div>
               )}
@@ -672,11 +675,11 @@ export function CandidateCardV2({
                     alignItems: 'flex-start',
                     gap: '6px',
                     fontSize: '14px',
-                    color: '#cbd5e1',
+                    color: 'var(--text-muted-light)',
                     lineHeight: 1.5,
                   }}
                 >
-                  <BookOpen size={14} style={{ marginTop: '3px', flexShrink: 0, color: '#94a3b8' }} />
+                  <BookOpen size={14} style={{ marginTop: '3px', flexShrink: 0, color: 'var(--tm)' }} />
                   <span>{candidate.meaning.synonyms}</span>
                 </div>
               )}
@@ -688,11 +691,11 @@ export function CandidateCardV2({
                     alignItems: 'flex-start',
                     gap: '6px',
                     fontSize: '14px',
-                    color: '#cbd5e1',
+                    color: 'var(--text-muted-light)',
                     lineHeight: 1.5,
                   }}
                 >
-                  <span style={{ fontSize: '13px', marginTop: '1px', flexShrink: 0, color: '#94a3b8' }}>🔊</span>
+                  <span style={{ fontSize: '13px', marginTop: '1px', flexShrink: 0, color: 'var(--tm)' }}>🔊</span>
                   <span style={{ fontFamily: 'monospace', fontSize: '13px' }}>{candidate.meaning.ipa}</span>
                 </div>
               )}
@@ -716,7 +719,7 @@ export function CandidateCardV2({
                           margin: i === 0 ? 0 : '4px 0 0',
                           fontSize: '13px',
                           lineHeight: 1.5,
-                          color: '#94a3b8',
+                          color: 'var(--tm)',
                         }}
                       >
                         {renderMeaning(line, candidate.lemma, candidate.surface_form)}
@@ -732,7 +735,7 @@ export function CandidateCardV2({
           ) : candidate.meaning?.status === 'queued' ? (
             <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--td)' }}>Queued</p>
           ) : candidate.meaning?.status === 'failed' ? (
-            <p style={{ margin: '10px 0 0', fontSize: '13px', color: '#f87171' }} title={candidate.meaning.error ?? undefined}>
+            <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--error)' }} title={candidate.meaning.error ?? undefined}>
               Failed to generate
             </p>
           ) : candidate.meaning?.status === 'cancelled' ? (
@@ -742,4 +745,9 @@ export function CandidateCardV2({
       </div>
     </div>
   )
+
+  if (theme === 'liquid-glass') {
+    return <LiquidGlass style={{ borderRadius: 'var(--card-radius)' }}>{cardContent}</LiquidGlass>
+  }
+  return cardContent
 }

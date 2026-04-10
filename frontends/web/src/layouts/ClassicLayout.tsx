@@ -1,11 +1,13 @@
 import { Outlet, useNavigate } from 'react-router-dom'
 import { Settings } from 'lucide-react'
+import { AmbientBlobs } from '@/components/AmbientBlobs'
 
 export function ClassicLayout() {
   const navigate = useNavigate()
 
   return (
     <div className="flex flex-col font-sans" style={{ height: '100dvh', color: 'var(--text)' }}>
+      <AmbientBlobs />
       <header
         className="shrink-0 flex items-center justify-between px-6"
         style={{
