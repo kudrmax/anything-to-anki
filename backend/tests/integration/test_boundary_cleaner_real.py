@@ -170,10 +170,6 @@ class TestBoundaryCleanerRealCases:
         assert "as though" not in cleaned
         assert "looked at Harry" in cleaned
 
-    @pytest.mark.xfail(
-        reason="Wave 2: needs RIGHT extension to grab dobj 'Harry Potter'",
-        strict=False,
-    )
     def test_86_disclaimer(self) -> None:
         _, cleaned = self._run(S_DISCLAIMER, "disclaimer")
         assert "Harry Potter" in cleaned
@@ -286,10 +282,6 @@ class TestBoundaryCleanerRealCases:
         assert "Did I mention" in cleaned
         assert "Their" not in cleaned
 
-    @pytest.mark.xfail(
-        reason="Wave 2/3: lyrics line break boundary handling",
-        strict=False,
-    )
     def test_521_genius(self) -> None:
         _, cleaned = self._run(S_GENIUS, "genius")
         # Either expansion is acceptable; "Into a genius" must be present and
