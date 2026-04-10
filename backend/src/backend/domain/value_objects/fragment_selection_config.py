@@ -14,8 +14,12 @@ class ScoringConfig:
 
     length_hard_cap_content_words: int = 25
     weight_unknown: int = 1
+    weight_boundary_penalty: int = 1
     weight_length_penalty: int = 1
     weight_content_count: int = 1
+    critical_deps: frozenset[str] = frozenset(
+        {"pobj", "dobj", "attr", "xcomp", "acomp", "oprd", "prt"}
+    )
 
 
 @dataclass(frozen=True)

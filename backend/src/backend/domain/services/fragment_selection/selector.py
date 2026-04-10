@@ -118,12 +118,12 @@ class FragmentSelector:
         tokens: list[TokenData],
         candidates: list[list[int]],
         scorer: DefaultScorer,
-    ) -> list[tuple[tuple[int, int, int], list[int]]]:
+    ) -> list[tuple[tuple[int, int, int, int], list[int]]]:
         return [(scorer.score(c, tokens), c) for c in candidates]
 
     @staticmethod
     def _step5_select_best(
-        scored: list[tuple[tuple[int, int, int], list[int]]],
+        scored: list[tuple[tuple[int, int, int, int], list[int]]],
     ) -> list[int]:
         return min(scored, key=lambda pair: pair[0])[1]
 

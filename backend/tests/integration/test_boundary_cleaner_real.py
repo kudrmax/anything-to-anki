@@ -184,10 +184,6 @@ class TestBoundaryCleanerRealCases:
         assert not cleaned.rstrip(".").endswith("that")
         assert "serial fiction" in cleaned
 
-    @pytest.mark.xfail(
-        reason="Wave 2: needs LEFT extension to grab 'an overall'",
-        strict=False,
-    )
     def test_235_conclusion(self) -> None:
         _, cleaned = self._run(S_PACING, "conclusion")
         assert "overall arc" in cleaned
@@ -198,10 +194,6 @@ class TestBoundaryCleanerRealCases:
         assert not cleaned.endswith("that you")
         assert "arbiter is observation" in cleaned
 
-    @pytest.mark.xfail(
-        reason="Wave 2: needs RIGHT extension to complete VP 'really hit its stride'",
-        strict=False,
-    )
     def test_289_fic(self) -> None:
         _, cleaned = self._run(S_FIC, "fic")
         assert "stride" in cleaned
@@ -232,10 +224,6 @@ class TestBoundaryCleanerRealCases:
         assert not cleaned.endswith("up")
         assert "British English" in cleaned
 
-    @pytest.mark.xfail(
-        reason="Wave 2: needs RIGHT extension to grab 'stride'",
-        strict=False,
-    )
     def test_394_consider_verb(self) -> None:
         _, cleaned = self._run(S_FIC, "considered")
         assert "stride" in cleaned
@@ -246,10 +234,6 @@ class TestBoundaryCleanerRealCases:
         assert not cleaned.rstrip(".").endswith("no")
         assert "owns Harry Potter" in cleaned
 
-    @pytest.mark.xfail(
-        reason="Wave 2: needs LEFT extension to grab expletive 'there's'",
-        strict=False,
-    )
     def test_477_need_noun(self) -> None:
         _, cleaned = self._run(S_REVIEWS, "need")
         assert "there's no need" in cleaned or "there is no need" in cleaned
@@ -273,10 +257,6 @@ class TestBoundaryCleanerRealCases:
         assert not cleaned.startswith("that ")
         assert "believe in this Citadel" in cleaned
 
-    @pytest.mark.xfail(
-        reason="Wave 2/3: lyrics line break + needs LEFT extension 'Did I'",
-        strict=False,
-    )
     def test_509_dimension(self) -> None:
         _, cleaned = self._run(S_DIMENSION, "dimensions")
         assert "Did I mention" in cleaned

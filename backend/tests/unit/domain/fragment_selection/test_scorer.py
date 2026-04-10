@@ -53,4 +53,4 @@ def test_default_scorer_ignores_punct_in_content_count() -> None:
     scorer = DefaultScorer(config=ScoringConfig(), unknown_counter=counter)
     tokens = [_tok(0), _tok(1, is_punct=True, is_alpha=False), _tok(2)]
     tup = scorer.score([0, 1, 2], tokens)
-    assert tup[2] == 2
+    assert tup[3] == 2
