@@ -714,11 +714,11 @@ export function ReviewPage() {
       )}
 
       {/* Split panels */}
-      <div className="flex-1 overflow-hidden flex gap-3">
+      <div className="flex-1 overflow-hidden flex gap-4">
         {/* Left: candidates */}
         <div
           ref={candidatesPanelRef}
-          className="overflow-y-auto flex flex-col gap-3 pr-1"
+          className="overflow-y-auto flex flex-col gap-4 pr-1"
           style={{
             width: 'clamp(360px, 832px, 60vw)',
             flexShrink: 0,
