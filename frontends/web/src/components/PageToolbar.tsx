@@ -9,7 +9,7 @@ export function PageToolbar({ slotRef }: { slotRef: React.RefObject<HTMLDivEleme
       className="shrink-0 flex items-center gap-1.5 flex-wrap"
       style={{
         position: 'relative',
-        minHeight: '32px',
+        height: '56px',
         fontSize: FONT_MENU,
         padding: TOOLBAR_SPACING,
       }}
