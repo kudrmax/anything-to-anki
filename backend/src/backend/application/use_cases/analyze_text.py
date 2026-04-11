@@ -121,6 +121,7 @@ class AnalyzeTextUseCase:
                     unknown_count=unknown_count,
                     pos_tag=token.tag,
                     is_phrasal_verb=False,
+                    surface_form=token.text,
                 )
             candidate_map[key].occurrences += 1
 

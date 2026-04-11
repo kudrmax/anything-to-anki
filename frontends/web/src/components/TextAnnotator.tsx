@@ -49,22 +49,56 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/** Build a regex from a phrase where any whitespace matches any whitespace (space, newline, etc.) */
+function flexWsPattern(phrase: string): string {
+  return phrase.trim().split(/\s+/).map(escapeRegex).join('\\s+')
+}
+
 function buildSegments(text: string, candidates: StoredCandidate[]): TextSegment[] {
   type Match = { start: number; end: number; candidate: StoredCandidate; exact: boolean }
   const matches: Match[] = []
 
   for (const candidate of candidates) {
+    // Build the target regex
+    let targetRe: RegExp
+    let exact: boolean
     if (candidate.surface_form) {
-      const idx = text.toLowerCase().indexOf(candidate.surface_form.toLowerCase())
-      if (idx !== -1) {
-        matches.push({ start: idx, end: idx + candidate.surface_form.length, candidate, exact: true })
-      }
+      targetRe = new RegExp(flexWsPattern(candidate.surface_form), 'i')
+      exact = true
     } else {
-      const re = new RegExp(`\\b${escapeRegex(candidate.lemma)}\\w*`, 'i')
-      const m = re.exec(text)
-      if (m) {
-        matches.push({ start: m.index, end: m.index + m[0].length, candidate, exact: false })
+      const words = candidate.lemma.split(/\s+/)
+      if (words.length === 1) {
+        targetRe = new RegExp(`\\b${escapeRegex(candidate.lemma)}\\w*`, 'i')
+      } else {
+        const first = escapeRegex(words[0])
+        const rest = words.slice(1).map(escapeRegex).join('\\s+')
+        targetRe = new RegExp(`\\b${first}\\w*\\s+${rest}`, 'i')
       }
+      exact = false
+    }
+
+    // Search within context_fragment first, then fall back to full text
+    let m: { index: number; length: number } | null = null
+    if (candidate.context_fragment) {
+      const fragRe = new RegExp(flexWsPattern(candidate.context_fragment), 'i')
+      const fragMatch = fragRe.exec(text)
+      if (fragMatch) {
+        const fragSlice = text.slice(fragMatch.index, fragMatch.index + fragMatch[0].length)
+        const inner = targetRe.exec(fragSlice)
+        if (inner) {
+          m = { index: fragMatch.index + inner.index, length: inner[0].length }
+        }
+      }
+    }
+    if (!m) {
+      const fullMatch = targetRe.exec(text)
+      if (fullMatch) {
+        m = { index: fullMatch.index, length: fullMatch[0].length }
+      }
+    }
+
+    if (m) {
+      matches.push({ start: m.index, end: m.index + m.length, candidate, exact })
     }
   }
 
@@ -150,10 +184,11 @@ export function TextAnnotator({
   if (effectiveHoveredId !== null) {
     const hovered = candidates.find(c => c.id === effectiveHoveredId)
     if (hovered?.context_fragment) {
-      const idx = text.toLowerCase().indexOf(hovered.context_fragment.toLowerCase())
-      if (idx !== -1) {
-        fragmentStart = idx
-        fragmentEnd = idx + hovered.context_fragment.length
+      const fragRe = new RegExp(flexWsPattern(hovered.context_fragment), 'i')
+      const fragMatch = fragRe.exec(text)
+      if (fragMatch) {
+        fragmentStart = fragMatch.index
+        fragmentEnd = fragMatch.index + fragMatch[0].length
       }
     }
   }
