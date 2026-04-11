@@ -286,7 +286,7 @@ export function CandidateCardV2({
         <div style={{
           width: '3px',
           height: '100%',
-          borderRadius: '12px 0 0 12px',
+          borderRadius: 'var(--card-radius) 0 0 var(--card-radius)',
           background: 'var(--grad)',
           position: 'absolute',
           left: 0,
