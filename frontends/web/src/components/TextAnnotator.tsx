@@ -99,7 +99,7 @@ function buildSegments(text: string, candidates: StoredCandidate[]): TextSegment
       content: text.slice(m.start, m.end),
       start: m.start,
       candidateId: m.candidate.id,
-      cefrLevel: m.candidate.cefr_level ?? null,
+      cefrLevel: m.candidate.is_phrasal_verb ? 'phrasal' : (m.candidate.cefr_level ?? null),
     })
     pos = m.end
   }
