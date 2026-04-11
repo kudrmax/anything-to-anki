@@ -269,6 +269,7 @@ export function CandidateCardV2({
       )}
       style={{
         position: 'relative',
+        overflow: 'hidden',
         padding: '14px',
         ...(isRated && STATUS_BORDER[candidate.status]),
         ...(isRated && {
