@@ -340,10 +340,13 @@ export function CandidateCardV2({
                   zIndex: 50,
                   paddingTop: '4px',
                 }}>
-                <div className="glass-card glass-dropdown" style={{
+                <div style={{
+                  background: 'var(--base)',
+                  border: '1px solid var(--glass-b)',
                   borderRadius: '12px',
                   padding: '4px 0',
                   minWidth: '180px',
+                  boxShadow: '0 12px 40px rgba(0,0,0,.5)',
                 }}>
                   <button
                     onClick={() => {
