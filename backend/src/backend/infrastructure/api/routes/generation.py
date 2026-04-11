@@ -20,31 +20,46 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_QUEUE_NAME = "arq:queue"
-ARQ_JOB_KEY_PREFIX = "arq:job:"
+ACTIVE_JOBS_PREFIX = "active_jobs:"
 
 
-async def _flush_jobs_by_prefix(redis: Any, prefix: str) -> int:  # noqa: ANN401 — arq has no type stubs
-    """Remove queued jobs and abort in-flight jobs whose job_id starts with *prefix*."""
-    from arq.jobs import Job
+def _active_jobs_key(source_id: int, job_type: str) -> str:
+    return f"{ACTIVE_JOBS_PREFIX}{job_type}:{source_id}"
 
-    # 1. Remove queued jobs from the sorted set
-    queued = await redis.queued_jobs()
+
+async def _register_job_ids(redis: Any, source_id: int, job_type: str, job_ids: list[str]) -> None:  # noqa: ANN401
+    """Track job_ids in a Redis set so cancel can find and abort them."""
+    key = _active_jobs_key(source_id, job_type)
+    if job_ids:
+        await redis.sadd(key, *job_ids)
+
+
+async def _flush_and_abort_jobs(redis: Any, source_id: int, job_type: str) -> int:  # noqa: ANN401
+    """Remove queued jobs from arq queue and abort in-flight jobs via arq abort mechanism."""
+    from arq.worker import abort_jobs_ss  # type: ignore[attr-defined]  # arq internals, no stubs
+
+    key = _active_jobs_key(source_id, job_type)
+    job_ids = await redis.smembers(key)
+    if not job_ids:
+        return 0
+
     removed = 0
-    for job in queued:
-        if job.job_id and job.job_id.startswith(prefix):
-            await redis.zrem(DEFAULT_QUEUE_NAME, job.job_id)
-            await redis.delete(f"{ARQ_JOB_KEY_PREFIX}{job.job_id}")
-            removed += 1
+    for raw_id in job_ids:
+        job_id = raw_id.decode() if isinstance(raw_id, bytes) else raw_id
+        # Remove from queue (if still queued)
+        await redis.zrem(DEFAULT_QUEUE_NAME, job_id)
+        # Signal abort (if in-flight, worker will cancel the asyncio task)
+        await redis.zadd(abort_jobs_ss, {job_id: int(time.time() * 1000)})
+        removed += 1
 
-    # 2. Abort in-flight jobs (worker will receive CancelledError)
-    job_key_pattern = f"{ARQ_JOB_KEY_PREFIX}{prefix}*"
-    aborted = 0
-    async for key in redis.scan_iter(match=job_key_pattern):
-        job_id = key.decode().removeprefix(ARQ_JOB_KEY_PREFIX)
-        await Job(job_id, redis).abort(timeout=0)
-        aborted += 1
+    # Clean up tracking set
+    await redis.delete(key)
 
-    return removed + aborted
+    logger.info(
+        "_flush_and_abort_jobs: removed/aborted %d %s jobs (source_id=%d)",
+        removed, job_type, source_id,
+    )
+    return removed
 
 router = APIRouter(tags=["generation"])
 
@@ -80,6 +95,7 @@ async def enqueue_meaning_generation(
         # equal scores fall back to lexicographic, e.g. ..._10 before ..._2).
         ts_ms = int(time.time() * 1000)
         base = datetime.now(tz=UTC)
+        job_ids: list[str] = []
         for i, batch in enumerate(batches):
             job_id = f"meaning_{source_id}_{ts_ms}_{i:04d}"
             await redis.enqueue_job(
@@ -88,6 +104,8 @@ async def enqueue_meaning_generation(
                 _job_id=job_id,
                 _defer_until=base + timedelta(milliseconds=i),
             )
+            job_ids.append(job_id)
+        await _register_job_ids(redis, source_id, "meaning", job_ids)
 
     total = sum(len(b) for b in batches)
     return {"enqueued": total, "batches": len(batches)}
@@ -120,15 +138,9 @@ async def cancel_meaning_queue(
     meaning_repo.mark_batch_cancelled(affected_ids)
     session.commit()
 
-    # Clean orphaned jobs from Redis queue (stateless transport cleanup)
+    # Flush queued + abort in-flight jobs in Redis
     redis = await container.get_redis_pool()
-    prefix = f"meaning_{source_id}_"
-    removed = await _flush_jobs_by_prefix(redis, prefix)
-    if removed:
-        logger.info(
-            "cancel_meaning_queue: removed %d jobs from Redis (source_id=%d)",
-            removed, source_id,
-        )
+    await _flush_and_abort_jobs(redis, source_id, "meaning")
 
     return {"cancelled": len(affected_ids)}
 
@@ -160,6 +172,7 @@ async def retry_failed_meanings(
     batches = [failed_ids[i:i + batch_size] for i in range(0, len(failed_ids), batch_size)]
     ts_ms = int(time.time() * 1000)
     base = datetime.now(tz=UTC)
+    job_ids: list[str] = []
     for i, batch in enumerate(batches):
         job_id = f"meaning_{source_id}_retry_{ts_ms}_{i:04d}"
         await redis.enqueue_job(
@@ -168,6 +181,8 @@ async def retry_failed_meanings(
             _job_id=job_id,
             _defer_until=base + timedelta(milliseconds=i),
         )
+        job_ids.append(job_id)
+    await _register_job_ids(redis, source_id, "meaning", job_ids)
     logger.info(
         "generation.retry_failed: re-enqueued "
         "(source_id=%d, total=%d, batches=%d)",

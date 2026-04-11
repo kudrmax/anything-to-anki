@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from datetime import UTC
 from typing import TYPE_CHECKING, Any
 
@@ -23,32 +24,46 @@ if TYPE_CHECKING:
 router = APIRouter(tags=["media"])
 
 DEFAULT_QUEUE_NAME = "arq:queue"
-ARQ_JOB_KEY_PREFIX = "arq:job:"
+ACTIVE_JOBS_PREFIX = "active_jobs:"
 
 
-async def _flush_media_jobs(redis: Any, prefixes: set[str]) -> int:  # noqa: ANN401 — arq has no type stubs
-    """Remove queued jobs and abort in-flight jobs for the given candidate prefixes."""
-    from arq.jobs import Job
+def _active_jobs_key(source_id: int, job_type: str) -> str:
+    return f"{ACTIVE_JOBS_PREFIX}{job_type}:{source_id}"
 
-    # 1. Remove queued jobs from the sorted set
-    queued = await redis.queued_jobs()
+
+async def _register_job_ids(redis: Any, source_id: int, job_type: str, job_ids: list[str]) -> None:  # noqa: ANN401
+    """Track job_ids in a Redis set so cancel can find and abort them."""
+    key = _active_jobs_key(source_id, job_type)
+    if job_ids:
+        await redis.sadd(key, *job_ids)
+
+
+async def _flush_and_abort_jobs(redis: Any, source_id: int, job_type: str) -> int:  # noqa: ANN401
+    """Remove queued jobs from arq queue and abort in-flight jobs via arq abort mechanism."""
+    from arq.worker import abort_jobs_ss  # type: ignore[attr-defined]  # arq internals, no stubs
+
+    key = _active_jobs_key(source_id, job_type)
+    job_ids = await redis.smembers(key)
+    if not job_ids:
+        return 0
+
     removed = 0
-    for job in queued:
-        if job.job_id and any(job.job_id.startswith(p) for p in prefixes):
-            await redis.zrem(DEFAULT_QUEUE_NAME, job.job_id)
-            await redis.delete(f"{ARQ_JOB_KEY_PREFIX}{job.job_id}")
-            removed += 1
+    for raw_id in job_ids:
+        job_id = raw_id.decode() if isinstance(raw_id, bytes) else raw_id
+        # Remove from queue (if still queued)
+        await redis.zrem(DEFAULT_QUEUE_NAME, job_id)
+        # Signal abort (if in-flight, worker will cancel the asyncio task)
+        await redis.zadd(abort_jobs_ss, {job_id: int(time.time() * 1000)})
+        removed += 1
 
-    # 2. Abort in-flight jobs (worker will receive CancelledError)
-    aborted = 0
-    for prefix in prefixes:
-        job_key_pattern = f"{ARQ_JOB_KEY_PREFIX}{prefix}*"
-        async for key in redis.scan_iter(match=job_key_pattern):
-            job_id = key.decode().removeprefix(ARQ_JOB_KEY_PREFIX)
-            await Job(job_id, redis).abort(timeout=0)
-            aborted += 1
+    # Clean up tracking set
+    await redis.delete(key)
 
-    return removed + aborted
+    logger.info(
+        "_flush_and_abort_jobs: removed/aborted %d %s jobs (source_id=%d)",
+        removed, job_type, source_id,
+    )
+    return removed
 
 
 @router.get("/media/{source_id}/{filename}")
@@ -88,7 +103,6 @@ async def enqueue_media_generation(
     session.commit()
 
     if eligible_ids:
-        import time
         from datetime import datetime, timedelta
         redis = await container.get_redis_pool()
         # Unique timestamp prefix avoids ARQ deduplication; _defer_until with
@@ -96,13 +110,17 @@ async def enqueue_media_generation(
         # are popped in enqueue order (otherwise lex order shuffles them).
         ts_ms = int(time.time() * 1000)
         base = datetime.now(tz=UTC)
+        job_ids: list[str] = []
         for i, cid in enumerate(eligible_ids):
+            job_id = f"media_{cid}_{ts_ms}"
             await redis.enqueue_job(
                 "extract_media_for_candidate",
                 cid,
-                _job_id=f"media_{cid}_{ts_ms}",
+                _job_id=job_id,
                 _defer_until=base + timedelta(milliseconds=i),
             )
+            job_ids.append(job_id)
+        await _register_job_ids(redis, source_id, "media", job_ids)
 
     return {"enqueued": len(eligible_ids)}
 
@@ -134,15 +152,9 @@ async def cancel_media_queue(
     media_repo.mark_batch_cancelled(affected_ids)
     session.commit()
 
-    # Clean orphaned jobs from Redis queue (stateless transport cleanup)
+    # Flush queued + abort in-flight jobs in Redis
     redis = await container.get_redis_pool()
-    prefixes = {f"media_{cid}_" for cid in affected_ids}
-    removed = await _flush_media_jobs(redis, prefixes)
-    if removed:
-        logger.info(
-            "cancel_media_queue: removed %d jobs from Redis (source_id=%d)",
-            removed, source_id,
-        )
+    await _flush_and_abort_jobs(redis, source_id, "media")
 
     return {"cancelled": len(affected_ids)}
 
@@ -168,18 +180,21 @@ async def retry_failed_media(
     media_repo.mark_queued_bulk(failed_ids)
     session.commit()
 
-    import time
     from datetime import datetime, timedelta
     redis = await container.get_redis_pool()
     ts_ms = int(time.time() * 1000)
     base = datetime.now(tz=UTC)
+    job_ids: list[str] = []
     for i, cid in enumerate(failed_ids):
+        job_id = f"media_{cid}_retry_{ts_ms}"
         await redis.enqueue_job(
             "extract_media_for_candidate",
             cid,
-            _job_id=f"media_{cid}_retry_{ts_ms}",
+            _job_id=job_id,
             _defer_until=base + timedelta(milliseconds=i),
         )
+        job_ids.append(job_id)
+    await _register_job_ids(redis, source_id, "media", job_ids)
     logger.info(
         "media.retry_failed: re-enqueued (source_id=%d, count=%d)",
         source_id, len(failed_ids),
