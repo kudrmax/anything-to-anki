@@ -223,6 +223,7 @@ body {
   border-radius: 100px;
   display: inline-flex;
   align-items: center;
+  height: 32px;
   padding: 2px;
   position: relative;
   backdrop-filter: var(--blur);

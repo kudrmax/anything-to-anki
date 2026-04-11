@@ -4,7 +4,7 @@ import { ArrowLeft, Settings } from 'lucide-react'
 const ENV_NAME = import.meta.env.VITE_INSTANCE_ENV_NAME as string | undefined
 const IS_PROD = ENV_NAME === 'prod'
 
-/** Back pill — renders inline in flow, only on non-home pages */
+/** Back pill — in flow, only on non-home pages */
 export function BackPill() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -22,25 +22,15 @@ export function BackPill() {
   )
 }
 
-/** Centered "Anything to Anki" pill — always absolute center of parent */
+/** "Anything to Anki" + Settings — in flow, centered via spacers from PageToolbar */
 export function CenterBrand() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const isHome = pathname === '/'
-
   const isSettings = pathname === '/settings'
 
   return (
-    <div style={{
-      position: 'absolute',
-      left: '50%',
-      top: '50%',
-      transform: 'translate(-50%, -50%)',
-      zIndex: 5,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '4px',
-    }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
       <button
         onClick={() => { if (!isHome) navigate('/') }}
         className="glass-pill"
@@ -69,7 +59,6 @@ export function CenterBrand() {
         <button
           onClick={() => navigate('/settings')}
           className="glass-pill cursor-pointer"
-          style={{}}
         >
           <Settings size={12} style={{ color: 'var(--td)' }} />
         </button>
