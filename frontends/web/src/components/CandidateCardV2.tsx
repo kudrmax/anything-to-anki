@@ -300,6 +300,8 @@ export function CandidateCardV2({
         justifyContent: 'space-between',
         alignItems: 'center',
         gap: '8px',
+        position: 'relative',
+        zIndex: 10,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {onGenerateMeaning && !candidate.meaning?.meaning && (
@@ -334,7 +336,7 @@ export function CandidateCardV2({
                 <div style={{
                   position: 'absolute',
                   top: '100%',
-                  right: 0,
+                  left: 0,
                   zIndex: 50,
                   paddingTop: '4px',
                 }}>
