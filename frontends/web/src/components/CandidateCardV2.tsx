@@ -344,6 +344,8 @@ export function CandidateCardV2({
                   borderRadius: '12px',
                   padding: '4px 0',
                   minWidth: '180px',
+                  backdropFilter: 'blur(80px) saturate(200%) brightness(1.1)',
+                  WebkitBackdropFilter: 'blur(80px) saturate(200%) brightness(1.1)',
                 }}>
                   <button
                     onClick={() => {
