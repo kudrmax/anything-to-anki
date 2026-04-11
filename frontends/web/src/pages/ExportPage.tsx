@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import type { AnkiStatus, CardPreview, SyncResult } from '@/api/types'
-import { useToolbarSlot } from '@/lib/useToolbarSlot'
+import { useToolbarSlots } from '@/lib/useToolbarSlot'
 
 export function ExportPage() {
   const { id } = useParams<{ id: string }>()
@@ -97,13 +97,12 @@ export function ExportPage() {
   const canSync = ankiStatus?.available === true && cards.length > 0 && !syncing
   const canGenerateAll = cards.length > 0 && !generatingAll && generatingIds.size === 0
 
-  const toolbarSlot = useToolbarSlot()
+  const toolbarSlots = useToolbarSlots()
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {toolbarSlot.current && createPortal(
+      {toolbarSlots.right.current && createPortal(
         <>
-          <div className="flex-1" />
           <div className="glass-pill" style={{ gap: '4px' }}>
             {ankiStatus ? (
               ankiStatus.available ? (
@@ -122,7 +121,7 @@ export function ExportPage() {
             )}
           </div>
         </>,
-        toolbarSlot.current,
+        toolbarSlots.right.current,
       )}
 
       <main className="mx-auto max-w-2xl px-4 py-8 flex flex-col gap-6">

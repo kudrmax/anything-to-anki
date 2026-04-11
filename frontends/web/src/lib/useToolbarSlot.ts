@@ -1,7 +1,7 @@
 import { useOutletContext } from 'react-router-dom'
-import type { RefObject } from 'react'
+import type { ToolbarSlots } from '@/components/PageToolbar'
 
-/** Returns the ref to the toolbar slot container for portaling page-specific pills */
-export function useToolbarSlot(): RefObject<HTMLDivElement | null> {
-  return useOutletContext<RefObject<HTMLDivElement | null>>()
+/** Returns refs to toolbar left/right slot containers for portaling page-specific pills */
+export function useToolbarSlots(): ToolbarSlots {
+  return useOutletContext<ToolbarSlots>()
 }

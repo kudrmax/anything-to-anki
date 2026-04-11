@@ -16,7 +16,7 @@ import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
 import { TextAnnotator } from '@/components/TextAnnotator'
 import { TextSelectionPopover } from '@/components/TextSelectionPopover'
 import { autoPlayAudioPref } from '@/lib/preferences'
-import { useToolbarSlot } from '@/lib/useToolbarSlot'
+import { useToolbarSlots } from '@/lib/useToolbarSlot'
 
 const VPN_ERROR_MARKER = 'Blocked country'
 
@@ -39,7 +39,7 @@ function audioUrlForCandidate(candidate: StoredCandidate, sourceId: number): str
 export function ReviewPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const toolbarSlot = useToolbarSlot()
+  const toolbarSlots = useToolbarSlots()
   const sourceId = Number(id)
 
   const [source, setSource] = useState<SourceDetail | null>(null)
@@ -535,7 +535,8 @@ export function ReviewPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {toolbarSlot.current && createPortal(
+      {/* Left toolbar pills */}
+      {toolbarSlots.left.current && createPortal(
         <>
         {/* Progress */}
         <div className="glass-pill" style={{ gap: '6px' }}>
@@ -574,8 +575,13 @@ export function ReviewPage() {
           </div>
         )}
 
-        <div className="flex-1" />
+        </>,
+        toolbarSlots.left.current,
+      )}
 
+      {/* Right toolbar pills */}
+      {toolbarSlots.right.current && createPortal(
+        <>
         {/* Generation actions — grouped when idle, separate when active */}
         {candidates.length > 0 && (hasInflightMeaning || hasFailedMeaning || hasInflightMedia || hasFailedMedia || downloadingVideo) ? (
           <>
@@ -686,7 +692,7 @@ export function ReviewPage() {
           Export →
         </button>
         </>,
-        toolbarSlot.current,
+        toolbarSlots.right.current,
       )}
 
       {vpnBlocked && (
