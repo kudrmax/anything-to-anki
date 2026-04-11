@@ -171,38 +171,65 @@ body {
 }
 
 /* ── Ambient blob drift animations ── */
-@keyframes blob-drift-1 {
-  0%   { top: -10%; left: -5%; }
-  25%  { top: 5%;   left: 15%; }
-  50%  { top: -5%;  left: 30%; }
-  75%  { top: 10%;  left: 5%; }
-  100% { top: -10%; left: -5%; }
+
+/* Back layer: slow, huge, cross entire screen */
+@keyframes blob-back-1 {
+  0%   { top: -20%; left: -15%; }
+  33%  { top: 10%;  left: 40%; }
+  66%  { top: -10%; left: 70%; }
+  100% { top: -20%; left: -15%; }
 }
-@keyframes blob-drift-2 {
+@keyframes blob-back-2 {
+  0%   { bottom: -25%; right: -10%; }
+  33%  { bottom: 20%;  right: 40%; }
+  66%  { bottom: 0%;   right: 70%; }
+  100% { bottom: -25%; right: -10%; }
+}
+@keyframes blob-back-3 {
+  0%   { top: 50%;  left: -20%; }
+  33%  { top: 10%;  left: 30%; }
+  66%  { top: 40%;  left: 60%; }
+  100% { top: 50%;  left: -20%; }
+}
+
+/* Front layer: medium speed, wide arcs */
+@keyframes blob-front-1 {
+  0%   { top: -15%; left: -10%; }
+  25%  { top: 15%;  left: 25%; }
+  50%  { top: -5%;  left: 55%; }
+  75%  { top: 20%;  left: 10%; }
+  100% { top: -15%; left: -10%; }
+}
+@keyframes blob-front-2 {
   0%   { bottom: -10%; right: -5%; }
-  30%  { bottom: 10%;  right: 15%; }
-  60%  { bottom: 5%;   right: 30%; }
+  25%  { bottom: 25%;  right: 20%; }
+  50%  { bottom: 5%;   right: 50%; }
+  75%  { bottom: 30%;  right: 10%; }
   100% { bottom: -10%; right: -5%; }
 }
-@keyframes blob-drift-3 {
-  0%   { top: 35%; left: 50%; }
-  33%  { top: 20%; left: 35%; }
-  66%  { top: 45%; left: 55%; }
-  100% { top: 35%; left: 50%; }
+@keyframes blob-front-3 {
+  0%   { top: 30%;  left: 40%; }
+  25%  { top: 10%;  left: 20%; }
+  50%  { top: 50%;  left: 60%; }
+  75%  { top: 20%;  left: 70%; }
+  100% { top: 30%;  left: 40%; }
 }
-@keyframes blob-drift-4 {
-  0%   { top: 5%;  right: 15%; }
-  25%  { top: 20%; right: 25%; }
-  50%  { top: 10%; right: 5%; }
-  75%  { top: 25%; right: 20%; }
-  100% { top: 5%;  right: 15%; }
+@keyframes blob-front-4 {
+  0%   { top: 5%;   right: 10%; }
+  25%  { top: 40%;  right: 30%; }
+  50%  { top: 15%;  right: 55%; }
+  75%  { top: 35%;  right: 5%; }
+  100% { top: 5%;   right: 10%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  @keyframes blob-drift-1 { 0%, 100% { top: -10%; left: -5%; } }
-  @keyframes blob-drift-2 { 0%, 100% { bottom: -10%; right: -5%; } }
-  @keyframes blob-drift-3 { 0%, 100% { top: 35%; left: 50%; } }
-  @keyframes blob-drift-4 { 0%, 100% { top: 5%; right: 15%; } }
+  @keyframes blob-back-1  { 0%, 100% { top: -20%; left: -15%; } }
+  @keyframes blob-back-2  { 0%, 100% { bottom: -25%; right: -10%; } }
+  @keyframes blob-back-3  { 0%, 100% { top: 50%; left: -20%; } }
+  @keyframes blob-front-1 { 0%, 100% { top: -15%; left: -10%; } }
+  @keyframes blob-front-2 { 0%, 100% { bottom: -10%; right: -5%; } }
+  @keyframes blob-front-3 { 0%, 100% { top: 30%; left: 40%; } }
+  @keyframes blob-front-4 { 0%, 100% { top: 5%; right: 10%; } }
 }
 
 /* ── Liquid Glass Theme ── */
