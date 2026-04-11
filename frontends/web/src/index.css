@@ -376,13 +376,14 @@ body {
   font-style: italic;
 }
 
-/* ── Review toolbar: theme-aware button radii ── */
-.review-toolbar button {
-  border-radius: var(--btn-radius);
+/* ── Theme-aware button shapes ── */
+[data-theme="liquid-glass"] button {
+  border-radius: 100px;
 }
-.review-toolbar .sort-toggle {
-  border-radius: var(--btn-radius);
+[data-theme="liquid-glass"] input,
+[data-theme="liquid-glass"] textarea {
+  border-radius: 16px;
 }
-.review-toolbar .sort-toggle button {
-  border-radius: var(--btn-radius);
+[data-theme="book"] button {
+  border-radius: 20px;
 }

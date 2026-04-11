@@ -531,7 +531,7 @@ export function InboxPage() {
                         </div>
                         <button
                           onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                          className="text-xs cursor-pointer transition-colors hover:text-rose-400"
+                          className="text-xs cursor-pointer transition-colors"
                           style={{ color: 'var(--td)' }}
                         >
                           ✕
@@ -569,7 +569,7 @@ export function InboxPage() {
               </div>
             )}
 
-            {error && <p className="text-xs text-rose-400">{error}</p>}
+            {error && <p className="text-xs" style={{ color: 'var(--error)' }}>{error}</p>}
 
             <button
               onClick={() => void handleAdd()}
@@ -665,9 +665,9 @@ export function InboxPage() {
           <div
             className="rounded-2xl p-6 max-w-md w-full flex flex-col gap-5"
             style={{
-              background: '#1a1d2e',
-              border: '1px solid rgba(148,163,184,.25)',
-              boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+              background: 'var(--surface-menu)',
+              border: '1px solid var(--glass-b)',
+              boxShadow: 'var(--sh)',
             }}
           >
             <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
