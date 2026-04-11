@@ -42,16 +42,16 @@ const POS_LABEL: Record<string, string> = {
   PROPN: 'proper noun', NUM: 'numeral', PRON: 'pronoun', DET: 'determiner',
 }
 
-const STATUS_BORDER: Partial<Record<CandidateStatus, string>> = {
-  learn: 'border-l-2 border-l-emerald-500/50',
-  known: 'border-l-2 border-l-sky-500/50',
-  skip:  'border-l-2 border-l-red-500/40',
+const STATUS_BORDER: Partial<Record<CandidateStatus, React.CSSProperties>> = {
+  learn: { borderLeft: '2px solid var(--status-learn)' },
+  known: { borderLeft: '2px solid var(--status-know)' },
+  skip:  { borderLeft: '2px solid var(--status-skip)' },
 }
 
 const STATUS_BG: Partial<Record<CandidateStatus, string>> = {
-  learn: 'rgba(16,185,129,0.09)',
-  known: 'rgba(14,165,233,0.09)',
-  skip:  'rgba(239,68,68,0.07)',
+  learn: 'var(--status-learn-bg)',
+  known: 'var(--status-know-bg)',
+  skip:  'var(--status-skip-bg)',
 }
 
 const MARK_BUTTONS: { status: CandidateStatus; label: string; bg: string; color: string; border: string }[] = [
@@ -171,10 +171,12 @@ function renderMeaning(text: string, lemma: string, surfaceForm: string | null):
 const TOOLBAR_BTN_CLS = [
   'w-7 h-7 flex items-center justify-center rounded-md cursor-pointer',
   'outline-none focus:outline-none focus-visible:outline-none',
-  'border border-white/[0.08] bg-white/[0.04] text-slate-600',
-  'hover:text-slate-400 hover:border-white/[0.15] hover:bg-white/[0.08]',
+  'border border-white/[0.08] bg-white/[0.04]',
+  'hover:border-white/[0.15] hover:bg-white/[0.08]',
   'transition-colors',
 ].join(' ')
+
+const TOOLBAR_BTN_STYLE: React.CSSProperties = { color: 'var(--td)' }
 
 function ToolbarButton({ children, onClick, disabled, title, ariaLabel, className: extraCls }: {
   children: React.ReactNode
@@ -191,6 +193,7 @@ function ToolbarButton({ children, onClick, disabled, title, ariaLabel, classNam
       title={title}
       aria-label={ariaLabel}
       className={cn(TOOLBAR_BTN_CLS, disabled && 'opacity-50', extraCls)}
+      style={TOOLBAR_BTN_STYLE}
     >
       {children}
     </button>
@@ -265,11 +268,11 @@ export function CandidateCardV2({
       className={cn(
         'glass-card rounded-xl',
         isRated && 'card-slide-in',
-        isRated && STATUS_BORDER[candidate.status],
       )}
       style={{
         position: 'relative',
         padding: '14px',
+        ...(isRated && STATUS_BORDER[candidate.status]),
         ...(isRated && {
           background: STATUS_BG[candidate.status] ?? 'rgba(148,163,184,0.07)',
           backdropFilter: 'none',
@@ -339,11 +342,11 @@ export function CandidateCardV2({
                 }}>
                 <div style={{
                   background: 'var(--surface-menu)',
-                  border: '1px solid rgba(255,255,255,0.12)',
+                  border: '1px solid var(--glass-b)',
                   borderRadius: '8px',
                   padding: '4px 0',
                   minWidth: '180px',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                  boxShadow: 'var(--sh)',
                 }}>
                   <button
                     onClick={() => {
@@ -355,7 +358,7 @@ export function CandidateCardV2({
                   >
                     Regenerate all
                   </button>
-                  <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+                  <div style={{ height: '1px', background: 'var(--surface-divider)', margin: '4px 0' }} />
                   {onFollowUp && FOLLOW_UP_PRESETS.map((preset) => (
                     <button
                       key={preset.action}
@@ -371,7 +374,7 @@ export function CandidateCardV2({
                   ))}
                   {onFollowUp && (
                     <>
-                      <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+                      <div style={{ height: '1px', background: 'var(--surface-divider)', margin: '4px 0' }} />
                       {showFreeInput ? (
                         <div className="px-3 py-1.5 flex gap-1">
                           <input
@@ -450,19 +453,19 @@ export function CandidateCardV2({
                 left: 0,
                 marginTop: '6px',
                 background: 'var(--surface-menu)',
-                border: '1px solid rgba(255,255,255,0.12)',
+                border: '1px solid var(--glass-b)',
                 borderRadius: '8px',
                 padding: '8px 12px',
                 whiteSpace: 'nowrap',
                 zIndex: 10,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                boxShadow: 'var(--sh)',
               }}>
                 {candidate.meaning?.ipa && (
                   <span style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--tm)' }}>
                     {candidate.meaning.ipa}
                   </span>
                 )}
-                <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--td)', marginLeft: '8px' }}>
                   · {POS_LABEL[candidate.pos] ?? candidate.pos.toLowerCase()}
                 </span>
               </div>
@@ -498,7 +501,7 @@ export function CandidateCardV2({
       </div>
 
       {/* Divider between top bar and content */}
-      <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '14px 0' }} />
+      <div style={{ height: '1px', background: 'var(--surface-divider)', margin: '14px 0' }} />
 
       {/* BODY: media (optional) + text column */}
       <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
@@ -586,8 +589,8 @@ export function CandidateCardV2({
                 float: 'right',
                 margin: '-2px 0 4px 8px',
                 padding: '2px 10px',
-                background: 'rgba(124,58,237,0.18)',
-                color: '#a78bfa',
+                background: 'var(--abg)',
+                color: 'var(--accent)',
                 borderRadius: '999px',
                 fontSize: '10px',
                 fontWeight: 700,
@@ -633,7 +636,7 @@ export function CandidateCardV2({
                 .filter((p) => p.trim().length > 0)
                 .map((para, i) =>
                   /^---+$/.test(para.trim()) ? (
-                    <hr key={i} style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)', margin: '12px 0' }} />
+                    <hr key={i} style={{ border: 'none', borderTop: '1px solid var(--surface-divider)', margin: '12px 0' }} />
                   ) : (
                     <p
                       key={i}
@@ -701,9 +704,9 @@ export function CandidateCardV2({
                   style={{
                     marginTop: '10px',
                     padding: '8px 12px',
-                    background: 'rgba(255,255,255,0.03)',
+                    background: 'var(--glass)',
                     borderRadius: '8px',
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    border: '1px solid var(--glass-b)',
                   }}
                 >
                   {candidate.meaning.examples

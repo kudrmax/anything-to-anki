@@ -607,7 +607,7 @@ export function ReviewPage() {
               <button
                 onClick={() => void handleCancelMeanings()}
                 className="text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-                style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: 'var(--error)' }}
+                style={{ background: 'var(--status-skip-bg)', border: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
               >
                 Cancel
               </button>
@@ -616,7 +616,7 @@ export function ReviewPage() {
             <button
               onClick={() => void handleRetryFailedMeanings()}
               className="text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: 'var(--error)' }}
+              style={{ background: 'var(--status-skip-bg)', border: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
             >
               Retry meanings ({queueSummary?.meaning.failed})
             </button>
@@ -679,7 +679,7 @@ export function ReviewPage() {
               <button
                 onClick={() => void handleCancelMedia()}
                 className="text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-                style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: 'var(--error)' }}
+                style={{ background: 'var(--status-skip-bg)', border: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
               >
                 Cancel
               </button>
@@ -688,7 +688,7 @@ export function ReviewPage() {
             <button
               onClick={() => void handleRetryFailedMedia()}
               className="text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: 'var(--error)' }}
+              style={{ background: 'var(--status-skip-bg)', border: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
             >
               Retry media ({queueSummary?.media.failed})
             </button>
@@ -764,7 +764,7 @@ export function ReviewPage() {
       {vpnBlocked && (
         <div
           className="shrink-0 px-4 py-2.5 flex items-center justify-between text-xs font-medium"
-          style={{ background: 'rgba(239,68,68,.15)', borderBottom: '1px solid rgba(239,68,68,.3)', color: 'var(--error)' }}
+          style={{ background: 'var(--status-skip-bg)', borderBottom: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
         >
           <span>AI unavailable — turn on VPN</span>
           <button

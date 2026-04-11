@@ -69,6 +69,17 @@
   --hl-bg-hover: rgba(129,140,248,.3);
   --hl-text-hover: #e0d4ff;
   --hl-border-hover: rgba(129,140,248,.5);
+
+  /* CEFR-level highlight variants */
+  --hl-b2-bg: rgba(180,83,9,0.15);
+  --hl-b2-text: #fbbf24;
+  --hl-b2-border: rgba(180,83,9,0.4);
+  --hl-c1-bg: rgba(234,88,12,0.15);
+  --hl-c1-text: #fb923c;
+  --hl-c1-border: rgba(234,88,12,0.4);
+  --hl-c2-bg: rgba(225,29,72,0.15);
+  --hl-c2-text: #fb7185;
+  --hl-c2-border: rgba(225,29,72,0.4);
 }
 
 * {
@@ -204,6 +215,16 @@ body {
   --hl-bg-hover: rgba(10,132,255,.2);
   --hl-text-hover: #fff;
   --hl-border-hover: rgba(10,132,255,.4);
+
+  --hl-b2-bg: rgba(10,132,255,0.08);
+  --hl-b2-text: rgba(255,255,255,0.75);
+  --hl-b2-border: rgba(10,132,255,0.2);
+  --hl-c1-bg: rgba(10,132,255,0.12);
+  --hl-c1-text: rgba(255,255,255,0.85);
+  --hl-c1-border: rgba(10,132,255,0.25);
+  --hl-c2-bg: rgba(10,132,255,0.16);
+  --hl-c2-text: #fff;
+  --hl-c2-border: rgba(10,132,255,0.3);
 }
 
 /* ── Liquid Glass overrides ── */
@@ -286,6 +307,16 @@ body {
   --hl-bg-hover: rgba(214,167,86,.2);
   --hl-text-hover: #f0d090;
   --hl-border-hover: rgba(214,167,86,.5);
+
+  --hl-b2-bg: rgba(214,167,86,0.08);
+  --hl-b2-text: #c4a04a;
+  --hl-b2-border: rgba(214,167,86,0.25);
+  --hl-c1-bg: rgba(214,167,86,0.12);
+  --hl-c1-text: #d6a756;
+  --hl-c1-border: rgba(214,167,86,0.3);
+  --hl-c2-bg: rgba(214,167,86,0.18);
+  --hl-c2-text: #e8c070;
+  --hl-c2-border: rgba(214,167,86,0.4);
 }
 
 /* ── Book overrides ── */

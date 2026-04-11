@@ -25,6 +25,18 @@ const MARK_STYLE_HOVERED: React.CSSProperties = {
   borderBottom: '2px solid var(--hl-border-hover)',
 }
 
+const CEFR_MARK_STYLE: Record<string, React.CSSProperties> = {
+  B2: { background: 'var(--hl-b2-bg)', color: 'var(--hl-b2-text)', borderBottom: '1px solid var(--hl-b2-border)' },
+  C1: { background: 'var(--hl-c1-bg)', color: 'var(--hl-c1-text)', borderBottom: '1px solid var(--hl-c1-border)' },
+  C2: { background: 'var(--hl-c2-bg)', color: 'var(--hl-c2-text)', borderBottom: '1px solid var(--hl-c2-border)' },
+}
+
+const CEFR_MARK_STYLE_HOVERED: Record<string, React.CSSProperties> = {
+  B2: { background: 'var(--hl-b2-bg)', color: 'var(--hl-b2-text)', borderBottom: '2px solid var(--hl-b2-border)', filter: 'brightness(1.3)' },
+  C1: { background: 'var(--hl-c1-bg)', color: 'var(--hl-c1-text)', borderBottom: '2px solid var(--hl-c1-border)', filter: 'brightness(1.3)' },
+  C2: { background: 'var(--hl-c2-bg)', color: 'var(--hl-c2-text)', borderBottom: '2px solid var(--hl-c2-border)', filter: 'brightness(1.3)' },
+}
+
 type TextSegment =
   | { type: 'text'; content: string; start: number }
   | { type: 'mark'; content: string; start: number; candidateId: number; cefrLevel: string | null }
@@ -187,14 +199,17 @@ export function TextAnnotator({
         let markStyle: React.CSSProperties
         let opacity: number
 
+        const cefrBase = (seg.cefrLevel && CEFR_MARK_STYLE[seg.cefrLevel]) ?? MARK_STYLE
+        const cefrHover = (seg.cefrLevel && CEFR_MARK_STYLE_HOVERED[seg.cefrLevel]) ?? MARK_STYLE_HOVERED
+
         if (isActive) {
-          markStyle = { ...MARK_STYLE_HOVERED, cursor: 'pointer', borderRadius: '2px', padding: '0 2px' }
+          markStyle = { ...cefrHover, cursor: 'pointer', borderRadius: '2px', padding: '0 2px' }
           opacity = 1
         } else if (isRated) {
           markStyle = { cursor: 'pointer', color: 'inherit', background: 'transparent' }
           opacity = isDimming && !inFragment ? 0.15 : 1
         } else {
-          markStyle = { ...MARK_STYLE, cursor: 'pointer', borderRadius: '2px', padding: '0 2px' }
+          markStyle = { ...cefrBase, cursor: 'pointer', borderRadius: '2px', padding: '0 2px' }
           opacity = isDimming && !inFragment ? 0.15 : 1
         }
 
