@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from datetime import UTC
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -21,6 +21,20 @@ if TYPE_CHECKING:
     from backend.infrastructure.container import Container
 
 router = APIRouter(tags=["media"])
+
+DEFAULT_QUEUE_NAME = "arq:queue"
+
+
+async def _flush_media_jobs(redis: Any, prefixes: set[str]) -> int:  # noqa: ANN401 — arq has no type stubs
+    """Remove media jobs whose job_id starts with any of *prefixes* from the arq queue."""
+    queued = await redis.queued_jobs()
+    removed = 0
+    for job in queued:
+        if job.job_id and any(job.job_id.startswith(p) for p in prefixes):
+            await redis.zrem(DEFAULT_QUEUE_NAME, job.job_id)
+            await redis.delete(f"arq:job:{job.job_id}")
+            removed += 1
+    return removed
 
 
 @router.get("/media/{source_id}/{filename}")
@@ -105,6 +119,16 @@ async def cancel_media_queue(
 
     media_repo.mark_batch_cancelled(affected_ids)
     session.commit()
+
+    # Clean orphaned jobs from Redis queue (stateless transport cleanup)
+    redis = await container.get_redis_pool()
+    prefixes = {f"media_{cid}_" for cid in affected_ids}
+    removed = await _flush_media_jobs(redis, prefixes)
+    if removed:
+        logger.info(
+            "cancel_media_queue: removed %d jobs from Redis (source_id=%d)",
+            removed, source_id,
+        )
 
     return {"cancelled": len(affected_ids)}
 
