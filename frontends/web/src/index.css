@@ -27,11 +27,11 @@
   --sh2:       0 20px 52px rgba(129,140,248,.22), 0 4px 16px rgba(0,0,0,.4);
 
   /* Status colors (shared across all themes) */
-  --status-learn: #34d399;
-  --status-learn-bg: rgba(52,211,153,0.2);
-  --status-learn-border: rgba(52,211,153,0.35);
-  --status-learn-active-bg: rgba(16,185,129,0.35);
-  --status-learn-active-border: rgba(52,211,153,0.5);
+  --status-learn: #10b981;
+  --status-learn-bg: rgba(16,185,129,0.15);
+  --status-learn-border: rgba(16,185,129,0.3);
+  --status-learn-active-bg: rgba(16,185,129,0.3);
+  --status-learn-active-border: rgba(16,185,129,0.5);
 
   --status-know: #38bdf8;
   --status-know-bg: rgba(56,189,248,0.15);
@@ -89,9 +89,9 @@
   --hl-c2-bg: rgba(239,68,68,0.1);
   --hl-c2-text: #f87171;
   --hl-c2-border: rgba(239,68,68,0.3);
-  --hl-phrasal-bg: rgba(52,211,153,0.1);
-  --hl-phrasal-text: #34d399;
-  --hl-phrasal-border: rgba(52,211,153,0.3);
+  --hl-phrasal-bg: rgba(16,185,129,0.1);
+  --hl-phrasal-text: #10b981;
+  --hl-phrasal-border: rgba(16,185,129,0.3);
 }
 
 * {
@@ -198,11 +198,11 @@ body {
   --surface-menu: rgba(255,255,255,.06);
   --surface-divider: rgba(255,255,255,.06);
 
-  --status-learn: #30d158;
-  --status-learn-bg: rgba(48,209,88,.08);
-  --status-learn-border: rgba(48,209,88,.18);
-  --status-learn-active-bg: rgba(48,209,88,.16);
-  --status-learn-active-border: rgba(48,209,88,.3);
+  --status-learn: #10b981;
+  --status-learn-bg: rgba(16,185,129,.08);
+  --status-learn-border: rgba(16,185,129,.18);
+  --status-learn-active-bg: rgba(16,185,129,.16);
+  --status-learn-active-border: rgba(16,185,129,.3);
 
   --status-know: #6A8FC5;
   --status-know-bg: rgba(74,111,165,.07);
@@ -246,9 +246,9 @@ body {
   --hl-c2-bg: rgba(255,69,58,0.08);
   --hl-c2-text: #ff453a;
   --hl-c2-border: rgba(255,69,58,0.25);
-  --hl-phrasal-bg: rgba(48,209,88,0.08);
-  --hl-phrasal-text: #30d158;
-  --hl-phrasal-border: rgba(48,209,88,0.25);
+  --hl-phrasal-bg: rgba(16,185,129,0.08);
+  --hl-phrasal-text: #10b981;
+  --hl-phrasal-border: rgba(16,185,129,0.25);
 }
 
 /* ── Liquid Glass overrides ── */
