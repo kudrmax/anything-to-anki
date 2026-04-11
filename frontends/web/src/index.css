@@ -216,15 +216,15 @@ body {
   --hl-text-hover: #8AAFD5;
   --hl-border-hover: rgba(74,111,165,.4);
 
-  --hl-b2-bg: rgba(74,111,165,0.08);
-  --hl-b2-text: #6A8FC5;
-  --hl-b2-border: rgba(74,111,165,0.2);
-  --hl-c1-bg: rgba(74,111,165,0.12);
-  --hl-c1-text: #7A9FD5;
-  --hl-c1-border: rgba(74,111,165,0.25);
-  --hl-c2-bg: rgba(74,111,165,0.16);
-  --hl-c2-text: #8AAFD5;
-  --hl-c2-border: rgba(74,111,165,0.3);
+  --hl-b2-bg: rgba(180,83,9,0.15);
+  --hl-b2-text: #fbbf24;
+  --hl-b2-border: rgba(180,83,9,0.4);
+  --hl-c1-bg: rgba(234,88,12,0.15);
+  --hl-c1-text: #fb923c;
+  --hl-c1-border: rgba(234,88,12,0.4);
+  --hl-c2-bg: rgba(225,29,72,0.15);
+  --hl-c2-text: #fb7185;
+  --hl-c2-border: rgba(225,29,72,0.4);
 }
 
 /* ── Liquid Glass overrides ── */
