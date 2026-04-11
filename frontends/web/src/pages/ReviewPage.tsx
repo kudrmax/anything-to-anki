@@ -718,7 +718,7 @@ export function ReviewPage() {
         {/* Left: candidates */}
         <div
           ref={candidatesPanelRef}
-          className="glass-panel overflow-y-auto p-4 flex flex-col gap-3"
+          className="overflow-y-auto p-2 flex flex-col gap-2"
           style={{
             width: 'clamp(360px, 832px, 60vw)',
             flexShrink: 0,
