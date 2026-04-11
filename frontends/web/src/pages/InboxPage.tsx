@@ -445,8 +445,8 @@ export function InboxPage() {
                     <span
                       className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full"
                       style={{
-                        background: 'rgba(129,140,248,.15)',
-                        border: '1px solid rgba(129,140,248,.3)',
+                        background: 'var(--abg)',
+                        border: '1px solid var(--ag)',
                         color: 'var(--accent)',
                       }}
                     >
@@ -465,19 +465,19 @@ export function InboxPage() {
                   <div
                     onClick={() => document.getElementById('anki-file-input')?.click()}
                     className="flex flex-col items-center gap-2 rounded-[10px] p-6 text-center cursor-pointer transition-all"
-                    style={{ border: '1.5px dashed rgba(129,140,248,.35)', background: 'rgba(129,140,248,.04)' }}
+                    style={{ border: '1.5px dashed var(--ag)', background: 'var(--abg)' }}
                     onMouseEnter={(e) => {
                       const el = e.currentTarget as HTMLDivElement
                       el.style.borderColor = 'var(--accent)'
-                      el.style.background = 'rgba(129,140,248,.08)'
+                      el.style.background = 'var(--abg)'
                     }}
                     onMouseLeave={(e) => {
                       const el = e.currentTarget as HTMLDivElement
-                      el.style.borderColor = 'rgba(129,140,248,.35)'
-                      el.style.background = 'rgba(129,140,248,.04)'
+                      el.style.borderColor = 'var(--ag)'
+                      el.style.background = 'var(--abg)'
                     }}
                   >
-                    <Upload size={28} style={{ color: 'rgba(129,140,248,.6)' }} />
+                    <Upload size={28} style={{ color: 'var(--accent)' }} />
                     <div className="text-sm font-medium" style={{ color: 'var(--text)' }}>Drop file here</div>
                     <div className="text-[11px]" style={{ color: 'var(--td)' }}>
                       .epub · .srt · .html · .txt · .mp4 · .mkv · any video
@@ -531,7 +531,7 @@ export function InboxPage() {
                         </div>
                         <button
                           onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                          className="text-xs cursor-pointer transition-colors hover:text-rose-400"
+                          className="text-xs cursor-pointer transition-colors"
                           style={{ color: 'var(--td)' }}
                         >
                           ✕
@@ -549,8 +549,8 @@ export function InboxPage() {
                       <span
                         className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full"
                         style={{
-                          background: 'rgba(129,140,248,.15)',
-                          border: '1px solid rgba(129,140,248,.3)',
+                          background: 'var(--abg)',
+                          border: '1px solid var(--ag)',
                           color: 'var(--accent)',
                         }}
                       >
@@ -569,7 +569,7 @@ export function InboxPage() {
               </div>
             )}
 
-            {error && <p className="text-xs text-rose-400">{error}</p>}
+            {error && <p className="text-xs" style={{ color: 'var(--error)' }}>{error}</p>}
 
             <button
               onClick={() => void handleAdd()}
@@ -665,9 +665,9 @@ export function InboxPage() {
           <div
             className="rounded-2xl p-6 max-w-md w-full flex flex-col gap-5"
             style={{
-              background: '#1a1d2e',
-              border: '1px solid rgba(148,163,184,.25)',
-              boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+              background: 'var(--surface-menu)',
+              border: '1px solid var(--glass-b)',
+              boxShadow: 'var(--sh)',
             }}
           >
             <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>

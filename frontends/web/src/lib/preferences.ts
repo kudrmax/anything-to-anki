@@ -41,6 +41,17 @@ function makePref<T>(spec: PrefSpec<T>): {
   }
 }
 
+export type ThemeName = 'cosmic' | 'liquid-glass' | 'book'
+
+export const themePref = makePref<ThemeName>({
+  key: 'ui.theme',
+  default: 'cosmic',
+  parse: (raw) => {
+    if (raw === 'liquid-glass' || raw === 'book') return raw
+    return 'cosmic'
+  },
+})
+
 export const autoPlayAudioPref = makePref<boolean>({
   key: 'review.autoPlayAudio',
   default: true,

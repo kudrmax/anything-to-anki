@@ -239,7 +239,7 @@ function EditBoundaryContent({
               <span
                 key={i}
                 style={{
-                  color: '#ef4444',
+                  color: 'var(--error)',
                   textDecoration: 'line-through',
                   opacity: 0.8,
                 }}
@@ -252,7 +252,7 @@ function EditBoundaryContent({
             return (
               <span
                 key={i}
-                style={{ color: '#22c55e' }}
+                style={{ color: 'var(--status-learn)' }}
               >
                 {seg.text}{' '}
               </span>

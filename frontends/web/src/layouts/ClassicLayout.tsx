@@ -1,11 +1,13 @@
 import { Outlet, useNavigate } from 'react-router-dom'
 import { Settings } from 'lucide-react'
+import { AmbientBlobs } from '@/components/AmbientBlobs'
 
 export function ClassicLayout() {
   const navigate = useNavigate()
 
   return (
     <div className="flex flex-col font-sans" style={{ height: '100dvh', color: 'var(--text)' }}>
+      <AmbientBlobs />
       <header
         className="shrink-0 flex items-center justify-between px-6"
         style={{
@@ -32,18 +34,16 @@ export function ClassicLayout() {
               // NOT a logic switch — just a presentation detail for the human.
               const isProd = import.meta.env.VITE_INSTANCE_ENV_NAME === 'prod';
               const fg = isProd ? '#22c55e' : '#ffaa33';
-              const bg = isProd ? 'rgba(34,197,94,0.15)' : 'rgba(255,160,0,0.15)';
-              const bd = isProd ? 'rgba(34,197,94,0.3)' : 'rgba(255,160,0,0.3)';
               return (
                 <span style={{
                   fontSize: '10px',
                   fontWeight: 600,
                   letterSpacing: '0.05em',
                   padding: '1px 6px',
-                  borderRadius: '4px',
-                  background: bg,
+                  borderRadius: 'var(--btn-radius)',
+                  background: 'var(--glass)',
                   color: fg,
-                  border: `1px solid ${bd}`,
+                  border: '1px solid var(--glass-b)',
                   lineHeight: '16px',
                 }}>
                   {import.meta.env.VITE_INSTANCE_ENV_NAME}

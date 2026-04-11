@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { BookOpen, ChevronDown, Film, Info, Languages, Loader2, Pencil, Play, Sparkles, Square, X } from 'lucide-react'
+import { BookOpen, ChevronDown, Film, Languages, Loader2, Pencil, Play, Sparkles, Square, Volume2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 
@@ -37,41 +37,40 @@ interface CandidateCardV2Props {
   onStopAudio: () => void
 }
 
-const POS_LABEL: Record<string, string> = {
-  NOUN: 'noun', VERB: 'verb', ADJ: 'adjective', ADV: 'adverb',
-  PROPN: 'proper noun', NUM: 'numeral', PRON: 'pronoun', DET: 'determiner',
-}
 
-const STATUS_BORDER: Partial<Record<CandidateStatus, string>> = {
-  learn: 'border-l-2 border-l-emerald-500/50',
-  known: 'border-l-2 border-l-sky-500/50',
-  skip:  'border-l-2 border-l-red-500/40',
+const STATUS_BORDER: Partial<Record<CandidateStatus, React.CSSProperties>> = {
+  learn: { boxShadow: 'inset 3px 0 0 var(--status-learn)' },
+  known: { boxShadow: 'inset 3px 0 0 var(--status-know)' },
+  skip:  { boxShadow: 'inset 3px 0 0 var(--status-skip)' },
 }
 
 const STATUS_BG: Partial<Record<CandidateStatus, string>> = {
-  learn: 'rgba(16,185,129,0.09)',
-  known: 'rgba(14,165,233,0.09)',
-  skip:  'rgba(239,68,68,0.07)',
+  learn: 'var(--status-learn-bg)',
+  known: 'var(--status-know-bg)',
+  skip:  'var(--status-skip-bg)',
 }
 
 const MARK_BUTTONS: { status: CandidateStatus; label: string; bg: string; color: string; border: string }[] = [
-  { status: 'learn', label: 'Learn', bg: 'rgba(52,211,153,0.2)',  color: '#34d399', border: 'rgba(52,211,153,0.35)' },
-  { status: 'known', label: 'Know',  bg: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: 'rgba(56,189,248,0.3)' },
-  { status: 'skip',  label: 'Skip',  bg: 'rgba(239,68,68,0.15)',  color: '#f87171', border: 'rgba(239,68,68,0.3)' },
+  { status: 'learn', label: 'Learn', bg: 'var(--status-learn-bg)', color: 'var(--status-learn)', border: 'var(--status-learn-border)' },
+  { status: 'known', label: 'Know', bg: 'var(--status-know-bg)', color: 'var(--status-know)', border: 'var(--status-know-border)' },
+  { status: 'skip', label: 'Skip', bg: 'var(--status-skip-bg)', color: 'var(--status-skip)', border: 'var(--status-skip-border)' },
 ]
 
 const MARK_ACTIVE: Record<string, { bg: string; color: string; border: string }> = {
-  learn: { bg: 'rgba(16,185,129,0.35)', color: '#34d399', border: 'rgba(52,211,153,0.5)' },
-  known: { bg: 'rgba(14,165,233,0.3)',  color: '#38bdf8', border: 'rgba(56,189,248,0.5)' },
-  skip:  { bg: 'rgba(239,68,68,0.3)',   color: '#f87171', border: 'rgba(239,68,68,0.5)' },
+  learn: { bg: 'var(--status-learn-active-bg)', color: 'var(--status-learn)', border: 'var(--status-learn-active-border)' },
+  known: { bg: 'var(--status-know-active-bg)', color: 'var(--status-know)', border: 'var(--status-know-active-border)' },
+  skip: { bg: 'var(--status-skip-active-bg)', color: 'var(--status-skip)', border: 'var(--status-skip-active-border)' },
 }
 
 const CEFR_PILL_COLOR: Record<string, { bg: string; color: string }> = {
-  B2: { bg: 'rgba(180,83,9,0.18)',  color: '#fbbf24' },
-  C1: { bg: 'rgba(234,88,12,0.2)',  color: '#fb923c' },
-  C2: { bg: 'rgba(225,29,72,0.2)',  color: '#fb7185' },
+  A1: { bg: 'var(--hl-a1-bg)',  color: 'var(--hl-a1-text)' },
+  A2: { bg: 'var(--hl-a2-bg)',  color: 'var(--hl-a2-text)' },
+  B1: { bg: 'var(--hl-b1-bg)',  color: 'var(--hl-b1-text)' },
+  B2: { bg: 'var(--hl-b2-bg)',  color: 'var(--hl-b2-text)' },
+  C1: { bg: 'var(--hl-c1-bg)',  color: 'var(--hl-c1-text)' },
+  C2: { bg: 'var(--hl-c2-bg)',  color: 'var(--hl-c2-text)' },
 }
-const CEFR_PILL_DEFAULT = { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8' }
+const CEFR_PILL_DEFAULT = { bg: 'rgba(148,163,184,0.15)', color: 'var(--tm)' }
 
 function stripMarkdown(text: string): string {
   return text
@@ -111,11 +110,11 @@ function highlightWord(fragment: string, lemma: string, surfaceForm: string | nu
     <>
       {before}
       <span style={{
-        color: '#eef0ff',
+        color: 'var(--text-primary)',
         fontWeight: 700,
         fontSize: '22px',
         textDecoration: 'underline',
-        textDecorationColor: '#818cf8',
+        textDecorationColor: 'var(--accent)',
         textUnderlineOffset: '4px',
       }}>
         {match[0]}
@@ -143,7 +142,7 @@ function renderMeaning(text: string, lemma: string, surfaceForm: string | null):
         parts.push(bold ? <b key={`${keyPrefix}-b-${last}`}>{t}</b> : t)
       }
       parts.push(
-        <span key={`${keyPrefix}-h-${m.index}`} style={{ fontWeight: 700, color: '#eef0ff' }}>
+        <span key={`${keyPrefix}-h-${m.index}`} style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
           {m[0]}
         </span>,
       )
@@ -169,12 +168,14 @@ function renderMeaning(text: string, lemma: string, surfaceForm: string | null):
 }
 
 const TOOLBAR_BTN_CLS = [
-  'w-7 h-7 flex items-center justify-center rounded-md cursor-pointer',
+  'w-7 h-7 flex items-center justify-center cursor-pointer',
   'outline-none focus:outline-none focus-visible:outline-none',
-  'border border-white/[0.08] bg-white/[0.04] text-slate-600',
-  'hover:text-slate-400 hover:border-white/[0.15] hover:bg-white/[0.08]',
+  'border border-white/[0.08] bg-white/[0.04]',
+  'hover:border-white/[0.15] hover:bg-white/[0.08]',
   'transition-colors',
 ].join(' ')
+
+const TOOLBAR_BTN_STYLE: React.CSSProperties = { color: 'var(--td)', borderRadius: 'var(--btn-radius)' }
 
 function ToolbarButton({ children, onClick, disabled, title, ariaLabel, className: extraCls }: {
   children: React.ReactNode
@@ -191,6 +192,7 @@ function ToolbarButton({ children, onClick, disabled, title, ariaLabel, classNam
       title={title}
       aria-label={ariaLabel}
       className={cn(TOOLBAR_BTN_CLS, disabled && 'opacity-50', extraCls)}
+      style={TOOLBAR_BTN_STYLE}
     >
       {children}
     </button>
@@ -220,7 +222,6 @@ export function CandidateCardV2({
   onPlayAudio,
   onStopAudio,
 }: CandidateCardV2Props) {
-  const [showInfo, setShowInfo] = useState(false)
   const [showFollowUp, setShowFollowUp] = useState(false)
   const [showFreeInput, setShowFreeInput] = useState(false)
   const [freeText, setFreeText] = useState('')
@@ -257,7 +258,7 @@ export function CandidateCardV2({
 
   const cefrPillColor = CEFR_PILL_COLOR[candidate.cefr_level ?? ''] ?? CEFR_PILL_DEFAULT
 
-  return (
+  const cardContent = (
     <div
       data-candidate-id={candidate.id}
       onMouseEnter={() => onHoverEnter(candidate.id)}
@@ -265,11 +266,11 @@ export function CandidateCardV2({
       className={cn(
         'glass-card rounded-xl',
         isRated && 'card-slide-in',
-        isRated && STATUS_BORDER[candidate.status],
       )}
       style={{
         position: 'relative',
         padding: '14px',
+        ...(isRated && STATUS_BORDER[candidate.status]),
         ...(isRated && {
           background: STATUS_BG[candidate.status] ?? 'rgba(148,163,184,0.07)',
           backdropFilter: 'none',
@@ -286,7 +287,7 @@ export function CandidateCardV2({
           width: '3px',
           height: '100%',
           borderRadius: '12px 0 0 12px',
-          background: 'linear-gradient(180deg, #818cf8, #67e8f9)',
+          background: 'var(--grad)',
           position: 'absolute',
           left: 0,
           top: 0,
@@ -338,12 +339,12 @@ export function CandidateCardV2({
                   paddingTop: '4px',
                 }}>
                 <div style={{
-                  background: '#0f111e',
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  borderRadius: '8px',
+                  background: 'var(--surface-menu)',
+                  border: '1px solid var(--glass-b)',
+                  borderRadius: 'var(--btn-radius)',
                   padding: '4px 0',
                   minWidth: '180px',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                  boxShadow: 'var(--sh)',
                 }}>
                   <button
                     onClick={() => {
@@ -351,11 +352,11 @@ export function CandidateCardV2({
                       setShowFollowUp(false)
                     }}
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
-                    style={{ color: '#cbd5e1' }}
+                    style={{ color: 'var(--text-muted-light)' }}
                   >
                     Regenerate all
                   </button>
-                  <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+                  <div style={{ height: '1px', background: 'var(--surface-divider)', margin: '4px 0' }} />
                   {onFollowUp && FOLLOW_UP_PRESETS.map((preset) => (
                     <button
                       key={preset.action}
@@ -364,14 +365,14 @@ export function CandidateCardV2({
                         setShowFollowUp(false)
                       }}
                       className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
-                      style={{ color: '#cbd5e1' }}
+                      style={{ color: 'var(--text-muted-light)' }}
                     >
                       {preset.label}
                     </button>
                   ))}
                   {onFollowUp && (
                     <>
-                      <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+                      <div style={{ height: '1px', background: 'var(--surface-divider)', margin: '4px 0' }} />
                       {showFreeInput ? (
                         <div className="px-3 py-1.5 flex gap-1">
                           <input
@@ -389,14 +390,14 @@ export function CandidateCardV2({
                             placeholder="Your question..."
                             autoFocus
                             className="flex-1 px-2 py-1 rounded text-xs bg-white/[0.06] border border-white/[0.1] outline-none"
-                            style={{ color: '#cbd5e1' }}
+                            style={{ color: 'var(--text-muted-light)' }}
                           />
                         </div>
                       ) : (
                         <button
                           onClick={() => setShowFreeInput(true)}
                           className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
-                          style={{ color: '#94a3b8' }}
+                          style={{ color: 'var(--tm)' }}
                         >
                           Ask a question...
                         </button>
@@ -435,39 +436,6 @@ export function CandidateCardV2({
               <Pencil size={13} />
             </ToolbarButton>
           )}
-          <div
-            className="relative"
-            onMouseEnter={() => setShowInfo(true)}
-            onMouseLeave={() => setShowInfo(false)}
-          >
-            <ToolbarButton ariaLabel="Word info" title="Word info">
-              <Info size={13} />
-            </ToolbarButton>
-            {showInfo && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                marginTop: '6px',
-                background: 'rgba(15,17,30,0.95)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                whiteSpace: 'nowrap',
-                zIndex: 10,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-              }}>
-                {candidate.meaning?.ipa && (
-                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>
-                    {candidate.meaning.ipa}
-                  </span>
-                )}
-                <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>
-                  · {POS_LABEL[candidate.pos] ?? candidate.pos.toLowerCase()}
-                </span>
-              </div>
-            )}
-          </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -481,7 +449,7 @@ export function CandidateCardV2({
                 className="cursor-pointer transition-colors"
                 style={{
                   padding: '4px 14px',
-                  borderRadius: '6px',
+                  borderRadius: 'var(--btn-radius)',
                   fontSize: '11px',
                   fontWeight: isActive ? 700 : 600,
                   border: `1px solid ${isActive ? active.border : btn.border}`,
@@ -498,7 +466,7 @@ export function CandidateCardV2({
       </div>
 
       {/* Divider between top bar and content */}
-      <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '14px 0' }} />
+      <div style={{ height: '1px', background: 'var(--surface-divider)', margin: '14px 0' }} />
 
       {/* BODY: media (optional) + text column */}
       <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
@@ -533,13 +501,13 @@ export function CandidateCardV2({
                       right: '6px',
                       width: '28px',
                       height: '28px',
-                      background: 'rgba(15,17,30,0.85)',
-                      border: '1px solid rgba(129,140,248,0.4)',
-                      borderRadius: '6px',
+                      background: 'var(--surface-menu)',
+                      border: '1px solid var(--accent)',
+                      borderRadius: 'var(--btn-radius)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#818cf8',
+                      color: 'var(--accent)',
                       cursor: 'pointer',
                       backdropFilter: 'blur(4px)',
                     }}
@@ -569,7 +537,7 @@ export function CandidateCardV2({
                 )}
                 {mediaStatus === 'queued' && 'Queued'}
                 {mediaStatus === 'failed' && (
-                  <span style={{ color: '#f87171' }} title={candidate.media?.error ?? undefined}>
+                  <span style={{ color: 'var(--error)' }} title={candidate.media?.error ?? undefined}>
                     Failed
                   </span>
                 )}
@@ -586,8 +554,8 @@ export function CandidateCardV2({
                 float: 'right',
                 margin: '-2px 0 4px 8px',
                 padding: '2px 10px',
-                background: 'rgba(124,58,237,0.18)',
-                color: '#a78bfa',
+                background: 'var(--hl-phrasal-bg)',
+                color: 'var(--hl-phrasal-text)',
                 borderRadius: '999px',
                 fontSize: '10px',
                 fontWeight: 700,
@@ -614,13 +582,13 @@ export function CandidateCardV2({
             </span>
           )}
 
-          <p style={{
+          <p data-context-fragment style={{
             // Compensate for line-box leading: with line-height 1.5 on a 17px font,
             // the visible cap-line of the first character sits ~9px below the line
             // box top. Without this offset the text appears lower than the image top.
             margin: '-9px 0 6px',
             fontSize: '17px',
-            color: '#c4b5fd',
+            color: 'var(--text-highlight)',
             lineHeight: 1.5,
           }}>
             &ldquo;{highlightWord(candidate.context_fragment, candidate.lemma, candidate.surface_form)}&rdquo;
@@ -633,7 +601,7 @@ export function CandidateCardV2({
                 .filter((p) => p.trim().length > 0)
                 .map((para, i) =>
                   /^---+$/.test(para.trim()) ? (
-                    <hr key={i} style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)', margin: '12px 0' }} />
+                    <hr key={i} style={{ border: 'none', borderTop: '1px solid var(--surface-divider)', margin: '12px 0' }} />
                   ) : (
                     <p
                       key={i}
@@ -641,7 +609,7 @@ export function CandidateCardV2({
                         margin: i === 0 ? 0 : '8px 0 0',
                         fontSize: '15px',
                         lineHeight: 1.55,
-                        color: '#cbd5e1',
+                        color: 'var(--text-muted-light)',
                       }}
                     >
                       {renderMeaning(para, candidate.lemma, candidate.surface_form)}
@@ -656,11 +624,11 @@ export function CandidateCardV2({
                     alignItems: 'flex-start',
                     gap: '6px',
                     fontSize: '14px',
-                    color: '#cbd5e1',
+                    color: 'var(--text-muted-light)',
                     lineHeight: 1.5,
                   }}
                 >
-                  <Languages size={14} style={{ marginTop: '3px', flexShrink: 0, color: '#94a3b8' }} />
+                  <Languages size={14} style={{ marginTop: '3px', flexShrink: 0, color: 'var(--tm)' }} />
                   <span>{candidate.meaning.translation}</span>
                 </div>
               )}
@@ -672,11 +640,11 @@ export function CandidateCardV2({
                     alignItems: 'flex-start',
                     gap: '6px',
                     fontSize: '14px',
-                    color: '#cbd5e1',
+                    color: 'var(--text-muted-light)',
                     lineHeight: 1.5,
                   }}
                 >
-                  <BookOpen size={14} style={{ marginTop: '3px', flexShrink: 0, color: '#94a3b8' }} />
+                  <BookOpen size={14} style={{ marginTop: '3px', flexShrink: 0, color: 'var(--tm)' }} />
                   <span>{candidate.meaning.synonyms}</span>
                 </div>
               )}
@@ -688,11 +656,11 @@ export function CandidateCardV2({
                     alignItems: 'flex-start',
                     gap: '6px',
                     fontSize: '14px',
-                    color: '#cbd5e1',
+                    color: 'var(--text-muted-light)',
                     lineHeight: 1.5,
                   }}
                 >
-                  <span style={{ fontSize: '13px', marginTop: '1px', flexShrink: 0, color: '#94a3b8' }}>🔊</span>
+                  <Volume2 size={13} style={{ flexShrink: 0, color: 'var(--tm)' }} />
                   <span style={{ fontFamily: 'monospace', fontSize: '13px' }}>{candidate.meaning.ipa}</span>
                 </div>
               )}
@@ -701,9 +669,9 @@ export function CandidateCardV2({
                   style={{
                     marginTop: '10px',
                     padding: '8px 12px',
-                    background: 'rgba(255,255,255,0.03)',
+                    background: 'var(--glass)',
                     borderRadius: '8px',
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    border: '1px solid var(--glass-b)',
                   }}
                 >
                   {candidate.meaning.examples
@@ -716,7 +684,7 @@ export function CandidateCardV2({
                           margin: i === 0 ? 0 : '4px 0 0',
                           fontSize: '13px',
                           lineHeight: 1.5,
-                          color: '#94a3b8',
+                          color: 'var(--tm)',
                         }}
                       >
                         {renderMeaning(line, candidate.lemma, candidate.surface_form)}
@@ -732,7 +700,7 @@ export function CandidateCardV2({
           ) : candidate.meaning?.status === 'queued' ? (
             <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--td)' }}>Queued</p>
           ) : candidate.meaning?.status === 'failed' ? (
-            <p style={{ margin: '10px 0 0', fontSize: '13px', color: '#f87171' }} title={candidate.meaning.error ?? undefined}>
+            <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--error)' }} title={candidate.meaning.error ?? undefined}>
               Failed to generate
             </p>
           ) : candidate.meaning?.status === 'cancelled' ? (
@@ -742,4 +710,6 @@ export function CandidateCardV2({
       </div>
     </div>
   )
+
+  return cardContent
 }

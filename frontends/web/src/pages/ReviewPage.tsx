@@ -534,7 +534,7 @@ export function ReviewPage() {
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Unified toolbar */}
       <header
-        className="shrink-0 px-4 py-2 flex items-center gap-3"
+        className="review-toolbar shrink-0 px-4 py-2 flex items-center gap-3"
         style={{ borderBottom: '1px solid var(--glass-b)' }}
       >
         {/* Back */}
@@ -565,10 +565,10 @@ export function ReviewPage() {
 
         {/* Sort toggle */}
         {candidates.length > 0 && (
-          <div className="flex p-[2px] rounded-md" style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)' }}>
+          <div className="sort-toggle flex p-[2px]" style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', borderRadius: 'var(--btn-radius)' }}>
             <button
               onClick={() => setSortOrder('relevance')}
-              className="px-2 py-[2px] rounded-[5px] text-[10px] font-medium transition-all cursor-pointer"
+              className="px-2 py-[2px] text-[10px] font-medium transition-all cursor-pointer"
               style={
                 sortOrder === 'relevance'
                   ? { background: 'var(--accent)', color: '#fff' }
@@ -580,7 +580,7 @@ export function ReviewPage() {
             </button>
             <button
               onClick={() => setSortOrder('chronological')}
-              className="px-2 py-[2px] rounded-[5px] text-[10px] font-medium transition-all cursor-pointer"
+              className="px-2 py-[2px] text-[10px] font-medium transition-all cursor-pointer"
               style={
                 sortOrder === 'chronological'
                   ? { background: 'var(--accent)', color: '#fff' }
@@ -606,8 +606,8 @@ export function ReviewPage() {
               </span>
               <button
                 onClick={() => void handleCancelMeanings()}
-                className="text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-                style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
+                className="text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
+                style={{ background: 'var(--status-skip-bg)', border: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
               >
                 Cancel
               </button>
@@ -615,8 +615,8 @@ export function ReviewPage() {
           ) : hasFailedMeaning ? (
             <button
               onClick={() => void handleRetryFailedMeanings()}
-              className="text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}
+              className="text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
+              style={{ background: 'var(--status-skip-bg)', border: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
             >
               Retry meanings ({queueSummary?.meaning.failed})
             </button>
@@ -624,11 +624,11 @@ export function ReviewPage() {
             <button
               onClick={() => void handleGenerateMeanings()}
               disabled={generatingIds.size > 0}
-              className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
+              className="flex items-center gap-1.5 text-xs px-2 py-1 disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
               style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
             >
               <Sparkles size={12} />
-              Meanings
+              Generate Meanings
             </button>
           )
         )}
@@ -659,7 +659,7 @@ export function ReviewPage() {
                   setDownloadingVideo(false)
                 }
               }}
-              className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+              className="flex items-center gap-1.5 text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
               style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
             >
               <Film size={12} />
@@ -678,8 +678,8 @@ export function ReviewPage() {
               </span>
               <button
                 onClick={() => void handleCancelMedia()}
-                className="text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-                style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
+                className="text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
+                style={{ background: 'var(--status-skip-bg)', border: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
               >
                 Cancel
               </button>
@@ -687,19 +687,19 @@ export function ReviewPage() {
           ) : hasFailedMedia ? (
             <button
               onClick={() => void handleRetryFailedMedia()}
-              className="text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
-              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}
+              className="text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
+              style={{ background: 'var(--status-skip-bg)', border: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
             >
               Retry media ({queueSummary?.media.failed})
             </button>
           ) : (
             <button
               onClick={() => void handleGenerateMedia()}
-              className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+              className="flex items-center gap-1.5 text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
               style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
             >
               <Film size={12} />
-              Media
+              Generate Media
             </button>
           )
         )}
@@ -711,7 +711,7 @@ export function ReviewPage() {
         {interactionMode.type === 'idle' ? (
           <button
             onClick={handleStartAdding}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-all hover:brightness-110 cursor-pointer"
+            className="flex items-center gap-1 text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
             style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
           >
             + Add
@@ -723,7 +723,7 @@ export function ReviewPage() {
             </span>
             <button
               onClick={handleCancelMode}
-              className="text-xs px-2 py-1 rounded-lg cursor-pointer transition-opacity hover:opacity-100"
+              className="text-xs px-2 py-1 cursor-pointer transition-opacity hover:opacity-100"
               style={{ color: 'var(--td)', opacity: 0.7 }}
             >
               Cancel
@@ -736,7 +736,7 @@ export function ReviewPage() {
             </span>
             <button
               onClick={handleCancelMode}
-              className="text-xs px-2 py-1 rounded-lg cursor-pointer transition-opacity hover:opacity-100"
+              className="text-xs px-2 py-1 cursor-pointer transition-opacity hover:opacity-100"
               style={{ color: 'var(--td)', opacity: 0.7 }}
             >
               Cancel
@@ -750,7 +750,7 @@ export function ReviewPage() {
         {/* Export */}
         <button
           onClick={() => navigate(`/sources/${sourceId}/export`)}
-          className="rounded-lg px-3 py-1 text-xs font-medium transition-all cursor-pointer hover:brightness-110"
+          className="px-3 py-1 text-xs font-medium transition-all cursor-pointer hover:brightness-110"
           style={{
             border: '1px solid var(--ag)',
             color: 'var(--accent)',
@@ -764,13 +764,13 @@ export function ReviewPage() {
       {vpnBlocked && (
         <div
           className="shrink-0 px-4 py-2.5 flex items-center justify-between text-xs font-medium"
-          style={{ background: 'rgba(239,68,68,.15)', borderBottom: '1px solid rgba(239,68,68,.3)', color: '#f87171' }}
+          style={{ background: 'var(--status-skip-bg)', borderBottom: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
         >
           <span>AI unavailable — turn on VPN</span>
           <button
             onClick={() => setVpnBlocked(false)}
             className="ml-4 opacity-60 hover:opacity-100 cursor-pointer"
-            style={{ color: '#f87171' }}
+            style={{ color: 'var(--error)' }}
           >
             ✕
           </button>
@@ -871,11 +871,11 @@ export function ReviewPage() {
         {/* Right: text */}
         <div
           ref={textPanelRef}
-          className="flex-1 overflow-y-auto p-6"
+          className="flex-1 overflow-y-auto p-6 text-panel"
           style={{
             ...(interactionMode.type !== 'idle' && {
-              boxShadow: 'inset 0 0 20px rgba(139,92,246,0.05)',
-              outline: '1.5px solid rgba(139,92,246,0.3)',
+              boxShadow: 'inset 0 0 20px var(--abg)',
+              outline: '1.5px solid var(--ag)',
             }),
           }}
         >

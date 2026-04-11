@@ -3,6 +3,8 @@ import { CheckCircle, Loader2, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import { api } from '@/api/client'
 import type { CleanupMediaKind, CreateNoteTypeResponse, KnownWord, Settings, SourceMediaStats, VerifyNoteTypeResponse } from '@/api/types'
 import { autoPlayAudioPref } from '@/lib/preferences'
+import { useTheme } from '@/lib/ThemeProvider'
+import type { ThemeName } from '@/lib/preferences'
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
 const AI_MODELS = [
@@ -38,6 +40,8 @@ export function SettingsPage() {
 
   const [mediaStats, setMediaStats] = useState<SourceMediaStats[]>([])
   const [mediaStatsLoading, setMediaStatsLoading] = useState(false)
+
+  const { theme, setTheme } = useTheme()
 
   const [autoPlayAudio, setAutoPlayAudio] = useState<boolean>(() => autoPlayAudioPref.read())
   const handleAutoPlayToggle = (next: boolean) => {
@@ -195,6 +199,31 @@ export function SettingsPage() {
   return (
     <div className="flex-1 overflow-y-auto">
       <main className="mx-auto max-w-lg px-4 py-8 flex flex-col gap-8">
+
+        {/* Appearance section */}
+        <section className="flex flex-col gap-4">
+          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>Appearance</h2>
+          <div className="flex gap-3">
+            {([
+              { name: 'cosmic' as ThemeName, label: 'Cosmic' },
+              { name: 'liquid-glass' as ThemeName, label: 'Liquid Glass' },
+              { name: 'book' as ThemeName, label: 'Book' },
+            ]).map((t) => (
+              <button
+                key={t.name}
+                onClick={() => setTheme(t.name)}
+                className="glass-card rounded-xl px-4 py-3 text-sm font-medium cursor-pointer transition-all flex-1"
+                style={{
+                  color: theme === t.name ? 'var(--accent)' : 'var(--tm)',
+                  borderColor: theme === t.name ? 'var(--accent)' : undefined,
+                  boxShadow: theme === t.name ? '0 0 0 1px var(--accent)' : undefined,
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </section>
 
         {/* Anki section */}
         <section className="flex flex-col gap-4">
