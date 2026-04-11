@@ -175,7 +175,7 @@ export function TextAnnotator({
       ref={containerRef}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      className="leading-loose whitespace-pre-wrap"
+      className="leading-normal whitespace-pre-wrap"
       style={{ color: 'var(--tm)', fontSize: FONT_BODY }}
     >
       {segments.map((seg, i) => {
