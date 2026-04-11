@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Settings } from 'lucide-react'
 
 const ENV_NAME = import.meta.env.VITE_INSTANCE_ENV_NAME as string | undefined
 const IS_PROD = ENV_NAME === 'prod'
@@ -28,37 +28,54 @@ export function CenterBrand() {
   const { pathname } = useLocation()
   const isHome = pathname === '/'
 
+  const isSettings = pathname === '/settings'
+
   return (
-    <button
-      onClick={() => { if (!isHome) navigate('/') }}
-      className="glass-pill"
-      style={{
-        padding: '4px 12px',
-        gap: '6px',
-        height: '28px',
-        cursor: isHome ? 'default' : 'pointer',
-        position: 'absolute',
-        left: '50%',
-        top: '50%',
-        transform: 'translate(-50%, -50%)',
-        zIndex: 5,
-      }}
-    >
-      <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--tm)' }}>
-        Anything to <span style={{ color: 'var(--accent)' }}>Anki</span>
-      </span>
-      {ENV_NAME && (
-        <span style={{
-          fontSize: '8px',
-          padding: '1px 5px',
-          borderRadius: '100px',
-          background: IS_PROD ? 'rgba(34,197,94,0.08)' : 'rgba(255,160,0,0.06)',
-          border: `0.5px solid ${IS_PROD ? 'rgba(34,197,94,0.15)' : 'rgba(255,160,0,0.12)'}`,
-          color: IS_PROD ? '#22c55e' : '#ffaa33',
-        }}>
-          {ENV_NAME}
+    <div style={{
+      position: 'absolute',
+      left: '50%',
+      top: '50%',
+      transform: 'translate(-50%, -50%)',
+      zIndex: 5,
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+    }}>
+      <button
+        onClick={() => { if (!isHome) navigate('/') }}
+        className="glass-pill"
+        style={{
+          padding: '4px 12px',
+          gap: '6px',
+          height: '28px',
+          cursor: isHome ? 'default' : 'pointer',
+        }}
+      >
+        <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--tm)' }}>
+          Anything to <span style={{ color: 'var(--accent)' }}>Anki</span>
         </span>
+        {ENV_NAME && (
+          <span style={{
+            fontSize: '8px',
+            padding: '1px 5px',
+            borderRadius: '100px',
+            background: IS_PROD ? 'rgba(34,197,94,0.08)' : 'rgba(255,160,0,0.06)',
+            border: `0.5px solid ${IS_PROD ? 'rgba(34,197,94,0.15)' : 'rgba(255,160,0,0.12)'}`,
+            color: IS_PROD ? '#22c55e' : '#ffaa33',
+          }}>
+            {ENV_NAME}
+          </span>
+        )}
+      </button>
+      {!isSettings && (
+        <button
+          onClick={() => navigate('/settings')}
+          className="glass-pill cursor-pointer"
+          style={{ padding: '4px 8px', height: '28px' }}
+        >
+          <Settings size={12} style={{ color: 'var(--td)' }} />
+        </button>
       )}
-    </button>
+    </div>
   )
 }

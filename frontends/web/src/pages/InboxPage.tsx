@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Link, File, Upload, Loader2, Plus, RefreshCw, Settings } from 'lucide-react'
+import { FileText, Link, File, Upload, Loader2, Plus, RefreshCw } from 'lucide-react'
 import { api } from '@/api/client'
 import type { AudioTrack, SourceSummary, SourceType, Stats, SubtitleTrack } from '@/api/types'
 import { SourceCard } from '@/components/SourceCard'
@@ -340,12 +340,7 @@ export function InboxPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <PageToolbar>
-        <div className="flex-1" />
-        <button onClick={() => navigate('/settings')} className="glass-pill cursor-pointer" style={{ padding: '4px 8px', height: '28px' }}>
-          <Settings size={12} style={{ color: 'var(--td)' }} />
-        </button>
-      </PageToolbar>
+      <PageToolbar />
       <main className={
         isSidebar
           ? 'max-w-2xl mx-auto px-6 py-6 flex flex-col gap-6'

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Film, Loader2, Settings, Sparkles } from 'lucide-react'
+import { Film, Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import type {
   CandidateSortOrder,
@@ -673,11 +673,6 @@ export function ReviewPage() {
           style={{ padding: '5px 14px', fontSize: '10px', fontWeight: 500, color: 'var(--accent)', background: 'var(--abg)', borderColor: 'var(--ag)' }}
         >
           Export →
-        </button>
-
-        {/* Settings */}
-        <button onClick={() => navigate('/settings')} className="glass-pill cursor-pointer" style={{ padding: '4px 8px', height: '28px' }}>
-          <Settings size={12} style={{ color: 'var(--td)' }} />
         </button>
       </PageToolbar>
 
