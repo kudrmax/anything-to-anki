@@ -14,23 +14,12 @@ interface TextAnnotatorProps {
   disableHoverDimming?: boolean
 }
 
-const PILL_BASE: React.CSSProperties = {
-  borderRadius: '100px',
-  padding: '2px 10px',
-  margin: '0 2px',
-  border: '0.5px solid var(--glass-b)',
-  backdropFilter: 'blur(8px)',
-  WebkitBackdropFilter: 'blur(8px)',
-}
-
 const MARK_STYLE: React.CSSProperties = {
-  ...PILL_BASE,
   background: 'var(--hl-bg)',
   color: 'var(--hl-text)',
 }
 
 const MARK_STYLE_HOVERED: React.CSSProperties = {
-  ...PILL_BASE,
   background: 'var(--hl-bg-hover)',
   color: 'var(--hl-text-hover)',
 }
@@ -38,7 +27,6 @@ const MARK_STYLE_HOVERED: React.CSSProperties = {
 function cefrMarkStyle(level: string): React.CSSProperties {
   const k = level.toLowerCase()
   return {
-    ...PILL_BASE,
     background: `var(--hl-${k}-bg)`,
     color: `var(--hl-${k}-text)`,
   }
@@ -47,7 +35,6 @@ function cefrMarkStyle(level: string): React.CSSProperties {
 function cefrMarkStyleHovered(level: string): React.CSSProperties {
   const k = level.toLowerCase()
   return {
-    ...PILL_BASE,
     background: `var(--hl-${k}-bg)`,
     color: `var(--hl-${k}-text)`,
     filter: 'brightness(1.3)',
@@ -230,10 +217,13 @@ export function TextAnnotator({
           opacity = isDimming && !inFragment ? 0.15 : 1
         }
 
+        const isRatedNoGlass = isRated && !isActive
+
         return (
           <mark
             key={i}
             data-candidate-id={seg.candidateId}
+            className={isRatedNoGlass ? '' : 'glass-word'}
             style={{ ...markStyle, opacity, transition: 'opacity 150ms ease' }}
             onClick={() => onWordClick(seg.candidateId)}
             onMouseEnter={() => { if (!isDraggingRef.current) onWordHover(seg.candidateId) }}
