@@ -716,7 +716,7 @@ export function ReviewPage() {
         {/* Left: candidates */}
         <div
           ref={candidatesPanelRef}
-          className="overflow-y-auto flex flex-col gap-5 pr-1"
+          className="overflow-y-auto flex flex-col gap-5 scrollbar-hide"
           style={{
             width: 'clamp(360px, 832px, 60vw)',
             flexShrink: 0,
