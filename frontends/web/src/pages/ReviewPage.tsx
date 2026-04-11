@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Film, Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
@@ -15,7 +16,7 @@ import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
 import { TextAnnotator } from '@/components/TextAnnotator'
 import { TextSelectionPopover } from '@/components/TextSelectionPopover'
 import { autoPlayAudioPref } from '@/lib/preferences'
-import { PageToolbar } from '@/components/PageToolbar'
+import { useToolbarSlots } from '@/lib/useToolbarSlot'
 
 const VPN_ERROR_MARKER = 'Blocked country'
 
@@ -38,6 +39,7 @@ function audioUrlForCandidate(candidate: StoredCandidate, sourceId: number): str
 export function ReviewPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const toolbarSlots = useToolbarSlots()
   const sourceId = Number(id)
 
   const [source, setSource] = useState<SourceDetail | null>(null)
@@ -533,16 +535,18 @@ export function ReviewPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <PageToolbar>
+      {/* Left toolbar pills */}
+      {toolbarSlots.left.current && createPortal(
+        <>
         {/* Progress */}
-        <div className="glass-pill" style={{ padding: '5px 10px', gap: '6px' }}>
-          <span className="tabular-nums" style={{ color: 'var(--tm)', fontSize: '10px' }}>
+        <div className="glass-pill" style={{ gap: '6px' }}>
+          <span className="tabular-nums" style={{ color: 'var(--tm)' }}>
             {markedCount} / {candidates.length}
           </span>
           <div className="rounded-full overflow-hidden" style={{ width: 36, height: 2, background: 'var(--glass-b)' }}>
             <div className="h-full" style={{ width: `${progress}%`, background: 'var(--accent)', borderRadius: '2px' }} />
           </div>
-          <span style={{ color: 'var(--td)', fontSize: '9px' }}>learn: {learnCount}</span>
+          <span style={{ color: 'var(--td)' }}>learn: {learnCount}</span>
         </div>
 
         {/* Sort toggle */}
@@ -552,7 +556,7 @@ export function ReviewPage() {
               onClick={() => setSortOrder('relevance')}
               className="cursor-pointer transition-all"
               style={{
-                fontSize: '9px', padding: '3px 8px', borderRadius: '100px',
+                padding: '3px 8px', borderRadius: '100px',
                 ...(sortOrder === 'relevance'
                   ? { background: 'var(--accent)', color: '#fff' }
                   : { color: 'var(--td)' }),
@@ -562,7 +566,7 @@ export function ReviewPage() {
               onClick={() => setSortOrder('chronological')}
               className="cursor-pointer transition-all"
               style={{
-                fontSize: '9px', padding: '3px 8px', borderRadius: '100px',
+                padding: '3px 8px', borderRadius: '100px',
                 ...(sortOrder === 'chronological'
                   ? { background: 'var(--accent)', color: '#fff' }
                   : { color: 'var(--td)' }),
@@ -571,110 +575,125 @@ export function ReviewPage() {
           </div>
         )}
 
-        <div className="flex-1" />
+        </>,
+        toolbarSlots.left.current,
+      )}
 
-        {/* Generate Meanings */}
-        {candidates.length > 0 && (
-          hasInflightMeaning ? (
-            <div className="glass-pill" style={{ padding: '5px 12px', gap: '6px' }}>
-              <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
-              <span style={{ fontSize: '10px', color: 'var(--tm)' }}>
-                Meanings ({(queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)})
-              </span>
-              <button onClick={() => void handleCancelMeanings()} className="cursor-pointer" style={{ fontSize: '9px', color: 'var(--error)', marginLeft: '4px' }}>✕</button>
-            </div>
-          ) : hasFailedMeaning ? (
-            <button onClick={() => void handleRetryFailedMeanings()} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', fontSize: '10px', color: 'var(--error)' }}>
-              Retry meanings ({queueSummary?.meaning.failed})
-            </button>
-          ) : (
+      {/* Right toolbar pills */}
+      {toolbarSlots.right.current && createPortal(
+        <>
+        {/* Generation actions — grouped when idle, separate when active */}
+        {candidates.length > 0 && (hasInflightMeaning || hasFailedMeaning || hasInflightMedia || hasFailedMedia || downloadingVideo) ? (
+          <>
+            {hasInflightMeaning && (
+              <div className="glass-pill" style={{ gap: '6px' }}>
+                <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
+                <span style={{ color: 'var(--tm)' }}>
+                  Meanings ({(queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)})
+                </span>
+                <button onClick={() => void handleCancelMeanings()} className="cursor-pointer" style={{ color: 'var(--error)', marginLeft: '4px' }}>✕</button>
+              </div>
+            )}
+            {hasFailedMeaning && (
+              <button onClick={() => void handleRetryFailedMeanings()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)' }}>
+                Retry meanings ({queueSummary?.meaning.failed})
+              </button>
+            )}
+            {downloadingVideo && (
+              <div className="glass-pill" style={{ gap: '4px' }}>
+                <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
+                <span style={{ color: 'var(--tm)' }}>Downloading…</span>
+              </div>
+            )}
+            {hasInflightMedia && (
+              <div className="glass-pill" style={{ gap: '6px' }}>
+                <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
+                <span style={{ color: 'var(--tm)' }}>
+                  Media ({(queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)})
+                </span>
+                <button onClick={() => void handleCancelMedia()} className="cursor-pointer" style={{ color: 'var(--error)', marginLeft: '4px' }}>✕</button>
+              </div>
+            )}
+            {hasFailedMedia && (
+              <button onClick={() => void handleRetryFailedMedia()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)' }}>
+                Retry media ({queueSummary?.media.failed})
+              </button>
+            )}
+          </>
+        ) : candidates.length > 0 && (
+          <div className="glass-pill-group">
             <button
               onClick={() => void handleGenerateMeanings()}
               disabled={generatingIds.size > 0}
-              className="glass-pill cursor-pointer disabled:opacity-50"
-              style={{ padding: '5px 12px', gap: '4px', fontSize: '10px', color: 'var(--tm)' }}
+              className="disabled:opacity-50"
+              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
             >
               <Sparkles size={10} />
               Generate Meanings
             </button>
-          )
-        )}
-
-        {/* Download Media (YouTube only) */}
-        {source && source.content_type === 'video' && !source.video_downloaded && (
-          downloadingVideo ? (
-            <div className="glass-pill" style={{ padding: '5px 12px', gap: '4px' }}>
-              <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
-              <span style={{ fontSize: '10px', color: 'var(--tm)' }}>Downloading…</span>
-            </div>
-          ) : (
-            <button
-              onClick={async () => {
-                setDownloadingVideo(true)
-                try {
-                  await api.downloadVideo(source.id)
-                  const poll = setInterval(() => {
-                    void api.getSource(sourceId, sortOrder).then((updated) => {
-                      setSource(updated)
-                      if (updated.video_downloaded) { clearInterval(poll); setDownloadingVideo(false) }
-                    }).catch(() => undefined)
-                  }, 3000)
-                } catch { setDownloadingVideo(false) }
-              }}
-              className="glass-pill cursor-pointer"
-              style={{ padding: '5px 12px', gap: '4px', fontSize: '10px', color: 'var(--tm)' }}
-            >
-              <Film size={10} />
-              Download Media
-            </button>
-          )
-        )}
-
-        {/* Generate Media (video with downloaded source) */}
-        {source && source.content_type === 'video' && source.video_downloaded && (
-          hasInflightMedia ? (
-            <div className="glass-pill" style={{ padding: '5px 12px', gap: '6px' }}>
-              <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
-              <span style={{ fontSize: '10px', color: 'var(--tm)' }}>
-                Media ({(queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)})
-              </span>
-              <button onClick={() => void handleCancelMedia()} className="cursor-pointer" style={{ fontSize: '9px', color: 'var(--error)', marginLeft: '4px' }}>✕</button>
-            </div>
-          ) : hasFailedMedia ? (
-            <button onClick={() => void handleRetryFailedMedia()} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', fontSize: '10px', color: 'var(--error)' }}>
-              Retry media ({queueSummary?.media.failed})
-            </button>
-          ) : (
-            <button onClick={() => void handleGenerateMedia()} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', gap: '4px', fontSize: '10px', color: 'var(--tm)' }}>
-              <Film size={10} />
-              Generate Media
-            </button>
-          )
+            {source?.content_type === 'video' && !source.video_downloaded && (
+              <>
+                <div className="divider" />
+                <button
+                  onClick={async () => {
+                    setDownloadingVideo(true)
+                    try {
+                      await api.downloadVideo(source.id)
+                      const poll = setInterval(() => {
+                        void api.getSource(sourceId, sortOrder).then((updated) => {
+                          setSource(updated)
+                          if (updated.video_downloaded) { clearInterval(poll); setDownloadingVideo(false) }
+                        }).catch(() => undefined)
+                      }, 3000)
+                    } catch { setDownloadingVideo(false) }
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <Film size={10} />
+                  Download Media
+                </button>
+              </>
+            )}
+            {source?.content_type === 'video' && source.video_downloaded && (
+              <>
+                <div className="divider" />
+                <button
+                  onClick={() => void handleGenerateMedia()}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <Film size={10} />
+                  Generate Media
+                </button>
+              </>
+            )}
+          </div>
         )}
 
         {/* Add */}
         {interactionMode.type === 'idle' ? (
-          <button onClick={handleStartAdding} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', fontSize: '10px', color: 'var(--tm)' }}>
+          <button onClick={handleStartAdding} className="glass-pill cursor-pointer" style={{ color: 'var(--tm)' }}>
             + Add
           </button>
         ) : (
-          <div className="glass-pill" style={{ padding: '5px 12px', gap: '6px' }}>
-            <span style={{ fontSize: '10px', color: 'var(--accent)' }}>
+          <div className="glass-pill" style={{ gap: '6px' }}>
+            <span style={{ color: 'var(--accent)' }}>
               {interactionMode.type === 'adding' ? 'Select phrase to add' : `New boundary for ${interactionMode.lemma}`}
             </span>
-            <button onClick={handleCancelMode} className="cursor-pointer" style={{ fontSize: '9px', color: 'var(--td)' }}>✕</button>
+            <button onClick={handleCancelMode} className="cursor-pointer" style={{ color: 'var(--td)' }}>✕</button>
           </div>
         )}
 
-        {/* Export */}
+        {/* Export — prominent glass CTA */}
         <button
           onClick={() => navigate(`/sources/${sourceId}/export`)}
-          className="glass-pill cursor-pointer"
-          style={{ padding: '5px 14px', fontSize: '10px', fontWeight: 500, color: 'var(--accent)', background: 'var(--abg)', borderColor: 'var(--ag)' }}
+          className="glass-pill glass-pill-prominent cursor-pointer"
+          style={{}}
         >
           Export →
         </button>
-      </PageToolbar>
+        </>,
+        toolbarSlots.right.current,
+      )}
 
       {vpnBlocked && (
         <div
@@ -693,7 +712,7 @@ export function ReviewPage() {
       )}
 
       {/* Split panels */}
-      <div className="flex-1 overflow-hidden flex gap-5 px-3 pb-3">
+      <div className="flex-1 overflow-hidden flex gap-5">
         {/* Left: candidates */}
         <div
           ref={candidatesPanelRef}

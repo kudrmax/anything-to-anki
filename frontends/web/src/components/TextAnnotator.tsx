@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react'
 import type { StoredCandidate } from '@/api/types'
+import { FONT_BODY } from '@/lib/design-tokens'
 
 interface TextAnnotatorProps {
   text: string
@@ -174,8 +175,8 @@ export function TextAnnotator({
       ref={containerRef}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      className="text-lg leading-loose whitespace-pre-wrap"
-      style={{ color: 'var(--tm)' }}
+      className="leading-loose whitespace-pre-wrap"
+      style={{ color: 'var(--tm)', fontSize: FONT_BODY }}
     >
       {segments.map((seg, i) => {
         const segEnd = seg.start + seg.content.length

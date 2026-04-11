@@ -4,7 +4,7 @@ import { ArrowLeft, Settings } from 'lucide-react'
 const ENV_NAME = import.meta.env.VITE_INSTANCE_ENV_NAME as string | undefined
 const IS_PROD = ENV_NAME === 'prod'
 
-/** Back pill — renders inline in flow, only on non-home pages */
+/** Back pill — in flow, only on non-home pages */
 export function BackPill() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -14,44 +14,32 @@ export function BackPill() {
     <button
       onClick={() => navigate(-1)}
       className="glass-pill cursor-pointer"
-      style={{ padding: '4px 10px', gap: '4px', height: '28px' }}
+      style={{ gap: '4px' }}
     >
       <ArrowLeft size={12} style={{ color: 'var(--tm)' }} />
-      <span style={{ fontSize: '11px', color: 'var(--tm)' }}>Back</span>
+      <span style={{ color: 'var(--tm)' }}>Back</span>
     </button>
   )
 }
 
-/** Centered "Anything to Anki" pill — always absolute center of parent */
+/** "Anything to Anki" + Settings — in flow, centered via spacers from PageToolbar */
 export function CenterBrand() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const isHome = pathname === '/'
-
   const isSettings = pathname === '/settings'
 
   return (
-    <div style={{
-      position: 'absolute',
-      left: '50%',
-      top: '50%',
-      transform: 'translate(-50%, -50%)',
-      zIndex: 5,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '4px',
-    }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
       <button
         onClick={() => { if (!isHome) navigate('/') }}
         className="glass-pill"
         style={{
-          padding: '4px 12px',
           gap: '6px',
-          height: '28px',
           cursor: isHome ? 'default' : 'pointer',
         }}
       >
-        <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--tm)' }}>
+        <span style={{ fontWeight: 500, color: 'var(--tm)' }}>
           Anything to <span style={{ color: 'var(--accent)' }}>Anki</span>
         </span>
         {ENV_NAME && (
@@ -71,7 +59,6 @@ export function CenterBrand() {
         <button
           onClick={() => navigate('/settings')}
           className="glass-pill cursor-pointer"
-          style={{ padding: '4px 8px', height: '28px' }}
         >
           <Settings size={12} style={{ color: 'var(--td)' }} />
         </button>
