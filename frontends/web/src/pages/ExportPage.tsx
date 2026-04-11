@@ -105,16 +105,16 @@ export function ExportPage() {
             ankiStatus.available ? (
               <>
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--status-learn)' }} />
-                <span style={{ fontSize: '10px', color: 'var(--status-learn)' }}>Anki connected</span>
+                <span style={{ color: 'var(--status-learn)' }}>Anki connected</span>
               </>
             ) : (
               <>
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--error)' }} />
-                <span style={{ fontSize: '10px', color: 'var(--td)' }}>Anki unavailable</span>
+                <span style={{ color: 'var(--td)' }}>Anki unavailable</span>
               </>
             )
           ) : (
-            <span style={{ fontSize: '10px', color: 'var(--td)' }}>Checking…</span>
+            <span style={{ color: 'var(--td)' }}>Checking…</span>
           )}
         </div>
       </PageToolbar>

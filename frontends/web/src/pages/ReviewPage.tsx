@@ -536,13 +536,13 @@ export function ReviewPage() {
       <PageToolbar>
         {/* Progress */}
         <div className="glass-pill" style={{ padding: '5px 10px', gap: '6px' }}>
-          <span className="tabular-nums" style={{ color: 'var(--tm)', fontSize: '10px' }}>
+          <span className="tabular-nums" style={{ color: 'var(--tm)' }}>
             {markedCount} / {candidates.length}
           </span>
           <div className="rounded-full overflow-hidden" style={{ width: 36, height: 2, background: 'var(--glass-b)' }}>
             <div className="h-full" style={{ width: `${progress}%`, background: 'var(--accent)', borderRadius: '2px' }} />
           </div>
-          <span style={{ color: 'var(--td)', fontSize: '10px' }}>learn: {learnCount}</span>
+          <span style={{ color: 'var(--td)' }}>learn: {learnCount}</span>
         </div>
 
         {/* Sort toggle */}
@@ -552,7 +552,7 @@ export function ReviewPage() {
               onClick={() => setSortOrder('relevance')}
               className="cursor-pointer transition-all"
               style={{
-                fontSize: '10px', padding: '3px 8px', borderRadius: '100px',
+                padding: '3px 8px', borderRadius: '100px',
                 ...(sortOrder === 'relevance'
                   ? { background: 'var(--accent)', color: '#fff' }
                   : { color: 'var(--td)' }),
@@ -562,7 +562,7 @@ export function ReviewPage() {
               onClick={() => setSortOrder('chronological')}
               className="cursor-pointer transition-all"
               style={{
-                fontSize: '10px', padding: '3px 8px', borderRadius: '100px',
+                padding: '3px 8px', borderRadius: '100px',
                 ...(sortOrder === 'chronological'
                   ? { background: 'var(--accent)', color: '#fff' }
                   : { color: 'var(--td)' }),
@@ -579,34 +579,34 @@ export function ReviewPage() {
             {hasInflightMeaning && (
               <div className="glass-pill" style={{ padding: '5px 12px', gap: '6px' }}>
                 <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
-                <span style={{ fontSize: '10px', color: 'var(--tm)' }}>
+                <span style={{ color: 'var(--tm)' }}>
                   Meanings ({(queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)})
                 </span>
-                <button onClick={() => void handleCancelMeanings()} className="cursor-pointer" style={{ fontSize: '10px', color: 'var(--error)', marginLeft: '4px' }}>✕</button>
+                <button onClick={() => void handleCancelMeanings()} className="cursor-pointer" style={{ color: 'var(--error)', marginLeft: '4px' }}>✕</button>
               </div>
             )}
             {hasFailedMeaning && (
-              <button onClick={() => void handleRetryFailedMeanings()} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', fontSize: '10px', color: 'var(--error)' }}>
+              <button onClick={() => void handleRetryFailedMeanings()} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', color: 'var(--error)' }}>
                 Retry meanings ({queueSummary?.meaning.failed})
               </button>
             )}
             {downloadingVideo && (
               <div className="glass-pill" style={{ padding: '5px 12px', gap: '4px' }}>
                 <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
-                <span style={{ fontSize: '10px', color: 'var(--tm)' }}>Downloading…</span>
+                <span style={{ color: 'var(--tm)' }}>Downloading…</span>
               </div>
             )}
             {hasInflightMedia && (
               <div className="glass-pill" style={{ padding: '5px 12px', gap: '6px' }}>
                 <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
-                <span style={{ fontSize: '10px', color: 'var(--tm)' }}>
+                <span style={{ color: 'var(--tm)' }}>
                   Media ({(queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)})
                 </span>
-                <button onClick={() => void handleCancelMedia()} className="cursor-pointer" style={{ fontSize: '10px', color: 'var(--error)', marginLeft: '4px' }}>✕</button>
+                <button onClick={() => void handleCancelMedia()} className="cursor-pointer" style={{ color: 'var(--error)', marginLeft: '4px' }}>✕</button>
               </div>
             )}
             {hasFailedMedia && (
-              <button onClick={() => void handleRetryFailedMedia()} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', fontSize: '10px', color: 'var(--error)' }}>
+              <button onClick={() => void handleRetryFailedMedia()} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', color: 'var(--error)' }}>
                 Retry media ({queueSummary?.media.failed})
               </button>
             )}
@@ -662,15 +662,15 @@ export function ReviewPage() {
 
         {/* Add */}
         {interactionMode.type === 'idle' ? (
-          <button onClick={handleStartAdding} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', fontSize: '10px', color: 'var(--tm)' }}>
+          <button onClick={handleStartAdding} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', color: 'var(--tm)' }}>
             + Add
           </button>
         ) : (
           <div className="glass-pill" style={{ padding: '5px 12px', gap: '6px' }}>
-            <span style={{ fontSize: '10px', color: 'var(--accent)' }}>
+            <span style={{ color: 'var(--accent)' }}>
               {interactionMode.type === 'adding' ? 'Select phrase to add' : `New boundary for ${interactionMode.lemma}`}
             </span>
-            <button onClick={handleCancelMode} className="cursor-pointer" style={{ fontSize: '10px', color: 'var(--td)' }}>✕</button>
+            <button onClick={handleCancelMode} className="cursor-pointer" style={{ color: 'var(--td)' }}>✕</button>
           </div>
         )}
 
@@ -678,7 +678,7 @@ export function ReviewPage() {
         <button
           onClick={() => navigate(`/sources/${sourceId}/export`)}
           className="glass-pill glass-pill-prominent cursor-pointer"
-          style={{ padding: '5px 14px', fontSize: '10px' }}
+          style={{ padding: '5px 14px' }}
         >
           Export →
         </button>
