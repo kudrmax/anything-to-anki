@@ -440,9 +440,28 @@ export function ReviewPage() {
 
   useEffect(() => {
     if (hoveredId === null || !hoverFromCardRef.current) return
-    const mark = textPanelRef.current?.querySelector(`mark[data-candidate-id="${hoveredId}"]`)
-    mark?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [hoveredId])
+    const panel = textPanelRef.current
+    if (!panel) return
+
+    // Try exact mark first
+    const mark = panel.querySelector(`mark[data-candidate-id="${hoveredId}"]`)
+    if (mark) {
+      mark.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+
+    // Fallback: candidate's mark may be hidden by overlap — find any mark
+    // within the context_fragment region by checking nearby marks
+    const candidate = candidates.find(c => c.id === hoveredId)
+    if (!candidate?.context_fragment) return
+    const allMarks = panel.querySelectorAll('mark[data-candidate-id]')
+    for (const m of allMarks) {
+      if (m.textContent && candidate.context_fragment.replace(/\s+/g, ' ').includes(m.textContent.replace(/\s+/g, ' '))) {
+        m.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+    }
+  }, [hoveredId, candidates])
 
   // Auto-save source status only when the derived status actually changes,
   // not on every candidates re-fetch (which happens during polling).
@@ -746,7 +765,6 @@ export function ReviewPage() {
                 audioUrl={mediaMap[c.id]?.audioUrl}
                 onRegenerateMedia={source?.content_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                 isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
-                hasMediaTimecodes={c.media?.start_ms != null}
                 isAudioPlaying={playingCandidateId === c.id}
                 onPlayAudio={(url) => playAudio(c.id, url)}
                 onStopAudio={stopAudio}
@@ -782,8 +800,7 @@ export function ReviewPage() {
                   audioUrl={mediaMap[c.id]?.audioUrl}
                   onRegenerateMedia={source?.content_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                   isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
-                  hasMediaTimecodes={c.media?.start_ms != null}
-                  isAudioPlaying={playingCandidateId === c.id}
+                    isAudioPlaying={playingCandidateId === c.id}
                   onPlayAudio={(url) => playAudio(c.id, url)}
                   onStopAudio={stopAudio}
                 />

@@ -30,7 +30,6 @@ interface CandidateCardV2Props {
   audioUrl?: string | null
   onRegenerateMedia?: (id: number) => void
   isRegeneratingMedia?: boolean
-  hasMediaTimecodes?: boolean
   // Audio playback is lifted to the parent so that:
   //  - only one audio plays at a time across cards
   //  - the parent can auto-play the next card's audio after a mark click
@@ -312,7 +311,6 @@ export function CandidateCardV2({
   audioUrl,
   onRegenerateMedia,
   isRegeneratingMedia,
-  hasMediaTimecodes,
   isAudioPlaying,
   onPlayAudio,
   onStopAudio,
@@ -426,7 +424,7 @@ export function CandidateCardV2({
               )}
             </div>
           )}
-          {onRegenerateMedia && hasMediaTimecodes && (
+          {onRegenerateMedia && (
             <ToolbarButton
               onClick={() => onRegenerateMedia(candidate.id)}
               disabled={isRegeneratingMedia}

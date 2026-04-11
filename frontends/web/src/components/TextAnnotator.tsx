@@ -264,7 +264,7 @@ export function TextAnnotator({
             onMouseEnter={() => { if (!isDraggingRef.current) onWordHover(seg.candidateId) }}
             onMouseLeave={() => { if (!isDraggingRef.current) onWordHover(null) }}
           >
-            {seg.content}
+            {seg.content.replace(/\s+/g, ' ')}
           </mark>
         )
       })}
