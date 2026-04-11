@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, CheckCircle, Loader2, RefreshCw, Trash2, XCircle } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { CheckCircle, Loader2, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import { api } from '@/api/client'
 import type { CleanupMediaKind, CreateNoteTypeResponse, KnownWord, Settings, SourceMediaStats, VerifyNoteTypeResponse } from '@/api/types'
 import { autoPlayAudioPref } from '@/lib/preferences'
 import { useTheme } from '@/lib/ThemeProvider'
 import type { ThemeName } from '@/lib/preferences'
+import { NavPill } from '@/components/NavPill'
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
 const AI_MODELS = [
@@ -21,7 +21,6 @@ const INPUT_STYLE = {
 } as const
 
 export function SettingsPage() {
-  const navigate = useNavigate()
   const [_settings, setSettings] = useState<Settings | null>(null)
   const [form, setForm] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -202,13 +201,7 @@ export function SettingsPage() {
     <div className="flex-1 overflow-y-auto">
       {/* Floating toolbar */}
       <div className="shrink-0 flex items-center gap-1.5 mb-4">
-        <button onClick={() => navigate('/')} className="glass-pill cursor-pointer" style={{ padding: '5px 10px', gap: '6px' }}>
-          <ArrowLeft size={12} style={{ color: 'var(--tm)' }} />
-          <span style={{ fontSize: '11px', color: 'var(--tm)' }}>Back</span>
-        </button>
-        <div className="glass-pill" style={{ padding: '5px 12px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text)' }}>Settings</span>
-        </div>
+        <NavPill />
       </div>
       <main className="mx-auto max-w-lg px-4 py-8 flex flex-col gap-8">
 

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Loader2, Sparkles } from 'lucide-react'
+import { useParams } from 'react-router-dom'
+import { Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import type { AnkiStatus, CardPreview, SyncResult } from '@/api/types'
+import { NavPill } from '@/components/NavPill'
 
 export function ExportPage() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
   const sourceId = Number(id)
 
   const [ankiStatus, setAnkiStatus] = useState<AnkiStatus | null>(null)
@@ -99,14 +99,7 @@ export function ExportPage() {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="shrink-0 flex items-center gap-1.5 px-2 py-2">
-        <button onClick={() => navigate(-1)} className="glass-pill cursor-pointer" style={{ padding: '5px 10px', gap: '6px' }}>
-          <ArrowLeft size={12} style={{ color: 'var(--tm)' }} />
-          <span style={{ fontSize: '11px', color: 'var(--tm)' }}>Back</span>
-        </button>
-
-        <div className="glass-pill" style={{ padding: '5px 12px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text)' }}>Export to Anki</span>
-        </div>
+        <NavPill />
 
         <div className="flex-1" />
 
