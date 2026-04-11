@@ -340,15 +340,10 @@ export function CandidateCardV2({
                   zIndex: 50,
                   paddingTop: '4px',
                 }}>
-                <div style={{
-                  background: 'var(--header-bg)',
-                  backdropFilter: 'var(--blur)',
-                  WebkitBackdropFilter: 'var(--blur)',
-                  border: '1px solid var(--glass-b)',
+                <div className="glass-card" style={{
                   borderRadius: '12px',
                   padding: '4px 0',
                   minWidth: '180px',
-                  boxShadow: 'var(--sh)',
                 }}>
                   <button
                     onClick={() => {
