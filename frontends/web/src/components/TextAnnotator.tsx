@@ -246,10 +246,10 @@ export function TextAnnotator({
           opacity = 1
         } else if (isRated) {
           markStyle = { cursor: 'pointer', color: 'inherit', background: 'transparent' }
-          opacity = isDimming && !inFragment ? 0.15 : 1
+          opacity = isDimming && fragmentStart !== -1 && !inFragment ? 0.15 : 1
         } else {
           markStyle = { ...cefrBase, cursor: 'pointer' }
-          opacity = isDimming && !inFragment ? 0.15 : 1
+          opacity = isDimming && fragmentStart !== -1 && !inFragment ? 0.15 : 1
         }
 
         const isRatedNoGlass = isRated && !isActive
