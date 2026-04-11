@@ -2,7 +2,7 @@ import { BackPill, CenterBrand } from './NavPill'
 import { FONT_MENU } from '@/lib/design-tokens'
 
 export const TOOLBAR_SPACING = '12px'
-export const TOOLBAR_HEIGHT = '56px'
+export const TOOLBAR_HEIGHT = '72px'
 
 export interface ToolbarSlots {
   left: React.RefObject<HTMLDivElement | null>
