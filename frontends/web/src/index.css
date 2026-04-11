@@ -192,13 +192,7 @@ body {
 
 /* ── Liquid Glass overrides ── */
 [data-theme="liquid-glass"] body {
-  background: linear-gradient(160deg, #0a0e27 0%, #0c1a3a 35%, #0d2244 65%, #091833 100%);
-  background-attachment: fixed;
-}
-
-/* Override liquid-glass-react: its .glass div sets overflow:hidden which clips card content */
-[data-theme="liquid-glass"] .liquid-glass-card .glass {
-  overflow: visible !important;
+  background: #050508;
 }
 
 [data-theme="liquid-glass"] .glass-card {
