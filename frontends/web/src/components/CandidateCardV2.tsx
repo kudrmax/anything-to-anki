@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { BookOpen, ChevronDown, Film, Info, Languages, Loader2, Pencil, Play, Sparkles, Square, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTheme } from '@/lib/ThemeProvider'
+import LiquidGlass from 'liquid-glass-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 
 const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string }[] = [
@@ -220,6 +222,7 @@ export function CandidateCardV2({
   onPlayAudio,
   onStopAudio,
 }: CandidateCardV2Props) {
+  const { theme } = useTheme()
   const [showInfo, setShowInfo] = useState(false)
   const [showFollowUp, setShowFollowUp] = useState(false)
   const [showFreeInput, setShowFreeInput] = useState(false)
@@ -743,5 +746,16 @@ export function CandidateCardV2({
     </div>
   )
 
+  if (theme === 'liquid-glass') {
+    return (
+      <LiquidGlass
+        className="liquid-glass-card"
+        cornerRadius={20}
+        displacementScale={15}
+      >
+        {cardContent}
+      </LiquidGlass>
+    )
+  }
   return cardContent
 }
