@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Film, Loader2, Sparkles } from 'lucide-react'
+import { Film, Loader2, Settings, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import type {
   CandidateSortOrder,
@@ -532,114 +532,97 @@ export function ReviewPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Unified toolbar */}
-      <header
-        className="review-toolbar shrink-0 px-4 py-2 flex items-center gap-3"
-        style={{ borderBottom: '1px solid var(--glass-b)' }}
-      >
-        {/* Back */}
-        <button
-          onClick={() => navigate('/')}
-          className="text-sm transition-opacity hover:opacity-100 cursor-pointer"
-          style={{ color: 'var(--tm)', opacity: 0.7 }}
-        >
-          ←
-        </button>
+      {/* Floating toolbar — each group is a glass pill */}
+      <div className="shrink-0 flex items-center gap-1.5 flex-wrap mb-2">
+        {/* Nav + logo */}
+        <div className="glass-pill" style={{ padding: '5px 10px', gap: '6px' }}>
+          <button onClick={() => navigate('/')} className="cursor-pointer" style={{ color: 'var(--tm)', fontSize: '14px' }}>‹</button>
+          <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--tm)' }}>Anki</span>
+          {import.meta.env.VITE_INSTANCE_ENV_NAME && (
+            <span style={{
+              fontSize: '8px', padding: '1px 5px', borderRadius: '100px',
+              background: import.meta.env.VITE_INSTANCE_ENV_NAME === 'prod' ? 'rgba(34,197,94,0.08)' : 'rgba(255,160,0,0.06)',
+              border: `0.5px solid ${import.meta.env.VITE_INSTANCE_ENV_NAME === 'prod' ? 'rgba(34,197,94,0.15)' : 'rgba(255,160,0,0.12)'}`,
+              color: import.meta.env.VITE_INSTANCE_ENV_NAME === 'prod' ? '#22c55e' : '#ffaa33',
+            }}>
+              {import.meta.env.VITE_INSTANCE_ENV_NAME}
+            </span>
+          )}
+        </div>
 
         {/* Progress */}
-        <span className="text-xs tabular-nums" style={{ color: 'var(--tm)' }}>
-          {markedCount} / {candidates.length}
-        </span>
-        <div
-          className="h-1 rounded-full overflow-hidden"
-          style={{ width: 80, background: 'var(--glass-b)' }}
-        >
-          <div
-            className="h-full transition-all duration-300"
-            style={{ width: `${progress}%`, background: 'var(--grad)' }}
-          />
+        <div className="glass-pill" style={{ padding: '5px 10px', gap: '6px' }}>
+          <span className="tabular-nums" style={{ color: 'var(--tm)', fontSize: '10px' }}>
+            {markedCount} / {candidates.length}
+          </span>
+          <div className="rounded-full overflow-hidden" style={{ width: 36, height: 2, background: 'var(--glass-b)' }}>
+            <div className="h-full" style={{ width: `${progress}%`, background: 'var(--accent)', borderRadius: '2px' }} />
+          </div>
+          <span style={{ color: 'var(--td)', fontSize: '9px' }}>learn: {learnCount}</span>
         </div>
-        <span className="text-xs" style={{ color: 'var(--td)' }}>
-          learn: {learnCount}
-        </span>
 
         {/* Sort toggle */}
         {candidates.length > 0 && (
-          <div className="sort-toggle flex p-[2px]" style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', borderRadius: 'var(--btn-radius)' }}>
+          <div className="glass-pill" style={{ padding: '3px' }}>
             <button
               onClick={() => setSortOrder('relevance')}
-              className="px-2 py-[2px] text-[10px] font-medium transition-all cursor-pointer"
-              style={
-                sortOrder === 'relevance'
+              className="cursor-pointer transition-all"
+              style={{
+                fontSize: '9px', padding: '3px 8px', borderRadius: '100px',
+                ...(sortOrder === 'relevance'
                   ? { background: 'var(--accent)', color: '#fff' }
-                  : { background: 'transparent', color: 'var(--tm)' }
-              }
-              title="Sort by relevance"
-            >
-              A↓
-            </button>
+                  : { color: 'var(--td)' }),
+              }}
+            >A↓</button>
             <button
               onClick={() => setSortOrder('chronological')}
-              className="px-2 py-[2px] text-[10px] font-medium transition-all cursor-pointer"
-              style={
-                sortOrder === 'chronological'
+              className="cursor-pointer transition-all"
+              style={{
+                fontSize: '9px', padding: '3px 8px', borderRadius: '100px',
+                ...(sortOrder === 'chronological'
                   ? { background: 'var(--accent)', color: '#fff' }
-                  : { background: 'transparent', color: 'var(--tm)' }
-              }
-              title="Sort chronologically"
-            >
-              T↓
-            </button>
+                  : { color: 'var(--td)' }),
+              }}
+            >T↓</button>
           </div>
         )}
 
-        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Generate Meanings button */}
+        {/* Generate Meanings */}
         {candidates.length > 0 && (
           hasInflightMeaning ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--tm)' }}>
-                <Loader2 size={12} className="animate-spin" />
+            <div className="glass-pill" style={{ padding: '5px 12px', gap: '6px' }}>
+              <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
+              <span style={{ fontSize: '10px', color: 'var(--tm)' }}>
                 Meanings ({(queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)})
               </span>
-              <button
-                onClick={() => void handleCancelMeanings()}
-                className="text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
-                style={{ background: 'var(--status-skip-bg)', border: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
-              >
-                Cancel
-              </button>
+              <button onClick={() => void handleCancelMeanings()} className="cursor-pointer" style={{ fontSize: '9px', color: 'var(--error)', marginLeft: '4px' }}>✕</button>
             </div>
           ) : hasFailedMeaning ? (
-            <button
-              onClick={() => void handleRetryFailedMeanings()}
-              className="text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
-              style={{ background: 'var(--status-skip-bg)', border: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
-            >
+            <button onClick={() => void handleRetryFailedMeanings()} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', fontSize: '10px', color: 'var(--error)' }}>
               Retry meanings ({queueSummary?.meaning.failed})
             </button>
           ) : (
             <button
               onClick={() => void handleGenerateMeanings()}
               disabled={generatingIds.size > 0}
-              className="flex items-center gap-1.5 text-xs px-2 py-1 disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
-              style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+              className="glass-pill cursor-pointer disabled:opacity-50"
+              style={{ padding: '5px 12px', gap: '4px', fontSize: '10px', color: 'var(--tm)' }}
             >
-              <Sparkles size={12} />
+              <Sparkles size={10} />
               Generate Meanings
             </button>
           )
         )}
 
-        {/* Download Media button (YouTube source without downloaded video) */}
+        {/* Download Media (YouTube only) */}
         {source && source.content_type === 'video' && !source.video_downloaded && (
           downloadingVideo ? (
-            <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--tm)' }}>
-              <Loader2 size={12} className="animate-spin" />
-              Downloading video…
-            </span>
+            <div className="glass-pill" style={{ padding: '5px 12px', gap: '4px' }}>
+              <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
+              <span style={{ fontSize: '10px', color: 'var(--tm)' }}>Downloading…</span>
+            </div>
           ) : (
             <button
               onClick={async () => {
@@ -649,117 +632,70 @@ export function ReviewPage() {
                   const poll = setInterval(() => {
                     void api.getSource(sourceId, sortOrder).then((updated) => {
                       setSource(updated)
-                      if (updated.video_downloaded) {
-                        clearInterval(poll)
-                        setDownloadingVideo(false)
-                      }
+                      if (updated.video_downloaded) { clearInterval(poll); setDownloadingVideo(false) }
                     }).catch(() => undefined)
                   }, 3000)
-                } catch {
-                  setDownloadingVideo(false)
-                }
+                } catch { setDownloadingVideo(false) }
               }}
-              className="flex items-center gap-1.5 text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
-              style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+              className="glass-pill cursor-pointer"
+              style={{ padding: '5px 12px', gap: '4px', fontSize: '10px', color: 'var(--tm)' }}
             >
-              <Film size={12} />
+              <Film size={10} />
               Download Media
             </button>
           )
         )}
 
-        {/* Generate Media button (video only, after video is downloaded) */}
+        {/* Generate Media (video with downloaded source) */}
         {source && source.content_type === 'video' && source.video_downloaded && (
           hasInflightMedia ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--tm)' }}>
-                <Loader2 size={12} className="animate-spin" />
+            <div className="glass-pill" style={{ padding: '5px 12px', gap: '6px' }}>
+              <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
+              <span style={{ fontSize: '10px', color: 'var(--tm)' }}>
                 Media ({(queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)})
               </span>
-              <button
-                onClick={() => void handleCancelMedia()}
-                className="text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
-                style={{ background: 'var(--status-skip-bg)', border: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
-              >
-                Cancel
-              </button>
+              <button onClick={() => void handleCancelMedia()} className="cursor-pointer" style={{ fontSize: '9px', color: 'var(--error)', marginLeft: '4px' }}>✕</button>
             </div>
           ) : hasFailedMedia ? (
-            <button
-              onClick={() => void handleRetryFailedMedia()}
-              className="text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
-              style={{ background: 'var(--status-skip-bg)', border: '1px solid var(--status-skip-border)', color: 'var(--error)' }}
-            >
+            <button onClick={() => void handleRetryFailedMedia()} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', fontSize: '10px', color: 'var(--error)' }}>
               Retry media ({queueSummary?.media.failed})
             </button>
           ) : (
-            <button
-              onClick={() => void handleGenerateMedia()}
-              className="flex items-center gap-1.5 text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
-              style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
-            >
-              <Film size={12} />
+            <button onClick={() => void handleGenerateMedia()} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', gap: '4px', fontSize: '10px', color: 'var(--tm)' }}>
+              <Film size={10} />
               Generate Media
             </button>
           )
         )}
 
-        {/* Separator */}
-        <div className="h-4 w-px" style={{ background: 'var(--glass-b)' }} />
-
-        {/* Add button / mode banner */}
+        {/* Add */}
         {interactionMode.type === 'idle' ? (
-          <button
-            onClick={handleStartAdding}
-            className="flex items-center gap-1 text-xs px-2 py-1 transition-all hover:brightness-110 cursor-pointer"
-            style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
-          >
+          <button onClick={handleStartAdding} className="glass-pill cursor-pointer" style={{ padding: '5px 12px', fontSize: '10px', color: 'var(--tm)' }}>
             + Add
           </button>
-        ) : interactionMode.type === 'adding' ? (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
-              Select phrase in text to add
+        ) : (
+          <div className="glass-pill" style={{ padding: '5px 12px', gap: '6px' }}>
+            <span style={{ fontSize: '10px', color: 'var(--accent)' }}>
+              {interactionMode.type === 'adding' ? 'Select phrase to add' : `New boundary for ${interactionMode.lemma}`}
             </span>
-            <button
-              onClick={handleCancelMode}
-              className="text-xs px-2 py-1 cursor-pointer transition-opacity hover:opacity-100"
-              style={{ color: 'var(--td)', opacity: 0.7 }}
-            >
-              Cancel
-            </button>
+            <button onClick={handleCancelMode} className="cursor-pointer" style={{ fontSize: '9px', color: 'var(--td)' }}>✕</button>
           </div>
-        ) : interactionMode.type === 'editing' ? (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
-              Select new boundary for <strong>{interactionMode.lemma}</strong>
-            </span>
-            <button
-              onClick={handleCancelMode}
-              className="text-xs px-2 py-1 cursor-pointer transition-opacity hover:opacity-100"
-              style={{ color: 'var(--td)', opacity: 0.7 }}
-            >
-              Cancel
-            </button>
-          </div>
-        ) : null}
-
-        {/* Separator */}
-        <div className="h-4 w-px" style={{ background: 'var(--glass-b)' }} />
+        )}
 
         {/* Export */}
         <button
           onClick={() => navigate(`/sources/${sourceId}/export`)}
-          className="px-3 py-1 text-xs font-medium transition-all cursor-pointer hover:brightness-110"
-          style={{
-            border: '1px solid var(--ag)',
-            color: 'var(--accent)',
-            background: 'var(--abg)',
-          }}
+          className="glass-pill cursor-pointer"
+          style={{ padding: '5px 14px', fontSize: '10px', fontWeight: 500, color: 'var(--accent)', background: 'var(--abg)', borderColor: 'var(--ag)' }}
         >
           Export →
         </button>
-      </header>
+
+        {/* Settings */}
+        <button onClick={() => navigate('/settings')} className="glass-pill cursor-pointer" style={{ padding: '5px 8px' }}>
+          <Settings size={12} style={{ color: 'var(--td)' }} />
+        </button>
+      </div>
 
       {vpnBlocked && (
         <div
@@ -778,15 +714,14 @@ export function ReviewPage() {
       )}
 
       {/* Split panels */}
-      <div className="flex-1 overflow-hidden flex">
+      <div className="flex-1 overflow-hidden flex gap-2">
         {/* Left: candidates */}
         <div
           ref={candidatesPanelRef}
-          className="overflow-y-auto p-4 flex flex-col gap-3"
+          className="glass-panel overflow-y-auto p-4 flex flex-col gap-3"
           style={{
             width: 'clamp(360px, 832px, 60vw)',
             flexShrink: 0,
-            borderRight: '1px solid var(--glass-b)',
             opacity: interactionMode.type !== 'idle' ? 0.4 : 1,
             transition: 'opacity 200ms ease',
             pointerEvents: interactionMode.type !== 'idle' ? 'none' : 'auto',
@@ -871,7 +806,7 @@ export function ReviewPage() {
         {/* Right: text */}
         <div
           ref={textPanelRef}
-          className="flex-1 overflow-y-auto p-6 text-panel"
+          className="glass-panel text-panel flex-1 overflow-y-auto p-6"
           style={{
             ...(interactionMode.type !== 'idle' && {
               boxShadow: 'inset 0 0 20px var(--abg)',

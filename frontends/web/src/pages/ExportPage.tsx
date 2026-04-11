@@ -98,39 +98,36 @@ export function ExportPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <header
-        className="px-6 py-3 flex items-center justify-between gap-4"
-        style={{ borderBottom: '1px solid var(--glass-b)' }}
-      >
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-sm transition-opacity hover:opacity-100 cursor-pointer"
-          style={{ color: 'var(--tm)', opacity: 0.8 }}
-        >
-          <ArrowLeft size={14} />
-          Back
+      <div className="shrink-0 flex items-center gap-1.5 px-2 py-2">
+        <button onClick={() => navigate(-1)} className="glass-pill cursor-pointer" style={{ padding: '5px 10px', gap: '6px' }}>
+          <ArrowLeft size={12} style={{ color: 'var(--tm)' }} />
+          <span style={{ fontSize: '11px', color: 'var(--tm)' }}>Back</span>
         </button>
 
-        <h1 className="text-sm font-medium" style={{ color: 'var(--text)' }}>Export to Anki</h1>
+        <div className="glass-pill" style={{ padding: '5px 12px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text)' }}>Export to Anki</span>
+        </div>
 
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex-1" />
+
+        <div className="glass-pill" style={{ padding: '5px 10px', gap: '4px' }}>
           {ankiStatus ? (
             ankiStatus.available ? (
               <>
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                <span className="text-emerald-400">Anki connected</span>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--status-learn)' }} />
+                <span style={{ fontSize: '10px', color: 'var(--status-learn)' }}>Anki connected</span>
               </>
             ) : (
               <>
-                <span className="h-2 w-2 rounded-full bg-rose-500" />
-                <span className="text-slate-500">Anki unavailable</span>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--error)' }} />
+                <span style={{ fontSize: '10px', color: 'var(--td)' }}>Anki unavailable</span>
               </>
             )
           ) : (
-            <span className="text-slate-600">Checking…</span>
+            <span style={{ fontSize: '10px', color: 'var(--td)' }}>Checking…</span>
           )}
         </div>
-      </header>
+      </div>
 
       <main className="mx-auto max-w-2xl px-4 py-8 flex flex-col gap-6">
         <div className="flex items-center justify-between">
