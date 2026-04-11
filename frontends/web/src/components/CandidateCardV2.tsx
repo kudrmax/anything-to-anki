@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { BookOpen, ChevronDown, Film, Languages, Loader2, Pencil, Play, Sparkles, Square, Volume2, X } from 'lucide-react'
+import { BookOpen, ChevronDown, Film, Languages, Loader2, Pencil, Play, Sparkles, Square, Target, Volume2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 
@@ -296,7 +296,7 @@ function ToolbarButton({ children, onClick, disabled, title, ariaLabel, classNam
 export function CandidateCardV2({
   candidate,
   sourceId,
-  isHovered,
+  isHovered: _isHovered,
   isRated,
   onHoverEnter,
   onHoverLeave,
@@ -372,26 +372,9 @@ export function CandidateCardV2({
         }),
         ...(isEditingFragment
           ? { borderColor: 'var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }
-          : isHovered ? {
-              transform: 'scale(1.01)',
-              background: 'rgba(255,255,255,.09)',
-              boxShadow: '0 4px 20px rgba(0,0,0,.15)',
-            } : {}),
-        transition: 'transform 150ms ease, background 150ms ease, box-shadow 150ms ease',
+          : {}),
       }}
     >
-      {/* Sweet spot gradient bar */}
-      {candidate.is_sweet_spot && (
-        <div style={{
-          width: '3px',
-          top: 'var(--card-radius)',
-          bottom: 'var(--card-radius)',
-          borderRadius: '2px',
-          background: 'var(--grad)',
-          position: 'absolute',
-          left: '0',
-        }} />
-      )}
 
       {/* TOP BAR: toolbar (left) + Learn/Know/Skip (right) */}
       <div style={{
@@ -602,6 +585,15 @@ export function CandidateCardV2({
               style={{
                 float: 'right',
                 margin: '-2px 0 4px 8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              {candidate.is_sweet_spot && (
+                <Target size={12} style={{ color: 'var(--accent)' }} />
+              )}
+              <span style={{
                 padding: '2px 10px',
                 background: cefrPillColor.bg,
                 color: cefrPillColor.color,
@@ -609,9 +601,9 @@ export function CandidateCardV2({
                 fontSize: '10px',
                 fontWeight: 700,
                 letterSpacing: '0.03em',
-              }}
-            >
-              {candidate.cefr_level}
+              }}>
+                {candidate.cefr_level}
+              </span>
             </span>
           )}
 

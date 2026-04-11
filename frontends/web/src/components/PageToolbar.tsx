@@ -1,6 +1,6 @@
 import { BackPill, CenterBrand } from './NavPill'
 
-const TOOLBAR_PADDING = '12px'
+const TOOLBAR_SPACING = '12px'
 
 export function PageToolbar({ children }: { children?: React.ReactNode }) {
   return (
@@ -9,7 +9,7 @@ export function PageToolbar({ children }: { children?: React.ReactNode }) {
       style={{
         position: 'relative',
         minHeight: '28px',
-        padding: `${TOOLBAR_PADDING} ${TOOLBAR_PADDING} ${TOOLBAR_PADDING} ${TOOLBAR_PADDING}`,
+        margin: TOOLBAR_SPACING,
       }}
     >
       <BackPill />

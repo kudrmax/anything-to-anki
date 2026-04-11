@@ -120,10 +120,6 @@ body {
   box-shadow: var(--sh);
   transition: box-shadow 220ms ease, border-color 200ms ease, transform 180ms ease;
 }
-.glass-card:hover {
-  box-shadow: var(--sh2);
-  transform: scale(1.005);
-}
 
 /* ── Cosmic input focus ── */
 .cosmic-input:focus {
