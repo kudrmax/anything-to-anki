@@ -150,7 +150,8 @@ export function TextAnnotator({
       ref={containerRef}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      className="text-lg text-slate-300 leading-relaxed whitespace-pre-wrap"
+      className="text-lg leading-relaxed whitespace-pre-wrap"
+      style={{ color: 'var(--tm)' }}
     >
       {segments.map((seg, i) => {
         const segEnd = seg.start + seg.content.length

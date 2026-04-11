@@ -75,7 +75,7 @@ export function SidebarLayout() {
           className="shrink-0 flex flex-col gap-1 px-3 py-4 overflow-y-auto"
           style={{
             width: '220px',
-            background: 'rgba(12,14,24,.72)',
+            background: 'var(--header-bg)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
             borderRight: '1px solid var(--glass-b)',

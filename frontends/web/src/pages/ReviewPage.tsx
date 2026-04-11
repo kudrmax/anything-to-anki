@@ -874,8 +874,8 @@ export function ReviewPage() {
           className="flex-1 overflow-y-auto p-6"
           style={{
             ...(interactionMode.type !== 'idle' && {
-              boxShadow: 'inset 0 0 20px rgba(139,92,246,0.05)',
-              outline: '1.5px solid rgba(139,92,246,0.3)',
+              boxShadow: 'inset 0 0 20px var(--abg)',
+              outline: '1.5px solid var(--ag)',
             }),
           }}
         >
