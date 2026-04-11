@@ -372,7 +372,12 @@ export function CandidateCardV2({
         }),
         ...(isEditingFragment
           ? { borderColor: 'var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }
-          : isHovered ? { borderColor: 'var(--accent)' } : {}),
+          : isHovered ? {
+              transform: 'scale(1.01)',
+              background: 'rgba(255,255,255,.09)',
+              boxShadow: '0 4px 20px rgba(0,0,0,.15)',
+            } : {}),
+        transition: 'transform 150ms ease, background 150ms ease, box-shadow 150ms ease',
       }}
     >
       {/* Sweet spot gradient bar */}

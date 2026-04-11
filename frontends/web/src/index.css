@@ -122,8 +122,7 @@ body {
 }
 .glass-card:hover {
   box-shadow: var(--sh2);
-  border-color: rgba(129,140,248,.35);
-  transform: translateY(-1px);
+  transform: scale(1.005);
 }
 
 /* ── Cosmic input focus ── */
