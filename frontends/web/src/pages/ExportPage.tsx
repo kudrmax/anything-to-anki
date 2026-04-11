@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import { Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import type { AnkiStatus, CardPreview, SyncResult } from '@/api/types'
 import { PILL_HEIGHT, PILL_PADDING } from '@/lib/design-tokens'
-import { PageToolbar } from '@/components/PageToolbar'
+import { useToolbarSlot } from '@/lib/useToolbarSlot'
 
 export function ExportPage() {
   const { id } = useParams<{ id: string }>()
@@ -97,28 +98,33 @@ export function ExportPage() {
   const canSync = ankiStatus?.available === true && cards.length > 0 && !syncing
   const canGenerateAll = cards.length > 0 && !generatingAll && generatingIds.size === 0
 
+  const toolbarSlot = useToolbarSlot()
+
   return (
     <div className="flex-1 overflow-y-auto">
-      <PageToolbar>
-        <div className="flex-1" />
-        <div className="glass-pill" style={{ padding: PILL_PADDING, gap: '4px', height: PILL_HEIGHT }}>
-          {ankiStatus ? (
-            ankiStatus.available ? (
-              <>
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--status-learn)' }} />
-                <span style={{ color: 'var(--status-learn)' }}>Anki connected</span>
-              </>
+      {toolbarSlot.current && createPortal(
+        <>
+          <div className="flex-1" />
+          <div className="glass-pill" style={{ padding: PILL_PADDING, gap: '4px', height: PILL_HEIGHT }}>
+            {ankiStatus ? (
+              ankiStatus.available ? (
+                <>
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--status-learn)' }} />
+                  <span style={{ color: 'var(--status-learn)' }}>Anki connected</span>
+                </>
+              ) : (
+                <>
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--error)' }} />
+                  <span style={{ color: 'var(--td)' }}>Anki unavailable</span>
+                </>
+              )
             ) : (
-              <>
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--error)' }} />
-                <span style={{ color: 'var(--td)' }}>Anki unavailable</span>
-              </>
-            )
-          ) : (
-            <span style={{ color: 'var(--td)' }}>Checking…</span>
-          )}
-        </div>
-      </PageToolbar>
+              <span style={{ color: 'var(--td)' }}>Checking…</span>
+            )}
+          </div>
+        </>,
+        toolbarSlot.current,
+      )}
 
       <main className="mx-auto max-w-2xl px-4 py-8 flex flex-col gap-6">
         <div className="flex items-center justify-between">

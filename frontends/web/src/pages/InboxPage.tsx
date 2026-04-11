@@ -6,7 +6,6 @@ import { api } from '@/api/client'
 import type { AudioTrack, SourceSummary, SourceType, Stats, SubtitleTrack } from '@/api/types'
 import { SourceCard } from '@/components/SourceCard'
 import { useSourcePolling } from '@/hooks/useSourcePolling'
-import { PageToolbar } from '@/components/PageToolbar'
 
 function detectedFileType(files: File[]): string {
   const exts = files.map((f) => f.name.split('.').pop()?.toLowerCase() ?? '')
@@ -340,7 +339,6 @@ export function InboxPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <PageToolbar />
       <main className={
         isSidebar
           ? 'max-w-2xl mx-auto px-6 py-6 flex flex-col gap-6'

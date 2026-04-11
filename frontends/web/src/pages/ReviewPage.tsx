@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Film, Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
@@ -15,8 +16,8 @@ import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
 import { TextAnnotator } from '@/components/TextAnnotator'
 import { TextSelectionPopover } from '@/components/TextSelectionPopover'
 import { autoPlayAudioPref } from '@/lib/preferences'
-import { PageToolbar } from '@/components/PageToolbar'
 import { PILL_PADDING } from '@/lib/design-tokens'
+import { useToolbarSlot } from '@/lib/useToolbarSlot'
 
 const VPN_ERROR_MARKER = 'Blocked country'
 
@@ -39,6 +40,7 @@ function audioUrlForCandidate(candidate: StoredCandidate, sourceId: number): str
 export function ReviewPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const toolbarSlot = useToolbarSlot()
   const sourceId = Number(id)
 
   const [source, setSource] = useState<SourceDetail | null>(null)
@@ -534,7 +536,8 @@ export function ReviewPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <PageToolbar>
+      {toolbarSlot.current && createPortal(
+        <>
         {/* Progress */}
         <div className="glass-pill" style={{ padding: PILL_PADDING, gap: '6px' }}>
           <span className="tabular-nums" style={{ color: 'var(--tm)' }}>
@@ -683,7 +686,9 @@ export function ReviewPage() {
         >
           Export →
         </button>
-      </PageToolbar>
+        </>,
+        toolbarSlot.current,
+      )}
 
       {vpnBlocked && (
         <div
