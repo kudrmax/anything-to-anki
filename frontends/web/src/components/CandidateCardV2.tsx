@@ -363,7 +363,7 @@ export function CandidateCardV2({
       )}
       style={{
         position: 'relative',
-        padding: '14px',
+        padding: '20px',
         ...(isRated && STATUS_BORDER[candidate.status]),
         ...(isRated && {
           background: STATUS_BG[candidate.status] ?? 'rgba(148,163,184,0.07)',
