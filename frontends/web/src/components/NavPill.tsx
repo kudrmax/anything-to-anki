@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Settings } from 'lucide-react'
+import { PILL_HEIGHT, PILL_PADDING } from '@/lib/design-tokens'
 
 const ENV_NAME = import.meta.env.VITE_INSTANCE_ENV_NAME as string | undefined
 const IS_PROD = ENV_NAME === 'prod'
@@ -14,7 +15,7 @@ export function BackPill() {
     <button
       onClick={() => navigate(-1)}
       className="glass-pill cursor-pointer"
-      style={{ padding: '4px 10px', gap: '4px', height: '28px' }}
+      style={{ padding: PILL_PADDING, gap: '4px', height: PILL_HEIGHT }}
     >
       <ArrowLeft size={12} style={{ color: 'var(--tm)' }} />
       <span style={{ color: 'var(--tm)' }}>Back</span>
@@ -45,9 +46,9 @@ export function CenterBrand() {
         onClick={() => { if (!isHome) navigate('/') }}
         className="glass-pill"
         style={{
-          padding: '4px 12px',
+          padding: PILL_PADDING,
           gap: '6px',
-          height: '28px',
+          height: PILL_HEIGHT,
           cursor: isHome ? 'default' : 'pointer',
         }}
       >
@@ -71,7 +72,7 @@ export function CenterBrand() {
         <button
           onClick={() => navigate('/settings')}
           className="glass-pill cursor-pointer"
-          style={{ padding: '4px 8px', height: '28px' }}
+          style={{ padding: PILL_PADDING, height: PILL_HEIGHT }}
         >
           <Settings size={12} style={{ color: 'var(--td)' }} />
         </button>
