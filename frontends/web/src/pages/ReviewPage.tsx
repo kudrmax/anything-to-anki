@@ -718,7 +718,7 @@ export function ReviewPage() {
         {/* Left: candidates */}
         <div
           ref={candidatesPanelRef}
-          className="overflow-y-auto p-2 flex flex-col gap-2"
+          className="overflow-y-auto flex flex-col gap-3"
           style={{
             width: 'clamp(360px, 832px, 60vw)',
             flexShrink: 0,
@@ -806,7 +806,7 @@ export function ReviewPage() {
         {/* Right: text */}
         <div
           ref={textPanelRef}
-          className="glass-panel text-panel flex-1 overflow-y-auto p-6"
+          className="glass-panel text-panel flex-1 overflow-y-auto px-6 py-4"
           style={{
             ...(interactionMode.type !== 'idle' && {
               boxShadow: 'inset 0 0 20px var(--abg)',
