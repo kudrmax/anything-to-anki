@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Film, Loader2, Settings, Sparkles } from 'lucide-react'
+import { Film, Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import type {
   CandidateSortOrder,
@@ -15,6 +15,7 @@ import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
 import { TextAnnotator } from '@/components/TextAnnotator'
 import { TextSelectionPopover } from '@/components/TextSelectionPopover'
 import { autoPlayAudioPref } from '@/lib/preferences'
+import { PageToolbar } from '@/components/PageToolbar'
 
 const VPN_ERROR_MARKER = 'Blocked country'
 
@@ -532,24 +533,7 @@ export function ReviewPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Floating toolbar — each group is a glass pill */}
-      <div className="shrink-0 flex items-center gap-1.5 flex-wrap mb-3">
-        {/* Nav + logo */}
-        <div className="glass-pill" style={{ padding: '5px 10px', gap: '6px' }}>
-          <button onClick={() => navigate('/')} className="cursor-pointer" style={{ color: 'var(--tm)', fontSize: '14px' }}>‹</button>
-          <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--tm)' }}>Anki</span>
-          {import.meta.env.VITE_INSTANCE_ENV_NAME && (
-            <span style={{
-              fontSize: '8px', padding: '1px 5px', borderRadius: '100px',
-              background: import.meta.env.VITE_INSTANCE_ENV_NAME === 'prod' ? 'rgba(34,197,94,0.08)' : 'rgba(255,160,0,0.06)',
-              border: `0.5px solid ${import.meta.env.VITE_INSTANCE_ENV_NAME === 'prod' ? 'rgba(34,197,94,0.15)' : 'rgba(255,160,0,0.12)'}`,
-              color: import.meta.env.VITE_INSTANCE_ENV_NAME === 'prod' ? '#22c55e' : '#ffaa33',
-            }}>
-              {import.meta.env.VITE_INSTANCE_ENV_NAME}
-            </span>
-          )}
-        </div>
-
+      <PageToolbar>
         {/* Progress */}
         <div className="glass-pill" style={{ padding: '5px 10px', gap: '6px' }}>
           <span className="tabular-nums" style={{ color: 'var(--tm)', fontSize: '10px' }}>
@@ -690,12 +674,7 @@ export function ReviewPage() {
         >
           Export →
         </button>
-
-        {/* Settings */}
-        <button onClick={() => navigate('/settings')} className="glass-pill cursor-pointer" style={{ padding: '5px 8px' }}>
-          <Settings size={12} style={{ color: 'var(--td)' }} />
-        </button>
-      </div>
+      </PageToolbar>
 
       {vpnBlocked && (
         <div
@@ -714,7 +693,7 @@ export function ReviewPage() {
       )}
 
       {/* Split panels */}
-      <div className="flex-1 overflow-hidden flex gap-5">
+      <div className="flex-1 overflow-hidden flex gap-5 px-3 pb-3">
         {/* Left: candidates */}
         <div
           ref={candidatesPanelRef}
