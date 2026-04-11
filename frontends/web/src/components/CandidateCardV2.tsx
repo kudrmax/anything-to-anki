@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { BookOpen, ChevronDown, Film, Info, Languages, Loader2, Pencil, Play, Sparkles, Square, X } from 'lucide-react'
+import { BookOpen, ChevronDown, Film, Languages, Loader2, Pencil, Play, Sparkles, Square, Volume2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 
@@ -37,10 +37,6 @@ interface CandidateCardV2Props {
   onStopAudio: () => void
 }
 
-const POS_LABEL: Record<string, string> = {
-  NOUN: 'noun', VERB: 'verb', ADJ: 'adjective', ADV: 'adverb',
-  PROPN: 'proper noun', NUM: 'numeral', PRON: 'pronoun', DET: 'determiner',
-}
 
 const STATUS_BORDER: Partial<Record<CandidateStatus, React.CSSProperties>> = {
   learn: { borderLeft: '2px solid var(--status-learn)' },
@@ -226,7 +222,6 @@ export function CandidateCardV2({
   onPlayAudio,
   onStopAudio,
 }: CandidateCardV2Props) {
-  const [showInfo, setShowInfo] = useState(false)
   const [showFollowUp, setShowFollowUp] = useState(false)
   const [showFreeInput, setShowFreeInput] = useState(false)
   const [freeText, setFreeText] = useState('')
@@ -441,39 +436,6 @@ export function CandidateCardV2({
               <Pencil size={13} />
             </ToolbarButton>
           )}
-          <div
-            className="relative"
-            onMouseEnter={() => setShowInfo(true)}
-            onMouseLeave={() => setShowInfo(false)}
-          >
-            <ToolbarButton ariaLabel="Word info" title="Word info">
-              <Info size={13} />
-            </ToolbarButton>
-            {showInfo && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                marginTop: '6px',
-                background: 'var(--surface-menu)',
-                border: '1px solid var(--glass-b)',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                whiteSpace: 'nowrap',
-                zIndex: 10,
-                boxShadow: 'var(--sh)',
-              }}>
-                {candidate.meaning?.ipa && (
-                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--tm)' }}>
-                    {candidate.meaning.ipa}
-                  </span>
-                )}
-                <span style={{ fontSize: '11px', color: 'var(--td)', marginLeft: '8px' }}>
-                  · {POS_LABEL[candidate.pos] ?? candidate.pos.toLowerCase()}
-                </span>
-              </div>
-            )}
-          </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -698,7 +660,7 @@ export function CandidateCardV2({
                     lineHeight: 1.5,
                   }}
                 >
-                  <span style={{ fontSize: '13px', marginTop: '1px', flexShrink: 0, color: 'var(--tm)' }}>🔊</span>
+                  <Volume2 size={13} style={{ flexShrink: 0, color: 'var(--tm)' }} />
                   <span style={{ fontFamily: 'monospace', fontSize: '13px' }}>{candidate.meaning.ipa}</span>
                 </div>
               )}

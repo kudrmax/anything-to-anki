@@ -628,7 +628,7 @@ export function ReviewPage() {
               style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
             >
               <Sparkles size={12} />
-              Meanings
+              Generate Meanings
             </button>
           )
         )}
@@ -699,7 +699,7 @@ export function ReviewPage() {
               style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
             >
               <Film size={12} />
-              Media
+              Generate Media
             </button>
           )
         )}
