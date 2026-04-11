@@ -341,7 +341,9 @@ export function CandidateCardV2({
                   paddingTop: '4px',
                 }}>
                 <div style={{
-                  background: 'var(--surface-menu)',
+                  background: 'var(--header-bg)',
+                  backdropFilter: 'var(--blur)',
+                  WebkitBackdropFilter: 'var(--blur)',
                   border: '1px solid var(--glass-b)',
                   borderRadius: '12px',
                   padding: '4px 0',
