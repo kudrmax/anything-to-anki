@@ -334,14 +334,14 @@ export function CandidateCardV2({
                 <div style={{
                   position: 'absolute',
                   top: '100%',
-                  left: 0,
+                  right: 0,
                   zIndex: 50,
                   paddingTop: '4px',
                 }}>
                 <div style={{
                   background: 'var(--surface-menu)',
                   border: '1px solid var(--glass-b)',
-                  borderRadius: 'var(--btn-radius)',
+                  borderRadius: '12px',
                   padding: '4px 0',
                   minWidth: '180px',
                   boxShadow: 'var(--sh)',
