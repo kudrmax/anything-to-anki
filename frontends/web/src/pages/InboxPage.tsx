@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Link, File, Upload, Loader2, Plus, RefreshCw } from 'lucide-react'
+import { FileText, Link, File, Upload, Loader2, Plus, RefreshCw, Settings } from 'lucide-react'
 import { api } from '@/api/client'
 import type { AudioTrack, SourceSummary, SourceType, Stats, SubtitleTrack } from '@/api/types'
 import { SourceCard } from '@/components/SourceCard'
@@ -339,6 +339,28 @@ export function InboxPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
+      {/* Floating toolbar */}
+      <div className="shrink-0 flex items-center gap-1.5 mb-2">
+        <div className="glass-pill" style={{ padding: '5px 10px', gap: '6px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--tm)' }}>
+            Anything to <span style={{ color: 'var(--accent)' }}>Anki</span>
+          </span>
+          {import.meta.env.VITE_INSTANCE_ENV_NAME && (
+            <span style={{
+              fontSize: '8px', padding: '1px 5px', borderRadius: '100px',
+              background: import.meta.env.VITE_INSTANCE_ENV_NAME === 'prod' ? 'rgba(34,197,94,0.08)' : 'rgba(255,160,0,0.06)',
+              border: `0.5px solid ${import.meta.env.VITE_INSTANCE_ENV_NAME === 'prod' ? 'rgba(34,197,94,0.15)' : 'rgba(255,160,0,0.12)'}`,
+              color: import.meta.env.VITE_INSTANCE_ENV_NAME === 'prod' ? '#22c55e' : '#ffaa33',
+            }}>
+              {import.meta.env.VITE_INSTANCE_ENV_NAME}
+            </span>
+          )}
+        </div>
+        <div className="flex-1" />
+        <button onClick={() => navigate('/settings')} className="glass-pill cursor-pointer" style={{ padding: '5px 8px' }}>
+          <Settings size={12} style={{ color: 'var(--td)' }} />
+        </button>
+      </div>
       <main className={
         isSidebar
           ? 'max-w-2xl mx-auto px-6 py-6 flex flex-col gap-6'
