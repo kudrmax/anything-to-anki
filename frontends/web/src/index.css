@@ -207,6 +207,12 @@ body {
   pointer-events: none;
 }
 
+.glass-dropdown {
+  background: rgba(255,255,255,.03) !important;
+  backdrop-filter: blur(60px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(60px) saturate(180%) !important;
+}
+
 /* ── Ambient blob drift animations ── */
 
 /* Back layer: slow, huge, cross entire screen */
