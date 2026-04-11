@@ -208,8 +208,9 @@ body {
 }
 
 .glass-dropdown {
-  backdrop-filter: blur(80px) saturate(200%) brightness(1.1) !important;
-  -webkit-backdrop-filter: blur(80px) saturate(200%) brightness(1.1) !important;
+  background: rgba(255,255,255,.03) !important;
+  backdrop-filter: blur(60px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(60px) saturate(180%) !important;
 }
 
 /* ── Ambient blob drift animations ── */
