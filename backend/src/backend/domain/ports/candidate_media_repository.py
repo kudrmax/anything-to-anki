@@ -82,6 +82,13 @@ class CandidateMediaRepository(ABC):
         """Bulk CANCELLED for a whole batch (used by cancel endpoint)."""
 
     @abstractmethod
+    def fail_all_running(self, error: str) -> int:
+        """Mark all RUNNING rows as FAILED with the given error.
+
+        Used by worker startup reconciliation to clean up zombie rows
+        left after a crash. Returns count of affected rows."""
+
+    @abstractmethod
     def get_candidate_ids_by_status(
         self, source_id: int, status: EnrichmentStatus,
     ) -> list[int]:
