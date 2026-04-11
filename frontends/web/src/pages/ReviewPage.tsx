@@ -693,7 +693,7 @@ export function ReviewPage() {
       )}
 
       {/* Split panels */}
-      <div className="flex-1 overflow-hidden flex gap-5">
+      <div className="flex-1 overflow-hidden flex gap-5 px-3 pb-3">
         {/* Left: candidates */}
         <div
           ref={candidatesPanelRef}

@@ -5,7 +5,7 @@ export function ClassicLayout() {
   return (
     <div className="flex flex-col font-sans" style={{ height: '100dvh', color: 'var(--text)' }}>
       <AmbientBlobs />
-      <div className="flex-1 flex flex-col overflow-hidden p-3 gap-3">
+      <div className="flex-1 flex flex-col overflow-hidden">
         <Outlet />
       </div>
     </div>
