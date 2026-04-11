@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { BookOpen, ChevronDown, Film, Languages, Loader2, Pencil, Play, Sparkles, Square, Target, Volume2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
+import { FONT_BODY, FONT_TARGET, FONT_ACTION, FONT_LEVEL } from '@/lib/design-tokens'
 
 const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string }[] = [
   { action: 'give_examples', label: 'Give examples' },
@@ -113,7 +114,7 @@ function highlightWord(fragment: string, lemma: string, surfaceForm: string | nu
       <span style={{
         color: 'var(--text-primary)',
         fontWeight: 700,
-        fontSize: '22px',
+        fontSize: FONT_TARGET,
         textDecoration: 'underline',
         textDecorationColor: 'var(--accent)',
         textUnderlineOffset: '4px',
@@ -466,7 +467,7 @@ export function CandidateCardV2({
                 style={{
                   padding: '4px 14px',
                   borderRadius: 'var(--btn-radius)',
-                  fontSize: '11px',
+                  fontSize: FONT_ACTION,
                   fontWeight: isActive ? 700 : 600,
                   border: `1px solid ${isActive ? active.border : btn.border}`,
                   background: isActive ? active.bg : btn.bg,
@@ -542,7 +543,7 @@ export function CandidateCardV2({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '11px',
+                fontSize: FONT_ACTION,
                 color: 'var(--td)',
                 gap: '6px',
               }}>
@@ -573,7 +574,7 @@ export function CandidateCardV2({
                 background: 'var(--hl-phrasal-bg)',
                 color: 'var(--hl-phrasal-text)',
                 borderRadius: '999px',
-                fontSize: '10px',
+                fontSize: FONT_LEVEL,
                 fontWeight: 700,
                 letterSpacing: '0.03em',
               }}
@@ -598,7 +599,7 @@ export function CandidateCardV2({
                 background: cefrPillColor.bg,
                 color: cefrPillColor.color,
                 borderRadius: '999px',
-                fontSize: '10px',
+                fontSize: FONT_LEVEL,
                 fontWeight: 700,
                 letterSpacing: '0.03em',
               }}>
@@ -612,7 +613,7 @@ export function CandidateCardV2({
             // the visible cap-line of the first character sits ~9px below the line
             // box top. Without this offset the text appears lower than the image top.
             margin: '-9px 0 6px',
-            fontSize: '17px',
+            fontSize: FONT_BODY,
             color: 'var(--text-highlight)',
             lineHeight: 1.5,
           }}>
@@ -632,7 +633,7 @@ export function CandidateCardV2({
                       key={i}
                       style={{
                         margin: i === 0 ? 0 : '8px 0 0',
-                        fontSize: '15px',
+                        fontSize: FONT_BODY,
                         lineHeight: 1.55,
                         color: 'var(--text-muted-light)',
                       }}
@@ -648,7 +649,7 @@ export function CandidateCardV2({
                     display: 'flex',
                     alignItems: 'flex-start',
                     gap: '6px',
-                    fontSize: '14px',
+                    fontSize: FONT_BODY,
                     color: 'var(--text-muted-light)',
                     lineHeight: 1.5,
                   }}
@@ -664,7 +665,7 @@ export function CandidateCardV2({
                     display: 'flex',
                     alignItems: 'flex-start',
                     gap: '6px',
-                    fontSize: '14px',
+                    fontSize: FONT_BODY,
                     color: 'var(--text-muted-light)',
                     lineHeight: 1.5,
                   }}
@@ -680,7 +681,7 @@ export function CandidateCardV2({
                     display: 'flex',
                     alignItems: 'flex-start',
                     gap: '6px',
-                    fontSize: '14px',
+                    fontSize: FONT_BODY,
                     color: 'var(--text-muted-light)',
                     lineHeight: 1.5,
                   }}
@@ -707,7 +708,7 @@ export function CandidateCardV2({
                         key={i}
                         style={{
                           margin: i === 0 ? 0 : '4px 0 0',
-                          fontSize: '13px',
+                          fontSize: FONT_BODY,
                           lineHeight: 1.5,
                           color: 'var(--tm)',
                         }}
@@ -719,17 +720,17 @@ export function CandidateCardV2({
               )}
             </div>
           ) : candidate.meaning?.status === 'running' ? (
-            <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--td)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <p style={{ margin: '10px 0 0', fontSize: FONT_BODY, color: 'var(--td)', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Loader2 size={13} className="animate-spin" /> Generating...
             </p>
           ) : candidate.meaning?.status === 'queued' ? (
-            <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--td)' }}>Queued</p>
+            <p style={{ margin: '10px 0 0', fontSize: FONT_BODY, color: 'var(--td)' }}>Queued</p>
           ) : candidate.meaning?.status === 'failed' ? (
-            <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--error)' }} title={candidate.meaning.error ?? undefined}>
+            <p style={{ margin: '10px 0 0', fontSize: FONT_BODY, color: 'var(--error)' }} title={candidate.meaning.error ?? undefined}>
               Failed to generate
             </p>
           ) : candidate.meaning?.status === 'cancelled' ? (
-            <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--td)' }}>Cancelled</p>
+            <p style={{ margin: '10px 0 0', fontSize: FONT_BODY, color: 'var(--td)' }}>Cancelled</p>
           ) : null}
         </div>
       </div>

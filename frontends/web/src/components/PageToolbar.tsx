@@ -1,7 +1,7 @@
 import { BackPill, CenterBrand } from './NavPill'
+import { FONT_MENU } from '@/lib/design-tokens'
 
 export const TOOLBAR_SPACING = '12px'
-export const TOOLBAR_FONT_SIZE = '10px'
 
 export function PageToolbar({ children }: { children?: React.ReactNode }) {
   return (
@@ -11,7 +11,7 @@ export function PageToolbar({ children }: { children?: React.ReactNode }) {
         position: 'relative',
         minHeight: '28px',
         margin: TOOLBAR_SPACING,
-        fontSize: TOOLBAR_FONT_SIZE,
+        fontSize: FONT_MENU,
       }}
     >
       <BackPill />
