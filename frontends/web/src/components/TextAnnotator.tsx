@@ -18,6 +18,8 @@ const PILL_BASE: React.CSSProperties = {
   borderRadius: '7px',
   padding: '1px 8px',
   margin: '0 1px',
+  backdropFilter: 'blur(4px)',
+  WebkitBackdropFilter: 'blur(4px)',
 }
 
 const MARK_STYLE: React.CSSProperties = {

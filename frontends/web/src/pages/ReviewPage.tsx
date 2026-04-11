@@ -591,7 +591,7 @@ export function ReviewPage() {
                 <span style={{ color: 'var(--tm)' }}>
                   Meanings ({(queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)})
                 </span>
-                <button onClick={() => void handleCancelMeanings()} className="cursor-pointer" style={{ color: 'var(--error)', marginLeft: '4px' }}>✕</button>
+                <button onClick={() => void handleCancelMeanings()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)', marginLeft: '4px', padding: '2px 6px', height: '22px' }}>✕</button>
               </div>
             )}
             {hasFailedMeaning && (
@@ -611,7 +611,7 @@ export function ReviewPage() {
                 <span style={{ color: 'var(--tm)' }}>
                   Media ({(queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)})
                 </span>
-                <button onClick={() => void handleCancelMedia()} className="cursor-pointer" style={{ color: 'var(--error)', marginLeft: '4px' }}>✕</button>
+                <button onClick={() => void handleCancelMedia()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)', marginLeft: '4px', padding: '2px 6px', height: '22px' }}>✕</button>
               </div>
             )}
             {hasFailedMedia && (
@@ -679,7 +679,7 @@ export function ReviewPage() {
             <span style={{ color: 'var(--accent)' }}>
               {interactionMode.type === 'adding' ? 'Select phrase to add' : `New boundary for ${interactionMode.lemma}`}
             </span>
-            <button onClick={handleCancelMode} className="cursor-pointer" style={{ color: 'var(--td)' }}>✕</button>
+            <button onClick={handleCancelMode} className="glass-pill cursor-pointer" style={{ color: 'var(--td)', padding: '2px 6px', height: '22px' }}>✕</button>
           </div>
         )}
 
@@ -703,8 +703,8 @@ export function ReviewPage() {
           <span>AI unavailable — turn on VPN</span>
           <button
             onClick={() => setVpnBlocked(false)}
-            className="ml-4 opacity-60 hover:opacity-100 cursor-pointer"
-            style={{ color: 'var(--error)' }}
+            className="glass-pill ml-4 cursor-pointer"
+            style={{ color: 'var(--error)', padding: '2px 6px', height: '22px' }}
           >
             ✕
           </button>
