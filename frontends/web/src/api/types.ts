@@ -67,6 +67,7 @@ export interface StoredCandidate {
   status: CandidateStatus
   surface_form: string | null
   is_phrasal_verb: boolean
+  has_custom_context_fragment: boolean
   meaning: CandidateMeaning | null
   media: CandidateMedia | null
 }

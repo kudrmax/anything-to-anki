@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { BookOpen, ChevronDown, Film, Languages, Loader2, Pencil, Play, Sparkles, Square, Target, Volume2, X } from 'lucide-react'
+import { BookOpen, ChevronDown, Film, Languages, Loader2, Pencil, Play, RefreshCw, Sparkles, Square, Target, Volume2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { FONT_BODY, FONT_TARGET, FONT_ACTION, FONT_LEVEL } from '@/lib/design-tokens'
@@ -36,6 +36,7 @@ interface CandidateCardV2Props {
   isAudioPlaying: boolean
   onPlayAudio: (url: string) => void
   onStopAudio: () => void
+  onReplaceWithExample?: (candidateId: number, exampleText: string) => void
 }
 
 
@@ -261,6 +262,79 @@ function FollowUpDropdown({ anchorEl, onClose, onRegenerate, onFollowUp, showFre
   )
 }
 
+function parseExamples(examples: string | null | undefined): string[] {
+  if (!examples) return []
+  return examples
+    .split('\n')
+    .map(line => line.replace(/\*{2}(.+?)\*{2}/g, '$1').trim())
+    .filter(line => line.length > 0)
+}
+
+function ExamplePickerDropdown({ anchorEl, examples, onSelect, onClose }: {
+  anchorEl: HTMLElement
+  examples: string[]
+  onSelect: (text: string) => void
+  onClose: () => void
+}) {
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const rect = anchorEl.getBoundingClientRect()
+    setPos({ top: rect.bottom + 4, left: rect.left })
+  }, [anchorEl])
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) && !anchorEl.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [anchorEl, onClose])
+
+  if (examples.length === 0) {
+    return (
+      <div ref={dropdownRef} className="glass-card glass-dropdown" style={{
+        position: 'fixed',
+        top: pos.top,
+        left: pos.left,
+        zIndex: 9999,
+        borderRadius: '12px',
+        padding: '8px 12px',
+        minWidth: '180px',
+      }}>
+        <span className="text-xs" style={{ color: 'var(--td)' }}>Примеры недоступны</span>
+      </div>
+    )
+  }
+
+  return (
+    <div ref={dropdownRef} className="glass-card glass-dropdown" style={{
+      position: 'fixed',
+      top: pos.top,
+      left: pos.left,
+      zIndex: 9999,
+      borderRadius: '12px',
+      padding: '4px 0',
+      minWidth: '220px',
+      maxWidth: '480px',
+    }}>
+      {examples.map((ex, i) => (
+        <button
+          key={i}
+          onClick={() => onSelect(ex)}
+          className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
+          style={{ color: 'var(--text-muted-light)' }}
+        >
+          {ex}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 const TOOLBAR_BTN_CLS = 'glass-pill cursor-pointer'
 
 const TOOLBAR_BTN_STYLE: React.CSSProperties = {
@@ -314,10 +388,13 @@ export function CandidateCardV2({
   isAudioPlaying,
   onPlayAudio,
   onStopAudio,
+  onReplaceWithExample,
 }: CandidateCardV2Props) {
   const [showFollowUp, setShowFollowUp] = useState(false)
   const [showFreeInput, setShowFreeInput] = useState(false)
   const [freeText, setFreeText] = useState('')
+  const [showExamplePicker, setShowExamplePicker] = useState(false)
+  const examplePickerRef = useRef<HTMLDivElement>(null)
   const followUpRef = useRef<HTMLDivElement>(null)
 
   const toggleAudio = (url: string) => {
@@ -450,6 +527,29 @@ export function CandidateCardV2({
             >
               <Pencil size={13} />
             </ToolbarButton>
+          )}
+          {onReplaceWithExample && candidate.meaning?.examples && (
+            <div className="relative" ref={examplePickerRef}>
+              <ToolbarButton
+                onClick={() => setShowExamplePicker(v => !v)}
+                ariaLabel="Replace phrase from example"
+                title="Replace phrase from example"
+              >
+                <RefreshCw size={13} />
+              </ToolbarButton>
+              {showExamplePicker && examplePickerRef.current && createPortal(
+                <ExamplePickerDropdown
+                  anchorEl={examplePickerRef.current}
+                  examples={parseExamples(candidate.meaning.examples)}
+                  onSelect={(text) => {
+                    onReplaceWithExample(candidate.id, text)
+                    setShowExamplePicker(false)
+                  }}
+                  onClose={() => setShowExamplePicker(false)}
+                />,
+                document.body,
+              )}
+            </div>
           )}
         </div>
 

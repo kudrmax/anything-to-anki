@@ -183,7 +183,7 @@ export function TextAnnotator({
   let fragmentEnd = -1
   if (effectiveHoveredId !== null) {
     const hovered = candidates.find(c => c.id === effectiveHoveredId)
-    if (hovered?.context_fragment) {
+    if (hovered?.context_fragment && !hovered.has_custom_context_fragment) {
       const fragRe = new RegExp(flexWsPattern(hovered.context_fragment), 'i')
       const fragMatch = fragRe.exec(text)
       if (fragMatch) {

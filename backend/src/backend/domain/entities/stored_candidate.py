@@ -31,6 +31,7 @@ class StoredCandidate:
     status: CandidateStatus
     surface_form: str | None = None
     is_phrasal_verb: bool = False
+    has_custom_context_fragment: bool = False
     meaning: CandidateMeaning | None = None
     media: CandidateMedia | None = None
     id: int | None = None

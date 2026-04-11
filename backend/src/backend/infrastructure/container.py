@@ -20,6 +20,7 @@ from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.rename_source import RenameSourceUseCase
+from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
@@ -222,6 +223,11 @@ class Container:
         return MarkCandidateUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             known_word_repo=SqlaKnownWordRepository(session),
+        )
+
+    def replace_with_example_use_case(self, session: Session) -> ReplaceWithExampleUseCase:
+        return ReplaceWithExampleUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
         )
 
     def manage_known_words_use_case(self, session: Session) -> ManageKnownWordsUseCase:
