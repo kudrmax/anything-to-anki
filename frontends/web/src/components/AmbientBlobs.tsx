@@ -1,3 +1,4 @@
+import { useLocation } from 'react-router-dom'
 import { useTheme } from '@/lib/ThemeProvider'
 
 /* Back layer: huge, very transparent, slow — creates depth */
@@ -17,7 +18,9 @@ const FRONT_BLOBS = [
 
 export function AmbientBlobs() {
   const { theme } = useTheme()
+  const { pathname } = useLocation()
   if (theme !== 'liquid-glass') return null
+  if (pathname.includes('/review')) return null
 
   return (
     <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden" aria-hidden="true">
