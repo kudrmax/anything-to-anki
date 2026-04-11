@@ -9,9 +9,9 @@ export function PageToolbar({ children }: { children?: React.ReactNode }) {
       className="shrink-0 flex items-center gap-1.5 flex-wrap"
       style={{
         position: 'relative',
-        minHeight: '28px',
-        margin: TOOLBAR_SPACING,
+        minHeight: '32px',
         fontSize: FONT_MENU,
+        padding: TOOLBAR_SPACING,
       }}
     >
       <BackPill />
