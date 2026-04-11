@@ -17,7 +17,7 @@ export function BackPill() {
       style={{ padding: '4px 10px', gap: '4px', height: '28px' }}
     >
       <ArrowLeft size={12} style={{ color: 'var(--tm)' }} />
-      <span style={{ fontSize: '11px', color: 'var(--tm)' }}>Back</span>
+      <span style={{ fontSize: '10px', color: 'var(--tm)' }}>Back</span>
     </button>
   )
 }
@@ -51,7 +51,7 @@ export function CenterBrand() {
           cursor: isHome ? 'default' : 'pointer',
         }}
       >
-        <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--tm)' }}>
+        <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--tm)' }}>
           Anything to <span style={{ color: 'var(--accent)' }}>Anki</span>
         </span>
         {ENV_NAME && (

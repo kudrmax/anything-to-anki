@@ -542,7 +542,7 @@ export function ReviewPage() {
           <div className="rounded-full overflow-hidden" style={{ width: 36, height: 2, background: 'var(--glass-b)' }}>
             <div className="h-full" style={{ width: `${progress}%`, background: 'var(--accent)', borderRadius: '2px' }} />
           </div>
-          <span style={{ color: 'var(--td)', fontSize: '9px' }}>learn: {learnCount}</span>
+          <span style={{ color: 'var(--td)', fontSize: '10px' }}>learn: {learnCount}</span>
         </div>
 
         {/* Sort toggle */}
@@ -552,7 +552,7 @@ export function ReviewPage() {
               onClick={() => setSortOrder('relevance')}
               className="cursor-pointer transition-all"
               style={{
-                fontSize: '9px', padding: '3px 8px', borderRadius: '100px',
+                fontSize: '10px', padding: '3px 8px', borderRadius: '100px',
                 ...(sortOrder === 'relevance'
                   ? { background: 'var(--accent)', color: '#fff' }
                   : { color: 'var(--td)' }),
@@ -562,7 +562,7 @@ export function ReviewPage() {
               onClick={() => setSortOrder('chronological')}
               className="cursor-pointer transition-all"
               style={{
-                fontSize: '9px', padding: '3px 8px', borderRadius: '100px',
+                fontSize: '10px', padding: '3px 8px', borderRadius: '100px',
                 ...(sortOrder === 'chronological'
                   ? { background: 'var(--accent)', color: '#fff' }
                   : { color: 'var(--td)' }),
@@ -582,7 +582,7 @@ export function ReviewPage() {
                 <span style={{ fontSize: '10px', color: 'var(--tm)' }}>
                   Meanings ({(queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)})
                 </span>
-                <button onClick={() => void handleCancelMeanings()} className="cursor-pointer" style={{ fontSize: '9px', color: 'var(--error)', marginLeft: '4px' }}>✕</button>
+                <button onClick={() => void handleCancelMeanings()} className="cursor-pointer" style={{ fontSize: '10px', color: 'var(--error)', marginLeft: '4px' }}>✕</button>
               </div>
             )}
             {hasFailedMeaning && (
@@ -602,7 +602,7 @@ export function ReviewPage() {
                 <span style={{ fontSize: '10px', color: 'var(--tm)' }}>
                   Media ({(queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)})
                 </span>
-                <button onClick={() => void handleCancelMedia()} className="cursor-pointer" style={{ fontSize: '9px', color: 'var(--error)', marginLeft: '4px' }}>✕</button>
+                <button onClick={() => void handleCancelMedia()} className="cursor-pointer" style={{ fontSize: '10px', color: 'var(--error)', marginLeft: '4px' }}>✕</button>
               </div>
             )}
             {hasFailedMedia && (
@@ -670,7 +670,7 @@ export function ReviewPage() {
             <span style={{ fontSize: '10px', color: 'var(--accent)' }}>
               {interactionMode.type === 'adding' ? 'Select phrase to add' : `New boundary for ${interactionMode.lemma}`}
             </span>
-            <button onClick={handleCancelMode} className="cursor-pointer" style={{ fontSize: '9px', color: 'var(--td)' }}>✕</button>
+            <button onClick={handleCancelMode} className="cursor-pointer" style={{ fontSize: '10px', color: 'var(--td)' }}>✕</button>
           </div>
         )}
 
