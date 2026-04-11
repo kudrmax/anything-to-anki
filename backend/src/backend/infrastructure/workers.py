@@ -53,8 +53,8 @@ async def extract_media_for_candidate(ctx: dict[str, Any], candidate_id: int) ->
             )
             return
 
-    # Step 2: run extraction
-    try:
+    # Step 2: run extraction (in thread so event loop stays free for abort signals)
+    def _run_extraction() -> None:
         with container.session_scope() as session:
             use_case = container.media_extraction_use_case(session)
             use_case.execute_one(candidate_id)
@@ -68,6 +68,9 @@ async def extract_media_for_candidate(ctx: dict[str, Any], candidate_id: int) ->
             if cand is not None:
                 cleanup = container.cleanup_youtube_video_use_case(session)
                 cleanup.execute(cand.source_id)
+
+    try:
+        await asyncio.to_thread(_run_extraction)
     except asyncio.CancelledError:
         logger.info(
             "extract_media_for_candidate: aborted candidate %d", candidate_id,
@@ -123,11 +126,14 @@ async def generate_meanings_batch(
             )
             return
 
-    # Step 2: run generation
-    try:
+    # Step 2: run generation (in thread so event loop stays free for abort signals)
+    def _run_batch() -> None:
         with container.session_scope() as session:
             use_case = container.meaning_generation_use_case(session)
             use_case.execute_batch(candidate_ids)
+
+    try:
+        await asyncio.to_thread(_run_batch)
     except asyncio.CancelledError:
         logger.info(
             "generate_meanings_batch: aborted in-flight batch of %d",
