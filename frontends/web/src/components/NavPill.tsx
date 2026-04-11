@@ -43,14 +43,17 @@ export function CenterBrand() {
           Anything to <span style={{ color: 'var(--accent)' }}>Anki</span>
         </span>
         {ENV_NAME && (
-          <span style={{
-            fontSize: '8px',
-            padding: '1px 5px',
-            borderRadius: '100px',
-            background: IS_PROD ? 'rgba(34,197,94,0.08)' : 'rgba(255,160,0,0.06)',
-            border: `0.5px solid ${IS_PROD ? 'rgba(34,197,94,0.15)' : 'rgba(255,160,0,0.12)'}`,
-            color: IS_PROD ? '#22c55e' : '#ffaa33',
-          }}>
+          <span
+            className="glass-pill"
+            style={{
+              fontSize: '8px',
+              padding: '1px 5px',
+              height: 'auto',
+              background: IS_PROD ? 'var(--status-learn-bg)' : 'rgba(255,160,0,0.06)',
+              borderColor: IS_PROD ? 'var(--status-learn-border)' : 'rgba(255,160,0,0.12)',
+              color: IS_PROD ? 'var(--status-learn)' : '#ffaa33',
+            }}
+          >
             {ENV_NAME}
           </span>
         )}

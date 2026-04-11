@@ -572,7 +572,7 @@ export function InboxPage() {
               onClick={() => void handleAdd()}
               disabled={adding}
               className="glass-pill glass-pill-prominent flex items-center justify-center gap-2 text-sm font-medium text-white disabled:opacity-50 cursor-pointer hover:-translate-y-px"
-              style={{ background: 'var(--accent)', boxShadow: '0 4px 14px var(--ag)' }}
+              style={{ background: 'var(--accent)', boxShadow: '0 4px 14px var(--ag)', color: '#fff' }}
             >
               {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
               Add source
@@ -742,7 +742,7 @@ export function InboxPage() {
               <button
                 onClick={() => void handleConfirmTracks()}
                 className="glass-pill glass-pill-prominent text-xs font-medium text-white cursor-pointer"
-                style={{ background: 'var(--accent)' }}
+                style={{ background: 'var(--accent)', color: '#fff' }}
               >
                 Confirm
               </button>
