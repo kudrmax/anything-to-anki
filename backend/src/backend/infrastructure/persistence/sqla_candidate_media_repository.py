@@ -200,6 +200,19 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
         )
         self._session.flush()
 
+    def fail_all_running(self, error: str) -> int:
+        count = self._session.query(CandidateMediaModel).filter(
+            CandidateMediaModel.status == EnrichmentStatus.RUNNING.value,
+        ).count()
+        if count:
+            self._session.execute(
+                update(CandidateMediaModel)
+                .where(CandidateMediaModel.status == EnrichmentStatus.RUNNING.value)
+                .values(status=EnrichmentStatus.FAILED.value, error=error)
+            )
+            self._session.flush()
+        return count
+
     def get_candidate_ids_by_status(
         self, source_id: int, status: EnrichmentStatus,
     ) -> list[int]:

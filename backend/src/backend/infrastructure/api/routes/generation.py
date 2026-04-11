@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import UTC
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -18,6 +18,20 @@ if TYPE_CHECKING:
     from backend.infrastructure.container import Container
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_QUEUE_NAME = "arq:queue"
+
+
+async def _flush_jobs_by_prefix(redis: Any, prefix: str) -> int:  # noqa: ANN401 — arq has no type stubs
+    """Remove jobs whose job_id starts with *prefix* from the arq queue."""
+    queued = await redis.queued_jobs()
+    removed = 0
+    for job in queued:
+        if job.job_id and job.job_id.startswith(prefix):
+            await redis.zrem(DEFAULT_QUEUE_NAME, job.job_id)
+            await redis.delete(f"arq:job:{job.job_id}")
+            removed += 1
+    return removed
 
 router = APIRouter(tags=["generation"])
 
@@ -92,6 +106,16 @@ async def cancel_meaning_queue(
 
     meaning_repo.mark_batch_cancelled(affected_ids)
     session.commit()
+
+    # Clean orphaned jobs from Redis queue (stateless transport cleanup)
+    redis = await container.get_redis_pool()
+    prefix = f"meaning_{source_id}_"
+    removed = await _flush_jobs_by_prefix(redis, prefix)
+    if removed:
+        logger.info(
+            "cancel_meaning_queue: removed %d jobs from Redis (source_id=%d)",
+            removed, source_id,
+        )
 
     return {"cancelled": len(affected_ids)}
 

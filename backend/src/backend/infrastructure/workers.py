@@ -163,7 +163,21 @@ async def download_youtube_video(ctx: dict[str, Any], source_id: int) -> None:
 
 async def startup(ctx: dict[str, Any]) -> None:
     logger.info("ARQ worker starting up")
-    ctx["container"] = Container()
+    container = Container()
+    ctx["container"] = container
+
+    # Startup reconciliation: RUNNING → FAILED for zombie rows left after crash
+    with container.session_scope() as session:
+        meaning_repo = container.candidate_meaning_repository(session)
+        media_repo = container.candidate_media_repository(session)
+        error = "interrupted by worker restart"
+        meanings_fixed = meaning_repo.fail_all_running(error)
+        media_fixed = media_repo.fail_all_running(error)
+    if meanings_fixed or media_fixed:
+        logger.warning(
+            "startup reconciliation: reset %d meaning + %d media zombie RUNNING rows",
+            meanings_fixed, media_fixed,
+        )
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
@@ -180,3 +194,4 @@ class WorkerSettings:
     max_jobs = 1       # strict sequential processing per user request
     job_timeout = 600  # 10 minutes per job
     max_tries = 1      # no ARQ-level retries; worker handles errors and marks FAILED
+    poll_delay = 0.1   # default 0.5s is too slow for draining cancelled jobs
