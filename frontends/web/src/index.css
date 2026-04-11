@@ -175,6 +175,8 @@ body {
   position: relative;
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
+  height: 32px;
+  padding: 5px 12px;
 }
 .glass-pill::after {
   content: '';

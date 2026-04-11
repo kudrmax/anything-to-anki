@@ -16,7 +16,6 @@ import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
 import { TextAnnotator } from '@/components/TextAnnotator'
 import { TextSelectionPopover } from '@/components/TextSelectionPopover'
 import { autoPlayAudioPref } from '@/lib/preferences'
-import { PILL_PADDING } from '@/lib/design-tokens'
 import { useToolbarSlot } from '@/lib/useToolbarSlot'
 
 const VPN_ERROR_MARKER = 'Blocked country'
@@ -539,7 +538,7 @@ export function ReviewPage() {
       {toolbarSlot.current && createPortal(
         <>
         {/* Progress */}
-        <div className="glass-pill" style={{ padding: PILL_PADDING, gap: '6px' }}>
+        <div className="glass-pill" style={{ gap: '6px' }}>
           <span className="tabular-nums" style={{ color: 'var(--tm)' }}>
             {markedCount} / {candidates.length}
           </span>
@@ -581,7 +580,7 @@ export function ReviewPage() {
         {candidates.length > 0 && (hasInflightMeaning || hasFailedMeaning || hasInflightMedia || hasFailedMedia || downloadingVideo) ? (
           <>
             {hasInflightMeaning && (
-              <div className="glass-pill" style={{ padding: PILL_PADDING, gap: '6px' }}>
+              <div className="glass-pill" style={{ gap: '6px' }}>
                 <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
                 <span style={{ color: 'var(--tm)' }}>
                   Meanings ({(queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)})
@@ -590,18 +589,18 @@ export function ReviewPage() {
               </div>
             )}
             {hasFailedMeaning && (
-              <button onClick={() => void handleRetryFailedMeanings()} className="glass-pill cursor-pointer" style={{ padding: PILL_PADDING, color: 'var(--error)' }}>
+              <button onClick={() => void handleRetryFailedMeanings()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)' }}>
                 Retry meanings ({queueSummary?.meaning.failed})
               </button>
             )}
             {downloadingVideo && (
-              <div className="glass-pill" style={{ padding: PILL_PADDING, gap: '4px' }}>
+              <div className="glass-pill" style={{ gap: '4px' }}>
                 <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
                 <span style={{ color: 'var(--tm)' }}>Downloading…</span>
               </div>
             )}
             {hasInflightMedia && (
-              <div className="glass-pill" style={{ padding: PILL_PADDING, gap: '6px' }}>
+              <div className="glass-pill" style={{ gap: '6px' }}>
                 <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
                 <span style={{ color: 'var(--tm)' }}>
                   Media ({(queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)})
@@ -610,7 +609,7 @@ export function ReviewPage() {
               </div>
             )}
             {hasFailedMedia && (
-              <button onClick={() => void handleRetryFailedMedia()} className="glass-pill cursor-pointer" style={{ padding: PILL_PADDING, color: 'var(--error)' }}>
+              <button onClick={() => void handleRetryFailedMedia()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)' }}>
                 Retry media ({queueSummary?.media.failed})
               </button>
             )}
@@ -666,11 +665,11 @@ export function ReviewPage() {
 
         {/* Add */}
         {interactionMode.type === 'idle' ? (
-          <button onClick={handleStartAdding} className="glass-pill cursor-pointer" style={{ padding: PILL_PADDING, color: 'var(--tm)' }}>
+          <button onClick={handleStartAdding} className="glass-pill cursor-pointer" style={{ color: 'var(--tm)' }}>
             + Add
           </button>
         ) : (
-          <div className="glass-pill" style={{ padding: PILL_PADDING, gap: '6px' }}>
+          <div className="glass-pill" style={{ gap: '6px' }}>
             <span style={{ color: 'var(--accent)' }}>
               {interactionMode.type === 'adding' ? 'Select phrase to add' : `New boundary for ${interactionMode.lemma}`}
             </span>
@@ -682,7 +681,7 @@ export function ReviewPage() {
         <button
           onClick={() => navigate(`/sources/${sourceId}/export`)}
           className="glass-pill glass-pill-prominent cursor-pointer"
-          style={{ padding: PILL_PADDING }}
+          style={{}}
         >
           Export →
         </button>

@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom'
 import { Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import type { AnkiStatus, CardPreview, SyncResult } from '@/api/types'
-import { PILL_HEIGHT, PILL_PADDING } from '@/lib/design-tokens'
 import { useToolbarSlot } from '@/lib/useToolbarSlot'
 
 export function ExportPage() {
@@ -105,7 +104,7 @@ export function ExportPage() {
       {toolbarSlot.current && createPortal(
         <>
           <div className="flex-1" />
-          <div className="glass-pill" style={{ padding: PILL_PADDING, gap: '4px', height: PILL_HEIGHT }}>
+          <div className="glass-pill" style={{ gap: '4px' }}>
             {ankiStatus ? (
               ankiStatus.available ? (
                 <>
