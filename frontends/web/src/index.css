@@ -27,11 +27,11 @@
   --sh2:       0 20px 52px rgba(129,140,248,.22), 0 4px 16px rgba(0,0,0,.4);
 
   /* Status colors (shared across all themes) */
-  --status-learn: #10b981;
-  --status-learn-bg: rgba(16,185,129,0.15);
-  --status-learn-border: rgba(16,185,129,0.3);
-  --status-learn-active-bg: rgba(16,185,129,0.3);
-  --status-learn-active-border: rgba(16,185,129,0.5);
+  --status-learn: #3D8B6E;
+  --status-learn-bg: rgba(61,139,110,0.15);
+  --status-learn-border: rgba(61,139,110,0.3);
+  --status-learn-active-bg: rgba(61,139,110,0.3);
+  --status-learn-active-border: rgba(61,139,110,0.5);
 
   --status-know: #38bdf8;
   --status-know-bg: rgba(56,189,248,0.15);
@@ -39,17 +39,17 @@
   --status-know-active-bg: rgba(14,165,233,0.3);
   --status-know-active-border: rgba(56,189,248,0.5);
 
-  --status-skip: #f87171;
-  --status-skip-bg: rgba(239,68,68,0.15);
-  --status-skip-border: rgba(239,68,68,0.3);
-  --status-skip-active-bg: rgba(239,68,68,0.3);
-  --status-skip-active-border: rgba(239,68,68,0.5);
+  --status-skip: #B45454;
+  --status-skip-bg: rgba(180,84,84,0.15);
+  --status-skip-border: rgba(180,84,84,0.3);
+  --status-skip-active-bg: rgba(180,84,84,0.3);
+  --status-skip-active-border: rgba(180,84,84,0.5);
 
   /* Text hierarchy */
   --text-primary: var(--text);
   --text-muted-light: #cbd5e1;
   --text-highlight: #c4b5fd;
-  --error: #f87171;
+  --error: #B45454;
 
   /* Surfaces */
   --surface-menu: #0f111e;
@@ -83,15 +83,15 @@
   --hl-b2-bg: rgba(56,189,248,0.1);
   --hl-b2-text: #38bdf8;
   --hl-b2-border: rgba(56,189,248,0.3);
-  --hl-c1-bg: rgba(239,68,68,0.1);
-  --hl-c1-text: #f87171;
-  --hl-c1-border: rgba(239,68,68,0.3);
-  --hl-c2-bg: rgba(239,68,68,0.1);
-  --hl-c2-text: #f87171;
-  --hl-c2-border: rgba(239,68,68,0.3);
-  --hl-phrasal-bg: rgba(16,185,129,0.1);
-  --hl-phrasal-text: #10b981;
-  --hl-phrasal-border: rgba(16,185,129,0.3);
+  --hl-c1-bg: rgba(180,84,84,0.1);
+  --hl-c1-text: #B45454;
+  --hl-c1-border: rgba(180,84,84,0.3);
+  --hl-c2-bg: rgba(180,84,84,0.1);
+  --hl-c2-text: #B45454;
+  --hl-c2-border: rgba(180,84,84,0.3);
+  --hl-phrasal-bg: rgba(61,139,110,0.1);
+  --hl-phrasal-text: #3D8B6E;
+  --hl-phrasal-border: rgba(61,139,110,0.3);
 }
 
 * {
@@ -193,16 +193,16 @@ body {
   --text-primary: #f5f5f7;
   --text-muted-light: rgba(255,255,255,.5);
   --text-highlight: #6A8FC5;
-  --error: #ff453a;
+  --error: #B45454;
 
   --surface-menu: rgba(255,255,255,.06);
   --surface-divider: rgba(255,255,255,.06);
 
-  --status-learn: #10b981;
-  --status-learn-bg: rgba(16,185,129,.08);
-  --status-learn-border: rgba(16,185,129,.18);
-  --status-learn-active-bg: rgba(16,185,129,.16);
-  --status-learn-active-border: rgba(16,185,129,.3);
+  --status-learn: #3D8B6E;
+  --status-learn-bg: rgba(61,139,110,.08);
+  --status-learn-border: rgba(61,139,110,.18);
+  --status-learn-active-bg: rgba(61,139,110,.16);
+  --status-learn-active-border: rgba(61,139,110,.3);
 
   --status-know: #6A8FC5;
   --status-know-bg: rgba(74,111,165,.07);
@@ -210,11 +210,11 @@ body {
   --status-know-active-bg: rgba(74,111,165,.14);
   --status-know-active-border: rgba(74,111,165,.25);
 
-  --status-skip: #ff453a;
-  --status-skip-bg: rgba(255,69,58,.06);
-  --status-skip-border: rgba(255,69,58,.12);
-  --status-skip-active-bg: rgba(255,69,58,.12);
-  --status-skip-active-border: rgba(255,69,58,.2);
+  --status-skip: #B45454;
+  --status-skip-bg: rgba(180,84,84,.06);
+  --status-skip-border: rgba(180,84,84,.12);
+  --status-skip-active-bg: rgba(180,84,84,.12);
+  --status-skip-active-border: rgba(180,84,84,.2);
 
   --card-radius: 20px;
   --btn-radius: 100px;
@@ -240,15 +240,15 @@ body {
   --hl-b2-bg: rgba(74,111,165,0.1);
   --hl-b2-text: #6A8FC5;
   --hl-b2-border: rgba(74,111,165,0.25);
-  --hl-c1-bg: rgba(255,69,58,0.08);
-  --hl-c1-text: #ff453a;
-  --hl-c1-border: rgba(255,69,58,0.25);
-  --hl-c2-bg: rgba(255,69,58,0.08);
-  --hl-c2-text: #ff453a;
-  --hl-c2-border: rgba(255,69,58,0.25);
-  --hl-phrasal-bg: rgba(16,185,129,0.08);
-  --hl-phrasal-text: #10b981;
-  --hl-phrasal-border: rgba(16,185,129,0.25);
+  --hl-c1-bg: rgba(180,84,84,0.08);
+  --hl-c1-text: #B45454;
+  --hl-c1-border: rgba(180,84,84,0.25);
+  --hl-c2-bg: rgba(180,84,84,0.08);
+  --hl-c2-text: #B45454;
+  --hl-c2-border: rgba(180,84,84,0.25);
+  --hl-phrasal-bg: rgba(61,139,110,0.08);
+  --hl-phrasal-text: #3D8B6E;
+  --hl-phrasal-border: rgba(61,139,110,0.25);
 }
 
 /* ── Liquid Glass overrides ── */
@@ -315,7 +315,7 @@ body {
   --text-primary: #e7e5e4;
   --text-muted-light: #a8a29e;
   --text-highlight: #d6a756;
-  --error: #f87171;
+  --error: #B45454;
 
   --surface-menu: #231f1b;
   --surface-divider: rgba(53,47,41,.5);
