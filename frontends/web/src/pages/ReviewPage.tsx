@@ -359,6 +359,22 @@ export function ReviewPage() {
     }
   }, [])
 
+  const handleReplaceWithExample = useCallback(async (candidateId: number, exampleText: string) => {
+    try {
+      const newCandidate = await api.replaceWithExample(candidateId, exampleText)
+      setCandidates(prev => {
+        const updated = prev.map(c =>
+          c.id === candidateId ? { ...c, status: 'skip' as const } : c,
+        )
+        return [...updated, newCandidate]
+      })
+      void handleGenerate(newCandidate.id)
+      setToast({ text: 'Phrase replaced — generating meaning...', key: Date.now() })
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Replace failed', key: Date.now() })
+    }
+  }, [handleGenerate])
+
   const handleGenerateMeanings = useCallback(async () => {
     try {
       await api.enqueueMeaningGeneration(sourceId, sortOrder)
@@ -750,6 +766,7 @@ export function ReviewPage() {
                 isAudioPlaying={playingCandidateId === c.id}
                 onPlayAudio={(url) => playAudio(c.id, url)}
                 onStopAudio={stopAudio}
+                onReplaceWithExample={handleReplaceWithExample}
               />
             ))
           )}
@@ -786,6 +803,7 @@ export function ReviewPage() {
                   isAudioPlaying={playingCandidateId === c.id}
                   onPlayAudio={(url) => playAudio(c.id, url)}
                   onStopAudio={stopAudio}
+                  onReplaceWithExample={handleReplaceWithExample}
                 />
               ))}
             </>

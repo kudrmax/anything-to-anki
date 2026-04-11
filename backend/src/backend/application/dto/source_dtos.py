@@ -78,6 +78,7 @@ class StoredCandidateDTO(BaseModel):
     status: str
     surface_form: str | None = None
     is_phrasal_verb: bool = False
+    has_custom_context_fragment: bool = False
     meaning: CandidateMeaningDTO | None = None
     media: CandidateMediaDTO | None = None
 

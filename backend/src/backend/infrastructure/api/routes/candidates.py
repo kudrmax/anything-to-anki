@@ -8,9 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO  # noqa: TC001
 from backend.application.dto.candidate_dtos import (  # noqa: TC001
     MarkCandidateRequest,
+    ReplaceWithExampleRequest,
     UpdateContextFragmentRequest,
 )
 from backend.application.dto.follow_up_dtos import FollowUpRequest  # noqa: TC001
+from backend.application.dto.source_dtos import StoredCandidateDTO  # noqa: TC001
 from backend.domain.exceptions import AIServiceError, CandidateNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.api.dependencies import get_container, get_db_session
@@ -57,6 +59,24 @@ def update_context_fragment(
     repo.update_context_fragment(candidate_id, request.context_fragment)
     session.commit()
     return {"id": candidate_id, "context_fragment": request.context_fragment}
+
+
+@router.post("/{candidate_id}/replace-with-example", status_code=201)
+def replace_with_example(
+    candidate_id: int,
+    request: ReplaceWithExampleRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> StoredCandidateDTO:
+    try:
+        use_case = container.replace_with_example_use_case(session)
+        result = use_case.execute(candidate_id, request.example_text)
+        session.commit()
+        return result
+    except CandidateNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/{candidate_id}/regenerate-media", status_code=202)

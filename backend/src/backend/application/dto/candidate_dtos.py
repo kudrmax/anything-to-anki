@@ -18,6 +18,12 @@ class UpdateContextFragmentRequest(BaseModel):
     context_fragment: str
 
 
+class ReplaceWithExampleRequest(BaseModel):
+    """Input for replacing a candidate's phrase with an AI-generated example."""
+
+    example_text: str
+
+
 class MarkCandidateRequest(BaseModel):
     """Input for marking a candidate status."""
 

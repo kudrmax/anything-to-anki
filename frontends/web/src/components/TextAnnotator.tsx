@@ -149,7 +149,7 @@ export function TextAnnotator({
   let fragmentEnd = -1
   if (effectiveHoveredId !== null) {
     const hovered = candidates.find(c => c.id === effectiveHoveredId)
-    if (hovered?.context_fragment) {
+    if (hovered?.context_fragment && !hovered.has_custom_context_fragment) {
       const idx = text.toLowerCase().indexOf(hovered.context_fragment.toLowerCase())
       if (idx !== -1) {
         fragmentStart = idx

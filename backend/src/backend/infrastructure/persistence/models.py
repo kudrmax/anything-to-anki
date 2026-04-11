@@ -96,6 +96,7 @@ class StoredCandidateModel(Base):
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     surface_form: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False, default=False)
+    has_custom_context_fragment: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     def to_entity(self) -> StoredCandidate:
         """Build a StoredCandidate WITHOUT meaning/media — those are loaded
@@ -113,6 +114,7 @@ class StoredCandidateModel(Base):
             occurrences=self.occurrences,
             surface_form=self.surface_form,
             is_phrasal_verb=self.is_phrasal_verb,
+            has_custom_context_fragment=self.has_custom_context_fragment,
             status=CandidateStatus(self.status),
             meaning=None,
             media=None,
@@ -132,6 +134,7 @@ class StoredCandidateModel(Base):
             occurrences=candidate.occurrences,
             surface_form=candidate.surface_form,
             is_phrasal_verb=candidate.is_phrasal_verb,
+            has_custom_context_fragment=candidate.has_custom_context_fragment,
             status=candidate.status.value,
         )
 

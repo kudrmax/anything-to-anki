@@ -164,6 +164,12 @@ export const api = {
       body: JSON.stringify({ context_fragment: contextFragment }),
     }),
 
+  replaceWithExample: (candidateId: number, exampleText: string) =>
+    req<StoredCandidate>(`/candidates/${candidateId}/replace-with-example`, {
+      method: 'POST',
+      body: JSON.stringify({ example_text: exampleText }),
+    }),
+
   addManualCandidate: (sourceId: number, surfaceForm: string, contextFragment: string) =>
     req<StoredCandidate>(`/sources/${sourceId}/candidates/manual`, {
       method: 'POST',
