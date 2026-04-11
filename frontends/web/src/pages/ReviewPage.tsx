@@ -871,7 +871,7 @@ export function ReviewPage() {
         {/* Right: text */}
         <div
           ref={textPanelRef}
-          className="flex-1 overflow-y-auto p-6"
+          className="flex-1 overflow-y-auto p-6 text-panel"
           style={{
             ...(interactionMode.type !== 'idle' && {
               boxShadow: 'inset 0 0 20px var(--abg)',

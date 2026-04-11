@@ -354,6 +354,14 @@ body {
   }
 }
 
+/* Text panel: frosted glass in liquid-glass theme */
+[data-theme="liquid-glass"] .text-panel {
+  background: rgba(255,255,255,.03);
+  backdrop-filter: blur(30px) saturate(150%);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
+  border-left: 0.5px solid rgba(255,255,255,.06);
+}
+
 /* ── Book Theme ── */
 [data-theme="book"] {
   --mesh: none;
