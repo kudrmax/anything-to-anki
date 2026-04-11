@@ -228,7 +228,7 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
           {source.status === 'partially_reviewed' && (
             <button
               onClick={(e) => { e.stopPropagation(); onExport(source.id) }}
-              className="text-xs font-medium rounded-lg cursor-pointer transition-all hover:brightness-110"
+              className="glass-pill text-xs font-medium cursor-pointer"
               style={{ ...GHOST_BTN, padding: '5px 11px' }}
             >
               Export →
@@ -237,7 +237,7 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
           {source.status === 'reviewed' && (
             <button
               onClick={(e) => { e.stopPropagation(); onExport(source.id) }}
-              className="text-xs font-medium rounded-lg cursor-pointer transition-all hover:brightness-110"
+              className="glass-pill text-xs font-medium cursor-pointer"
               style={{ ...GHOST_BTN, padding: '5px 11px' }}
             >
               Export →
@@ -247,7 +247,7 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
             <button
               onClick={(e) => { e.stopPropagation(); onProcess(source.id) }}
               disabled={isProcessingLocal}
-              className="text-xs font-medium rounded-lg disabled:opacity-50 cursor-pointer transition-all hover:brightness-110"
+              className="glass-pill text-xs font-medium disabled:opacity-50 cursor-pointer"
               style={{ ...GHOST_BTN, padding: '5px 11px' }}
             >
               Process →
@@ -256,7 +256,7 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
           {(source.status === 'done' || source.status === 'partially_reviewed' || source.status === 'reviewed') && (
             <button
               onClick={(e) => { e.stopPropagation(); onReview(source.id) }}
-              className="text-xs font-medium rounded-lg cursor-pointer transition-all hover:brightness-110"
+              className="glass-pill text-xs font-medium cursor-pointer"
               style={{ ...GHOST_BTN, padding: '5px 11px' }}
             >
               Review →

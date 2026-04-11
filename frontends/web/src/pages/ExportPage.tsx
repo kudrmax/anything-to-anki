@@ -137,8 +137,8 @@ export function ExportPage() {
               <button
                 onClick={handleGenerateAll}
                 disabled={!canGenerateAll}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
-                style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+                className="glass-pill disabled:opacity-50 cursor-pointer"
+                style={{ gap: '6px', color: 'var(--tm)' }}
               >
                 {generatingAll ? (
                   <Loader2 size={12} className="animate-spin" />
@@ -203,8 +203,8 @@ export function ExportPage() {
           <button
             onClick={handleSync}
             disabled={!canSync}
-            className="flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
-            style={{ background: 'var(--accent)' }}
+            className="glass-pill glass-pill-prominent disabled:opacity-50 cursor-pointer"
+            style={{ gap: '6px' }}
           >
             {syncing && <Loader2 size={14} className="animate-spin" />}
             {syncing ? 'Syncing…' : 'Add to Anki'}

@@ -367,19 +367,16 @@ export function InboxPage() {
             />
 
             {/* Tabs */}
-            <div
-              className="flex p-[3px] rounded-[10px] w-fit"
-              style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)' }}
-            >
+            <div className="glass-pill-group w-fit">
               {(['text', 'url', 'file'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className="flex items-center gap-1.5 px-3.5 py-[5px] rounded-[7px] text-xs font-medium transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 cursor-pointer"
                   style={
                     activeTab === tab
-                      ? { background: 'var(--accent)', color: '#fff', boxShadow: '0 2px 8px var(--ag)' }
-                      : { background: 'transparent', color: 'var(--tm)' }
+                      ? { background: 'var(--accent)', color: '#fff', boxShadow: '0 2px 8px var(--ag)', borderRadius: 'var(--pill-radius, 980px)' }
+                      : { color: 'var(--tm)' }
                   }
                 >
                   {tab === 'text' && <FileText size={11} />}
@@ -400,11 +397,11 @@ export function InboxPage() {
                       <button
                         key={t}
                         onClick={() => setTextSourceType(t)}
-                        className="px-3 py-1 rounded-full text-[11px] font-medium capitalize transition-all cursor-pointer"
+                        className="glass-pill text-[11px] font-medium capitalize cursor-pointer"
                         style={
                           textSourceType === t
-                            ? { background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)' }
-                            : { background: 'var(--glass)', color: 'var(--tm)', border: '1px solid var(--glass-b)' }
+                            ? { background: 'var(--accent)', color: '#fff' }
+                            : { color: 'var(--tm)' }
                         }
                       >
                         {t === 'text_pasted' ? 'text' : t === 'lyrics_pasted' ? 'lyrics' : 'subtitles'}
@@ -464,7 +461,7 @@ export function InboxPage() {
                 {files.length === 0 && (
                   <div
                     onClick={() => document.getElementById('anki-file-input')?.click()}
-                    className="flex flex-col items-center gap-2 rounded-[10px] p-6 text-center cursor-pointer transition-all"
+                    className="flex flex-col items-center gap-2 rounded-xl p-6 text-center cursor-pointer transition-all"
                     style={{ border: '1.5px dashed var(--ag)', background: 'var(--abg)' }}
                     onMouseEnter={(e) => {
                       const el = e.currentTarget as HTMLDivElement
@@ -484,8 +481,8 @@ export function InboxPage() {
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); document.getElementById('anki-file-input')?.click() }}
-                      className="mt-1 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer"
-                      style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)', color: 'var(--tm)' }}
+                      className="glass-pill mt-1 text-xs font-medium cursor-pointer"
+                      style={{ color: 'var(--tm)' }}
                     >
                       Choose file
                     </button>
@@ -531,8 +528,8 @@ export function InboxPage() {
                         </div>
                         <button
                           onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                          className="text-xs cursor-pointer transition-colors"
-                          style={{ color: 'var(--td)' }}
+                          className="glass-pill text-xs cursor-pointer"
+                          style={{ color: 'var(--td)', padding: '2px 6px', height: '22px' }}
                         >
                           ✕
                         </button>
@@ -574,7 +571,7 @@ export function InboxPage() {
             <button
               onClick={() => void handleAdd()}
               disabled={adding}
-              className="flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50 transition-all hover:brightness-110 hover:-translate-y-px cursor-pointer"
+              className="glass-pill glass-pill-prominent flex items-center justify-center gap-2 text-sm font-medium text-white disabled:opacity-50 cursor-pointer hover:-translate-y-px"
               style={{ background: 'var(--accent)', boxShadow: '0 4px 14px var(--ag)' }}
             >
               {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
@@ -622,8 +619,8 @@ export function InboxPage() {
               <button
                 onClick={() => void handleProcessAll()}
                 disabled={processingAll}
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer"
-                style={{ border: '1px solid var(--glass-b)', color: 'var(--tm)', background: 'var(--glass)' }}
+                className="glass-pill flex items-center gap-1.5 text-xs font-medium disabled:opacity-50 cursor-pointer"
+                style={{ color: 'var(--tm)' }}
               >
                 {processingAll
                   ? <Loader2 size={11} className="animate-spin" />
@@ -685,10 +682,10 @@ export function InboxPage() {
                     <button
                       key={track.index}
                       onClick={() => setSelectedSubtitleIndex(track.index)}
-                      className="text-left px-4 py-3 rounded-lg transition-all cursor-pointer"
+                      className="glass-pill text-left cursor-pointer"
                       style={{
-                        background: isSelected ? 'var(--abg)' : 'var(--glass)',
-                        border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--glass-b)'}`,
+                        background: isSelected ? 'var(--abg)' : undefined,
+                        border: isSelected ? '1px solid var(--accent)' : undefined,
                         color: 'var(--text)',
                       }}
                     >
@@ -715,10 +712,10 @@ export function InboxPage() {
                     <button
                       key={track.index}
                       onClick={() => setSelectedAudioIndex(track.index)}
-                      className="text-left px-4 py-3 rounded-lg transition-all cursor-pointer"
+                      className="glass-pill text-left cursor-pointer"
                       style={{
-                        background: isSelected ? 'var(--abg)' : 'var(--glass)',
-                        border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--glass-b)'}`,
+                        background: isSelected ? 'var(--abg)' : undefined,
+                        border: isSelected ? '1px solid var(--accent)' : undefined,
                         color: 'var(--text)',
                       }}
                     >
@@ -738,13 +735,13 @@ export function InboxPage() {
             <div className="flex items-center justify-end gap-3 pt-1">
               <button
                 onClick={handleCancelTrackSelection}
-                className="text-xs cursor-pointer" style={{ color: 'var(--td)' }}
+                className="glass-pill text-xs cursor-pointer" style={{ color: 'var(--td)', padding: '4px 10px' }}
               >
                 Cancel
               </button>
               <button
                 onClick={() => void handleConfirmTracks()}
-                className="rounded-lg px-4 py-2 text-xs font-medium text-white cursor-pointer transition-all hover:brightness-110"
+                className="glass-pill glass-pill-prominent text-xs font-medium text-white cursor-pointer"
                 style={{ background: 'var(--accent)' }}
               >
                 Confirm
