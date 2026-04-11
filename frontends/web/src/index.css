@@ -61,6 +61,14 @@
   /* Shape */
   --card-radius: 12px;
   --btn-radius: 6px;
+
+  /* Word highlights in text panel */
+  --hl-bg: rgba(129,140,248,.12);
+  --hl-text: #c4b5fd;
+  --hl-border: rgba(129,140,248,.3);
+  --hl-bg-hover: rgba(129,140,248,.3);
+  --hl-text-hover: #e0d4ff;
+  --hl-border-hover: rgba(129,140,248,.5);
 }
 
 * {
@@ -188,6 +196,14 @@ body {
   --card-radius: 20px;
   --btn-radius: 100px;
   --font-body: -apple-system, 'SF Pro Display', system-ui, sans-serif;
+
+  /* Word highlights — iOS blue tint */
+  --hl-bg: rgba(10,132,255,.1);
+  --hl-text: rgba(255,255,255,.8);
+  --hl-border: rgba(10,132,255,.2);
+  --hl-bg-hover: rgba(10,132,255,.2);
+  --hl-text-hover: #fff;
+  --hl-border-hover: rgba(10,132,255,.4);
 }
 
 /* ── Liquid Glass overrides ── */
@@ -262,6 +278,14 @@ body {
   --card-radius: 4px;
   --btn-radius: 20px;
   --font-body: Georgia, 'Times New Roman', serif;
+
+  /* Word highlights — warm gold */
+  --hl-bg: rgba(214,167,86,.1);
+  --hl-text: #d6a756;
+  --hl-border: rgba(214,167,86,.25);
+  --hl-bg-hover: rgba(214,167,86,.2);
+  --hl-text-hover: #f0d090;
+  --hl-border-hover: rgba(214,167,86,.5);
 }
 
 /* ── Book overrides ── */

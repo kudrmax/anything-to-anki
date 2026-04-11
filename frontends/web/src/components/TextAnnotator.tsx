@@ -1,6 +1,5 @@
 import { useCallback, useRef } from 'react'
 import type { StoredCandidate } from '@/api/types'
-import { cn } from '@/lib/utils'
 
 interface TextAnnotatorProps {
   text: string
@@ -14,16 +13,16 @@ interface TextAnnotatorProps {
   disableHoverDimming?: boolean
 }
 
-const CEFR_HIGHLIGHT: Record<string, string> = {
-  B2: 'bg-amber-400/15 text-amber-300 border-b border-amber-500/50',
-  C1: 'bg-orange-400/15 text-orange-300 border-b border-orange-500/50',
-  C2: 'bg-rose-400/15 text-rose-300 border-b border-rose-500/50',
+const MARK_STYLE: React.CSSProperties = {
+  background: 'var(--hl-bg)',
+  color: 'var(--hl-text)',
+  borderBottom: '1px solid var(--hl-border)',
 }
 
-const CEFR_HIGHLIGHT_HOVERED: Record<string, string> = {
-  B2: 'bg-amber-400/40 text-amber-100 border-b-2 border-amber-400',
-  C1: 'bg-orange-400/40 text-orange-100 border-b-2 border-orange-400',
-  C2: 'bg-rose-400/40 text-rose-100 border-b-2 border-rose-400',
+const MARK_STYLE_HOVERED: React.CSSProperties = {
+  background: 'var(--hl-bg-hover)',
+  color: 'var(--hl-text-hover)',
+  borderBottom: '2px solid var(--hl-border-hover)',
 }
 
 type TextSegment =
@@ -184,21 +183,18 @@ export function TextAnnotator({
 
         const isActive = effectiveHoveredId === seg.candidateId
         const isRated = ratedIds.has(seg.candidateId)
-        const baseCls = (seg.cefrLevel && CEFR_HIGHLIGHT[seg.cefrLevel]) ?? 'bg-slate-400/10 text-slate-400 border-b border-slate-500/40'
-        const hoveredCls = (seg.cefrLevel && CEFR_HIGHLIGHT_HOVERED[seg.cefrLevel]) ?? 'bg-slate-400/25 text-slate-200 border-b-2 border-slate-400'
 
-        let markCls: string
+        let markStyle: React.CSSProperties
         let opacity: number
 
         if (isActive) {
-          markCls = cn('cursor-pointer rounded-sm px-0.5', hoveredCls)
+          markStyle = { ...MARK_STYLE_HOVERED, cursor: 'pointer', borderRadius: '2px', padding: '0 2px' }
           opacity = 1
         } else if (isRated) {
-          // Rated but not active: blend into regular text, no visual distinction
-          markCls = 'cursor-pointer'
+          markStyle = { cursor: 'pointer', color: 'inherit', background: 'transparent' }
           opacity = isDimming && !inFragment ? 0.15 : 1
         } else {
-          markCls = cn('cursor-pointer rounded-sm px-0.5', baseCls)
+          markStyle = { ...MARK_STYLE, cursor: 'pointer', borderRadius: '2px', padding: '0 2px' }
           opacity = isDimming && !inFragment ? 0.15 : 1
         }
 
@@ -206,8 +202,7 @@ export function TextAnnotator({
           <mark
             key={i}
             data-candidate-id={seg.candidateId}
-            className={markCls}
-            style={{ opacity, transition: 'opacity 150ms ease', ...(isRated && !isActive && { color: 'inherit', background: 'transparent' }) }}
+            style={{ ...markStyle, opacity, transition: 'opacity 150ms ease' }}
             onClick={() => onWordClick(seg.candidateId)}
             onMouseEnter={() => { if (!isDraggingRef.current) onWordHover(seg.candidateId) }}
             onMouseLeave={() => { if (!isDraggingRef.current) onWordHover(null) }}
