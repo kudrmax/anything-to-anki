@@ -4,35 +4,37 @@ import { ArrowLeft } from 'lucide-react'
 const ENV_NAME = import.meta.env.VITE_INSTANCE_ENV_NAME as string | undefined
 const IS_PROD = ENV_NAME === 'prod'
 
-const PILL_STYLE: React.CSSProperties = {
-  padding: '6px 12px',
-  gap: '6px',
-  height: '28px',
-}
-
 export function NavPill() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const isHome = pathname === '/'
 
   return (
-    <>
+    <div style={{ display: 'flex', alignItems: 'center', position: 'relative', width: '100%', height: '28px' }}>
+      {/* Back — left aligned */}
       {!isHome && (
         <button
           onClick={() => navigate(-1)}
           className="glass-pill cursor-pointer"
-          style={{ ...PILL_STYLE, gap: '4px' }}
+          style={{ padding: '4px 10px', gap: '4px', height: '28px', position: 'absolute', left: 0 }}
         >
           <ArrowLeft size={12} style={{ color: 'var(--tm)' }} />
           <span style={{ fontSize: '11px', color: 'var(--tm)' }}>Back</span>
         </button>
       )}
+
+      {/* Anything to Anki — center aligned */}
       <button
         onClick={() => { if (!isHome) navigate('/') }}
         className="glass-pill"
         style={{
-          ...PILL_STYLE,
+          padding: '4px 12px',
+          gap: '6px',
+          height: '28px',
           cursor: isHome ? 'default' : 'pointer',
+          position: 'absolute',
+          left: '50%',
+          transform: 'translateX(-50%)',
         }}
       >
         <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--tm)' }}>
@@ -51,6 +53,6 @@ export function NavPill() {
           </span>
         )}
       </button>
-    </>
+    </div>
   )
 }

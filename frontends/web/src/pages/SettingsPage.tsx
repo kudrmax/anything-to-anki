@@ -5,7 +5,7 @@ import type { CleanupMediaKind, CreateNoteTypeResponse, KnownWord, Settings, Sou
 import { autoPlayAudioPref } from '@/lib/preferences'
 import { useTheme } from '@/lib/ThemeProvider'
 import type { ThemeName } from '@/lib/preferences'
-import { NavPill } from '@/components/NavPill'
+import { PageToolbar } from '@/components/PageToolbar'
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
 const AI_MODELS = [
@@ -199,10 +199,7 @@ export function SettingsPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {/* Floating toolbar */}
-      <div className="shrink-0 flex items-center gap-1.5 mb-4">
-        <NavPill />
-      </div>
+      <PageToolbar />
       <main className="mx-auto max-w-lg px-4 py-8 flex flex-col gap-8">
 
         {/* Appearance section */}

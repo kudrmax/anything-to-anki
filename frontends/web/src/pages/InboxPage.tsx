@@ -6,7 +6,7 @@ import { api } from '@/api/client'
 import type { AudioTrack, SourceSummary, SourceType, Stats, SubtitleTrack } from '@/api/types'
 import { SourceCard } from '@/components/SourceCard'
 import { useSourcePolling } from '@/hooks/useSourcePolling'
-import { NavPill } from '@/components/NavPill'
+import { PageToolbar } from '@/components/PageToolbar'
 
 function detectedFileType(files: File[]): string {
   const exts = files.map((f) => f.name.split('.').pop()?.toLowerCase() ?? '')
@@ -340,14 +340,12 @@ export function InboxPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {/* Floating toolbar */}
-      <div className="shrink-0 flex items-center gap-1.5 mb-2">
-        <NavPill />
+      <PageToolbar>
         <div className="flex-1" />
-        <button onClick={() => navigate('/settings')} className="glass-pill cursor-pointer" style={{ padding: '5px 8px' }}>
+        <button onClick={() => navigate('/settings')} className="glass-pill cursor-pointer" style={{ padding: '4px 8px', height: '28px' }}>
           <Settings size={12} style={{ color: 'var(--td)' }} />
         </button>
-      </div>
+      </PageToolbar>
       <main className={
         isSidebar
           ? 'max-w-2xl mx-auto px-6 py-6 flex flex-col gap-6'

@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
 import type { AnkiStatus, CardPreview, SyncResult } from '@/api/types'
-import { NavPill } from '@/components/NavPill'
+import { PageToolbar } from '@/components/PageToolbar'
 
 export function ExportPage() {
   const { id } = useParams<{ id: string }>()
@@ -98,12 +98,9 @@ export function ExportPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="shrink-0 flex items-center gap-1.5 px-2 py-2">
-        <NavPill />
-
+      <PageToolbar>
         <div className="flex-1" />
-
-        <div className="glass-pill" style={{ padding: '5px 10px', gap: '4px' }}>
+        <div className="glass-pill" style={{ padding: '4px 10px', gap: '4px', height: '28px' }}>
           {ankiStatus ? (
             ankiStatus.available ? (
               <>
@@ -120,7 +117,7 @@ export function ExportPage() {
             <span style={{ fontSize: '10px', color: 'var(--td)' }}>Checking…</span>
           )}
         </div>
-      </div>
+      </PageToolbar>
 
       <main className="mx-auto max-w-2xl px-4 py-8 flex flex-col gap-6">
         <div className="flex items-center justify-between">

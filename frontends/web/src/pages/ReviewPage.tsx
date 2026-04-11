@@ -15,7 +15,7 @@ import { CandidateCardV2 as CandidateCard } from '@/components/CandidateCardV2'
 import { TextAnnotator } from '@/components/TextAnnotator'
 import { TextSelectionPopover } from '@/components/TextSelectionPopover'
 import { autoPlayAudioPref } from '@/lib/preferences'
-import { NavPill } from '@/components/NavPill'
+import { PageToolbar } from '@/components/PageToolbar'
 
 const VPN_ERROR_MARKER = 'Blocked country'
 
@@ -533,10 +533,7 @@ export function ReviewPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Floating toolbar — each group is a glass pill */}
-      <div className="shrink-0 flex items-center gap-1.5 flex-wrap mb-3">
-        <NavPill />
-
+      <PageToolbar>
         {/* Progress */}
         <div className="glass-pill" style={{ padding: '5px 10px', gap: '6px' }}>
           <span className="tabular-nums" style={{ color: 'var(--tm)', fontSize: '10px' }}>
@@ -679,10 +676,10 @@ export function ReviewPage() {
         </button>
 
         {/* Settings */}
-        <button onClick={() => navigate('/settings')} className="glass-pill cursor-pointer" style={{ padding: '5px 8px' }}>
+        <button onClick={() => navigate('/settings')} className="glass-pill cursor-pointer" style={{ padding: '4px 8px', height: '28px' }}>
           <Settings size={12} style={{ color: 'var(--td)' }} />
         </button>
-      </div>
+      </PageToolbar>
 
       {vpnBlocked && (
         <div
