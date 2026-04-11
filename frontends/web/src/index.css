@@ -189,6 +189,82 @@ body {
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.15) 50%, transparent);
   pointer-events: none;
 }
+.glass-pill {
+  transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+
+/* Liquid Glass button interactions */
+[data-theme="liquid-glass"] .glass-pill:hover {
+  background: rgba(255,255,255,.09);
+  border-color: rgba(255,255,255,.16);
+}
+[data-theme="liquid-glass"] .glass-pill:active {
+  transform: scale(0.97);
+  background: rgba(255,255,255,.04);
+}
+/* Specular highlight stronger on liquid-glass pills */
+[data-theme="liquid-glass"] .glass-pill::after {
+  background: linear-gradient(90deg, transparent 5%, rgba(255,255,255,.3) 30%, rgba(255,255,255,.4) 50%, rgba(255,255,255,.3) 70%, transparent 95%);
+}
+
+/* Prominent glass pill (primary CTA like Export) */
+.glass-pill-prominent {
+  background: var(--abg);
+  border-color: var(--ag);
+  color: var(--accent);
+  font-weight: 500;
+}
+[data-theme="liquid-glass"] .glass-pill-prominent:hover {
+  background: rgba(74,111,165,.18);
+  border-color: rgba(74,111,165,.3);
+}
+
+/* Glass pill group — related actions merged into one capsule */
+.glass-pill-group {
+  background: var(--glass);
+  border: 0.5px solid var(--glass-b);
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  position: relative;
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  transition: background 150ms ease;
+}
+.glass-pill-group::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 12%; right: 12%;
+  height: 0.5px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.15) 50%, transparent);
+  pointer-events: none;
+}
+[data-theme="liquid-glass"] .glass-pill-group::after {
+  background: linear-gradient(90deg, transparent 5%, rgba(255,255,255,.3) 30%, rgba(255,255,255,.4) 50%, rgba(255,255,255,.3) 70%, transparent 95%);
+}
+.glass-pill-group > button {
+  border-radius: 100px;
+  border: none;
+  background: none;
+  padding: 3px 10px;
+  font-size: 10px;
+  color: var(--tm);
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease;
+}
+.glass-pill-group > button:hover {
+  background: rgba(255,255,255,.06);
+}
+.glass-pill-group > button:active {
+  transform: scale(0.97);
+}
+.glass-pill-group > .divider {
+  width: 0.5px;
+  height: 14px;
+  background: var(--glass-b);
+  flex-shrink: 0;
+}
 
 .glass-panel {
   background: var(--glass);
