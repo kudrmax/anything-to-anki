@@ -18,6 +18,7 @@ go through the UI (re-enqueue of FAILED rows).
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Any
@@ -52,8 +53,8 @@ async def extract_media_for_candidate(ctx: dict[str, Any], candidate_id: int) ->
             )
             return
 
-    # Step 2: run extraction
-    try:
+    # Step 2: run extraction (in thread so event loop stays free for abort signals)
+    def _run_extraction() -> None:
         with container.session_scope() as session:
             use_case = container.media_extraction_use_case(session)
             use_case.execute_one(candidate_id)
@@ -67,6 +68,18 @@ async def extract_media_for_candidate(ctx: dict[str, Any], candidate_id: int) ->
             if cand is not None:
                 cleanup = container.cleanup_youtube_video_use_case(session)
                 cleanup.execute(cand.source_id)
+
+    try:
+        await asyncio.to_thread(_run_extraction)
+    except asyncio.CancelledError:
+        logger.info(
+            "extract_media_for_candidate: aborted candidate %d", candidate_id,
+        )
+        with container.session_scope() as session:
+            container.candidate_media_repository(session).mark_batch_cancelled(
+                [candidate_id],
+            )
+        raise  # re-raise so arq sees the abort
     except PermanentMediaError as exc:
         logger.warning(
             "extract_media_for_candidate: permanent error for candidate %d: %s",
@@ -113,11 +126,24 @@ async def generate_meanings_batch(
             )
             return
 
-    # Step 2: run generation
-    try:
+    # Step 2: run generation (in thread so event loop stays free for abort signals)
+    def _run_batch() -> None:
         with container.session_scope() as session:
             use_case = container.meaning_generation_use_case(session)
             use_case.execute_batch(candidate_ids)
+
+    try:
+        await asyncio.to_thread(_run_batch)
+    except asyncio.CancelledError:
+        logger.info(
+            "generate_meanings_batch: aborted in-flight batch of %d",
+            len(candidate_ids),
+        )
+        with container.session_scope() as session:
+            container.candidate_meaning_repository(session).mark_batch_cancelled(
+                candidate_ids,
+            )
+        raise  # re-raise so arq sees the abort
     except PermanentAIError as exc:
         logger.warning(
             "generate_meanings_batch: permanent error for batch of %d: %s",
@@ -163,7 +189,21 @@ async def download_youtube_video(ctx: dict[str, Any], source_id: int) -> None:
 
 async def startup(ctx: dict[str, Any]) -> None:
     logger.info("ARQ worker starting up")
-    ctx["container"] = Container()
+    container = Container()
+    ctx["container"] = container
+
+    # Startup reconciliation: RUNNING → FAILED for zombie rows left after crash
+    with container.session_scope() as session:
+        meaning_repo = container.candidate_meaning_repository(session)
+        media_repo = container.candidate_media_repository(session)
+        error = "interrupted by worker restart"
+        meanings_fixed = meaning_repo.fail_all_running(error)
+        media_fixed = media_repo.fail_all_running(error)
+    if meanings_fixed or media_fixed:
+        logger.warning(
+            "startup reconciliation: reset %d meaning + %d media zombie RUNNING rows",
+            meanings_fixed, media_fixed,
+        )
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
@@ -180,3 +220,5 @@ class WorkerSettings:
     max_jobs = 1       # strict sequential processing per user request
     job_timeout = 600  # 10 minutes per job
     max_tries = 1      # no ARQ-level retries; worker handles errors and marks FAILED
+    poll_delay = 0.1   # default 0.5s is too slow for draining cancelled jobs
+    allow_abort_jobs = True  # cancel endpoint can abort in-flight AI requests
