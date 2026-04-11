@@ -476,6 +476,31 @@ body {
   font-style: italic;
 }
 
+/* Book: pills and panels use solid warm style, no glass blur */
+[data-theme="book"] .glass-pill {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: 20px;
+  border-width: 1px;
+}
+[data-theme="book"] .glass-pill::after {
+  display: none;
+}
+[data-theme="book"] .glass-panel {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: var(--card-radius);
+  border-width: 1px;
+}
+[data-theme="book"] .glass-panel::after {
+  display: none;
+}
+
+/* Cosmic: pills use subtle glass, no specular highlight */
+[data-theme="cosmic"] .glass-pill::after {
+  display: none;
+}
+
 /* ── Theme-aware button shapes ── */
 [data-theme="liquid-glass"] input,
 [data-theme="liquid-glass"] textarea {

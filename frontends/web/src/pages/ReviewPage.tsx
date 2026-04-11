@@ -533,7 +533,7 @@ export function ReviewPage() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Floating toolbar — each group is a glass pill */}
-      <div className="shrink-0 flex items-center gap-1.5 flex-wrap">
+      <div className="shrink-0 flex items-center gap-1.5 flex-wrap mb-2">
         {/* Nav + logo */}
         <div className="glass-pill" style={{ padding: '5px 10px', gap: '6px' }}>
           <button onClick={() => navigate('/')} className="cursor-pointer" style={{ color: 'var(--tm)', fontSize: '14px' }}>‹</button>
