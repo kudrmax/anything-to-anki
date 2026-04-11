@@ -170,6 +170,41 @@ body {
   animation: popover-fade-in 150ms ease;
 }
 
+/* ── Ambient blob drift animations ── */
+@keyframes blob-drift-1 {
+  0%   { top: -10%; left: -5%; }
+  25%  { top: 5%;   left: 15%; }
+  50%  { top: -5%;  left: 30%; }
+  75%  { top: 10%;  left: 5%; }
+  100% { top: -10%; left: -5%; }
+}
+@keyframes blob-drift-2 {
+  0%   { bottom: -10%; right: -5%; }
+  30%  { bottom: 10%;  right: 15%; }
+  60%  { bottom: 5%;   right: 30%; }
+  100% { bottom: -10%; right: -5%; }
+}
+@keyframes blob-drift-3 {
+  0%   { top: 35%; left: 50%; }
+  33%  { top: 20%; left: 35%; }
+  66%  { top: 45%; left: 55%; }
+  100% { top: 35%; left: 50%; }
+}
+@keyframes blob-drift-4 {
+  0%   { top: 5%;  right: 15%; }
+  25%  { top: 20%; right: 25%; }
+  50%  { top: 10%; right: 5%; }
+  75%  { top: 25%; right: 20%; }
+  100% { top: 5%;  right: 15%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes blob-drift-1 { 0%, 100% { top: -10%; left: -5%; } }
+  @keyframes blob-drift-2 { 0%, 100% { bottom: -10%; right: -5%; } }
+  @keyframes blob-drift-3 { 0%, 100% { top: 35%; left: 50%; } }
+  @keyframes blob-drift-4 { 0%, 100% { top: 5%; right: 15%; } }
+}
+
 /* ── Liquid Glass Theme ── */
 [data-theme="liquid-glass"] {
   --mesh: none;
