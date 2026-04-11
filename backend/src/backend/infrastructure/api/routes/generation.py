@@ -20,18 +20,31 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_QUEUE_NAME = "arq:queue"
+ARQ_JOB_KEY_PREFIX = "arq:job:"
 
 
 async def _flush_jobs_by_prefix(redis: Any, prefix: str) -> int:  # noqa: ANN401 — arq has no type stubs
-    """Remove jobs whose job_id starts with *prefix* from the arq queue."""
+    """Remove queued jobs and abort in-flight jobs whose job_id starts with *prefix*."""
+    from arq.jobs import Job
+
+    # 1. Remove queued jobs from the sorted set
     queued = await redis.queued_jobs()
     removed = 0
     for job in queued:
         if job.job_id and job.job_id.startswith(prefix):
             await redis.zrem(DEFAULT_QUEUE_NAME, job.job_id)
-            await redis.delete(f"arq:job:{job.job_id}")
+            await redis.delete(f"{ARQ_JOB_KEY_PREFIX}{job.job_id}")
             removed += 1
-    return removed
+
+    # 2. Abort in-flight jobs (worker will receive CancelledError)
+    job_key_pattern = f"{ARQ_JOB_KEY_PREFIX}{prefix}*"
+    aborted = 0
+    async for key in redis.scan_iter(match=job_key_pattern):
+        job_id = key.decode().removeprefix(ARQ_JOB_KEY_PREFIX)
+        await Job(job_id, redis).abort(timeout=0)
+        aborted += 1
+
+    return removed + aborted
 
 router = APIRouter(tags=["generation"])
 

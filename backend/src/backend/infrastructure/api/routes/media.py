@@ -23,18 +23,32 @@ if TYPE_CHECKING:
 router = APIRouter(tags=["media"])
 
 DEFAULT_QUEUE_NAME = "arq:queue"
+ARQ_JOB_KEY_PREFIX = "arq:job:"
 
 
 async def _flush_media_jobs(redis: Any, prefixes: set[str]) -> int:  # noqa: ANN401 — arq has no type stubs
-    """Remove media jobs whose job_id starts with any of *prefixes* from the arq queue."""
+    """Remove queued jobs and abort in-flight jobs for the given candidate prefixes."""
+    from arq.jobs import Job
+
+    # 1. Remove queued jobs from the sorted set
     queued = await redis.queued_jobs()
     removed = 0
     for job in queued:
         if job.job_id and any(job.job_id.startswith(p) for p in prefixes):
             await redis.zrem(DEFAULT_QUEUE_NAME, job.job_id)
-            await redis.delete(f"arq:job:{job.job_id}")
+            await redis.delete(f"{ARQ_JOB_KEY_PREFIX}{job.job_id}")
             removed += 1
-    return removed
+
+    # 2. Abort in-flight jobs (worker will receive CancelledError)
+    aborted = 0
+    for prefix in prefixes:
+        job_key_pattern = f"{ARQ_JOB_KEY_PREFIX}{prefix}*"
+        async for key in redis.scan_iter(match=job_key_pattern):
+            job_id = key.decode().removeprefix(ARQ_JOB_KEY_PREFIX)
+            await Job(job_id, redis).abort(timeout=0)
+            aborted += 1
+
+    return removed + aborted
 
 
 @router.get("/media/{source_id}/{filename}")
