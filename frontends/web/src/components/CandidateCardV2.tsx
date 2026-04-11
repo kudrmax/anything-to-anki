@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { BookOpen, ChevronDown, Film, Languages, Loader2, Pencil, Play, Sparkles, Square, Volume2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
@@ -167,6 +168,99 @@ function renderMeaning(text: string, lemma: string, surfaceForm: string | null):
   return <>{parts}</>
 }
 
+function FollowUpDropdown({ anchorEl, onClose, onRegenerate, onFollowUp, showFreeInput, setShowFreeInput, freeText, setFreeText }: {
+  anchorEl: HTMLElement
+  onClose: () => void
+  onRegenerate: () => void
+  onFollowUp?: (action: FollowUpAction, text?: string) => void
+  showFreeInput: boolean
+  setShowFreeInput: (v: boolean) => void
+  freeText: string
+  setFreeText: (v: string) => void
+}) {
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const rect = anchorEl.getBoundingClientRect()
+    setPos({ top: rect.bottom + 4, left: rect.left })
+  }, [anchorEl])
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) && !anchorEl.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [anchorEl, onClose])
+
+  return (
+    <div ref={dropdownRef} className="glass-card glass-dropdown" style={{
+      position: 'fixed',
+      top: pos.top,
+      left: pos.left,
+      zIndex: 9999,
+      borderRadius: '12px',
+      padding: '4px 0',
+      minWidth: '180px',
+    }}>
+      <button
+        onClick={onRegenerate}
+        className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
+        style={{ color: 'var(--text-muted-light)' }}
+      >
+        Regenerate all
+      </button>
+      <div style={{ height: '1px', background: 'var(--surface-divider)', margin: '4px 0' }} />
+      {onFollowUp && FOLLOW_UP_PRESETS.map((preset) => (
+        <button
+          key={preset.action}
+          onClick={() => onFollowUp(preset.action)}
+          className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
+          style={{ color: 'var(--text-muted-light)' }}
+        >
+          {preset.label}
+        </button>
+      ))}
+      {onFollowUp && (
+        <>
+          <div style={{ height: '1px', background: 'var(--surface-divider)', margin: '4px 0' }} />
+          {showFreeInput ? (
+            <div className="px-3 py-1.5 flex gap-1">
+              <input
+                type="text"
+                value={freeText}
+                onChange={(e) => setFreeText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && freeText.trim()) {
+                    onFollowUp('free_question', freeText.trim())
+                    setFreeText('')
+                    setShowFreeInput(false)
+                  }
+                }}
+                placeholder="Your question..."
+                autoFocus
+                className="flex-1 px-2 py-1 rounded text-xs bg-white/[0.06] border border-white/[0.1] outline-none"
+                style={{ color: 'var(--text-muted-light)' }}
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowFreeInput(true)}
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
+              style={{ color: 'var(--tm)' }}
+            >
+              Ask a question...
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 const TOOLBAR_BTN_CLS = [
   'w-7 h-7 flex items-center justify-center cursor-pointer',
   'outline-none focus:outline-none focus-visible:outline-none',
@@ -315,11 +409,7 @@ export function CandidateCardV2({
             </ToolbarButton>
           )}
           {onGenerateMeaning && candidate.meaning?.meaning && (
-            <div
-              className="relative"
-              ref={followUpRef}
-              onMouseLeave={() => { setShowFollowUp(false); setShowFreeInput(false) }}
-            >
+            <div className="relative" ref={followUpRef}>
               <ToolbarButton
                 onClick={() => setShowFollowUp((v) => !v)}
                 disabled={isGenerating}
@@ -332,82 +422,18 @@ export function CandidateCardV2({
                   : <><Sparkles size={12} /><ChevronDown size={9} style={{ marginLeft: '3px' }} /></>
                 }
               </ToolbarButton>
-              {showFollowUp && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  zIndex: 50,
-                  paddingTop: '4px',
-                }}>
-                <div style={{
-                  background: 'var(--base)',
-                  border: '1px solid var(--glass-b)',
-                  borderRadius: '12px',
-                  padding: '4px 0',
-                  minWidth: '180px',
-                  boxShadow: '0 12px 40px rgba(0,0,0,.5)',
-                }}>
-                  <button
-                    onClick={() => {
-                      onGenerateMeaning(candidate.id)
-                      setShowFollowUp(false)
-                    }}
-                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
-                    style={{ color: 'var(--text-muted-light)' }}
-                  >
-                    Regenerate all
-                  </button>
-                  <div style={{ height: '1px', background: 'var(--surface-divider)', margin: '4px 0' }} />
-                  {onFollowUp && FOLLOW_UP_PRESETS.map((preset) => (
-                    <button
-                      key={preset.action}
-                      onClick={() => {
-                        onFollowUp(candidate.id, preset.action)
-                        setShowFollowUp(false)
-                      }}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
-                      style={{ color: 'var(--text-muted-light)' }}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                  {onFollowUp && (
-                    <>
-                      <div style={{ height: '1px', background: 'var(--surface-divider)', margin: '4px 0' }} />
-                      {showFreeInput ? (
-                        <div className="px-3 py-1.5 flex gap-1">
-                          <input
-                            type="text"
-                            value={freeText}
-                            onChange={(e) => setFreeText(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && freeText.trim()) {
-                                onFollowUp(candidate.id, 'free_question', freeText.trim())
-                                setFreeText('')
-                                setShowFollowUp(false)
-                                setShowFreeInput(false)
-                              }
-                            }}
-                            placeholder="Your question..."
-                            autoFocus
-                            className="flex-1 px-2 py-1 rounded text-xs bg-white/[0.06] border border-white/[0.1] outline-none"
-                            style={{ color: 'var(--text-muted-light)' }}
-                          />
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setShowFreeInput(true)}
-                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
-                          style={{ color: 'var(--tm)' }}
-                        >
-                          Ask a question...
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-                </div>
+              {showFollowUp && followUpRef.current && createPortal(
+                <FollowUpDropdown
+                  anchorEl={followUpRef.current}
+                  onClose={() => { setShowFollowUp(false); setShowFreeInput(false) }}
+                  onRegenerate={() => { onGenerateMeaning(candidate.id); setShowFollowUp(false) }}
+                  onFollowUp={onFollowUp ? (action, text) => { onFollowUp(candidate.id, action, text); setShowFollowUp(false) } : undefined}
+                  showFreeInput={showFreeInput}
+                  setShowFreeInput={setShowFreeInput}
+                  freeText={freeText}
+                  setFreeText={setFreeText}
+                />,
+                document.body,
               )}
             </div>
           )}
