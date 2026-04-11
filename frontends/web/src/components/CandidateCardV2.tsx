@@ -39,9 +39,9 @@ interface CandidateCardV2Props {
 
 
 const STATUS_BORDER: Partial<Record<CandidateStatus, React.CSSProperties>> = {
-  learn: { borderLeft: '2px solid var(--status-learn)' },
-  known: { borderLeft: '2px solid var(--status-know)' },
-  skip:  { borderLeft: '2px solid var(--status-skip)' },
+  learn: { boxShadow: 'inset 3px 0 0 var(--status-learn)' },
+  known: { boxShadow: 'inset 3px 0 0 var(--status-know)' },
+  skip:  { boxShadow: 'inset 3px 0 0 var(--status-skip)' },
 }
 
 const STATUS_BG: Partial<Record<CandidateStatus, string>> = {
