@@ -67,9 +67,12 @@ const MARK_ACTIVE: Record<string, { bg: string; color: string; border: string }>
 }
 
 const CEFR_PILL_COLOR: Record<string, { bg: string; color: string }> = {
-  B2: { bg: 'rgba(180,83,9,0.18)',  color: '#fbbf24' },
-  C1: { bg: 'rgba(234,88,12,0.2)',  color: '#fb923c' },
-  C2: { bg: 'rgba(225,29,72,0.2)',  color: '#fb7185' },
+  A1: { bg: 'var(--hl-a1-bg)',  color: 'var(--hl-a1-text)' },
+  A2: { bg: 'var(--hl-a2-bg)',  color: 'var(--hl-a2-text)' },
+  B1: { bg: 'var(--hl-b1-bg)',  color: 'var(--hl-b1-text)' },
+  B2: { bg: 'var(--hl-b2-bg)',  color: 'var(--hl-b2-text)' },
+  C1: { bg: 'var(--hl-c1-bg)',  color: 'var(--hl-c1-text)' },
+  C2: { bg: 'var(--hl-c2-bg)',  color: 'var(--hl-c2-text)' },
 }
 const CEFR_PILL_DEFAULT = { bg: 'rgba(148,163,184,0.15)', color: 'var(--tm)' }
 
@@ -589,8 +592,8 @@ export function CandidateCardV2({
                 float: 'right',
                 margin: '-2px 0 4px 8px',
                 padding: '2px 10px',
-                background: 'var(--abg)',
-                color: 'var(--accent)',
+                background: 'var(--hl-phrasal-bg)',
+                color: 'var(--hl-phrasal-text)',
                 borderRadius: '999px',
                 fontSize: '10px',
                 fontWeight: 700,

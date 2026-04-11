@@ -25,16 +25,23 @@ const MARK_STYLE_HOVERED: React.CSSProperties = {
   borderBottom: '2px solid var(--hl-border-hover)',
 }
 
-const CEFR_MARK_STYLE: Record<string, React.CSSProperties> = {
-  B2: { background: 'var(--hl-b2-bg)', color: 'var(--hl-b2-text)', borderBottom: '1px solid var(--hl-b2-border)' },
-  C1: { background: 'var(--hl-c1-bg)', color: 'var(--hl-c1-text)', borderBottom: '1px solid var(--hl-c1-border)' },
-  C2: { background: 'var(--hl-c2-bg)', color: 'var(--hl-c2-text)', borderBottom: '1px solid var(--hl-c2-border)' },
+function cefrMarkStyle(level: string): React.CSSProperties {
+  const k = level as string
+  return {
+    background: `var(--hl-${k.toLowerCase()}-bg)`,
+    color: `var(--hl-${k.toLowerCase()}-text)`,
+    borderBottom: `1px solid var(--hl-${k.toLowerCase()}-border)`,
+  }
 }
 
-const CEFR_MARK_STYLE_HOVERED: Record<string, React.CSSProperties> = {
-  B2: { background: 'var(--hl-b2-bg)', color: 'var(--hl-b2-text)', borderBottom: '2px solid var(--hl-b2-border)', filter: 'brightness(1.3)' },
-  C1: { background: 'var(--hl-c1-bg)', color: 'var(--hl-c1-text)', borderBottom: '2px solid var(--hl-c1-border)', filter: 'brightness(1.3)' },
-  C2: { background: 'var(--hl-c2-bg)', color: 'var(--hl-c2-text)', borderBottom: '2px solid var(--hl-c2-border)', filter: 'brightness(1.3)' },
+function cefrMarkStyleHovered(level: string): React.CSSProperties {
+  const k = level as string
+  return {
+    background: `var(--hl-${k.toLowerCase()}-bg)`,
+    color: `var(--hl-${k.toLowerCase()}-text)`,
+    borderBottom: `2px solid var(--hl-${k.toLowerCase()}-border)`,
+    filter: 'brightness(1.3)',
+  }
 }
 
 type TextSegment =
@@ -199,8 +206,8 @@ export function TextAnnotator({
         let markStyle: React.CSSProperties
         let opacity: number
 
-        const cefrBase = (seg.cefrLevel && CEFR_MARK_STYLE[seg.cefrLevel]) ?? MARK_STYLE
-        const cefrHover = (seg.cefrLevel && CEFR_MARK_STYLE_HOVERED[seg.cefrLevel]) ?? MARK_STYLE_HOVERED
+        const cefrBase = seg.cefrLevel ? cefrMarkStyle(seg.cefrLevel) : MARK_STYLE
+        const cefrHover = seg.cefrLevel ? cefrMarkStyleHovered(seg.cefrLevel) : MARK_STYLE_HOVERED
 
         if (isActive) {
           markStyle = { ...cefrHover, cursor: 'pointer', borderRadius: '2px', padding: '0 2px' }
