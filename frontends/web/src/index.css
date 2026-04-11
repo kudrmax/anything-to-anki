@@ -375,3 +375,14 @@ body {
 [data-theme="book"] [data-context-fragment] {
   font-style: italic;
 }
+
+/* ── Review toolbar: theme-aware button radii ── */
+.review-toolbar button {
+  border-radius: var(--btn-radius);
+}
+.review-toolbar .sort-toggle {
+  border-radius: var(--btn-radius);
+}
+.review-toolbar .sort-toggle button {
+  border-radius: var(--btn-radius);
+}

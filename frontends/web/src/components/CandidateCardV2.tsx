@@ -172,14 +172,14 @@ function renderMeaning(text: string, lemma: string, surfaceForm: string | null):
 }
 
 const TOOLBAR_BTN_CLS = [
-  'w-7 h-7 flex items-center justify-center rounded-md cursor-pointer',
+  'w-7 h-7 flex items-center justify-center cursor-pointer',
   'outline-none focus:outline-none focus-visible:outline-none',
   'border border-white/[0.08] bg-white/[0.04]',
   'hover:border-white/[0.15] hover:bg-white/[0.08]',
   'transition-colors',
 ].join(' ')
 
-const TOOLBAR_BTN_STYLE: React.CSSProperties = { color: 'var(--td)' }
+const TOOLBAR_BTN_STYLE: React.CSSProperties = { color: 'var(--td)', borderRadius: 'var(--btn-radius)' }
 
 function ToolbarButton({ children, onClick, disabled, title, ariaLabel, className: extraCls }: {
   children: React.ReactNode
@@ -346,7 +346,7 @@ export function CandidateCardV2({
                 <div style={{
                   background: 'var(--surface-menu)',
                   border: '1px solid var(--glass-b)',
-                  borderRadius: '8px',
+                  borderRadius: 'var(--btn-radius)',
                   padding: '4px 0',
                   minWidth: '180px',
                   boxShadow: 'var(--sh)',
@@ -541,7 +541,7 @@ export function CandidateCardV2({
                       height: '28px',
                       background: 'var(--surface-menu)',
                       border: '1px solid var(--accent)',
-                      borderRadius: '6px',
+                      borderRadius: 'var(--btn-radius)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
