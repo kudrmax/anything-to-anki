@@ -269,7 +269,6 @@ export function CandidateCardV2({
       )}
       style={{
         position: 'relative',
-        overflow: 'hidden',
         padding: '14px',
         ...(isRated && STATUS_BORDER[candidate.status]),
         ...(isRated && {
@@ -286,12 +285,12 @@ export function CandidateCardV2({
       {candidate.is_sweet_spot && (
         <div style={{
           width: '3px',
-          height: '100%',
-          borderRadius: 'var(--card-radius) 0 0 var(--card-radius)',
+          top: 'var(--card-radius)',
+          bottom: 'var(--card-radius)',
+          borderRadius: '2px',
           background: 'var(--grad)',
           position: 'absolute',
-          left: 0,
-          top: 0,
+          left: '0',
         }} />
       )}
 
