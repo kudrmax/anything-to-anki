@@ -181,24 +181,43 @@ body {
   display: inline-flex;
   align-items: center;
   position: relative;
+  overflow: hidden;
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
   height: 32px;
   padding: 5px 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.1);
+  transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 }
+/* Specular highlight — top edge */
 .glass-pill::after {
   content: '';
   position: absolute;
-  top: 0; left: 15%; right: 15%;
+  top: 0; left: 10%; right: 10%;
   height: 0.5px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.15) 50%, transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.25) 30%, rgba(255,255,255,.35) 50%, rgba(255,255,255,.25) 70%, transparent);
   pointer-events: none;
 }
-.glass-pill {
-  transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+/* Inner gradient — glass depth */
+.glass-pill::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255,255,255,.08) 0%, transparent 50%);
+  pointer-events: none;
 }
 
-/* Liquid Glass button interactions */
+/* Liquid Glass pill enhancements */
+[data-theme="liquid-glass"] .glass-pill::after {
+  background: linear-gradient(90deg, transparent 5%, rgba(255,255,255,.35) 25%, rgba(255,255,255,.5) 50%, rgba(255,255,255,.35) 75%, transparent 95%);
+}
+[data-theme="liquid-glass"] .glass-pill::before {
+  background: linear-gradient(180deg, rgba(255,255,255,.12) 0%, transparent 40%);
+}
+[data-theme="liquid-glass"] .glass-pill {
+  box-shadow: 0 2px 8px rgba(0,0,0,.15);
+}
 [data-theme="liquid-glass"] .glass-pill:hover {
   background: rgba(255,255,255,.09);
   border-color: rgba(255,255,255,.16);
