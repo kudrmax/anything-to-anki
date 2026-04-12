@@ -50,15 +50,52 @@ def _token(
     )
 
 
+def _verb(
+    index: int,
+    text: str,
+    lemma: str,
+    *,
+    children_indices: tuple[int, ...] = (),
+) -> TokenData:
+    """Shorthand for a VERB token."""
+    return _token(
+        index, text, lemma,
+        pos="VERB", dep="ROOT", head_index=index,
+        children_indices=children_indices,
+    )
+
+
+def _prep(
+    index: int,
+    text: str,
+    *,
+    head_index: int = 0,
+    children_indices: tuple[int, ...] = (),
+) -> TokenData:
+    """Shorthand for a prep ADP token."""
+    return _token(
+        index, text, text,
+        pos="ADP", dep="prep", head_index=head_index,
+        children_indices=children_indices,
+    )
+
+
+def _prt(index: int, text: str, *, head_index: int = 0) -> TokenData:
+    """Shorthand for a particle ADP token."""
+    return _token(
+        index, text, text,
+        pos="ADP", dep="prt", head_index=head_index,
+    )
+
+
 class TestLayer1ParticleDetection:
-    """Layer 1: VERB + prt child — always a phrasal verb, no dictionary needed."""
+    """Layer 1: VERB + prt — always a phrasal verb."""
 
     def test_simple_phrasal_verb(self) -> None:
-        """'give up' — verb with particle child (dep=prt)."""
         tokens = [
             _token(0, "I", "I", pos="PRON", dep="nsubj", head_index=1),
-            _token(1, "give", "give", pos="VERB", dep="ROOT", head_index=1, children_indices=(0, 2)),
-            _token(2, "up", "up", pos="ADP", dep="prt", head_index=1),
+            _verb(1, "give", "give", children_indices=(0, 2)),
+            _prt(2, "up", head_index=1),
         ]
         detector = PhrasalVerbDetector(FakeDictionary(set()))
         matches = detector.detect(tokens)
@@ -70,12 +107,12 @@ class TestLayer1ParticleDetection:
         assert matches[0].component_indices == (2,)
 
     def test_separable_phrasal_verb_surface_form(self) -> None:
-        """'get you out' — particle separated by object. surface_form must include intervening tokens."""
+        """surface_form must include intervening tokens."""
         tokens = [
             _token(0, "I", "I", pos="PRON", dep="nsubj", head_index=1),
-            _token(1, "get", "get", pos="VERB", dep="ROOT", head_index=1, children_indices=(0, 2, 3)),
+            _verb(1, "get", "get", children_indices=(0, 2, 3)),
             _token(2, "you", "you", pos="PRON", dep="dobj", head_index=1),
-            _token(3, "out", "out", pos="ADP", dep="prt", head_index=1),
+            _prt(3, "out", head_index=1),
         ]
         detector = PhrasalVerbDetector(FakeDictionary(set()))
         matches = detector.detect(tokens)
@@ -90,10 +127,9 @@ class TestLayer2PrepDetection:
     """Layer 2: VERB + prep child — dictionary-confirmed."""
 
     def test_simple_verb_prep(self) -> None:
-        """'look after' — verb + prep confirmed by dictionary."""
         tokens = [
-            _token(0, "look", "look", pos="VERB", dep="ROOT", head_index=0, children_indices=(1,)),
-            _token(1, "after", "after", pos="ADP", dep="prep", head_index=0),
+            _verb(0, "look", "look", children_indices=(1,)),
+            _prep(1, "after"),
         ]
         detector = PhrasalVerbDetector(FakeDictionary({"look after"}))
         matches = detector.detect(tokens)
@@ -103,10 +139,9 @@ class TestLayer2PrepDetection:
         assert matches[0].surface_form == "look after"
 
     def test_prep_not_in_dictionary_skipped(self) -> None:
-        """'look at' — not in dictionary, should not match."""
         tokens = [
-            _token(0, "look", "look", pos="VERB", dep="ROOT", head_index=0, children_indices=(1,)),
-            _token(1, "at", "at", pos="ADP", dep="prep", head_index=0),
+            _verb(0, "look", "look", children_indices=(1,)),
+            _prep(1, "at"),
         ]
         detector = PhrasalVerbDetector(FakeDictionary(set()))
         matches = detector.detect(tokens)
@@ -115,18 +150,20 @@ class TestLayer2PrepDetection:
 
 
 class TestLayer2bPrepChain:
-    """Layer 2b: VERB + prep + prep chain — 3-word phrasal verbs."""
+    """Layer 2b: VERB + prep + prep chain — 3-word PVs."""
 
     def test_three_word_prep_chain_grandchild(self) -> None:
-        """'going through with' — verb + prep child + prep grandchild."""
+        """Verb → prep child → prep grandchild."""
         tokens = [
-            _token(0, "going", "go", pos="VERB", dep="ROOT", head_index=0, children_indices=(1,)),
-            _token(1, "through", "through", pos="ADP", dep="prep", head_index=0, children_indices=(2,)),
-            _token(2, "with", "with", pos="ADP", dep="prep", head_index=1, children_indices=(4,)),
+            _verb(0, "going", "go", children_indices=(1,)),
+            _prep(1, "through", children_indices=(2,)),
+            _prep(2, "with", head_index=1, children_indices=(4,)),
             _token(3, "this", "this", pos="DET", dep="det", head_index=4),
-            _token(4, "wedding", "wedding", pos="NOUN", dep="pobj", head_index=2),
+            _token(4, "wedding", "wedding", dep="pobj", head_index=2),
         ]
-        detector = PhrasalVerbDetector(FakeDictionary({"go through with", "go through"}))
+        detector = PhrasalVerbDetector(
+            FakeDictionary({"go through with", "go through"}),
+        )
         matches = detector.detect(tokens)
 
         assert len(matches) == 1
@@ -135,39 +172,43 @@ class TestLayer2bPrepChain:
         assert matches[0].component_indices == (1, 2)
 
     def test_three_word_preferred_over_two_word(self) -> None:
-        """When both 'go through' and 'go through with' are in dictionary, prefer 3-word."""
         tokens = [
-            _token(0, "going", "go", pos="VERB", dep="ROOT", head_index=0, children_indices=(1,)),
-            _token(1, "through", "through", pos="ADP", dep="prep", head_index=0, children_indices=(2,)),
-            _token(2, "with", "with", pos="ADP", dep="prep", head_index=1),
+            _verb(0, "going", "go", children_indices=(1,)),
+            _prep(1, "through", children_indices=(2,)),
+            _prep(2, "with", head_index=1),
         ]
-        detector = PhrasalVerbDetector(FakeDictionary({"go through", "go through with"}))
+        detector = PhrasalVerbDetector(
+            FakeDictionary({"go through", "go through with"}),
+        )
         matches = detector.detect(tokens)
 
         assert len(matches) == 1
         assert matches[0].lemma == "go through with"
 
     def test_two_direct_prep_children(self) -> None:
-        """'go through with' — when both preps are direct children of verb."""
+        """Both preps are direct children of verb."""
         tokens = [
-            _token(0, "going", "go", pos="VERB", dep="ROOT", head_index=0, children_indices=(1, 2)),
-            _token(1, "through", "through", pos="ADP", dep="prep", head_index=0),
-            _token(2, "with", "with", pos="ADP", dep="prep", head_index=0),
+            _verb(0, "going", "go", children_indices=(1, 2)),
+            _prep(1, "through"),
+            _prep(2, "with"),
         ]
-        detector = PhrasalVerbDetector(FakeDictionary({"go through with", "go with"}))
+        detector = PhrasalVerbDetector(
+            FakeDictionary({"go through with", "go with"}),
+        )
         matches = detector.detect(tokens)
 
         assert len(matches) == 1
         assert matches[0].lemma == "go through with"
 
     def test_falls_back_to_two_word_when_three_not_in_dict(self) -> None:
-        """'look forward to' — 3-word form in dictionary, 2-word is not."""
         tokens = [
-            _token(0, "look", "look", pos="VERB", dep="ROOT", head_index=0, children_indices=(1,)),
-            _token(1, "forward", "forward", pos="ADP", dep="prep", head_index=0, children_indices=(2,)),
-            _token(2, "to", "to", pos="ADP", dep="prep", head_index=1),
+            _verb(0, "look", "look", children_indices=(1,)),
+            _prep(1, "forward", children_indices=(2,)),
+            _prep(2, "to", head_index=1),
         ]
-        detector = PhrasalVerbDetector(FakeDictionary({"look forward to"}))
+        detector = PhrasalVerbDetector(
+            FakeDictionary({"look forward to"}),
+        )
         matches = detector.detect(tokens)
 
         assert len(matches) == 1
@@ -175,14 +216,17 @@ class TestLayer2bPrepChain:
 
 
 class TestLayer3VerbNounPrep:
-    """Layer 3: VERB + NOUN(dobj) + PREP — idiomatic expressions."""
+    """Layer 3: VERB + NOUN(dobj) + PREP — idioms."""
 
     def test_make_fun_of(self) -> None:
-        """'made fun of' — verb + noun(dobj) + prep of noun."""
         tokens = [
-            _token(0, "made", "make", pos="VERB", dep="ROOT", head_index=0, children_indices=(1,)),
-            _token(1, "fun", "fun", pos="NOUN", dep="dobj", head_index=0, children_indices=(2,)),
-            _token(2, "of", "of", pos="ADP", dep="prep", head_index=1),
+            _verb(0, "made", "make", children_indices=(1,)),
+            _token(
+                1, "fun", "fun",
+                pos="NOUN", dep="dobj", head_index=0,
+                children_indices=(2,),
+            ),
+            _prep(2, "of", head_index=1),
             _token(3, "me", "me", pos="PRON", dep="pobj", head_index=2),
         ]
         detector = PhrasalVerbDetector(FakeDictionary({"make fun of"}))
@@ -194,11 +238,14 @@ class TestLayer3VerbNounPrep:
         assert matches[0].component_indices == (1, 2)
 
     def test_take_care_of(self) -> None:
-        """'take care of' — another VERB+NOUN+PREP idiom."""
         tokens = [
-            _token(0, "take", "take", pos="VERB", dep="ROOT", head_index=0, children_indices=(1,)),
-            _token(1, "care", "care", pos="NOUN", dep="dobj", head_index=0, children_indices=(2,)),
-            _token(2, "of", "of", pos="ADP", dep="prep", head_index=1),
+            _verb(0, "take", "take", children_indices=(1,)),
+            _token(
+                1, "care", "care",
+                pos="NOUN", dep="dobj", head_index=0,
+                children_indices=(2,),
+            ),
+            _prep(2, "of", head_index=1),
         ]
         detector = PhrasalVerbDetector(FakeDictionary({"take care of"}))
         matches = detector.detect(tokens)
@@ -207,10 +254,9 @@ class TestLayer3VerbNounPrep:
         assert matches[0].lemma == "take care of"
 
     def test_noun_without_prep_not_matched(self) -> None:
-        """'make decision' — NOUN child without prep, no match."""
         tokens = [
-            _token(0, "make", "make", pos="VERB", dep="ROOT", head_index=0, children_indices=(1,)),
-            _token(1, "decision", "decision", pos="NOUN", dep="dobj", head_index=0),
+            _verb(0, "make", "make", children_indices=(1,)),
+            _token(1, "decision", "decision", pos="NOUN", dep="dobj"),
         ]
         detector = PhrasalVerbDetector(FakeDictionary({"make fun of"}))
         matches = detector.detect(tokens)
@@ -218,11 +264,14 @@ class TestLayer3VerbNounPrep:
         assert matches == []
 
     def test_verb_noun_prep_not_in_dictionary_skipped(self) -> None:
-        """VERB+NOUN+PREP pattern found but not in dictionary."""
         tokens = [
-            _token(0, "made", "make", pos="VERB", dep="ROOT", head_index=0, children_indices=(1,)),
-            _token(1, "fun", "fun", pos="NOUN", dep="dobj", head_index=0, children_indices=(2,)),
-            _token(2, "of", "of", pos="ADP", dep="prep", head_index=1),
+            _verb(0, "made", "make", children_indices=(1,)),
+            _token(
+                1, "fun", "fun",
+                pos="NOUN", dep="dobj", head_index=0,
+                children_indices=(2,),
+            ),
+            _prep(2, "of", head_index=1),
         ]
         detector = PhrasalVerbDetector(FakeDictionary(set()))
         matches = detector.detect(tokens)
@@ -231,16 +280,17 @@ class TestLayer3VerbNounPrep:
 
 
 class TestDeduplication:
-    """Detector should not produce duplicate/subsumed matches for the same verb."""
+    """No duplicate/subsumed matches for the same verb."""
 
     def test_no_duplicate_when_three_word_subsumes_two_word(self) -> None:
-        """'go through with' should not also produce 'go with' or 'go through'."""
         tokens = [
-            _token(0, "going", "go", pos="VERB", dep="ROOT", head_index=0, children_indices=(1, 2)),
-            _token(1, "through", "through", pos="ADP", dep="prep", head_index=0),
-            _token(2, "with", "with", pos="ADP", dep="prep", head_index=0),
+            _verb(0, "going", "go", children_indices=(1, 2)),
+            _prep(1, "through"),
+            _prep(2, "with"),
         ]
-        detector = PhrasalVerbDetector(FakeDictionary({"go through", "go with", "go through with"}))
+        detector = PhrasalVerbDetector(
+            FakeDictionary({"go through", "go with", "go through with"}),
+        )
         matches = detector.detect(tokens)
 
         assert len(matches) == 1

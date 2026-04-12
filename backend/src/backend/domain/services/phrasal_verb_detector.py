@@ -12,6 +12,16 @@ _PREP_DEPS = frozenset({"prep"})
 _DOBJ_DEPS = frozenset({"dobj", "attr", "oprd"})
 
 
+def _is_better(
+    candidate: PhrasalVerbMatch,
+    current: PhrasalVerbMatch | None,
+) -> bool:
+    """Return True if candidate has more components than current best."""
+    if current is None:
+        return True
+    return len(candidate.component_indices) > len(current.component_indices)
+
+
 @dataclass(frozen=True)
 class PhrasalVerbMatch:
     """A detected phrasal verb with its component token indices."""
@@ -70,7 +80,7 @@ class PhrasalVerbDetector:
                     lemma=f"{token.lemma.lower()} {prt.text.lower()}",
                     surface_form=self._build_surface(token_map, token.index, prt.index),
                 )
-                if best is None or len(match.component_indices) > len(best.component_indices):
+                if _is_better(match, best):
                     best = match
 
             # --- Layer 2b: VERB + prep + prep chain (3-word, dictionary) ---
@@ -89,7 +99,7 @@ class PhrasalVerbDetector:
                             lemma=phrase,
                             surface_form=self._build_surface(token_map, token.index, gc.index),
                         )
-                        if best is None or len(match.component_indices) > len(best.component_indices):
+                        if _is_better(match, best):
                             best = match
 
                 # Also check pairs of direct prep children (both are children of verb)
@@ -104,7 +114,7 @@ class PhrasalVerbDetector:
                             lemma=phrase,
                             surface_form=self._build_surface(token_map, token.index, prep2.index),
                         )
-                        if best is None or len(match.component_indices) > len(best.component_indices):
+                        if _is_better(match, best):
                             best = match
 
             # --- Layer 2: VERB + prep (2-word, dictionary) ---
@@ -136,7 +146,7 @@ class PhrasalVerbDetector:
                             lemma=phrase,
                             surface_form=self._build_surface(token_map, token.index, gc.index),
                         )
-                        if best is None or len(match.component_indices) > len(best.component_indices):
+                        if _is_better(match, best):
                             best = match
 
             if best is not None and token.index not in matched_verb_indices:
