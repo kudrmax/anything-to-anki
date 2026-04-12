@@ -17,3 +17,6 @@ class JsonPhrasalVerbDictionary(PhrasalVerbDictionary):
 
     def contains(self, verb_lemma: str, particle: str) -> bool:
         return f"{verb_lemma.lower()} {particle.lower()}" in self._lookup
+
+    def contains_phrase(self, phrase: str) -> bool:
+        return phrase.lower().strip() in self._lookup

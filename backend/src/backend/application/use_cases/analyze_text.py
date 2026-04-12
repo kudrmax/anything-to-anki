@@ -164,7 +164,7 @@ class AnalyzeTextUseCase:
                     tokens=tokens,
                     target_index=match.verb_index,
                     protected_indices=frozenset(
-                        {match.verb_index, match.particle_index}
+                        {match.verb_index, *match.component_indices}
                     ),
                     unknown_counter=self._make_unknown_counter(user_level),
                 )
