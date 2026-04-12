@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from backend.domain.ports.cefr_classifier import CEFRClassifier
-from backend.domain.ports.cefr_source import CEFRSource
-from backend.domain.value_objects.cefr_level import CEFRLevel
+
+if TYPE_CHECKING:
+    from backend.domain.ports.cefr_source import CEFRSource
+    from backend.domain.value_objects.cefr_level import CEFRLevel
 
 
 class VotingCEFRClassifier(CEFRClassifier):

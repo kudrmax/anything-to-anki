@@ -4,7 +4,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource

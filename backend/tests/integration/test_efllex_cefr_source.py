@@ -3,11 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.infrastructure.adapters.efllex_cefr_source import EFLLexCEFRSource
 
-DATA_PATH = Path(__file__).resolve().parents[2] / "src" / "backend" / "resources" / "cefr" / "efllex.tsv"
+DATA_PATH = (
+    Path(__file__).resolve().parents[2] / "src" / "backend" / "resources" / "cefr" / "efllex.tsv"
+)
 
 
 @pytest.mark.integration

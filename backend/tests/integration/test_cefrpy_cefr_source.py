@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
 

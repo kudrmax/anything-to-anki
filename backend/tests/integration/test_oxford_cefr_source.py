@@ -3,11 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
 
-DATA_PATH = Path(__file__).resolve().parents[2] / "src" / "backend" / "resources" / "cefr" / "oxford5000.csv"
+DATA_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "src" / "backend" / "resources" / "cefr" / "oxford5000.csv"
+)
 
 
 @pytest.mark.integration

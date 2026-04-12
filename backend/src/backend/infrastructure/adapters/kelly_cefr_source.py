@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import csv
-from pathlib import Path
+from pathlib import Path  # noqa: TC003 — used at runtime in _load()
 
 from backend.domain.ports.cefr_source import CEFRSource
 from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -47,7 +47,10 @@ class KellyCEFRSource(CEFRSource):
             for row in reader:
                 word = row["Word"].strip().lower()
                 kelly_pos = row["Part of Speech"].strip().lower()
-                cefr_raw = row["CEFR"].strip().strip('""\u201c\u201d').upper()
+                cefr_raw = row["CEFR"].strip()
+                for quote_char in ('"', "\u201c", "\u201d"):
+                    cefr_raw = cefr_raw.replace(quote_char, "")
+                cefr_raw = cefr_raw.upper()
                 if not word or not cefr_raw:
                     continue
                 try:
