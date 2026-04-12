@@ -16,9 +16,9 @@ class PhrasalVerbMatch:
     """A detected phrasal verb with its component token indices."""
 
     verb_index: int
-    particle_index: int
-    lemma: str         # e.g. "give up", "look after"
-    surface_form: str  # e.g. "gave up", "looked after" — actual form in text
+    component_indices: tuple[int, ...]  # all token indices forming the PV (verb + particles/nouns)
+    lemma: str         # e.g. "give up", "go through with", "make fun of"
+    surface_form: str  # e.g. "gave up", "going through with" — actual form in text
 
 
 class PhrasalVerbDetector:
@@ -50,7 +50,7 @@ class PhrasalVerbDetector:
                     matches.append(
                         PhrasalVerbMatch(
                             verb_index=token.index,
-                            particle_index=child.index,
+                            component_indices=(child.index,),
                             lemma=f"{token.lemma.lower()} {child.text.lower()}",
                             surface_form=f"{token.text} {child.text}",
                         )
@@ -64,7 +64,7 @@ class PhrasalVerbDetector:
                     matches.append(
                         PhrasalVerbMatch(
                             verb_index=token.index,
-                            particle_index=child.index,
+                            component_indices=(child.index,),
                             lemma=f"{token.lemma.lower()} {child.text.lower()}",
                             surface_form=f"{token.text} {child.text}",
                         )

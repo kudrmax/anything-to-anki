@@ -408,7 +408,7 @@ class TestPhrasalVerbPath:
         text_analyzer.analyze.return_value = tokens
         pv = PhrasalVerbMatch(
             verb_index=1,
-            particle_index=2,
+            component_indices=(2,),
             lemma="give up",
             surface_form="give up",
         )
@@ -450,7 +450,7 @@ class TestPhrasalVerbPath:
         text_analyzer.analyze.return_value = tokens
         pv = PhrasalVerbMatch(
             verb_index=999,  # intentionally not in token_map
-            particle_index=1000,
+            component_indices=(1000,),
             lemma="give up",
             surface_form="give up",
         )
@@ -489,7 +489,7 @@ class TestPhrasalVerbPath:
         ]
         pv = PhrasalVerbMatch(
             verb_index=0,
-            particle_index=1,
+            component_indices=(1,),
             lemma="give up",
             surface_form="give UP",  # upper-case in source
         )
