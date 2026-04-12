@@ -77,6 +77,17 @@ function buildSegments(text: string, candidates: StoredCandidate[]): TextSegment
       exact = false
     }
 
+    // Fallback regex for phrasal verbs: allows 0-3 words between parts
+    let fallbackRe: RegExp | null = null
+    if (candidate.is_phrasal_verb) {
+      const lemmaWords = candidate.lemma.split(/\s+/)
+      if (lemmaWords.length >= 2) {
+        const first = escapeRegex(lemmaWords[0])
+        const rest = lemmaWords.slice(1).map(escapeRegex).join('\\s+')
+        fallbackRe = new RegExp(`\\b${first}\\w*(?:\\s+\\S+){0,3}?\\s+${rest}\\b`, 'i')
+      }
+    }
+
     // Search within context_fragment first, then fall back to full text
     let m: { index: number; length: number } | null = null
     if (candidate.context_fragment) {
@@ -94,6 +105,26 @@ function buildSegments(text: string, candidates: StoredCandidate[]): TextSegment
       const fullMatch = targetRe.exec(text)
       if (fullMatch) {
         m = { index: fullMatch.index, length: fullMatch[0].length }
+      }
+    }
+    // Phrasal verb fallback: try flexible regex allowing words between parts
+    if (!m && fallbackRe) {
+      if (candidate.context_fragment) {
+        const fragRe = new RegExp(flexWsPattern(candidate.context_fragment), 'i')
+        const fragMatch = fragRe.exec(text)
+        if (fragMatch) {
+          const fragSlice = text.slice(fragMatch.index, fragMatch.index + fragMatch[0].length)
+          const inner = fallbackRe.exec(fragSlice)
+          if (inner) {
+            m = { index: fragMatch.index + inner.index, length: inner[0].length }
+          }
+        }
+      }
+      if (!m) {
+        const fullMatch = fallbackRe.exec(text)
+        if (fullMatch) {
+          m = { index: fullMatch.index, length: fullMatch[0].length }
+        }
       }
     }
 
