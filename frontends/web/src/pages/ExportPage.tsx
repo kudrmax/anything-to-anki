@@ -3,14 +3,15 @@ import { useParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
-import type { AnkiStatus, CardPreview, SyncResult } from '@/api/types'
+import type { CardPreview, SyncResult } from '@/api/types'
 import { useToolbarSlots } from '@/lib/useToolbarSlot'
+import { useAnkiStatus } from '@/hooks/useAnkiStatus'
 
 export function ExportPage() {
   const { id } = useParams<{ id: string }>()
   const sourceId = Number(id)
 
-  const [ankiStatus, setAnkiStatus] = useState<AnkiStatus | null>(null)
+  const ankiStatus = useAnkiStatus()
   const [cards, setCards] = useState<CardPreview[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -24,11 +25,7 @@ export function ExportPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [status, cardList] = await Promise.all([
-          api.getAnkiStatus(),
-          api.getSourceCards(sourceId),
-        ])
-        setAnkiStatus(status)
+        const cardList = await api.getSourceCards(sourceId)
         setCards(cardList)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load')
