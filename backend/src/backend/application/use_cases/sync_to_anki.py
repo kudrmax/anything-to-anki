@@ -160,19 +160,31 @@ class SyncToAnkiUseCase:
                     and candidate.meaning
                     and candidate.meaning.translation
                 ):
-                    note[field_translation] = candidate.meaning.translation
+                    note[field_translation] = highlight_all_forms(
+                        candidate.meaning.translation,
+                        candidate.lemma,
+                        candidate.surface_form,
+                    )
                 if (
                     field_synonyms
                     and candidate.meaning
                     and candidate.meaning.synonyms
                 ):
-                    note[field_synonyms] = candidate.meaning.synonyms
+                    note[field_synonyms] = highlight_all_forms(
+                        candidate.meaning.synonyms,
+                        candidate.lemma,
+                        candidate.surface_form,
+                    )
                 if (
                     field_examples
                     and candidate.meaning
                     and candidate.meaning.examples
                 ):
-                    note[field_examples] = candidate.meaning.examples
+                    note[field_examples] = highlight_all_forms(
+                        candidate.meaning.examples,
+                        candidate.lemma,
+                        candidate.surface_form,
+                    )
                 if (
                     field_image
                     and candidate.media

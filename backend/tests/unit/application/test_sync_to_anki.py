@@ -19,15 +19,16 @@ def _make_candidate(
     ipa: str | None = None,
     translation: str | None = None,
     synonyms: str | None = None,
+    examples: str | None = None,
 ) -> StoredCandidate:
     meaning_obj = None
-    if meaning is not None or ipa is not None or translation is not None or synonyms is not None:
+    if any(v is not None for v in (meaning, ipa, translation, synonyms, examples)):
         meaning_obj = CandidateMeaning(
             candidate_id=candidate_id,
             meaning=meaning,
             translation=translation,
             synonyms=synonyms,
-            examples=None,
+            examples=examples,
             ipa=ipa,
             status=EnrichmentStatus.DONE,
             error=None,
@@ -336,6 +337,52 @@ class TestSyncToAnkiUseCase:
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
         assert "Translation" not in note[0]
         assert "Synonyms" not in note[0]
+
+    def test_examples_formatted_with_highlight_and_br(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(
+                1, "aisle", CandidateStatus.LEARN,
+                meaning="проход",
+                examples=(
+                    "The bride walked down the **aisle**.\n"
+                    "All guests stood at the end of the **aisle**."
+                ),
+            ),
+        ]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        self.use_case.execute(source_id=1)
+
+        call_args = self.anki_connector.add_notes.call_args
+        note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
+        examples = note[0]["Examples"]
+        # markdown **aisle** stripped and re-wrapped with <b> by highlight_all_forms
+        assert "**" not in examples
+        assert "<b>aisle</b>" in examples
+        # newlines converted to <br>
+        assert "\n" not in examples
+        assert "<br>" in examples
+
+    def test_translation_and_synonyms_formatted_with_highlight(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(
+                1, "thug", CandidateStatus.LEARN,
+                meaning="бандит",
+                translation="бандит\nголоворез",
+                synonyms="ruffian\ngangster",
+            ),
+        ]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        self.use_case.execute(source_id=1)
+
+        call_args = self.anki_connector.add_notes.call_args
+        note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
+        # newlines converted to <br>
+        assert note[0]["Translation"] == "бандит<br>головорез"
+        assert note[0]["Synonyms"] == "ruffian<br>gangster"
 
     def test_image_field_skipped_when_file_missing(self) -> None:
         # Media is recorded but the file no longer exists on disk.
