@@ -30,7 +30,12 @@ from backend.domain.value_objects.fragment_selection_config import (
 from backend.domain.value_objects.input_method import InputMethod
 from backend.infrastructure.adapters.ai_model_mapping import model_id_for
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
-from backend.infrastructure.adapters.cefrpy_classifier import CefrpyCEFRClassifier
+from backend.domain.ports.cefr_source import CEFRSource
+from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
+from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
+from backend.infrastructure.adapters.efllex_cefr_source import EFLLexCEFRSource
+from backend.infrastructure.adapters.kelly_cefr_source import KellyCEFRSource
+from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
 from backend.infrastructure.adapters.http_ai_service import HttpAIService
 from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
@@ -102,7 +107,14 @@ class Container:
         self._text_cleaner = RegexTextCleaner()
         self._lyrics_parser = RegexLyricsParser(self._text_analyzer)
         self._srt_parser = RegexSrtParser()
-        self._cefr_classifier = CefrpyCEFRClassifier()
+        cefr_data_dir = Path(__file__).resolve().parent.parent / "resources" / "cefr"
+        cefr_sources: list[CEFRSource] = [
+            CefrpyCEFRSource(),
+            EFLLexCEFRSource(cefr_data_dir / "efllex.tsv"),
+            OxfordCEFRSource(cefr_data_dir / "oxford5000.csv"),
+            KellyCEFRSource(cefr_data_dir / "kelly.csv"),
+        ]
+        self._cefr_classifier = VotingCEFRClassifier(cefr_sources)
         self._frequency_provider = WordfreqFrequencyProvider()
         self._anki_connector = AnkiConnectConnector()
         self._phrasal_verb_dictionary = JsonPhrasalVerbDictionary()
