@@ -490,3 +490,73 @@ class TestLayerAdvmod2Word:
 
         assert len(matches) == 1
         assert matches[0].lemma == "get away with"
+
+
+class TestLayerAuxVerbPrep:
+    """AUX + VERB + PREP idioms where spaCy treats the light verb as AUX.
+
+    spaCy parses 'get rid of' as: get(AUX,auxpass) + rid(VERB,xcomp) + of(prep).
+    The detector must recognize that AUX child + VERB + prep child = PV.
+    """
+
+    def test_get_rid_of(self) -> None:
+        """rid(VERB) has get(AUX) child and of(prep) child → 'get rid of'."""
+        tokens = [
+            _token(
+                0, "get", "get",
+                pos="AUX", tag="VB", dep="auxpass", head_index=1,
+            ),
+            _token(
+                1, "rid", "rid",
+                pos="VERB", tag="VBN", dep="xcomp", head_index=1,
+                children_indices=(0, 2),
+            ),
+            _prep(2, "of", head_index=1, children_indices=(3,)),
+            _token(3, "boxes", "box", pos="NOUN", dep="pobj", head_index=2),
+        ]
+        detector = PhrasalVerbDetector(FakeDictionary({"get rid of"}))
+        matches = detector.detect(tokens)
+
+        assert len(matches) == 1
+        assert matches[0].lemma == "get rid of"
+        assert matches[0].component_indices == (0, 2)
+
+    def test_aux_verb_prep_not_in_dict_skipped(self) -> None:
+        """AUX+VERB+prep not in dictionary → no match."""
+        tokens = [
+            _token(
+                0, "get", "get",
+                pos="AUX", tag="VB", dep="auxpass", head_index=1,
+            ),
+            _token(
+                1, "rid", "rid",
+                pos="VERB", tag="VBN", dep="xcomp", head_index=1,
+                children_indices=(0, 2),
+            ),
+            _prep(2, "of", head_index=1),
+        ]
+        detector = PhrasalVerbDetector(FakeDictionary(set()))
+        matches = detector.detect(tokens)
+
+        assert matches == []
+
+    def test_regular_aux_not_false_positive(self) -> None:
+        """Normal passive 'was taken' — AUX 'was' should NOT produce PV."""
+        tokens = [
+            _token(
+                0, "was", "be",
+                pos="AUX", tag="VBD", dep="auxpass", head_index=1,
+            ),
+            _token(
+                1, "taken", "take",
+                pos="VERB", tag="VBN", dep="ROOT", head_index=1,
+                children_indices=(0, 2),
+            ),
+            _prep(2, "to", head_index=1),
+        ]
+        detector = PhrasalVerbDetector(FakeDictionary({"take to"}))
+        matches = detector.detect(tokens)
+
+        # Should find "take to" (Layer 2), NOT "be take to"
+        assert len(matches) == 1
+        assert matches[0].lemma == "take to"

@@ -11,6 +11,7 @@ _PARTICLE_DEPS = frozenset({"prt"})
 _PREP_DEPS = frozenset({"prep"})
 _DOBJ_DEPS = frozenset({"dobj", "attr", "oprd"})
 _ADVMOD_DEPS = frozenset({"advmod"})
+_AUX_DEPS = frozenset({"auxpass", "aux"})
 
 
 def _is_better(
@@ -62,6 +63,7 @@ class PhrasalVerbDetector:
             prep_children: list[TokenData] = []
             dobj_noun_children: list[TokenData] = []
             advmod_children: list[TokenData] = []
+            aux_children: list[TokenData] = []
 
             for child_idx in token.children_indices:
                 child = token_map.get(child_idx)
@@ -75,6 +77,8 @@ class PhrasalVerbDetector:
                     dobj_noun_children.append(child)
                 elif child.dep in _ADVMOD_DEPS and child.is_alpha:
                     advmod_children.append(child)
+                elif child.dep in _AUX_DEPS and child.pos == "AUX":
+                    aux_children.append(child)
 
             # --- Layer 1: VERB + prt (always valid, no dictionary) ---
             for prt in prt_children:
@@ -227,6 +231,26 @@ class PhrasalVerbDetector:
                             lemma=phrase,
                             surface_form=self._build_surface(
                                 token_map, token.index, prep.index,
+                            ),
+                        )
+                        if _is_better(match, best):
+                            best = match
+
+            # --- Layer 6: AUX + VERB + prep (idioms, dictionary) ---
+            # spaCy parses "get rid of" as: get(AUX,auxpass) + rid(VERB) + of(prep).
+            # Build aux_lemma + verb_lemma + prep_text and check dictionary.
+            for aux in aux_children:
+                for prep in prep_children:
+                    phrase = f"{aux.lemma.lower()} {token.lemma.lower()} {prep.text.lower()}"
+                    if self._dictionary.contains_phrase(phrase):
+                        end_idx = max(aux.index, prep.index)
+                        start_idx = min(aux.index, token.index)
+                        match = PhrasalVerbMatch(
+                            verb_index=token.index,
+                            component_indices=(aux.index, prep.index),
+                            lemma=phrase,
+                            surface_form=self._build_surface(
+                                token_map, start_idx, end_idx,
                             ),
                         )
                         if _is_better(match, best):
