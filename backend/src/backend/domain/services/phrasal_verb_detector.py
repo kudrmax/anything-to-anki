@@ -163,6 +163,23 @@ class PhrasalVerbDetector:
                         if _is_better(match, best):
                             best = match
 
+            # --- Layer 5: VERB + advmod (2-word, dictionary) ---
+            # Fallback when advmod is a particle parsed without prt dep.
+            if best is None or len(best.component_indices) < 2:
+                for adv in advmod_children:
+                    if self._dictionary.contains(token.lemma, adv.text):
+                        match = PhrasalVerbMatch(
+                            verb_index=token.index,
+                            component_indices=(adv.index,),
+                            lemma=f"{token.lemma.lower()} {adv.text.lower()}",
+                            surface_form=self._build_surface(
+                                token_map, token.index, adv.index,
+                            ),
+                        )
+                        if best is None:
+                            best = match
+                        break
+
             # --- Layer 2: VERB + prep (2-word, dictionary) ---
             # Only if no longer match was found above.
             if best is None or len(best.component_indices) < 2:

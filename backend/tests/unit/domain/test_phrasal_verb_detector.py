@@ -435,3 +435,58 @@ class TestLayerAdvmodPrepCombo:
 
         assert len(matches) == 1
         assert matches[0].lemma == "look forward to"
+
+
+class TestLayerAdvmod2Word:
+    """VERB + advmod → 2-word PV via dictionary.
+
+    spaCy sometimes parses prepositions as advmod (pos=ADV, dep=advmod).
+    E.g. 'take after' in 'Who do you take after?'
+    """
+
+    def test_take_after(self) -> None:
+        """take(VERB) → after(advmod) → 'take after' in dictionary."""
+        tokens = [
+            _verb(0, "take", "take", children_indices=(1,)),
+            _token(
+                1, "after", "after",
+                pos="ADV", tag="RB", dep="advmod", head_index=0,
+            ),
+        ]
+        detector = PhrasalVerbDetector(FakeDictionary({"take after"}))
+        matches = detector.detect(tokens)
+
+        assert len(matches) == 1
+        assert matches[0].lemma == "take after"
+
+    def test_advmod_not_in_dict_skipped(self) -> None:
+        """advmod not in dictionary → no match."""
+        tokens = [
+            _verb(0, "run", "run", children_indices=(1,)),
+            _token(
+                1, "quickly", "quickly",
+                pos="ADV", tag="RB", dep="advmod", head_index=0,
+            ),
+        ]
+        detector = PhrasalVerbDetector(FakeDictionary(set()))
+        matches = detector.detect(tokens)
+
+        assert matches == []
+
+    def test_advmod_3word_preferred_over_2word(self) -> None:
+        """If both advmod 2-word and advmod+prep 3-word match, prefer 3-word."""
+        tokens = [
+            _verb(0, "get", "get", children_indices=(1, 2)),
+            _token(
+                1, "away", "away",
+                pos="ADP", tag="RP", dep="advmod", head_index=0,
+            ),
+            _prep(2, "with", head_index=0),
+        ]
+        detector = PhrasalVerbDetector(
+            FakeDictionary({"get away", "get away with"}),
+        )
+        matches = detector.detect(tokens)
+
+        assert len(matches) == 1
+        assert matches[0].lemma == "get away with"
