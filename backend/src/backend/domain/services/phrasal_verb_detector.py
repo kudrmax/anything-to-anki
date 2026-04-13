@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 _PARTICLE_DEPS = frozenset({"prt"})
 _PREP_DEPS = frozenset({"prep"})
 _DOBJ_DEPS = frozenset({"dobj", "attr", "oprd"})
+_ADVMOD_DEPS = frozenset({"advmod"})
 
 
 def _is_better(
@@ -60,6 +61,7 @@ class PhrasalVerbDetector:
             prt_children: list[TokenData] = []
             prep_children: list[TokenData] = []
             dobj_noun_children: list[TokenData] = []
+            advmod_children: list[TokenData] = []
 
             for child_idx in token.children_indices:
                 child = token_map.get(child_idx)
@@ -71,6 +73,8 @@ class PhrasalVerbDetector:
                     prep_children.append(child)
                 elif child.dep in _DOBJ_DEPS and child.pos == "NOUN":
                     dobj_noun_children.append(child)
+                elif child.dep in _ADVMOD_DEPS and child.is_alpha:
+                    advmod_children.append(child)
 
             # --- Layer 1: VERB + prt (always valid, no dictionary) ---
             for prt in prt_children:
@@ -134,6 +138,27 @@ class PhrasalVerbDetector:
                             component_indices=(prep.index, prep2.index),
                             lemma=phrase,
                             surface_form=self._build_surface(token_map, token.index, prep2.index),
+                        )
+                        if _is_better(match, best):
+                            best = match
+
+            # --- Layer 4: VERB + advmod + prep → 3-word PV (dictionary) ---
+            # spaCy often parses particles as advmod instead of prt.
+            # E.g. "get away with": away=advmod, with=prep.
+            for adv in advmod_children:
+                for prep in prep_children:
+                    if prep.index == adv.index:
+                        continue
+                    phrase = f"{token.lemma.lower()} {adv.text.lower()} {prep.text.lower()}"
+                    if self._dictionary.contains_phrase(phrase):
+                        end_idx = max(adv.index, prep.index)
+                        match = PhrasalVerbMatch(
+                            verb_index=token.index,
+                            component_indices=(adv.index, prep.index),
+                            lemma=phrase,
+                            surface_form=self._build_surface(
+                                token_map, token.index, end_idx,
+                            ),
                         )
                         if _is_better(match, best):
                             best = match

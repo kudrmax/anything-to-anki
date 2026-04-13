@@ -360,3 +360,78 @@ class TestDeduplication:
 
         assert len(matches) == 1
         assert matches[0].lemma == "go through with"
+
+
+class TestLayerAdvmodPrepCombo:
+    """VERB + advmod + prep → 3-word PV via dictionary.
+
+    spaCy often parses particles as advmod instead of prt.
+    Examples: get away with, look forward to, come up with.
+    """
+
+    def test_get_away_with(self) -> None:
+        """get(VERB) → away(advmod) + with(prep) → 'get away with'."""
+        tokens = [
+            _verb(0, "get", "get", children_indices=(1, 2)),
+            _token(
+                1, "away", "away",
+                pos="ADP", tag="RP", dep="advmod", head_index=0,
+            ),
+            _prep(2, "with", head_index=0, children_indices=(3,)),
+            _token(3, "that", "that", pos="PRON", dep="pobj", head_index=2),
+        ]
+        detector = PhrasalVerbDetector(FakeDictionary({"get away with"}))
+        matches = detector.detect(tokens)
+
+        assert len(matches) == 1
+        assert matches[0].lemma == "get away with"
+        assert matches[0].component_indices == (1, 2)
+
+    def test_look_forward_to(self) -> None:
+        """looked(VERB) → forward(advmod) + to(prep) → 'look forward to'."""
+        tokens = [
+            _verb(0, "looked", "look", children_indices=(1, 2)),
+            _token(
+                1, "forward", "forward",
+                pos="ADV", tag="RB", dep="advmod", head_index=0,
+            ),
+            _prep(2, "to", head_index=0),
+        ]
+        detector = PhrasalVerbDetector(FakeDictionary({"look forward to"}))
+        matches = detector.detect(tokens)
+
+        assert len(matches) == 1
+        assert matches[0].lemma == "look forward to"
+
+    def test_advmod_prep_not_in_dict_skipped(self) -> None:
+        """advmod+prep combo not in dictionary → no match."""
+        tokens = [
+            _verb(0, "run", "run", children_indices=(1, 2)),
+            _token(
+                1, "away", "away",
+                pos="ADP", tag="RP", dep="advmod", head_index=0,
+            ),
+            _prep(2, "from", head_index=0),
+        ]
+        detector = PhrasalVerbDetector(FakeDictionary(set()))
+        matches = detector.detect(tokens)
+
+        assert matches == []
+
+    def test_advmod_prep_preferred_over_prep_only(self) -> None:
+        """3-word advmod+prep match preferred over 2-word prep-only match."""
+        tokens = [
+            _verb(0, "looked", "look", children_indices=(1, 2)),
+            _token(
+                1, "forward", "forward",
+                pos="ADV", tag="RB", dep="advmod", head_index=0,
+            ),
+            _prep(2, "to", head_index=0),
+        ]
+        detector = PhrasalVerbDetector(
+            FakeDictionary({"look forward to", "look to"}),
+        )
+        matches = detector.detect(tokens)
+
+        assert len(matches) == 1
+        assert matches[0].lemma == "look forward to"
