@@ -215,6 +215,46 @@ class TestLayer2bPrepChain:
         assert matches[0].lemma == "look forward to"
 
 
+class TestLayer1bPrtPrepCombo:
+    """Layer 1b: VERB + prt + prep — 3-word PV via dictionary."""
+
+    def test_go_through_with_prt_plus_prep(self) -> None:
+        """spaCy: 'through' as prt, 'with' as prep — both direct verb children.
+
+        Real parse: going(VERB) → through(ADP,prt), with(ADP,prep)
+        Must detect 'go through with', not just 'go through'.
+        """
+        tokens = [
+            _verb(0, "going", "go", children_indices=(1, 2)),
+            _prt(1, "through", head_index=0),
+            _prep(2, "with", head_index=0, children_indices=(4,)),
+            _token(3, "this", "this", pos="DET", dep="det", head_index=4),
+            _token(4, "wedding", "wedding", dep="pobj", head_index=2),
+        ]
+        detector = PhrasalVerbDetector(
+            FakeDictionary({"go through with", "go through"}),
+        )
+        matches = detector.detect(tokens)
+
+        assert len(matches) == 1
+        assert matches[0].lemma == "go through with"
+        assert matches[0].surface_form == "going through with"
+        assert matches[0].component_indices == (1, 2)
+
+    def test_prt_prep_not_in_dict_falls_back_to_prt_only(self) -> None:
+        """If prt+prep combo not in dictionary, keep Layer 1 result."""
+        tokens = [
+            _verb(0, "going", "go", children_indices=(1, 2)),
+            _prt(1, "through", head_index=0),
+            _prep(2, "with", head_index=0),
+        ]
+        detector = PhrasalVerbDetector(FakeDictionary(set()))
+        matches = detector.detect(tokens)
+
+        assert len(matches) == 1
+        assert matches[0].lemma == "go through"
+
+
 class TestLayer3VerbNounPrep:
     """Layer 3: VERB + NOUN(dobj) + PREP — idioms."""
 
@@ -277,6 +317,31 @@ class TestLayer3VerbNounPrep:
         matches = detector.detect(tokens)
 
         assert matches == []
+
+    def test_make_fun_of_prep_child_of_verb(self) -> None:
+        """spaCy sometimes attaches prep to verb, not to noun.
+
+        Real parse: made(VERB) → fun(NOUN,dobj), of(ADP,prep)
+        'of' is child of 'made', NOT child of 'fun'.
+        Layer 3 must still detect 'make fun of'.
+        """
+        tokens = [
+            _verb(0, "made", "make", children_indices=(1, 2)),
+            _token(
+                1, "fun", "fun",
+                pos="NOUN", dep="dobj", head_index=0,
+                children_indices=(),  # no children!
+            ),
+            _prep(2, "of", head_index=0, children_indices=(3,)),
+            _token(3, "me", "me", pos="PRON", dep="pobj", head_index=2),
+        ]
+        detector = PhrasalVerbDetector(FakeDictionary({"make fun of"}))
+        matches = detector.detect(tokens)
+
+        assert len(matches) == 1
+        assert matches[0].lemma == "make fun of"
+        assert matches[0].surface_form == "made fun of"
+        assert matches[0].component_indices == (1, 2)
 
 
 class TestDeduplication:
