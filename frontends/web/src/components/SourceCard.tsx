@@ -13,21 +13,21 @@ interface SourceCardProps {
 }
 
 const STATUS_BADGE: Record<SourceStatus, { label: string; bg: string; color: string }> = {
-  new:                { label: 'New',        bg: 'rgba(148,163,184,.13)', color: 'rgba(148,163,184,.9)' },
-  processing:         { label: 'Processing', bg: 'rgba(245,158,11,.13)',  color: 'rgba(245,158,11,.95)' },
-  done:               { label: 'Ready for review', bg: 'rgba(16,185,129,.13)',  color: 'rgba(16,185,129,.95)' },
-  error:              { label: 'Error',      bg: 'rgba(244,63,94,.13)',   color: 'rgba(244,63,94,.95)' },
-  partially_reviewed: { label: 'In Review',  bg: 'rgba(249,115,22,.13)', color: 'rgba(249,115,22,.95)' },
-  reviewed:           { label: 'Reviewed',   bg: 'rgba(14,165,233,.13)',  color: 'rgba(14,165,233,.95)' },
+  new:                { label: 'New',        bg: 'var(--src-new-bg)',        color: 'var(--src-new)' },
+  processing:         { label: 'Processing', bg: 'var(--src-processing-bg)', color: 'var(--src-processing)' },
+  done:               { label: 'Ready for review', bg: 'var(--src-done-bg)', color: 'var(--src-done)' },
+  error:              { label: 'Error',      bg: 'var(--src-error-bg)',      color: 'var(--src-error)' },
+  partially_reviewed: { label: 'In Review',  bg: 'var(--src-in-review-bg)',  color: 'var(--src-in-review)' },
+  reviewed:           { label: 'Reviewed',   bg: 'var(--src-reviewed-bg)',   color: 'var(--src-reviewed)' },
 }
 
 const STATUS_BORDER: Record<SourceStatus, { grad: string; glow: string }> = {
-  new:                { grad: 'linear-gradient(to bottom, rgba(148,163,184,.4), rgba(148,163,184,.1))',  glow: '' },
-  processing:         { grad: 'linear-gradient(to bottom, rgba(245,158,11,.8), rgba(251,191,36,.3))',    glow: '0 0 8px rgba(245,158,11,.4)' },
-  done:               { grad: 'linear-gradient(to bottom, rgba(16,185,129,.8), rgba(52,211,153,.3))',    glow: '0 0 8px rgba(16,185,129,.4)' },
-  error:              { grad: 'linear-gradient(to bottom, rgba(244,63,94,.8), rgba(251,113,133,.3))',    glow: '0 0 8px rgba(244,63,94,.4)' },
-  partially_reviewed: { grad: 'linear-gradient(to bottom, rgba(249,115,22,.8), rgba(251,146,60,.3))',    glow: '0 0 8px rgba(249,115,22,.4)' },
-  reviewed:           { grad: 'linear-gradient(to bottom, rgba(14,165,233,.8), rgba(56,189,248,.3))',    glow: '0 0 8px rgba(14,165,233,.4)' },
+  new:                { grad: 'linear-gradient(to bottom, color-mix(in srgb, var(--src-new) 40%, transparent), color-mix(in srgb, var(--src-new) 10%, transparent))',  glow: '' },
+  processing:         { grad: 'linear-gradient(to bottom, color-mix(in srgb, var(--src-processing) 80%, transparent), color-mix(in srgb, var(--src-processing) 30%, transparent))',    glow: '0 0 8px color-mix(in srgb, var(--src-processing) 40%, transparent)' },
+  done:               { grad: 'linear-gradient(to bottom, color-mix(in srgb, var(--src-done) 80%, transparent), color-mix(in srgb, var(--src-done) 30%, transparent))',    glow: '0 0 8px color-mix(in srgb, var(--src-done) 40%, transparent)' },
+  error:              { grad: 'linear-gradient(to bottom, color-mix(in srgb, var(--src-error) 80%, transparent), color-mix(in srgb, var(--src-error) 30%, transparent))',    glow: '0 0 8px color-mix(in srgb, var(--src-error) 40%, transparent)' },
+  partially_reviewed: { grad: 'linear-gradient(to bottom, color-mix(in srgb, var(--src-in-review) 80%, transparent), color-mix(in srgb, var(--src-in-review) 30%, transparent))',    glow: '0 0 8px color-mix(in srgb, var(--src-in-review) 40%, transparent)' },
+  reviewed:           { grad: 'linear-gradient(to bottom, color-mix(in srgb, var(--src-reviewed) 80%, transparent), color-mix(in srgb, var(--src-reviewed) 30%, transparent))',    glow: '0 0 8px color-mix(in srgb, var(--src-reviewed) 40%, transparent)' },
 }
 
 function formatDate(iso: string): string {
@@ -100,7 +100,7 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
       {/* Spinner for processing */}
       {isProcessing && (
         <div className="mt-0.5 shrink-0">
-          <Loader2 size={14} className="animate-spin" style={{ color: 'rgba(245,158,11,.95)' }} />
+          <Loader2 size={14} className="animate-spin" style={{ color: 'var(--src-processing)' }} />
         </div>
       )}
 
@@ -146,7 +146,7 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
           {source.source_type === 'lyrics_pasted' && (
             <span
               className="px-1.5 py-0.5 rounded text-[10px] font-medium"
-              style={{ background: 'rgba(139,92,246,.15)', color: 'rgba(167,139,250,.9)' }}
+              style={{ background: 'var(--src-lyrics-bg)', color: 'var(--src-lyrics)' }}
             >
               lyrics
             </span>
@@ -168,17 +168,17 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
           {source.candidate_count > 0 && !isProcessing && (
             <>
               {source.status === 'partially_reviewed' && (
-                <span style={{ color: 'rgba(249,115,22,.9)', fontWeight: 600 }}>
+                <span style={{ color: 'var(--src-in-review)', fontWeight: 600 }}>
                   {source.learn_count} / {source.candidate_count} to learn
                 </span>
               )}
               {source.status === 'done' && (
-                <span style={{ color: 'rgba(16,185,129,.9)', fontWeight: 600 }}>
+                <span style={{ color: 'var(--src-done)', fontWeight: 600 }}>
                   {source.candidate_count} candidates
                 </span>
               )}
               {source.status === 'reviewed' && (
-                <span style={{ color: 'rgba(148,163,184,.9)', fontWeight: 600 }}>
+                <span style={{ color: 'var(--src-reviewed)', fontWeight: 600 }}>
                   {source.candidate_count} cards
                 </span>
               )}
@@ -190,13 +190,13 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
         {source.status === 'partially_reviewed' && source.candidate_count > 0 && (
           <div
             className="mt-2 h-[3px] rounded-full overflow-hidden"
-            style={{ background: 'rgba(249,115,22,.12)' }}
+            style={{ background: 'color-mix(in srgb, var(--src-in-review) 12%, transparent)' }}
           >
             <div
               className="h-full rounded-full"
               style={{
                 width: `${reviewProgress}%`,
-                background: 'linear-gradient(90deg, rgba(249,115,22,.8), rgba(251,146,60,.5))',
+                background: `linear-gradient(90deg, color-mix(in srgb, var(--src-in-review) 80%, transparent), color-mix(in srgb, var(--src-in-review) 50%, transparent))`,
               }}
             />
           </div>
@@ -219,7 +219,7 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
               style={{ background: 'transparent', border: 'none', padding: 0, lineHeight: 0 }}
               title="Delete source"
             >
-              <Trash2 size={13} style={{ color: 'rgba(244,63,94,.9)' }} />
+              <Trash2 size={13} style={{ color: 'var(--src-error)' }} />
             </button>
           )}
         </div>
