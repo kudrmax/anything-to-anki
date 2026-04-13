@@ -149,6 +149,26 @@ class PhrasalVerbDetector:
                         if _is_better(match, best):
                             best = match
 
+            # --- Layer 3b: VERB + NOUN(dobj) + PREP as sibling (both verb children) ---
+            # spaCy sometimes attaches prep to verb instead of noun:
+            #   made(VERB) → fun(NOUN,dobj), of(ADP,prep)  ← 'of' is verb child
+            for noun in dobj_noun_children:
+                for prep in prep_children:
+                    if prep.index <= noun.index:
+                        continue  # prep must follow noun
+                    phrase = f"{token.lemma.lower()} {noun.lemma.lower()} {prep.text.lower()}"
+                    if self._dictionary.contains_phrase(phrase):
+                        match = PhrasalVerbMatch(
+                            verb_index=token.index,
+                            component_indices=(noun.index, prep.index),
+                            lemma=phrase,
+                            surface_form=self._build_surface(
+                                token_map, token.index, prep.index,
+                            ),
+                        )
+                        if _is_better(match, best):
+                            best = match
+
             if best is not None and token.index not in matched_verb_indices:
                 matches.append(best)
                 matched_verb_indices.add(token.index)
