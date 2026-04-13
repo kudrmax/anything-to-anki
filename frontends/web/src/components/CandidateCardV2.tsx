@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { BookOpen, ChevronDown, Film, Languages, Loader2, Pencil, Play, RefreshCw, Sparkles, Square, Target, Volume2, X } from 'lucide-react'
+import { BookOpen, ChevronDown, Film, Languages, Loader2, Pencil, RefreshCw, Sparkles, Target, Volume2, X } from 'lucide-react'
+import { PlayOverlayButton } from '@/components/MediaThumbnail'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { FONT_BODY, FONT_TARGET, FONT_ACTION, FONT_LEVEL } from '@/lib/design-tokens'
@@ -345,7 +346,7 @@ const TOOLBAR_BTN_STYLE: React.CSSProperties = {
   color: 'var(--td)',
 }
 
-function ToolbarButton({ children, onClick, disabled, title, ariaLabel, className: extraCls }: {
+export function ToolbarButton({ children, onClick, disabled, title, ariaLabel, className: extraCls }: {
   children: React.ReactNode
   onClick?: () => void
   disabled?: boolean
@@ -602,29 +603,7 @@ export function CandidateCardV2({
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                 />
                 {finalAudio && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      toggleAudio(finalAudio)
-                    }}
-                    aria-label={isAudioPlaying ? 'Stop audio' : 'Play audio'}
-                    title={isAudioPlaying ? 'Stop audio' : 'Play audio'}
-                    className="glass-pill"
-                    style={{
-                      position: 'absolute',
-                      top: '6px',
-                      right: '6px',
-                      width: '28px',
-                      height: '28px',
-                      padding: '4px',
-                      justifyContent: 'center',
-                      border: '1px solid var(--accent)',
-                      color: 'var(--accent)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {isAudioPlaying ? <Square size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
-                  </button>
+                  <PlayOverlayButton isPlaying={isAudioPlaying} onClick={() => toggleAudio(finalAudio)} />
                 )}
               </div>
             ) : (
