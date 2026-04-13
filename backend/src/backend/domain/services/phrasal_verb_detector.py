@@ -83,6 +83,27 @@ class PhrasalVerbDetector:
                 if _is_better(match, best):
                     best = match
 
+            # --- Layer 1b: VERB + prt + prep → 3-word PV (dictionary) ---
+            # spaCy may parse "go through with" as: through(prt) + with(prep).
+            # Layer 1 catches "go through", but we must check if adding a
+            # prep child produces a longer dictionary-confirmed PV.
+            for prt in prt_children:
+                for prep in prep_children:
+                    phrase = f"{token.lemma.lower()} {prt.text.lower()} {prep.text.lower()}"
+                    if self._dictionary.contains_phrase(phrase):
+                        match = PhrasalVerbMatch(
+                            verb_index=token.index,
+                            component_indices=(prt.index, prep.index),
+                            lemma=phrase,
+                            surface_form=self._build_surface(
+                                token_map,
+                                token.index,
+                                max(prt.index, prep.index),
+                            ),
+                        )
+                        if _is_better(match, best):
+                            best = match
+
             # --- Layer 2b: VERB + prep + prep chain (3-word, dictionary) ---
             # Try 3-word combinations BEFORE 2-word to prefer longer matches.
             for prep in prep_children:
