@@ -36,8 +36,12 @@ class GetSourceCardsUseCase:
                 filename = candidate.media.audio_path.rsplit("/", 1)[-1]
                 audio_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
 
-            meaning_text = candidate.meaning.meaning if candidate.meaning else None
-            ipa_text = candidate.meaning.ipa if candidate.meaning else None
+            meaning_obj = candidate.meaning
+            meaning_text = meaning_obj.meaning if meaning_obj else None
+            ipa_text = meaning_obj.ipa if meaning_obj else None
+            translation_text = meaning_obj.translation if meaning_obj else None
+            synonyms_text = meaning_obj.synonyms if meaning_obj else None
+            examples_text = meaning_obj.examples if meaning_obj else None
 
             cards.append(
                 CardPreviewDTO(
@@ -57,6 +61,9 @@ class GetSourceCardsUseCase:
                         if meaning_text is not None
                         else None
                     ),
+                    translation=translation_text,
+                    synonyms=synonyms_text,
+                    examples=examples_text,
                     ipa=ipa_text,
                     screenshot_url=screenshot_url,
                     audio_url=audio_url,

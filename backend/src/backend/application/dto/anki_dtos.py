@@ -17,7 +17,10 @@ class CardPreviewDTO(BaseModel):
     lemma: str
     sentence: str        # context_fragment with <b>word</b>
     meaning: str | None  # None if not yet fetched from dictionary
-    ipa: str | None
+    translation: str | None = None
+    synonyms: str | None = None
+    examples: str | None = None
+    ipa: str | None = None
     screenshot_url: str | None = None
     audio_url: str | None = None
 

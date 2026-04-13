@@ -98,6 +98,9 @@ export interface CardPreview {
   lemma: string
   sentence: string
   meaning: string | null
+  translation: string | null
+  synonyms: string | null
+  examples: string | null
   ipa: string | null
   screenshot_url: string | null
   audio_url: string | null
