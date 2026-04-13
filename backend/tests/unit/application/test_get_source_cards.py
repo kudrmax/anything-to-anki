@@ -16,17 +16,20 @@ def _make_candidate(
     fragment: str = "test fragment",
     meaning: str | None = None,
     ipa: str | None = None,
+    translation: str | None = None,
+    synonyms: str | None = None,
+    examples: str | None = None,
     screenshot_path: str | None = None,
     audio_path: str | None = None,
 ) -> StoredCandidate:
     meaning_obj = None
-    if meaning is not None or ipa is not None:
+    if any(v is not None for v in (meaning, ipa, translation, synonyms, examples)):
         meaning_obj = CandidateMeaning(
             candidate_id=1,
             meaning=meaning,
-            translation=None,
-            synonyms=None,
-            examples=None,
+            translation=translation,
+            synonyms=synonyms,
+            examples=examples,
             ipa=ipa,
             status=EnrichmentStatus.DONE,
             error=None,
@@ -210,3 +213,28 @@ class TestGetSourceCardsUseCase:
         ]
         result = use_case.execute(source_id=1)
         assert result[0].screenshot_url == "/custom/media/1/burnout_123.jpg"
+
+    def test_translation_synonyms_examples_from_candidate(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(
+                "burnout",
+                CandidateStatus.LEARN,
+                meaning="physical collapse",
+                translation="выгорание",
+                synonyms="exhaustion, fatigue",
+                examples="She suffered from burnout after working 80-hour weeks.",
+            ),
+        ]
+        result = self.use_case.execute(source_id=1)
+        assert result[0].translation == "выгорание"
+        assert result[0].synonyms == "exhaustion, fatigue"
+        assert result[0].examples == "She suffered from burnout after working 80-hour weeks."
+
+    def test_translation_synonyms_examples_none_when_no_meaning(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate("burnout", CandidateStatus.LEARN),
+        ]
+        result = self.use_case.execute(source_id=1)
+        assert result[0].translation is None
+        assert result[0].synonyms is None
+        assert result[0].examples is None
