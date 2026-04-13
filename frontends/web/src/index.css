@@ -45,6 +45,22 @@
   --status-skip-active-bg: rgba(180,84,84,0.3);
   --status-skip-active-border: rgba(180,84,84,0.5);
 
+  /* Source card status colors */
+  --src-new:          #94a3b8;
+  --src-new-bg:       rgba(148,163,184,.13);
+  --src-processing:   #f59e0b;
+  --src-processing-bg: rgba(245,158,11,.13);
+  --src-done:         var(--status-learn);
+  --src-done-bg:      var(--status-learn-bg);
+  --src-error:        #f43f5e;
+  --src-error-bg:     rgba(244,63,94,.13);
+  --src-in-review:    #f97316;
+  --src-in-review-bg: rgba(249,115,22,.13);
+  --src-reviewed:     #0ea5e9;
+  --src-reviewed-bg:  rgba(14,165,233,.13);
+  --src-lyrics:       rgba(167,139,250,.9);
+  --src-lyrics-bg:    rgba(139,92,246,.15);
+
   /* Text hierarchy */
   --text-primary: var(--text);
   --text-muted-light: #cbd5e1;
