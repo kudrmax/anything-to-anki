@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
@@ -11,11 +11,11 @@ from backend.domain.entities.known_word import KnownWord
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
 from backend.infrastructure.persistence.database import Base
 
 
@@ -74,6 +74,23 @@ class SourceModel(Base):
         )
 
 
+class CEFRBreakdownModel(Base):
+    """CEFR classification breakdown: how each source voted."""
+
+    __tablename__ = "cefr_breakdowns"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    candidate_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("candidates.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    decision_method: Mapped[str] = mapped_column(String(10), nullable=False)
+    cambridge: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    cefrpy: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    efllex_distribution: Mapped[str | None] = mapped_column(Text, nullable=True)
+    oxford: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    kelly: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+
 class StoredCandidateModel(Base):
     """SQLAlchemy model for word candidates.
 
@@ -97,6 +114,10 @@ class StoredCandidateModel(Base):
     surface_form: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False, default=False)
     has_custom_context_fragment: Mapped[bool] = mapped_column(nullable=False, default=False)
+
+    cefr_breakdown: Mapped[CEFRBreakdownModel | None] = relationship(
+        "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
+    )
 
     def to_entity(self) -> StoredCandidate:
         """Build a StoredCandidate WITHOUT meaning/media — those are loaded
