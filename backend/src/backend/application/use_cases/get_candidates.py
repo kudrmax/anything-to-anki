@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from backend.application.dto.cefr_dtos import CEFRBreakdownDTO, SourceVoteDTO
 from backend.application.dto.source_dtos import (
     CandidateMeaningDTO,
     CandidateMediaDTO,
@@ -14,6 +15,31 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+    from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
+
+
+def _breakdown_to_dto(breakdown: CEFRBreakdown) -> CEFRBreakdownDTO:
+    """Map domain CEFRBreakdown to DTO."""
+    from backend.domain.value_objects.cefr_level import CEFRLevel
+
+    def _vote_to_dto(vote: SourceVote) -> SourceVoteDTO:
+        top = vote.top_level
+        level_str = top.name if top is not CEFRLevel.UNKNOWN else None
+        # Include distribution only for EFLLex (multi-level source)
+        dist: dict[str, float] | None = None
+        if vote.source_name == "EFLLex":
+            dist = {
+                lvl.name: round(prob, 4)
+                for lvl, prob in vote.distribution.items()
+                if lvl is not CEFRLevel.UNKNOWN and prob > 0
+            }
+        return SourceVoteDTO(source_name=vote.source_name, level=level_str, distribution=dist)
+
+    return CEFRBreakdownDTO(
+        decision_method=breakdown.decision_method,
+        priority_vote=_vote_to_dto(breakdown.priority_vote) if breakdown.priority_vote else None,
+        votes=[_vote_to_dto(v) for v in breakdown.votes],
+    )
 
 
 def _to_dto(c: StoredCandidate) -> StoredCandidateDTO:
@@ -40,6 +66,10 @@ def _to_dto(c: StoredCandidate) -> StoredCandidateDTO:
             error=c.media.error,
             generated_at=c.media.generated_at,
         )
+    breakdown_dto: CEFRBreakdownDTO | None = None
+    if c.cefr_breakdown is not None:
+        breakdown_dto = _breakdown_to_dto(c.cefr_breakdown)
+
     return StoredCandidateDTO(
         id=c.id,  # type: ignore[arg-type]
         lemma=c.lemma,
@@ -55,6 +85,7 @@ def _to_dto(c: StoredCandidate) -> StoredCandidateDTO:
         status=c.status.value,
         meaning=meaning_dto,
         media=media_dto,
+        cefr_breakdown=breakdown_dto,
     )
 
 
