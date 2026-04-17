@@ -41,6 +41,8 @@ from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
 )
 from backend.infrastructure.adapters.kelly_cefr_source import KellyCEFRSource
+from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
+from backend.infrastructure.adapters.cambridge.parser import parse_cambridge_jsonl
 from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
 from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
 from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
@@ -115,6 +117,11 @@ class Container:
         dictionaries_dir = project_root / "dictionaries"
         if not dictionaries_dir.exists():
             dictionaries_dir = Path("/app/dictionaries")
+
+        # Cambridge dictionary — parsed once, shared across adapters
+        cambridge_path = dictionaries_dir / "cambridge.jsonl"
+        self._cambridge_data = parse_cambridge_jsonl(cambridge_path)
+
         cefr_data_dir = dictionaries_dir / "cefr"
         cefr_sources: list[CEFRSource] = [
             CefrpyCEFRSource(),
@@ -122,7 +129,10 @@ class Container:
             OxfordCEFRSource(cefr_data_dir / "oxford5000.csv"),
             KellyCEFRSource(cefr_data_dir / "kelly.csv"),
         ]
-        self._cefr_classifier = VotingCEFRClassifier(cefr_sources)
+        cambridge_cefr = CambridgeCEFRSource(self._cambridge_data)
+        self._cefr_classifier = VotingCEFRClassifier(
+            cefr_sources, priority_source=cambridge_cefr
+        )
         self._frequency_provider = WordfreqFrequencyProvider()
         self._anki_connector = AnkiConnectConnector()
         self._phrasal_verb_dictionary = JsonPhrasalVerbDictionary()
