@@ -15,9 +15,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-SCRIPTS_ROOT = Path(__file__).parent.parent
-DEFAULT_INPUT = SCRIPTS_ROOT / "wordlists" / "subtlex_us_raw.tsv"
-DEFAULT_OUTPUT = SCRIPTS_ROOT / "wordlists" / "subtlex_words.txt"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_INPUT = PROJECT_ROOT / "dictionaries" / "wordlists" / "subtlex_us_raw.tsv"
+DEFAULT_OUTPUT = PROJECT_ROOT / "dictionaries" / "wordlists" / "subtlex_words.txt"
 
 
 def main() -> None:

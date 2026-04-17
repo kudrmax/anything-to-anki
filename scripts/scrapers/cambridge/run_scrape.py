@@ -32,7 +32,7 @@ from scraper import RESULT_FORMAT, RateLimitError, define  # noqa: E402
 SCRIPT_DIR = Path(__file__).parent
 SCRIPTS_ROOT = SCRIPT_DIR.parent.parent
 PROJECT_ROOT = SCRIPTS_ROOT.parent
-DEFAULT_INPUT = SCRIPTS_ROOT / "wordlists" / "subtlex_words.txt"
+DEFAULT_INPUT = PROJECT_ROOT / "dictionaries" / "wordlists" / "subtlex_words.txt"
 DEFAULT_OUTPUT = PROJECT_ROOT / "dictionaries" / "cambridge.jsonl"
 DEFAULT_NOT_FOUND = SCRIPT_DIR / "errors" / "not_found.txt"
 DEFAULT_NETWORK_ERRORS = SCRIPT_DIR / "errors" / "network_errors.txt"
