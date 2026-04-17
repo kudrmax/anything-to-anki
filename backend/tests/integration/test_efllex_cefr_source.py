@@ -7,7 +7,7 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.infrastructure.adapters.efllex_cefr_source import EFLLexCEFRSource
 
 DATA_PATH = (
-    Path(__file__).resolve().parents[2] / "src" / "backend" / "resources" / "cefr" / "efllex.tsv"
+    Path(__file__).resolve().parents[3] / "dictionaries" / "cefr" / "efllex.tsv"
 )
 
 

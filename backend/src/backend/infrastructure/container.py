@@ -109,7 +109,8 @@ class Container:
         self._text_cleaner = RegexTextCleaner()
         self._lyrics_parser = RegexLyricsParser(self._text_analyzer)
         self._srt_parser = RegexSrtParser()
-        cefr_data_dir = Path(__file__).resolve().parent.parent / "resources" / "cefr"
+        project_root = Path(__file__).resolve().parents[4]
+        cefr_data_dir = project_root / "dictionaries" / "cefr"
         cefr_sources: list[CEFRSource] = [
             CefrpyCEFRSource(),
             EFLLexCEFRSource(cefr_data_dir / "efllex.tsv"),

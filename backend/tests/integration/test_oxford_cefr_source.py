@@ -7,8 +7,7 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
 
 DATA_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "src" / "backend" / "resources" / "cefr" / "oxford5000.csv"
+    Path(__file__).resolve().parents[3] / "dictionaries" / "cefr" / "oxford5000.csv"
 )
 
 
