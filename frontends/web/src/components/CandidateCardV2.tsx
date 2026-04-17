@@ -4,6 +4,7 @@ import { BookOpen, ChevronDown, Film, Languages, Loader2, Pencil, RefreshCw, Spa
 import { PlayOverlayButton } from '@/components/MediaThumbnail'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
+import { CEFRBreakdownTooltip } from '@/components/CEFRBreakdownTooltip'
 import { FONT_BODY, FONT_TARGET, FONT_ACTION, FONT_LEVEL } from '@/lib/design-tokens'
 
 const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string }[] = [
@@ -397,6 +398,8 @@ export function CandidateCardV2({
   const [showExamplePicker, setShowExamplePicker] = useState(false)
   const examplePickerRef = useRef<HTMLDivElement>(null)
   const followUpRef = useRef<HTMLDivElement>(null)
+  const [showCefrTooltip, setShowCefrTooltip] = useState(false)
+  const cefrPillRef = useRef<HTMLSpanElement>(null)
 
   const toggleAudio = (url: string) => {
     if (isAudioPlaying) {
@@ -667,17 +670,31 @@ export function CandidateCardV2({
               {candidate.is_sweet_spot && (
                 <Target size={12} style={{ color: 'var(--accent)' }} />
               )}
-              <span style={{
-                padding: '2px 10px',
-                background: cefrPillColor.bg,
-                color: cefrPillColor.color,
-                borderRadius: '999px',
-                fontSize: FONT_LEVEL,
-                fontWeight: 700,
-                letterSpacing: '0.03em',
-              }}>
+              <span
+                ref={cefrPillRef}
+                onMouseEnter={() => candidate.cefr_breakdown && setShowCefrTooltip(true)}
+                onMouseLeave={() => setShowCefrTooltip(false)}
+                style={{
+                  padding: '2px 10px',
+                  background: cefrPillColor.bg,
+                  color: cefrPillColor.color,
+                  borderRadius: '999px',
+                  fontSize: FONT_LEVEL,
+                  fontWeight: 700,
+                  letterSpacing: '0.03em',
+                  cursor: candidate.cefr_breakdown ? 'help' : 'default',
+                }}
+              >
                 {candidate.cefr_level}
               </span>
+              {showCefrTooltip && candidate.cefr_breakdown && cefrPillRef.current && (
+                <CEFRBreakdownTooltip
+                  breakdown={candidate.cefr_breakdown}
+                  cefrLevel={candidate.cefr_level}
+                  anchorEl={cefrPillRef.current}
+                  onClose={() => setShowCefrTooltip(false)}
+                />
+              )}
             </span>
           )}
 
