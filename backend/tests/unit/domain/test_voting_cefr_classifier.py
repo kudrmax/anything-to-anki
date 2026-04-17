@@ -73,3 +73,44 @@ class TestVotingCEFRClassifier:
         classifier = VotingCEFRClassifier(sources)
         # A2: 50%, B1: 50% — tie, prefer lower
         assert classifier.classify("word", "NN") == CEFRLevel.A2
+
+
+class TestVotingCEFRClassifierPrioritySource:
+    def test_priority_source_overrides_voting(self) -> None:
+        """When priority source returns a known level, voting is skipped."""
+        priority = StubSource({CEFRLevel.A2: 1.0})
+        sources = [
+            StubSource({CEFRLevel.C2: 1.0}),
+            StubSource({CEFRLevel.C2: 1.0}),
+        ]
+        classifier = VotingCEFRClassifier(sources, priority_source=priority)
+        assert classifier.classify("word", "NN") == CEFRLevel.A2
+
+    def test_priority_source_unknown_falls_back_to_voting(self) -> None:
+        """When priority source returns UNKNOWN, voting proceeds normally."""
+        priority = StubSource({CEFRLevel.UNKNOWN: 1.0})
+        sources = [
+            StubSource({CEFRLevel.B1: 1.0}),
+            StubSource({CEFRLevel.B1: 1.0}),
+        ]
+        classifier = VotingCEFRClassifier(sources, priority_source=priority)
+        assert classifier.classify("word", "NN") == CEFRLevel.B1
+
+    def test_no_priority_source_works_as_before(self) -> None:
+        """Without priority_source, classifier works exactly like before."""
+        sources = [
+            StubSource({CEFRLevel.A2: 1.0}),
+            StubSource({CEFRLevel.B1: 1.0}),
+        ]
+        classifier = VotingCEFRClassifier(sources)
+        assert classifier.classify("word", "NN") == CEFRLevel.A2
+
+    def test_priority_source_not_in_voting_pool(self) -> None:
+        """Priority source does not participate in fallback voting."""
+        priority = StubSource({CEFRLevel.UNKNOWN: 1.0})
+        sources = [
+            StubSource({CEFRLevel.A2: 1.0}),
+            StubSource({CEFRLevel.C2: 1.0}),
+        ]
+        classifier = VotingCEFRClassifier(sources, priority_source=priority)
+        assert classifier.classify("word", "NN") == CEFRLevel.A2
