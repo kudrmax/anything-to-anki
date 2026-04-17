@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
@@ -11,6 +12,8 @@ from backend.domain.entities.known_word import KnownWord
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
+from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.input_method import InputMethod
@@ -91,6 +94,99 @@ class CEFRBreakdownModel(Base):
     kelly: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
 
+def _level_to_str(level: CEFRLevel) -> str | None:
+    """Convert CEFRLevel to string for DB storage. UNKNOWN -> None."""
+    if level is CEFRLevel.UNKNOWN:
+        return None
+    return level.name
+
+
+def _breakdown_to_model(breakdown: CEFRBreakdown) -> CEFRBreakdownModel:
+    """Map domain CEFRBreakdown to SQLAlchemy model."""
+    all_votes = list(breakdown.votes)
+    if breakdown.priority_vote is not None:
+        all_votes = [breakdown.priority_vote, *all_votes]
+
+    cambridge: str | None = None
+    cefrpy: str | None = None
+    efllex_distribution: str | None = None
+    oxford: str | None = None
+    kelly: str | None = None
+
+    for vote in all_votes:
+        level_str = _level_to_str(vote.top_level)
+        if vote.source_name == "Cambridge Dictionary":
+            cambridge = level_str
+        elif vote.source_name == "CEFRpy":
+            cefrpy = level_str
+        elif vote.source_name == "EFLLex":
+            dist = {
+                lvl.name: round(prob, 4)
+                for lvl, prob in vote.distribution.items()
+                if lvl is not CEFRLevel.UNKNOWN and prob > 0
+            }
+            efllex_distribution = json.dumps(dist) if dist else None
+        elif vote.source_name == "Oxford 5000":
+            oxford = level_str
+        elif vote.source_name == "Kelly List":
+            kelly = level_str
+
+    return CEFRBreakdownModel(
+        decision_method=breakdown.decision_method,
+        cambridge=cambridge,
+        cefrpy=cefrpy,
+        efllex_distribution=efllex_distribution,
+        oxford=oxford,
+        kelly=kelly,
+    )
+
+
+def _model_to_breakdown(
+    model: CEFRBreakdownModel, parent_cefr_level: str | None,
+) -> CEFRBreakdown:
+    """Map SQLAlchemy model back to domain CEFRBreakdown."""
+
+    def _make_vote(
+        name: str,
+        level_str: str | None,
+        distribution_json: str | None = None,
+    ) -> SourceVote:
+        if distribution_json is not None:
+            raw: dict[str, float] = json.loads(distribution_json)
+            dist = {CEFRLevel.from_str(k): v for k, v in raw.items()}
+            top = max(dist, key=lambda lvl: dist[lvl]) if dist else CEFRLevel.UNKNOWN
+        elif level_str is not None:
+            level = CEFRLevel.from_str(level_str)
+            dist = {level: 1.0}
+            top = level
+        else:
+            dist = {CEFRLevel.UNKNOWN: 1.0}
+            top = CEFRLevel.UNKNOWN
+        return SourceVote(source_name=name, distribution=dist, top_level=top)
+
+    priority_vote = _make_vote("Cambridge Dictionary", model.cambridge)
+    votes = [
+        _make_vote("CEFRpy", model.cefrpy),
+        _make_vote("EFLLex", None, model.efllex_distribution),
+        _make_vote("Oxford 5000", model.oxford),
+        _make_vote("Kelly List", model.kelly),
+    ]
+
+    final_level = CEFRLevel.UNKNOWN
+    if parent_cefr_level:
+        try:
+            final_level = CEFRLevel.from_str(parent_cefr_level)
+        except ValueError:
+            pass
+
+    return CEFRBreakdown(
+        final_level=final_level,
+        decision_method=model.decision_method,
+        priority_vote=priority_vote if model.decision_method == "priority" else None,
+        votes=votes if model.decision_method != "priority" else [priority_vote, *votes],
+    )
+
+
 class StoredCandidateModel(Base):
     """SQLAlchemy model for word candidates.
 
@@ -122,6 +218,9 @@ class StoredCandidateModel(Base):
     def to_entity(self) -> StoredCandidate:
         """Build a StoredCandidate WITHOUT meaning/media — those are loaded
         separately by SqlaCandidateRepository which then attaches them."""
+        bd: CEFRBreakdown | None = None
+        if self.cefr_breakdown is not None:
+            bd = _model_to_breakdown(self.cefr_breakdown, self.cefr_level or None)
         return StoredCandidate(
             id=self.id,
             source_id=self.source_id,
@@ -139,11 +238,12 @@ class StoredCandidateModel(Base):
             status=CandidateStatus(self.status),
             meaning=None,
             media=None,
+            cefr_breakdown=bd,
         )
 
     @staticmethod
     def from_entity(candidate: StoredCandidate) -> StoredCandidateModel:
-        return StoredCandidateModel(
+        model = StoredCandidateModel(
             source_id=candidate.source_id,
             lemma=candidate.lemma,
             pos=candidate.pos,
@@ -158,6 +258,9 @@ class StoredCandidateModel(Base):
             has_custom_context_fragment=candidate.has_custom_context_fragment,
             status=candidate.status.value,
         )
+        if candidate.cefr_breakdown is not None:
+            model.cefr_breakdown = _breakdown_to_model(candidate.cefr_breakdown)
+        return model
 
 
 class KnownWordModel(Base):

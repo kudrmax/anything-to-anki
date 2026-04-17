@@ -7,6 +7,7 @@ from backend.application.dto.analysis_dtos import AnalyzeTextRequest
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.domain.entities.token_data import TokenData
 from backend.domain.exceptions import TextTooShortError
+from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.frequency_band import FrequencyBand
 
@@ -56,6 +57,12 @@ def _create_use_case(
     _cefr = cefr_map or {}
     cefr_classifier.classify.side_effect = lambda lemma, tag: _cefr.get(
         lemma, CEFRLevel.A1
+    )
+    cefr_classifier.classify_detailed.side_effect = lambda lemma, tag: CEFRBreakdown(
+        final_level=_cefr.get(lemma, CEFRLevel.A1),
+        decision_method="voting",
+        priority_vote=None,
+        votes=[],
     )
 
     frequency_provider = MagicMock()

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_meaning import CandidateMeaning
     from backend.domain.entities.candidate_media import CandidateMedia
+    from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.candidate_status import CandidateStatus
 
 
@@ -35,3 +36,4 @@ class StoredCandidate:
     meaning: CandidateMeaning | None = None
     media: CandidateMedia | None = None
     id: int | None = None
+    cefr_breakdown: CEFRBreakdown | None = None

@@ -32,6 +32,7 @@ if TYPE_CHECKING:
         UnknownCounter,
     )
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
+    from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 
 DIRTY_THRESHOLD: int = 2
 
@@ -96,7 +97,8 @@ class AnalyzeTextUseCase:
             if not self._candidate_filter.is_relevant_token(token):
                 continue
 
-            cefr = self._cefr_classifier.classify(token.lemma, token.tag)
+            breakdown = self._cefr_classifier.classify_detailed(token.lemma, token.tag)
+            cefr = breakdown.final_level
             if not self._candidate_filter.is_above_user_level(cefr, user_level):
                 continue
 
@@ -115,6 +117,7 @@ class AnalyzeTextUseCase:
                 )
                 candidate_map[key] = _CandidateAccumulator(
                     cefr=cefr,
+                    cefr_breakdown=breakdown,
                     freq_zipf=freq.zipf_value,
                     freq_sweet_spot=freq.is_sweet_spot,
                     fragment=fragment,
@@ -232,6 +235,7 @@ class AnalyzeTextUseCase:
                     occurrences=acc.occurrences,
                     is_phrasal_verb=acc.is_phrasal_verb,
                     surface_form=acc.surface_form,
+                    cefr_breakdown=acc.cefr_breakdown,
                 )
             )
 
@@ -268,6 +272,7 @@ class _CandidateAccumulator:
 
     __slots__ = (
         "cefr",
+        "cefr_breakdown",
         "freq_zipf",
         "freq_sweet_spot",
         "fragment",
@@ -288,8 +293,10 @@ class _CandidateAccumulator:
         pos_tag: str,
         is_phrasal_verb: bool,
         surface_form: str | None = None,
+        cefr_breakdown: CEFRBreakdown | None = None,
     ) -> None:
         self.cefr = cefr
+        self.cefr_breakdown = cefr_breakdown
         self.freq_zipf = freq_zipf
         self.freq_sweet_spot = freq_sweet_spot
         self.fragment = fragment

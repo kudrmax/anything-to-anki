@@ -86,7 +86,8 @@ class AddManualCandidateUseCase:
             tag = matching_token.tag if matching_token else "NN"
             is_phrasal_verb = False
 
-        cefr = self._cefr_classifier.classify(lemma, tag)
+        breakdown = self._cefr_classifier.classify_detailed(lemma, tag)
+        cefr = breakdown.final_level
         cefr_level_str: str | None = cefr.name if cefr != CEFRLevel.UNKNOWN else None
 
         freq = self._frequency_provider.get_frequency(lemma)
@@ -107,6 +108,7 @@ class AddManualCandidateUseCase:
             surface_form=surface_form,
             is_phrasal_verb=is_phrasal_verb,
             status=CandidateStatus.PENDING,
+            cefr_breakdown=breakdown,
         )
         saved = self._candidate_repo.create_batch([candidate])[0]
 

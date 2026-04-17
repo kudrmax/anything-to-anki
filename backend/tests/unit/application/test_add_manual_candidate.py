@@ -28,6 +28,7 @@ from backend.domain.entities.token_data import TokenData
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbMatch
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.frequency_band import FrequencyBand
@@ -74,6 +75,23 @@ def _source(
     )
 
 
+def _patch_classify_detailed(mock: MagicMock) -> MagicMock:
+    """Wire classify_detailed to return CEFRBreakdown wrapping classify result."""
+    original_classify = mock.classify
+
+    def _detailed(lemma: str, tag: str) -> CEFRBreakdown:
+        level = original_classify(lemma, tag)
+        return CEFRBreakdown(
+            final_level=level,
+            decision_method="voting",
+            priority_vote=None,
+            votes=[],
+        )
+
+    mock.classify_detailed.side_effect = _detailed
+    return mock
+
+
 def _make_use_case(
     *,
     source_repo: MagicMock | None = None,
@@ -83,11 +101,13 @@ def _make_use_case(
     frequency_provider: MagicMock | None = None,
     phrasal_verb_detector: MagicMock | None = None,
 ) -> AddManualCandidateUseCase:
+    classifier = cefr_classifier or MagicMock()
+    _patch_classify_detailed(classifier)
     return AddManualCandidateUseCase(
         source_repo=source_repo or MagicMock(),
         candidate_repo=candidate_repo or MagicMock(),
         text_analyzer=text_analyzer or MagicMock(),
-        cefr_classifier=cefr_classifier or MagicMock(),
+        cefr_classifier=classifier,
         frequency_provider=frequency_provider or MagicMock(),
         phrasal_verb_detector=phrasal_verb_detector or MagicMock(),
     )
