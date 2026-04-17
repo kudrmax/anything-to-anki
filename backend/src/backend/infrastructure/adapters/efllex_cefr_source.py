@@ -22,6 +22,10 @@ class EFLLexCEFRSource(CEFRSource):
         self._data: dict[tuple[str, str], dict[CEFRLevel, float]] = {}
         self._load(tsv_path)
 
+    @property
+    def name(self) -> str:
+        return "EFLLex"
+
     def _load(self, tsv_path: Path) -> None:
         with open(tsv_path, encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter="\t")

@@ -45,6 +45,10 @@ class CambridgeCEFRSource(CEFRSource):
     def __init__(self, data: dict[str, CambridgeWord]) -> None:
         self._data = data
 
+    @property
+    def name(self) -> str:
+        return "Cambridge Dictionary"
+
     def get_distribution(self, lemma: str, pos_tag: str) -> dict[CEFRLevel, float]:
         word = self._data.get(lemma.lower())
         if word is None:

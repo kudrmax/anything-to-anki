@@ -12,6 +12,10 @@ class CefrpyCEFRSource(CEFRSource):
     def __init__(self) -> None:
         self._analyzer = CEFRAnalyzer()
 
+    @property
+    def name(self) -> str:
+        return "CEFRpy"
+
     def get_distribution(self, lemma: str, pos_tag: str) -> dict[CEFRLevel, float]:
         lower = lemma.lower()
 

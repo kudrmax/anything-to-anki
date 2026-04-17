@@ -8,8 +8,13 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 class StubSource(CEFRSource):
     """Test stub that returns a fixed distribution."""
 
-    def __init__(self, distribution: dict[CEFRLevel, float]) -> None:
+    def __init__(self, distribution: dict[CEFRLevel, float], name: str = "stub") -> None:
         self._distribution = distribution
+        self._name = name
+
+    @property
+    def name(self) -> str:
+        return self._name
 
     def get_distribution(self, lemma: str, pos_tag: str) -> dict[CEFRLevel, float]:
         return self._distribution

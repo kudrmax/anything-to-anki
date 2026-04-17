@@ -41,6 +41,10 @@ class KellyCEFRSource(CEFRSource):
         self._word_fallback: dict[str, CEFRLevel] = {}
         self._load(csv_path)
 
+    @property
+    def name(self) -> str:
+        return "Kelly List"
+
     def _load(self, csv_path: Path) -> None:
         with open(csv_path, encoding="utf-8") as f:
             reader = csv.DictReader(f)
