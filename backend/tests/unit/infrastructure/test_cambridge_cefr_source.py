@@ -49,39 +49,39 @@ def _word(
 class TestCambridgeCEFRSource:
     def test_single_sense_single_level(self) -> None:
         data = {"run": _word("run", [_entry(pos=["verb"], levels=["A1"])])}
-        source = CambridgeCEFRSource(data)
+        source = CambridgeCEFRSource.from_data(data)
         result = source.get_distribution("run", "VB")
         assert result == {CEFRLevel.A1: 1.0}
 
     def test_median_of_multiple_senses(self) -> None:
         """[A1, A1, B1] -> median = A1 (index 1 of 3, lower-middle)."""
         data = {"run": _word("run", [_entry(pos=["verb"], levels=["A1", "A1", "B1"])])}
-        source = CambridgeCEFRSource(data)
+        source = CambridgeCEFRSource.from_data(data)
         result = source.get_distribution("run", "VB")
         assert result == {CEFRLevel.A1: 1.0}
 
     def test_median_even_count_picks_lower(self) -> None:
         """[A1, B1, B2, C1] -> median of 4 = index 1 (lower-middle) = B1."""
         data = {"go": _word("go", [_entry(pos=["verb"], levels=["A1", "B1", "B2", "C1"])])}
-        source = CambridgeCEFRSource(data)
+        source = CambridgeCEFRSource.from_data(data)
         result = source.get_distribution("go", "VB")
         assert result == {CEFRLevel.B1: 1.0}
 
     def test_senses_without_level_ignored(self) -> None:
         """Only senses with non-empty level participate in median."""
         data = {"set": _word("set", [_entry(pos=["verb"], levels=["", "A2", "", "C1", ""])])}
-        source = CambridgeCEFRSource(data)
+        source = CambridgeCEFRSource.from_data(data)
         result = source.get_distribution("set", "VB")
         assert result == {CEFRLevel.A2: 1.0}
 
     def test_all_senses_without_level_returns_unknown(self) -> None:
         data = {"hmm": _word("hmm", [_entry(pos=["exclamation"], levels=["", ""])])}
-        source = CambridgeCEFRSource(data)
+        source = CambridgeCEFRSource.from_data(data)
         result = source.get_distribution("hmm", "UH")
         assert result == {CEFRLevel.UNKNOWN: 1.0}
 
     def test_word_not_in_dictionary_returns_unknown(self) -> None:
-        source = CambridgeCEFRSource({})
+        source = CambridgeCEFRSource.from_data({})
         result = source.get_distribution("asdfghjkl", "NN")
         assert result == {CEFRLevel.UNKNOWN: 1.0}
 
@@ -93,7 +93,7 @@ class TestCambridgeCEFRSource:
                 _entry(pos=["verb"], levels=["C1"]),
             ])
         }
-        source = CambridgeCEFRSource(data)
+        source = CambridgeCEFRSource.from_data(data)
         result = source.get_distribution("light", "VB")
         assert result == {CEFRLevel.C1: 1.0}
 
@@ -104,7 +104,7 @@ class TestCambridgeCEFRSource:
                 _entry(pos=["adjective"], levels=["A2"]),
             ])
         }
-        source = CambridgeCEFRSource(data)
+        source = CambridgeCEFRSource.from_data(data)
         result = source.get_distribution("light", "JJ")
         assert result == {CEFRLevel.A2: 1.0}
 
@@ -116,7 +116,7 @@ class TestCambridgeCEFRSource:
                 _entry(pos=["verb"], levels=["C1"]),
             ])
         }
-        source = CambridgeCEFRSource(data)
+        source = CambridgeCEFRSource.from_data(data)
         result = source.get_distribution("light", "MD")
         assert result == {CEFRLevel.B1: 1.0}
 
@@ -128,11 +128,11 @@ class TestCambridgeCEFRSource:
                 _entry(pos=["verb"], levels=["A1"]),
             ])
         }
-        source = CambridgeCEFRSource(data)
+        source = CambridgeCEFRSource.from_data(data)
         result = source.get_distribution("run", "VB")
         assert result == {CEFRLevel.A1: 1.0}
 
     def test_empty_dictionary_returns_unknown(self) -> None:
-        source = CambridgeCEFRSource({})
+        source = CambridgeCEFRSource.from_data({})
         result = source.get_distribution("anything", "NN")
         assert result == {CEFRLevel.UNKNOWN: 1.0}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from backend.domain.ports.cefr_source import CEFRSource
@@ -42,15 +43,30 @@ class CambridgeCEFRSource(CEFRSource):
     Aggregates CEFR levels across senses using median.
     """
 
-    def __init__(self, data: dict[str, CambridgeWord]) -> None:
-        self._data = data
+    def __init__(self, path: Path) -> None:
+        self._path = path
+        self._data: dict[str, CambridgeWord] | None = None
+
+    @classmethod
+    def from_data(cls, data: dict[str, CambridgeWord]) -> CambridgeCEFRSource:
+        """Create an instance with pre-loaded data (for tests)."""
+        instance = cls.__new__(cls)
+        instance._path = Path()
+        instance._data = data
+        return instance
+
+    def _ensure_loaded(self) -> dict[str, CambridgeWord]:
+        if self._data is None:
+            from backend.infrastructure.adapters.cambridge.parser import parse_cambridge_jsonl
+            self._data = parse_cambridge_jsonl(self._path)
+        return self._data
 
     @property
     def name(self) -> str:
         return "Cambridge Dictionary"
 
     def get_distribution(self, lemma: str, pos_tag: str) -> dict[CEFRLevel, float]:
-        word = self._data.get(lemma.lower())
+        word = self._ensure_loaded().get(lemma.lower())
         if word is None:
             return {CEFRLevel.UNKNOWN: 1.0}
 
