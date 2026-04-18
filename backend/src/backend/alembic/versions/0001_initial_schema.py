@@ -4,15 +4,15 @@ Revision ID: 0001
 Revises:
 Create Date: 2026-04-07
 
-Brownfield baseline: creates all current tables only if they don't exist yet.
-For existing production databases all tables are already present — checkfirst=True
-makes every create_all a no-op, and Alembic simply stamps the revision.
+Baseline: creates the four core tables with the schema as of 0001.
+All column/table definitions are static — later migrations apply incremental changes.
 """
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 from alembic import op
+import sqlalchemy as sa
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -24,18 +24,58 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # Import here to avoid issues at Alembic import time
-    from backend.infrastructure.persistence import models  # noqa: F401
-    from backend.infrastructure.persistence.database import Base
+    op.create_table(
+        "sources",
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column("raw_text", sa.Text, nullable=False),
+        sa.Column("title", sa.String(200), nullable=True),
+        sa.Column("cleaned_text", sa.Text, nullable=True),
+        sa.Column("status", sa.String(20), nullable=False, server_default="new"),
+        sa.Column("source_type", sa.String(20), nullable=False, server_default="text"),
+        sa.Column("error_message", sa.Text, nullable=True),
+        sa.Column("processing_stage", sa.String(30), nullable=True),
+        sa.Column("video_path", sa.Text, nullable=True),
+        sa.Column("audio_track_index", sa.Integer, nullable=True),
+        sa.Column("created_at", sa.DateTime, nullable=False),
+    )
 
-    bind = op.get_bind()
-    # Exclude tables introduced by later migrations so they don't conflict.
-    # Tables added in 0002+: anki_synced_cards
-    # Tables added in 0003+: candidate_meanings, candidate_media
-    added_later = {"anki_synced_cards", "candidate_meanings", "candidate_media"}
-    tables = [t for name, t in Base.metadata.tables.items() if name not in added_later]
-    Base.metadata.create_all(bind, tables=tables, checkfirst=True)
+    op.create_table(
+        "candidates",
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column("source_id", sa.Integer, nullable=False),
+        sa.Column("lemma", sa.String(100), nullable=False),
+        sa.Column("pos", sa.String(10), nullable=False),
+        sa.Column("cefr_level", sa.String(10), nullable=False),
+        sa.Column("zipf_frequency", sa.Float, nullable=False),
+        sa.Column("is_sweet_spot", sa.Boolean, nullable=False),
+        sa.Column("context_fragment", sa.Text, nullable=False),
+        sa.Column("fragment_purity", sa.String(10), nullable=False),
+        sa.Column("occurrences", sa.Integer, nullable=False),
+        sa.Column("status", sa.String(10), nullable=False, server_default="pending"),
+        sa.Column("surface_form", sa.String(100), nullable=True),
+        sa.Column("is_phrasal_verb", sa.Boolean, nullable=False, server_default=sa.text("0")),
+    )
+    op.create_index("ix_candidates_source_id", "candidates", ["source_id"])
+
+    op.create_table(
+        "known_words",
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column("lemma", sa.String(100), nullable=False),
+        sa.Column("pos", sa.String(10), nullable=False),
+        sa.Column("created_at", sa.DateTime, nullable=False),
+        sa.UniqueConstraint("lemma", "pos", name="uq_known_word_lemma_pos"),
+    )
+
+    op.create_table(
+        "settings",
+        sa.Column("key", sa.String(50), primary_key=True),
+        sa.Column("value", sa.String(200), nullable=False),
+    )
 
 
 def downgrade() -> None:
-    pass  # intentionally no-op: dropping all tables is too destructive
+    op.drop_table("settings")
+    op.drop_table("known_words")
+    op.drop_index("ix_candidates_source_id", table_name="candidates")
+    op.drop_table("candidates")
+    op.drop_table("sources")

@@ -42,12 +42,6 @@ def create_session_factory(db_url: str | None = None) -> sessionmaker[Session]:
     return sessionmaker(bind=engine)
 
 
-def create_tables(session_factory: sessionmaker[Session]) -> None:
-    """Create all tables from model metadata."""
-    engine = session_factory.kw["bind"]
-    Base.metadata.create_all(engine)
-
-
 def reset_stuck_processing(session_factory: sessionmaker[Session]) -> None:
     """Reset sources stuck in PROCESSING status back to NEW (after crash recovery)."""
     from backend.infrastructure.persistence.models import SourceModel
