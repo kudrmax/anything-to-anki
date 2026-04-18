@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, field_validator
 
+from backend.application.dto.cefr_dtos import CEFRBreakdownDTO
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
 
@@ -31,6 +32,7 @@ class WordCandidateDTO(BaseModel):
     occurrences: int
     is_phrasal_verb: bool = False
     surface_form: str | None = None
+    cefr_breakdown: CEFRBreakdownDTO | None = None
 
 
 class AnalyzeTextResponse(BaseModel):

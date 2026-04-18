@@ -250,9 +250,12 @@ class AnalyzeTextUseCase:
         return candidates
 
     def _to_dto(self, candidate: WordCandidate) -> WordCandidateDTO:
+        from backend.application.dto.cefr_dtos import breakdown_to_dto
+
         purity = (
             "clean" if candidate.fragment_unknown_count < DIRTY_THRESHOLD else "dirty"
         )
+        bd_dto = breakdown_to_dto(candidate.cefr_breakdown) if candidate.cefr_breakdown else None
         return WordCandidateDTO(
             lemma=candidate.lemma,
             pos=candidate.pos,
@@ -264,6 +267,7 @@ class AnalyzeTextUseCase:
             occurrences=candidate.occurrences,
             is_phrasal_verb=candidate.is_phrasal_verb,
             surface_form=candidate.surface_form,
+            cefr_breakdown=bd_dto,
         )
 
 
