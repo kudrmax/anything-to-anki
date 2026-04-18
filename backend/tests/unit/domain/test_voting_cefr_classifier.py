@@ -8,8 +8,13 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 class StubSource(CEFRSource):
     """Test stub that returns a fixed distribution."""
 
-    def __init__(self, distribution: dict[CEFRLevel, float]) -> None:
+    def __init__(self, distribution: dict[CEFRLevel, float], name: str = "stub") -> None:
         self._distribution = distribution
+        self._name = name
+
+    @property
+    def name(self) -> str:
+        return self._name
 
     def get_distribution(self, lemma: str, pos_tag: str) -> dict[CEFRLevel, float]:
         return self._distribution
@@ -73,3 +78,122 @@ class TestVotingCEFRClassifier:
         classifier = VotingCEFRClassifier(sources)
         # A2: 50%, B1: 50% — tie, prefer lower
         assert classifier.classify("word", "NN") == CEFRLevel.A2
+
+
+class TestVotingCEFRClassifierPrioritySource:
+    def test_priority_source_overrides_voting(self) -> None:
+        """When priority source returns a known level, voting is skipped."""
+        priority = StubSource({CEFRLevel.A2: 1.0})
+        sources = [
+            StubSource({CEFRLevel.C2: 1.0}),
+            StubSource({CEFRLevel.C2: 1.0}),
+        ]
+        classifier = VotingCEFRClassifier(sources, priority_source=priority)
+        assert classifier.classify("word", "NN") == CEFRLevel.A2
+
+    def test_priority_source_unknown_falls_back_to_voting(self) -> None:
+        """When priority source returns UNKNOWN, voting proceeds normally."""
+        priority = StubSource({CEFRLevel.UNKNOWN: 1.0})
+        sources = [
+            StubSource({CEFRLevel.B1: 1.0}),
+            StubSource({CEFRLevel.B1: 1.0}),
+        ]
+        classifier = VotingCEFRClassifier(sources, priority_source=priority)
+        assert classifier.classify("word", "NN") == CEFRLevel.B1
+
+    def test_no_priority_source_works_as_before(self) -> None:
+        """Without priority_source, classifier works exactly like before."""
+        sources = [
+            StubSource({CEFRLevel.A2: 1.0}),
+            StubSource({CEFRLevel.B1: 1.0}),
+        ]
+        classifier = VotingCEFRClassifier(sources)
+        assert classifier.classify("word", "NN") == CEFRLevel.A2
+
+    def test_priority_source_not_in_voting_pool(self) -> None:
+        """Priority source does not participate in fallback voting."""
+        priority = StubSource({CEFRLevel.UNKNOWN: 1.0})
+        sources = [
+            StubSource({CEFRLevel.A2: 1.0}),
+            StubSource({CEFRLevel.C2: 1.0}),
+        ]
+        classifier = VotingCEFRClassifier(sources, priority_source=priority)
+        assert classifier.classify("word", "NN") == CEFRLevel.A2
+
+
+class TestClassifyDetailed:
+    def test_priority_decides(self) -> None:
+        priority = StubSource({CEFRLevel.A2: 1.0}, name="Priority")
+        sources = [
+            StubSource({CEFRLevel.C2: 1.0}, name="Src1"),
+            StubSource({CEFRLevel.C2: 1.0}, name="Src2"),
+        ]
+        classifier = VotingCEFRClassifier(sources, priority_source=priority)
+        breakdown = classifier.classify_detailed("word", "NN")
+
+        assert breakdown.final_level == CEFRLevel.A2
+        assert breakdown.decision_method == "priority"
+        assert breakdown.priority_vote is not None
+        assert breakdown.priority_vote.source_name == "Priority"
+        assert len(breakdown.votes) == 2
+
+    def test_priority_unknown_falls_to_voting(self) -> None:
+        priority = StubSource({CEFRLevel.UNKNOWN: 1.0}, name="Priority")
+        sources = [
+            StubSource({CEFRLevel.B1: 1.0}, name="Src1"),
+            StubSource({CEFRLevel.B1: 1.0}, name="Src2"),
+        ]
+        classifier = VotingCEFRClassifier(sources, priority_source=priority)
+        breakdown = classifier.classify_detailed("word", "NN")
+
+        assert breakdown.final_level == CEFRLevel.B1
+        assert breakdown.decision_method == "voting"
+        assert breakdown.priority_vote is not None
+        assert breakdown.priority_vote.top_level == CEFRLevel.UNKNOWN
+
+    def test_no_priority_source(self) -> None:
+        sources = [
+            StubSource({CEFRLevel.A2: 1.0}, name="Src1"),
+            StubSource({CEFRLevel.B1: 1.0}, name="Src2"),
+        ]
+        classifier = VotingCEFRClassifier(sources)
+        breakdown = classifier.classify_detailed("word", "NN")
+
+        assert breakdown.final_level == CEFRLevel.A2  # tie -> lower
+        assert breakdown.decision_method == "voting"
+        assert breakdown.priority_vote is None
+
+    def test_consistency_with_classify(self) -> None:
+        """classify_detailed().final_level must always equal classify()."""
+        priority = StubSource({CEFRLevel.B2: 1.0}, name="Priority")
+        sources = [
+            StubSource({CEFRLevel.A2: 1.0}, name="Src1"),
+            StubSource({CEFRLevel.C1: 1.0}, name="Src2"),
+        ]
+        classifier = VotingCEFRClassifier(sources, priority_source=priority)
+
+        assert classifier.classify("word", "NN") == classifier.classify_detailed("word", "NN").final_level
+
+    def test_source_names_in_votes(self) -> None:
+        sources = [
+            StubSource({CEFRLevel.A2: 1.0}, name="Source A"),
+            StubSource({CEFRLevel.B1: 1.0}, name="Source B"),
+        ]
+        classifier = VotingCEFRClassifier(sources)
+        breakdown = classifier.classify_detailed("word", "NN")
+
+        names = [v.source_name for v in breakdown.votes]
+        assert names == ["Source A", "Source B"]
+
+    def test_votes_contain_all_sources_even_when_priority_decides(self) -> None:
+        priority = StubSource({CEFRLevel.A1: 1.0}, name="Priority")
+        sources = [
+            StubSource({CEFRLevel.B1: 1.0}, name="S1"),
+            StubSource({CEFRLevel.B2: 1.0}, name="S2"),
+            StubSource({CEFRLevel.C1: 1.0}, name="S3"),
+        ]
+        classifier = VotingCEFRClassifier(sources, priority_source=priority)
+        breakdown = classifier.classify_detailed("word", "NN")
+
+        assert breakdown.decision_method == "priority"
+        assert len(breakdown.votes) == 3  # all voting sources still queried

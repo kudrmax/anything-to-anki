@@ -54,6 +54,18 @@ export interface CandidateMedia {
   generated_at: string | null
 }
 
+export interface SourceVote {
+  source_name: string
+  level: string | null
+  distribution: Record<string, number> | null
+}
+
+export interface CEFRBreakdown {
+  decision_method: 'priority' | 'voting'
+  priority_vote: SourceVote | null
+  votes: SourceVote[]
+}
+
 export interface StoredCandidate {
   id: number
   lemma: string
@@ -70,6 +82,7 @@ export interface StoredCandidate {
   has_custom_context_fragment: boolean
   meaning: CandidateMeaning | null
   media: CandidateMedia | null
+  cefr_breakdown?: CEFRBreakdown | null
 }
 
 export interface SourceDetail {

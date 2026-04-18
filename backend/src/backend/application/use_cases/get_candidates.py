@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from backend.application.dto.cefr_dtos import CEFRBreakdownDTO, breakdown_to_dto
 from backend.application.dto.source_dtos import (
     CandidateMeaningDTO,
     CandidateMediaDTO,
@@ -40,6 +41,10 @@ def _to_dto(c: StoredCandidate) -> StoredCandidateDTO:
             error=c.media.error,
             generated_at=c.media.generated_at,
         )
+    breakdown_dto: CEFRBreakdownDTO | None = None
+    if c.cefr_breakdown is not None:
+        breakdown_dto = breakdown_to_dto(c.cefr_breakdown)
+
     return StoredCandidateDTO(
         id=c.id,  # type: ignore[arg-type]
         lemma=c.lemma,
@@ -55,6 +60,7 @@ def _to_dto(c: StoredCandidate) -> StoredCandidateDTO:
         status=c.status.value,
         meaning=meaning_dto,
         media=media_dto,
+        cefr_breakdown=breakdown_dto,
     )
 
 

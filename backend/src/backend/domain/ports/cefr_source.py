@@ -13,6 +13,11 @@ class CEFRSource(ABC):
     Each source returns a probability distribution over CEFR levels.
     """
 
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Human-readable name of this CEFR data source."""
+
     @abstractmethod
     def get_distribution(self, lemma: str, pos_tag: str) -> dict[CEFRLevel, float]:
         """Return probability distribution across CEFR levels for a word.

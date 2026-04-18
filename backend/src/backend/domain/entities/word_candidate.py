@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.cefr_level import CEFRLevel
     from backend.domain.value_objects.frequency_band import FrequencyBand
 
@@ -21,3 +22,4 @@ class WordCandidate:
     occurrences: int
     is_phrasal_verb: bool = False
     surface_form: str | None = None  # Actual form in text, e.g. "gave up" for lemma "give up"
+    cefr_breakdown: CEFRBreakdown | None = None

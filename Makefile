@@ -44,6 +44,19 @@ define start_ai_proxy
 	    echo "AI proxy started on port $(AI_PROXY_PORT) (PID $$(cat $(AI_PID)))"
 endef
 
+# Проверить что все контейнеры живы после docker compose up.
+# $(1) — префикс env-переменных для docker compose (пустой для основного инстанса).
+define check_services
+	@sleep 2; \
+	failed=$$($(1) docker compose ps --status exited --status restarting --format '{{.Service}}' 2>/dev/null); \
+	if [ -n "$$failed" ]; then \
+	    printf "\n\033[1;31m✗ Сервисы не запустились: %s\033[0m\n" "$$failed"; \
+	    printf "  Логи: make logs\n\n"; \
+	    $(1) docker compose logs --tail 30 $$failed; \
+	    exit 1; \
+	fi
+endef
+
 # Остановить ai_proxy.
 define stop_ai_proxy
 	$(call kill_ai_proxy_on_port,$(AI_PROXY_PORT))
@@ -61,6 +74,7 @@ _check_env:
 up: _check_env  ## Запустить (ai_proxy + docker compose)
 	$(call start_ai_proxy)
 	docker compose up -d --build
+	$(call check_services,)
 	@printf "\n$(BANNER_COLOR)"
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "  AnythingToAnki  [instance: %s]\n" "$(INSTANCE_ENV_NAME)"
@@ -86,6 +100,7 @@ up-worktree: _check_env copy-dev-db  ## Запустить worktree (WORKTREE_PO
 	    COMPOSE_PROJECT_NAME=anything-anki-worktree \
 	    INSTANCE_ENV_NAME=worktree \
 	    docker compose up -d --build
+	$(call check_services,PORT=$(WORKTREE_PORT) AI_PROXY_PORT=$(WORKTREE_AI_PROXY_PORT) COMPOSE_PROJECT_NAME=anything-anki-worktree)
 	@printf "\n$(BANNER_COLOR)"
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "  AnythingToAnki  [worktree]\n"

@@ -10,8 +10,10 @@ from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
 from backend.infrastructure.adapters.efllex_cefr_source import EFLLexCEFRSource
 from backend.infrastructure.adapters.kelly_cefr_source import KellyCEFRSource
 from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
+from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "src" / "backend" / "resources" / "cefr"
+DATA_DIR = Path(__file__).resolve().parents[3] / "dictionaries" / "cefr"
+CAMBRIDGE_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / "cambridge.jsonl"
 
 
 @pytest.mark.integration
@@ -46,3 +48,39 @@ class TestVotingCEFRClassifierIntegration:
         """nope should be UNKNOWN (most sources don't know it), not C2."""
         level = self.classifier.classify("nope", "NN")
         assert level != CEFRLevel.C2
+
+
+@pytest.mark.integration
+class TestVotingCEFRClassifierWithCambridgeIntegration:
+    """Full integration: Cambridge priority + 4 fallback sources."""
+
+    def setup_method(self) -> None:
+        cambridge_cefr = CambridgeCEFRSource(CAMBRIDGE_PATH)
+        sources = [
+            CefrpyCEFRSource(),
+            EFLLexCEFRSource(DATA_DIR / "efllex.tsv"),
+            OxfordCEFRSource(DATA_DIR / "oxford5000.csv"),
+            KellyCEFRSource(DATA_DIR / "kelly.csv"),
+        ]
+        self.classifier = VotingCEFRClassifier(
+            sources, priority_source=cambridge_cefr
+        )
+
+    def test_common_word_uses_cambridge(self) -> None:
+        """'happy' has Cambridge CEFR — should return a reasonable level."""
+        level = self.classifier.classify("happy", "JJ")
+        assert level in (CEFRLevel.A1, CEFRLevel.A2, CEFRLevel.B1)
+
+    def test_gibberish_falls_back_to_voting(self) -> None:
+        level = self.classifier.classify("asdfghjkl", "NN")
+        assert level == CEFRLevel.UNKNOWN
+
+    def test_informal_word_not_c2(self) -> None:
+        """Same invariant as before: informal words should not be C2."""
+        level = self.classifier.classify("wow", "UH")
+        assert level != CEFRLevel.C2
+
+    def test_and_is_basic(self) -> None:
+        """'and' is A2 in Cambridge — sanity check."""
+        level = self.classifier.classify("and", "CC")
+        assert level in (CEFRLevel.A1, CEFRLevel.A2)

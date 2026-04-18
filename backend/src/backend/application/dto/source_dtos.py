@@ -4,6 +4,7 @@ from datetime import datetime  # noqa: TC003
 
 from pydantic import BaseModel
 
+from backend.application.dto.cefr_dtos import CEFRBreakdownDTO
 from backend.domain.value_objects.input_method import InputMethod
 
 
@@ -81,6 +82,7 @@ class StoredCandidateDTO(BaseModel):
     has_custom_context_fragment: bool = False
     meaning: CandidateMeaningDTO | None = None
     media: CandidateMediaDTO | None = None
+    cefr_breakdown: CEFRBreakdownDTO | None = None
 
 
 class SourceDetailDTO(BaseModel):

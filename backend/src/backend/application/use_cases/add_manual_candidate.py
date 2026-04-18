@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from backend.application.dto.cefr_dtos import breakdown_to_dto
 from backend.application.dto.source_dtos import StoredCandidateDTO
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceNotFoundError
@@ -86,7 +87,8 @@ class AddManualCandidateUseCase:
             tag = matching_token.tag if matching_token else "NN"
             is_phrasal_verb = False
 
-        cefr = self._cefr_classifier.classify(lemma, tag)
+        breakdown = self._cefr_classifier.classify_detailed(lemma, tag)
+        cefr = breakdown.final_level
         cefr_level_str: str | None = cefr.name if cefr != CEFRLevel.UNKNOWN else None
 
         freq = self._frequency_provider.get_frequency(lemma)
@@ -107,9 +109,11 @@ class AddManualCandidateUseCase:
             surface_form=surface_form,
             is_phrasal_verb=is_phrasal_verb,
             status=CandidateStatus.PENDING,
+            cefr_breakdown=breakdown,
         )
         saved = self._candidate_repo.create_batch([candidate])[0]
 
+        bd_dto = breakdown_to_dto(saved.cefr_breakdown) if saved.cefr_breakdown else None
         return StoredCandidateDTO(
             id=saved.id,  # type: ignore[arg-type]
             lemma=saved.lemma,
@@ -123,4 +127,5 @@ class AddManualCandidateUseCase:
             status=saved.status.value,
             surface_form=saved.surface_form,
             is_phrasal_verb=saved.is_phrasal_verb,
+            cefr_breakdown=bd_dto,
         )
