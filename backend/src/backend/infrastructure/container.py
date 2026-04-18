@@ -110,7 +110,12 @@ class Container:
         self._lyrics_parser = RegexLyricsParser(self._text_analyzer)
         self._srt_parser = RegexSrtParser()
         project_root = Path(__file__).resolve().parents[4]
-        cefr_data_dir = project_root / "dictionaries" / "cefr"
+        # In Docker, project_root resolves to /usr/local/lib (site-packages),
+        # but dictionaries are mounted at /app/dictionaries.
+        dictionaries_dir = project_root / "dictionaries"
+        if not dictionaries_dir.exists():
+            dictionaries_dir = Path("/app/dictionaries")
+        cefr_data_dir = dictionaries_dir / "cefr"
         cefr_sources: list[CEFRSource] = [
             CefrpyCEFRSource(),
             EFLLexCEFRSource(cefr_data_dir / "efllex.tsv"),
