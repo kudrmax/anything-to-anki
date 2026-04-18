@@ -47,11 +47,12 @@ class SqlaCandidateRepository(CandidateRepository):
             .filter(StoredCandidateModel.source_id == source_id)
         )
         if sort_order == CandidateSortOrder.RELEVANCE:
-            # sweet-spot first, then high-frequency words, then by CEFR level desc
+            # sweet-spot first, then high-frequency words, then lower CEFR first
+            # (easier words are more useful to learn first)
             query = query.order_by(
                 StoredCandidateModel.is_sweet_spot.desc(),
                 StoredCandidateModel.zipf_frequency.desc(),
-                StoredCandidateModel.cefr_level.desc(),
+                StoredCandidateModel.cefr_level.asc(),
             )
         else:
             # CHRONOLOGICAL or unspecified — insertion order = source text order
