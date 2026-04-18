@@ -81,16 +81,12 @@ export function CEFRBreakdownTooltip({ breakdown, cefrLevel, anchorEl, onClose }
   }
 
   return createPortal(
-    <div style={{
+    <div className="glass-card glass-dropdown" style={{
       position: 'fixed',
       top: pos.top,
       left: pos.left,
       width: 280,
       padding: '10px 12px',
-      background: 'var(--card-bg, var(--bg-secondary))',
-      border: '1px solid var(--border)',
-      borderRadius: '8px',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
       zIndex: 9999,
     }}>
       <div style={{
@@ -103,7 +99,7 @@ export function CEFRBreakdownTooltip({ breakdown, cefrLevel, anchorEl, onClose }
         {headerText}
       </div>
       <div style={{
-        borderTop: '1px solid var(--border)',
+        borderTop: '1px solid var(--surface-divider)',
         paddingTop: '4px',
       }}>
         {allVotes.map(({ vote, isPriority }) => (
