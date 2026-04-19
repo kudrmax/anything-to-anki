@@ -42,10 +42,11 @@ hr {
   opacity: 0.3;
 }
 
-/* Image: float right, text wraps around */
-.image {
+/* Media block: image + audio, float right */
+.media {
   float: right;
   margin: 0 0 10px 14px;
+  text-align: center;
 }
 
 .image img {
@@ -57,10 +58,8 @@ hr {
   display: block;
 }
 
-/* Audio */
 .audio {
-  margin-top: 8px;
-  clear: right;
+  margin-top: 6px;
 }
 
 /* Target word + IPA */
