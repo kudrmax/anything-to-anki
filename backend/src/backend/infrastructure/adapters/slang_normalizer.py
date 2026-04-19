@@ -52,12 +52,16 @@ class SlangNormalizer(TextNormalizer):
         result = text
 
         for pattern, replacement in _SPECIFIC_RULES:
-            result = pattern.sub(
-                lambda m, r=replacement: _match_case(m.group(0), r),
-                result,
-            )
+
+            def _repl(m: re.Match[str], r: str = replacement) -> str:
+                return _match_case(m.group(0), r)
+
+            result = pattern.sub(_repl, result)
 
         # General -in' → -ing (last, to avoid conflicting with specific rules)
-        result = _DROPPED_G_RE.sub(lambda m: m.group(1) + "ing", result)
+        def _repl_ing(m: re.Match[str]) -> str:
+            return m.group(1) + "ing"
+
+        result = _DROPPED_G_RE.sub(_repl_ing, result)
 
         return result
