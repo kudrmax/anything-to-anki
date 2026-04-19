@@ -22,7 +22,7 @@ class TestGetCandidatesUseCase:
         self.candidate_repo.get_by_source.return_value = [
             StoredCandidate(
                 id=1, source_id=1, lemma="test", pos="NOUN",
-                cefr_level="B2", zipf_frequency=3.5, is_sweet_spot=True,
+                cefr_level="B2", zipf_frequency=3.5,
                 context_fragment="a test", fragment_purity="clean",
                 occurrences=1, status=CandidateStatus.PENDING,
             ),

@@ -70,6 +70,7 @@ def _create_use_case(
     frequency_provider.get_frequency.side_effect = lambda lemma: FrequencyBand.from_zipf(
         _freq.get(lemma, 5.0)
     )
+    frequency_provider.get_zipf_value.side_effect = lambda lemma: _freq.get(lemma, 5.0)
 
     phrasal_verb_detector = MagicMock()
     phrasal_verb_detector.detect.return_value = []
@@ -140,7 +141,7 @@ class TestAnalyzeTextUseCase:
         assert len(response.candidates) == 1
         assert response.candidates[0].occurrences == 2
 
-    def test_sweet_spot_sorted_first(self) -> None:
+    def test_both_candidates_returned(self) -> None:
         tokens = [
             _make_token(0, "ubiquitous", "ubiquitous"),
             _make_token(1, "pursuit", "pursuit"),
@@ -153,15 +154,15 @@ class TestAnalyzeTextUseCase:
                 "pursuit": CEFRLevel.B2,
             },
             freq_map={
-                "ubiquitous": 2.5,  # NOT sweet spot
-                "pursuit": 4.0,  # sweet spot
+                "ubiquitous": 2.5,
+                "pursuit": 4.0,
             },
         )
         request = AnalyzeTextRequest(raw_text="ubiquitous pursuit", user_level="B1")
         response = use_case.execute(request)
         assert len(response.candidates) == 2
-        assert response.candidates[0].lemma == "pursuit"  # sweet spot first
-        assert response.candidates[1].lemma == "ubiquitous"
+        lemmas = {c.lemma for c in response.candidates}
+        assert lemmas == {"pursuit", "ubiquitous"}
 
     def test_filters_stop_words(self) -> None:
         tokens = [_make_token(0, "the", "the", is_stop=True)]

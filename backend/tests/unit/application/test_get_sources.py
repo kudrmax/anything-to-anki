@@ -41,7 +41,7 @@ class TestGetSourcesUseCase:
         ]
         make_candidate = lambda status: StoredCandidate(  # noqa: E731
             id=1, source_id=1, lemma="word", pos="NOUN", cefr_level="B2",
-            zipf_frequency=4.0, is_sweet_spot=True, context_fragment="ctx",
+            zipf_frequency=4.0, context_fragment="ctx",
             fragment_purity="clean", occurrences=1, status=status,
         )
         self.candidate_repo.get_by_source.return_value = [

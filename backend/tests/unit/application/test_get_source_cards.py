@@ -54,7 +54,6 @@ def _make_candidate(
         pos="NOUN",
         cefr_level="B2",
         zipf_frequency=3.5,
-        is_sweet_spot=True,
         context_fragment=fragment,
         fragment_purity="clean",
         occurrences=1,

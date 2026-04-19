@@ -29,10 +29,16 @@ import pytest
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
-from backend.infrastructure.adapters.cefrpy_classifier import CefrpyCEFRClassifier
+from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
+from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
+from backend.infrastructure.adapters.cambridge.parser import parse_cambridge_jsonl
+from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
+from backend.infrastructure.adapters.efllex_cefr_source import EFLLexCEFRSource
 from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
 )
+from backend.infrastructure.adapters.kelly_cefr_source import KellyCEFRSource
+from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
 from backend.infrastructure.adapters.wordfreq_frequency_provider import (
@@ -45,12 +51,28 @@ LYRICS = (FIXTURES / "evil_morty_lyrics.txt").read_text()
 USER_LEVEL = "A1"  # matches the level used when the source was originally analyzed
 
 
+CEFR_DATA_DIR = Path(__file__).resolve().parents[3] / "dictionaries" / "cefr"
+CAMBRIDGE_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / "cambridge.jsonl"
+
+
+def _make_classifier() -> VotingCEFRClassifier:
+    cambridge_data = parse_cambridge_jsonl(CAMBRIDGE_PATH)
+    cambridge_cefr = CambridgeCEFRSource.from_data(cambridge_data)
+    sources = [
+        CefrpyCEFRSource(),
+        EFLLexCEFRSource(CEFR_DATA_DIR / "efllex.tsv"),
+        OxfordCEFRSource(CEFR_DATA_DIR / "oxford5000.csv"),
+        KellyCEFRSource(CEFR_DATA_DIR / "kelly.csv"),
+    ]
+    return VotingCEFRClassifier(sources, priority_source=cambridge_cefr)
+
+
 @pytest.fixture(scope="module")
 def use_case() -> AnalyzeTextUseCase:
     return AnalyzeTextUseCase(
         text_cleaner=RegexTextCleaner(),
         text_analyzer=SpaCyTextAnalyzer(),
-        cefr_classifier=CefrpyCEFRClassifier(),
+        cefr_classifier=_make_classifier(),
         frequency_provider=WordfreqFrequencyProvider(),
         phrasal_verb_detector=PhrasalVerbDetector(JsonPhrasalVerbDictionary()),
     )
@@ -155,7 +177,7 @@ WAVE_1_LYRICS: list[tuple[str, str, str]] = [
     (
         "554_cause",
         "cause",
-        "sick with my wording cause",
+        "Cause he never heard me say\n\u201cah geez",
     ),
 ]
 

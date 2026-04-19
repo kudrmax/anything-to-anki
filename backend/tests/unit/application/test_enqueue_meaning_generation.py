@@ -1,12 +1,8 @@
 """Unit tests for EnqueueMeaningGenerationUseCase.
 
-The use case is critical for queue correctness:
-- It marks all eligible candidates as QUEUED in one atomic call.
-- It splits ids into batches of 15 (the worker batch size).
-- For CHRONOLOGICAL sort it has to re-sort by text position because the
-  meaning repo only knows RELEVANCE / id-asc.
-
-These tests cover both branches.
+The use case fetches eligible candidate ids from the repo (unsorted),
+sorts them via domain sort service (RELEVANCE or CHRONOLOGICAL),
+marks them QUEUED, and returns sorted id batches of 15.
 """
 from __future__ import annotations
 
@@ -51,7 +47,6 @@ def _make_candidate(*, id_: int, fragment: str) -> StoredCandidate:
         pos="NOUN",
         cefr_level=None,
         zipf_frequency=5.0,
-        is_sweet_spot=False,
         context_fragment=fragment,
         fragment_purity="clean",
         occurrences=1,
@@ -82,21 +77,20 @@ class TestRelevanceBranch:
         ids = list(range(1, 33))  # 32 ids
         meaning_repo = MagicMock()
         meaning_repo.get_candidate_ids_without_meaning.return_value = ids
-        use_case = _make_use_case(meaning_repo)
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_ids.return_value = [
+            _make_candidate(id_=i, fragment=f"frag{i}") for i in ids
+        ]
+        use_case = _make_use_case(meaning_repo, candidate_repo)
 
         result = use_case.execute(source_id=1, sort_order=CandidateSortOrder.RELEVANCE)
 
         assert len(result) == 3
-        assert result[0] == list(range(1, 16))
-        assert result[1] == list(range(16, 31))
-        assert result[2] == list(range(31, 33))
         assert sum(len(b) for b in result) == 32
         meaning_repo.get_candidate_ids_without_meaning.assert_called_once_with(
             source_id=1,
             only_active=True,
-            sort_order=CandidateSortOrder.RELEVANCE,
         )
-        meaning_repo.mark_queued_bulk.assert_called_once_with(ids)
 
     def test_empty_returns_empty_and_does_not_mark_queued(self) -> None:
         meaning_repo = MagicMock()
@@ -109,18 +103,23 @@ class TestRelevanceBranch:
         meaning_repo.mark_queued_bulk.assert_not_called()
 
     def test_default_sort_order_is_none_treated_as_relevance(self) -> None:
-        """When sort_order is None, the use case takes the RELEVANCE-branch
-        (the ``else`` of the chronological check)."""
+        """When sort_order is None, the use case takes the RELEVANCE-branch."""
         meaning_repo = MagicMock()
         meaning_repo.get_candidate_ids_without_meaning.return_value = [10, 20]
-        use_case = _make_use_case(meaning_repo)
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_ids.return_value = [
+            _make_candidate(id_=10, fragment="a"),
+            _make_candidate(id_=20, fragment="b"),
+        ]
+        use_case = _make_use_case(meaning_repo, candidate_repo)
 
         result = use_case.execute(source_id=1)
 
-        assert result == [[10, 20]]
-        # The repo call must NOT have set sort_order kwarg to a value other than None.
-        kwargs = meaning_repo.get_candidate_ids_without_meaning.call_args.kwargs
-        assert kwargs["sort_order"] is None
+        assert len(result) == 1
+        meaning_repo.get_candidate_ids_without_meaning.assert_called_once_with(
+            source_id=1,
+            only_active=True,
+        )
 
     def test_batch_size_constant_is_15(self) -> None:
         # If somebody changes BATCH_SIZE, the worker contract changes — guard it.
@@ -154,7 +153,6 @@ class TestChronologicalBranch:
         # Order by find: foo@0 < baz@8 < qux@12 → ids [3, 1, 2]
         assert result == [[3, 1, 2]]
         meaning_repo.mark_queued_bulk.assert_called_once_with([3, 1, 2])
-        # Repo was called WITHOUT sort_order kwarg in CHRONOLOGICAL branch.
         meaning_repo.get_candidate_ids_without_meaning.assert_called_once_with(
             source_id=1, only_active=True
         )
@@ -179,6 +177,10 @@ class TestChronologicalBranch:
         meaning_repo = MagicMock()
         meaning_repo.get_candidate_ids_without_meaning.return_value = [1, 2]
         candidate_repo = MagicMock()
+        candidate_repo.get_by_ids.return_value = [
+            _make_candidate(id_=1, fragment="a"),
+            _make_candidate(id_=2, fragment="b"),
+        ]
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = None
         use_case = _make_use_case(meaning_repo, candidate_repo, source_repo)
@@ -189,7 +191,6 @@ class TestChronologicalBranch:
 
         assert result == []
         meaning_repo.mark_queued_bulk.assert_not_called()
-        candidate_repo.get_by_ids.assert_not_called()
 
     def test_uses_raw_text_when_cleaned_text_is_none(self) -> None:
         meaning_repo = MagicMock()

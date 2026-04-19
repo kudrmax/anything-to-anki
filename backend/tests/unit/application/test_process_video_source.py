@@ -32,7 +32,7 @@ def _make_source(input_method: InputMethod, raw_text: str = "") -> Source:
 def _make_candidate(fragment: str) -> StoredCandidate:
     return StoredCandidate(
         id=1, source_id=1, lemma="test", pos="NOUN",
-        cefr_level="B1", zipf_frequency=3.5, is_sweet_spot=True,
+        cefr_level="B1", zipf_frequency=3.5,
         context_fragment=fragment, fragment_purity="clean",
         occurrences=1, status=CandidateStatus.PENDING,
     )
@@ -52,7 +52,7 @@ class TestProcessVideoSource:
         returned = [StoredCandidate(
             id=i + 1, source_id=c.source_id, lemma=c.lemma, pos=c.pos,
             cefr_level=c.cefr_level, zipf_frequency=c.zipf_frequency,
-            is_sweet_spot=c.is_sweet_spot, context_fragment=c.context_fragment,
+            context_fragment=c.context_fragment,
             fragment_purity=c.fragment_purity, occurrences=c.occurrences,
             status=c.status,
         ) for i, c in enumerate(candidates)]
