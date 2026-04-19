@@ -50,6 +50,9 @@ def _create_use_case(
     text_cleaner = MagicMock()
     text_cleaner.clean.return_value = cleaned_text
 
+    text_normalizer = MagicMock()
+    text_normalizer.normalize.side_effect = lambda t: t  # passthrough
+
     text_analyzer = MagicMock()
     text_analyzer.analyze.return_value = tokens or []
 
@@ -77,6 +80,7 @@ def _create_use_case(
 
     return AnalyzeTextUseCase(
         text_cleaner=text_cleaner,
+        text_normalizer=text_normalizer,
         text_analyzer=text_analyzer,
         cefr_classifier=cefr_classifier,
         frequency_provider=frequency_provider,
@@ -186,3 +190,35 @@ class TestAnalyzeTextUseCase:
         request = AnalyzeTextRequest(raw_text="relentless", user_level="B1")
         response = use_case.execute(request)
         assert response.candidates[0].fragment_purity in ("clean", "dirty")
+
+
+@pytest.mark.unit
+class TestAnalyzeTextSlangNormalization:
+    def test_normalizer_called_with_cleaned_text(self) -> None:
+        text_cleaner = MagicMock()
+        text_cleaner.clean.return_value = "I wanna go"
+
+        text_normalizer = MagicMock()
+        text_normalizer.normalize.return_value = "I want to go"
+
+        text_analyzer = MagicMock()
+        text_analyzer.analyze.return_value = []
+
+        cefr_classifier = MagicMock()
+        frequency_provider = MagicMock()
+        phrasal_verb_detector = MagicMock()
+
+        use_case = AnalyzeTextUseCase(
+            text_cleaner=text_cleaner,
+            text_normalizer=text_normalizer,
+            text_analyzer=text_analyzer,
+            cefr_classifier=cefr_classifier,
+            frequency_provider=frequency_provider,
+            phrasal_verb_detector=phrasal_verb_detector,
+        )
+
+        request = AnalyzeTextRequest(raw_text="I wanna go", user_level="A1")
+        use_case.execute(request)
+
+        text_normalizer.normalize.assert_called_once_with("I wanna go")
+        text_analyzer.analyze.assert_called_once_with("I want to go")

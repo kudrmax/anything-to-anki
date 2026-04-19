@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.frequency_provider import FrequencyProvider
     from backend.domain.ports.text_analyzer import TextAnalyzer
     from backend.domain.ports.text_cleaner import TextCleaner
+    from backend.domain.ports.text_normalizer import TextNormalizer
     from backend.domain.services.fragment_selection.scoring.scorer import (
         UnknownCounter,
     )
@@ -45,6 +46,7 @@ class AnalyzeTextUseCase:
     def __init__(
         self,
         text_cleaner: TextCleaner,
+        text_normalizer: TextNormalizer,
         text_analyzer: TextAnalyzer,
         cefr_classifier: CEFRClassifier,
         frequency_provider: FrequencyProvider,
@@ -53,6 +55,7 @@ class AnalyzeTextUseCase:
         usage_lookup: CambridgeUsageLookup | None = None,
     ) -> None:
         self._text_cleaner = text_cleaner
+        self._text_normalizer = text_normalizer
         self._text_analyzer = text_analyzer
         self._cefr_classifier = cefr_classifier
         self._frequency_provider = frequency_provider
@@ -80,15 +83,18 @@ class AnalyzeTextUseCase:
             )
             raise TextTooShortError()
 
+        # Layer 2.5: normalize slang contractions
+        normalized = self._text_normalizer.normalize(cleaned)
+
         # Layer 3: analyze
-        tokens = self._text_analyzer.analyze(cleaned)
+        tokens = self._text_analyzer.analyze(normalized)
         if not tokens:
             logger.info(
                 "analyze_text: no tokens after analysis (cleaned_len=%d)",
-                len(cleaned),
+                len(normalized),
             )
             return AnalyzeTextResponse(
-                cleaned_text=cleaned,
+                cleaned_text=normalized,
                 candidates=[],
                 total_tokens=0,
                 unique_lemmas=0,
@@ -149,7 +155,7 @@ class AnalyzeTextUseCase:
             len(tokens), unique_lemmas, len(candidates),
         )
         return AnalyzeTextResponse(
-            cleaned_text=cleaned,
+            cleaned_text=normalized,
             candidates=[self._to_dto(c) for c in candidates],
             total_tokens=len(tokens),
             unique_lemmas=unique_lemmas,
