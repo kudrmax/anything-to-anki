@@ -40,6 +40,7 @@ from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
 from backend.infrastructure.adapters.kelly_cefr_source import KellyCEFRSource
 from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
+from backend.infrastructure.adapters.slang_normalizer import SlangNormalizer
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
 from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
@@ -71,6 +72,7 @@ def _make_classifier() -> VotingCEFRClassifier:
 def use_case() -> AnalyzeTextUseCase:
     return AnalyzeTextUseCase(
         text_cleaner=RegexTextCleaner(),
+        text_normalizer=SlangNormalizer(),
         text_analyzer=SpaCyTextAnalyzer(),
         cefr_classifier=_make_classifier(),
         frequency_provider=WordfreqFrequencyProvider(),

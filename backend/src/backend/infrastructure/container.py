@@ -47,6 +47,7 @@ from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
 from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
 from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
+from backend.infrastructure.adapters.slang_normalizer import SlangNormalizer
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
 from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
@@ -109,6 +110,7 @@ class Container:
 
         self._text_analyzer = SpaCyTextAnalyzer()
         self._text_cleaner = RegexTextCleaner()
+        self._text_normalizer = SlangNormalizer()
         self._lyrics_parser = RegexLyricsParser(self._text_analyzer)
         self._srt_parser = RegexSrtParser()
         project_root = Path(__file__).resolve().parents[4]
@@ -195,6 +197,7 @@ class Container:
     def analyze_text_use_case(self) -> AnalyzeTextUseCase:
         return AnalyzeTextUseCase(
             text_cleaner=self._text_cleaner,
+            text_normalizer=self._text_normalizer,
             text_analyzer=self._text_analyzer,
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
