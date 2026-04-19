@@ -22,6 +22,8 @@ class SettingsDTO(BaseModel):
     anki_field_translation: str
     anki_field_synonyms: str
     anki_field_examples: str
+    anki_field_audio_target_us: str
+    anki_field_audio_target_uk: str
     enable_definitions: bool
     usage_group_order: list[str]
 
@@ -43,6 +45,8 @@ class UpdateSettingsRequest(BaseModel):
     anki_field_translation: str | None = None
     anki_field_synonyms: str | None = None
     anki_field_examples: str | None = None
+    anki_field_audio_target_us: str | None = None
+    anki_field_audio_target_uk: str | None = None
     enable_definitions: bool | None = None
     usage_group_order: list[str] | None = None
 
