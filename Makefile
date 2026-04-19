@@ -1,11 +1,11 @@
-.PHONY: up up-worktree down logs test coverage lint typecheck help _python_dev _check_env copy-dev-db
+.PHONY: up up-worktree down logs test coverage lint typecheck help _python_dev _check_env
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # docker compose читает .env сам — это только для ai_proxy и echo.
-ifneq (,$(wildcard ./.env))
-    include .env
-    export
-endif
+# -include не падает если файла нет; если .env создаётся правилом ниже,
+# Make автоматически перечитывает Makefile с новыми переменными.
+-include .env
+export
 
 # ── Константы ─────────────────────────────────────────────────────
 AI_VENV := .venv-ai-proxy
@@ -63,6 +63,18 @@ define stop_ai_proxy
 	@rm -f $(AI_PID)
 endef
 
+# Автосоздание .env из .env.example.
+# Make вызывает это правило когда -include .env не нашёл файл,
+# после чего автоматически перечитывает Makefile — переменные подхватываются.
+.env:
+	@if [ -f .env.example ]; then \
+	    cp .env.example .env; \
+	    echo "Created .env from .env.example"; \
+	else \
+	    echo "ERROR: .env file missing and no .env.example found."; \
+	    exit 1; \
+	fi
+
 # Проверить что .env существует.
 _check_env:
 	@if [ ! -f .env ]; then \
@@ -82,7 +94,13 @@ up: _check_env  ## Запустить (ai_proxy + docker compose)
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "\033[0m\n"
 
-up-worktree: _check_env copy-dev-db  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий worktree)
+up-worktree: _check_env  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий worktree)
+	@# Симлинк dictionaries на main worktree (submodule там уже инициализирован)
+	@main=$$(git worktree list --porcelain | head -1 | awk '{print $$2}'); \
+	if [ "$$main" != "$$(pwd)" ] && [ ! -e dictionaries ] && [ -d "$$main/dictionaries" ]; then \
+	    ln -s "$$main/dictionaries" dictionaries; \
+	    echo "Symlinked dictionaries → main worktree"; \
+	fi
 	@# Остановить предыдущий worktree на этих портах (если есть)
 	@containers=$$(docker ps --format '{{.ID}} {{.Ports}}' | grep '$(WORKTREE_PORT)->' | awk '{print $$1}'); \
 	if [ -n "$$containers" ]; then \
@@ -137,21 +155,6 @@ lint: _python_dev  ## Линтинг (ruff)
 
 typecheck: _python_dev  ## Проверка типов (mypy)
 	.venv/bin/mypy backend/src
-
-##@ Worktree
-copy-dev-db:  ## Скопировать data/app.db из main worktree
-	@main=$$(git worktree list --porcelain | head -1 | awk '{print $$2}'); \
-	if [ "$$main" = "$$(pwd)" ]; then \
-	    echo "Already in the main worktree, nothing to do."; \
-	    exit 0; \
-	fi; \
-	mkdir -p data; \
-	if [ -f "$$main/data/app.db" ] && [ ! -f data/app.db ]; then \
-	    cp "$$main/data/app.db" data/app.db; \
-	    echo "Copied app.db from main worktree"; \
-	elif [ -f data/app.db ]; then \
-	    echo "data/app.db already exists, skipping"; \
-	fi
 
 ##@ Прочее
 help:  ## Показать доступные команды
