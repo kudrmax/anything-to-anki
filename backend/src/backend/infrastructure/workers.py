@@ -99,6 +99,46 @@ async def extract_media_for_candidate(ctx: dict[str, Any], candidate_id: int) ->
             )
 
 
+async def download_pronunciation_for_candidate(ctx: dict[str, Any], candidate_id: int) -> None:
+    """Single-candidate pronunciation download job."""
+    container: Container = ctx["container"]
+
+    # Step 1: mark RUNNING in its own committed session
+    with container.session_scope() as session:
+        container.candidate_pronunciation_repository(session).mark_running(candidate_id)
+
+    # Step 1b: verify mark_running took effect
+    with container.session_scope() as session:
+        pron_repo = container.candidate_pronunciation_repository(session)
+        pron = pron_repo.get_by_candidate_id(candidate_id)
+        if pron is None or pron.status != EnrichmentStatus.RUNNING:
+            logger.info(
+                "download_pronunciation_for_candidate: skipped %d (cancelled before start)",
+                candidate_id,
+            )
+            return
+
+    # Step 2: run download in thread
+    def _run_download() -> None:
+        with container.session_scope() as session:
+            use_case = container.download_pronunciation_use_case(session)
+            use_case.execute_one(candidate_id)
+
+    try:
+        await asyncio.to_thread(_run_download)
+    except asyncio.CancelledError:
+        logger.info("download_pronunciation_for_candidate: aborted %d", candidate_id)
+        with container.session_scope() as session:
+            container.candidate_pronunciation_repository(session).mark_batch_cancelled([candidate_id])
+        raise
+    except Exception as exc:
+        logger.exception("download_pronunciation_for_candidate: error for %d", candidate_id)
+        with container.session_scope() as session:
+            container.candidate_pronunciation_repository(session).mark_failed(
+                candidate_id, f"{type(exc).__name__}: {exc}"
+            )
+
+
 async def generate_meanings_batch(
     ctx: dict[str, Any], candidate_ids: list[int]
 ) -> None:
@@ -196,13 +236,16 @@ async def startup(ctx: dict[str, Any]) -> None:
     with container.session_scope() as session:
         meaning_repo = container.candidate_meaning_repository(session)
         media_repo = container.candidate_media_repository(session)
+        pron_repo = container.candidate_pronunciation_repository(session)
         error = "interrupted by worker restart"
         meanings_fixed = meaning_repo.fail_all_running(error)
         media_fixed = media_repo.fail_all_running(error)
-    if meanings_fixed or media_fixed:
+        pron_fixed = pron_repo.fail_all_running(error)
+    if meanings_fixed or media_fixed or pron_fixed:
         logger.warning(
-            "startup reconciliation: reset %d meaning + %d media zombie RUNNING rows",
-            meanings_fixed, media_fixed,
+            "startup reconciliation: reset %d meaning + %d media"
+            " + %d pronunciation zombie RUNNING rows",
+            meanings_fixed, media_fixed, pron_fixed,
         )
 
 
@@ -211,7 +254,12 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
-    functions = [extract_media_for_candidate, generate_meanings_batch, download_youtube_video]
+    functions = [
+        extract_media_for_candidate,
+        generate_meanings_batch,
+        download_youtube_video,
+        download_pronunciation_for_candidate,
+    ]
     redis_settings = RedisSettings.from_dsn(
         os.environ.get("REDIS_URL", "redis://localhost:6379")
     )

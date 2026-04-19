@@ -23,6 +23,8 @@ class CardPreviewDTO(BaseModel):
     ipa: str | None = None
     screenshot_url: str | None = None
     audio_url: str | None = None
+    pronunciation_us_url: str | None = None
+    pronunciation_uk_url: str | None = None
 
 
 class SyncResultDTO(BaseModel):

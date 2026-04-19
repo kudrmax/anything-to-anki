@@ -36,6 +36,9 @@ from backend.domain.value_objects.input_method import InputMethod
 from backend.infrastructure.adapters.ai_model_mapping import model_id_for
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
 from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
+from backend.infrastructure.adapters.cambridge.pronunciation_source import (
+    CambridgePronunciationSource,
+)
 from backend.infrastructure.adapters.cambridge.usage_lookup import CambridgeUsageLookup
 from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
 from backend.infrastructure.adapters.efllex_cefr_source import EFLLexCEFRSource
@@ -63,6 +66,9 @@ from backend.infrastructure.persistence.sqla_candidate_meaning_repository import
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
+from backend.infrastructure.persistence.sqla_candidate_pronunciation_repository import (
+    SqlaCandidatePronunciationRepository,
+)
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
@@ -83,12 +89,16 @@ if TYPE_CHECKING:
     from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
     from backend.application.use_cases.cleanup_youtube_video import CleanupYoutubeVideoUseCase
     from backend.application.use_cases.create_source_from_url import CreateSourceFromUrlUseCase
+    from backend.application.use_cases.download_pronunciation import DownloadPronunciationUseCase
     from backend.application.use_cases.download_video import DownloadVideoUseCase
     from backend.application.use_cases.enqueue_meaning_generation import (
         EnqueueMeaningGenerationUseCase,
     )
     from backend.application.use_cases.enqueue_media_generation import (
         EnqueueMediaGenerationUseCase,
+    )
+    from backend.application.use_cases.enqueue_pronunciation_download import (
+        EnqueuePronunciationDownloadUseCase,
     )
     from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
     from backend.application.use_cases.regenerate_candidate_media import (
@@ -132,6 +142,7 @@ class Container:
         ]
         cambridge_cefr = CambridgeCEFRSource(cambridge_path)
         self._cambridge_usage_lookup = CambridgeUsageLookup(cambridge_path)
+        self._pronunciation_source = CambridgePronunciationSource(cambridge_path)
         self._cefr_classifier = VotingCEFRClassifier(
             cefr_sources, priority_source=cambridge_cefr
         )
@@ -423,6 +434,36 @@ class Container:
 
     def anki_template_renderer(self) -> AnkiTemplateRenderer:
         return self._anki_template_renderer
+
+    def candidate_pronunciation_repository(
+        self, session: Session,
+    ) -> SqlaCandidatePronunciationRepository:
+        return SqlaCandidatePronunciationRepository(session)
+
+    def download_pronunciation_use_case(
+        self, session: Session,
+    ) -> DownloadPronunciationUseCase:
+        from backend.application.use_cases.download_pronunciation import (
+            DownloadPronunciationUseCase,
+        )
+        return DownloadPronunciationUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            pronunciation_repo=SqlaCandidatePronunciationRepository(session),
+            pronunciation_source=self._pronunciation_source,
+            media_root=self._media_root,
+        )
+
+    def enqueue_pronunciation_download_use_case(
+        self, session: Session,
+    ) -> EnqueuePronunciationDownloadUseCase:
+        from backend.application.use_cases.enqueue_pronunciation_download import (
+            EnqueuePronunciationDownloadUseCase,
+        )
+        return EnqueuePronunciationDownloadUseCase(
+            pronunciation_repo=SqlaCandidatePronunciationRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
+        )
 
     def enqueue_media_generation_use_case(
         self, session: Session

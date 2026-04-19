@@ -9,6 +9,7 @@ from backend.domain.ports.candidate_repository import CandidateRepository
 from backend.infrastructure.persistence.models import (
     CandidateMeaningModel,
     CandidateMediaModel,
+    CandidatePronunciationModel,
     StoredCandidateModel,
 )
 
@@ -93,6 +94,9 @@ class SqlaCandidateRepository(CandidateRepository):
         )
         cids = [r[0] for r in cid_rows]
         if cids:
+            self._session.query(CandidatePronunciationModel).filter(
+                CandidatePronunciationModel.candidate_id.in_(cids)
+            ).delete(synchronize_session=False)
             self._session.query(CandidateMeaningModel).filter(
                 CandidateMeaningModel.candidate_id.in_(cids)
             ).delete(synchronize_session=False)
@@ -111,8 +115,10 @@ class SqlaCandidateRepository(CandidateRepository):
             return entity
         meaning_model = self._session.get(CandidateMeaningModel, entity.id)
         media_model = self._session.get(CandidateMediaModel, entity.id)
+        pron_model = self._session.get(CandidatePronunciationModel, entity.id)
         entity.meaning = meaning_model.to_entity() if meaning_model else None
         entity.media = media_model.to_entity() if media_model else None
+        entity.pronunciation = pron_model.to_entity() if pron_model else None
         return entity
 
     def _bulk_attach(self, entities: list[StoredCandidate]) -> list[StoredCandidate]:
@@ -129,10 +135,17 @@ class SqlaCandidateRepository(CandidateRepository):
             .filter(CandidateMediaModel.candidate_id.in_(ids))
             .all()
         )
+        pron_rows = (
+            self._session.query(CandidatePronunciationModel)
+            .filter(CandidatePronunciationModel.candidate_id.in_(ids))
+            .all()
+        )
         meanings = {r.candidate_id: r.to_entity() for r in meaning_rows}
         medias = {r.candidate_id: r.to_entity() for r in media_rows}
+        prons = {r.candidate_id: r.to_entity() for r in pron_rows}
         for e in entities:
             if e.id is not None:
                 e.meaning = meanings.get(e.id)
                 e.media = medias.get(e.id)
+                e.pronunciation = prons.get(e.id)
         return entities

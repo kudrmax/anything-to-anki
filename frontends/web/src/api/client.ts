@@ -142,6 +142,18 @@ export const api = {
   retryFailedMedia: (sourceId: number) =>
     req<{ enqueued: number }>(`/sources/${sourceId}/media/retry-failed`, { method: 'POST' }),
 
+  enqueuePronunciationDownload: (sourceId: number) =>
+    req<{ enqueued: number }>(
+      `/sources/${sourceId}/pronunciation/generate`,
+      { method: 'POST' },
+    ),
+
+  cancelPronunciationQueue: (sourceId: number) =>
+    req<{ cancelled: number }>(`/sources/${sourceId}/pronunciation/cancel`, { method: 'POST' }),
+
+  retryFailedPronunciation: (sourceId: number) =>
+    req<{ enqueued: number }>(`/sources/${sourceId}/pronunciation/retry-failed`, { method: 'POST' }),
+
   getQueueSummary: (sourceId: number) =>
     req<QueueSummary>(`/sources/${sourceId}/queue-summary`),
 

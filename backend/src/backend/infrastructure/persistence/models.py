@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
+from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.known_word import KnownWord
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -402,6 +403,44 @@ class CandidateMediaModel(Base):
             audio_path=entity.audio_path,
             start_ms=entity.start_ms,
             end_ms=entity.end_ms,
+            status=entity.status.value,
+            error=entity.error,
+            generated_at=entity.generated_at,
+        )
+
+
+class CandidatePronunciationModel(Base):
+    """SQLAlchemy model for pronunciation audio enrichment (1:1 with candidate)."""
+
+    __tablename__ = "candidate_pronunciations"
+
+    candidate_id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        nullable=False,
+    )
+    us_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uk_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="done")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def to_entity(self) -> CandidatePronunciation:
+        return CandidatePronunciation(
+            candidate_id=self.candidate_id,
+            us_audio_path=self.us_audio_path,
+            uk_audio_path=self.uk_audio_path,
+            status=EnrichmentStatus(self.status),
+            error=self.error,
+            generated_at=self.generated_at,
+        )
+
+    @staticmethod
+    def from_entity(entity: CandidatePronunciation) -> CandidatePronunciationModel:
+        return CandidatePronunciationModel(
+            candidate_id=entity.candidate_id,
+            us_audio_path=entity.us_audio_path,
+            uk_audio_path=entity.uk_audio_path,
             status=entity.status.value,
             error=entity.error,
             generated_at=entity.generated_at,

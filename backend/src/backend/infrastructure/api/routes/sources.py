@@ -351,6 +351,7 @@ def get_queue_summary(
 
     meaning_repo = container.candidate_meaning_repository(session)
     media_repo = container.candidate_media_repository(session)
+    pron_repo = container.candidate_pronunciation_repository(session)
 
     qs = EnrichmentStatus.QUEUED
     rs = EnrichmentStatus.RUNNING
@@ -366,6 +367,11 @@ def get_queue_summary(
             "queued": len(media_repo.get_candidate_ids_by_status(source_id, qs)),
             "running": len(media_repo.get_candidate_ids_by_status(source_id, rs)),
             "failed": len(media_repo.get_candidate_ids_by_status(source_id, fs)),
+        },
+        "pronunciation": {
+            "queued": len(pron_repo.get_candidate_ids_by_status(source_id, qs)),
+            "running": len(pron_repo.get_candidate_ids_by_status(source_id, rs)),
+            "failed": len(pron_repo.get_candidate_ids_by_status(source_id, fs)),
         },
     }
 

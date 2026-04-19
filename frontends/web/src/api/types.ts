@@ -54,6 +54,14 @@ export interface CandidateMedia {
   generated_at: string | null
 }
 
+export interface CandidatePronunciation {
+  us_audio_path: string | null
+  uk_audio_path: string | null
+  status: EnrichmentStatus
+  error: string | null
+  generated_at: string | null
+}
+
 export interface SourceVote {
   source_name: string
   level: string | null
@@ -82,6 +90,7 @@ export interface StoredCandidate {
   has_custom_context_fragment: boolean
   meaning: CandidateMeaning | null
   media: CandidateMedia | null
+  pronunciation: CandidatePronunciation | null
   cefr_breakdown?: CEFRBreakdown | null
 }
 
@@ -117,6 +126,8 @@ export interface CardPreview {
   ipa: string | null
   screenshot_url: string | null
   audio_url: string | null
+  pronunciation_us_url: string | null
+  pronunciation_uk_url: string | null
 }
 
 export interface SyncResult {
@@ -143,6 +154,8 @@ export interface Settings {
   anki_field_translation: string
   anki_field_synonyms: string
   anki_field_examples: string
+  anki_field_audio_target_us: string
+  anki_field_audio_target_uk: string
   usage_group_order: string[]
 }
 
@@ -187,6 +200,7 @@ export interface QueueStatus {
 export interface QueueSummary {
   meaning: QueueStatus
   media: QueueStatus
+  pronunciation: QueueStatus
 }
 
 export interface SubtitleTrack {
