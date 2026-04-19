@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select, update
 
 from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
-from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.infrastructure.persistence.models import (
@@ -100,7 +99,6 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
     def get_eligible_candidate_ids(
         self,
         source_id: int,
-        sort_order: CandidateSortOrder | None = None,
     ) -> list[int]:
         stmt = (
             select(StoredCandidateModel.id)
@@ -118,14 +116,6 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
                 CandidateMediaModel.screenshot_path.is_(None),
             )
         )
-        if sort_order == CandidateSortOrder.RELEVANCE:
-            stmt = stmt.order_by(
-                StoredCandidateModel.is_sweet_spot.desc(),
-                StoredCandidateModel.zipf_frequency.desc(),
-                StoredCandidateModel.cefr_level.desc(),
-            )
-        else:
-            stmt = stmt.order_by(StoredCandidateModel.id.asc())
         rows = self._session.execute(stmt).all()
         return [row[0] for row in rows]
 
