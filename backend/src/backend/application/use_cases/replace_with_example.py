@@ -44,7 +44,6 @@ class ReplaceWithExampleUseCase:
             pos=original.pos,
             cefr_level=original.cefr_level,
             zipf_frequency=original.zipf_frequency,
-            is_sweet_spot=original.is_sweet_spot,
             context_fragment=_strip_bold(stripped),
             fragment_purity=original.fragment_purity,
             occurrences=1,
