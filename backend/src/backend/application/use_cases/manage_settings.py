@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
 from backend.application.dto.settings_dtos import SettingsDTO, UpdateSettingsRequest
 
 if TYPE_CHECKING:
@@ -23,10 +24,6 @@ _DEFAULT_FIELD_TRANSLATION: str = "Translation"
 _DEFAULT_FIELD_SYNONYMS: str = "Synonyms"
 _DEFAULT_FIELD_EXAMPLES: str = "Examples"
 _DEFAULT_ENABLE_DEFINITIONS: str = "true"
-_DEFAULT_USAGE_GROUP_ORDER: list[str] = [
-    "neutral", "informal", "formal", "specialized",
-    "connotation", "old-fashioned", "offensive", "other",
-]
 
 _SETTING_KEYS: dict[str, str] = {
     "cefr_level": _DEFAULT_CEFR_LEVEL,
@@ -44,7 +41,7 @@ _SETTING_KEYS: dict[str, str] = {
     "anki_field_synonyms": _DEFAULT_FIELD_SYNONYMS,
     "anki_field_examples": _DEFAULT_FIELD_EXAMPLES,
     "enable_definitions": _DEFAULT_ENABLE_DEFINITIONS,
-    "usage_group_order": json.dumps(_DEFAULT_USAGE_GROUP_ORDER),
+    "usage_group_order": json.dumps(DEFAULT_USAGE_GROUP_ORDER),
 }
 
 _BOOL_KEYS: frozenset[str] = frozenset({"enable_definitions"})

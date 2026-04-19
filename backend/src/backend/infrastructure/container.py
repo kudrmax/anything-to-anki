@@ -223,6 +223,7 @@ class Container:
         return GetSourcesUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
         )
 
     def process_source_use_case(self, session: Session) -> ProcessSourceUseCase:
@@ -244,6 +245,7 @@ class Container:
         return GetCandidatesUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
         )
 
     def mark_candidate_use_case(self, session: Session) -> MarkCandidateUseCase:
@@ -417,6 +419,7 @@ class Container:
             media_repo=SqlaCandidateMediaRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
         )
 
     def enqueue_meaning_generation_use_case(
@@ -429,6 +432,7 @@ class Container:
             meaning_repo=SqlaCandidateMeaningRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
         )
 
     async def get_redis_pool(self) -> Any:  # noqa: ANN401 — arq has no type stubs

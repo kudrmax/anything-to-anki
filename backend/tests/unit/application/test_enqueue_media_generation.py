@@ -53,10 +53,13 @@ def _make_use_case(
     candidate_repo: MagicMock | None = None,
     source_repo: MagicMock | None = None,
 ) -> EnqueueMediaGenerationUseCase:
+    settings_repo = MagicMock()
+    settings_repo.get.return_value = None
     return EnqueueMediaGenerationUseCase(
         media_repo=media_repo,
         candidate_repo=candidate_repo or MagicMock(),
         source_repo=source_repo or MagicMock(),
+        settings_repo=settings_repo,
     )
 
 
