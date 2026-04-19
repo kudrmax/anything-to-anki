@@ -20,3 +20,14 @@
 
   {{#%FIELD_EXAMPLES%}}<hr><div class="examples">{{%FIELD_EXAMPLES%}}</div>{{/%FIELD_EXAMPLES%}}
 </div>
+
+<script>
+(function() {
+  var el = document.querySelector('.examples');
+  if (!el || el.querySelector('ul')) return;
+  var lines = el.innerHTML.split(/<br\s*\/?>/i).filter(function(l) { return l.trim(); });
+  if (lines.length > 0) {
+    el.innerHTML = '<ul>' + lines.map(function(l) { return '<li>' + l.trim() + '</li>'; }).join('') + '</ul>';
+  }
+})();
+</script>
