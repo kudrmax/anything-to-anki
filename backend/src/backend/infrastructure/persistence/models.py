@@ -19,6 +19,7 @@ from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.infrastructure.persistence.database import Base
 
 
@@ -210,6 +211,9 @@ class StoredCandidateModel(Base):
     surface_form: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False, default=False)
     has_custom_context_fragment: Mapped[bool] = mapped_column(nullable=False, default=False)
+    usage_distribution_json: Mapped[str | None] = mapped_column(
+        "usage_distribution", Text, nullable=True
+    )
 
     cefr_breakdown: Mapped[CEFRBreakdownModel | None] = relationship(
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
@@ -221,6 +225,11 @@ class StoredCandidateModel(Base):
         bd: CEFRBreakdown | None = None
         if self.cefr_breakdown is not None:
             bd = _model_to_breakdown(self.cefr_breakdown, self.cefr_level or None)
+
+        ud: UsageDistribution | None = None
+        if self.usage_distribution_json is not None:
+            ud = UsageDistribution(json.loads(self.usage_distribution_json))
+
         return StoredCandidate(
             id=self.id,
             source_id=self.source_id,
@@ -238,6 +247,7 @@ class StoredCandidateModel(Base):
             meaning=None,
             media=None,
             cefr_breakdown=bd,
+            usage_distribution=ud,
         )
 
     @staticmethod
@@ -259,6 +269,9 @@ class StoredCandidateModel(Base):
         )
         if candidate.cefr_breakdown is not None:
             model.cefr_breakdown = _breakdown_to_model(candidate.cefr_breakdown)
+        if candidate.usage_distribution is not None:
+            dist = candidate.usage_distribution.to_dict()
+            model.usage_distribution_json = json.dumps(dist) if dist else None
         return model
 
 
