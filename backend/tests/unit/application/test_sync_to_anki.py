@@ -57,6 +57,12 @@ class TestSyncToAnkiUseCase:
         self.anki_connector = MagicMock()
         self.settings_repo = MagicMock()
         self.anki_sync_repo = MagicMock()
+        self.template_renderer = MagicMock()
+        self.template_renderer.render_all.return_value = {
+            "front": "<front/>",
+            "back": "<back/>",
+            "css": "",
+        }
         self.settings_repo.get.return_value = None  # use default deck
         self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.use_case = SyncToAnkiUseCase(
@@ -64,6 +70,7 @@ class TestSyncToAnkiUseCase:
             anki_connector=self.anki_connector,
             settings_repo=self.settings_repo,
             anki_sync_repo=self.anki_sync_repo,
+            template_renderer=self.template_renderer,
         )
 
     def test_returns_zero_when_no_learn_candidates(self) -> None:
@@ -336,7 +343,7 @@ class TestSyncToAnkiUseCase:
         assert "Translation" not in note[0]
         assert "Synonyms" not in note[0]
 
-    def test_examples_formatted_with_highlight_and_br(self) -> None:
+    def test_examples_formatted_as_bullet_list(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
             _make_candidate(
                 1, "aisle", CandidateStatus.LEARN,
@@ -358,9 +365,10 @@ class TestSyncToAnkiUseCase:
         # markdown **aisle** stripped and re-wrapped with <b> by highlight_all_forms
         assert "**" not in examples
         assert "<b>aisle</b>" in examples
-        # newlines converted to <br>
-        assert "\n" not in examples
-        assert "<br>" in examples
+        # examples wrapped in <ul><li> bullet list
+        assert "<ul>" in examples
+        assert "<li>" in examples
+        assert examples.count("<li>") == 2
 
     def test_translation_and_synonyms_formatted_with_highlight(self) -> None:
         self.candidate_repo.get_by_source.return_value = [

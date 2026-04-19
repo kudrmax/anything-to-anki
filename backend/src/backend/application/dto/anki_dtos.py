@@ -62,3 +62,11 @@ class CreateNoteTypeResponseDTO(BaseModel):
     """Result of note type creation."""
 
     already_existed: bool
+
+
+class AnkiTemplatesDTO(BaseModel):
+    """Rendered Anki card templates with user field names substituted."""
+
+    front: str
+    back: str
+    css: str

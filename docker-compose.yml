@@ -15,6 +15,7 @@ services:
       - ./data:/data
       - ./config:/app/config:ro
       - ./dictionaries:/app/dictionaries:ro
+      - ./anki-templates:/app/anki-templates:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/settings"]
       interval: 5s
@@ -36,6 +37,7 @@ services:
       - ./data:/data
       - ./config:/app/config:ro
       - ./dictionaries:/app/dictionaries:ro
+      - ./anki-templates:/app/anki-templates:ro
     depends_on:
       - redis
 

@@ -1,5 +1,9 @@
 import pytest
-from backend.application.utils.highlight import highlight_all_forms, strip_markdown
+from backend.application.utils.highlight import (
+    format_examples_as_list,
+    highlight_all_forms,
+    strip_markdown,
+)
 
 
 @pytest.mark.unit
@@ -90,3 +94,29 @@ class TestHighlightAllForms:
     def test_multiline_with_highlight(self) -> None:
         result = highlight_all_forms("feel burnout\nevery day", "burnout", None)
         assert result == "feel <b>burnout</b><br>every day"
+
+
+class TestFormatExamplesAsList:
+    def test_converts_br_separated_to_ul(self) -> None:
+        result = format_examples_as_list("first example<br>second example")
+        assert result == "<ul><li>first example</li><li>second example</li></ul>"
+
+    def test_single_line(self) -> None:
+        result = format_examples_as_list("only one example")
+        assert result == "<ul><li>only one example</li></ul>"
+
+    def test_strips_whitespace(self) -> None:
+        result = format_examples_as_list("  first  <br>  second  ")
+        assert result == "<ul><li>first</li><li>second</li></ul>"
+
+    def test_skips_empty_lines(self) -> None:
+        result = format_examples_as_list("first<br><br>second")
+        assert result == "<ul><li>first</li><li>second</li></ul>"
+
+    def test_preserves_html_in_lines(self) -> None:
+        result = format_examples_as_list("She <b>ran</b> fast<br>He <b>ran</b> too")
+        assert "<li>She <b>ran</b> fast</li>" in result
+
+    def test_empty_string(self) -> None:
+        result = format_examples_as_list("")
+        assert result == ""

@@ -221,3 +221,9 @@ export type FollowUpAction =
   | 'explain_simpler'
   | 'how_to_say'
   | 'free_question'
+
+export interface AnkiTemplates {
+  front: string
+  back: string
+  css: string
+}

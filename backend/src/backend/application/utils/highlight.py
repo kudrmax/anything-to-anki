@@ -41,3 +41,12 @@ def highlight_all_forms(text: str, lemma: str, surface_form: str | None) -> str:
     combined = re.compile('(' + '|'.join(patterns) + ')', re.IGNORECASE)
     result = combined.sub(r'<b>\1</b>', text)
     return result.replace('\r\n', '<br>').replace('\n', '<br>')
+
+
+def format_examples_as_list(html: str) -> str:
+    """Convert <br>-separated examples into an HTML <ul> bullet list."""
+    lines = [line.strip() for line in html.split('<br>') if line.strip()]
+    if not lines:
+        return html
+    items = ''.join(f'<li>{line}</li>' for line in lines)
+    return f'<ul>{items}</ul>'

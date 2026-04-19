@@ -85,3 +85,24 @@ class ManageSettingsUseCase:
     # kept for backward-compatibility with existing routes
     def update_cefr_level(self, level: str) -> None:
         self._settings_repo.set("cefr_level", level)
+
+
+_FIELD_MAP_KEYS: dict[str, str] = {
+    "anki_field_sentence": "FIELD_SENTENCE",
+    "anki_field_target_word": "FIELD_TARGET",
+    "anki_field_meaning": "FIELD_MEANING",
+    "anki_field_ipa": "FIELD_IPA",
+    "anki_field_image": "FIELD_IMAGE",
+    "anki_field_audio": "FIELD_AUDIO",
+    "anki_field_translation": "FIELD_TRANSLATION",
+    "anki_field_synonyms": "FIELD_SYNONYMS",
+    "anki_field_examples": "FIELD_EXAMPLES",
+}
+
+
+def build_anki_field_map(settings: dict[str, str]) -> dict[str, str]:
+    """Build placeholder->field_name map from settings dict for AnkiTemplateRenderer."""
+    return {
+        placeholder: settings[setting_key]
+        for setting_key, placeholder in _FIELD_MAP_KEYS.items()
+    }
