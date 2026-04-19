@@ -42,28 +42,25 @@ hr {
   opacity: 0.3;
 }
 
-/* Image: compact, rounded, centered */
+/* Image: float right, text wraps around */
 .image {
-  margin-top: 12px;
-  text-align: center;
+  float: right;
+  margin: 0 0 10px 14px;
 }
 
 .image img {
-  max-width: 70%;
-  max-height: 200px;
-  object-fit: contain;
+  max-width: 140px;
+  max-height: 140px;
+  object-fit: cover;
   border-radius: 8px;
   border: 1px solid #e8ddd0;
+  display: block;
 }
 
-/* Audio: compact inline player */
+/* Audio */
 .audio {
   margin-top: 8px;
-  text-align: center;
-}
-
-.audio .replay-button {
-  font-size: 14px;
+  clear: right;
 }
 
 /* Target word + IPA */
@@ -81,25 +78,11 @@ hr {
   margin-bottom: 2px;
 }
 
-/* Meaning: multi-paragraph support */
+/* Meaning */
 .meaning {
   font-size: 18px;
   color: #5c4033;
   line-height: 1.7;
-}
-
-/* Section labels for translation/synonyms/examples */
-.section {
-  margin-top: 14px;
-}
-
-.section-label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #a8977e;
-  margin-bottom: 4px;
 }
 
 /* Translation */
@@ -175,10 +158,6 @@ hr {
 
 .nightMode .meaning {
   color: #94a3b8;
-}
-
-.nightMode .section-label {
-  color: #64748b;
 }
 
 .nightMode .translation {
