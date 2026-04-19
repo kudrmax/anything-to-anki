@@ -189,10 +189,13 @@ hr {
   .media {
     float: none;
     margin: 12px 0 0 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
 
   .image img {
-    max-width: 100%;
-    max-height: 200px;
+    max-width: 120px;
+    max-height: 120px;
   }
 }
