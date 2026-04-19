@@ -1,5 +1,6 @@
 import type {
   AnkiStatus,
+  AnkiTemplates,
   CardPreview,
   CandidateSortOrder,
   CandidateStatus,
@@ -213,4 +214,6 @@ export const api = {
       pending_video_path?: string
     }>
   },
+
+  getAnkiTemplates: () => req<AnkiTemplates>('/anki/templates'),
 }

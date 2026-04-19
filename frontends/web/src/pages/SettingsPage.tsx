@@ -56,6 +56,8 @@ export function SettingsPage() {
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
   const dragCounter = useRef(0)
 
+  const [copiedTemplate, setCopiedTemplate] = useState<'front' | 'back' | 'css' | null>(null)
+
   const { theme, setTheme } = useTheme()
 
   const [autoPlayAudio, setAutoPlayAudio] = useState<boolean>(() => autoPlayAudioPref.read())
@@ -197,6 +199,17 @@ export function SettingsPage() {
     }
   }, [form])
 
+  const handleCopyTemplate = useCallback(async (part: 'front' | 'back' | 'css') => {
+    try {
+      const templates = await api.getAnkiTemplates()
+      await navigator.clipboard.writeText(templates[part])
+      setCopiedTemplate(part)
+      setTimeout(() => setCopiedTemplate(null), 2000)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to copy')
+    }
+  }, [])
+
   const setField = (key: keyof Settings, value: string | boolean) => {
     setForm((prev) => prev ? { ...prev, [key]: value } : prev)
     setVerifyResult(null)
@@ -337,6 +350,28 @@ export function SettingsPage() {
               </span>
             )}
             {createError && <span className="text-xs text-rose-400">{createError}</span>}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <p className="text-sm" style={{ color: 'var(--text)' }}>Card template</p>
+            <p className="text-xs" style={{ color: 'var(--td)' }}>
+              Copy and paste into Anki's card template editor. Field names match your mapping above.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {(['front', 'back', 'css'] as const).map((part) => (
+                <button
+                  key={part}
+                  onClick={() => void handleCopyTemplate(part)}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:brightness-110 cursor-pointer"
+                  style={{ border: '1px solid var(--glass-b)', color: 'var(--tm)', background: 'var(--glass)' }}
+                >
+                  {copiedTemplate === part
+                    ? <><CheckCircle size={11} /> Copied</>
+                    : <>{part === 'front' ? 'Copy Front' : part === 'back' ? 'Copy Back' : 'Copy CSS'}</>
+                  }
+                </button>
+              ))}
+            </div>
           </div>
         </section>
 
