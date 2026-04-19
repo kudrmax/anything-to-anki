@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.anki_dtos import SyncResultDTO
 from backend.application.use_cases.manage_settings import build_anki_field_map
-from backend.application.utils.highlight import highlight_all_forms
+from backend.application.utils.highlight import format_examples_as_list, highlight_all_forms
 from backend.domain.exceptions import AnkiNotAvailableError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
@@ -203,11 +203,12 @@ class SyncToAnkiUseCase:
                     and candidate.meaning
                     and candidate.meaning.examples
                 ):
-                    note[field_examples] = highlight_all_forms(
+                    highlighted_examples = highlight_all_forms(
                         candidate.meaning.examples,
                         candidate.lemma,
                         candidate.surface_form,
                     )
+                    note[field_examples] = format_examples_as_list(highlighted_examples)
                 if (
                     field_image
                     and candidate.media

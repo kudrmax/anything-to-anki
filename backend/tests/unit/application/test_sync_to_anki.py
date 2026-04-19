@@ -343,7 +343,7 @@ class TestSyncToAnkiUseCase:
         assert "Translation" not in note[0]
         assert "Synonyms" not in note[0]
 
-    def test_examples_formatted_with_highlight_and_br(self) -> None:
+    def test_examples_formatted_as_bullet_list(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
             _make_candidate(
                 1, "aisle", CandidateStatus.LEARN,
@@ -365,9 +365,10 @@ class TestSyncToAnkiUseCase:
         # markdown **aisle** stripped and re-wrapped with <b> by highlight_all_forms
         assert "**" not in examples
         assert "<b>aisle</b>" in examples
-        # newlines converted to <br>
-        assert "\n" not in examples
-        assert "<br>" in examples
+        # examples wrapped in <ul><li> bullet list
+        assert "<ul>" in examples
+        assert "<li>" in examples
+        assert examples.count("<li>") == 2
 
     def test_translation_and_synonyms_formatted_with_highlight(self) -> None:
         self.candidate_repo.get_by_source.return_value = [

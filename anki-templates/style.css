@@ -1,6 +1,6 @@
 .card {
   font-family: system-ui, -apple-system, sans-serif;
-  font-size: 15px;
+  font-size: 18px;
   background: #f1f0ec;
   color: #3d2b1a;
   line-height: 1.6;
@@ -20,6 +20,11 @@
   box-shadow: 0 2px 12px rgba(160,100,40,0.08);
 }
 
+.sentence {
+  font-size: 18px;
+  line-height: 1.6;
+}
+
 .sentence b {
   font-weight: 800;
   font-size: 1.1em;
@@ -37,6 +42,31 @@ hr {
   opacity: 0.3;
 }
 
+/* Image: compact, rounded, centered */
+.image {
+  margin-top: 12px;
+  text-align: center;
+}
+
+.image img {
+  max-width: 70%;
+  max-height: 200px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid #e8ddd0;
+}
+
+/* Audio: compact inline player */
+.audio {
+  margin-top: 8px;
+  text-align: center;
+}
+
+.audio .replay-button {
+  font-size: 14px;
+}
+
+/* Target word + IPA */
 .target-word {
   font-size: 22px;
   font-weight: 700;
@@ -51,49 +81,62 @@ hr {
   margin-bottom: 2px;
 }
 
+/* Meaning: multi-paragraph support */
 .meaning {
-  font-size: 14px;
+  font-size: 18px;
   color: #5c4033;
   line-height: 1.7;
 }
 
-.image {
-  margin-top: 12px;
+/* Section labels for translation/synonyms/examples */
+.section {
+  margin-top: 14px;
 }
 
-.image img {
-  max-width: 100%;
-  border-radius: 8px;
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a8977e;
+  margin-bottom: 4px;
 }
 
-.audio {
-  margin-top: 8px;
-}
-
+/* Translation */
 .translation {
   font-size: 16px;
   color: #78716c;
-  margin-top: 8px;
   font-style: italic;
 }
 
+/* Synonyms */
 .synonyms {
   font-size: 15px;
   color: #78716c;
-  margin-top: 6px;
 }
 
+/* Examples: bullet list */
 .examples {
   font-size: 15px;
   color: #5c4033;
-  line-height: 1.6;
-  padding: 12px 16px;
+  line-height: 1.7;
+  padding: 10px 14px;
   background: rgba(0,0,0,0.03);
   border-radius: 8px;
   border-left: 3px solid #e8ddd0;
 }
 
-/* Тёмная тема */
+.examples ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.examples li {
+  margin-bottom: 4px;
+}
+
+/* ─── Dark theme ─── */
+
 .card.nightMode {
   background: #13151f;
 }
@@ -117,6 +160,11 @@ hr {
   border-color: rgba(255,255,255,0.08);
 }
 
+.nightMode .image img {
+  opacity: 0.92;
+  border-color: rgba(255,255,255,0.1);
+}
+
 .nightMode .target-word {
   color: #f1f5f9;
 }
@@ -129,8 +177,8 @@ hr {
   color: #94a3b8;
 }
 
-.nightMode .image img {
-  opacity: 0.92;
+.nightMode .section-label {
+  color: #64748b;
 }
 
 .nightMode .translation {
