@@ -12,3 +12,6 @@ class WordfreqFrequencyProvider(FrequencyProvider):
     def get_frequency(self, lemma: str) -> FrequencyBand:
         zipf = zipf_frequency(lemma.lower(), "en")
         return FrequencyBand.from_zipf(zipf)
+
+    def get_zipf_value(self, lemma: str) -> float:
+        return zipf_frequency(lemma.lower(), "en")

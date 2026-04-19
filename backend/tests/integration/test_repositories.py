@@ -96,7 +96,7 @@ class TestCandidateRepository:
         created = repo.create_batch([
             StoredCandidate(
                 source_id=source_id, lemma=lemma, pos="NOUN",
-                cefr_level="B2", zipf_frequency=3.5, is_sweet_spot=True,
+                cefr_level="B2", zipf_frequency=3.5,
                 context_fragment=f"context {lemma}", fragment_purity="clean",
                 occurrences=1, status=status,
             )
@@ -121,13 +121,13 @@ class TestCandidateRepository:
         candidates = [
             StoredCandidate(
                 source_id=source_id, lemma="pursuit", pos="NOUN",
-                cefr_level="B2", zipf_frequency=3.5, is_sweet_spot=True,
+                cefr_level="B2", zipf_frequency=3.5,
                 context_fragment="the pursuit of", fragment_purity="clean",
                 occurrences=2, status=CandidateStatus.PENDING,
             ),
             StoredCandidate(
                 source_id=source_id, lemma="burnout", pos="NOUN",
-                cefr_level="C2", zipf_frequency=2.1, is_sweet_spot=False,
+                cefr_level="C2", zipf_frequency=2.1,
                 context_fragment="leads to burnout", fragment_purity="clean",
                 occurrences=1, status=CandidateStatus.PENDING,
             ),
@@ -145,7 +145,7 @@ class TestCandidateRepository:
         created = repo.create_batch([
             StoredCandidate(
                 source_id=source_id, lemma="test", pos="NOUN",
-                cefr_level="B1", zipf_frequency=4.0, is_sweet_spot=True,
+                cefr_level="B1", zipf_frequency=4.0,
                 context_fragment="a test", fragment_purity="clean",
                 occurrences=1, status=CandidateStatus.PENDING,
             ),

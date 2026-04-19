@@ -1,9 +1,8 @@
 """Unit tests for EnqueueMediaGenerationUseCase.
 
-Mirrors test_enqueue_meaning_generation: covers RELEVANCE branch (just
-delegates to repo with sort_order kwarg) and CHRONOLOGICAL branch (re-sorts
-in Python by text position). Marking eligible ids as QUEUED is the side
-effect that the worker depends on.
+The use case fetches eligible candidate ids from the repo (unsorted),
+then sorts them via domain sort service (RELEVANCE or CHRONOLOGICAL),
+marks them QUEUED, and returns sorted ids.
 """
 from __future__ import annotations
 
@@ -40,7 +39,6 @@ def _make_candidate(*, id_: int, fragment: str) -> StoredCandidate:
         pos="NOUN",
         cefr_level=None,
         zipf_frequency=5.0,
-        is_sweet_spot=False,
         context_fragment=fragment,
         fragment_purity="clean",
         occurrences=1,
@@ -62,7 +60,7 @@ def _make_use_case(
     )
 
 
-# --- RELEVANCE branch -----------------------------------------------------
+# --- RELEVANCE branch (default) ---------------------------------------------
 
 
 @pytest.mark.unit
@@ -70,7 +68,13 @@ class TestRelevanceBranch:
     def test_returns_eligible_ids_and_marks_queued(self) -> None:
         media_repo = MagicMock()
         media_repo.get_eligible_candidate_ids.return_value = [10, 20, 30]
-        use_case = _make_use_case(media_repo)
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_ids.return_value = [
+            _make_candidate(id_=10, fragment="a"),
+            _make_candidate(id_=20, fragment="b"),
+            _make_candidate(id_=30, fragment="c"),
+        ]
+        use_case = _make_use_case(media_repo, candidate_repo)
 
         result = use_case.execute(
             source_id=1, sort_order=CandidateSortOrder.RELEVANCE
@@ -78,7 +82,7 @@ class TestRelevanceBranch:
 
         assert result == [10, 20, 30]
         media_repo.get_eligible_candidate_ids.assert_called_once_with(
-            source_id=1, sort_order=CandidateSortOrder.RELEVANCE
+            source_id=1
         )
         media_repo.mark_queued_bulk.assert_called_once_with([10, 20, 30])
 
@@ -96,12 +100,17 @@ class TestRelevanceBranch:
     def test_default_sort_order_is_none_uses_relevance_branch(self) -> None:
         media_repo = MagicMock()
         media_repo.get_eligible_candidate_ids.return_value = [5]
-        use_case = _make_use_case(media_repo)
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_ids.return_value = [
+            _make_candidate(id_=5, fragment="x"),
+        ]
+        use_case = _make_use_case(media_repo, candidate_repo)
 
         result = use_case.execute(source_id=1)
         assert result == [5]
-        kwargs = media_repo.get_eligible_candidate_ids.call_args.kwargs
-        assert kwargs["sort_order"] is None
+        media_repo.get_eligible_candidate_ids.assert_called_once_with(
+            source_id=1
+        )
 
 
 # --- CHRONOLOGICAL branch -------------------------------------------------
@@ -130,7 +139,6 @@ class TestChronologicalBranch:
 
         assert result == [3, 1, 2]
         media_repo.mark_queued_bulk.assert_called_once_with([3, 1, 2])
-        # In CHRONOLOGICAL branch, the repo is called WITHOUT sort_order kwarg.
         media_repo.get_eligible_candidate_ids.assert_called_once_with(source_id=1)
 
     def test_empty_skips_lookups(self) -> None:
@@ -153,6 +161,10 @@ class TestChronologicalBranch:
         media_repo = MagicMock()
         media_repo.get_eligible_candidate_ids.return_value = [1, 2]
         candidate_repo = MagicMock()
+        candidate_repo.get_by_ids.return_value = [
+            _make_candidate(id_=1, fragment="a"),
+            _make_candidate(id_=2, fragment="b"),
+        ]
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = None
         use_case = _make_use_case(media_repo, candidate_repo, source_repo)
@@ -163,7 +175,6 @@ class TestChronologicalBranch:
 
         assert result == []
         media_repo.mark_queued_bulk.assert_not_called()
-        candidate_repo.get_by_ids.assert_not_called()
 
     def test_uses_raw_text_when_cleaned_text_is_none(self) -> None:
         media_repo = MagicMock()

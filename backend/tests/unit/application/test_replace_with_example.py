@@ -18,7 +18,6 @@ def _candidate(
     pos: str = "VERB",
     cefr_level: str | None = "B1",
     zipf_frequency: float = 4.0,
-    is_sweet_spot: bool = True,
     context_fragment: str = "He ran to the store.",
     fragment_purity: str = "clean",
     occurrences: int = 2,
@@ -32,7 +31,6 @@ def _candidate(
         pos=pos,
         cefr_level=cefr_level,
         zipf_frequency=zipf_frequency,
-        is_sweet_spot=is_sweet_spot,
         context_fragment=context_fragment,
         fragment_purity=fragment_purity,
         occurrences=occurrences,
@@ -109,7 +107,6 @@ class TestReplaceWithExampleHappyPath:
             pos="VERB",
             cefr_level="B1",
             zipf_frequency=4.0,
-            is_sweet_spot=True,
             is_phrasal_verb=False,
             fragment_purity="clean",
         )

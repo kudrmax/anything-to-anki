@@ -91,7 +91,7 @@ class AddManualCandidateUseCase:
         cefr = breakdown.final_level
         cefr_level_str: str | None = cefr.name if cefr != CEFRLevel.UNKNOWN else None
 
-        freq = self._frequency_provider.get_frequency(lemma)
+        zipf_value = self._frequency_provider.get_zipf_value(lemma)
 
         source_text = source.cleaned_text or source.raw_text
         occurrences = max(source_text.lower().count(surface_lower), 1)
@@ -101,8 +101,7 @@ class AddManualCandidateUseCase:
             lemma=lemma,
             pos=pos,
             cefr_level=cefr_level_str,
-            zipf_frequency=freq.zipf_value,
-            is_sweet_spot=freq.is_sweet_spot,
+            zipf_frequency=zipf_value,
             context_fragment=context_fragment,
             fragment_purity="clean",
             occurrences=occurrences,

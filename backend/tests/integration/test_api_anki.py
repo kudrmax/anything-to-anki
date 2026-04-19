@@ -257,7 +257,7 @@ class TestSyncToAnkiAPI:
                 return_value=[
                     StoredCandidate(
                         id=1, source_id=source_id, lemma="burnout", pos="NOUN",
-                        cefr_level="B2", zipf_frequency=3.5, is_sweet_spot=True,
+                        cefr_level="B2", zipf_frequency=3.5,
                         context_fragment="burnout is exhausting", fragment_purity="clean",
                         occurrences=1, status=CandidateStatus.LEARN,
                     )

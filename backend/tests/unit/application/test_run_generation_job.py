@@ -41,7 +41,6 @@ def _make_candidate(cid: int, lemma: str, *, with_meaning: bool = False) -> Stor
         status=CandidateStatus.PENDING,
         cefr_level=None,
         zipf_frequency=4.5,
-        is_sweet_spot=True,
         fragment_purity="clean",
         occurrences=1,
         is_phrasal_verb=False,

@@ -6,8 +6,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_meaning import CandidateMeaning
     from backend.domain.entities.candidate_media import CandidateMedia
-    from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.candidate_status import CandidateStatus
+    from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
+    from backend.domain.value_objects.frequency_band import FrequencyBand
 
 
 @dataclass
@@ -25,7 +26,6 @@ class StoredCandidate:
     pos: str
     cefr_level: str | None
     zipf_frequency: float
-    is_sweet_spot: bool
     context_fragment: str
     fragment_purity: str
     occurrences: int
@@ -37,3 +37,12 @@ class StoredCandidate:
     media: CandidateMedia | None = None
     id: int | None = None
     cefr_breakdown: CEFRBreakdown | None = None
+
+    @property
+    def frequency_band(self) -> FrequencyBand:
+        from backend.domain.value_objects.frequency_band import FrequencyBand
+        return FrequencyBand.from_zipf(self.zipf_frequency)
+
+    @property
+    def is_sweet_spot(self) -> bool:
+        return self.frequency_band.is_sweet_spot

@@ -31,7 +31,6 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.frequency_band import FrequencyBand
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 
@@ -122,7 +121,6 @@ def _stored(candidate: StoredCandidate, new_id: int = 99) -> StoredCandidate:
         pos=candidate.pos,
         cefr_level=candidate.cefr_level,
         zipf_frequency=candidate.zipf_frequency,
-        is_sweet_spot=candidate.is_sweet_spot,
         context_fragment=candidate.context_fragment,
         fragment_purity=candidate.fragment_purity,
         occurrences=candidate.occurrences,
@@ -180,7 +178,7 @@ class TestRegularWordPath:
         cefr_classifier = MagicMock()
         cefr_classifier.classify.return_value = CEFRLevel.C1
         frequency_provider = MagicMock()
-        frequency_provider.get_frequency.return_value = FrequencyBand(zipf_value=3.7)
+        frequency_provider.get_zipf_value.return_value = 3.7
 
         use_case = _make_use_case(
             source_repo=source_repo,
@@ -207,7 +205,7 @@ class TestRegularWordPath:
         assert dto.fragment_purity == "clean"
         assert dto.status == CandidateStatus.PENDING.value
         cefr_classifier.classify.assert_called_once_with("procrastinate", "VB")
-        frequency_provider.get_frequency.assert_called_once_with("procrastinate")
+        frequency_provider.get_zipf_value.assert_called_once_with("procrastinate")
 
     def test_case_insensitive_match_and_lowercase_lemma(self) -> None:
         source_repo = MagicMock()
@@ -223,7 +221,7 @@ class TestRegularWordPath:
         cefr_classifier = MagicMock()
         cefr_classifier.classify.return_value = CEFRLevel.B2
         frequency_provider = MagicMock()
-        frequency_provider.get_frequency.return_value = FrequencyBand(zipf_value=5.0)
+        frequency_provider.get_zipf_value.return_value = 5.0
 
         use_case = _make_use_case(
             source_repo=source_repo,
@@ -255,7 +253,7 @@ class TestRegularWordPath:
         cefr_classifier = MagicMock()
         cefr_classifier.classify.return_value = CEFRLevel.UNKNOWN
         frequency_provider = MagicMock()
-        frequency_provider.get_frequency.return_value = FrequencyBand(zipf_value=5.5)
+        frequency_provider.get_zipf_value.return_value = 5.5
 
         use_case = _make_use_case(
             source_repo=source_repo,
@@ -290,7 +288,7 @@ class TestRegularWordPath:
         cefr_classifier = MagicMock()
         cefr_classifier.classify.return_value = CEFRLevel.UNKNOWN
         frequency_provider = MagicMock()
-        frequency_provider.get_frequency.return_value = FrequencyBand(zipf_value=5.5)
+        frequency_provider.get_zipf_value.return_value = 5.5
 
         use_case = _make_use_case(
             source_repo=source_repo,
@@ -323,7 +321,7 @@ class TestRegularWordPath:
         cefr_classifier = MagicMock()
         cefr_classifier.classify.return_value = CEFRLevel.A1
         frequency_provider = MagicMock()
-        frequency_provider.get_frequency.return_value = FrequencyBand(zipf_value=6.0)
+        frequency_provider.get_zipf_value.return_value = 6.0
 
         use_case = _make_use_case(
             source_repo=source_repo,
@@ -361,7 +359,7 @@ class TestFallbackToSurfaceFormAnalysis:
         cefr_classifier = MagicMock()
         cefr_classifier.classify.return_value = CEFRLevel.B1
         frequency_provider = MagicMock()
-        frequency_provider.get_frequency.return_value = FrequencyBand(zipf_value=3.2)
+        frequency_provider.get_zipf_value.return_value = 3.2
 
         use_case = _make_use_case(
             source_repo=source_repo,
@@ -392,7 +390,7 @@ class TestFallbackToSurfaceFormAnalysis:
         cefr_classifier = MagicMock()
         cefr_classifier.classify.return_value = CEFRLevel.UNKNOWN
         frequency_provider = MagicMock()
-        frequency_provider.get_frequency.return_value = FrequencyBand(zipf_value=5.0)
+        frequency_provider.get_zipf_value.return_value = 5.0
 
         use_case = _make_use_case(
             source_repo=source_repo,
@@ -437,7 +435,7 @@ class TestPhrasalVerbPath:
         cefr_classifier = MagicMock()
         cefr_classifier.classify.return_value = CEFRLevel.B1
         frequency_provider = MagicMock()
-        frequency_provider.get_frequency.return_value = FrequencyBand(zipf_value=4.0)
+        frequency_provider.get_zipf_value.return_value = 4.0
 
         use_case = _make_use_case(
             source_repo=source_repo,
@@ -479,7 +477,7 @@ class TestPhrasalVerbPath:
         cefr_classifier = MagicMock()
         cefr_classifier.classify.return_value = CEFRLevel.B1
         frequency_provider = MagicMock()
-        frequency_provider.get_frequency.return_value = FrequencyBand(zipf_value=4.0)
+        frequency_provider.get_zipf_value.return_value = 4.0
 
         use_case = _make_use_case(
             source_repo=source_repo,
@@ -518,7 +516,7 @@ class TestPhrasalVerbPath:
         cefr_classifier = MagicMock()
         cefr_classifier.classify.return_value = CEFRLevel.B1
         frequency_provider = MagicMock()
-        frequency_provider.get_frequency.return_value = FrequencyBand(zipf_value=4.0)
+        frequency_provider.get_zipf_value.return_value = 4.0
 
         use_case = _make_use_case(
             source_repo=source_repo,

@@ -20,7 +20,7 @@ class TestMarkCandidateUseCase:
     def test_mark_as_learn(self) -> None:
         self.candidate_repo.get_by_id.return_value = StoredCandidate(
             id=1, source_id=1, lemma="pursuit", pos="NOUN",
-            cefr_level="B2", zipf_frequency=3.5, is_sweet_spot=True,
+            cefr_level="B2", zipf_frequency=3.5,
             context_fragment="the pursuit of", fragment_purity="clean",
             occurrences=1, status=CandidateStatus.PENDING,
         )
@@ -31,7 +31,7 @@ class TestMarkCandidateUseCase:
     def test_mark_as_known_adds_to_whitelist(self) -> None:
         self.candidate_repo.get_by_id.return_value = StoredCandidate(
             id=1, source_id=1, lemma="pursuit", pos="NOUN",
-            cefr_level="B2", zipf_frequency=3.5, is_sweet_spot=True,
+            cefr_level="B2", zipf_frequency=3.5,
             context_fragment="the pursuit of", fragment_purity="clean",
             occurrences=1, status=CandidateStatus.PENDING,
         )

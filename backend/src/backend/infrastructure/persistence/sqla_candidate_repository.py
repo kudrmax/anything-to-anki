@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func
 
 from backend.domain.ports.candidate_repository import CandidateRepository
-from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.infrastructure.persistence.models import (
     CandidateMeaningModel,
     CandidateMediaModel,
@@ -37,27 +36,12 @@ class SqlaCandidateRepository(CandidateRepository):
         # Fresh candidates never have enrichments yet — skip the lookup.
         return [m.to_entity() for m in models]
 
-    def get_by_source(
-        self,
-        source_id: int,
-        sort_order: CandidateSortOrder | None = None,
-    ) -> list[StoredCandidate]:
-        query = (
+    def get_by_source(self, source_id: int) -> list[StoredCandidate]:
+        models = (
             self._session.query(StoredCandidateModel)
             .filter(StoredCandidateModel.source_id == source_id)
+            .all()
         )
-        if sort_order == CandidateSortOrder.RELEVANCE:
-            # sweet-spot first, then high-frequency words, then lower CEFR first
-            # (easier words are more useful to learn first)
-            query = query.order_by(
-                StoredCandidateModel.is_sweet_spot.desc(),
-                StoredCandidateModel.zipf_frequency.desc(),
-                StoredCandidateModel.cefr_level.asc(),
-            )
-        else:
-            # CHRONOLOGICAL or unspecified — insertion order = source text order
-            query = query.order_by(StoredCandidateModel.id.asc())
-        models = query.all()
         entities = [m.to_entity() for m in models]
         return self._bulk_attach(entities)
 

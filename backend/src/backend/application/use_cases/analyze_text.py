@@ -104,7 +104,8 @@ class AnalyzeTextUseCase:
 
             key = (token.lemma.lower(), token.pos)
             if key not in candidate_map:
-                freq = self._frequency_provider.get_frequency(token.lemma.lower())
+                lemma_lower = token.lemma.lower()
+                zipf = self._frequency_provider.get_zipf_value(lemma_lower)
                 fragment_indices = self._selector.select(
                     tokens=tokens,
                     target_index=token.index,
@@ -118,8 +119,7 @@ class AnalyzeTextUseCase:
                 candidate_map[key] = _CandidateAccumulator(
                     cefr=cefr,
                     cefr_breakdown=breakdown,
-                    freq_zipf=freq.zipf_value,
-                    freq_sweet_spot=freq.is_sweet_spot,
+                    freq_zipf=zipf,
                     fragment=fragment,
                     unknown_count=unknown_count,
                     pos_tag=token.tag,
@@ -131,8 +131,8 @@ class AnalyzeTextUseCase:
         # Collect phrasal verb candidates
         self._collect_phrasal_verbs(tokens, candidate_map, user_level)
 
-        # Build sorted list
-        candidates = self._build_sorted_candidates(candidate_map)
+        # Build candidate list
+        candidates = self._build_candidates(candidate_map)
 
         unique_lemmas = len({t.lemma.lower() for t in tokens if t.is_alpha})
 
@@ -162,7 +162,7 @@ class AnalyzeTextUseCase:
             verb_token = token_map[match.verb_index]
 
             if key not in candidate_map:
-                freq = self._frequency_provider.get_frequency(match.lemma)
+                zipf = self._frequency_provider.get_zipf_value(match.lemma)
                 fragment_indices = self._selector.select(
                     tokens=tokens,
                     target_index=match.verb_index,
@@ -177,8 +177,7 @@ class AnalyzeTextUseCase:
                 )
                 candidate_map[key] = _CandidateAccumulator(
                     cefr=None,
-                    freq_zipf=freq.zipf_value,
-                    freq_sweet_spot=freq.is_sweet_spot,
+                    freq_zipf=zipf,
                     fragment=fragment,
                     unknown_count=unknown_count,
                     pos_tag=verb_token.tag,
@@ -216,10 +215,10 @@ class AnalyzeTextUseCase:
 
         return count
 
-    def _build_sorted_candidates(
+    def _build_candidates(
         self, candidate_map: dict[tuple[str, str], _CandidateAccumulator]
     ) -> list[WordCandidate]:
-        """Build and sort candidates: phrasal verbs first, then sweet_spot, then zipf asc."""
+        """Build candidate list from accumulated data."""
         from backend.domain.value_objects.frequency_band import FrequencyBand
 
         candidates: list[WordCandidate] = []
@@ -230,6 +229,7 @@ class AnalyzeTextUseCase:
                     pos=pos,
                     cefr_level=acc.cefr,
                     frequency_band=FrequencyBand.from_zipf(acc.freq_zipf),
+                    zipf_frequency=acc.freq_zipf,
                     context_fragment=acc.fragment,
                     fragment_unknown_count=acc.unknown_count,
                     occurrences=acc.occurrences,
@@ -238,15 +238,6 @@ class AnalyzeTextUseCase:
                     cefr_breakdown=acc.cefr_breakdown,
                 )
             )
-
-        candidates.sort(
-            key=lambda c: (
-                not c.is_phrasal_verb,               # phrasal verbs first
-                not c.frequency_band.is_sweet_spot,  # sweet spot first
-                c.frequency_band.zipf_value,          # rarer words first (lower zipf)
-                -c.occurrences,                       # more occurrences first
-            )
-        )
         return candidates
 
     def _to_dto(self, candidate: WordCandidate) -> WordCandidateDTO:
@@ -260,7 +251,7 @@ class AnalyzeTextUseCase:
             lemma=candidate.lemma,
             pos=candidate.pos,
             cefr_level=candidate.cefr_level.name if candidate.cefr_level else None,
-            zipf_frequency=candidate.frequency_band.zipf_value,
+            zipf_frequency=candidate.zipf_frequency,
             is_sweet_spot=candidate.frequency_band.is_sweet_spot,
             context_fragment=candidate.context_fragment,
             fragment_purity=purity,
@@ -278,7 +269,6 @@ class _CandidateAccumulator:
         "cefr",
         "cefr_breakdown",
         "freq_zipf",
-        "freq_sweet_spot",
         "fragment",
         "unknown_count",
         "pos_tag",
@@ -291,7 +281,6 @@ class _CandidateAccumulator:
         self,
         cefr: CEFRLevel | None,
         freq_zipf: float,
-        freq_sweet_spot: bool,
         fragment: str,
         unknown_count: int,
         pos_tag: str,
@@ -302,7 +291,6 @@ class _CandidateAccumulator:
         self.cefr = cefr
         self.cefr_breakdown = cefr_breakdown
         self.freq_zipf = freq_zipf
-        self.freq_sweet_spot = freq_sweet_spot
         self.fragment = fragment
         self.unknown_count = unknown_count
         self.pos_tag = pos_tag

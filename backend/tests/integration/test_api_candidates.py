@@ -34,7 +34,7 @@ def client() -> Generator[TestClient, None, None]:
     repo.create_batch([
         StoredCandidate(
             source_id=source.id, lemma="pursuit", pos="NOUN",
-            cefr_level="B2", zipf_frequency=3.5, is_sweet_spot=True,
+            cefr_level="B2", zipf_frequency=3.5,
             context_fragment="the pursuit of", fragment_purity="clean",
             occurrences=1, status=CandidateStatus.PENDING,
         ),

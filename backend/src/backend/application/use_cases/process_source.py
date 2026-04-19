@@ -138,7 +138,6 @@ class ProcessSourceUseCase:
                 pos=c.pos,
                 cefr_level=c.cefr_level,
                 zipf_frequency=c.zipf_frequency,
-                is_sweet_spot=c.is_sweet_spot,
                 context_fragment=c.context_fragment,
                 fragment_purity=c.fragment_purity,
                 occurrences=c.occurrences,

@@ -37,7 +37,6 @@ def _make_stored_candidate(with_breakdown: bool = True) -> StoredCandidate:
         pos="JJ",
         cefr_level="B1",
         zipf_frequency=5.0,
-        is_sweet_spot=True,
         context_fragment="I am happy",
         fragment_purity="clean",
         occurrences=1,

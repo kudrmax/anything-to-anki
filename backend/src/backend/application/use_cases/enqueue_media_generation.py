@@ -16,9 +16,8 @@ class EnqueueMediaGenerationUseCase:
     """Finds eligible candidates for a source, marks them QUEUED, returns their ids.
     The actual Redis enqueue happens in the FastAPI route (async context).
 
-    The order of returned ids respects sort_order. RELEVANCE uses SQL sort
-    on the media repo; CHRONOLOGICAL re-sorts in Python by context_fragment
-    position in source text.
+    The order of returned ids respects sort_order. Sorting is delegated to
+    domain sort service.
     """
 
     def __init__(
@@ -36,27 +35,26 @@ class EnqueueMediaGenerationUseCase:
         source_id: int,
         sort_order: CandidateSortOrder | None = None,
     ) -> list[int]:
+        from backend.domain.services.candidate_sorting import (
+            sort_by_relevance,
+            sort_chronologically,
+        )
         from backend.domain.value_objects.candidate_sort_order import (
             CandidateSortOrder as SortEnum,
         )
+        unsorted_ids = self._media_repo.get_eligible_candidate_ids(source_id=source_id)
+        if not unsorted_ids:
+            return []
+        candidates = self._candidate_repo.get_by_ids(unsorted_ids)
         if sort_order == SortEnum.CHRONOLOGICAL:
-            unsorted_ids = self._media_repo.get_eligible_candidate_ids(source_id=source_id)
-            if not unsorted_ids:
-                return []
             source = self._source_repo.get_by_id(source_id)
             if source is None:
                 return []
-            candidates = self._candidate_repo.get_by_ids(unsorted_ids)
             text = source.cleaned_text or source.raw_text
-            candidates.sort(
-                key=lambda c: (text.find(c.context_fragment), c.id or 0),
-            )
-            eligible_ids = [c.id for c in candidates if c.id is not None]
+            candidates = sort_chronologically(candidates, source_text=text)
         else:
-            eligible_ids = self._media_repo.get_eligible_candidate_ids(
-                source_id=source_id,
-                sort_order=sort_order,
-            )
+            candidates = sort_by_relevance(candidates)
+        eligible_ids = [c.id for c in candidates if c.id is not None]
         if not eligible_ids:
             logger.info(
                 "enqueue_media_generation: no eligible candidates "

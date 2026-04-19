@@ -228,7 +228,6 @@ class StoredCandidateModel(Base):
             pos=self.pos,
             cefr_level=self.cefr_level or None,
             zipf_frequency=self.zipf_frequency,
-            is_sweet_spot=self.is_sweet_spot,
             context_fragment=self.context_fragment,
             fragment_purity=self.fragment_purity,
             occurrences=self.occurrences,
