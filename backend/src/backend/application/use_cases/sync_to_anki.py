@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.anki_dtos import SyncResultDTO
 from backend.application.use_cases.manage_settings import build_anki_field_map
-from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.application.utils.highlight import highlight_all_forms
 from backend.domain.exceptions import AnkiNotAvailableError
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -14,6 +13,7 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
     from backend.domain.ports.anki_connector import AnkiConnector
     from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
