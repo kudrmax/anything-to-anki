@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import json
 import logging
 from typing import TYPE_CHECKING
+
+from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
@@ -26,10 +30,12 @@ class EnqueueMeaningGenerationUseCase:
         meaning_repo: CandidateMeaningRepository,
         candidate_repo: CandidateRepository,
         source_repo: SourceRepository,
+        settings_repo: SettingsRepository,
     ) -> None:
         self._meaning_repo = meaning_repo
         self._candidate_repo = candidate_repo
         self._source_repo = source_repo
+        self._settings_repo = settings_repo
 
     def execute(
         self,
@@ -56,7 +62,11 @@ class EnqueueMeaningGenerationUseCase:
             text = source.cleaned_text or source.raw_text
             candidates = sort_chronologically(candidates, source_text=text)
         else:
-            candidates = sort_by_relevance(candidates)
+            raw = self._settings_repo.get("usage_group_order")
+            usage_order: list[str] = (
+                json.loads(raw) if raw else DEFAULT_USAGE_GROUP_ORDER
+            )
+            candidates = sort_by_relevance(candidates, usage_order=usage_order)
         all_ids = [c.id for c in candidates if c.id is not None]
         if not all_ids:
             logger.info(

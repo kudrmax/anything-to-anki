@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle, Loader2, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import { api } from '@/api/client'
 import type { CleanupMediaKind, CreateNoteTypeResponse, KnownWord, Settings, SourceMediaStats, VerifyNoteTypeResponse } from '@/api/types'
@@ -12,6 +12,17 @@ const AI_MODELS = [
   { value: 'sonnet', label: 'Claude Sonnet' },
   { value: 'opus', label: 'Claude Opus' },
 ]
+
+const USAGE_GROUP_LABELS: Record<string, string> = {
+  neutral: 'Standard, unmarked words',
+  informal: 'Slang, casual speech',
+  formal: 'Formal register',
+  specialized: 'Technical, domain-specific',
+  connotation: 'Disapproving, approving, humorous',
+  'old-fashioned': 'Dated, archaic',
+  offensive: 'Offensive language',
+  other: 'Literary, trademark, etc.',
+}
 
 const INPUT_STYLE = {
   background: 'var(--ibg)',
@@ -40,6 +51,10 @@ export function SettingsPage() {
 
   const [mediaStats, setMediaStats] = useState<SourceMediaStats[]>([])
   const [mediaStatsLoading, setMediaStatsLoading] = useState(false)
+
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
+  const dragCounter = useRef(0)
 
   const { theme, setTheme } = useTheme()
 
@@ -346,6 +361,83 @@ export function SettingsPage() {
             </p>
           </div>
 
+        </section>
+
+        {/* Usage Priority section */}
+        <section className="flex flex-col gap-4">
+          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>Usage Priority</h2>
+          <p className="text-xs" style={{ color: 'var(--td)' }}>
+            Drag to reorder. Words from higher-priority groups appear first among candidates.
+          </p>
+          <div className="glass-card rounded-xl overflow-hidden">
+            {(form.usage_group_order ?? Object.keys(USAGE_GROUP_LABELS)).map((group, idx) => (
+              <div
+                key={group}
+                draggable
+                onDragStart={(e) => {
+                  setDragIndex(idx)
+                  dragCounter.current = 0
+                  e.dataTransfer.effectAllowed = 'move'
+                  e.dataTransfer.setData('text/plain', String(idx))
+                }}
+                onDragEnd={() => {
+                  setDragIndex(null)
+                  setDropTargetIndex(null)
+                  dragCounter.current = 0
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault()
+                  dragCounter.current++
+                  if (dragIndex !== null && dragIndex !== idx) {
+                    setDropTargetIndex(idx)
+                  }
+                }}
+                onDragLeave={() => {
+                  dragCounter.current--
+                  if (dragCounter.current <= 0) {
+                    setDropTargetIndex(null)
+                    dragCounter.current = 0
+                  }
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  dragCounter.current = 0
+                  const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10)
+                  if (isNaN(fromIdx) || fromIdx === idx) {
+                    setDropTargetIndex(null)
+                    return
+                  }
+                  const order = [...(form.usage_group_order ?? Object.keys(USAGE_GROUP_LABELS))]
+                  const [moved] = order.splice(fromIdx, 1)
+                  order.splice(idx, 0, moved)
+                  setForm((prev) => prev ? { ...prev, usage_group_order: order } : prev)
+                  setDropTargetIndex(null)
+                  void api.updateSettings({ usage_group_order: order } as Partial<Settings>)
+                }}
+                className="flex items-center gap-3 px-4 py-3 select-none"
+                style={{
+                  borderTop: idx > 0 ? '1px solid var(--glass-b)' : undefined,
+                  opacity: dragIndex === idx ? 0.4 : 1,
+                  background: dropTargetIndex === idx ? 'var(--glass)' : undefined,
+                  cursor: 'grab',
+                  transition: 'opacity 150ms, background 150ms',
+                }}
+              >
+                <span className="text-sm shrink-0" style={{ color: 'var(--td)', lineHeight: 1 }}>&#x2817;</span>
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{group}</span>
+                  <span className="text-xs" style={{ color: 'var(--td)' }}>{USAGE_GROUP_LABELS[group] ?? group}</span>
+                </div>
+                <span className="ml-auto text-xs tabular-nums shrink-0" style={{ color: 'var(--td)' }}>
+                  {idx + 1}
+                </span>
+              </div>
+            ))}
+          </div>
         </section>
 
         {/* Review section */}

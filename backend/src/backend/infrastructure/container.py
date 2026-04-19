@@ -34,6 +34,8 @@ from backend.domain.value_objects.fragment_selection_config import (
 from backend.domain.value_objects.input_method import InputMethod
 from backend.infrastructure.adapters.ai_model_mapping import model_id_for
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
+from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
+from backend.infrastructure.adapters.cambridge.usage_lookup import CambridgeUsageLookup
 from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
 from backend.infrastructure.adapters.efllex_cefr_source import EFLLexCEFRSource
 from backend.infrastructure.adapters.http_ai_service import HttpAIService
@@ -41,7 +43,6 @@ from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
 )
 from backend.infrastructure.adapters.kelly_cefr_source import KellyCEFRSource
-from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
 from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
 from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
 from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
@@ -127,6 +128,7 @@ class Container:
             KellyCEFRSource(cefr_data_dir / "kelly.csv"),
         ]
         cambridge_cefr = CambridgeCEFRSource(cambridge_path)
+        self._cambridge_usage_lookup = CambridgeUsageLookup(cambridge_path)
         self._cefr_classifier = VotingCEFRClassifier(
             cefr_sources, priority_source=cambridge_cefr
         )
@@ -198,6 +200,7 @@ class Container:
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
             fragment_selection_config=self._fragment_selection_config,
+            usage_lookup=self._cambridge_usage_lookup,
         )
 
     def create_source_use_case(self, session: Session) -> CreateSourceUseCase:
@@ -223,6 +226,7 @@ class Container:
         return GetSourcesUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
         )
 
     def process_source_use_case(self, session: Session) -> ProcessSourceUseCase:
@@ -244,6 +248,7 @@ class Container:
         return GetCandidatesUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
         )
 
     def mark_candidate_use_case(self, session: Session) -> MarkCandidateUseCase:
@@ -417,6 +422,7 @@ class Container:
             media_repo=SqlaCandidateMediaRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
         )
 
     def enqueue_meaning_generation_use_case(
@@ -429,6 +435,7 @@ class Container:
             meaning_repo=SqlaCandidateMeaningRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
         )
 
     async def get_redis_pool(self) -> Any:  # noqa: ANN401 — arq has no type stubs

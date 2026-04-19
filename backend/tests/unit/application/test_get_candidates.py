@@ -12,9 +12,12 @@ class TestGetCandidatesUseCase:
     def setup_method(self) -> None:
         self.source_repo = MagicMock()
         self.candidate_repo = MagicMock()
+        self.settings_repo = MagicMock()
+        self.settings_repo.get.return_value = None
         self.use_case = GetCandidatesUseCase(
             source_repo=self.source_repo,
             candidate_repo=self.candidate_repo,
+            settings_repo=self.settings_repo,
         )
 
     def test_returns_candidates_for_source(self) -> None:

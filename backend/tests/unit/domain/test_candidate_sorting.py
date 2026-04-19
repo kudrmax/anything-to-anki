@@ -7,6 +7,7 @@ from backend.domain.services.candidate_sorting import (
     sort_chronologically,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.usage_distribution import UsageDistribution
 
 
 def _make(
@@ -17,6 +18,7 @@ def _make(
     occurrences: int = 1,
     is_phrasal_verb: bool = False,
     context_fragment: str = "",
+    usage_distribution: UsageDistribution | None = None,
 ) -> StoredCandidate:
     return StoredCandidate(
         source_id=1,
@@ -29,6 +31,7 @@ def _make(
         occurrences=occurrences,
         status=CandidateStatus.PENDING,
         is_phrasal_verb=is_phrasal_verb,
+        usage_distribution=usage_distribution,
     )
 
 
@@ -165,3 +168,84 @@ class TestSortChronologically:
         c2.id = 10
         result = sort_chronologically([c1, c2], source_text="")
         assert [c.lemma for c in result] == ["beta", "alpha"]
+
+
+@pytest.mark.unit
+class TestSortByRelevanceWithUsage:
+    ORDER = ["neutral", "informal", "formal", "specialized"]
+
+    def test_usage_rank_within_same_band_and_phrasal(self) -> None:
+        formal = _make("formal_w", 4.0,
+                        usage_distribution=UsageDistribution({"formal": 1.0}))
+        informal = _make("informal_w", 4.0,
+                          usage_distribution=UsageDistribution({"informal": 1.0}))
+        result = sort_by_relevance([formal, informal], usage_order=self.ORDER)
+        assert [c.lemma for c in result] == ["informal_w", "formal_w"]
+
+    def test_band_still_beats_usage(self) -> None:
+        common_formal = _make("common", 5.0,
+                               usage_distribution=UsageDistribution({"formal": 1.0}))
+        mid_neutral = _make("mid", 4.0,
+                             usage_distribution=UsageDistribution({"neutral": 1.0}))
+        result = sort_by_relevance([mid_neutral, common_formal], usage_order=self.ORDER)
+        assert [c.lemma for c in result] == ["common", "mid"]
+
+    def test_phrasal_verb_still_beats_usage(self) -> None:
+        regular_neutral = _make("walk", 4.0,
+                                 usage_distribution=UsageDistribution({"neutral": 1.0}))
+        phrasal_formal = _make("give up", 4.0, is_phrasal_verb=True,
+                                usage_distribution=UsageDistribution({"formal": 1.0}))
+        result = sort_by_relevance([regular_neutral, phrasal_formal], usage_order=self.ORDER)
+        assert [c.lemma for c in result] == ["give up", "walk"]
+
+    def test_none_distribution_treated_as_neutral(self) -> None:
+        no_usage = _make("unknown", 4.0, usage_distribution=None)
+        formal = _make("formal_w", 4.0,
+                        usage_distribution=UsageDistribution({"formal": 1.0}))
+        result = sort_by_relevance([formal, no_usage], usage_order=self.ORDER)
+        assert [c.lemma for c in result] == ["unknown", "formal_w"]
+
+    def test_mixed_distribution_uses_primary_group(self) -> None:
+        mixed = _make("cool", 4.0,
+                       usage_distribution=UsageDistribution({"informal": 0.4, "neutral": 0.6}))
+        pure_informal = _make("gonna", 4.0,
+                               usage_distribution=UsageDistribution({"informal": 1.0}))
+        result = sort_by_relevance([pure_informal, mixed], usage_order=self.ORDER)
+        assert [c.lemma for c in result] == ["cool", "gonna"]
+
+    def test_no_usage_order_backward_compatible(self) -> None:
+        formal = _make("formal_w", 4.0,
+                        usage_distribution=UsageDistribution({"formal": 1.0}))
+        informal = _make("informal_w", 4.0,
+                          usage_distribution=UsageDistribution({"informal": 1.0}))
+        result = sort_by_relevance([formal, informal])
+        assert [c.lemma for c in result] == ["formal_w", "informal_w"]
+
+    def test_custom_user_order(self) -> None:
+        custom_order = ["formal", "informal", "neutral"]
+        formal = _make("formal_w", 4.0,
+                        usage_distribution=UsageDistribution({"formal": 1.0}))
+        informal = _make("informal_w", 4.0,
+                          usage_distribution=UsageDistribution({"informal": 1.0}))
+        result = sort_by_relevance([informal, formal], usage_order=custom_order)
+        assert [c.lemma for c in result] == ["formal_w", "informal_w"]
+
+    def test_full_priority_with_usage(self) -> None:
+        candidates = [
+            _make("rare", 2.0, usage_distribution=UsageDistribution({"neutral": 1.0})),
+            _make("mid_formal_b1", 4.0, cefr="B1",
+                  usage_distribution=UsageDistribution({"formal": 1.0})),
+            _make("mid_neutral_b2", 4.0, cefr="B2",
+                  usage_distribution=UsageDistribution({"neutral": 1.0})),
+            _make("mid_neutral_b1", 4.0, cefr="B1",
+                  usage_distribution=UsageDistribution({"neutral": 1.0})),
+            _make("common", 5.0, usage_distribution=UsageDistribution({"informal": 1.0})),
+        ]
+        result = sort_by_relevance(candidates, usage_order=self.ORDER)
+        assert [c.lemma for c in result] == [
+            "common",
+            "mid_neutral_b1",
+            "mid_neutral_b2",
+            "mid_formal_b1",
+            "rare",
+        ]

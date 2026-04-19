@@ -143,6 +143,7 @@ export interface Settings {
   anki_field_translation: string
   anki_field_synonyms: string
   anki_field_examples: string
+  usage_group_order: string[]
 }
 
 export interface KnownWord {

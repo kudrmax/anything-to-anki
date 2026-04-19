@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 
+from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
 from backend.application.dto.cefr_dtos import CEFRBreakdownDTO, breakdown_to_dto
 from backend.application.dto.source_dtos import (
     CandidateMeaningDTO,
@@ -13,6 +15,7 @@ from backend.domain.exceptions import SourceNotFoundError
 if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
@@ -61,6 +64,7 @@ def _to_dto(c: StoredCandidate) -> StoredCandidateDTO:
         meaning=meaning_dto,
         media=media_dto,
         cefr_breakdown=breakdown_dto,
+        usage_distribution=c.usage_distribution.to_dict() if c.usage_distribution else None,
     )
 
 
@@ -71,9 +75,11 @@ class GetCandidatesUseCase:
         self,
         source_repo: SourceRepository,
         candidate_repo: CandidateRepository,
+        settings_repo: SettingsRepository,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
+        self._settings_repo = settings_repo
 
     def execute(
         self,
@@ -95,5 +101,9 @@ class GetCandidatesUseCase:
             text = source.cleaned_text or source.raw_text
             candidates = sort_chronologically(candidates, source_text=text)
         else:
-            candidates = sort_by_relevance(candidates)
+            raw = self._settings_repo.get("usage_group_order")
+            usage_order: list[str] = (
+                json.loads(raw) if raw else DEFAULT_USAGE_GROUP_ORDER
+            )
+            candidates = sort_by_relevance(candidates, usage_order=usage_order)
         return [_to_dto(c) for c in candidates]

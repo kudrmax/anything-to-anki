@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import json
 import logging
 from typing import TYPE_CHECKING
+
+from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
@@ -25,10 +29,12 @@ class EnqueueMediaGenerationUseCase:
         media_repo: CandidateMediaRepository,
         candidate_repo: CandidateRepository,
         source_repo: SourceRepository,
+        settings_repo: SettingsRepository,
     ) -> None:
         self._media_repo = media_repo
         self._candidate_repo = candidate_repo
         self._source_repo = source_repo
+        self._settings_repo = settings_repo
 
     def execute(
         self,
@@ -53,7 +59,11 @@ class EnqueueMediaGenerationUseCase:
             text = source.cleaned_text or source.raw_text
             candidates = sort_chronologically(candidates, source_text=text)
         else:
-            candidates = sort_by_relevance(candidates)
+            raw = self._settings_repo.get("usage_group_order")
+            usage_order: list[str] = (
+                json.loads(raw) if raw else DEFAULT_USAGE_GROUP_ORDER
+            )
+            candidates = sort_by_relevance(candidates, usage_order=usage_order)
         eligible_ids = [c.id for c in candidates if c.id is not None]
         if not eligible_ids:
             logger.info(

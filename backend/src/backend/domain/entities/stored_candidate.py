@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.candidate_status import CandidateStatus
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.frequency_band import FrequencyBand
+    from backend.domain.value_objects.usage_distribution import UsageDistribution
 
 
 @dataclass
@@ -37,6 +38,7 @@ class StoredCandidate:
     media: CandidateMedia | None = None
     id: int | None = None
     cefr_breakdown: CEFRBreakdown | None = None
+    usage_distribution: UsageDistribution | None = None
 
     @property
     def frequency_band(self) -> FrequencyBand:

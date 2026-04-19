@@ -33,6 +33,8 @@ if TYPE_CHECKING:
     )
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
+    from backend.domain.value_objects.usage_distribution import UsageDistribution
+    from backend.infrastructure.adapters.cambridge.usage_lookup import CambridgeUsageLookup
 
 DIRTY_THRESHOLD: int = 2
 
@@ -48,6 +50,7 @@ class AnalyzeTextUseCase:
         frequency_provider: FrequencyProvider,
         phrasal_verb_detector: PhrasalVerbDetector,
         fragment_selection_config: FragmentSelectionConfig | None = None,
+        usage_lookup: CambridgeUsageLookup | None = None,
     ) -> None:
         self._text_cleaner = text_cleaner
         self._text_analyzer = text_analyzer
@@ -59,6 +62,7 @@ class AnalyzeTextUseCase:
             fragment_selection_config or FragmentSelectionConfig()
         )
         self._selector = FragmentSelector(config=self._fragment_config)
+        self._usage_lookup = usage_lookup
 
     def execute(self, request: AnalyzeTextRequest) -> AnalyzeTextResponse:
         user_level = CEFRLevel.from_str(request.user_level)
@@ -116,6 +120,9 @@ class AnalyzeTextUseCase:
                 unknown_count = self._count_unknowns_in_fragment(
                     fragment_indices, tokens, user_level
                 )
+                usage_dist = None
+                if self._usage_lookup is not None:
+                    usage_dist = self._usage_lookup.get_distribution(lemma_lower, token.tag)
                 candidate_map[key] = _CandidateAccumulator(
                     cefr=cefr,
                     cefr_breakdown=breakdown,
@@ -125,6 +132,7 @@ class AnalyzeTextUseCase:
                     pos_tag=token.tag,
                     is_phrasal_verb=False,
                     surface_form=token.text,
+                    usage_distribution=usage_dist,
                 )
             candidate_map[key].occurrences += 1
 
@@ -175,6 +183,9 @@ class AnalyzeTextUseCase:
                 unknown_count = self._count_unknowns_in_fragment(
                     fragment_indices, tokens, user_level
                 )
+                usage_dist = None
+                if self._usage_lookup is not None:
+                    usage_dist = self._usage_lookup.get_distribution(match.lemma, verb_token.tag)
                 candidate_map[key] = _CandidateAccumulator(
                     cefr=None,
                     freq_zipf=zipf,
@@ -183,6 +194,7 @@ class AnalyzeTextUseCase:
                     pos_tag=verb_token.tag,
                     is_phrasal_verb=True,
                     surface_form=match.surface_form,
+                    usage_distribution=usage_dist,
                 )
             candidate_map[key].occurrences += 1
 
@@ -236,6 +248,7 @@ class AnalyzeTextUseCase:
                     is_phrasal_verb=acc.is_phrasal_verb,
                     surface_form=acc.surface_form,
                     cefr_breakdown=acc.cefr_breakdown,
+                    usage_distribution=acc.usage_distribution,
                 )
             )
         return candidates
@@ -259,6 +272,11 @@ class AnalyzeTextUseCase:
             is_phrasal_verb=candidate.is_phrasal_verb,
             surface_form=candidate.surface_form,
             cefr_breakdown=bd_dto,
+            usage_distribution=(
+                candidate.usage_distribution.to_dict()
+                if candidate.usage_distribution
+                else None
+            ),
         )
 
 
@@ -275,6 +293,7 @@ class _CandidateAccumulator:
         "occurrences",
         "is_phrasal_verb",
         "surface_form",
+        "usage_distribution",
     )
 
     def __init__(
@@ -287,6 +306,7 @@ class _CandidateAccumulator:
         is_phrasal_verb: bool,
         surface_form: str | None = None,
         cefr_breakdown: CEFRBreakdown | None = None,
+        usage_distribution: UsageDistribution | None = None,
     ) -> None:
         self.cefr = cefr
         self.cefr_breakdown = cefr_breakdown
@@ -296,4 +316,5 @@ class _CandidateAccumulator:
         self.pos_tag = pos_tag
         self.is_phrasal_verb = is_phrasal_verb
         self.surface_form = surface_form
+        self.usage_distribution = usage_distribution
         self.occurrences = 0
