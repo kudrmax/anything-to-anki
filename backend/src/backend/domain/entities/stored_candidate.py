@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_meaning import CandidateMeaning
     from backend.domain.entities.candidate_media import CandidateMedia
-    from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.candidate_status import CandidateStatus
+    from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.frequency_band import FrequencyBand
 
 

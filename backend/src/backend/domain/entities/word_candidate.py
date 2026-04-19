@@ -17,6 +17,7 @@ class WordCandidate:
     pos: str
     cefr_level: CEFRLevel | None
     frequency_band: FrequencyBand
+    zipf_frequency: float
     context_fragment: str
     fragment_unknown_count: int
     occurrences: int

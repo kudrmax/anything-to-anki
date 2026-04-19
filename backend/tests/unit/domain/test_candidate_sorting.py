@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.candidate_sorting import (
     sort_by_relevance,

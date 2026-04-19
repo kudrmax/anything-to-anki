@@ -9,3 +9,7 @@ class FrequencyProvider(ABC):
     @abstractmethod
     def get_frequency(self, lemma: str) -> FrequencyBand:
         """Get the frequency band for a given lemma."""
+
+    @abstractmethod
+    def get_zipf_value(self, lemma: str) -> float:
+        """Get the raw Zipf frequency value for a given lemma."""
