@@ -16,13 +16,12 @@ _VERSION = 6
 _DEFAULT_MODEL_NAME = "AnythingToAnkiType"
 _DEFAULT_MODEL_FIELDS = ["Sentence", "Target", "Meaning", "IPA"]
 
-_CARD_CSS = (
+_FALLBACK_FRONT = "{{Sentence}}"
+_FALLBACK_BACK = "{{FrontSide}}<hr id=answer>{{Target}}<br>{{Meaning}}"
+_FALLBACK_CSS = (
     ".card { font-family: Arial, sans-serif; font-size: 18px; text-align: left;"
     " color: #222; background-color: #fff; padding: 20px; }"
 )
-
-_FRONT_TEMPLATE = "{{Sentence}}"
-_BACK_TEMPLATE = "{{FrontSide}}<hr id=answer>{{Target}}&nbsp;[{{IPA}}]<br><br>{{Meaning}}"
 
 
 class AnkiConnectConnector(AnkiConnector):
@@ -52,19 +51,27 @@ class AnkiConnectConnector(AnkiConnector):
             logger.debug("AnkiConnect.is_available probe failed", exc_info=True)
             return False
 
-    def ensure_note_type(self, model_name: str, fields: list[str]) -> None:
+    def ensure_note_type(
+        self,
+        model_name: str,
+        fields: list[str],
+        *,
+        front_template: str | None = None,
+        back_template: str | None = None,
+        css: str | None = None,
+    ) -> None:
         existing = cast("list[str]", self._invoke("modelNames"))
         if model_name not in existing:
             self._invoke(
                 "createModel",
                 modelName=model_name,
                 inOrderFields=fields,
-                css=_CARD_CSS,
+                css=css or _FALLBACK_CSS,
                 cardTemplates=[
                     {
                         "Name": "AnythingToAnki Card",
-                        "Front": _FRONT_TEMPLATE,
-                        "Back": _BACK_TEMPLATE,
+                        "Front": front_template or _FALLBACK_FRONT,
+                        "Back": back_template or _FALLBACK_BACK,
                     }
                 ],
             )

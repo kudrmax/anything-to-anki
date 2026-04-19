@@ -5,6 +5,8 @@ import os
 from typing import TYPE_CHECKING
 
 from backend.application.dto.anki_dtos import SyncResultDTO
+from backend.application.use_cases.manage_settings import build_anki_field_map
+from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.application.utils.highlight import highlight_all_forms
 from backend.domain.exceptions import AnkiNotAvailableError
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -39,11 +41,13 @@ class SyncToAnkiUseCase:
         anki_connector: AnkiConnector,
         settings_repo: SettingsRepository,
         anki_sync_repo: AnkiSyncRepository,
+        template_renderer: AnkiTemplateRenderer,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._connector = anki_connector
         self._settings_repo = settings_repo
         self._anki_sync_repo = anki_sync_repo
+        self._template_renderer = template_renderer
 
     def execute(self, source_id: int) -> SyncResultDTO:
         deck_name = self._settings_repo.get("anki_deck_name", _DEFAULT_DECK) or _DEFAULT_DECK
@@ -121,7 +125,26 @@ class SyncToAnkiUseCase:
             if f
         ]
         if note_type == _DEFAULT_NOTE_TYPE:
-            self._connector.ensure_note_type(note_type, active_fields)
+            field_settings = {
+                "anki_field_sentence": field_sentence,
+                "anki_field_target_word": field_target,
+                "anki_field_meaning": field_meaning,
+                "anki_field_ipa": field_ipa,
+                "anki_field_image": field_image,
+                "anki_field_audio": field_audio,
+                "anki_field_translation": field_translation,
+                "anki_field_synonyms": field_synonyms,
+                "anki_field_examples": field_examples,
+            }
+            field_map = build_anki_field_map(field_settings)
+            templates = self._template_renderer.render_all(field_map)
+            self._connector.ensure_note_type(
+                note_type,
+                active_fields,
+                front_template=templates["front"],
+                back_template=templates["back"],
+                css=templates["css"],
+            )
         self._connector.ensure_deck(deck_name)
 
         added = 0

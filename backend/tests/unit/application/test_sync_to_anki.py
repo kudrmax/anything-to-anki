@@ -57,6 +57,12 @@ class TestSyncToAnkiUseCase:
         self.anki_connector = MagicMock()
         self.settings_repo = MagicMock()
         self.anki_sync_repo = MagicMock()
+        self.template_renderer = MagicMock()
+        self.template_renderer.render_all.return_value = {
+            "front": "<front/>",
+            "back": "<back/>",
+            "css": "",
+        }
         self.settings_repo.get.return_value = None  # use default deck
         self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.use_case = SyncToAnkiUseCase(
@@ -64,6 +70,7 @@ class TestSyncToAnkiUseCase:
             anki_connector=self.anki_connector,
             settings_repo=self.settings_repo,
             anki_sync_repo=self.anki_sync_repo,
+            template_renderer=self.template_renderer,
         )
 
     def test_returns_zero_when_no_learn_candidates(self) -> None:

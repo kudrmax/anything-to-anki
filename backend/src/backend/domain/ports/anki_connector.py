@@ -11,13 +11,22 @@ class AnkiConnector(ABC):
         """Return True if AnkiConnect is reachable."""
 
     @abstractmethod
-    def ensure_note_type(self, model_name: str, fields: list[str]) -> None:
+    def ensure_note_type(
+        self,
+        model_name: str,
+        fields: list[str],
+        *,
+        front_template: str | None = None,
+        back_template: str | None = None,
+        css: str | None = None,
+    ) -> None:
         """Ensure the note type exists and contains all of the listed fields.
 
         If the note type does not exist, create it with exactly the listed
-        fields. If it exists, add any missing fields to it (existing extra
-        fields are preserved). When creating a new model, the order of
-        fields matches the order of the input list.
+        fields using the provided templates (or built-in fallbacks if None).
+        If it exists, add any missing fields to it (existing extra fields are
+        preserved). When creating a new model, the order of fields matches
+        the order of the input list.
         """
 
     @abstractmethod
