@@ -23,6 +23,7 @@ from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
+from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.domain.ports.cefr_source import (
     CEFRSource,  # noqa: TC001 — used at runtime in list[CEFRSource]
 )
@@ -157,6 +158,10 @@ class Container:
         )
         self._prompts_config: PromptsConfig = PromptsLoader().load(prompts_path)
         self._lazy_media_reconciler: LazyMediaReconciler | None = None  # lazy init on first call
+        templates_dir = project_root / "anki-templates"
+        if not templates_dir.exists():
+            templates_dir = Path("/app/anki-templates")
+        self._anki_template_renderer = AnkiTemplateRenderer(templates_dir)
         # Lazy-created by get_redis_pool()
         self._redis_pool: Any = None  # arq has no type stubs — Any is justified
         # Session factory — lazy-loaded to avoid circular import with api.dependencies
@@ -414,6 +419,9 @@ class Container:
 
     def candidate_media_repository(self, session: Session) -> SqlaCandidateMediaRepository:
         return SqlaCandidateMediaRepository(session)
+
+    def anki_template_renderer(self) -> AnkiTemplateRenderer:
+        return self._anki_template_renderer
 
     def enqueue_media_generation_use_case(
         self, session: Session
