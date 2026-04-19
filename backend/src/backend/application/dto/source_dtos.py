@@ -83,6 +83,7 @@ class StoredCandidateDTO(BaseModel):
     meaning: CandidateMeaningDTO | None = None
     media: CandidateMediaDTO | None = None
     cefr_breakdown: CEFRBreakdownDTO | None = None
+    usage_distribution: dict[str, float] | None = None
 
 
 class SourceDetailDTO(BaseModel):

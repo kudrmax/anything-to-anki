@@ -33,6 +33,7 @@ class WordCandidateDTO(BaseModel):
     is_phrasal_verb: bool = False
     surface_form: str | None = None
     cefr_breakdown: CEFRBreakdownDTO | None = None
+    usage_distribution: dict[str, float] | None = None
 
 
 class AnalyzeTextResponse(BaseModel):

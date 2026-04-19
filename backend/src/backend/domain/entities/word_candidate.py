@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.cefr_level import CEFRLevel
     from backend.domain.value_objects.frequency_band import FrequencyBand
+    from backend.domain.value_objects.usage_distribution import UsageDistribution
 
 
 @dataclass(frozen=True)
@@ -24,3 +25,4 @@ class WordCandidate:
     is_phrasal_verb: bool = False
     surface_form: str | None = None  # Actual form in text, e.g. "gave up" for lemma "give up"
     cefr_breakdown: CEFRBreakdown | None = None
+    usage_distribution: UsageDistribution | None = None

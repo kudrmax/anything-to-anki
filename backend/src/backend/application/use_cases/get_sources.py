@@ -68,6 +68,7 @@ def _candidate_to_dto(c: StoredCandidate) -> StoredCandidateDTO:
         meaning=meaning_dto,
         media=media_dto,
         cefr_breakdown=breakdown_dto,
+        usage_distribution=c.usage_distribution.to_dict() if c.usage_distribution else None,
     )
 
 
