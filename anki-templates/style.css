@@ -186,6 +186,20 @@ hr {
     border-radius: 8px;
   }
 
+  .card-inner {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .card-inner > * {
+    order: 0;
+    width: 100%;
+  }
+
+  .sentence {
+    order: -1;
+  }
+
   .media {
     float: none;
     margin: 12px 0 0 0;
