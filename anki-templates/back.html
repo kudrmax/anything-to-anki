@@ -1,23 +1,22 @@
 <div class="card-inner">
-  <div class="sentence">{{edit:Sentence}}</div>
+  <div class="sentence">{{edit:%FIELD_SENTENCE%}}</div>
+
+  {{#%FIELD_IMAGE%}}<div class="image">{{%FIELD_IMAGE%}}</div>{{/%FIELD_IMAGE%}}
+  {{#%FIELD_AUDIO%}}<div class="audio">{{%FIELD_AUDIO%}}</div>{{/%FIELD_AUDIO%}}
 
   <hr>
 
-  <div class="target-word">{{edit:Target}}</div>
-
-  {{#IPA}}<div class="ipa">{{edit:IPA}}</div>{{/IPA}}
-
-  <hr>
-
-  <div class="meaning">{{edit:Meaning}}</div>
+  <div class="target-word">{{edit:%FIELD_TARGET%}}</div>
+  {{#%FIELD_IPA%}}<div class="ipa">{{edit:%FIELD_IPA%}}</div>{{/%FIELD_IPA%}}
 
   <hr>
 
-  {{#Audio}}{{Audio}}<br><br>{{/Audio}}
+  <div class="meaning">{{edit:%FIELD_MEANING%}}</div>
 
-  {{#Image}}{{Image}}<br><br>{{/Image}}
+  {{#%FIELD_TRANSLATION%}}<div class="translation">{{%FIELD_TRANSLATION%}}</div>{{/%FIELD_TRANSLATION%}}
+  {{#%FIELD_SYNONYMS%}}<div class="synonyms">{{%FIELD_SYNONYMS%}}</div>{{/%FIELD_SYNONYMS%}}
 
-  {{#Examples}}{{Examples}}<br><br>{{/Examples}}
+  <hr>
 
-  {{#Translation}}{{Translation}}{{/Translation}}
+  {{#%FIELD_EXAMPLES%}}<div class="examples">{{%FIELD_EXAMPLES%}}</div>{{/%FIELD_EXAMPLES%}}
 </div>
