@@ -96,6 +96,37 @@ class TestSortByRelevance:
             "rare_phrasal",    # RARE band (lowest, phrasal irrelevant here)
         ]
 
+    def test_empty_list(self) -> None:
+        assert sort_by_relevance([]) == []
+
+    def test_single_element(self) -> None:
+        c = _make("only", 4.0)
+        result = sort_by_relevance([c])
+        assert len(result) == 1
+        assert result[0].lemma == "only"
+
+    def test_stable_sort(self) -> None:
+        """Two candidates with identical sort keys preserve original order."""
+        a = _make("alpha", 4.0)
+        b = _make("beta", 4.0)
+        result = sort_by_relevance([a, b])
+        assert [c.lemma for c in result] == ["alpha", "beta"]
+        # Reversed input → reversed output
+        result2 = sort_by_relevance([b, a])
+        assert [c.lemma for c in result2] == ["beta", "alpha"]
+
+    def test_all_five_bands(self) -> None:
+        """One candidate per band, verify order ULTRA_COMMON → COMMON → MID → LOW → RARE."""
+        candidates = [
+            _make("rare", 1.5),
+            _make("low", 3.0),
+            _make("mid", 4.0),
+            _make("common", 5.0),
+            _make("ultra", 6.0),
+        ]
+        result = sort_by_relevance(candidates)
+        assert [c.lemma for c in result] == ["ultra", "common", "mid", "low", "rare"]
+
 
 @pytest.mark.unit
 class TestSortChronologically:
@@ -122,3 +153,15 @@ class TestSortChronologically:
         text = "same text"
         result = sort_chronologically([c1, c2], source_text=text)
         assert [c.lemma for c in result] == ["b", "a"]
+
+    def test_empty_list(self) -> None:
+        assert sort_chronologically([], source_text="anything") == []
+
+    def test_empty_source_text(self) -> None:
+        """All fragments not found in empty text, sort by id."""
+        c1 = _make("alpha", 4.0, context_fragment="alpha ctx")
+        c1.id = 20
+        c2 = _make("beta", 4.0, context_fragment="beta ctx")
+        c2.id = 10
+        result = sort_chronologically([c1, c2], source_text="")
+        assert [c.lemma for c in result] == ["beta", "alpha"]
