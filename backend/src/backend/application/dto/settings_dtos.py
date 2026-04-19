@@ -23,6 +23,7 @@ class SettingsDTO(BaseModel):
     anki_field_synonyms: str
     anki_field_examples: str
     enable_definitions: bool
+    usage_group_order: list[str]
 
 
 class UpdateSettingsRequest(BaseModel):
@@ -43,6 +44,7 @@ class UpdateSettingsRequest(BaseModel):
     anki_field_synonyms: str | None = None
     anki_field_examples: str | None = None
     enable_definitions: bool | None = None
+    usage_group_order: list[str] | None = None
 
     @field_validator("cefr_level")
     @classmethod

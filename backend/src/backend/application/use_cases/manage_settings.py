@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 
 from backend.application.dto.settings_dtos import SettingsDTO, UpdateSettingsRequest
@@ -22,6 +23,10 @@ _DEFAULT_FIELD_TRANSLATION: str = "Translation"
 _DEFAULT_FIELD_SYNONYMS: str = "Synonyms"
 _DEFAULT_FIELD_EXAMPLES: str = "Examples"
 _DEFAULT_ENABLE_DEFINITIONS: str = "true"
+_DEFAULT_USAGE_GROUP_ORDER: list[str] = [
+    "neutral", "informal", "formal", "specialized",
+    "connotation", "old-fashioned", "offensive", "other",
+]
 
 _SETTING_KEYS: dict[str, str] = {
     "cefr_level": _DEFAULT_CEFR_LEVEL,
@@ -39,9 +44,11 @@ _SETTING_KEYS: dict[str, str] = {
     "anki_field_synonyms": _DEFAULT_FIELD_SYNONYMS,
     "anki_field_examples": _DEFAULT_FIELD_EXAMPLES,
     "enable_definitions": _DEFAULT_ENABLE_DEFINITIONS,
+    "usage_group_order": json.dumps(_DEFAULT_USAGE_GROUP_ORDER),
 }
 
 _BOOL_KEYS: frozenset[str] = frozenset({"enable_definitions"})
+_JSON_LIST_KEYS: frozenset[str] = frozenset({"usage_group_order"})
 
 
 class ManageSettingsUseCase:
@@ -55,17 +62,26 @@ class ManageSettingsUseCase:
             key: (self._settings_repo.get(key, default) or default)
             for key, default in _SETTING_KEYS.items()
         }
-        values: dict[str, str | bool] = {
-            k: (v.lower() == "true" if k in _BOOL_KEYS else v)
-            for k, v in raw.items()
-        }
+        values: dict[str, str | bool | list[str]] = {}
+        for k, v in raw.items():
+            if k in _BOOL_KEYS:
+                values[k] = v.lower() == "true"
+            elif k in _JSON_LIST_KEYS:
+                values[k] = json.loads(v)
+            else:
+                values[k] = v
         return SettingsDTO(**values)  # type: ignore[arg-type]
 
     def update_settings(self, request: UpdateSettingsRequest) -> SettingsDTO:
         for key in _SETTING_KEYS:
             value = getattr(request, key, None)
             if value is not None:
-                str_value = str(value).lower() if key in _BOOL_KEYS else str(value)
+                if key in _BOOL_KEYS:
+                    str_value = str(value).lower()
+                elif key in _JSON_LIST_KEYS:
+                    str_value = json.dumps(value)
+                else:
+                    str_value = str(value)
                 self._settings_repo.set(key, str_value)
         return self.get_settings()
 
