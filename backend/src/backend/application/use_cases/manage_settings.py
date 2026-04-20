@@ -23,6 +23,8 @@ _DEFAULT_FIELD_AUDIO: str = "Audio"
 _DEFAULT_FIELD_TRANSLATION: str = "Translation"
 _DEFAULT_FIELD_SYNONYMS: str = "Synonyms"
 _DEFAULT_FIELD_EXAMPLES: str = "Examples"
+_DEFAULT_FIELD_AUDIO_TARGET_US: str = "AudioTargetUS"
+_DEFAULT_FIELD_AUDIO_TARGET_UK: str = "AudioTargetUK"
 _DEFAULT_ENABLE_DEFINITIONS: str = "true"
 
 _SETTING_KEYS: dict[str, str] = {
@@ -40,6 +42,8 @@ _SETTING_KEYS: dict[str, str] = {
     "anki_field_translation": _DEFAULT_FIELD_TRANSLATION,
     "anki_field_synonyms": _DEFAULT_FIELD_SYNONYMS,
     "anki_field_examples": _DEFAULT_FIELD_EXAMPLES,
+    "anki_field_audio_target_us": _DEFAULT_FIELD_AUDIO_TARGET_US,
+    "anki_field_audio_target_uk": _DEFAULT_FIELD_AUDIO_TARGET_UK,
     "enable_definitions": _DEFAULT_ENABLE_DEFINITIONS,
     "usage_group_order": json.dumps(DEFAULT_USAGE_GROUP_ORDER),
 }

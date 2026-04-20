@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_meaning import CandidateMeaning
     from backend.domain.entities.candidate_media import CandidateMedia
+    from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
     from backend.domain.value_objects.candidate_status import CandidateStatus
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.frequency_band import FrequencyBand
@@ -36,6 +37,7 @@ class StoredCandidate:
     has_custom_context_fragment: bool = False
     meaning: CandidateMeaning | None = None
     media: CandidateMedia | None = None
+    pronunciation: CandidatePronunciation | None = None
     id: int | None = None
     cefr_breakdown: CEFRBreakdown | None = None
     usage_distribution: UsageDistribution | None = None

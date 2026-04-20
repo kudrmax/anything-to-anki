@@ -36,6 +36,15 @@ class GetSourceCardsUseCase:
                 filename = candidate.media.audio_path.rsplit("/", 1)[-1]
                 audio_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
 
+            pronunciation_us_url: str | None = None
+            pronunciation_uk_url: str | None = None
+            if candidate.pronunciation and candidate.pronunciation.us_audio_path:
+                filename = candidate.pronunciation.us_audio_path.rsplit("/", 1)[-1]
+                pronunciation_us_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
+            if candidate.pronunciation and candidate.pronunciation.uk_audio_path:
+                filename = candidate.pronunciation.uk_audio_path.rsplit("/", 1)[-1]
+                pronunciation_uk_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
+
             meaning_obj = candidate.meaning
             meaning_text = meaning_obj.meaning if meaning_obj else None
             ipa_text = meaning_obj.ipa if meaning_obj else None
@@ -67,6 +76,8 @@ class GetSourceCardsUseCase:
                     ipa=ipa_text,
                     screenshot_url=screenshot_url,
                     audio_url=audio_url,
+                    pronunciation_us_url=pronunciation_us_url,
+                    pronunciation_uk_url=pronunciation_uk_url,
                 )
             )
         return cards

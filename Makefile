@@ -1,4 +1,4 @@
-.PHONY: up up-worktree down logs test coverage lint typecheck help _python_dev _check_env
+.PHONY: up up-worktree down down-worktree logs logs-worktree test coverage lint typecheck help _python_dev _check_env
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # docker compose читает .env сам — это только для ai_proxy и echo.
@@ -130,9 +130,19 @@ down:  ## Остановить
 	docker compose down
 	$(call stop_ai_proxy)
 
+down-worktree:  ## Остановить worktree-контейнеры
+	docker compose -p anything-anki-worktree down
+	$(call stop_ai_proxy)
+
 logs:  ## Логи app + worker + redis + ai_proxy одним потоком
 	@trap 'kill 0' INT TERM; \
 	docker compose logs -f & \
+	tail -F $(AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy        | /' & \
+	wait
+
+logs-worktree:  ## Логи worktree (app + worker + redis + ai_proxy)
+	@trap 'kill 0' INT TERM; \
+	docker compose -p anything-anki-worktree logs -f & \
 	tail -F $(AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy        | /' & \
 	wait
 

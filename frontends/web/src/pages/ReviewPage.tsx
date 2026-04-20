@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Film, Loader2, Sparkles } from 'lucide-react'
+import { Film, Loader2, Sparkles, Volume2 } from 'lucide-react'
 import { api } from '@/api/client'
 import type {
   CandidateSortOrder,
@@ -173,7 +173,8 @@ export function ReviewPage() {
   useEffect(() => {
     const meaningInflight = (queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)
     const mediaInflight = (queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)
-    if (meaningInflight + mediaInflight === 0) return
+    const pronInflight = (queueSummary?.pronunciation?.queued ?? 0) + (queueSummary?.pronunciation?.running ?? 0)
+    if (meaningInflight + mediaInflight + pronInflight === 0) return
 
     const interval = setInterval(() => {
       void loadCandidates()
@@ -437,6 +438,36 @@ export function ReviewPage() {
     }
   }, [sourceId, loadCandidates, loadQueueSummary])
 
+  const handleDownloadPronunciation = useCallback(async () => {
+    try {
+      await api.enqueuePronunciationDownload(sourceId)
+      await loadCandidates()
+      await loadQueueSummary()
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Failed to enqueue pronunciation', key: Date.now() })
+    }
+  }, [sourceId, loadCandidates, loadQueueSummary])
+
+  const handleCancelPronunciation = useCallback(async () => {
+    try {
+      await api.cancelPronunciationQueue(sourceId)
+      await loadCandidates()
+      await loadQueueSummary()
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Cancel failed', key: Date.now() })
+    }
+  }, [sourceId, loadCandidates, loadQueueSummary])
+
+  const handleRetryPronunciation = useCallback(async () => {
+    try {
+      await api.retryFailedPronunciation(sourceId)
+      await loadCandidates()
+      await loadQueueSummary()
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Retry failed', key: Date.now() })
+    }
+  }, [sourceId, loadCandidates, loadQueueSummary])
+
   const handleRegenerateCandidateMedia = useCallback(async (candidateId: number) => {
     setRegeneratingMediaIds((prev) => new Set(prev).add(candidateId))
     try {
@@ -545,6 +576,8 @@ export function ReviewPage() {
   const hasFailedMeaning = (queueSummary?.meaning.failed ?? 0) > 0
   const hasInflightMedia = ((queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)) > 0
   const hasFailedMedia = (queueSummary?.media.failed ?? 0) > 0
+  const hasInflightPron = ((queueSummary?.pronunciation?.queued ?? 0) + (queueSummary?.pronunciation?.running ?? 0)) > 0
+  const hasFailedPron = (queueSummary?.pronunciation?.failed ?? 0) > 0
 
   const markedCount = ratedCandidates.length
   const learnCount = candidates.filter((c) => c.status === 'learn').length
@@ -693,6 +726,32 @@ export function ReviewPage() {
               Generate Media
             </button>
           ) : null
+        )}
+
+        {/* Pronunciation actions */}
+        {candidates.length > 0 && (
+          hasInflightPron ? (
+            <div className="glass-pill" style={{ gap: '6px' }}>
+              <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
+              <span style={{ color: 'var(--tm)' }}>
+                Pronunciation ({(queueSummary?.pronunciation?.queued ?? 0) + (queueSummary?.pronunciation?.running ?? 0)})
+              </span>
+              <button onClick={() => void handleCancelPronunciation()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)', marginLeft: '4px', padding: '2px 6px', height: '22px' }}>✕</button>
+            </div>
+          ) : hasFailedPron ? (
+            <button onClick={() => void handleRetryPronunciation()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)' }}>
+              Retry pronunciation ({queueSummary?.pronunciation?.failed})
+            </button>
+          ) : (
+            <button
+              className="glass-pill cursor-pointer"
+              onClick={() => void handleDownloadPronunciation()}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Volume2 size={10} />
+              Pronunciation
+            </button>
+          )
         )}
 
         {/* Add */}

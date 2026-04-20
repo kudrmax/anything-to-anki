@@ -30,6 +30,8 @@ _DEFAULT_FIELD_SYNONYMS: str = "Synonyms"
 _DEFAULT_FIELD_IMAGE: str = "Image"
 _DEFAULT_FIELD_AUDIO: str = "Audio"
 _DEFAULT_FIELD_EXAMPLES: str = "Examples"
+_DEFAULT_FIELD_AUDIO_TARGET_US: str = "AudioTargetUS"
+_DEFAULT_FIELD_AUDIO_TARGET_UK: str = "AudioTargetUK"
 
 
 class SyncToAnkiUseCase:
@@ -89,6 +91,14 @@ class SyncToAnkiUseCase:
             self._settings_repo.get("anki_field_examples", _DEFAULT_FIELD_EXAMPLES)
             or _DEFAULT_FIELD_EXAMPLES
         )
+        field_audio_target_us = (
+            self._settings_repo.get("anki_field_audio_target_us", _DEFAULT_FIELD_AUDIO_TARGET_US)
+            or _DEFAULT_FIELD_AUDIO_TARGET_US
+        )
+        field_audio_target_uk = (
+            self._settings_repo.get("anki_field_audio_target_uk", _DEFAULT_FIELD_AUDIO_TARGET_UK)
+            or _DEFAULT_FIELD_AUDIO_TARGET_UK
+        )
 
         candidates = self._candidate_repo.get_by_source(source_id)
         learn_candidates = [c for c in candidates if c.status == CandidateStatus.LEARN]
@@ -121,6 +131,7 @@ class SyncToAnkiUseCase:
                 field_sentence, field_target, field_meaning, field_ipa,
                 field_translation, field_synonyms, field_examples,
                 field_image, field_audio,
+                field_audio_target_us, field_audio_target_uk,
             ]
             if f
         ]
@@ -227,6 +238,26 @@ class SyncToAnkiUseCase:
                     filename = os.path.basename(candidate.media.audio_path)
                     self._connector.store_media_file(filename, candidate.media.audio_path)
                     note[field_audio] = f'[sound:{filename}]'
+                if (
+                    field_audio_target_us
+                    and candidate.pronunciation
+                    and candidate.pronunciation.us_audio_path
+                    and os.path.exists(candidate.pronunciation.us_audio_path)
+                ):
+                    us_path = candidate.pronunciation.us_audio_path
+                    filename = os.path.basename(us_path)
+                    self._connector.store_media_file(filename, us_path)
+                    note[field_audio_target_us] = f'[sound:{filename}]'
+                if (
+                    field_audio_target_uk
+                    and candidate.pronunciation
+                    and candidate.pronunciation.uk_audio_path
+                    and os.path.exists(candidate.pronunciation.uk_audio_path)
+                ):
+                    uk_path = candidate.pronunciation.uk_audio_path
+                    filename = os.path.basename(uk_path)
+                    self._connector.store_media_file(filename, uk_path)
+                    note[field_audio_target_uk] = f'[sound:{filename}]'
 
                 results = self._connector.add_notes(
                     deck_name=deck_name,

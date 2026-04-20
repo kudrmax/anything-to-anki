@@ -64,6 +64,16 @@ class CandidateMediaDTO(BaseModel):
     generated_at: datetime | None
 
 
+class CandidatePronunciationDTO(BaseModel):
+    """Pronunciation audio enrichment of a candidate (1:1)."""
+
+    us_audio_path: str | None
+    uk_audio_path: str | None
+    status: str
+    error: str | None
+    generated_at: datetime | None
+
+
 class StoredCandidateDTO(BaseModel):
     """A persisted word candidate."""
 
@@ -82,6 +92,7 @@ class StoredCandidateDTO(BaseModel):
     has_custom_context_fragment: bool = False
     meaning: CandidateMeaningDTO | None = None
     media: CandidateMediaDTO | None = None
+    pronunciation: CandidatePronunciationDTO | None = None
     cefr_breakdown: CEFRBreakdownDTO | None = None
     usage_distribution: dict[str, float] | None = None
 
