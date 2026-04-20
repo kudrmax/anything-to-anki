@@ -8,6 +8,7 @@ from backend.application.dto.cefr_dtos import CEFRBreakdownDTO, breakdown_to_dto
 from backend.application.dto.source_dtos import (
     CandidateMeaningDTO,
     CandidateMediaDTO,
+    CandidatePronunciationDTO,
     StoredCandidateDTO,
 )
 from backend.domain.exceptions import SourceNotFoundError
@@ -47,6 +48,15 @@ def _to_dto(c: StoredCandidate) -> StoredCandidateDTO:
     breakdown_dto: CEFRBreakdownDTO | None = None
     if c.cefr_breakdown is not None:
         breakdown_dto = breakdown_to_dto(c.cefr_breakdown)
+    pronunciation_dto: CandidatePronunciationDTO | None = None
+    if c.pronunciation is not None:
+        pronunciation_dto = CandidatePronunciationDTO(
+            us_audio_path=c.pronunciation.us_audio_path,
+            uk_audio_path=c.pronunciation.uk_audio_path,
+            status=c.pronunciation.status.value,
+            error=c.pronunciation.error,
+            generated_at=c.pronunciation.generated_at,
+        )
 
     return StoredCandidateDTO(
         id=c.id,  # type: ignore[arg-type]
@@ -63,6 +73,7 @@ def _to_dto(c: StoredCandidate) -> StoredCandidateDTO:
         status=c.status.value,
         meaning=meaning_dto,
         media=media_dto,
+        pronunciation=pronunciation_dto,
         cefr_breakdown=breakdown_dto,
         usage_distribution=c.usage_distribution.to_dict() if c.usage_distribution else None,
     )
