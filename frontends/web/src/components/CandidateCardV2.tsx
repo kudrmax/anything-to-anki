@@ -433,6 +433,7 @@ export function CandidateCardV2({
   const pronUkUrl = candidate.pronunciation?.uk_audio_path
     ? `/media/${sourceId}/${candidate.pronunciation.uk_audio_path.split('/').pop()}`
     : null
+  const pronStatus = candidate.pronunciation?.status
   const showMediaColumn = !!(
     finalShot || finalAudio
     || mediaStatus === 'queued' || mediaStatus === 'running' || mediaStatus === 'failed'
@@ -772,58 +773,6 @@ export function CandidateCardV2({
                   <span>{candidate.meaning.synonyms}</span>
                 </div>
               )}
-              {(candidate.meaning?.ipa || pronUsUrl || pronUkUrl) && (
-                <div
-                  style={{
-                    marginTop: '4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: FONT_BODY,
-                    color: 'var(--text-muted-light)',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  <Volume2 size={13} style={{ flexShrink: 0, color: 'var(--tm)' }} />
-                  {candidate.meaning?.ipa && (
-                    <span style={{ fontFamily: 'monospace', fontSize: '13px' }}>{candidate.meaning.ipa}</span>
-                  )}
-                  {pronUsUrl && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); toggleAudio(pronUsUrl) }}
-                      className="glass-pill"
-                      style={{
-                        padding: '1px 8px',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        border: 'none',
-                        borderRadius: '999px',
-                      }}
-                      title="Play US pronunciation"
-                    >
-                      US
-                    </button>
-                  )}
-                  {pronUkUrl && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); toggleAudio(pronUkUrl) }}
-                      className="glass-pill"
-                      style={{
-                        padding: '1px 8px',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        border: 'none',
-                        borderRadius: '999px',
-                      }}
-                      title="Play UK pronunciation"
-                    >
-                      UK
-                    </button>
-                  )}
-                </div>
-              )}
               {candidate.meaning.examples && (
                 <div
                   style={{
@@ -866,6 +815,79 @@ export function CandidateCardV2({
           ) : candidate.meaning?.status === 'cancelled' ? (
             <p style={{ margin: '10px 0 0', fontSize: FONT_BODY, color: 'var(--td)' }}>Cancelled</p>
           ) : null}
+          {/* Pronunciation: IPA + Cambridge audio buttons + status — independent of meaning */}
+          {(candidate.meaning?.ipa || pronUsUrl || pronUkUrl
+            || pronStatus === 'queued' || pronStatus === 'running' || pronStatus === 'failed' || pronStatus === 'cancelled') && (
+            <div
+              style={{
+                marginTop: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: FONT_BODY,
+                color: 'var(--text-muted-light)',
+                lineHeight: 1.5,
+              }}
+            >
+              <Volume2 size={13} style={{ flexShrink: 0, color: 'var(--tm)' }} />
+              {candidate.meaning?.ipa && (
+                <span style={{ fontFamily: 'monospace', fontSize: '13px' }}>{candidate.meaning.ipa}</span>
+              )}
+              {pronUsUrl && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleAudio(pronUsUrl) }}
+                  className="glass-pill"
+                  style={{
+                    padding: '1px 8px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: 'none',
+                    borderRadius: '999px',
+                  }}
+                  title="Play US pronunciation"
+                >
+                  US
+                </button>
+              )}
+              {pronUkUrl && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleAudio(pronUkUrl) }}
+                  className="glass-pill"
+                  style={{
+                    padding: '1px 8px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: 'none',
+                    borderRadius: '999px',
+                  }}
+                  title="Play UK pronunciation"
+                >
+                  UK
+                </button>
+              )}
+              {pronStatus === 'running' && !pronUsUrl && !pronUkUrl && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--td)' }}>
+                  <Loader2 size={12} className="animate-spin" /> Downloading...
+                </span>
+              )}
+              {pronStatus === 'queued' && !pronUsUrl && !pronUkUrl && (
+                <span style={{ fontSize: '12px', color: 'var(--td)' }}>Queued</span>
+              )}
+              {pronStatus === 'failed' && !pronUsUrl && !pronUkUrl && (
+                <span
+                  style={{ fontSize: '12px', color: 'var(--error)' }}
+                  title={candidate.pronunciation?.error ?? undefined}
+                >
+                  Failed
+                </span>
+              )}
+              {pronStatus === 'cancelled' && !pronUsUrl && !pronUkUrl && (
+                <span style={{ fontSize: '12px', color: 'var(--td)' }}>Cancelled</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
