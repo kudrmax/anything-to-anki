@@ -12,6 +12,7 @@ from backend.application.dto.source_dtos import (
     SourceDetailDTO,
     SourceDTO,
     StoredCandidateDTO,
+    stored_candidate_to_dto,
 )
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "SourceDTO",
     "SourceDetailDTO",
     "StoredCandidateDTO",
+    "stored_candidate_to_dto",
     "SyncResultDTO",
     "UpdateSettingsRequest",
     "WordCandidateDTO",

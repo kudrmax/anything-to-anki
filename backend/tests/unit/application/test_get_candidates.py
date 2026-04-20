@@ -1,7 +1,8 @@
 from unittest.mock import MagicMock
 
 import pytest
-from backend.application.use_cases.get_candidates import GetCandidatesUseCase, _to_dto
+from backend.application.dto.source_dtos import stored_candidate_to_dto
+from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceNotFoundError
@@ -57,7 +58,7 @@ class TestGetCandidatesUseCase:
             occurrences=1, status=CandidateStatus.PENDING,
             pronunciation=pronunciation,
         )
-        dto = _to_dto(candidate)
+        dto = stored_candidate_to_dto(candidate)
         assert dto.pronunciation is not None
         assert dto.pronunciation.us_audio_path == "/audio/us/test.mp3"
         assert dto.pronunciation.uk_audio_path == "/audio/uk/test.mp3"

@@ -4,72 +4,21 @@ import json
 from typing import TYPE_CHECKING
 
 from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
-from backend.application.dto.cefr_dtos import CEFRBreakdownDTO, breakdown_to_dto
 from backend.application.dto.source_dtos import (
-    CandidateMeaningDTO,
-    CandidateMediaDTO,
     SourceDetailDTO,
     SourceDTO,
-    StoredCandidateDTO,
+    stored_candidate_to_dto,
 )
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
-    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
 _PREVIEW_LENGTH: int = 100
-
-
-def _candidate_to_dto(c: StoredCandidate) -> StoredCandidateDTO:
-    meaning_dto: CandidateMeaningDTO | None = None
-    if c.meaning is not None:
-        meaning_dto = CandidateMeaningDTO(
-            meaning=c.meaning.meaning,
-            translation=c.meaning.translation,
-            synonyms=c.meaning.synonyms,
-            examples=c.meaning.examples,
-            ipa=c.meaning.ipa,
-            status=c.meaning.status.value,
-            error=c.meaning.error,
-            generated_at=c.meaning.generated_at,
-        )
-    media_dto: CandidateMediaDTO | None = None
-    if c.media is not None:
-        media_dto = CandidateMediaDTO(
-            screenshot_path=c.media.screenshot_path,
-            audio_path=c.media.audio_path,
-            start_ms=c.media.start_ms,
-            end_ms=c.media.end_ms,
-            status=c.media.status.value,
-            error=c.media.error,
-            generated_at=c.media.generated_at,
-        )
-    breakdown_dto: CEFRBreakdownDTO | None = None
-    if c.cefr_breakdown is not None:
-        breakdown_dto = breakdown_to_dto(c.cefr_breakdown)
-    return StoredCandidateDTO(
-        id=c.id,  # type: ignore[arg-type]
-        lemma=c.lemma,
-        pos=c.pos,
-        cefr_level=c.cefr_level,
-        zipf_frequency=c.zipf_frequency,
-        is_sweet_spot=c.is_sweet_spot,
-        context_fragment=c.context_fragment,
-        fragment_purity=c.fragment_purity,
-        occurrences=c.occurrences,
-        status=c.status.value,
-        surface_form=c.surface_form,
-        is_phrasal_verb=c.is_phrasal_verb,
-        meaning=meaning_dto,
-        media=media_dto,
-        cefr_breakdown=breakdown_dto,
-        usage_distribution=c.usage_distribution.to_dict() if c.usage_distribution else None,
-    )
 
 
 class GetSourcesUseCase:
@@ -151,5 +100,5 @@ class GetSourcesUseCase:
             error_message=source.error_message,
             processing_stage=source.processing_stage.value if source.processing_stage else None,
             created_at=source.created_at,
-            candidates=[_candidate_to_dto(c) for c in candidates],
+            candidates=[stored_candidate_to_dto(c) for c in candidates],
         )
