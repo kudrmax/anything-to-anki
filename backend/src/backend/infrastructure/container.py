@@ -39,6 +39,7 @@ from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRS
 from backend.infrastructure.adapters.cambridge.pronunciation_source import (
     CambridgePronunciationSource,
 )
+from backend.infrastructure.adapters.cambridge.sqlite_reader import CambridgeSQLiteReader
 from backend.infrastructure.adapters.cambridge.usage_lookup import CambridgeUsageLookup
 from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
 from backend.infrastructure.adapters.efllex_cefr_source import EFLLexCEFRSource
@@ -131,8 +132,6 @@ class Container:
         if not dictionaries_dir.exists():
             dictionaries_dir = Path("/app/dictionaries")
 
-        cambridge_path = dictionaries_dir / "cambridge.jsonl"
-
         cefr_data_dir = dictionaries_dir / "cefr"
         cefr_sources: list[CEFRSource] = [
             CefrpyCEFRSource(),
@@ -140,9 +139,12 @@ class Container:
             OxfordCEFRSource(cefr_data_dir / "oxford5000.csv"),
             KellyCEFRSource(cefr_data_dir / "kelly.csv"),
         ]
-        cambridge_cefr = CambridgeCEFRSource(cambridge_path)
-        self._cambridge_usage_lookup = CambridgeUsageLookup(cambridge_path)
-        self._pronunciation_source = CambridgePronunciationSource(cambridge_path)
+        # One SQLite reader shared by all Cambridge adapters — no JSONL in RAM
+        cambridge_db_path = dictionaries_dir / "cambridge.db"
+        self._cambridge_reader = CambridgeSQLiteReader(cambridge_db_path)
+        cambridge_cefr = CambridgeCEFRSource(self._cambridge_reader)
+        self._cambridge_usage_lookup = CambridgeUsageLookup(self._cambridge_reader)
+        self._pronunciation_source = CambridgePronunciationSource(self._cambridge_reader)
         self._cefr_classifier = VotingCEFRClassifier(
             cefr_sources, priority_source=cambridge_cefr
         )

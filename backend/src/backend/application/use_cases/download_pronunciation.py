@@ -21,7 +21,9 @@ if TYPE_CHECKING:
 
 def download_file(url: str, dest: str) -> None:
     """Download a file from URL to local path."""
-    urllib.request.urlretrieve(url, dest)  # noqa: S310 — URLs come from trusted Cambridge JSONL
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})  # noqa: S310
+    with urllib.request.urlopen(req) as resp, open(dest, "wb") as out:  # noqa: S310
+        out.write(resp.read())
 
 
 class DownloadPronunciationUseCase:
