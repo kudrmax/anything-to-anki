@@ -425,6 +425,14 @@ export function CandidateCardV2({
   const finalShot = candShot ?? screenshotUrl ?? null
   const finalAudio = candAudio ?? audioUrl ?? null
   const mediaStatus = candidate.media?.status
+
+  // Pronunciation audio (Cambridge dictionary, independent of film media)
+  const pronUsUrl = candidate.pronunciation?.us_audio_path
+    ? `/media/${sourceId}/${candidate.pronunciation.us_audio_path.split('/').pop()}`
+    : null
+  const pronUkUrl = candidate.pronunciation?.uk_audio_path
+    ? `/media/${sourceId}/${candidate.pronunciation.uk_audio_path.split('/').pop()}`
+    : null
   const showMediaColumn = !!(
     finalShot || finalAudio
     || mediaStatus === 'queued' || mediaStatus === 'running' || mediaStatus === 'failed'
@@ -764,12 +772,12 @@ export function CandidateCardV2({
                   <span>{candidate.meaning.synonyms}</span>
                 </div>
               )}
-              {candidate.meaning.ipa && (
+              {(candidate.meaning?.ipa || pronUsUrl || pronUkUrl) && (
                 <div
                   style={{
                     marginTop: '4px',
                     display: 'flex',
-                    alignItems: 'flex-start',
+                    alignItems: 'center',
                     gap: '6px',
                     fontSize: FONT_BODY,
                     color: 'var(--text-muted-light)',
@@ -777,7 +785,43 @@ export function CandidateCardV2({
                   }}
                 >
                   <Volume2 size={13} style={{ flexShrink: 0, color: 'var(--tm)' }} />
-                  <span style={{ fontFamily: 'monospace', fontSize: '13px' }}>{candidate.meaning.ipa}</span>
+                  {candidate.meaning?.ipa && (
+                    <span style={{ fontFamily: 'monospace', fontSize: '13px' }}>{candidate.meaning.ipa}</span>
+                  )}
+                  {pronUsUrl && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleAudio(pronUsUrl) }}
+                      className="glass-pill"
+                      style={{
+                        padding: '1px 8px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        border: 'none',
+                        borderRadius: '999px',
+                      }}
+                      title="Play US pronunciation"
+                    >
+                      US
+                    </button>
+                  )}
+                  {pronUkUrl && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleAudio(pronUkUrl) }}
+                      className="glass-pill"
+                      style={{
+                        padding: '1px 8px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        border: 'none',
+                        borderRadius: '999px',
+                      }}
+                      title="Play UK pronunciation"
+                    >
+                      UK
+                    </button>
+                  )}
                 </div>
               )}
               {candidate.meaning.examples && (

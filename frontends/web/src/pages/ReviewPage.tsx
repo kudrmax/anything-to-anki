@@ -31,9 +31,12 @@ function hasCandidateVpnErrors(candidates: StoredCandidate[]): boolean {
 }
 
 function audioUrlForCandidate(candidate: StoredCandidate, sourceId: number): string | null {
-  const path = candidate.media?.audio_path
-  if (!path) return null
-  return `/media/${sourceId}/${path.split('/').pop()}`
+  // Prefer film/media context audio, fall back to Cambridge pronunciation (US)
+  const mediaPath = candidate.media?.audio_path
+  if (mediaPath) return `/media/${sourceId}/${mediaPath.split('/').pop()}`
+  const pronPath = candidate.pronunciation?.us_audio_path
+  if (pronPath) return `/media/${sourceId}/${pronPath.split('/').pop()}`
+  return null
 }
 
 export function ReviewPage() {

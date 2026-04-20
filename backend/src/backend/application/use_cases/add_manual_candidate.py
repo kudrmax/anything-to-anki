@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.application.dto.cefr_dtos import breakdown_to_dto
-from backend.application.dto.source_dtos import StoredCandidateDTO
+from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -111,20 +110,4 @@ class AddManualCandidateUseCase:
             cefr_breakdown=breakdown,
         )
         saved = self._candidate_repo.create_batch([candidate])[0]
-
-        bd_dto = breakdown_to_dto(saved.cefr_breakdown) if saved.cefr_breakdown else None
-        return StoredCandidateDTO(
-            id=saved.id,  # type: ignore[arg-type]
-            lemma=saved.lemma,
-            pos=saved.pos,
-            cefr_level=saved.cefr_level,
-            zipf_frequency=saved.zipf_frequency,
-            is_sweet_spot=saved.is_sweet_spot,
-            context_fragment=saved.context_fragment,
-            fragment_purity=saved.fragment_purity,
-            occurrences=saved.occurrences,
-            status=saved.status.value,
-            surface_form=saved.surface_form,
-            is_phrasal_verb=saved.is_phrasal_verb,
-            cefr_breakdown=bd_dto,
-        )
+        return stored_candidate_to_dto(saved)

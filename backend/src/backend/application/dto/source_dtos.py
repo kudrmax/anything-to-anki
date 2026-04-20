@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
-from backend.application.dto.cefr_dtos import CEFRBreakdownDTO
+from backend.application.dto.cefr_dtos import (
+    CEFRBreakdownDTO,  # noqa: TC001 — Pydantic needs this at runtime
+)
 from backend.domain.value_objects.input_method import InputMethod
+
+if TYPE_CHECKING:
+    from backend.domain.entities.stored_candidate import StoredCandidate
 
 
 class CreateSourceRequest(BaseModel):
@@ -116,3 +122,69 @@ class SourceDetailDTO(BaseModel):
 
 
 SourceDetailDTO.model_rebuild()
+
+
+def stored_candidate_to_dto(c: StoredCandidate) -> StoredCandidateDTO:
+    """Canonical converter: StoredCandidate entity → StoredCandidateDTO.
+
+    Every use case that needs to serialise a StoredCandidate MUST use this
+    function instead of hand-rolling the mapping.
+    """
+    from backend.application.dto.cefr_dtos import breakdown_to_dto
+
+    meaning_dto: CandidateMeaningDTO | None = None
+    if c.meaning is not None:
+        meaning_dto = CandidateMeaningDTO(
+            meaning=c.meaning.meaning,
+            translation=c.meaning.translation,
+            synonyms=c.meaning.synonyms,
+            examples=c.meaning.examples,
+            ipa=c.meaning.ipa,
+            status=c.meaning.status.value,
+            error=c.meaning.error,
+            generated_at=c.meaning.generated_at,
+        )
+    media_dto: CandidateMediaDTO | None = None
+    if c.media is not None:
+        media_dto = CandidateMediaDTO(
+            screenshot_path=c.media.screenshot_path,
+            audio_path=c.media.audio_path,
+            start_ms=c.media.start_ms,
+            end_ms=c.media.end_ms,
+            status=c.media.status.value,
+            error=c.media.error,
+            generated_at=c.media.generated_at,
+        )
+    pronunciation_dto: CandidatePronunciationDTO | None = None
+    if c.pronunciation is not None:
+        pronunciation_dto = CandidatePronunciationDTO(
+            us_audio_path=c.pronunciation.us_audio_path,
+            uk_audio_path=c.pronunciation.uk_audio_path,
+            status=c.pronunciation.status.value,
+            error=c.pronunciation.error,
+            generated_at=c.pronunciation.generated_at,
+        )
+    breakdown_dto: CEFRBreakdownDTO | None = None
+    if c.cefr_breakdown is not None:
+        breakdown_dto = breakdown_to_dto(c.cefr_breakdown)
+
+    return StoredCandidateDTO(
+        id=c.id,  # type: ignore[arg-type]
+        lemma=c.lemma,
+        pos=c.pos,
+        cefr_level=c.cefr_level,
+        zipf_frequency=c.zipf_frequency,
+        is_sweet_spot=c.is_sweet_spot,
+        context_fragment=c.context_fragment,
+        fragment_purity=c.fragment_purity,
+        occurrences=c.occurrences,
+        status=c.status.value,
+        surface_form=c.surface_form,
+        is_phrasal_verb=c.is_phrasal_verb,
+        has_custom_context_fragment=c.has_custom_context_fragment,
+        meaning=meaning_dto,
+        media=media_dto,
+        pronunciation=pronunciation_dto,
+        cefr_breakdown=breakdown_dto,
+        usage_distribution=c.usage_distribution.to_dict() if c.usage_distribution else None,
+    )
