@@ -6,6 +6,14 @@
 
 - [важность: high, срочность: high] Добавить картинки, аудио и прочие потерянные поля на страницу экспорта #tech #bug #product
 
+- [важность: high, срочность: high] Runtime-валидация API-ответов через Zod
+
+  Сейчас `client.ts` делает `res.json() as Promise<T>` — это compile-time cast, в runtime JSON парсится как `any`. Если backend не вернул ожидаемое поле или вернул другой тип — frontend получает `undefined` молча, без ошибки. Это приводит к тихим поломкам: бесконечные лоадеры, пустые данные, некликабельные кнопки — и ни одна строчка логов не ловит причину.
+
+  Проблема затрагивает все 30+ API-вызовов на всех страницах. Конкретный кейс (2026-04-20): при добавлении Cambridge pronunciation audio в backend добавили поля `anki_field_audio_target_us/uk` в `SettingsDTO` и `_SETTING_KEYS`, а в frontend — в интерфейс `Settings` в `types.ts`. Но забыли добавить ключи в `manage_settings.py` → backend endpoint `/api/settings` возвращал JSON без этих полей → frontend получал `undefined` вместо `string` → страница настроек зависала на бесконечном лоадере. Ошибок в логах backend — ноль (200 OK), ошибок в консоли browser — ноль (`undefined` не крашит React). Баг нашёлся только визуально.
+
+  Решение: заменить `as T` cast на Zod-схемы (`z.object(...)`) с `schema.parse()` на каждый API-вызов. Типы генерировать из схем через `z.infer<typeof schema>`, убрав ручные интерфейсы из `types.ts`. При несовпадении — явная ошибка в консоли и toast пользователю. #tech #refactor
+
 ## Важно, не срочно
 
 - [важность: high, срочность: low] Провалидировать, перемешиваются ли сейчас ответственности между backend и frontend
