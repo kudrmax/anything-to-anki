@@ -433,6 +433,7 @@ export function CandidateCardV2({
   const pronUkUrl = candidate.pronunciation?.uk_audio_path
     ? `/media/${sourceId}/${candidate.pronunciation.uk_audio_path.split('/').pop()}`
     : null
+  const pronStatus = candidate.pronunciation?.status
   const showMediaColumn = !!(
     finalShot || finalAudio
     || mediaStatus === 'queued' || mediaStatus === 'running' || mediaStatus === 'failed'
@@ -814,8 +815,9 @@ export function CandidateCardV2({
           ) : candidate.meaning?.status === 'cancelled' ? (
             <p style={{ margin: '10px 0 0', fontSize: FONT_BODY, color: 'var(--td)' }}>Cancelled</p>
           ) : null}
-          {/* Pronunciation: IPA + Cambridge audio buttons — independent of meaning */}
-          {(candidate.meaning?.ipa || pronUsUrl || pronUkUrl) && (
+          {/* Pronunciation: IPA + Cambridge audio buttons + status — independent of meaning */}
+          {(candidate.meaning?.ipa || pronUsUrl || pronUkUrl
+            || pronStatus === 'queued' || pronStatus === 'running' || pronStatus === 'failed') && (
             <div
               style={{
                 marginTop: '8px',
@@ -864,6 +866,22 @@ export function CandidateCardV2({
                 >
                   UK
                 </button>
+              )}
+              {pronStatus === 'running' && !pronUsUrl && !pronUkUrl && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--td)' }}>
+                  <Loader2 size={11} className="animate-spin" /> Downloading...
+                </span>
+              )}
+              {pronStatus === 'queued' && !pronUsUrl && !pronUkUrl && (
+                <span style={{ fontSize: '12px', color: 'var(--td)' }}>Queued</span>
+              )}
+              {pronStatus === 'failed' && !pronUsUrl && !pronUkUrl && (
+                <span
+                  style={{ fontSize: '12px', color: 'var(--error)' }}
+                  title={candidate.pronunciation?.error ?? undefined}
+                >
+                  Failed
+                </span>
               )}
             </div>
           )}
