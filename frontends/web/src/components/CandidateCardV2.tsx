@@ -817,7 +817,7 @@ export function CandidateCardV2({
           ) : null}
           {/* Pronunciation: IPA + Cambridge audio buttons + status — independent of meaning */}
           {(candidate.meaning?.ipa || pronUsUrl || pronUkUrl
-            || pronStatus === 'queued' || pronStatus === 'running' || pronStatus === 'failed') && (
+            || pronStatus === 'queued' || pronStatus === 'running' || pronStatus === 'failed' || pronStatus === 'cancelled') && (
             <div
               style={{
                 marginTop: '8px',
@@ -869,7 +869,7 @@ export function CandidateCardV2({
               )}
               {pronStatus === 'running' && !pronUsUrl && !pronUkUrl && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--td)' }}>
-                  <Loader2 size={11} className="animate-spin" /> Downloading...
+                  <Loader2 size={12} className="animate-spin" /> Downloading...
                 </span>
               )}
               {pronStatus === 'queued' && !pronUsUrl && !pronUkUrl && (
@@ -882,6 +882,9 @@ export function CandidateCardV2({
                 >
                   Failed
                 </span>
+              )}
+              {pronStatus === 'cancelled' && !pronUsUrl && !pronUkUrl && (
+                <span style={{ fontSize: '12px', color: 'var(--td)' }}>Cancelled</span>
               )}
             </div>
           )}
