@@ -332,7 +332,6 @@ export function InboxPage() {
   }
 
   const pendingCount = sources.filter((s) => s.status === 'new' || s.status === 'error').length
-  const isSidebar = import.meta.env.VITE_LAYOUT === 'sidebar'
 
   const urlDetectedType =
     urlInput.includes('genius.com')
@@ -343,11 +342,7 @@ export function InboxPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <main className={
-        isSidebar
-          ? 'max-w-2xl mx-auto px-6 py-6 flex flex-col gap-6'
-          : 'mx-auto max-w-6xl px-4 py-8 grid grid-cols-1 gap-8 lg:grid-cols-[400px_1fr]'
-      }>
+      <main className="mx-auto max-w-6xl px-4 py-8 grid grid-cols-1 gap-8 lg:grid-cols-[400px_1fr]">
         {/* ── LEFT COLUMN: FORM ── */}
         <section
           className="flex flex-col gap-4"
