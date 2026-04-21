@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Settings, Upload } from 'lucide-react'
+import { ArrowLeft, Layers, Settings, Upload } from 'lucide-react'
 
 const ENV_NAME = import.meta.env.VITE_INSTANCE_ENV_NAME as string | undefined
 const IS_PROD = ENV_NAME === 'prod'
@@ -29,6 +29,7 @@ export function CenterBrand() {
   const isHome = pathname === '/'
   const isSettings = pathname === '/settings'
   const isExport = pathname === '/export'
+  const isQueue = pathname === '/queue'
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -65,6 +66,14 @@ export function CenterBrand() {
           className="glass-pill cursor-pointer"
         >
           <Upload size={12} style={{ color: 'var(--td)' }} />
+        </button>
+      )}
+      {!isQueue && (
+        <button
+          onClick={() => navigate('/queue')}
+          className="glass-pill cursor-pointer"
+        >
+          <Layers size={12} style={{ color: 'var(--td)' }} />
         </button>
       )}
       {!isSettings && (
