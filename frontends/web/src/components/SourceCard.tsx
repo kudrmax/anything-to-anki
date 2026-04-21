@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Loader2, Pencil, Trash2 } from 'lucide-react'
+import { Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import type { ProcessingStage, SourceStatus, SourceSummary } from '@/api/types'
 
 interface SourceCardProps {
@@ -213,6 +213,16 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
           >
             {badge.label}
           </span>
+          {!isProcessing && (source.status === 'done' || source.status === 'partially_reviewed' || source.status === 'reviewed' || source.status === 'error') && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onReprocess(source.id) }}
+              className="cursor-pointer transition-opacity hover:opacity-100 opacity-40"
+              style={{ background: 'transparent', border: 'none', padding: 0, lineHeight: 0 }}
+              title="Reprocess source"
+            >
+              <RefreshCw size={13} style={{ color: 'var(--fg-muted)' }} />
+            </button>
+          )}
           {!isProcessing && (
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(source.id) }}
@@ -226,15 +236,6 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
         </div>
 
         <div className="flex items-center gap-2">
-          {(source.status === 'done' || source.status === 'partially_reviewed' || source.status === 'reviewed' || source.status === 'error') && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onReprocess(source.id) }}
-              className="glass-pill text-xs font-medium cursor-pointer"
-              style={{ ...GHOST_BTN, padding: '5px 11px', color: 'var(--src-error)' }}
-            >
-              Reprocess
-            </button>
-          )}
           {source.status === 'partially_reviewed' && (
             <button
               onClick={(e) => { e.stopPropagation(); onExport(source.id) }}
