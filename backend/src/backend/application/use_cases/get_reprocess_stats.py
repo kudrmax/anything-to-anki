@@ -52,14 +52,15 @@ class GetReprocessStatsUseCase:
         candidates = self._candidate_repo.get_by_source(source_id)
         known_pairs = self._known_word_repo.get_all_pairs()
 
-        learn_count = 0
+        learn_lost_count = 0
         known_lost_count = 0
         skip_count = 0
         pending_count = 0
 
         for c in candidates:
             if c.status == CandidateStatus.LEARN:
-                learn_count += 1
+                if (c.lemma, c.pos) not in known_pairs:
+                    learn_lost_count += 1
             elif c.status == CandidateStatus.KNOWN:
                 if (c.lemma, c.pos) not in known_pairs:
                     known_lost_count += 1
@@ -71,7 +72,7 @@ class GetReprocessStatsUseCase:
         has_active = self._has_active_enrichments(source_id)
 
         return ReprocessStats(
-            learn_count=learn_count,
+            learn_count=learn_lost_count,
             known_count=known_lost_count,
             skip_count=skip_count,
             pending_count=pending_count,
