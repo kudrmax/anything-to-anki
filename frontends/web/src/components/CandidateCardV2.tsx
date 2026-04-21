@@ -76,6 +76,22 @@ const CEFR_PILL_COLOR: Record<string, { bg: string; color: string }> = {
 }
 const CEFR_PILL_DEFAULT = { bg: 'rgba(148,163,184,0.15)', color: 'var(--tm)' }
 
+const FREQ_BAND_LABEL: Record<string, string> = {
+  ULTRA_COMMON: 'Ultra Common',
+  COMMON: 'Common',
+  MID: 'Mid',
+  LOW: 'Low',
+  RARE: 'Rare',
+}
+
+function primaryUsageGroup(dist: Record<string, number> | null): string | null {
+  if (!dist) return null
+  const keys = Object.keys(dist)
+  if (keys.length === 0) return null
+  const first = keys[0]
+  return first === 'neutral' ? null : first
+}
+
 function stripMarkdown(text: string): string {
   return text
     .replace(/\*{2}(.+?)\*{2}/gs, '$1')
@@ -650,62 +666,75 @@ export function CandidateCardV2({
 
         {/* RIGHT: text column with floated CEFR pill */}
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-          {candidate.is_phrasal_verb ? (
-            <span
-              style={{
-                float: 'right',
-                margin: '-2px 0 4px 8px',
-                padding: '2px 10px',
-                background: 'var(--hl-phrasal-bg)',
-                color: 'var(--hl-phrasal-text)',
-                borderRadius: '999px',
-                fontSize: FONT_LEVEL,
-                fontWeight: 700,
-                letterSpacing: '0.03em',
-              }}
-            >
-              phrasal
-            </span>
-          ) : candidate.cefr_level && (
-            <span
-              style={{
-                float: 'right',
-                margin: '-2px 0 4px 8px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
-            >
-              {candidate.is_sweet_spot && (
-                <Target size={12} style={{ color: 'var(--accent)' }} />
-              )}
+          <span
+            style={{
+              float: 'right',
+              margin: '-2px 0 4px 8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            {(() => {
+              const usageGroup = primaryUsageGroup(candidate.usage_distribution)
+              return usageGroup ? (
+                <span style={{ fontSize: FONT_LEVEL, color: 'var(--td)' }}>
+                  {usageGroup}
+                </span>
+              ) : null
+            })()}
+            {candidate.frequency_band && (
+              <span style={{ fontSize: FONT_LEVEL, color: 'var(--td)' }}>
+                {FREQ_BAND_LABEL[candidate.frequency_band] ?? candidate.frequency_band}
+              </span>
+            )}
+            {candidate.is_phrasal_verb ? (
               <span
-                ref={cefrPillRef}
-                onMouseEnter={() => candidate.cefr_breakdown && setShowCefrTooltip(true)}
-                onMouseLeave={() => setShowCefrTooltip(false)}
                 style={{
                   padding: '2px 10px',
-                  background: cefrPillColor.bg,
-                  color: cefrPillColor.color,
+                  background: 'var(--hl-phrasal-bg)',
+                  color: 'var(--hl-phrasal-text)',
                   borderRadius: '999px',
                   fontSize: FONT_LEVEL,
                   fontWeight: 700,
                   letterSpacing: '0.03em',
-                  cursor: candidate.cefr_breakdown ? 'help' : 'default',
                 }}
               >
-                {candidate.cefr_level}
+                phrasal
               </span>
-              {showCefrTooltip && candidate.cefr_breakdown && cefrPillRef.current && (
-                <CEFRBreakdownTooltip
-                  breakdown={candidate.cefr_breakdown}
-                  cefrLevel={candidate.cefr_level}
-                  anchorEl={cefrPillRef.current}
-                  onClose={() => setShowCefrTooltip(false)}
-                />
-              )}
-            </span>
-          )}
+            ) : candidate.cefr_level && (
+              <>
+                {candidate.is_sweet_spot && (
+                  <Target size={12} style={{ color: 'var(--accent)' }} />
+                )}
+                <span
+                  ref={cefrPillRef}
+                  onMouseEnter={() => candidate.cefr_breakdown && setShowCefrTooltip(true)}
+                  onMouseLeave={() => setShowCefrTooltip(false)}
+                  style={{
+                    padding: '2px 10px',
+                    background: cefrPillColor.bg,
+                    color: cefrPillColor.color,
+                    borderRadius: '999px',
+                    fontSize: FONT_LEVEL,
+                    fontWeight: 700,
+                    letterSpacing: '0.03em',
+                    cursor: candidate.cefr_breakdown ? 'help' : 'default',
+                  }}
+                >
+                  {candidate.cefr_level}
+                </span>
+                {showCefrTooltip && candidate.cefr_breakdown && cefrPillRef.current && (
+                  <CEFRBreakdownTooltip
+                    breakdown={candidate.cefr_breakdown}
+                    cefrLevel={candidate.cefr_level}
+                    anchorEl={cefrPillRef.current}
+                    onClose={() => setShowCefrTooltip(false)}
+                  />
+                )}
+              </>
+            )}
+          </span>
 
           <p data-context-fragment style={{
             // Compensate for line-box leading: with line-height 1.5 on a 17px font,

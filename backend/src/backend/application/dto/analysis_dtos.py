@@ -36,6 +36,17 @@ class WordCandidateDTO(BaseModel):
     usage_distribution: dict[str, float] | None = None
 
 
+def dto_to_usage_distribution(
+    raw: dict[str, float] | None,
+) -> UsageDistribution | None:
+    """Map raw usage dict from DTO back to domain UsageDistribution."""
+    from backend.domain.value_objects.usage_distribution import UsageDistribution
+
+    if not raw:
+        return None
+    return UsageDistribution(groups=raw)
+
+
 class AnalyzeTextResponse(BaseModel):
     """Output of the text analysis pipeline."""
 

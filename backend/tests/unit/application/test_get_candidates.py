@@ -8,6 +8,7 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+from backend.domain.value_objects.usage_distribution import UsageDistribution
 
 
 @pytest.mark.unit
@@ -63,3 +64,45 @@ class TestGetCandidatesUseCase:
         assert dto.pronunciation.us_audio_path == "/audio/us/test.mp3"
         assert dto.pronunciation.uk_audio_path == "/audio/uk/test.mp3"
         assert dto.pronunciation.status == EnrichmentStatus.DONE.value
+
+    def test_to_dto_maps_frequency_band_mid(self) -> None:
+        candidate = StoredCandidate(
+            id=1, source_id=1, lemma="test", pos="NOUN",
+            cefr_level="B2", zipf_frequency=3.8,
+            context_fragment="a test", fragment_purity="clean",
+            occurrences=1, status=CandidateStatus.PENDING,
+        )
+        dto = stored_candidate_to_dto(candidate)
+        assert dto.frequency_band == "MID"
+
+    def test_to_dto_maps_frequency_band_rare(self) -> None:
+        candidate = StoredCandidate(
+            id=1, source_id=1, lemma="esoteric", pos="ADJ",
+            cefr_level="C2", zipf_frequency=1.5,
+            context_fragment="an esoteric topic", fragment_purity="clean",
+            occurrences=1, status=CandidateStatus.PENDING,
+        )
+        dto = stored_candidate_to_dto(candidate)
+        assert dto.frequency_band == "RARE"
+
+    def test_to_dto_maps_usage_distribution(self) -> None:
+        candidate = StoredCandidate(
+            id=1, source_id=1, lemma="gonna", pos="VERB",
+            cefr_level="B1", zipf_frequency=4.0,
+            context_fragment="gonna do it", fragment_purity="clean",
+            occurrences=1, status=CandidateStatus.PENDING,
+            usage_distribution=UsageDistribution(groups={"informal": 0.8, "neutral": 0.2}),
+        )
+        dto = stored_candidate_to_dto(candidate)
+        assert dto.usage_distribution == {"informal": 0.8, "neutral": 0.2}
+
+    def test_to_dto_maps_usage_distribution_none(self) -> None:
+        candidate = StoredCandidate(
+            id=1, source_id=1, lemma="test", pos="NOUN",
+            cefr_level="B2", zipf_frequency=3.5,
+            context_fragment="a test", fragment_purity="clean",
+            occurrences=1, status=CandidateStatus.PENDING,
+            usage_distribution=None,
+        )
+        dto = stored_candidate_to_dto(candidate)
+        assert dto.usage_distribution is None

@@ -92,6 +92,8 @@ export interface StoredCandidate {
   media: CandidateMedia | null
   pronunciation: CandidatePronunciation | null
   cefr_breakdown?: CEFRBreakdown | null
+  frequency_band: string | null
+  usage_distribution: Record<string, number> | null
 }
 
 export interface SourceDetail {

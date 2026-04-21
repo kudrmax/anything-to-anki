@@ -99,6 +99,34 @@ class TestProcessSourceExecute:
         final_call = mocks["source_repo"].update_status.call_args_list[-1]
         assert final_call[0][1] == SourceStatus.DONE
 
+    def test_execute_passes_usage_distribution(self) -> None:
+        uc, mocks = _make_use_case()
+        mocks["source_repo"].get_by_id.return_value = Source(
+            id=1, raw_text="dodgy deal", status=SourceStatus.PROCESSING,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
+        )
+        mocks["settings_repo"].get.return_value = "B1"
+        mocks["known_word_repo"].get_all_pairs.return_value = set()
+        mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
+            cleaned_text="dodgy deal",
+            candidates=[
+                WordCandidateDTO(
+                    lemma="dodgy", pos="ADJ", cefr_level="B2",
+                    zipf_frequency=3.3, is_sweet_spot=True,
+                    context_fragment="dodgy deal",
+                    fragment_purity="clean", occurrences=1,
+                    usage_distribution={"informal": 1.0},
+                ),
+            ],
+            total_tokens=2,
+            unique_lemmas=1,
+        )
+        uc.execute(1)
+        created = mocks["candidate_repo"].create_batch.call_args[0][0]
+        assert len(created) == 1
+        assert created[0].usage_distribution is not None
+        assert created[0].usage_distribution.groups == {"informal": 1.0}
+
     def test_execute_filters_known_words(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(

@@ -101,6 +101,7 @@ class StoredCandidateDTO(BaseModel):
     pronunciation: CandidatePronunciationDTO | None = None
     cefr_breakdown: CEFRBreakdownDTO | None = None
     usage_distribution: dict[str, float] | None = None
+    frequency_band: str | None = None
 
 
 class SourceDetailDTO(BaseModel):
@@ -187,4 +188,5 @@ def stored_candidate_to_dto(c: StoredCandidate) -> StoredCandidateDTO:
         pronunciation=pronunciation_dto,
         cefr_breakdown=breakdown_dto,
         usage_distribution=c.usage_distribution.to_dict() if c.usage_distribution else None,
+        frequency_band=c.frequency_band.name,
     )

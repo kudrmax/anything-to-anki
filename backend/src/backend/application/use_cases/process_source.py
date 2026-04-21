@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest
+from backend.application.dto.analysis_dtos import dto_to_usage_distribution
 from backend.application.dto.cefr_dtos import dto_to_breakdown
 from backend.application.utils.timecode_mapping import find_timecodes
 from backend.domain.entities.candidate_media import CandidateMedia
@@ -132,6 +133,7 @@ class ProcessSourceUseCase:
         stored: list[StoredCandidate] = []
         for c in filtered:
             bd = dto_to_breakdown(c.cefr_breakdown) if c.cefr_breakdown else None
+            ud = dto_to_usage_distribution(c.usage_distribution)
             stored.append(StoredCandidate(
                 source_id=source_id,
                 lemma=c.lemma,
@@ -145,6 +147,7 @@ class ProcessSourceUseCase:
                 is_phrasal_verb=c.is_phrasal_verb,
                 status=CandidateStatus.PENDING,
                 cefr_breakdown=bd,
+                usage_distribution=ud,
             ))
         created = self._candidate_repo.create_batch(stored)
 
