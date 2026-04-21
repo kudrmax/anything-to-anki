@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Download, Settings } from 'lucide-react'
+import { ArrowLeft, Settings, Upload } from 'lucide-react'
 
 const ENV_NAME = import.meta.env.VITE_INSTANCE_ENV_NAME as string | undefined
 const IS_PROD = ENV_NAME === 'prod'
@@ -64,7 +64,7 @@ export function CenterBrand() {
           onClick={() => navigate('/export')}
           className="glass-pill cursor-pointer"
         >
-          <Download size={12} style={{ color: 'var(--td)' }} />
+          <Upload size={12} style={{ color: 'var(--td)' }} />
         </button>
       )}
       {!isSettings && (
