@@ -3,7 +3,7 @@ from __future__ import annotations
 import collections
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select, update
+from sqlalchemy import distinct, func, select, update
 
 from backend.domain.ports.candidate_pronunciation_repository import (
     CandidatePronunciationRepository,
@@ -228,4 +228,18 @@ class SqlaCandidatePronunciationRepository(CandidatePronunciationRepository):
         )
         if source_id is not None:
             stmt = stmt.where(StoredCandidateModel.source_id == source_id)
+        return [row[0] for row in self._session.execute(stmt).all()]
+
+    def get_source_ids_by_enrichment_status(
+        self,
+        status: EnrichmentStatus,
+    ) -> list[int]:
+        stmt = (
+            select(distinct(StoredCandidateModel.source_id))
+            .join(
+                CandidatePronunciationModel,
+                CandidatePronunciationModel.candidate_id == StoredCandidateModel.id,
+            )
+            .where(CandidatePronunciationModel.status == status.value)
+        )
         return [row[0] for row in self._session.execute(stmt).all()]

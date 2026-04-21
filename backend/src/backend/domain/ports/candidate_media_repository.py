@@ -118,3 +118,10 @@ class CandidateMediaRepository(ABC):
         source_id: int | None = None,
     ) -> list[int]:
         """Return candidate IDs with a specific error text, for targeted retry."""
+
+    @abstractmethod
+    def get_source_ids_by_enrichment_status(
+        self,
+        status: EnrichmentStatus,
+    ) -> list[int]:
+        """Return distinct source IDs that have at least one enrichment with given status."""
