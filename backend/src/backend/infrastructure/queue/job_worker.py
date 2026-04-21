@@ -12,7 +12,7 @@ import logging
 import signal
 from typing import TYPE_CHECKING
 
-from backend.domain.exceptions import CancelledByUser, PermanentAIError, PermanentMediaError
+from backend.domain.exceptions import CancelledByUserError, PermanentAIError, PermanentMediaError
 from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 
@@ -90,7 +90,7 @@ class JobWorker:
                     await self._handle_pronunciation(job)
                 case JobType.VIDEO_DOWNLOAD:
                     await self._handle_video_download(job)
-        except CancelledByUser:
+        except CancelledByUserError:
             logger.info("Job %d cancelled by user", job.id)
         except (PermanentAIError, PermanentMediaError) as exc:
             logger.warning("Job %d permanent error: %s", job.id, exc)
@@ -134,7 +134,7 @@ class JobWorker:
             logger.warning("Meaning batch timed out for source %d", job.source_id)
             self._mark_jobs_failed(all_jobs, "timeout")
             return
-        except CancelledByUser:
+        except CancelledByUserError:
             # Primary job was cancelled — let outer handler log it.
             # Extra batch jobs are already RUNNING and will be caught
             # by reconciliation on next restart if not cleaned up.

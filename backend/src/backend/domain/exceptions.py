@@ -156,7 +156,7 @@ class UnsupportedUrlError(Exception):
     """Raised when no fetcher can handle the given URL."""
 
 
-class CancelledByUser(Exception):
+class CancelledByUserError(Exception):
     """Raised by CancellationToken when a job has been cancelled."""
 
     def __init__(self, job_id: int) -> None:

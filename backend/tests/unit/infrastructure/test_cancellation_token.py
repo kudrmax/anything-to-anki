@@ -3,7 +3,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from backend.domain.exceptions import CancelledByUser
+from backend.domain.exceptions import CancelledByUserError
 from backend.infrastructure.queue.cancellation_token import CancellationToken
 
 
@@ -20,7 +20,7 @@ class TestCancellationToken:
         job_repo = MagicMock()
         job_repo.job_exists.return_value = False
         token = CancellationToken(job_id=42, job_repo=job_repo)
-        with pytest.raises(CancelledByUser, match="42"):
+        with pytest.raises(CancelledByUserError, match="42"):
             token.check()
 
     def test_is_cancelled_returns_bool(self) -> None:
