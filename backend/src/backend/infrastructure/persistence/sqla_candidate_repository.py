@@ -96,26 +96,20 @@ class SqlaCandidateRepository(CandidateRepository):
         return self._bulk_attach(entities)
 
     def delete_by_source(self, source_id: int) -> None:
-        # Find candidate ids first to also delete their enrichment rows
-        cid_rows = (
-            self._session.query(StoredCandidateModel.id)
+        """Delete all candidates for a source.
+
+        Related rows (meanings, media, pronunciation, cefr_breakdowns,
+        anki_synced_cards) are removed automatically by DB-level
+        ON DELETE CASCADE — no need to enumerate tables here.
+        Requires PRAGMA foreign_keys = ON (set in database.py).
+        """
+        models = (
+            self._session.query(StoredCandidateModel)
             .filter(StoredCandidateModel.source_id == source_id)
             .all()
         )
-        cids = [r[0] for r in cid_rows]
-        if cids:
-            self._session.query(CandidatePronunciationModel).filter(
-                CandidatePronunciationModel.candidate_id.in_(cids)
-            ).delete(synchronize_session=False)
-            self._session.query(CandidateMeaningModel).filter(
-                CandidateMeaningModel.candidate_id.in_(cids)
-            ).delete(synchronize_session=False)
-            self._session.query(CandidateMediaModel).filter(
-                CandidateMediaModel.candidate_id.in_(cids)
-            ).delete(synchronize_session=False)
-        self._session.query(StoredCandidateModel).filter(
-            StoredCandidateModel.source_id == source_id
-        ).delete()
+        for model in models:
+            self._session.delete(model)
         self._session.flush()
 
     # ── private helpers ────────────────────────────────────────────────

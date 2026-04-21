@@ -1,6 +1,6 @@
 import pytest
-from backend.infrastructure.persistence.database import Base
-from sqlalchemy import StaticPool, create_engine
+from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
+from sqlalchemy import StaticPool, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 
@@ -12,6 +12,7 @@ def db_session() -> Session:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    event.listen(engine, "connect", _enable_sqlite_foreign_keys)
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine)
     session = session_factory()
