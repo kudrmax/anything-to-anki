@@ -27,6 +27,20 @@ class CardPreviewDTO(BaseModel):
     pronunciation_uk_url: str | None = None
 
 
+class ExportSectionDTO(BaseModel):
+    """A group of cards from one source, for the export page."""
+
+    source_id: int
+    source_title: str
+    cards: list[CardPreviewDTO]
+
+
+class GlobalExportDTO(BaseModel):
+    """All cards for export, grouped by source."""
+
+    sections: list[ExportSectionDTO]
+
+
 class SyncResultDTO(BaseModel):
     """Result of a sync-to-anki operation."""
 
