@@ -63,22 +63,68 @@ class TestGetReprocessStatsUseCase:
         use_case, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = MagicMock()
         mocks["candidate_repo"].get_by_source.return_value = [
-            _make_candidate(1, CandidateStatus.LEARN),
+            _make_candidate(1, CandidateStatus.LEARN, lemma="new_word"),
             _make_candidate(1, CandidateStatus.KNOWN, lemma="word_a"),
             _make_candidate(1, CandidateStatus.SKIP),
             _make_candidate(1, CandidateStatus.PENDING),
         ]
-        # word_a is NOT in known_words — will be lost
+        # neither new_word nor word_a in known_words — both will be lost
         mocks["known_word_repo"].get_all_pairs.return_value = set()
         _no_active_jobs(mocks)
 
         result = use_case.execute(1)
 
-        assert result.learn_count == 1
+        assert result.learn_count == 1  # not in whitelist → lost
         assert result.known_count == 1  # not in whitelist → lost
         assert result.skip_count == 1
         assert result.pending_count == 1
         assert result.has_active_jobs is False
+
+    def test_learn_not_in_whitelist_counted_as_lost(self) -> None:
+        use_case, mocks = _make_use_case()
+        mocks["source_repo"].get_by_id.return_value = MagicMock()
+        mocks["candidate_repo"].get_by_source.return_value = [
+            _make_candidate(1, CandidateStatus.LEARN, lemma="unsaved", pos="VERB"),
+            _make_candidate(1, CandidateStatus.LEARN, lemma="also_unsaved", pos="NOUN"),
+        ]
+        mocks["known_word_repo"].get_all_pairs.return_value = set()
+        _no_active_jobs(mocks)
+
+        result = use_case.execute(1)
+
+        assert result.learn_count == 2
+
+    def test_learn_in_whitelist_not_counted_as_lost(self) -> None:
+        use_case, mocks = _make_use_case()
+        mocks["source_repo"].get_by_id.return_value = MagicMock()
+        mocks["candidate_repo"].get_by_source.return_value = [
+            _make_candidate(1, CandidateStatus.LEARN, lemma="exported", pos="VERB"),
+            _make_candidate(1, CandidateStatus.LEARN, lemma="not_exported", pos="VERB"),
+        ]
+        # "exported" already in known_words (was synced to Anki)
+        mocks["known_word_repo"].get_all_pairs.return_value = {("exported", "VERB")}
+        _no_active_jobs(mocks)
+
+        result = use_case.execute(1)
+
+        assert result.learn_count == 1  # only "not_exported" is at risk
+
+    def test_all_learn_in_whitelist_zero_lost(self) -> None:
+        use_case, mocks = _make_use_case()
+        mocks["source_repo"].get_by_id.return_value = MagicMock()
+        mocks["candidate_repo"].get_by_source.return_value = [
+            _make_candidate(1, CandidateStatus.LEARN, lemma="word_a", pos="NOUN"),
+            _make_candidate(1, CandidateStatus.LEARN, lemma="word_b", pos="ADJ"),
+        ]
+        mocks["known_word_repo"].get_all_pairs.return_value = {
+            ("word_a", "NOUN"),
+            ("word_b", "ADJ"),
+        }
+        _no_active_jobs(mocks)
+
+        result = use_case.execute(1)
+
+        assert result.learn_count == 0
 
     def test_known_in_whitelist_not_counted_as_lost(self) -> None:
         use_case, mocks = _make_use_case()

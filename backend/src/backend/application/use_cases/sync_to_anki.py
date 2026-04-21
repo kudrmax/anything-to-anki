@@ -119,9 +119,13 @@ class SyncToAnkiUseCase:
 
         candidate_ids = [c.id for c in learn_candidates if c.id is not None]
         already_synced = self._anki_sync_repo.get_synced_candidate_ids(candidate_ids)
+        already_synced_candidates = [c for c in learn_candidates if c.id in already_synced]
         pending = [c for c in learn_candidates if c.id not in already_synced]
-        skipped = len(learn_candidates) - len(pending)
-        skipped_lemmas: list[str] = [c.lemma for c in learn_candidates if c.id in already_synced]
+        skipped = len(already_synced_candidates)
+        skipped_lemmas: list[str] = [c.lemma for c in already_synced_candidates]
+
+        for c in already_synced_candidates:
+            self._known_word_repo.add(c.lemma, c.pos)
 
         if not pending:
             return SyncResultDTO(

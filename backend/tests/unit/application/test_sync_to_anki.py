@@ -130,6 +130,21 @@ class TestSyncToAnkiUseCase:
         call_notes = self.anki_connector.add_notes.call_args[1]["notes"]
         assert call_notes[0]["Target"] == "relentless"
 
+    def test_skips_already_synced_and_adds_to_known_words(self) -> None:
+        """Already-synced candidates must be added to known_words."""
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "burnout", CandidateStatus.LEARN),
+            _make_candidate(2, "relentless", CandidateStatus.LEARN),
+        ]
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1, 2}
+        self.anki_connector.is_available.return_value = True
+
+        self.use_case.execute(source_id=1)
+
+        assert self.known_word_repo.add.call_count == 2
+        self.known_word_repo.add.assert_any_call("burnout", "NOUN")
+        self.known_word_repo.add.assert_any_call("relentless", "NOUN")
+
     def test_all_already_synced_returns_without_calling_anki(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
             _make_candidate(1, "burnout", CandidateStatus.LEARN),
@@ -144,6 +159,8 @@ class TestSyncToAnkiUseCase:
         assert result.skipped == 1
         self.anki_connector.ensure_note_type.assert_not_called()
         self.anki_connector.add_notes.assert_not_called()
+        # Even though no Anki calls, known_words should be updated
+        self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
 
     def test_marks_synced_after_successful_add(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
