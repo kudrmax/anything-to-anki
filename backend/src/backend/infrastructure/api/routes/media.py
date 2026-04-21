@@ -112,7 +112,7 @@ async def enqueue_media_generation(
         base = datetime.now(tz=UTC)
         job_ids: list[str] = []
         for i, cid in enumerate(eligible_ids):
-            job_id = f"media_{cid}_{ts_ms}"
+            job_id = f"media_{source_id}_{cid}_{ts_ms}"
             await redis.enqueue_job(
                 "extract_media_for_candidate",
                 cid,
@@ -186,7 +186,7 @@ async def retry_failed_media(
     base = datetime.now(tz=UTC)
     job_ids: list[str] = []
     for i, cid in enumerate(failed_ids):
-        job_id = f"media_{cid}_retry_{ts_ms}"
+        job_id = f"media_{source_id}_{cid}_retry_{ts_ms}"
         await redis.enqueue_job(
             "extract_media_for_candidate",
             cid,

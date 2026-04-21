@@ -13,16 +13,20 @@ class TestParseJobId:
         assert result == ("meanings", 5, None)
 
     def test_media_job(self) -> None:
-        result = parse_job_id("media_42_1720000000000")
-        assert result == ("media", None, 42)
+        result = parse_job_id("media_7_42_1720000000000")
+        assert result == ("media", 7, 42)
 
     def test_media_retry_job(self) -> None:
-        result = parse_job_id("media_42_retry_1720000000000")
-        assert result == ("media", None, 42)
+        result = parse_job_id("media_7_42_retry_1720000000000")
+        assert result == ("media", 7, 42)
 
     def test_pronunciation_job(self) -> None:
-        result = parse_job_id("pronunciation_42_1720000000000")
-        assert result == ("pronunciation", None, 42)
+        result = parse_job_id("pronunciation_7_42_1720000000000")
+        assert result == ("pronunciation", 7, 42)
+
+    def test_pronunciation_retry_job(self) -> None:
+        result = parse_job_id("pronunciation_7_42_retry_1720000000000")
+        assert result == ("pronunciation", 7, 42)
 
     def test_youtube_job(self) -> None:
         result = parse_job_id("youtube_5_1720000000000")

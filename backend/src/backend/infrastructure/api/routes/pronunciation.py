@@ -37,7 +37,7 @@ async def enqueue_pronunciation_download(
         base = datetime.now(tz=UTC)
         job_ids: list[str] = []
         for i, cid in enumerate(eligible_ids):
-            job_id = f"pron_{cid}_{ts_ms}"
+            job_id = f"pronunciation_{source_id}_{cid}_{ts_ms}"
             await redis.enqueue_job(
                 "download_pronunciation_for_candidate",
                 cid,
@@ -97,7 +97,7 @@ async def retry_failed_pronunciation(
     base = datetime.now(tz=UTC)
     job_ids: list[str] = []
     for i, cid in enumerate(failed_ids):
-        job_id = f"pron_{cid}_retry_{ts_ms}"
+        job_id = f"pronunciation_{source_id}_{cid}_retry_{ts_ms}"
         await redis.enqueue_job(
             "download_pronunciation_for_candidate",
             cid,

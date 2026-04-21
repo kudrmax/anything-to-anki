@@ -30,10 +30,12 @@ def parse_job_id(job_id: str) -> tuple[str, int | None, int | None] | None:
     try:
         if prefix == "meaning" and len(parts) >= 4:
             return ("meanings", int(parts[1]), None)
-        if prefix == "media":
-            return ("media", None, int(parts[1]))
-        if prefix == "pronunciation":
-            return ("pronunciation", None, int(parts[1]))
+        if prefix == "media" and len(parts) >= 3:
+            # New format: media_{source_id}_{candidate_id}_{ts}
+            return ("media", int(parts[1]), int(parts[2]))
+        if prefix == "pronunciation" and len(parts) >= 3:
+            # New format: pronunciation_{source_id}_{candidate_id}_{ts}
+            return ("pronunciation", int(parts[1]), int(parts[2]))
         if prefix == "youtube":
             return ("youtube_dl", int(parts[1]), None)
     except (ValueError, IndexError):
