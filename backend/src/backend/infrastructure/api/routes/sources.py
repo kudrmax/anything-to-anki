@@ -284,12 +284,15 @@ async def create_video_source(
     ext = os.path.splitext(video.filename or "video.mp4")[1]
     video_filename = f"{uuid.uuid4()}{ext}"
     video_path = os.path.join(videos_dir, video_filename)
-    content = await video.read()
+    CHUNK_SIZE = 64 * 1024  # 64 KB
+    total_bytes = 0
     with open(video_path, "wb") as f:
-        f.write(content)
+        while chunk := await video.read(CHUNK_SIZE):
+            f.write(chunk)
+            total_bytes += len(chunk)
     logger.info(
         "Uploaded video %s (%d bytes) subtitle_track=%s audio_track=%s",
-        video_filename, len(content), subtitle_track_index, audio_track_index,
+        video_filename, total_bytes, subtitle_track_index, audio_track_index,
     )
 
     srt_text: str | None = None

@@ -217,7 +217,12 @@ export const api = {
     if (subtitleTrackIndex !== undefined) form.append('subtitle_track_index', String(subtitleTrackIndex))
     if (audioTrackIndex !== undefined) form.append('audio_track_index', String(audioTrackIndex))
     const res = await fetch(`${BASE}/sources/video`, { method: 'POST', body: form })
-    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+    if (!res.ok) {
+      const text = await res.text()
+      let detail = text
+      try { detail = JSON.parse(text).detail ?? text } catch { /* use raw text */ }
+      throw new Error(detail)
+    }
     return res.json() as Promise<{
       id?: number
       status: string

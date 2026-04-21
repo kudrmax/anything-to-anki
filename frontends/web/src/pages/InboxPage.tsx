@@ -79,6 +79,7 @@ export function InboxPage() {
   processingIdsRef.current = processingIds
   const [cefrLevel, setCefrLevel] = useState('B2')
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null)
+  const [pendingSrtFile, setPendingSrtFile] = useState<File | null>(null)
   const [_pendingVideoPath, setPendingVideoPath] = useState('') // kept for future use
   const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrack[]>([])
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([])
@@ -147,7 +148,7 @@ export function InboxPage() {
     if (activeTab === 'file') {
       const videoExts = ['mp4', 'mkv', 'avi', 'mov']
       const videoFile = files.find(f => videoExts.includes(f.name.split('.').pop()?.toLowerCase() ?? ''))
-      const srtFile = files.find(f => f.name.endsWith('.srt')) ?? null
+      const srtFile = files.find(f => f.name.toLowerCase().endsWith('.srt')) ?? null
 
       if (videoFile) {
         setAdding(true)
@@ -161,6 +162,7 @@ export function InboxPage() {
           )
           if (result.status === 'track_selection_required') {
             setPendingVideoFile(videoFile)
+            setPendingSrtFile(srtFile)
             setPendingVideoPath(result.pending_video_path ?? '')
             const subs = result.subtitle_tracks ?? []
             const auds = result.audio_tracks ?? []
@@ -287,7 +289,7 @@ export function InboxPage() {
     try {
       const result = await api.createVideoSource(
         pendingVideoFile,
-        null,
+        pendingSrtFile,
         title.trim() || undefined,
         subtitleTracks.length > 0 ? selectedSubtitleIndex ?? undefined : undefined,
         audioTracks.length > 0 ? selectedAudioIndex ?? undefined : undefined,
@@ -296,6 +298,7 @@ export function InboxPage() {
         setFiles([])
         setTitle('')
         setPendingVideoFile(null)
+        setPendingSrtFile(null)
         setSubtitleTracks([])
         setAudioTracks([])
         void loadSources()
@@ -310,6 +313,7 @@ export function InboxPage() {
   const handleCancelTrackSelection = () => {
     setShowTrackModal(false)
     setPendingVideoFile(null)
+    setPendingSrtFile(null)
     setSubtitleTracks([])
     setAudioTracks([])
     setSelectedSubtitleIndex(null)

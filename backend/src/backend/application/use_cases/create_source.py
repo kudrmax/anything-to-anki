@@ -65,6 +65,8 @@ class CreateSourceUseCase:
         pending_subtitle_tracks: list[SubtitleTrackInfo] = []
 
         if srt_text is not None:
+            if not srt_text.strip():
+                raise ValueError("Attached .srt file is empty.")
             raw_srt = srt_text
         else:
             assert self._subtitle_extractor is not None
