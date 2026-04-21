@@ -14,6 +14,7 @@ if TYPE_CHECKING:
         CandidatePronunciationRepository,
     )
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.source_repository import SourceRepository
 
 
@@ -31,12 +32,14 @@ class GetReprocessStatsUseCase:
         self,
         source_repo: SourceRepository,
         candidate_repo: CandidateRepository,
+        known_word_repo: KnownWordRepository,
         meaning_repo: CandidateMeaningRepository,
         media_repo: CandidateMediaRepository,
         pronunciation_repo: CandidatePronunciationRepository,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
+        self._known_word_repo = known_word_repo
         self._meaning_repo = meaning_repo
         self._media_repo = media_repo
         self._pronunciation_repo = pronunciation_repo
@@ -47,18 +50,31 @@ class GetReprocessStatsUseCase:
             raise SourceNotFoundError(source_id)
 
         candidates = self._candidate_repo.get_by_source(source_id)
+        known_pairs = self._known_word_repo.get_all_pairs()
 
-        counts: dict[CandidateStatus, int] = {s: 0 for s in CandidateStatus}
+        learn_count = 0
+        known_lost_count = 0
+        skip_count = 0
+        pending_count = 0
+
         for c in candidates:
-            counts[c.status] += 1
+            if c.status == CandidateStatus.LEARN:
+                learn_count += 1
+            elif c.status == CandidateStatus.KNOWN:
+                if (c.lemma, c.pos) not in known_pairs:
+                    known_lost_count += 1
+            elif c.status == CandidateStatus.SKIP:
+                skip_count += 1
+            elif c.status == CandidateStatus.PENDING:
+                pending_count += 1
 
         has_active = self._has_active_enrichments(source_id)
 
         return ReprocessStats(
-            learn_count=counts[CandidateStatus.LEARN],
-            known_count=counts[CandidateStatus.KNOWN],
-            skip_count=counts[CandidateStatus.SKIP],
-            pending_count=counts[CandidateStatus.PENDING],
+            learn_count=learn_count,
+            known_count=known_lost_count,
+            skip_count=skip_count,
+            pending_count=pending_count,
             has_active_jobs=has_active,
         )
 

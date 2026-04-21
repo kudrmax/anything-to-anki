@@ -281,6 +281,7 @@ class Container:
         return GetReprocessStatsUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            known_word_repo=SqlaKnownWordRepository(session),
             meaning_repo=SqlaCandidateMeaningRepository(session),
             media_repo=SqlaCandidateMediaRepository(session),
             pronunciation_repo=SqlaCandidatePronunciationRepository(session),

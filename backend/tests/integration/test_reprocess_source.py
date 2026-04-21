@@ -102,9 +102,13 @@ def _make_reprocess_uc(
 
 
 def _make_stats_uc(db_session: Session) -> GetReprocessStatsUseCase:
+    from backend.infrastructure.persistence.sqla_known_word_repository import (
+        SqlaKnownWordRepository,
+    )
     return GetReprocessStatsUseCase(
         source_repo=SqlaSourceRepository(db_session),
         candidate_repo=SqlaCandidateRepository(db_session),
+        known_word_repo=SqlaKnownWordRepository(db_session),
         meaning_repo=SqlaCandidateMeaningRepository(db_session),
         media_repo=SqlaCandidateMediaRepository(db_session),
         pronunciation_repo=SqlaCandidatePronunciationRepository(db_session),
