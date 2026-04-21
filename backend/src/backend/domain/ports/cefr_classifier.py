@@ -17,6 +17,6 @@ class CEFRClassifier(ABC):
         return CEFRBreakdown(
             final_level=level,
             decision_method="voting",
-            priority_vote=None,
+            priority_votes=[],
             votes=[],
         )

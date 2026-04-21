@@ -83,7 +83,7 @@ def _patch_classify_detailed(mock: MagicMock) -> MagicMock:
         return CEFRBreakdown(
             final_level=level,
             decision_method="voting",
-            priority_vote=None,
+            priority_votes=[],
             votes=[],
         )
 

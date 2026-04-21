@@ -30,13 +30,15 @@ def _make_classifier() -> VotingCEFRClassifier:
 
     reader = CambridgeSQLiteReader(CAMBRIDGE_DB_PATH)
     cambridge_cefr = CambridgeCEFRSource(reader)
+    oxford_cefr = OxfordCEFRSource(DATA_DIR / "oxford5000.csv")
     sources = [
         CefrpyCEFRSource(),
         EFLLexCEFRSource(DATA_DIR / "efllex.tsv"),
-        OxfordCEFRSource(DATA_DIR / "oxford5000.csv"),
         KellyCEFRSource(DATA_DIR / "kelly.csv"),
     ]
-    return VotingCEFRClassifier(sources, priority_source=cambridge_cefr)
+    return VotingCEFRClassifier(
+        sources, priority_sources=[oxford_cefr, cambridge_cefr],
+    )
 
 
 @pytest.mark.integration
@@ -49,7 +51,7 @@ class TestCEFRBreakdownPipeline:
 
         assert breakdown.final_level in (CEFRLevel.A1, CEFRLevel.A2, CEFRLevel.B1)
         assert breakdown.decision_method in ("priority", "voting")
-        assert len(breakdown.votes) == 4  # 4 voting sources
+        assert len(breakdown.votes) == 3  # 3 voting sources (CEFRpy, EFLLex, Kelly)
         # All votes have source names
         names = {v.source_name for v in breakdown.votes}
         assert "CEFRpy" in names
@@ -133,8 +135,8 @@ class TestCEFRBreakdownPipeline:
         breakdown = classifier.classify_detailed("happy", "JJ")
 
         all_names: set[str] = set()
-        if breakdown.priority_vote:
-            all_names.add(breakdown.priority_vote.source_name)
+        for v in breakdown.priority_votes:
+            all_names.add(v.source_name)
         for v in breakdown.votes:
             all_names.add(v.source_name)
 

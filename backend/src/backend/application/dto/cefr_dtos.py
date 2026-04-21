@@ -20,12 +20,13 @@ class CEFRBreakdownDTO(BaseModel):
     """Full breakdown of how a CEFR level was determined."""
 
     decision_method: str  # "priority" | "voting"
-    priority_vote: SourceVoteDTO | None = None
+    priority_votes: list[SourceVoteDTO] = []
     votes: list[SourceVoteDTO]
 
 
 def dto_to_breakdown(dto: CEFRBreakdownDTO) -> CEFRBreakdown:
     """Map CEFRBreakdownDTO back to domain CEFRBreakdown."""
+    from backend.domain.services.cefr_level_resolver import resolve_cefr_level
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown as Bd
     from backend.domain.value_objects.cefr_breakdown import SourceVote as Sv
     from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -40,16 +41,16 @@ def dto_to_breakdown(dto: CEFRBreakdownDTO) -> CEFRBreakdown:
         top = CEFRLevel.from_str(v.level) if v.level else CEFRLevel.UNKNOWN
         return Sv(source_name=v.source_name, distribution=dist, top_level=top)
 
-    pv = _dto_to_vote(dto.priority_vote) if dto.priority_vote else None
+    priority_votes = [_dto_to_vote(v) for v in dto.priority_votes]
     votes = [_dto_to_vote(v) for v in dto.votes]
-    # Determine final_level from priority or first voting source
-    if dto.decision_method == "priority" and pv and pv.top_level is not CEFRLevel.UNKNOWN:
-        final = pv.top_level
-    elif votes:
-        final = votes[0].top_level
-    else:
-        final = CEFRLevel.UNKNOWN
-    return Bd(final_level=final, decision_method=dto.decision_method, priority_vote=pv, votes=votes)
+    all_votes = [*priority_votes, *votes]
+    final, decision_method = resolve_cefr_level(all_votes)
+    return Bd(
+        final_level=final,
+        decision_method=decision_method,
+        priority_votes=priority_votes,
+        votes=votes,
+    )
 
 
 def breakdown_to_dto(breakdown: CEFRBreakdown) -> CEFRBreakdownDTO:
@@ -70,6 +71,6 @@ def breakdown_to_dto(breakdown: CEFRBreakdown) -> CEFRBreakdownDTO:
 
     return CEFRBreakdownDTO(
         decision_method=breakdown.decision_method,
-        priority_vote=_vote_to_dto(breakdown.priority_vote) if breakdown.priority_vote else None,
+        priority_votes=[_vote_to_dto(v) for v in breakdown.priority_votes],
         votes=[_vote_to_dto(v) for v in breakdown.votes],
     )

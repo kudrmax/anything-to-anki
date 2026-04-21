@@ -20,11 +20,18 @@ def _make_breakdown() -> CEFRBreakdown:
     return CEFRBreakdown(
         final_level=CEFRLevel.B1,
         decision_method="priority",
-        priority_vote=SourceVote(
-            source_name="Cambridge Dictionary",
-            distribution={CEFRLevel.B1: 1.0},
-            top_level=CEFRLevel.B1,
-        ),
+        priority_votes=[
+            SourceVote(
+                source_name="Oxford 5000",
+                distribution={CEFRLevel.UNKNOWN: 1.0},
+                top_level=CEFRLevel.UNKNOWN,
+            ),
+            SourceVote(
+                source_name="Cambridge Dictionary",
+                distribution={CEFRLevel.B1: 1.0},
+                top_level=CEFRLevel.B1,
+            ),
+        ],
         votes=[
             SourceVote(source_name="CEFRpy", distribution={CEFRLevel.B1: 1.0}, top_level=CEFRLevel.B1),
             SourceVote(
@@ -32,7 +39,6 @@ def _make_breakdown() -> CEFRBreakdown:
                 distribution={CEFRLevel.A2: 0.6, CEFRLevel.B1: 0.3, CEFRLevel.B2: 0.1},
                 top_level=CEFRLevel.A2,
             ),
-            SourceVote(source_name="Oxford 5000", distribution={CEFRLevel.UNKNOWN: 1.0}, top_level=CEFRLevel.UNKNOWN),
             SourceVote(source_name="Kelly List", distribution={CEFRLevel.UNKNOWN: 1.0}, top_level=CEFRLevel.UNKNOWN),
         ],
     )
@@ -65,7 +71,7 @@ class TestCEFRBreakdownDBRoundtrip:
         assert c.cefr_breakdown.decision_method == "priority"
         assert c.cefr_breakdown.final_level == CEFRLevel.B1
 
-    def test_breakdown_priority_vote_restored(self, db_session: Session) -> None:
+    def test_breakdown_priority_votes_restored(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
         candidate = StoredCandidate(
             source_id=1,
@@ -83,9 +89,12 @@ class TestCEFRBreakdownDBRoundtrip:
 
         loaded = repo.get_by_source(1)[0]
         assert loaded.cefr_breakdown is not None
-        assert loaded.cefr_breakdown.priority_vote is not None
-        assert loaded.cefr_breakdown.priority_vote.source_name == "Cambridge Dictionary"
-        assert loaded.cefr_breakdown.priority_vote.top_level == CEFRLevel.B1
+        assert len(loaded.cefr_breakdown.priority_votes) == 2
+        cambridge = next(
+            v for v in loaded.cefr_breakdown.priority_votes
+            if v.source_name == "Cambridge Dictionary"
+        )
+        assert cambridge.top_level == CEFRLevel.B1
 
     def test_voting_sources_restored(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
@@ -110,7 +119,6 @@ class TestCEFRBreakdownDBRoundtrip:
         names = {v.source_name for v in bd.votes}
         assert "CEFRpy" in names
         assert "EFLLex" in names
-        assert "Oxford 5000" in names
         assert "Kelly List" in names
 
     def test_efllex_distribution_survives_db(self, db_session: Session) -> None:
