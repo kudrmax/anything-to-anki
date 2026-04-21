@@ -303,6 +303,7 @@ class Container:
             settings_repo=SqlaSettingsRepository(session),
             anki_sync_repo=SqlaAnkiSyncRepository(session),
             template_renderer=self._anki_template_renderer,
+            known_word_repo=SqlaKnownWordRepository(session),
         )
 
     def get_source_cards_use_case(self, session: Session) -> GetSourceCardsUseCase:

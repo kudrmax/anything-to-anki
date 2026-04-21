@@ -45,14 +45,14 @@ def _make_stored_candidate(with_breakdown: bool = True) -> StoredCandidate:
     )
 
 
-class TestGetSourcesCandidateToDto:
-    """get_sources._candidate_to_dto must include breakdown."""
+class TestStoredCandidateToDto:
+    """stored_candidate_to_dto must include CEFR breakdown."""
 
     def test_breakdown_included(self) -> None:
-        from backend.application.use_cases.get_sources import _candidate_to_dto
+        from backend.application.dto.source_dtos import stored_candidate_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=True)
-        dto = _candidate_to_dto(candidate)
+        dto = stored_candidate_to_dto(candidate)
 
         assert dto.cefr_breakdown is not None
         assert dto.cefr_breakdown.decision_method == "priority"
@@ -61,44 +61,18 @@ class TestGetSourcesCandidateToDto:
         assert len(dto.cefr_breakdown.votes) == 4
 
     def test_no_breakdown_is_none(self) -> None:
-        from backend.application.use_cases.get_sources import _candidate_to_dto
+        from backend.application.dto.source_dtos import stored_candidate_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=False)
-        dto = _candidate_to_dto(candidate)
+        dto = stored_candidate_to_dto(candidate)
 
         assert dto.cefr_breakdown is None
-
-
-class TestGetCandidatesToDto:
-    """get_candidates._to_dto must include breakdown."""
-
-    def test_breakdown_included(self) -> None:
-        from backend.application.use_cases.get_candidates import _to_dto
-
-        candidate = _make_stored_candidate(with_breakdown=True)
-        dto = _to_dto(candidate)
-
-        assert dto.cefr_breakdown is not None
-        assert dto.cefr_breakdown.decision_method == "priority"
-        assert len(dto.cefr_breakdown.votes) == 4
-
-    def test_no_breakdown_is_none(self) -> None:
-        from backend.application.use_cases.get_candidates import _to_dto
-
-        candidate = _make_stored_candidate(with_breakdown=False)
-        dto = _to_dto(candidate)
-
-        assert dto.cefr_breakdown is None
-
-
-class TestEFLLexDistributionInDto:
-    """EFLLex distribution must survive conversion to DTO."""
 
     def test_efllex_has_distribution(self) -> None:
-        from backend.application.use_cases.get_sources import _candidate_to_dto
+        from backend.application.dto.source_dtos import stored_candidate_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=True)
-        dto = _candidate_to_dto(candidate)
+        dto = stored_candidate_to_dto(candidate)
 
         assert dto.cefr_breakdown is not None
         efllex_vote = next(v for v in dto.cefr_breakdown.votes if v.source_name == "EFLLex")
@@ -107,10 +81,10 @@ class TestEFLLexDistributionInDto:
         assert "B1" in efllex_vote.distribution
 
     def test_non_efllex_has_no_distribution(self) -> None:
-        from backend.application.use_cases.get_sources import _candidate_to_dto
+        from backend.application.dto.source_dtos import stored_candidate_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=True)
-        dto = _candidate_to_dto(candidate)
+        dto = stored_candidate_to_dto(candidate)
 
         assert dto.cefr_breakdown is not None
         cefrpy_vote = next(v for v in dto.cefr_breakdown.votes if v.source_name == "CEFRpy")

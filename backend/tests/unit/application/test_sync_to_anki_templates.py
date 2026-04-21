@@ -49,12 +49,14 @@ class TestSyncToAnkiTemplates:
         anki_sync_repo.get_synced_candidate_ids.return_value = set()
         anki_connector.add_notes.return_value = [12345]
 
+        known_word_repo = MagicMock()
         use_case = SyncToAnkiUseCase(
             candidate_repo=candidate_repo,
             anki_connector=anki_connector,
             settings_repo=settings_repo,
             anki_sync_repo=anki_sync_repo,
             template_renderer=renderer,
+            known_word_repo=known_word_repo,
         )
         use_case.execute(source_id=1)
 
