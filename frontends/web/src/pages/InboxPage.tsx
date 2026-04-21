@@ -5,6 +5,7 @@ import { FileText, Link, File, Upload, Loader2, Plus, RefreshCw } from 'lucide-r
 import { api } from '@/api/client'
 import type { AudioTrack, SourceSummary, SourceType, Stats, SubtitleTrack } from '@/api/types'
 import { SourceCard } from '@/components/SourceCard'
+import { ReprocessModal } from '@/components/ReprocessModal'
 import { useSourcePolling } from '@/hooks/useSourcePolling'
 
 function detectedFileType(files: File[]): string {
@@ -86,6 +87,7 @@ export function InboxPage() {
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null)
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number | null>(null)
   const [showTrackModal, setShowTrackModal] = useState(false)
+  const [reprocessSourceId, setReprocessSourceId] = useState<number | null>(null)
 
   const loadSources = useCallback(async () => {
     try {
@@ -259,6 +261,24 @@ export function InboxPage() {
 
   const handleReview = (id: number) => navigate(`/sources/${id}/review`)
   const handleExport = (id: number) => navigate(`/sources/${id}/export`)
+
+  const handleReprocessClick = (sourceId: number) => {
+    const source = sources.find(s => s.id === sourceId)
+    if (source?.status === 'error') {
+      api.reprocessSource(sourceId)
+        .then(() => loadSources())
+        .catch((e: Error) => console.error('Reprocess failed:', e))
+      return
+    }
+    setReprocessSourceId(sourceId)
+  }
+
+  const handleReprocessConfirm = () => {
+    if (reprocessSourceId == null) return
+    api.reprocessSource(reprocessSourceId)
+      .then(() => { setReprocessSourceId(null); void loadSources() })
+      .catch((e: Error) => console.error('Reprocess failed:', e))
+  }
 
   const handleRename = async (id: number, newTitle: string) => {
     try {
@@ -650,8 +670,8 @@ export function InboxPage() {
                   onExport={handleExport}
                   onDelete={handleDelete}
                   onRename={handleRename}
+                  onReprocess={handleReprocessClick}
                   isProcessingLocal={processingIds.has(s.id)}
-
                 />
               ))}
             </div>
@@ -753,6 +773,14 @@ export function InboxPage() {
             </div>
           </div>
         </div>
+      )}
+      {reprocessSourceId != null && (
+        <ReprocessModal
+          sourceId={reprocessSourceId}
+          onClose={() => setReprocessSourceId(null)}
+          onReprocess={handleReprocessConfirm}
+          onOpenExport={(id) => { setReprocessSourceId(null); navigate(`/sources/${id}/export`) }}
+        />
       )}
       {toast && <Toast key={toast.key} text={toast.text} onDone={() => setToast(null)} />}
     </div>

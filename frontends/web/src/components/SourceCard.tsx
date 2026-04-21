@@ -9,6 +9,7 @@ interface SourceCardProps {
   onExport: (id: number) => void
   onDelete: (id: number) => void
   onRename: (id: number, title: string) => void
+  onReprocess: (id: number) => void
   isProcessingLocal: boolean
 }
 
@@ -53,7 +54,7 @@ const GHOST_BTN = {
   border: '1px solid var(--glass-b)',
 } as const
 
-export function SourceCard({ source, onProcess, onReview, onExport, onDelete, onRename, isProcessingLocal }: SourceCardProps) {
+export function SourceCard({ source, onProcess, onReview, onExport, onDelete, onRename, onReprocess, isProcessingLocal }: SourceCardProps) {
   const badge = STATUS_BADGE[source.status]
   const border = STATUS_BORDER[source.status]
   const isProcessing = source.status === 'processing' || isProcessingLocal
@@ -225,6 +226,15 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
         </div>
 
         <div className="flex items-center gap-2">
+          {(source.status === 'done' || source.status === 'partially_reviewed' || source.status === 'reviewed' || source.status === 'error') && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onReprocess(source.id) }}
+              className="glass-pill text-xs font-medium cursor-pointer"
+              style={{ ...GHOST_BTN, padding: '5px 11px', color: 'var(--src-error)' }}
+            >
+              Reprocess
+            </button>
+          )}
           {source.status === 'partially_reviewed' && (
             <button
               onClick={(e) => { e.stopPropagation(); onExport(source.id) }}
