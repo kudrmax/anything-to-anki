@@ -9,6 +9,9 @@ import type {
   GenerateMeaningResult,
   GlobalExport,
   KnownWord,
+  QueueFailed,
+  QueueGlobalSummary,
+  QueueOrder,
   QueueSummary,
   ReprocessStats,
   Settings,
@@ -244,4 +247,37 @@ export const api = {
   },
 
   getAnkiTemplates: () => req<AnkiTemplates>('/anki/templates'),
+
+  getQueueGlobalSummary: (sourceId?: number) =>
+    req<QueueGlobalSummary>(`/api/queue/global-summary${sourceId != null ? `?source_id=${sourceId}` : ''}`),
+
+  getQueueOrder: (sourceId?: number, limit = 50) => {
+    const params = new URLSearchParams()
+    if (sourceId != null) params.set('source_id', String(sourceId))
+    params.set('limit', String(limit))
+    return req<QueueOrder>(`/api/queue/order?${params.toString()}`)
+  },
+
+  getQueueFailed: (sourceId?: number) =>
+    req<QueueFailed>(`/api/queue/failed${sourceId != null ? `?source_id=${sourceId}` : ''}`),
+
+  retryQueue: (jobType: string, sourceId?: number, errorText?: string) =>
+    req<{ retried: number }>('/api/queue/retry', {
+      method: 'POST',
+      body: JSON.stringify({
+        job_type: jobType,
+        source_id: sourceId ?? null,
+        error_text: errorText ?? null,
+      }),
+    }),
+
+  cancelQueue: (jobType: string, sourceId?: number, jobId?: string) =>
+    req<{ cancelled: number }>('/api/queue/cancel', {
+      method: 'POST',
+      body: JSON.stringify({
+        job_type: jobType,
+        source_id: sourceId ?? null,
+        job_id: jobId ?? null,
+      }),
+    }),
 }
