@@ -96,10 +96,17 @@ up: _check_env  ## Запустить (ai_proxy + docker compose)
 
 up-worktree: _check_env  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий worktree)
 	@# Симлинк dictionaries на main worktree (submodule там уже инициализирован)
+	@# В worktree git создаёт пустую директорию dictionaries/ (submodule placeholder),
+	@# поэтому проверяем наличие реальных файлов, а не просто -e.
 	@main=$$(git worktree list --porcelain | head -1 | awk '{print $$2}'); \
-	if [ "$$main" != "$$(pwd)" ] && [ ! -e dictionaries ] && [ -d "$$main/dictionaries" ]; then \
-	    ln -s "$$main/dictionaries" dictionaries; \
-	    echo "Symlinked dictionaries → main worktree"; \
+	if [ "$$main" != "$$(pwd)" ] && [ -d "$$main/dictionaries" ] && [ -n "$$(ls -A "$$main/dictionaries" 2>/dev/null)" ]; then \
+	    if [ -d dictionaries ] && [ ! -L dictionaries ] && [ -z "$$(ls -A dictionaries 2>/dev/null)" ]; then \
+	        rmdir dictionaries; \
+	    fi; \
+	    if [ ! -e dictionaries ]; then \
+	        ln -s "$$main/dictionaries" dictionaries; \
+	        echo "Symlinked dictionaries → main worktree"; \
+	    fi; \
 	fi
 	@# Остановить предыдущий worktree на этих портах (если есть)
 	@containers=$$(docker ps --format '{{.ID}} {{.Ports}}' | grep '$(WORKTREE_PORT)->' | awk '{print $$1}'); \
