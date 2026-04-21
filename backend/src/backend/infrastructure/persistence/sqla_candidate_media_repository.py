@@ -6,7 +6,6 @@ from sqlalchemy import select, update
 
 from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.infrastructure.persistence.models import (
     CandidateMediaModel,
     StoredCandidateModel,
@@ -70,8 +69,6 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
             existing.audio_path = media.audio_path
             existing.start_ms = media.start_ms
             existing.end_ms = media.end_ms
-            existing.status = media.status.value
-            existing.error = media.error
             existing.generated_at = media.generated_at
         self._session.flush()
 
@@ -118,103 +115,3 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
         )
         rows = self._session.execute(stmt).all()
         return [row[0] for row in rows]
-
-    def mark_queued_bulk(self, candidate_ids: list[int]) -> None:
-        if not candidate_ids:
-            return
-        existing_ids = set(
-            self._session.execute(
-                select(CandidateMediaModel.candidate_id).where(
-                    CandidateMediaModel.candidate_id.in_(candidate_ids)
-                )
-            ).scalars().all()
-        )
-        for cid in candidate_ids:
-            if cid in existing_ids:
-                # Preserve timecodes and paths, only update status
-                self._session.execute(
-                    update(CandidateMediaModel)
-                    .where(CandidateMediaModel.candidate_id == cid)
-                    .values(status=EnrichmentStatus.QUEUED.value, error=None)
-                )
-            else:
-                self._session.add(CandidateMediaModel(
-                    candidate_id=cid,
-                    screenshot_path=None,
-                    audio_path=None,
-                    start_ms=None,
-                    end_ms=None,
-                    status=EnrichmentStatus.QUEUED.value,
-                    error=None,
-                    generated_at=None,
-                ))
-        self._session.flush()
-
-    def mark_running(self, candidate_id: int) -> None:
-        self._session.execute(
-            update(CandidateMediaModel)
-            .where(CandidateMediaModel.candidate_id == candidate_id)
-            .where(CandidateMediaModel.status.in_([
-                EnrichmentStatus.QUEUED.value,
-                EnrichmentStatus.IDLE.value,
-            ]))
-            .values(status=EnrichmentStatus.RUNNING.value)
-        )
-        self._session.flush()
-
-    def mark_failed(self, candidate_id: int, error: str) -> None:
-        self._session.execute(
-            update(CandidateMediaModel)
-            .where(CandidateMediaModel.candidate_id == candidate_id)
-            .values(status=EnrichmentStatus.FAILED.value, error=error)
-        )
-        self._session.flush()
-
-    def mark_batch_failed(self, candidate_ids: list[int], error: str) -> None:
-        if not candidate_ids:
-            return
-        self._session.execute(
-            update(CandidateMediaModel)
-            .where(CandidateMediaModel.candidate_id.in_(candidate_ids))
-            .values(status=EnrichmentStatus.FAILED.value, error=error)
-        )
-        self._session.flush()
-
-    def mark_batch_cancelled(self, candidate_ids: list[int]) -> None:
-        if not candidate_ids:
-            return
-        self._session.execute(
-            update(CandidateMediaModel)
-            .where(CandidateMediaModel.candidate_id.in_(candidate_ids))
-            .values(status=EnrichmentStatus.CANCELLED.value, error="cancelled by user")
-        )
-        self._session.flush()
-
-    def fail_all_running(self, error: str) -> int:
-        count = self._session.query(CandidateMediaModel).filter(
-            CandidateMediaModel.status == EnrichmentStatus.RUNNING.value,
-        ).count()
-        if count:
-            self._session.execute(
-                update(CandidateMediaModel)
-                .where(CandidateMediaModel.status == EnrichmentStatus.RUNNING.value)
-                .values(status=EnrichmentStatus.FAILED.value, error=error)
-            )
-            self._session.flush()
-        return count
-
-    def get_candidate_ids_by_status(
-        self, source_id: int, status: EnrichmentStatus,
-    ) -> list[int]:
-        stmt = (
-            select(StoredCandidateModel.id)
-            .join(
-                CandidateMediaModel,
-                CandidateMediaModel.candidate_id == StoredCandidateModel.id,
-            )
-            .where(
-                StoredCandidateModel.source_id == source_id,
-                CandidateMediaModel.status == status.value,
-            )
-        )
-        return [row[0] for row in self._session.execute(stmt).all()]

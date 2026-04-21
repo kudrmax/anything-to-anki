@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 if TYPE_CHECKING:
     from backend.domain.ports.ai_service import AIService
@@ -22,8 +21,8 @@ class MeaningGenerationUseCase:
     """Generates meanings for a batch of candidates.
 
     One-shot: called by worker per batch (up to 15 candidates).
-    Writes status transitions (RUNNING -> DONE) to candidate_meanings.
-    Transient errors (AI service unavailable) propagate for ARQ retry.
+    Writes results to candidate_meanings.
+    Transient errors (AI service unavailable) propagate for retry.
     """
 
     def __init__(
@@ -67,7 +66,7 @@ class MeaningGenerationUseCase:
             f"Word {i}: {part}" for i, part in enumerate(parts, 1)
         )
 
-        # Transient errors propagate -> ARQ retries
+        # Transient errors propagate -> worker retries
         results = self._ai_service.generate_meanings_batch(
             self._prompts_config.generate_meaning_system, batch_prompt
         )
@@ -75,14 +74,9 @@ class MeaningGenerationUseCase:
 
         now = datetime.now(tz=UTC)
         matched = 0
-        cancelled = 0
         for i, c in enumerate(active, 1):
             r = result_map.get(i)
             if r is None or c.id is None:
-                continue
-            current = self._meaning_repo.get_by_candidate_id(c.id)
-            if current is None or current.status != EnrichmentStatus.RUNNING:
-                cancelled += 1
                 continue
             self._meaning_repo.upsert(CandidateMeaning(
                 candidate_id=c.id,
@@ -91,13 +85,11 @@ class MeaningGenerationUseCase:
                 synonyms=r.synonyms,
                 examples=r.examples,
                 ipa=r.ipa,
-                status=EnrichmentStatus.DONE,
-                error=None,
                 generated_at=now,
             ))
             matched += 1
 
         logger.info(
-            "MeaningGeneration batch: %d/%d matched, %d cancelled",
-            matched, len(active), cancelled,
+            "MeaningGeneration batch: %d/%d matched",
+            matched, len(active),
         )

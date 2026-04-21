@@ -11,7 +11,6 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceAlreadyProcessedError, SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
@@ -161,8 +160,6 @@ class ProcessSourceUseCase:
                         audio_path=None,
                         start_ms=start_ms,
                         end_ms=end_ms,
-                        status=EnrichmentStatus.IDLE,
-                        error=None,
                         generated_at=None,
                     ))
         self._source_repo.update_status(

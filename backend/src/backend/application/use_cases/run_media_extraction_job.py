@@ -11,7 +11,6 @@ from backend.domain.exceptions import (
     InvalidTimecodesError,
     PermanentMediaError,
 )
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
@@ -25,10 +24,9 @@ logger = logging.getLogger(__name__)
 class MediaExtractionUseCase:
     """Extracts screenshot and audio for a single candidate.
 
-    One-shot: called by worker per candidate. Writes status transitions
-    (RUNNING → DONE) to candidate_media. Permanent errors raise
+    One-shot: called by worker per candidate. Permanent errors raise
     PermanentMediaError subclasses for the worker wrapper to catch.
-    Transient errors (subprocess timeout, etc.) propagate for ARQ retry.
+    Transient errors (subprocess timeout, etc.) propagate for retry.
     """
 
     def __init__(
@@ -46,10 +44,6 @@ class MediaExtractionUseCase:
         self._media_root = media_root
 
     def execute_one(self, candidate_id: int) -> None:
-        # Note: mark_running is done by the worker wrapper in a separate
-        # committed session — so even if this use case rolls back on failure,
-        # the user still sees that we tried.
-
         candidate = self._candidate_repo.get_by_id(candidate_id)
         if candidate is None:
             raise PermanentMediaError(f"Candidate {candidate_id} not found")
@@ -72,23 +66,12 @@ class MediaExtractionUseCase:
         audio_path = os.path.join(out_dir, f"{candidate_id}_audio.m4a")
 
         ts_ms = (start_ms + end_ms) // 2
-        # Transient errors (subprocess.TimeoutExpired, OSError) propagate → ARQ retries
+        # Transient errors (subprocess.TimeoutExpired, OSError) propagate → worker retries
         self._media_extractor.extract_screenshot(source.video_path, ts_ms, screenshot_path)
         self._media_extractor.extract_audio(
             source.video_path, start_ms, end_ms, audio_path,
             audio_track_index=source.audio_track_index,
         )
-
-        # Pre-upsert guard: check current status. If the user clicked Cancel
-        # while we were running ffmpeg, the row is now FAILED ('cancelled by
-        # user'). Skip writing to avoid overwriting it.
-        current = self._media_repo.get_by_candidate_id(candidate_id)
-        if current is None or current.status != EnrichmentStatus.RUNNING:
-            logger.info(
-                "MediaExtraction candidate %d: skipped (cancelled by user)",
-                candidate_id,
-            )
-            return
 
         self._media_repo.upsert(CandidateMedia(
             candidate_id=candidate_id,
@@ -96,8 +79,6 @@ class MediaExtractionUseCase:
             audio_path=audio_path,
             start_ms=start_ms,
             end_ms=end_ms,
-            status=EnrichmentStatus.DONE,
-            error=None,
             generated_at=datetime.now(tz=UTC),
         ))
         logger.info("MediaExtraction candidate %d: DONE", candidate_id)

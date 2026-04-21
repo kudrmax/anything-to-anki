@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator  # noqa: TC003 — used at runtime by @contextmanager
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
@@ -75,6 +75,7 @@ from backend.infrastructure.persistence.sqla_candidate_pronunciation_repository 
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
+from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
@@ -177,8 +178,6 @@ class Container:
         if not templates_dir.exists():
             templates_dir = Path("/app/anki-templates")
         self._anki_template_renderer = AnkiTemplateRenderer(templates_dir)
-        # Lazy-created by get_redis_pool()
-        self._redis_pool: Any = None  # arq has no type stubs — Any is justified
         # Session factory — lazy-loaded to avoid circular import with api.dependencies
         self._session_factory: sessionmaker[Session] | None = None
 
@@ -203,6 +202,9 @@ class Container:
             raise
         finally:
             session.close()
+
+    def job_repository(self, session: Session) -> SqlaJobRepository:
+        return SqlaJobRepository(session)
 
     def add_manual_candidate_use_case(self, session: Session) -> AddManualCandidateUseCase:
         return AddManualCandidateUseCase(
@@ -271,9 +273,7 @@ class Container:
         return ReprocessSourceUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
-            meaning_repo=SqlaCandidateMeaningRepository(session),
-            media_repo=SqlaCandidateMediaRepository(session),
-            pronunciation_repo=SqlaCandidatePronunciationRepository(session),
+            job_repo=SqlaJobRepository(session),
             process_source_use_case=self.process_source_use_case(session),
         )
 
@@ -282,9 +282,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             known_word_repo=SqlaKnownWordRepository(session),
-            meaning_repo=SqlaCandidateMeaningRepository(session),
-            media_repo=SqlaCandidateMediaRepository(session),
-            pronunciation_repo=SqlaCandidatePronunciationRepository(session),
+            job_repo=SqlaJobRepository(session),
         )
 
     def get_candidates_use_case(self, session: Session) -> GetCandidatesUseCase:
@@ -411,7 +409,7 @@ class Container:
         from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
         return CleanupMediaUseCase(
             candidate_repo=SqlaCandidateRepository(session),
-            media_repo=SqlaCandidateMediaRepository(session),  # NEW
+            media_repo=SqlaCandidateMediaRepository(session),
             media_root=self._media_root,
         )
 
@@ -423,7 +421,7 @@ class Container:
         )
         return RegenerateCandidateMediaUseCase(
             candidate_repo=SqlaCandidateRepository(session),
-            media_repo=SqlaCandidateMediaRepository(session),  # NEW
+            media_repo=SqlaCandidateMediaRepository(session),
             source_repo=SqlaSourceRepository(session),
             structured_srt_parser=self._srt_parser,
             media_extractor=self._media_extractor,
@@ -450,6 +448,7 @@ class Container:
         return CleanupYoutubeVideoUseCase(
             source_repo=SqlaSourceRepository(session),
             media_repo=SqlaCandidateMediaRepository(session),
+            job_repo=SqlaJobRepository(session),
         )
 
     def candidate_meaning_repository(self, session: Session) -> SqlaCandidateMeaningRepository:
@@ -489,6 +488,7 @@ class Container:
             pronunciation_repo=SqlaCandidatePronunciationRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             settings_repo=SqlaSettingsRepository(session),
+            job_repo=SqlaJobRepository(session),
         )
 
     def enqueue_media_generation_use_case(
@@ -502,6 +502,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
             settings_repo=SqlaSettingsRepository(session),
+            job_repo=SqlaJobRepository(session),
         )
 
     def enqueue_meaning_generation_use_case(
@@ -515,19 +516,5 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
             settings_repo=SqlaSettingsRepository(session),
+            job_repo=SqlaJobRepository(session),
         )
-
-    async def get_redis_pool(self) -> Any:  # noqa: ANN401 — arq has no type stubs
-        """Lazy-init shared ArqRedis pool for enqueueing jobs from FastAPI."""
-        import os
-
-        from arq import create_pool
-        from arq.connections import RedisSettings
-
-        if self._redis_pool is None:
-            self._redis_pool = await create_pool(
-                RedisSettings.from_dsn(
-                    os.environ.get("REDIS_URL", "redis://localhost:6379")
-                )
-            )
-        return self._redis_pool

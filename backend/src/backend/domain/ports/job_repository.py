@@ -83,9 +83,11 @@ class JobRepository(ABC):
     @abstractmethod
     def get_jobs_for_candidates(
         self, candidate_ids: list[int],
-    ) -> dict[int, Job]:
-        """Return {candidate_id: Job} for active jobs matching the given candidates.
-        Used by DTO construction to derive enrichment status."""
+    ) -> dict[int, dict[str, Job]]:
+        """Return {candidate_id: {job_type_value: Job}} for jobs matching the given candidates.
+        Used by DTO construction to derive enrichment status.
+        When multiple jobs exist for the same candidate+type, active (queued/running)
+        takes precedence over failed."""
 
     @abstractmethod
     def get_source_ids_with_active_jobs(

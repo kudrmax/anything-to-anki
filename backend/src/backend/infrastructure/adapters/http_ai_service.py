@@ -81,7 +81,7 @@ class HttpAIService(AIService):
                 # Batch of 15 candidates with 4 output fields (meaning,
                 # translation, synonyms, ipa) can take ~5-7 minutes.
                 # Worker job_timeout is 600s — keep httpx strictly under
-                # it so worker can catch and mark_batch_failed cleanly.
+                # it so worker can catch and mark job as failed cleanly.
                 timeout=540.0,
             )
             response.raise_for_status()
