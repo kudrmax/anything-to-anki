@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -22,6 +23,9 @@ from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.infrastructure.persistence.database import Base
+
+if TYPE_CHECKING:
+    from backend.domain.entities.job import Job
 
 
 class SourceModel(Base):
@@ -444,4 +448,60 @@ class CandidatePronunciationModel(Base):
             status=entity.status.value,
             error=entity.error,
             generated_at=entity.generated_at,
+        )
+
+
+class JobModel(Base):
+    """SQLAlchemy model for the job queue."""
+
+    __tablename__ = "jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_type: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    candidate_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("candidates.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    source_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="queued", index=True,
+    )
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def to_entity(self) -> Job:
+        from backend.domain.entities.job import Job
+        from backend.domain.value_objects.job_status import JobStatus
+        from backend.domain.value_objects.job_type import JobType
+
+        return Job(
+            id=self.id,
+            job_type=JobType(self.job_type),
+            candidate_id=self.candidate_id,
+            source_id=self.source_id,
+            status=JobStatus(self.status),
+            error=self.error,
+            created_at=self.created_at,
+            started_at=self.started_at,
+        )
+
+    @staticmethod
+    def from_entity(entity: Job) -> JobModel:
+        return JobModel(
+            id=entity.id,
+            job_type=entity.job_type.value,
+            candidate_id=entity.candidate_id,
+            source_id=entity.source_id,
+            status=entity.status.value,
+            error=entity.error,
+            created_at=entity.created_at,
+            started_at=entity.started_at,
         )
