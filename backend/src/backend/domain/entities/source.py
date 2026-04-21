@@ -31,7 +31,7 @@ class Source:
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
 
     def reset_to_initial_state(self) -> Source:
-        from backend.domain.value_objects.source_status import SourceStatus as _SS
+        from backend.domain.value_objects.source_status import SourceStatus
 
         return Source(
             id=self.id,
@@ -43,7 +43,7 @@ class Source:
             video_path=self.video_path,
             audio_track_index=self.audio_track_index,
             created_at=self.created_at,
-            status=_SS.NEW,
+            status=SourceStatus.NEW,
         )
 
 
