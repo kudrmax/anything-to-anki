@@ -9,7 +9,7 @@ import bs4
 import requests
 
 
-DEFAULT_REQUESTS_HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64)'}
+DEFAULT_REQUESTS_HEADERS = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
 LINK_PREFIX = "https://dictionary.cambridge.org"
 
 
