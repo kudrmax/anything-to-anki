@@ -129,7 +129,7 @@ export function ReviewPage() {
   const loadCandidates = useCallback(async () => {
     const [cands, cards] = await Promise.all([
       api.getCandidates(sourceId, sortOrder),
-      api.getSourceCards(sourceId).catch(() => [] as CardPreview[]),
+      api.getExportCards(sourceId).then(d => d.sections.flatMap(s => s.cards)).catch(() => [] as CardPreview[]),
     ])
     setCandidates(cands)
     if (hasCandidateVpnErrors(cands)) setVpnBlocked(true)
@@ -156,7 +156,7 @@ export function ReviewPage() {
         setSource(src)
         setCandidates(src.candidates)
         await Promise.all([
-          api.getSourceCards(sourceId).catch(() => [] as CardPreview[]).then((cards) => {
+          api.getExportCards(sourceId).then(d => d.sections.flatMap(s => s.cards)).catch(() => [] as CardPreview[]).then((cards) => {
             const map: Record<number, { screenshotUrl: string | null; audioUrl: string | null }> = {}
             for (const card of cards) {
               map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }

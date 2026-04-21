@@ -27,8 +27,8 @@ export function ExportPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const cardList = await api.getSourceCards(sourceId)
-        setCards(cardList)
+        const data = await api.getExportCards(sourceId)
+        setCards(data.sections.flatMap(s => s.cards))
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load')
       } finally {
@@ -86,8 +86,8 @@ export function ExportPage() {
     setError(null)
     try {
       await api.enqueueMeaningGeneration(sourceId)
-      const updated = await api.getSourceCards(sourceId)
-      setCards(updated)
+      const updated = await api.getExportCards(sourceId)
+      setCards(updated.sections.flatMap(s => s.cards))
       setToast({ text: 'Generation started in background', key: Date.now() })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed')
