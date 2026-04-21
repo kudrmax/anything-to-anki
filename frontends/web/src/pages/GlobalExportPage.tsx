@@ -19,6 +19,8 @@ export function GlobalExportPage() {
   const [generatingAll, setGeneratingAll] = useState(false)
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
 
+  const toolbarSlots = useToolbarSlots()
+
   const totalCards = sections.reduce((sum, s) => sum + s.cards.length, 0)
 
   useEffect(() => {
@@ -108,8 +110,6 @@ export function GlobalExportPage() {
 
   const canSync = ankiStatus?.available === true && totalCards > 0 && !syncing
   const canGenerateAll = totalCards > 0 && !generatingAll && generatingIds.size === 0
-
-  const toolbarSlots = useToolbarSlots()
 
   return (
     <div className="flex-1 overflow-y-auto">
