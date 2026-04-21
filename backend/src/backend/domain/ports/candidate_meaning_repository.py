@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_meaning import CandidateMeaning
     from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+    from backend.domain.value_objects.failed_error_group import FailedErrorGroup
 
 
 class CandidateMeaningRepository(ABC):
@@ -85,3 +86,29 @@ class CandidateMeaningRepository(ABC):
     ) -> list[int]:
         """Return candidate ids from the given source whose meaning row has the given status.
         Used by cancel/retry-failed endpoints."""
+
+    @abstractmethod
+    def count_by_status_global(
+        self,
+        status: EnrichmentStatus,
+        source_id: int | None = None,
+    ) -> int:
+        """Count enrichments with given status across all sources (or one source)."""
+
+    @abstractmethod
+    def get_failed_grouped_by_error(
+        self,
+        source_id: int | None = None,
+    ) -> list[FailedErrorGroup]:
+        """Return failed enrichments grouped by error text.
+
+        Each group includes per-source breakdown and candidate_ids for retry.
+        """
+
+    @abstractmethod
+    def get_candidate_ids_by_error(
+        self,
+        error_text: str,
+        source_id: int | None = None,
+    ) -> list[int]:
+        """Return candidate IDs with a specific error text, for targeted retry."""
