@@ -18,8 +18,10 @@ from backend.application.dto.source_dtos import (  # noqa: TC001
 )
 from backend.domain.exceptions import (
     SourceAlreadyProcessedError,
+    SourceHasActiveJobsError,
     SourceIsProcessingError,
     SourceNotFoundError,
+    SourceNotReprocessableError,
 )
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.dependencies import (
@@ -181,15 +183,18 @@ async def _process_background(
         await asyncio.to_thread(use_case.execute, source_id, on_stage_commit=bg_session.commit)
         bg_session.commit()
     except Exception:
+        logger.exception("Background processing failed (source_id=%d)", source_id)
         bg_session.rollback()
         # Mark source as ERROR in a fresh session
         err_session: Session = session_factory()  # type: ignore[operator]
         try:
+            import traceback
+            error_detail = traceback.format_exc()
             from backend.infrastructure.persistence.sqla_source_repository import (
                 SqlaSourceRepository,
             )
             repo = SqlaSourceRepository(err_session)
-            repo.update_status(source_id, SourceStatus.ERROR, error_message="Processing failed")
+            repo.update_status(source_id, SourceStatus.ERROR, error_message=error_detail[-500:])
             err_session.commit()
         except Exception:
             logger.exception("Failed to mark source %d as ERROR", source_id)
@@ -377,6 +382,48 @@ def get_queue_summary(
             "failed": len(pron_repo.get_candidate_ids_by_status(source_id, fs)),
         },
     }
+
+
+@router.get("/{source_id}/reprocess-stats")
+def get_reprocess_stats(
+    source_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, Any]:
+    try:
+        use_case = container.get_reprocess_stats_use_case(session)
+        stats = use_case.execute(source_id)
+        return {
+            "learn_count": stats.learn_count,
+            "known_count": stats.known_count,
+            "skip_count": stats.skip_count,
+            "pending_count": stats.pending_count,
+            "has_active_jobs": stats.has_active_jobs,
+        }
+    except SourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.post("/{source_id}/reprocess", status_code=202)
+async def reprocess_source(
+    source_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+    session_factory: object = Depends(get_session_factory),  # noqa: B008
+) -> dict[str, str]:
+    try:
+        use_case = container.reprocess_source_use_case(session)
+        use_case.execute(source_id)
+        session.commit()
+    except SourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except SourceNotReprocessableError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except SourceHasActiveJobsError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+    asyncio.create_task(_process_background(source_id, container, session_factory))
+    return {"status": "processing"}
 
 
 @router.get("/{source_id}/candidates")

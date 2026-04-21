@@ -13,6 +13,7 @@ from backend.application.use_cases.generate_meaning import GenerateMeaningUseCas
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
+from backend.application.use_cases.get_reprocess_stats import GetReprocessStatsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
@@ -21,6 +22,7 @@ from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
+from backend.application.use_cases.reprocess_source import ReprocessSourceUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
@@ -263,6 +265,26 @@ class Container:
             },
             structured_srt_parser=self._srt_parser,
             media_repo=SqlaCandidateMediaRepository(session),
+        )
+
+    def reprocess_source_use_case(self, session: Session) -> ReprocessSourceUseCase:
+        return ReprocessSourceUseCase(
+            source_repo=SqlaSourceRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
+            meaning_repo=SqlaCandidateMeaningRepository(session),
+            media_repo=SqlaCandidateMediaRepository(session),
+            pronunciation_repo=SqlaCandidatePronunciationRepository(session),
+            process_source_use_case=self.process_source_use_case(session),
+        )
+
+    def get_reprocess_stats_use_case(self, session: Session) -> GetReprocessStatsUseCase:
+        return GetReprocessStatsUseCase(
+            source_repo=SqlaSourceRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
+            known_word_repo=SqlaKnownWordRepository(session),
+            meaning_repo=SqlaCandidateMeaningRepository(session),
+            media_repo=SqlaCandidateMediaRepository(session),
+            pronunciation_repo=SqlaCandidatePronunciationRepository(session),
         )
 
     def get_candidates_use_case(self, session: Session) -> GetCandidatesUseCase:

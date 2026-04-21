@@ -50,6 +50,22 @@ class SourceAlreadyProcessedError(DomainError):
         self.source_id = source_id
 
 
+class SourceNotReprocessableError(DomainError):
+    """Raised when trying to reprocess a source that is not in a reprocessable status."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Source cannot be reprocessed (wrong status): {source_id}")
+        self.source_id = source_id
+
+
+class SourceHasActiveJobsError(DomainError):
+    """Raised when trying to reprocess a source that has active enrichment jobs."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Source has active enrichment jobs: {source_id}")
+        self.source_id = source_id
+
+
 class InvalidCandidateStatusError(DomainError):
     """Raised when an invalid candidate status is provided."""
 

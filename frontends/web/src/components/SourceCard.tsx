@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Loader2, Pencil, Trash2 } from 'lucide-react'
+import { Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import type { ProcessingStage, SourceStatus, SourceSummary } from '@/api/types'
 
 interface SourceCardProps {
@@ -9,6 +9,7 @@ interface SourceCardProps {
   onExport: (id: number) => void
   onDelete: (id: number) => void
   onRename: (id: number, title: string) => void
+  onReprocess: (id: number) => void
   isProcessingLocal: boolean
 }
 
@@ -53,7 +54,7 @@ const GHOST_BTN = {
   border: '1px solid var(--glass-b)',
 } as const
 
-export function SourceCard({ source, onProcess, onReview, onExport, onDelete, onRename, isProcessingLocal }: SourceCardProps) {
+export function SourceCard({ source, onProcess, onReview, onExport, onDelete, onRename, onReprocess, isProcessingLocal }: SourceCardProps) {
   const badge = STATUS_BADGE[source.status]
   const border = STATUS_BORDER[source.status]
   const isProcessing = source.status === 'processing' || isProcessingLocal
@@ -212,6 +213,16 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
           >
             {badge.label}
           </span>
+          {!isProcessing && (source.status === 'done' || source.status === 'partially_reviewed' || source.status === 'reviewed' || source.status === 'error') && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onReprocess(source.id) }}
+              className="cursor-pointer transition-opacity hover:opacity-100 opacity-40"
+              style={{ background: 'transparent', border: 'none', padding: 0, lineHeight: 0 }}
+              title="Reprocess source"
+            >
+              <RefreshCw size={13} style={{ color: 'var(--fg-muted)' }} />
+            </button>
+          )}
           {!isProcessing && (
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(source.id) }}

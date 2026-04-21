@@ -215,6 +215,14 @@ export interface QueueSummary {
   pronunciation: QueueStatus
 }
 
+export interface ReprocessStats {
+  learn_count: number
+  known_count: number
+  skip_count: number
+  pending_count: number
+  has_active_jobs: boolean
+}
+
 export interface SubtitleTrack {
   index: number
   language: string | null

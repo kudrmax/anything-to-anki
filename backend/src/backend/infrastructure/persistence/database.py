@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 
-from sqlalchemy import create_engine, update
+from sqlalchemy import create_engine, event, update
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from backend.domain.value_objects.source_status import SourceStatus
@@ -36,9 +36,20 @@ def run_alembic_migrations(db_url: str) -> None:
     command.upgrade(cfg, "head")
 
 
+def _enable_sqlite_foreign_keys(dbapi_conn: object, _connection_record: object) -> None:
+    """Enable FK enforcement for every SQLite connection.
+
+    SQLite disables foreign keys by default. Without this, ondelete="CASCADE"
+    on ForeignKey columns is silently ignored."""
+    cursor = dbapi_conn.cursor()  # type: ignore[union-attr]
+    cursor.execute("PRAGMA foreign_keys = ON")
+    cursor.close()
+
+
 def create_session_factory(db_url: str | None = None) -> sessionmaker[Session]:
     """Create a SQLAlchemy session factory."""
     engine = create_engine(db_url or default_db_url(), connect_args={"check_same_thread": False})
+    event.listen(engine, "connect", _enable_sqlite_foreign_keys)
     return sessionmaker(bind=engine)
 
 
