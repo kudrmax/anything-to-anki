@@ -74,6 +74,10 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 В worktree: `make copy-dev-db` (копирует `data/app.db` из main), потом `make up-worktree`. Команда `up-worktree` использует `WORKTREE_PORT`/`WORKTREE_AI_PROXY_PORT` из `.env` и автоматически сносит предыдущий worktree, если он запущен.
 
+> # КРИТИЧЕСКОЕ ПРАВИЛО: контейнеры — только через make
+>
+> **НИКОГДА не запускать `docker compose` / `docker` напрямую.** Только `make up`, `make up-worktree`, `make down`, `make logs` и другие make-команды. Если make-команда не делает то, что нужно (не пересобирает image, не перезапускает worker и т.п.) — **чинить Makefile**, а не обходить его ручными docker-командами.
+
 ---
 
 ## Стандарты кода
