@@ -95,11 +95,16 @@ up: _check_env  ## Запустить (ai_proxy + docker compose)
 	@printf "\033[0m\n"
 
 up-worktree: _check_env  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий worktree)
-	@# Симлинк dictionaries на main worktree (submodule там уже инициализирован)
+	@# Симлинк dictionaries на main worktree (submodule там уже инициализирован).
 	@# В worktree git создаёт пустую директорию dictionaries/ (submodule placeholder),
 	@# поэтому проверяем наличие реальных файлов, а не просто -e.
 	@main=$$(git worktree list --porcelain | head -1 | awk '{print $$2}'); \
-	if [ "$$main" != "$$(pwd)" ] && [ -d "$$main/dictionaries" ] && [ -n "$$(ls -A "$$main/dictionaries" 2>/dev/null)" ]; then \
+	if [ "$$main" != "$$(pwd)" ]; then \
+	    if [ ! -f "$$main/dictionaries/cefr/efllex.tsv" ]; then \
+	        echo "ERROR: dictionaries submodule not initialized in main worktree."; \
+	        echo "Run:  cd $$main && git submodule update --init dictionaries"; \
+	        exit 1; \
+	    fi; \
 	    if [ -d dictionaries ] && [ ! -L dictionaries ] && [ -z "$$(ls -A dictionaries 2>/dev/null)" ]; then \
 	        rmdir dictionaries; \
 	    fi; \
