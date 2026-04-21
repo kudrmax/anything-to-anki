@@ -322,3 +322,36 @@ class SyncToAnkiUseCase:
             total=total, added=added, skipped=skipped, errors=errors,
             skipped_lemmas=skipped_lemmas, error_lemmas=error_lemmas,
         )
+
+    def execute_all(self) -> SyncResultDTO:
+        """Sync all sources with learn candidates to Anki."""
+        all_learn = self._candidate_repo.get_all_by_status(CandidateStatus.LEARN)
+        if not all_learn:
+            return SyncResultDTO(total=0, added=0, skipped=0, errors=0)
+
+        source_ids = list(dict.fromkeys(c.source_id for c in all_learn))
+
+        total = 0
+        added = 0
+        skipped = 0
+        errors = 0
+        skipped_lemmas: list[str] = []
+        error_lemmas: list[str] = []
+
+        for source_id in source_ids:
+            result = self.execute(source_id)
+            total += result.total
+            added += result.added
+            skipped += result.skipped
+            errors += result.errors
+            skipped_lemmas.extend(result.skipped_lemmas)
+            error_lemmas.extend(result.error_lemmas)
+
+        return SyncResultDTO(
+            total=total,
+            added=added,
+            skipped=skipped,
+            errors=errors,
+            skipped_lemmas=skipped_lemmas,
+            error_lemmas=error_lemmas,
+        )
