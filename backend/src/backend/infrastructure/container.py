@@ -135,10 +135,10 @@ class Container:
             dictionaries_dir = Path("/app/dictionaries")
 
         cefr_data_dir = dictionaries_dir / "cefr"
+        oxford_cefr = OxfordCEFRSource(cefr_data_dir / "oxford5000.csv")
         cefr_sources: list[CEFRSource] = [
             CefrpyCEFRSource(),
             EFLLexCEFRSource(cefr_data_dir / "efllex.tsv"),
-            OxfordCEFRSource(cefr_data_dir / "oxford5000.csv"),
             KellyCEFRSource(cefr_data_dir / "kelly.csv"),
         ]
         # One SQLite reader shared by all Cambridge adapters — no JSONL in RAM
@@ -148,7 +148,8 @@ class Container:
         self._cambridge_usage_lookup = CambridgeUsageLookup(self._cambridge_reader)
         self._pronunciation_source = CambridgePronunciationSource(self._cambridge_reader)
         self._cefr_classifier = VotingCEFRClassifier(
-            cefr_sources, priority_source=cambridge_cefr
+            cefr_sources,
+            priority_sources=[oxford_cefr, cambridge_cefr],
         )
         self._frequency_provider = WordfreqFrequencyProvider()
         self._anki_connector = AnkiConnectConnector()

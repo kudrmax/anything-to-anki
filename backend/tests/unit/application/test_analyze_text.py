@@ -64,7 +64,7 @@ def _create_use_case(
     cefr_classifier.classify_detailed.side_effect = lambda lemma, tag: CEFRBreakdown(
         final_level=_cefr.get(lemma, CEFRLevel.A1),
         decision_method="voting",
-        priority_vote=None,
+        priority_votes=[],
         votes=[],
     )
 

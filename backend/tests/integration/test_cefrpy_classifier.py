@@ -57,14 +57,14 @@ class TestVotingCEFRClassifierWithCambridgeIntegration:
 
     def setup_method(self) -> None:
         cambridge_cefr = CambridgeCEFRSource(CambridgeSQLiteReader(CAMBRIDGE_DB_PATH))
+        oxford_cefr = OxfordCEFRSource(DATA_DIR / "oxford5000.csv")
         sources = [
             CefrpyCEFRSource(),
             EFLLexCEFRSource(DATA_DIR / "efllex.tsv"),
-            OxfordCEFRSource(DATA_DIR / "oxford5000.csv"),
             KellyCEFRSource(DATA_DIR / "kelly.csv"),
         ]
         self.classifier = VotingCEFRClassifier(
-            sources, priority_source=cambridge_cefr
+            sources, priority_sources=[oxford_cefr, cambridge_cefr],
         )
 
     def test_common_word_uses_cambridge(self) -> None:

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from backend.domain.ports.cefr_classifier import CEFRClassifier
+from backend.domain.services.cefr_level_resolver import resolve_cefr_level
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
@@ -12,49 +12,41 @@ if TYPE_CHECKING:
 
 
 class VotingCEFRClassifier(CEFRClassifier):
-    """Classifies words by averaging CEFR distributions from multiple sources.
+    """Classifies words using priority sources and weighted voting.
 
-    Optionally accepts a priority_source. If the priority source returns
-    a known level (not UNKNOWN), that level is used directly and voting
-    is skipped. Otherwise, falls back to equal-weight voting.
+    Accepts a list of priority sources checked in order.  The first
+    priority source that returns a known level wins.  If none do,
+    falls back to equal-weight voting among the remaining sources.
+
+    Resolution logic is delegated to ``resolve_cefr_level``.
     """
 
     def __init__(
         self,
         sources: list[CEFRSource],
-        priority_source: CEFRSource | None = None,
+        priority_sources: list[CEFRSource] | None = None,
     ) -> None:
         if not sources:
             raise ValueError("At least one CEFRSource is required")
         self._sources = sources
-        self._priority_source = priority_source
+        self._priority_sources = priority_sources or []
 
     def classify(self, lemma: str, pos_tag: str) -> CEFRLevel:
         return self.classify_detailed(lemma, pos_tag).final_level
 
     def classify_detailed(self, lemma: str, pos_tag: str) -> CEFRBreakdown:
-        priority_vote: SourceVote | None = None
-
-        if self._priority_source is not None:
-            priority_vote = self._build_vote(self._priority_source, lemma, pos_tag)
-
+        priority_votes = [
+            self._build_vote(s, lemma, pos_tag) for s in self._priority_sources
+        ]
         votes = [self._build_vote(s, lemma, pos_tag) for s in self._sources]
 
-        # Priority path: if priority source knows the word, use its answer
-        if priority_vote is not None and priority_vote.top_level is not CEFRLevel.UNKNOWN:
-            return CEFRBreakdown(
-                final_level=priority_vote.top_level,
-                decision_method="priority",
-                priority_vote=priority_vote,
-                votes=votes,
-            )
+        all_votes = [*priority_votes, *votes]
+        final_level, decision_method = resolve_cefr_level(all_votes)
 
-        # Voting path
-        final_level = self._compute_voting_result(votes)
         return CEFRBreakdown(
             final_level=final_level,
-            decision_method="voting",
-            priority_vote=priority_vote,
+            decision_method=decision_method,
+            priority_votes=priority_votes,
             votes=votes,
         )
 
@@ -66,12 +58,3 @@ class VotingCEFRClassifier(CEFRClassifier):
             distribution=distribution,
             top_level=top_level,
         )
-
-    def _compute_voting_result(self, votes: list[SourceVote]) -> CEFRLevel:
-        weight = 1.0 / len(votes)
-        totals: dict[CEFRLevel, float] = defaultdict(float)
-        for vote in votes:
-            for level, prob in vote.distribution.items():
-                totals[level] += prob * weight
-        # Pick level with highest probability; on tie prefer lower level (lower .value)
-        return max(totals, key=lambda lvl: (totals[lvl], -lvl.value))

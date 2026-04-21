@@ -15,15 +15,21 @@ def _make_breakdown() -> CEFRBreakdown:
     return CEFRBreakdown(
         final_level=CEFRLevel.B1,
         decision_method="priority",
-        priority_vote=SourceVote(
-            source_name="Cambridge Dictionary",
-            distribution={CEFRLevel.B1: 1.0},
-            top_level=CEFRLevel.B1,
-        ),
+        priority_votes=[
+            SourceVote(
+                source_name="Oxford 5000",
+                distribution={CEFRLevel.UNKNOWN: 1.0},
+                top_level=CEFRLevel.UNKNOWN,
+            ),
+            SourceVote(
+                source_name="Cambridge Dictionary",
+                distribution={CEFRLevel.B1: 1.0},
+                top_level=CEFRLevel.B1,
+            ),
+        ],
         votes=[
             SourceVote(source_name="CEFRpy", distribution={CEFRLevel.B1: 1.0}, top_level=CEFRLevel.B1),
             SourceVote(source_name="EFLLex", distribution={CEFRLevel.A2: 0.6, CEFRLevel.B1: 0.4}, top_level=CEFRLevel.A2),
-            SourceVote(source_name="Oxford 5000", distribution={CEFRLevel.UNKNOWN: 1.0}, top_level=CEFRLevel.UNKNOWN),
             SourceVote(source_name="Kelly List", distribution={CEFRLevel.UNKNOWN: 1.0}, top_level=CEFRLevel.UNKNOWN),
         ],
     )
@@ -56,9 +62,9 @@ class TestStoredCandidateToDto:
 
         assert dto.cefr_breakdown is not None
         assert dto.cefr_breakdown.decision_method == "priority"
-        assert dto.cefr_breakdown.priority_vote is not None
-        assert dto.cefr_breakdown.priority_vote.source_name == "Cambridge Dictionary"
-        assert len(dto.cefr_breakdown.votes) == 4
+        assert len(dto.cefr_breakdown.priority_votes) == 2
+        assert dto.cefr_breakdown.priority_votes[1].source_name == "Cambridge Dictionary"
+        assert len(dto.cefr_breakdown.votes) == 3
 
     def test_no_breakdown_is_none(self) -> None:
         from backend.application.dto.source_dtos import stored_candidate_to_dto

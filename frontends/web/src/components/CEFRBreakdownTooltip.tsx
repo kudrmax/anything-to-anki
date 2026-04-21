@@ -68,13 +68,16 @@ export function CEFRBreakdownTooltip({ breakdown, cefrLevel, anchorEl, onClose }
     return () => document.removeEventListener('mousedown', handleClick)
   }, [anchorEl, onClose])
 
-  const headerText = breakdown.decision_method === 'priority' && breakdown.priority_vote
-    ? `${cefrLevel}  resolved by ${breakdown.priority_vote.source_name}`
+  const decidingPriority = breakdown.decision_method === 'priority'
+    ? breakdown.priority_votes.find(v => v.level != null)
+    : null
+  const headerText = decidingPriority
+    ? `${cefrLevel}  resolved by ${decidingPriority.source_name}`
     : `${cefrLevel}  vote of ${breakdown.votes.length} sources`
 
   const allVotes: { vote: SourceVote; isPriority: boolean }[] = []
-  if (breakdown.priority_vote) {
-    allVotes.push({ vote: breakdown.priority_vote, isPriority: breakdown.decision_method === 'priority' })
+  for (const v of breakdown.priority_votes) {
+    allVotes.push({ vote: v, isPriority: v === decidingPriority })
   }
   for (const v of breakdown.votes) {
     allVotes.push({ vote: v, isPriority: false })
