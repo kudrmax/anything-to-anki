@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import collections
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from backend.domain.ports.candidate_pronunciation_repository import (
     CandidatePronunciationRepository,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+from backend.domain.value_objects.failed_error_group import FailedErrorGroup, SourceErrorCount
 from backend.infrastructure.persistence.models import (
     CandidatePronunciationModel,
+    SourceModel,
     StoredCandidateModel,
 )
 
@@ -150,4 +153,79 @@ class SqlaCandidatePronunciationRepository(CandidatePronunciationRepository):
                 CandidatePronunciationModel.status == status.value,
             )
         )
+        return [row[0] for row in self._session.execute(stmt).all()]
+
+    def count_by_status_global(
+        self,
+        status: EnrichmentStatus,
+        source_id: int | None = None,
+    ) -> int:
+        stmt = (
+            select(func.count(CandidatePronunciationModel.candidate_id))
+            .join(StoredCandidateModel, StoredCandidateModel.id == CandidatePronunciationModel.candidate_id)
+            .where(CandidatePronunciationModel.status == status.value)
+        )
+        if source_id is not None:
+            stmt = stmt.where(StoredCandidateModel.source_id == source_id)
+        return self._session.execute(stmt).scalar() or 0
+
+    def get_failed_grouped_by_error(
+        self,
+        source_id: int | None = None,
+    ) -> list[FailedErrorGroup]:
+        stmt = (
+            select(
+                CandidatePronunciationModel.candidate_id,
+                CandidatePronunciationModel.error,
+                StoredCandidateModel.source_id,
+                SourceModel.title,
+            )
+            .join(StoredCandidateModel, StoredCandidateModel.id == CandidatePronunciationModel.candidate_id)
+            .join(SourceModel, SourceModel.id == StoredCandidateModel.source_id)
+            .where(CandidatePronunciationModel.status == EnrichmentStatus.FAILED.value)
+        )
+        if source_id is not None:
+            stmt = stmt.where(StoredCandidateModel.source_id == source_id)
+        rows = self._session.execute(stmt).all()
+
+        error_candidate_ids: dict[str, list[int]] = collections.defaultdict(list)
+        error_source_counts: dict[str, dict[int, tuple[str, int]]] = collections.defaultdict(dict)
+
+        for candidate_id, error, src_id, src_title in rows:
+            error_key = error or ""
+            error_candidate_ids[error_key].append(candidate_id)
+            if src_id not in error_source_counts[error_key]:
+                error_source_counts[error_key][src_id] = (src_title or "", 0)
+            title, count = error_source_counts[error_key][src_id]
+            error_source_counts[error_key][src_id] = (title, count + 1)
+
+        result: list[FailedErrorGroup] = []
+        for error_text, candidate_ids in error_candidate_ids.items():
+            source_counts = [
+                SourceErrorCount(source_id=sid, source_title=title, count=cnt)
+                for sid, (title, cnt) in error_source_counts[error_text].items()
+            ]
+            result.append(FailedErrorGroup(
+                error_text=error_text,
+                count=len(candidate_ids),
+                source_counts=source_counts,
+                candidate_ids=candidate_ids,
+            ))
+        return result
+
+    def get_candidate_ids_by_error(
+        self,
+        error_text: str,
+        source_id: int | None = None,
+    ) -> list[int]:
+        stmt = (
+            select(CandidatePronunciationModel.candidate_id)
+            .join(StoredCandidateModel, StoredCandidateModel.id == CandidatePronunciationModel.candidate_id)
+            .where(
+                CandidatePronunciationModel.status == EnrichmentStatus.FAILED.value,
+                CandidatePronunciationModel.error == error_text,
+            )
+        )
+        if source_id is not None:
+            stmt = stmt.where(StoredCandidateModel.source_id == source_id)
         return [row[0] for row in self._session.execute(stmt).all()]
