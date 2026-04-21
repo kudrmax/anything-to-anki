@@ -132,6 +132,16 @@ export interface CardPreview {
   pronunciation_uk_url: string | null
 }
 
+export interface ExportSection {
+  source_id: number
+  source_title: string
+  cards: CardPreview[]
+}
+
+export interface GlobalExport {
+  sections: ExportSection[]
+}
+
 export interface SyncResult {
   total: number
   added: number

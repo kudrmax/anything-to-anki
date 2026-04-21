@@ -20,6 +20,7 @@ def _make_candidate(
     translation: str | None = None,
     synonyms: str | None = None,
     examples: str | None = None,
+    source_id: int = 1,
 ) -> StoredCandidate:
     meaning_obj = None
     if any(v is not None for v in (meaning, ipa, translation, synonyms, examples)):
@@ -36,7 +37,7 @@ def _make_candidate(
         )
     return StoredCandidate(
         id=candidate_id,
-        source_id=1,
+        source_id=source_id,
         lemma=lemma,
         pos="NOUN",
         cefr_level="B2",
@@ -318,6 +319,32 @@ class TestSyncToAnkiUseCase:
         assert "Image" not in note[0]
         assert "Audio" not in note[0]
         self.anki_connector.store_media_file.assert_not_called()
+
+    def test_execute_all_aggregates_results(self) -> None:
+        """execute_all iterates over sources with learn candidates and aggregates."""
+        candidate1 = _make_candidate(10, "burnout", CandidateStatus.LEARN, source_id=1)
+        candidate2 = _make_candidate(20, "pursuit", CandidateStatus.LEARN, source_id=2)
+
+        self.candidate_repo.get_all_by_status.return_value = [candidate1, candidate2]
+        self.candidate_repo.get_by_source.side_effect = lambda sid: {
+            1: [candidate1],
+            2: [candidate2],
+        }[sid]
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        result = self.use_case.execute_all()
+
+        assert result.total == 2
+        assert result.added == 2
+        assert result.errors == 0
+
+    def test_execute_all_empty_when_no_learn(self) -> None:
+        self.candidate_repo.get_all_by_status.return_value = []
+        result = self.use_case.execute_all()
+        assert result.total == 0
+        assert result.added == 0
 
     def test_translation_and_synonyms_from_candidate(self) -> None:
         self.candidate_repo.get_by_source.return_value = [

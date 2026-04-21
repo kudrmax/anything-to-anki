@@ -1,13 +1,13 @@
 import type {
   AnkiStatus,
   AnkiTemplates,
-  CardPreview,
   CandidateSortOrder,
   CandidateStatus,
   CleanupMediaKind,
   CreateNoteTypeResponse,
   FollowUpAction,
   GenerateMeaningResult,
+  GlobalExport,
   KnownWord,
   QueueSummary,
   Settings,
@@ -87,10 +87,14 @@ export const api = {
 
   getAnkiStatus: () => req<AnkiStatus>('/anki/status'),
 
-  getSourceCards: (id: number) => req<CardPreview[]>(`/sources/${id}/cards`),
+  getExportCards: (sourceId?: number) =>
+    req<GlobalExport>(sourceId != null ? `/export/cards/${sourceId}` : '/export/cards'),
 
-  syncToAnki: (id: number) =>
-    req<SyncResult>(`/sources/${id}/sync-to-anki`, { method: 'POST' }),
+  syncToAnki: (sourceId?: number) =>
+    req<SyncResult>(
+      sourceId != null ? `/export/sync-to-anki/${sourceId}` : '/export/sync-to-anki',
+      { method: 'POST' },
+    ),
 
   getSettings: () => req<Settings>('/api/settings'),
 

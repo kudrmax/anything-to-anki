@@ -1,19 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { Loader2, Sparkles } from 'lucide-react'
 import { api } from '@/api/client'
-import type { CardPreview, SyncResult } from '@/api/types'
+import type { ExportSection, SyncResult } from '@/api/types'
 import { useToolbarSlots } from '@/lib/useToolbarSlot'
 import { useAnkiStatus } from '@/hooks/useAnkiStatus'
 import { CardList } from '@/components/CardList'
 
-export function ExportPage() {
-  const { id } = useParams<{ id: string }>()
-  const sourceId = Number(id)
-
+export function GlobalExportPage() {
   const ankiStatus = useAnkiStatus()
-  const [cards, setCards] = useState<CardPreview[]>([])
+  const [sections, setSections] = useState<ExportSection[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [result, setResult] = useState<SyncResult | null>(null)
@@ -23,11 +19,15 @@ export function ExportPage() {
   const [generatingAll, setGeneratingAll] = useState(false)
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
 
+  const toolbarSlots = useToolbarSlots()
+
+  const totalCards = sections.reduce((sum, s) => sum + s.cards.length, 0)
+
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await api.getExportCards(sourceId)
-        setCards(data.sections.flatMap(s => s.cards))
+        const data = await api.getExportCards()
+        setSections(data.sections)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load')
       } finally {
@@ -35,38 +35,41 @@ export function ExportPage() {
       }
     }
     void load()
-  }, [sourceId])
+  }, [])
 
   const handleSync = useCallback(async () => {
     setSyncing(true)
     setError(null)
     try {
-      const res = await api.syncToAnki(sourceId)
+      const res = await api.syncToAnki()
       setResult(res)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sync failed')
     } finally {
       setSyncing(false)
     }
-  }, [sourceId])
+  }, [])
 
   const handleGenerate = useCallback(async (candidateId: number) => {
     setGeneratingIds((prev) => new Set(prev).add(candidateId))
     try {
       const res = await api.generateMeaning(candidateId)
-      setCards((prev) =>
-        prev.map((c) =>
-          c.candidate_id === candidateId
-            ? {
-                ...c,
-                meaning: res.meaning,
-                translation: res.translation,
-                synonyms: res.synonyms,
-                examples: res.examples,
-                ipa: res.ipa,
-              }
-            : c,
-        ),
+      setSections((prev) =>
+        prev.map((section) => ({
+          ...section,
+          cards: section.cards.map((c) =>
+            c.candidate_id === candidateId
+              ? {
+                  ...c,
+                  meaning: res.meaning,
+                  translation: res.translation,
+                  synonyms: res.synonyms,
+                  examples: res.examples,
+                  ipa: res.ipa,
+                }
+              : c,
+          ),
+        })),
       )
       setToast({ text: `Tokens used: ${res.tokens_used}`, key: Date.now() })
     } catch (e) {
@@ -84,16 +87,18 @@ export function ExportPage() {
     setGeneratingAll(true)
     setError(null)
     try {
-      await api.enqueueMeaningGeneration(sourceId)
-      const updated = await api.getExportCards(sourceId)
-      setCards(updated.sections.flatMap(s => s.cards))
+      for (const section of sections) {
+        await api.enqueueMeaningGeneration(section.source_id)
+      }
+      const updated = await api.getExportCards()
+      setSections(updated.sections)
       setToast({ text: 'Generation started in background', key: Date.now() })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed')
     } finally {
       setGeneratingAll(false)
     }
-  }, [sourceId])
+  }, [sections])
 
   if (loading) {
     return (
@@ -103,10 +108,8 @@ export function ExportPage() {
     )
   }
 
-  const canSync = ankiStatus?.available === true && cards.length > 0 && !syncing
-  const canGenerateAll = cards.length > 0 && !generatingAll && generatingIds.size === 0
-
-  const toolbarSlots = useToolbarSlots()
+  const canSync = ankiStatus?.available === true && totalCards > 0 && !syncing
+  const canGenerateAll = totalCards > 0 && !generatingAll && generatingIds.size === 0
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -135,14 +138,21 @@ export function ExportPage() {
 
       <main className="mx-auto max-w-2xl px-4 py-8 flex flex-col gap-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>
-            Cards to export{cards.length > 0 && ` (${cards.length})`}
-          </h2>
+          <div>
+            <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>
+              Cards to export{totalCards > 0 && ` (${totalCards})`}
+            </h2>
+            {sections.length > 0 && (
+              <p className="text-xs mt-0.5" style={{ color: 'var(--td)' }}>
+                from {sections.length} source{sections.length !== 1 && 's'}
+              </p>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             {!ankiStatus?.available && (
               <p className="text-xs" style={{ color: 'var(--td)' }}>Launch Anki with AnkiConnect to sync</p>
             )}
-            {cards.length > 0 && (
+            {totalCards > 0 && (
               <button
                 onClick={handleGenerateAll}
                 disabled={!canGenerateAll}
@@ -160,7 +170,7 @@ export function ExportPage() {
           </div>
         </div>
 
-        {cards.length === 0 ? (
+        {totalCards === 0 ? (
           <div className="rounded-xl border border-dashed p-8 text-center" style={{ borderColor: 'var(--glass-b)' }}>
             <p className="text-sm" style={{ color: 'var(--td)' }}>No words marked for learning.</p>
             <p className="text-xs mt-1" style={{ color: 'var(--td)', opacity: 0.7 }}>
@@ -168,11 +178,21 @@ export function ExportPage() {
             </p>
           </div>
         ) : (
-          <CardList
-            cards={cards}
-            generatingIds={generatingIds}
-            onGenerate={(id) => void handleGenerate(id)}
-          />
+          sections.map((section) => (
+            <div key={section.source_id} className="flex flex-col gap-3">
+              <h3 className="text-xs font-medium uppercase tracking-wider flex items-center gap-2" style={{ color: 'var(--td)' }}>
+                <span>{section.source_title}</span>
+                <span className="glass-pill" style={{ fontSize: '10px', padding: '2px 8px' }}>
+                  {section.cards.length}
+                </span>
+              </h3>
+              <CardList
+                cards={section.cards}
+                generatingIds={generatingIds}
+                onGenerate={(id) => void handleGenerate(id)}
+              />
+            </div>
+          ))
         )}
 
         {result && (
@@ -203,7 +223,7 @@ export function ExportPage() {
 
         {error && <p className="text-xs text-rose-400">{error}</p>}
 
-        {cards.length > 0 && (
+        {totalCards > 0 && (
           <button
             onClick={handleSync}
             disabled={!canSync}
@@ -211,7 +231,7 @@ export function ExportPage() {
             style={{ gap: '6px' }}
           >
             {syncing && <Loader2 size={14} className="animate-spin" />}
-            {syncing ? 'Syncing…' : 'Add to Anki'}
+            {syncing ? 'Syncing…' : `Add to Anki · ${totalCards} cards`}
           </button>
         )}
       </main>

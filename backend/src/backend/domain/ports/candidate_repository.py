@@ -36,3 +36,7 @@ class CandidateRepository(ABC):
 
     @abstractmethod
     def delete_by_source(self, source_id: int) -> None: ...
+
+    @abstractmethod
+    def get_all_by_status(self, status: CandidateStatus) -> list[StoredCandidate]:
+        """Return all candidates with the given status, across all sources."""
