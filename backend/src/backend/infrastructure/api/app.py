@@ -14,6 +14,7 @@ from backend.infrastructure.api.dependencies import get_session_factory
 from backend.infrastructure.api.routes import (
     anki,
     candidates,
+    export,
     generation,
     known_words,
     settings,
@@ -60,6 +61,7 @@ app.include_router(candidates.router)
 app.include_router(known_words.router)
 app.include_router(settings.router)
 app.include_router(anki.router)
+app.include_router(export.router)
 app.include_router(stats.router)
 app.include_router(generation.router)
 app.include_router(pronunciation_router)

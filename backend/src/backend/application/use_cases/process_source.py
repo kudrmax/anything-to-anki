@@ -3,19 +3,18 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from backend.application.dto.analysis_dtos import AnalyzeTextRequest
-from backend.application.dto.analysis_dtos import dto_to_usage_distribution
+from backend.application.dto.analysis_dtos import AnalyzeTextRequest, dto_to_usage_distribution
 from backend.application.dto.cefr_dtos import dto_to_breakdown
 from backend.application.utils.timecode_mapping import find_timecodes
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceAlreadyProcessedError, SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
 
 if TYPE_CHECKING:
     from collections.abc import Callable
