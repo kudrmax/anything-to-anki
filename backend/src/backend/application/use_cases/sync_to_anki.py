@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.anki_connector import AnkiConnector
     from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.settings_repository import SettingsRepository
 
 _DEFAULT_NOTE_TYPE: str = "AnythingToAnkiType"
@@ -44,12 +45,14 @@ class SyncToAnkiUseCase:
         settings_repo: SettingsRepository,
         anki_sync_repo: AnkiSyncRepository,
         template_renderer: AnkiTemplateRenderer,
+        known_word_repo: KnownWordRepository,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._connector = anki_connector
         self._settings_repo = settings_repo
         self._anki_sync_repo = anki_sync_repo
         self._template_renderer = template_renderer
+        self._known_word_repo = known_word_repo
 
     def execute(self, source_id: int) -> SyncResultDTO:
         deck_name = self._settings_repo.get("anki_deck_name", _DEFAULT_DECK) or _DEFAULT_DECK
@@ -266,12 +269,14 @@ class SyncToAnkiUseCase:
                 )
                 if results and results[0] is not None:
                     self._anki_sync_repo.mark_synced(candidate.id, results[0])  # type: ignore[arg-type]
+                    self._known_word_repo.add(candidate.lemma, candidate.pos)
                     added += 1
                 else:
                     # Note rejected (allowDuplicate=False) — check if it already exists
                     existing = self._connector.find_notes_by_target(deck_name, candidate.lemma)
                     if existing:
                         self._anki_sync_repo.mark_synced(candidate.id, existing[0])  # type: ignore[arg-type]
+                        self._known_word_repo.add(candidate.lemma, candidate.pos)
                         skipped += 1
                         skipped_lemmas.append(candidate.lemma)
                     else:
@@ -284,6 +289,7 @@ class SyncToAnkiUseCase:
                     existing = self._connector.find_notes_by_target(deck_name, candidate.lemma)
                     if existing:
                         self._anki_sync_repo.mark_synced(candidate.id, existing[0])  # type: ignore[arg-type]
+                        self._known_word_repo.add(candidate.lemma, candidate.pos)
                         skipped += 1
                         skipped_lemmas.append(candidate.lemma)
                         logger.info(

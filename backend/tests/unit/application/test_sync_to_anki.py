@@ -58,6 +58,7 @@ class TestSyncToAnkiUseCase:
         self.settings_repo = MagicMock()
         self.anki_sync_repo = MagicMock()
         self.template_renderer = MagicMock()
+        self.known_word_repo = MagicMock()
         self.template_renderer.render_all.return_value = {
             "front": "<front/>",
             "back": "<back/>",
@@ -71,6 +72,7 @@ class TestSyncToAnkiUseCase:
             settings_repo=self.settings_repo,
             anki_sync_repo=self.anki_sync_repo,
             template_renderer=self.template_renderer,
+            known_word_repo=self.known_word_repo,
         )
 
     def test_returns_zero_when_no_learn_candidates(self) -> None:
@@ -104,6 +106,9 @@ class TestSyncToAnkiUseCase:
         assert result.added == 2
         assert result.skipped == 0
         assert result.errors == 0
+        assert self.known_word_repo.add.call_count == 2
+        self.known_word_repo.add.assert_any_call("burnout", "NOUN")
+        self.known_word_repo.add.assert_any_call("relentless", "NOUN")
 
     def test_skips_already_synced_candidates(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -149,6 +154,7 @@ class TestSyncToAnkiUseCase:
         self.use_case.execute(source_id=1)
 
         self.anki_sync_repo.mark_synced.assert_called_once_with(1, 12345)
+        self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
 
     def test_counts_as_skipped_when_note_already_exists_in_anki(self) -> None:
         # add_notes returns None (allowDuplicate=False), but note exists in Anki
@@ -166,6 +172,7 @@ class TestSyncToAnkiUseCase:
         assert result.skipped_lemmas == ["burnout"]
         assert result.errors == 0
         self.anki_sync_repo.mark_synced.assert_called_once_with(1, 99999)
+        self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
 
     def test_counts_errors_when_add_fails_and_note_not_found(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -181,6 +188,7 @@ class TestSyncToAnkiUseCase:
         assert result.errors == 1
         assert result.error_lemmas == ["burnout"]
         self.anki_sync_repo.mark_synced.assert_not_called()
+        self.known_word_repo.add.assert_not_called()
 
     def test_duplicate_exception_marks_synced_and_counts_as_skipped(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -199,6 +207,7 @@ class TestSyncToAnkiUseCase:
         assert result.skipped_lemmas == ["burnout"]
         assert result.errors == 0
         self.anki_sync_repo.mark_synced.assert_called_once_with(1, 99999)
+        self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
 
     def test_counts_errors_on_exception(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -213,6 +222,7 @@ class TestSyncToAnkiUseCase:
         assert result.errors == 1
         assert result.error_lemmas == ["burnout"]
         self.anki_sync_repo.mark_synced.assert_not_called()
+        self.known_word_repo.add.assert_not_called()
 
     def test_meaning_from_candidate(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
