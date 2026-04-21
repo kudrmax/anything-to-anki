@@ -5,7 +5,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from backend.domain.exceptions import SubtitlesNotAvailableError
 from backend.domain.value_objects.input_method import InputMethod
 from backend.infrastructure.adapters.ytdlp_subtitle_fetcher import YtDlpSubtitleFetcher
@@ -52,18 +51,17 @@ class TestYtDlpSubtitleFetcherFetch:
             mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
             mock_ydl.__exit__ = MagicMock(return_value=False)
 
-            with patch("yt_dlp.YoutubeDL", return_value=mock_ydl):
-                with patch(
-                    "tempfile.TemporaryDirectory"
-                ) as mock_tmpdir_cls:
-                    mock_ctx = MagicMock()
-                    mock_ctx.__enter__ = MagicMock(return_value=real_tmpdir)
-                    mock_ctx.__exit__ = MagicMock(return_value=False)
-                    mock_tmpdir_cls.return_value = mock_ctx
+            with patch("yt_dlp.YoutubeDL", return_value=mock_ydl), patch(
+                "tempfile.TemporaryDirectory"
+            ) as mock_tmpdir_cls:
+                mock_ctx = MagicMock()
+                mock_ctx.__enter__ = MagicMock(return_value=real_tmpdir)
+                mock_ctx.__exit__ = MagicMock(return_value=False)
+                mock_tmpdir_cls.return_value = mock_ctx
 
-                    result = self.fetcher.fetch_subtitles(
-                        "https://youtube.com/watch?v=abc"
-                    )
+                result = self.fetcher.fetch_subtitles(
+                    "https://youtube.com/watch?v=abc"
+                )
 
         assert result.srt_text == srt_content
         assert result.title == "Test Video"
@@ -77,19 +75,18 @@ class TestYtDlpSubtitleFetcherFetch:
             mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
             mock_ydl.__exit__ = MagicMock(return_value=False)
 
-            with patch("yt_dlp.YoutubeDL", return_value=mock_ydl):
-                with patch(
-                    "tempfile.TemporaryDirectory"
-                ) as mock_tmpdir_cls:
-                    mock_ctx = MagicMock()
-                    mock_ctx.__enter__ = MagicMock(return_value=real_tmpdir)
-                    mock_ctx.__exit__ = MagicMock(return_value=False)
-                    mock_tmpdir_cls.return_value = mock_ctx
+            with patch("yt_dlp.YoutubeDL", return_value=mock_ydl), patch(
+                "tempfile.TemporaryDirectory"
+            ) as mock_tmpdir_cls:
+                mock_ctx = MagicMock()
+                mock_ctx.__enter__ = MagicMock(return_value=real_tmpdir)
+                mock_ctx.__exit__ = MagicMock(return_value=False)
+                mock_tmpdir_cls.return_value = mock_ctx
 
-                    with pytest.raises(SubtitlesNotAvailableError):
-                        self.fetcher.fetch_subtitles(
-                            "https://youtube.com/watch?v=abc"
-                        )
+                with pytest.raises(SubtitlesNotAvailableError):
+                    self.fetcher.fetch_subtitles(
+                        "https://youtube.com/watch?v=abc"
+                    )
 
     def test_fetch_extract_info_returns_none(self) -> None:
         """extract_info returns None → SubtitlesNotAvailableError."""

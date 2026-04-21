@@ -6,12 +6,12 @@ from pathlib import Path
 import pytest
 from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
+from backend.infrastructure.adapters.cambridge.sqlite_reader import CambridgeSQLiteReader
 from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
 from backend.infrastructure.adapters.efllex_cefr_source import EFLLexCEFRSource
 from backend.infrastructure.adapters.kelly_cefr_source import KellyCEFRSource
 from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
-from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
-from backend.infrastructure.adapters.cambridge.sqlite_reader import CambridgeSQLiteReader
 
 DATA_DIR = Path(__file__).resolve().parents[3] / "dictionaries" / "cefr"
 CAMBRIDGE_DB_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / "cambridge.db"

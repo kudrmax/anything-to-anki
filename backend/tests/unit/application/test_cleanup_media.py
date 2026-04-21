@@ -7,7 +7,6 @@ import pytest
 from backend.application.dto.media_dtos import CleanupMediaKind
 from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
 from backend.domain.entities.candidate_media import CandidateMedia
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -22,8 +21,6 @@ def _make_candidate(cid: int, screenshot_path: str | None, audio_path: str | Non
         audio_path=audio_path,
         start_ms=1000,
         end_ms=2000,
-        status=EnrichmentStatus.DONE,
-        error=None,
         generated_at=None,
     )
     return c

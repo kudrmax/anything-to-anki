@@ -8,7 +8,6 @@ from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.prompts_config import PromptsConfig
 
 _CONFIG = PromptsConfig(
@@ -27,8 +26,6 @@ def _make_candidate(cid: int, lemma: str, *, with_meaning: bool = False) -> Stor
             synonyms=None,
             examples=None,
             ipa=None,
-            status=EnrichmentStatus.DONE,
-            error=None,
             generated_at=None,
         )
     return StoredCandidate(
@@ -46,20 +43,6 @@ def _make_candidate(cid: int, lemma: str, *, with_meaning: bool = False) -> Stor
         is_phrasal_verb=False,
         meaning=meaning,
         media=None,
-    )
-
-
-def _running_meaning(cid: int) -> CandidateMeaning:
-    return CandidateMeaning(
-        candidate_id=cid,
-        meaning=None,
-        translation=None,
-        synonyms=None,
-        examples=None,
-        ipa=None,
-        status=EnrichmentStatus.RUNNING,
-        error=None,
-        generated_at=None,
     )
 
 
@@ -89,7 +72,6 @@ def test_execute_batch_happy_path() -> None:
     candidate_repo.get_by_ids.return_value = [c1, c2]
 
     meaning_repo = MagicMock()
-    meaning_repo.get_by_candidate_id.side_effect = lambda cid: _running_meaning(cid)
 
     ai_service = MagicMock()
     ai_service.generate_meanings_batch.return_value = [
@@ -136,8 +118,6 @@ def test_execute_batch_happy_path() -> None:
     assert by_id[1].synonyms == "explain, elaborate"
     assert by_id[2].translation == "неохотный"
     assert by_id[2].synonyms == "hesitant, unwilling"
-    assert by_id[1].status == EnrichmentStatus.DONE
-    assert by_id[2].status == EnrichmentStatus.DONE
 
 
 @pytest.mark.unit
@@ -149,7 +129,6 @@ def test_execute_batch_skips_candidates_with_meaning() -> None:
     candidate_repo.get_by_ids.return_value = [c1, c2]
 
     meaning_repo = MagicMock()
-    meaning_repo.get_by_candidate_id.side_effect = lambda cid: _running_meaning(cid)
 
     ai_service = MagicMock()
     ai_service.generate_meanings_batch.return_value = [
@@ -221,7 +200,6 @@ def test_execute_batch_skips_candidate_without_ai_result() -> None:
     candidate_repo.get_by_ids.return_value = [c1, c2]
 
     meaning_repo = MagicMock()
-    meaning_repo.get_by_candidate_id.side_effect = lambda cid: _running_meaning(cid)
 
     ai_service = MagicMock()
     # Only one result, for word_index=1 — word_index=2 is missing.
@@ -247,47 +225,3 @@ def test_execute_batch_skips_candidate_without_ai_result() -> None:
     # Only c1 should be upserted; c2 silently skipped.
     assert meaning_repo.upsert.call_count == 1
     assert meaning_repo.upsert.call_args.args[0].candidate_id == 1
-
-
-@pytest.mark.unit
-def test_execute_batch_skips_cancelled_candidate() -> None:
-    c1 = _make_candidate(1, "elaborate")
-
-    candidate_repo = MagicMock()
-    candidate_repo.get_by_ids.return_value = [c1]
-
-    cancelled = CandidateMeaning(
-        candidate_id=1,
-        meaning=None,
-        translation=None,
-        synonyms=None,
-        examples=None,
-        ipa=None,
-        status=EnrichmentStatus.FAILED,
-        error="cancelled by user",
-        generated_at=None,
-    )
-    meaning_repo = MagicMock()
-    meaning_repo.get_by_candidate_id.return_value = cancelled
-
-    ai_service = MagicMock()
-    ai_service.generate_meanings_batch.return_value = [
-        BatchMeaningResult(
-            word_index=1,
-            meaning="explain more",
-            translation="объяснить",
-            synonyms="explain, elaborate",
-            examples="",
-            ipa=None,
-        ),
-    ]
-
-    use_case = MeaningGenerationUseCase(
-        candidate_repo=candidate_repo,
-        meaning_repo=meaning_repo,
-        ai_service=ai_service,
-        prompts_config=_CONFIG,
-    )
-    use_case.execute_batch([1])
-
-    meaning_repo.upsert.assert_not_called()

@@ -7,7 +7,6 @@ from backend.domain.entities.candidate_pronunciation import CandidatePronunciati
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.usage_distribution import UsageDistribution
 
 
@@ -48,8 +47,6 @@ class TestGetCandidatesUseCase:
             candidate_id=1,
             us_audio_path="/audio/us/test.mp3",
             uk_audio_path="/audio/uk/test.mp3",
-            status=EnrichmentStatus.DONE,
-            error=None,
             generated_at=None,
         )
         candidate = StoredCandidate(
@@ -63,7 +60,7 @@ class TestGetCandidatesUseCase:
         assert dto.pronunciation is not None
         assert dto.pronunciation.us_audio_path == "/audio/us/test.mp3"
         assert dto.pronunciation.uk_audio_path == "/audio/uk/test.mp3"
-        assert dto.pronunciation.status == EnrichmentStatus.DONE.value
+        assert dto.pronunciation.status == "done"
 
     def test_to_dto_maps_frequency_band_mid(self) -> None:
         candidate = StoredCandidate(

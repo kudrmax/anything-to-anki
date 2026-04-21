@@ -4,7 +4,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.domain.value_objects.candidate_status import CandidateStatus

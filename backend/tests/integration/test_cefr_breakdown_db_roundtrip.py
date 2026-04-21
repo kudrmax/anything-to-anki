@@ -5,8 +5,6 @@ StoredCandidate with breakdown → StoredCandidateModel (DB) → StoredCandidate
 from __future__ import annotations
 
 import pytest
-from sqlalchemy.orm import Session
-
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
@@ -14,6 +12,7 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
+from sqlalchemy.orm import Session
 
 
 def _make_breakdown() -> CEFRBreakdown:
@@ -160,7 +159,10 @@ class TestCEFRBreakdownDBRoundtrip:
 
     def test_breakdown_cascade_delete(self, db_session: Session) -> None:
         """Deleting candidate should cascade-delete breakdown."""
-        from backend.infrastructure.persistence.models import CEFRBreakdownModel, StoredCandidateModel
+        from backend.infrastructure.persistence.models import (
+            CEFRBreakdownModel,
+            StoredCandidateModel,
+        )
 
         repo = SqlaCandidateRepository(db_session)
         candidate = StoredCandidate(

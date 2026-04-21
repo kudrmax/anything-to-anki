@@ -6,8 +6,8 @@ and add_manual_candidate because _to_dto functions didn't include cefr_breakdown
 from __future__ import annotations
 
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
 

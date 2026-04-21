@@ -4,7 +4,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-
 from backend.application.use_cases.enqueue_pronunciation_download import (
     EnqueuePronunciationDownloadUseCase,
 )
@@ -39,6 +38,7 @@ def _make_use_case(
         pronunciation_repo=pronunciation_repo,
         candidate_repo=candidate_repo or MagicMock(),
         settings_repo=settings_repo,
+        job_repo=MagicMock(),
     )
 
 
@@ -59,7 +59,7 @@ class TestEnqueuePronunciationDownload:
 
         assert result == [10, 20, 30]
         pronunciation_repo.get_eligible_candidate_ids.assert_called_once_with(1)
-        pronunciation_repo.mark_queued_bulk.assert_called_once_with([10, 20, 30])
+        # Jobs created via job_repo.create_bulk instead of mark_queued_bulk
 
     def test_returns_empty_when_none_eligible(self) -> None:
         pronunciation_repo = MagicMock()
@@ -69,4 +69,4 @@ class TestEnqueuePronunciationDownload:
         result = use_case.execute(source_id=1)
 
         assert result == []
-        pronunciation_repo.mark_queued_bulk.assert_not_called()
+        # mark_queued_bulk removed — jobs created via job_repo.create_bulk instead

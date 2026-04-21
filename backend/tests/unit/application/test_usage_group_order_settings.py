@@ -1,6 +1,6 @@
 import pytest
-from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
+from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 
 
 class FakeSettingsRepo:

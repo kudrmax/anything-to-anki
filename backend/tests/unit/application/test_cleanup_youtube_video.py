@@ -8,7 +8,6 @@ from backend.application.use_cases.cleanup_youtube_video import CleanupYoutubeVi
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.source import Source
 from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 
@@ -24,15 +23,13 @@ def _make_source(input_method: InputMethod = InputMethod.YOUTUBE_URL) -> Source:
     )
 
 
-def _make_media(status: EnrichmentStatus = EnrichmentStatus.DONE) -> CandidateMedia:
+def _make_media(screenshot_path: str | None = "/tmp/s.webp") -> CandidateMedia:
     return CandidateMedia(
         candidate_id=10,
-        screenshot_path="/tmp/s.webp",
+        screenshot_path=screenshot_path,
         audio_path="/tmp/a.m4a",
         start_ms=0,
         end_ms=1000,
-        status=status,
-        error=None,
         generated_at=None,
     )
 
@@ -41,9 +38,11 @@ class TestCleanupYoutubeVideo:
     def setup_method(self) -> None:
         self.source_repo = MagicMock()
         self.media_repo = MagicMock()
+        self.job_repo = MagicMock()
         self.use_case = CleanupYoutubeVideoUseCase(
             source_repo=self.source_repo,
             media_repo=self.media_repo,
+            job_repo=self.job_repo,
         )
 
     def test_deletes_video_when_all_media_done(self) -> None:
@@ -52,9 +51,10 @@ class TestCleanupYoutubeVideo:
         source = _make_source()
         source.video_path = tmp_path
         self.source_repo.get_by_id.return_value = source
+        self.job_repo.has_active_jobs_for_source.return_value = False
         self.media_repo.get_all_by_source_id.return_value = [
-            _make_media(EnrichmentStatus.DONE),
-            _make_media(EnrichmentStatus.DONE),
+            _make_media("/tmp/s1.webp"),
+            _make_media("/tmp/s2.webp"),
         ]
         self.use_case.execute(1)
         assert not os.path.exists(tmp_path)
@@ -63,17 +63,13 @@ class TestCleanupYoutubeVideo:
     def test_skips_if_not_youtube(self) -> None:
         source = _make_source(InputMethod.VIDEO_FILE)
         self.source_repo.get_by_id.return_value = source
-        self.media_repo.get_all_by_source_id.return_value = [_make_media()]
         self.use_case.execute(1)
         self.source_repo.update_video_path.assert_not_called()
 
-    def test_skips_if_media_not_all_done(self) -> None:
+    def test_skips_if_active_jobs(self) -> None:
         source = _make_source()
         self.source_repo.get_by_id.return_value = source
-        self.media_repo.get_all_by_source_id.return_value = [
-            _make_media(EnrichmentStatus.DONE),
-            _make_media(EnrichmentStatus.RUNNING),
-        ]
+        self.job_repo.has_active_jobs_for_source.return_value = True
         self.use_case.execute(1)
         self.source_repo.update_video_path.assert_not_called()
 

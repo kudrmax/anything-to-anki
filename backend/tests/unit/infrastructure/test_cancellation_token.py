@@ -3,7 +3,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-
 from backend.domain.exceptions import CancelledByUser
 from backend.infrastructure.queue.cancellation_token import CancellationToken
 

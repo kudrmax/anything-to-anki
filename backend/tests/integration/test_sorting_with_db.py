@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy.orm import Session
-
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.candidate_sorting import sort_by_relevance, sort_chronologically
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+from sqlalchemy.orm import Session
 
 
 def _make_candidate(

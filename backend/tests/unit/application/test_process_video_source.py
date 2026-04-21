@@ -8,9 +8,9 @@ from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.parsed_srt import ParsedSrt
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.parsed_srt import ParsedSrt
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.subtitle_block import SubtitleBlock
 

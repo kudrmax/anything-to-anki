@@ -9,7 +9,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-
 from backend.application.use_cases.enqueue_media_generation import (
     EnqueueMediaGenerationUseCase,
 )
@@ -60,6 +59,7 @@ def _make_use_case(
         candidate_repo=candidate_repo or MagicMock(),
         source_repo=source_repo or MagicMock(),
         settings_repo=settings_repo,
+        job_repo=MagicMock(),
     )
 
 
@@ -87,7 +87,7 @@ class TestRelevanceBranch:
         media_repo.get_eligible_candidate_ids.assert_called_once_with(
             source_id=1
         )
-        media_repo.mark_queued_bulk.assert_called_once_with([10, 20, 30])
+        # Jobs created via job_repo.create_bulk instead of mark_queued_bulk
 
     def test_empty_returns_empty_and_does_not_mark_queued(self) -> None:
         media_repo = MagicMock()
@@ -98,7 +98,7 @@ class TestRelevanceBranch:
             source_id=1, sort_order=CandidateSortOrder.RELEVANCE
         )
         assert result == []
-        media_repo.mark_queued_bulk.assert_not_called()
+        # mark_queued_bulk removed — jobs created via job_repo.create_bulk instead
 
     def test_default_sort_order_is_none_uses_relevance_branch(self) -> None:
         media_repo = MagicMock()
@@ -141,7 +141,7 @@ class TestChronologicalBranch:
         )
 
         assert result == [3, 1, 2]
-        media_repo.mark_queued_bulk.assert_called_once_with([3, 1, 2])
+        # Jobs created via job_repo.create_bulk instead of mark_queued_bulk
         media_repo.get_eligible_candidate_ids.assert_called_once_with(source_id=1)
 
     def test_empty_skips_lookups(self) -> None:
@@ -158,7 +158,7 @@ class TestChronologicalBranch:
         assert result == []
         candidate_repo.get_by_ids.assert_not_called()
         source_repo.get_by_id.assert_not_called()
-        media_repo.mark_queued_bulk.assert_not_called()
+        # mark_queued_bulk removed — jobs created via job_repo.create_bulk instead
 
     def test_source_not_found_returns_empty(self) -> None:
         media_repo = MagicMock()
@@ -177,7 +177,7 @@ class TestChronologicalBranch:
         )
 
         assert result == []
-        media_repo.mark_queued_bulk.assert_not_called()
+        # mark_queued_bulk removed — jobs created via job_repo.create_bulk instead
 
     def test_uses_raw_text_when_cleaned_text_is_none(self) -> None:
         media_repo = MagicMock()

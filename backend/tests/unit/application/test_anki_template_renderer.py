@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 
 

@@ -4,7 +4,6 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
@@ -110,8 +109,6 @@ class TestCandidateRepository:
                 synonyms=None,
                 examples=None,
                 ipa=None,
-                status=EnrichmentStatus.DONE,
-                error=None,
                 generated_at=None,
             ))
 

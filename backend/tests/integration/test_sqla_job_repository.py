@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import text
-from sqlalchemy.orm import Session
-
 from backend.domain.entities.job import Job
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 
 def _insert_source(session: Session, source_id: int) -> None:
@@ -338,8 +337,8 @@ class TestSqlaJobRepository:
         mapping = repo.get_jobs_for_candidates([1, 2])
         assert 1 in mapping
         assert 2 in mapping
-        assert mapping[1].status == JobStatus.QUEUED
-        assert mapping[2].status == JobStatus.FAILED
+        assert mapping[1]["meaning"].status == JobStatus.QUEUED
+        assert mapping[2]["meaning"].status == JobStatus.FAILED
 
     def test_get_jobs_for_candidates_prefers_active_over_failed(
         self, db_session: Session,
@@ -355,7 +354,7 @@ class TestSqlaJobRepository:
         ])
 
         mapping = repo.get_jobs_for_candidates([1])
-        assert mapping[1].status == JobStatus.QUEUED
+        assert mapping[1]["meaning"].status == JobStatus.QUEUED
 
     def test_get_jobs_for_candidates_empty_list(
         self, db_session: Session,

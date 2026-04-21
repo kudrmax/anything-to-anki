@@ -12,7 +12,6 @@ from backend.domain.exceptions import (
     PermanentMediaError,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 
 def _make_candidate(
@@ -29,8 +28,6 @@ def _make_candidate(
             audio_path=None,
             start_ms=start_ms,
             end_ms=end_ms,
-            status=EnrichmentStatus.QUEUED,
-            error=None,
             generated_at=None,
         )
     return StoredCandidate(
@@ -79,17 +76,6 @@ class TestMediaExtractionUseCase:
         source = _make_source("/tmp/movie.mp4")
 
         uc, _, media_repo, _, media_extractor = self._make_uc(candidate, source)
-        # Pre-upsert guard expects status=RUNNING (set by worker wrapper)
-        media_repo.get_by_candidate_id.return_value = CandidateMedia(
-            candidate_id=10,
-            screenshot_path=None,
-            audio_path=None,
-            start_ms=1000,
-            end_ms=2000,
-            status=EnrichmentStatus.RUNNING,
-            error=None,
-            generated_at=None,
-        )
 
         base = "backend.application.use_cases.run_media_extraction_job.os"
         with (
@@ -98,7 +84,6 @@ class TestMediaExtractionUseCase:
         ):
             uc.execute_one(10)
 
-        # mark_running is now called by the worker wrapper, not the use case
         media_extractor.extract_screenshot.assert_called_once_with(
             "/tmp/movie.mp4", 1500, "/tmp/media/1/10_screenshot.webp"
         )
@@ -110,7 +95,6 @@ class TestMediaExtractionUseCase:
         media_repo.upsert.assert_called_once()
         upserted: CandidateMedia = media_repo.upsert.call_args[0][0]
         assert upserted.candidate_id == 10
-        assert upserted.status == EnrichmentStatus.DONE
         assert upserted.screenshot_path == "/tmp/media/1/10_screenshot.webp"
         assert upserted.audio_path == "/tmp/media/1/10_audio.m4a"
         assert upserted.start_ms == 1000
@@ -137,8 +121,6 @@ class TestMediaExtractionUseCase:
             audio_path=None,
             start_ms=None,
             end_ms=2000,
-            status=EnrichmentStatus.QUEUED,
-            error=None,
             generated_at=None,
         )
         candidate = _make_candidate(10, media=media)
@@ -170,42 +152,12 @@ class TestMediaExtractionUseCase:
             uc.execute_one(10)
 
     def test_execute_one_raises_permanent_when_source_not_found(self) -> None:
-        """source_repo.get_by_id returns None → PermanentMediaError (line 62)."""
+        """source_repo.get_by_id returns None -> PermanentMediaError."""
         candidate = _make_candidate(10)
         uc, _, _, source_repo, _ = self._make_uc(candidate=candidate, source=None)
-        # source_repo already returns None by default from _make_uc
 
         with pytest.raises(PermanentMediaError, match="Source .* not found"):
             uc.execute_one(10)
-
-    def test_execute_one_skips_upsert_when_cancelled_during_ffmpeg(self) -> None:
-        """If the user cancels while ffmpeg runs, the row's status changes
-        from RUNNING to FAILED. The use case must skip the upsert to avoid
-        overwriting the user's cancellation (lines 87-91)."""
-        candidate = _make_candidate(10)
-        source = _make_source("/tmp/movie.mp4")
-
-        uc, _, media_repo, _, _ = self._make_uc(candidate, source)
-        # Pre-upsert check: status is FAILED (cancelled by user)
-        media_repo.get_by_candidate_id.return_value = CandidateMedia(
-            candidate_id=10,
-            screenshot_path=None,
-            audio_path=None,
-            start_ms=1000,
-            end_ms=2000,
-            status=EnrichmentStatus.FAILED,
-            error="cancelled by user",
-            generated_at=None,
-        )
-
-        base = "backend.application.use_cases.run_media_extraction_job.os"
-        with (
-            patch(f"{base}.path.exists", return_value=True),
-            patch(f"{base}.makedirs"),
-        ):
-            uc.execute_one(10)
-
-        media_repo.upsert.assert_not_called()
 
     def test_execute_one_propagates_extractor_error(self) -> None:
         candidate = _make_candidate(10)

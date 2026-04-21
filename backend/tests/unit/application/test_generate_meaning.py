@@ -5,11 +5,10 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
+from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import CandidateNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.entities.candidate_meaning import CandidateMeaning
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.generation_result import GenerationResult
 from backend.domain.value_objects.prompts_config import PromptsConfig
 
@@ -80,7 +79,6 @@ def test_generate_meaning_happy_path() -> None:
     assert upserted.meaning == "explain in detail"
     assert upserted.translation == "разъяснить"
     assert upserted.synonyms == "explain, clarify"
-    assert upserted.status == EnrichmentStatus.DONE
     assert isinstance(upserted.generated_at, datetime)
 
 
@@ -108,8 +106,6 @@ def _existing_meaning(cid: int = 1) -> CandidateMeaning:
         synonyms="explain, clarify",
         examples="Some example",
         ipa="/ɪˈlæb.ə.reɪt/",
-        status=EnrichmentStatus.DONE,
-        error=None,
         generated_at=None,
     )
 
