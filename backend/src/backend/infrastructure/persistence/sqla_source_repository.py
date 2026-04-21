@@ -33,6 +33,23 @@ class SqlaSourceRepository(SourceRepository):
         models = self._session.query(SourceModel).order_by(SourceModel.created_at.desc()).all()
         return [m.to_entity() for m in models]
 
+    def update_source(self, source: Source) -> None:
+        if source.id is None:
+            return
+        model = self._session.get(SourceModel, source.id)
+        if model is None:
+            return
+        model.status = source.status.value
+        model.cleaned_text = source.cleaned_text
+        model.error_message = source.error_message
+        model.processing_stage = source.processing_stage.value if source.processing_stage else None
+        model.title = source.title
+        model.raw_text = source.raw_text
+        model.source_url = source.source_url
+        model.video_path = source.video_path
+        model.audio_track_index = source.audio_track_index
+        self._session.flush()
+
     def update_title(self, source_id: int, title: str) -> None:
         model = self._session.get(SourceModel, source_id)
         if model is None:

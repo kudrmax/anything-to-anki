@@ -33,6 +33,10 @@ class SourceRepository(ABC):
     ) -> None: ...
 
     @abstractmethod
+    def update_source(self, source: Source) -> None:
+        """Persist all fields of the source. Used by reprocessing to reset derived fields."""
+
+    @abstractmethod
     def update_title(self, source_id: int, title: str) -> None: ...
 
     @abstractmethod
