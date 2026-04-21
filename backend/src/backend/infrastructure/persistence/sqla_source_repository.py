@@ -71,6 +71,16 @@ class SqlaSourceRepository(SourceRepository):
             self._session.delete(model)
             self._session.flush()
 
+    def get_title_map(self, source_ids: list[int]) -> dict[int, str]:
+        if not source_ids:
+            return {}
+        models = (
+            self._session.query(SourceModel.id, SourceModel.title)
+            .filter(SourceModel.id.in_(source_ids))
+            .all()
+        )
+        return {row.id: (row.title or "") for row in models}
+
     def update_status(
         self,
         source_id: int,
