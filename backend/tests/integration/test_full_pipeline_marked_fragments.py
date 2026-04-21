@@ -31,7 +31,7 @@ from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
 from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
 from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
-from backend.infrastructure.adapters.cambridge.parser import parse_cambridge_jsonl
+from backend.infrastructure.adapters.cambridge.sqlite_reader import CambridgeSQLiteReader
 from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
 from backend.infrastructure.adapters.efllex_cefr_source import EFLLexCEFRSource
 from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
@@ -53,12 +53,12 @@ USER_LEVEL = "A1"  # matches the level used when the source was originally analy
 
 
 CEFR_DATA_DIR = Path(__file__).resolve().parents[3] / "dictionaries" / "cefr"
-CAMBRIDGE_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / "cambridge.jsonl"
+CAMBRIDGE_DB_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / "cambridge.db"
 
 
 def _make_classifier() -> VotingCEFRClassifier:
-    cambridge_data = parse_cambridge_jsonl(CAMBRIDGE_PATH)
-    cambridge_cefr = CambridgeCEFRSource.from_data(cambridge_data)
+    reader = CambridgeSQLiteReader(CAMBRIDGE_DB_PATH)
+    cambridge_cefr = CambridgeCEFRSource(reader)
     sources = [
         CefrpyCEFRSource(),
         EFLLexCEFRSource(CEFR_DATA_DIR / "efllex.tsv"),

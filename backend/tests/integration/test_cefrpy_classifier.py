@@ -11,9 +11,10 @@ from backend.infrastructure.adapters.efllex_cefr_source import EFLLexCEFRSource
 from backend.infrastructure.adapters.kelly_cefr_source import KellyCEFRSource
 from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
 from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
+from backend.infrastructure.adapters.cambridge.sqlite_reader import CambridgeSQLiteReader
 
 DATA_DIR = Path(__file__).resolve().parents[3] / "dictionaries" / "cefr"
-CAMBRIDGE_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / "cambridge.jsonl"
+CAMBRIDGE_DB_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / "cambridge.db"
 
 
 @pytest.mark.integration
@@ -55,7 +56,7 @@ class TestVotingCEFRClassifierWithCambridgeIntegration:
     """Full integration: Cambridge priority + 4 fallback sources."""
 
     def setup_method(self) -> None:
-        cambridge_cefr = CambridgeCEFRSource(CAMBRIDGE_PATH)
+        cambridge_cefr = CambridgeCEFRSource(CambridgeSQLiteReader(CAMBRIDGE_DB_PATH))
         sources = [
             CefrpyCEFRSource(),
             EFLLexCEFRSource(DATA_DIR / "efllex.tsv"),

@@ -21,15 +21,15 @@ from backend.infrastructure.adapters.kelly_cefr_source import KellyCEFRSource
 from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
 
 DATA_DIR = Path(__file__).resolve().parents[3] / "dictionaries" / "cefr"
-CAMBRIDGE_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / "cambridge.jsonl"
+CAMBRIDGE_DB_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / "cambridge.db"
 
 
 def _make_classifier() -> VotingCEFRClassifier:
     from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
-    from backend.infrastructure.adapters.cambridge.parser import parse_cambridge_jsonl
+    from backend.infrastructure.adapters.cambridge.sqlite_reader import CambridgeSQLiteReader
 
-    cambridge_data = parse_cambridge_jsonl(CAMBRIDGE_PATH)
-    cambridge_cefr = CambridgeCEFRSource.from_data(cambridge_data)
+    reader = CambridgeSQLiteReader(CAMBRIDGE_DB_PATH)
+    cambridge_cefr = CambridgeCEFRSource(reader)
     sources = [
         CefrpyCEFRSource(),
         EFLLexCEFRSource(DATA_DIR / "efllex.tsv"),
