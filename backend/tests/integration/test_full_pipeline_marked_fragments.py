@@ -121,7 +121,7 @@ WAVE_1_HPMOR: list[tuple[str, str, str]] = [
     (
         "288_arbiter",
         "arbiter",
-        "science is that the final arbiter is observation",
+        "the final arbiter is observation - that you just have to look at the world and report what you see",
     ),
     (
         "305_plot",
@@ -175,7 +175,6 @@ WAVE_1_LYRICS: list[tuple[str, str, str]] = [
         "believe in this Citadel to the Ricks and Mortys",
     ),
     ("525_defame", "defame", "Defamed by the fake news"),
-    ("552_leave", "leave", "left for a Morty without"),
     (
         "554_cause",
         "cause",

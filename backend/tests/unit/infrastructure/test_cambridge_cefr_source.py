@@ -26,28 +26,28 @@ class TestCambridgeCEFRSource:
         result = source.get_distribution("run", "VB")
         assert result == {CEFRLevel.A1: 1.0}
 
-    def test_median_of_multiple_senses(self, tmp_path: Path) -> None:
-        """[A1, A1, B1] -> median = A1 (index 1 of 3, lower-middle)."""
+    def test_primary_sense_used(self, tmp_path: Path) -> None:
+        """First sense level is used regardless of other senses."""
         source = _make_source(tmp_path, [
             {"word": "run", "pos": ["verb"], "senses": [
-                {"level": "A1"}, {"level": "A1"}, {"level": "B1"},
+                {"level": "A1"}, {"level": "B2"}, {"level": "C1"},
             ]},
         ])
         result = source.get_distribution("run", "VB")
         assert result == {CEFRLevel.A1: 1.0}
 
-    def test_median_even_count_picks_lower(self, tmp_path: Path) -> None:
-        """[A1, B1, B2, C1] -> median of 4 = index 1 (lower-middle) = B1."""
+    def test_primary_sense_higher_than_others(self, tmp_path: Path) -> None:
+        """First sense level wins even if it's higher than others."""
         source = _make_source(tmp_path, [
             {"word": "go", "pos": ["verb"], "senses": [
-                {"level": "A1"}, {"level": "B1"}, {"level": "B2"}, {"level": "C1"},
+                {"level": "B2"}, {"level": "A1"}, {"level": "A2"},
             ]},
         ])
         result = source.get_distribution("go", "VB")
-        assert result == {CEFRLevel.B1: 1.0}
+        assert result == {CEFRLevel.B2: 1.0}
 
-    def test_senses_without_level_ignored(self, tmp_path: Path) -> None:
-        """Only senses with non-empty level participate in median."""
+    def test_senses_without_level_skipped(self, tmp_path: Path) -> None:
+        """Empty-level senses are filtered out; first non-empty is used."""
         source = _make_source(tmp_path, [
             {"word": "set", "pos": ["verb"], "senses": [
                 {"level": ""}, {"level": "A2"}, {"level": ""},
@@ -97,13 +97,13 @@ class TestCambridgeCEFRSource:
         result = source.get_distribution("light", "MD")
         assert result == {CEFRLevel.B1: 1.0}
 
-    def test_multiple_entries_levels_aggregated(self, tmp_path: Path) -> None:
-        """Levels from all matching entries are combined for median."""
+    def test_multiple_entries_first_sense_wins(self, tmp_path: Path) -> None:
+        """First sense across all matching entries is used."""
         source = _make_source(tmp_path, [
             {"word": "run", "pos": ["verb"], "senses": [
                 {"level": "A1"}, {"level": "B2"},
             ]},
-            {"word": "run", "pos": ["verb"], "senses": [{"level": "A1"}]},
+            {"word": "run", "pos": ["verb"], "senses": [{"level": "C1"}]},
         ])
         result = source.get_distribution("run", "VB")
         assert result == {CEFRLevel.A1: 1.0}

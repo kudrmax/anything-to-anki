@@ -10,7 +10,12 @@ if TYPE_CHECKING:
 
 
 class CambridgeCEFRSource(CEFRSource):
-    """CEFR source backed by Cambridge Dictionary SQLite data."""
+    """CEFR source backed by Cambridge Dictionary SQLite data.
+
+    Uses the level of the first sense (primary meaning) as returned by
+    Cambridge Dictionary.  Senses are stored in dictionary order where
+    the first sense is the most common usage.
+    """
 
     def __init__(self, reader: CambridgeSQLiteReader) -> None:
         self._reader = reader
@@ -24,21 +29,10 @@ class CambridgeCEFRSource(CEFRSource):
         if not level_strings:
             return {CEFRLevel.UNKNOWN: 1.0}
 
-        levels: list[CEFRLevel] = []
-        for s in level_strings:
-            try:
-                levels.append(CEFRLevel.from_str(s))
-            except ValueError:
-                continue
-
-        if not levels:
+        # First sense = primary meaning in Cambridge order
+        try:
+            primary_level = CEFRLevel.from_str(level_strings[0])
+        except ValueError:
             return {CEFRLevel.UNKNOWN: 1.0}
 
-        median = self._compute_median(levels)
-        return {median: 1.0}
-
-    @staticmethod
-    def _compute_median(levels: list[CEFRLevel]) -> CEFRLevel:
-        sorted_levels = sorted(levels, key=lambda lvl: lvl.value)
-        mid = (len(sorted_levels) - 1) // 2
-        return sorted_levels[mid]
+        return {primary_level: 1.0}

@@ -95,6 +95,7 @@ class CambridgeSQLiteReader:
                 JOIN entries e ON e.id = s.entry_id
                 WHERE e.word = ? AND e.pos LIKE ?
                 AND s.level != ''
+                ORDER BY s.id
                 """,
                 (word, f'%"{cambridge_pos}"%'),
             )
@@ -104,6 +105,7 @@ class CambridgeSQLiteReader:
                 SELECT s.level FROM senses s
                 JOIN entries e ON e.id = s.entry_id
                 WHERE e.word = ? AND s.level != ''
+                ORDER BY s.id
                 """,
                 (word,),
             )
