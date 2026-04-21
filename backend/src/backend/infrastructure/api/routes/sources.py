@@ -183,15 +183,18 @@ async def _process_background(
         await asyncio.to_thread(use_case.execute, source_id, on_stage_commit=bg_session.commit)
         bg_session.commit()
     except Exception:
+        logger.exception("Background processing failed (source_id=%d)", source_id)
         bg_session.rollback()
         # Mark source as ERROR in a fresh session
         err_session: Session = session_factory()  # type: ignore[operator]
         try:
+            import traceback
+            error_detail = traceback.format_exc()
             from backend.infrastructure.persistence.sqla_source_repository import (
                 SqlaSourceRepository,
             )
             repo = SqlaSourceRepository(err_session)
-            repo.update_status(source_id, SourceStatus.ERROR, error_message="Processing failed")
+            repo.update_status(source_id, SourceStatus.ERROR, error_message=error_detail[-500:])
             err_session.commit()
         except Exception:
             logger.exception("Failed to mark source %d as ERROR", source_id)
