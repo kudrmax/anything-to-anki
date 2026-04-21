@@ -39,25 +39,66 @@ def sort_by_relevance(
     candidates: list[StoredCandidate],
     usage_order: list[str] | None = None,
 ) -> list[StoredCandidate]:
-    """Sort candidates by relevance for learning.
+    """Sort candidates by relevance for learning, with phrasal verbs interleaved.
 
     Priority (all within the same level win over the next level):
     1. frequency_band DESC — more frequent bands first
-    2. is_phrasal_verb DESC — phrasal verbs first within same band
-    3. usage_rank ASC — higher-priority usage group first (if usage_order given)
-    4. cefr_level ASC — easier levels first; None sorts after C2
-    5. occurrences DESC — more occurrences in source text first
+    2. usage_rank ASC — higher-priority usage group first (if usage_order given)
+    3. cefr_level ASC — easier levels first; None sorts after C2
+    4. occurrences DESC — more occurrences in source text first
+
+    After sorting, phrasal verbs are spread evenly across the list
+    to avoid long monotonous runs of the same type.
     """
-    return sorted(
+    base = sorted(
         candidates,
         key=lambda c: (
             -c.frequency_band.value,
-            not c.is_phrasal_verb,
             _usage_sort_key(c, usage_order),
             _cefr_sort_key(c.cefr_level),
             -c.occurrences,
         ),
     )
+    return _interleave_phrasal(base)
+
+
+def _interleave_phrasal(
+    candidates: list[StoredCandidate],
+) -> list[StoredCandidate]:
+    """Spread phrasal verbs evenly among regular candidates.
+
+    Both streams preserve their relative order from the input list.
+    """
+    phrasal = [c for c in candidates if c.is_phrasal_verb]
+    regular = [c for c in candidates if not c.is_phrasal_verb]
+
+    if not phrasal or not regular:
+        return candidates
+
+    total = len(candidates)
+    step = total / len(phrasal)
+
+    # Pre-compute phrasal slot positions, offset by half-step to center them
+    phrasal_positions: set[int] = set()
+    for pi in range(len(phrasal)):
+        phrasal_positions.add(int((pi + 0.5) * step))
+
+    result: list[StoredCandidate] = []
+    pi = 0  # phrasal index
+    ri = 0  # regular index
+
+    for i in range(total):
+        if pi < len(phrasal) and i in phrasal_positions and i == int((pi + 0.5) * step):
+            result.append(phrasal[pi])
+            pi += 1
+        elif ri < len(regular):
+            result.append(regular[ri])
+            ri += 1
+        else:
+            result.append(phrasal[pi])
+            pi += 1
+
+    return result
 
 
 def sort_chronologically(

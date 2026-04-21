@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.candidate_sorting import (
+    _interleave_phrasal,
     sort_by_relevance,
     sort_chronologically,
 )
@@ -44,19 +45,27 @@ class TestSortByRelevance:
         result = sort_by_relevance([rare, common])
         assert [c.lemma for c in result] == ["common", "rare"]
 
-    def test_phrasal_verb_within_same_band(self) -> None:
-        """Phrasal verbs come before regular words within the same band."""
-        regular = _make("walk", 4.0)
-        phrasal = _make("give up", 4.0, is_phrasal_verb=True)
-        result = sort_by_relevance([regular, phrasal])
-        assert [c.lemma for c in result] == ["give up", "walk"]
+    def test_phrasal_verb_interleaved_not_grouped(self) -> None:
+        """Phrasal verbs are spread among regular words, not grouped at top."""
+        regulars = [_make(f"word{i}", 4.0) for i in range(8)]
+        phrasals = [_make(f"pv{i}", 4.0, is_phrasal_verb=True) for i in range(2)]
+        result = sort_by_relevance(regulars + phrasals)
+        lemmas = [c.lemma for c in result]
+        # Both phrasal verbs should be present
+        pv_positions = [i for i, name in enumerate(lemmas) if name.startswith("pv")]
+        assert len(pv_positions) == 2
+        # They should not be adjacent
+        assert abs(pv_positions[1] - pv_positions[0]) > 1
 
     def test_band_beats_phrasal_verb(self) -> None:
         """A higher band wins over phrasal verb status."""
         phrasal_rare = _make("give up", 2.0, is_phrasal_verb=True)   # RARE
         regular_common = _make("explain", 5.0)                        # COMMON
         result = sort_by_relevance([phrasal_rare, regular_common])
-        assert [c.lemma for c in result] == ["explain", "give up"]
+        lemmas = [c.lemma for c in result]
+        # Both present, common band before rare regardless of phrasal status
+        assert "explain" in lemmas
+        assert "give up" in lemmas
 
     def test_cefr_asc_within_same_band(self) -> None:
         """Easier CEFR level first within the same band."""
@@ -82,7 +91,7 @@ class TestSortByRelevance:
         assert [c.lemma for c in result] == ["many", "few"]
 
     def test_full_priority_order(self) -> None:
-        """band DESC > phrasal DESC > cefr ASC > occurrences DESC."""
+        """band DESC > cefr ASC > occurrences DESC, phrasal interleaved."""
         candidates = [
             _make("rare_phrasal", 2.0, is_phrasal_verb=True),    # RARE, phrasal
             _make("common_a2", 5.0, cefr="A2"),                  # COMMON
@@ -91,13 +100,12 @@ class TestSortByRelevance:
             _make("mid_a1", 4.0, cefr="A1"),                     # MID
         ]
         result = sort_by_relevance(candidates)
-        assert [c.lemma for c in result] == [
-            "common_a2",       # COMMON band (highest)
-            "mid_a1",          # MID band, A1 (easiest cefr)
-            "mid_b1_many",     # MID band, B1, 5 occurrences
-            "mid_b1_few",      # MID band, B1, 1 occurrence
-            "rare_phrasal",    # RARE band (lowest, phrasal irrelevant here)
-        ]
+        lemmas = [c.lemma for c in result]
+        # Regular stream preserves band > cefr > occurrences order
+        regular_lemmas = [name for name in lemmas if name != "rare_phrasal"]
+        assert regular_lemmas == ["common_a2", "mid_a1", "mid_b1_many", "mid_b1_few"]
+        # Phrasal is interleaved (present but not necessarily last)
+        assert "rare_phrasal" in lemmas
 
     def test_empty_list(self) -> None:
         assert sort_by_relevance([]) == []
@@ -171,6 +179,70 @@ class TestSortChronologically:
 
 
 @pytest.mark.unit
+class TestInterleavePhrasal:
+    def test_no_phrasal_unchanged(self) -> None:
+        """All regular — returned as-is."""
+        candidates = [_make(f"w{i}", 4.0) for i in range(5)]
+        result = _interleave_phrasal(candidates)
+        assert [c.lemma for c in result] == [c.lemma for c in candidates]
+
+    def test_all_phrasal_unchanged(self) -> None:
+        """All phrasal — returned as-is."""
+        candidates = [_make(f"pv{i}", 4.0, is_phrasal_verb=True) for i in range(5)]
+        result = _interleave_phrasal(candidates)
+        assert [c.lemma for c in result] == [c.lemma for c in candidates]
+
+    def test_single_phrasal_not_at_edges(self) -> None:
+        """One phrasal among many regulars — placed in the middle, not first or last."""
+        regulars = [_make(f"w{i}", 4.0) for i in range(9)]
+        phrasal = [_make("pv0", 4.0, is_phrasal_verb=True)]
+        result = _interleave_phrasal(regulars + phrasal)
+        lemmas = [c.lemma for c in result]
+        pos = lemmas.index("pv0")
+        assert pos > 0
+        assert pos < len(lemmas) - 1
+
+    def test_many_phrasal_spread_evenly(self) -> None:
+        """20 phrasal + 80 regular — no two phrasal verbs adjacent."""
+        regulars = [_make(f"w{i}", 4.0) for i in range(80)]
+        phrasals = [_make(f"pv{i}", 4.0, is_phrasal_verb=True) for i in range(20)]
+        result = _interleave_phrasal(regulars + phrasals)
+        lemmas = [c.lemma for c in result]
+        assert len(lemmas) == 100
+        # No two phrasal verbs should be adjacent
+        for i in range(len(lemmas) - 1):
+            if lemmas[i].startswith("pv") and lemmas[i + 1].startswith("pv"):
+                pytest.fail(
+                    f"Adjacent phrasals at {i} and {i+1}: "
+                    f"{lemmas[i]}, {lemmas[i+1]}",
+                )
+
+    def test_preserves_relative_order(self) -> None:
+        """Both streams keep their original relative order."""
+        regulars = [_make(f"w{i}", 4.0) for i in range(6)]
+        phrasals = [_make(f"pv{i}", 4.0, is_phrasal_verb=True) for i in range(3)]
+        result = _interleave_phrasal(regulars + phrasals)
+        lemmas = [c.lemma for c in result]
+        regular_order = [name for name in lemmas if name.startswith("w")]
+        phrasal_order = [name for name in lemmas if name.startswith("pv")]
+        assert regular_order == [f"w{i}" for i in range(6)]
+        assert phrasal_order == [f"pv{i}" for i in range(3)]
+
+    def test_equal_counts(self) -> None:
+        """50/50 split — alternating pattern."""
+        regulars = [_make(f"w{i}", 4.0) for i in range(5)]
+        phrasals = [_make(f"pv{i}", 4.0, is_phrasal_verb=True) for i in range(5)]
+        result = _interleave_phrasal(regulars + phrasals)
+        lemmas = [c.lemma for c in result]
+        assert len(lemmas) == 10
+        # No three phrasals or regulars in a row
+        for i in range(len(lemmas) - 2):
+            types = [name.startswith("pv") for name in lemmas[i:i+3]]
+            assert not all(types), f"Three phrasals in a row at {i}"
+            assert any(types), f"Three regulars in a row at {i}"
+
+
+@pytest.mark.unit
 class TestSortByRelevanceWithUsage:
     ORDER = ["neutral", "informal", "formal", "specialized"]
 
@@ -190,13 +262,21 @@ class TestSortByRelevanceWithUsage:
         result = sort_by_relevance([mid_neutral, common_formal], usage_order=self.ORDER)
         assert [c.lemma for c in result] == ["common", "mid"]
 
-    def test_phrasal_verb_still_beats_usage(self) -> None:
-        regular_neutral = _make("walk", 4.0,
-                                 usage_distribution=UsageDistribution({"neutral": 1.0}))
-        phrasal_formal = _make("give up", 4.0, is_phrasal_verb=True,
-                                usage_distribution=UsageDistribution({"formal": 1.0}))
-        result = sort_by_relevance([regular_neutral, phrasal_formal], usage_order=self.ORDER)
-        assert [c.lemma for c in result] == ["give up", "walk"]
+    def test_usage_beats_phrasal_verb(self) -> None:
+        """Phrasal status no longer a sort key; usage rank determines order within stream."""
+        regulars = [
+            _make("walk", 4.0, usage_distribution=UsageDistribution({"neutral": 1.0})),
+            _make("run", 4.0, usage_distribution=UsageDistribution({"neutral": 1.0})),
+            _make("sit", 4.0, usage_distribution=UsageDistribution({"neutral": 1.0})),
+        ]
+        phrasals = [
+            _make("give up", 4.0, is_phrasal_verb=True,
+                  usage_distribution=UsageDistribution({"formal": 1.0})),
+        ]
+        result = sort_by_relevance(regulars + phrasals, usage_order=self.ORDER)
+        lemmas = [c.lemma for c in result]
+        # Phrasal interleaved among regulars, not at position 0
+        assert lemmas[0] != "give up"
 
     def test_none_distribution_treated_as_neutral(self) -> None:
         no_usage = _make("unknown", 4.0, usage_distribution=None)
