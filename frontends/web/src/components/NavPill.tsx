@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Settings } from 'lucide-react'
+import { ArrowLeft, Download, Settings } from 'lucide-react'
 
 const ENV_NAME = import.meta.env.VITE_INSTANCE_ENV_NAME as string | undefined
 const IS_PROD = ENV_NAME === 'prod'
@@ -28,6 +28,7 @@ export function CenterBrand() {
   const { pathname } = useLocation()
   const isHome = pathname === '/'
   const isSettings = pathname === '/settings'
+  const isExport = pathname === '/export'
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -58,6 +59,14 @@ export function CenterBrand() {
           </span>
         )}
       </button>
+      {!isExport && (
+        <button
+          onClick={() => navigate('/export')}
+          className="glass-pill cursor-pointer"
+        >
+          <Download size={12} style={{ color: 'var(--td)' }} />
+        </button>
+      )}
       {!isSettings && (
         <button
           onClick={() => navigate('/settings')}
