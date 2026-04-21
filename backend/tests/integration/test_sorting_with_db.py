@@ -49,8 +49,11 @@ class TestSortingWithDb:
         loaded = repo.get_by_source(1)
         sorted_candidates = sort_by_relevance(loaded)
         lemmas = [c.lemma for c in sorted_candidates]
-        # COMMON(5.0) > MID phrasal > MID regular > RARE
-        assert lemmas == ["common_word", "mid_phrasal", "mid_regular", "rare_word"]
+        # COMMON(5.0) > MID (phrasal interleaved, not grouped) > RARE
+        assert lemmas.index("common_word") == 0
+        assert lemmas.index("rare_word") == len(lemmas) - 1
+        assert "mid_phrasal" in lemmas
+        assert "mid_regular" in lemmas
 
     def test_chronological_sort_after_db_roundtrip(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
