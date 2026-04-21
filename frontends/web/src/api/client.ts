@@ -10,6 +10,7 @@ import type {
   GlobalExport,
   KnownWord,
   QueueSummary,
+  ReprocessStats,
   Settings,
   SourceDetail,
   SourceMediaStats,
@@ -160,6 +161,12 @@ export const api = {
 
   getQueueSummary: (sourceId: number) =>
     req<QueueSummary>(`/sources/${sourceId}/queue-summary`),
+
+  getReprocessStats: (sourceId: number) =>
+    req<ReprocessStats>(`/sources/${sourceId}/reprocess-stats`),
+
+  reprocessSource: (sourceId: number) =>
+    req<{ status: string }>(`/sources/${sourceId}/reprocess`, { method: 'POST' }),
 
   getStats: () => req<Stats>('/stats'),
 
