@@ -121,8 +121,8 @@ class ArqQueueInspector(QueueInspectorPort):
     ) -> list[QueuedJobInfo]:
         """Return currently running jobs."""
         raw: set[bytes | str] = cast(
-            set[bytes | str],
-            await cast(Any, self._redis.smembers(_ARQ_IN_PROGRESS_KEY)),
+            "set[bytes | str]",
+            await cast("Any", self._redis.smembers(_ARQ_IN_PROGRESS_KEY)),
         )
         results: list[QueuedJobInfo] = []
         for item in raw:

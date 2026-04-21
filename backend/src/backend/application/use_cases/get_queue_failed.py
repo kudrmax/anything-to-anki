@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_pronunciation_repository import (
         CandidatePronunciationRepository,
     )
-    from backend.domain.value_objects.failed_error_group import FailedErrorGroup
 
 
 class GetQueueFailedUseCase:
@@ -34,16 +33,14 @@ class GetQueueFailedUseCase:
         self._pronunciation_repo = pronunciation_repo
 
     def execute(self, source_id: int | None = None) -> QueueFailedDTO:
-        repos: list[tuple[str, CandidateMeaningRepository | CandidateMediaRepository | CandidatePronunciationRepository]] = [
+        types: list[FailedByJobTypeDTO] = []
+        for job_type, repo in [
             ("meanings", self._meaning_repo),
             ("media", self._media_repo),
             ("pronunciation", self._pronunciation_repo),
-        ]
-
-        types: list[FailedByJobTypeDTO] = []
-        for job_type, repo in repos:
-            groups_raw: list[FailedErrorGroup] = repo.get_failed_grouped_by_error(
-                source_id=source_id
+        ]:
+            groups_raw = repo.get_failed_grouped_by_error(
+                source_id=source_id,
             )
             if not groups_raw:
                 continue
