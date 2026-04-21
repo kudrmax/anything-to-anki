@@ -27,6 +27,19 @@ export function NavBar() {
           Inbox
         </NavLink>
         <NavLink
+          to="/export"
+          className={({ isActive }) =>
+            cn(
+              'px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+              isActive
+                ? 'text-slate-100 bg-slate-800'
+                : 'text-slate-500 hover:text-slate-300 hover:bg-slate-900',
+            )
+          }
+        >
+          Export
+        </NavLink>
+        <NavLink
           to="/settings"
           className={({ isActive }) =>
             cn(
