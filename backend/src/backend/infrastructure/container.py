@@ -89,6 +89,7 @@ from backend.infrastructure.services.lazy_media_reconciler import LazyMediaRecon
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session, sessionmaker
 
+    from backend.application.use_cases.cancel_queue import CancelQueueUseCase
     from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
     from backend.application.use_cases.cleanup_youtube_video import CleanupYoutubeVideoUseCase
     from backend.application.use_cases.create_source_from_url import CreateSourceFromUrlUseCase
@@ -104,9 +105,15 @@ if TYPE_CHECKING:
         EnqueuePronunciationDownloadUseCase,
     )
     from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
+    from backend.application.use_cases.get_queue_failed import GetQueueFailedUseCase
+    from backend.application.use_cases.get_queue_global_summary import (
+        GetQueueGlobalSummaryUseCase,
+    )
+    from backend.application.use_cases.get_queue_order import GetQueueOrderUseCase
     from backend.application.use_cases.regenerate_candidate_media import (
         RegenerateCandidateMediaUseCase,
     )
+    from backend.application.use_cases.retry_queue import RetryQueueUseCase
     from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
     from backend.domain.value_objects.prompts_config import PromptsConfig
 
@@ -515,6 +522,61 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
             settings_repo=SqlaSettingsRepository(session),
+        )
+
+    def get_queue_global_summary_use_case(
+        self, session: Session
+    ) -> GetQueueGlobalSummaryUseCase:
+        from backend.application.use_cases.get_queue_global_summary import (
+            GetQueueGlobalSummaryUseCase,
+        )
+        return GetQueueGlobalSummaryUseCase(
+            meaning_repo=SqlaCandidateMeaningRepository(session),
+            media_repo=SqlaCandidateMediaRepository(session),
+            pronunciation_repo=SqlaCandidatePronunciationRepository(session),
+            source_repo=SqlaSourceRepository(session),
+        )
+
+    def get_queue_failed_use_case(
+        self, session: Session
+    ) -> GetQueueFailedUseCase:
+        from backend.application.use_cases.get_queue_failed import GetQueueFailedUseCase
+        return GetQueueFailedUseCase(
+            meaning_repo=SqlaCandidateMeaningRepository(session),
+            media_repo=SqlaCandidateMediaRepository(session),
+            pronunciation_repo=SqlaCandidatePronunciationRepository(session),
+        )
+
+    def retry_queue_use_case(self, session: Session) -> RetryQueueUseCase:
+        from backend.application.use_cases.retry_queue import RetryQueueUseCase
+        return RetryQueueUseCase(
+            meaning_repo=SqlaCandidateMeaningRepository(session),
+            media_repo=SqlaCandidateMediaRepository(session),
+            pronunciation_repo=SqlaCandidatePronunciationRepository(session),
+        )
+
+    async def get_queue_order_use_case(
+        self, session: Session
+    ) -> GetQueueOrderUseCase:
+        from backend.application.use_cases.get_queue_order import GetQueueOrderUseCase
+        from backend.infrastructure.queue.arq_queue_inspector import ArqQueueInspector
+        redis = await self.get_redis_pool()
+        inspector = ArqQueueInspector(redis)
+        return GetQueueOrderUseCase(
+            inspector=inspector,
+            source_repo=SqlaSourceRepository(session),
+        )
+
+    async def cancel_queue_use_case(self, session: Session) -> CancelQueueUseCase:
+        from backend.application.use_cases.cancel_queue import CancelQueueUseCase
+        from backend.infrastructure.queue.arq_queue_inspector import ArqQueueInspector
+        redis = await self.get_redis_pool()
+        inspector = ArqQueueInspector(redis)
+        return CancelQueueUseCase(
+            inspector=inspector,
+            meaning_repo=SqlaCandidateMeaningRepository(session),
+            media_repo=SqlaCandidateMediaRepository(session),
+            pronunciation_repo=SqlaCandidatePronunciationRepository(session),
         )
 
     async def get_redis_pool(self) -> Any:  # noqa: ANN401 — arq has no type stubs
