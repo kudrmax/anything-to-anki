@@ -12,7 +12,7 @@ from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
-from backend.application.use_cases.get_source_cards import GetSourceCardsUseCase
+from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
@@ -306,9 +306,10 @@ class Container:
             known_word_repo=SqlaKnownWordRepository(session),
         )
 
-    def get_source_cards_use_case(self, session: Session) -> GetSourceCardsUseCase:
-        return GetSourceCardsUseCase(
+    def get_export_cards_use_case(self, session: Session) -> GetExportCardsUseCase:
+        return GetExportCardsUseCase(
             candidate_repo=SqlaCandidateRepository(session),
+            source_repo=SqlaSourceRepository(session),
         )
 
     def generate_meaning_use_case(self, session: Session) -> GenerateMeaningUseCase:

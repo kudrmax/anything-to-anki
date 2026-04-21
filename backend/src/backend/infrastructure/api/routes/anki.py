@@ -7,15 +7,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.application.dto.anki_dtos import (  # noqa: TC001
     AnkiStatusDTO,
     AnkiTemplatesDTO,
-    CardPreviewDTO,
     CreateNoteTypeRequest,
     CreateNoteTypeResponseDTO,
-    SyncResultDTO,
     VerifyNoteTypeRequest,
     VerifyNoteTypeResponseDTO,
 )
 from backend.application.use_cases.manage_settings import build_anki_field_map
-from backend.domain.exceptions import AnkiNotAvailableError, AnkiSyncError
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
 if TYPE_CHECKING:
@@ -71,33 +68,6 @@ def create_note_type(
     already_existed = connector.get_model_field_names(request.note_type) is not None
     connector.ensure_note_type(request.note_type, fields)
     return CreateNoteTypeResponseDTO(already_existed=already_existed)
-
-
-@router.get("/sources/{source_id}/cards")
-def get_source_cards(
-    source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> list[CardPreviewDTO]:
-    use_case = container.get_source_cards_use_case(session)
-    return use_case.execute(source_id)
-
-
-@router.post("/sources/{source_id}/sync-to-anki")
-def sync_to_anki(
-    source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> SyncResultDTO:
-    use_case = container.sync_to_anki_use_case(session)
-    try:
-        result = use_case.execute(source_id)
-        session.commit()
-        return result
-    except AnkiNotAvailableError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except AnkiSyncError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/anki/templates")
