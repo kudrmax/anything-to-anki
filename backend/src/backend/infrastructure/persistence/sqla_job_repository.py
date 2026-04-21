@@ -7,6 +7,7 @@ from sqlalchemy import CursorResult, delete, func, select, update
 
 from backend.domain.ports.job_repository import JobRepository
 from backend.domain.value_objects.job_status import JobStatus
+from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.persistence.models import JobModel
 
 if TYPE_CHECKING:
@@ -201,11 +202,14 @@ class SqlaJobRepository(JobRepository):
             .group_by(JobModel.job_type, JobModel.status)
         )
         rows = self._session.execute(stmt).all()
-        result: dict[str, dict[str, int]] = {}
+        result: dict[str, dict[str, int]] = {
+            JobType.MEANING.value: {"queued": 0, "running": 0, "failed": 0},
+            JobType.MEDIA.value: {"queued": 0, "running": 0, "failed": 0},
+            JobType.PRONUNCIATION.value: {"queued": 0, "running": 0, "failed": 0},
+        }
         for job_type_val, status_val, cnt in rows:
-            if job_type_val not in result:
-                result[job_type_val] = {}
-            result[job_type_val][status_val] = cnt
+            if job_type_val in result and status_val in result[job_type_val]:
+                result[job_type_val][status_val] = cnt
         return result
 
     def get_jobs_for_candidates(
