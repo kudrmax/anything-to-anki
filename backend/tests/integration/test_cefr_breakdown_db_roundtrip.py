@@ -5,8 +5,6 @@ StoredCandidate with breakdown → StoredCandidateModel (DB) → StoredCandidate
 from __future__ import annotations
 
 import pytest
-from sqlalchemy.orm import Session
-
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
@@ -14,17 +12,25 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
+from sqlalchemy.orm import Session
 
 
 def _make_breakdown() -> CEFRBreakdown:
     return CEFRBreakdown(
         final_level=CEFRLevel.B1,
         decision_method="priority",
-        priority_vote=SourceVote(
-            source_name="Cambridge Dictionary",
-            distribution={CEFRLevel.B1: 1.0},
-            top_level=CEFRLevel.B1,
-        ),
+        priority_votes=[
+            SourceVote(
+                source_name="Oxford 5000",
+                distribution={CEFRLevel.UNKNOWN: 1.0},
+                top_level=CEFRLevel.UNKNOWN,
+            ),
+            SourceVote(
+                source_name="Cambridge Dictionary",
+                distribution={CEFRLevel.B1: 1.0},
+                top_level=CEFRLevel.B1,
+            ),
+        ],
         votes=[
             SourceVote(source_name="CEFRpy", distribution={CEFRLevel.B1: 1.0}, top_level=CEFRLevel.B1),
             SourceVote(
@@ -32,7 +38,6 @@ def _make_breakdown() -> CEFRBreakdown:
                 distribution={CEFRLevel.A2: 0.6, CEFRLevel.B1: 0.3, CEFRLevel.B2: 0.1},
                 top_level=CEFRLevel.A2,
             ),
-            SourceVote(source_name="Oxford 5000", distribution={CEFRLevel.UNKNOWN: 1.0}, top_level=CEFRLevel.UNKNOWN),
             SourceVote(source_name="Kelly List", distribution={CEFRLevel.UNKNOWN: 1.0}, top_level=CEFRLevel.UNKNOWN),
         ],
     )
@@ -65,7 +70,7 @@ class TestCEFRBreakdownDBRoundtrip:
         assert c.cefr_breakdown.decision_method == "priority"
         assert c.cefr_breakdown.final_level == CEFRLevel.B1
 
-    def test_breakdown_priority_vote_restored(self, db_session: Session) -> None:
+    def test_breakdown_priority_votes_restored(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
         candidate = StoredCandidate(
             source_id=1,
@@ -83,9 +88,12 @@ class TestCEFRBreakdownDBRoundtrip:
 
         loaded = repo.get_by_source(1)[0]
         assert loaded.cefr_breakdown is not None
-        assert loaded.cefr_breakdown.priority_vote is not None
-        assert loaded.cefr_breakdown.priority_vote.source_name == "Cambridge Dictionary"
-        assert loaded.cefr_breakdown.priority_vote.top_level == CEFRLevel.B1
+        assert len(loaded.cefr_breakdown.priority_votes) == 2
+        cambridge = next(
+            v for v in loaded.cefr_breakdown.priority_votes
+            if v.source_name == "Cambridge Dictionary"
+        )
+        assert cambridge.top_level == CEFRLevel.B1
 
     def test_voting_sources_restored(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
@@ -110,7 +118,6 @@ class TestCEFRBreakdownDBRoundtrip:
         names = {v.source_name for v in bd.votes}
         assert "CEFRpy" in names
         assert "EFLLex" in names
-        assert "Oxford 5000" in names
         assert "Kelly List" in names
 
     def test_efllex_distribution_survives_db(self, db_session: Session) -> None:
@@ -160,7 +167,10 @@ class TestCEFRBreakdownDBRoundtrip:
 
     def test_breakdown_cascade_delete(self, db_session: Session) -> None:
         """Deleting candidate should cascade-delete breakdown."""
-        from backend.infrastructure.persistence.models import CEFRBreakdownModel, StoredCandidateModel
+        from backend.infrastructure.persistence.models import (
+            CEFRBreakdownModel,
+            StoredCandidateModel,
+        )
 
         repo = SqlaCandidateRepository(db_session)
         candidate = StoredCandidate(
@@ -188,3 +198,32 @@ class TestCEFRBreakdownDBRoundtrip:
 
         # Breakdown should be gone too
         assert db_session.query(CEFRBreakdownModel).filter_by(candidate_id=cid).one_or_none() is None
+
+    def test_runtime_level_ignores_stored_cefr_level(self, db_session: Session) -> None:
+        """cefr_level on loaded entity comes from runtime resolution, not DB column.
+
+        We save cefr_level="C2" in the DB but the breakdown votes point to B1
+        (Cambridge priority). After load, cefr_level must be B1 (runtime), not C2.
+        """
+        repo = SqlaCandidateRepository(db_session)
+        candidate = StoredCandidate(
+            source_id=1,
+            lemma="mismatch",
+            pos="NN",
+            cefr_level="C2",  # deliberately wrong — should be overridden
+            zipf_frequency=4.0,
+            context_fragment="a mismatch",
+            fragment_purity="clean",
+            occurrences=1,
+            status=CandidateStatus.PENDING,
+            cefr_breakdown=_make_breakdown(),  # Cambridge knows B1
+        )
+        repo.create_batch([candidate])
+
+        loaded = repo.get_by_source(1)[0]
+        # Runtime resolver sees Cambridge=B1 → final_level=B1, NOT stored "C2"
+        assert loaded.cefr_level == "B1"
+        assert loaded.cefr_breakdown is not None
+        assert loaded.cefr_breakdown.final_level == CEFRLevel.B1
+
+    # fallback test removed: cefr_level column dropped, all candidates must have breakdown

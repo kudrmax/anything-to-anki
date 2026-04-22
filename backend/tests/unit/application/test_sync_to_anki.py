@@ -8,7 +8,6 @@ from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import AnkiNotAvailableError
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 
 def _make_candidate(
@@ -31,8 +30,6 @@ def _make_candidate(
             synonyms=synonyms,
             examples=examples,
             ipa=ipa,
-            status=EnrichmentStatus.DONE,
-            error=None,
             generated_at=datetime(2026, 4, 7, tzinfo=UTC),
         )
     return StoredCandidate(
@@ -301,8 +298,6 @@ class TestSyncToAnkiUseCase:
                 audio_path="/tmp/snd.mp3",
                 start_ms=0,
                 end_ms=1000,
-                status=EnrichmentStatus.DONE,
-                error=None,
                 generated_at=datetime(2026, 4, 8, tzinfo=UTC),
             ),
         )
@@ -464,8 +459,6 @@ class TestSyncToAnkiUseCase:
                 synonyms=None,
                 examples=None,
                 ipa=None,
-                status=EnrichmentStatus.DONE,
-                error=None,
                 generated_at=datetime(2026, 4, 8, tzinfo=UTC),
             ),
             media=CandidateMedia(
@@ -474,8 +467,6 @@ class TestSyncToAnkiUseCase:
                 audio_path="/tmp/missing.mp3",
                 start_ms=0,
                 end_ms=1000,
-                status=EnrichmentStatus.DONE,
-                error=None,
                 generated_at=datetime(2026, 4, 8, tzinfo=UTC),
             ),
         )

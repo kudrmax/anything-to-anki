@@ -39,14 +39,12 @@ from __future__ import annotations
 import os
 import socket
 import subprocess
-import sys
 import time
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
-
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
 from backend.domain.value_objects.generation_result import GenerationResult
 from backend.infrastructure.adapters.http_ai_service import HttpAIService

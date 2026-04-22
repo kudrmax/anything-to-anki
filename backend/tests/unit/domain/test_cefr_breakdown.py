@@ -30,11 +30,11 @@ class TestCEFRBreakdown:
         breakdown = CEFRBreakdown(
             final_level=CEFRLevel.B1,
             decision_method="priority",
-            priority_vote=priority,
+            priority_votes=[priority],
             votes=[],
         )
         assert breakdown.decision_method == "priority"
-        assert breakdown.priority_vote is not None
+        assert len(breakdown.priority_votes) == 1
         assert breakdown.final_level == CEFRLevel.B1
 
     def test_voting_breakdown(self) -> None:
@@ -45,9 +45,9 @@ class TestCEFRBreakdown:
         breakdown = CEFRBreakdown(
             final_level=CEFRLevel.A2,
             decision_method="voting",
-            priority_vote=None,
+            priority_votes=[],
             votes=votes,
         )
         assert breakdown.decision_method == "voting"
-        assert breakdown.priority_vote is None
+        assert breakdown.priority_votes == []
         assert len(breakdown.votes) == 2

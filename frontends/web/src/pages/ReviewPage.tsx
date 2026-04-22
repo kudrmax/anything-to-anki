@@ -174,8 +174,8 @@ export function ReviewPage() {
 
   // Polling while there are inflight jobs
   useEffect(() => {
-    const meaningInflight = (queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)
-    const mediaInflight = (queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)
+    const meaningInflight = (queueSummary?.meaning?.queued ?? 0) + (queueSummary?.meaning?.running ?? 0)
+    const mediaInflight = (queueSummary?.media?.queued ?? 0) + (queueSummary?.media?.running ?? 0)
     const pronInflight = (queueSummary?.pronunciation?.queued ?? 0) + (queueSummary?.pronunciation?.running ?? 0)
     if (meaningInflight + mediaInflight + pronInflight === 0) return
 
@@ -575,10 +575,10 @@ export function ReviewPage() {
     [ratedCandidates],
   )
 
-  const hasInflightMeaning = ((queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)) > 0
-  const hasFailedMeaning = (queueSummary?.meaning.failed ?? 0) > 0
-  const hasInflightMedia = ((queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)) > 0
-  const hasFailedMedia = (queueSummary?.media.failed ?? 0) > 0
+  const hasInflightMeaning = ((queueSummary?.meaning?.queued ?? 0) + (queueSummary?.meaning?.running ?? 0)) > 0
+  const hasFailedMeaning = (queueSummary?.meaning?.failed ?? 0) > 0
+  const hasInflightMedia = ((queueSummary?.media?.queued ?? 0) + (queueSummary?.media?.running ?? 0)) > 0
+  const hasFailedMedia = (queueSummary?.media?.failed ?? 0) > 0
   const hasInflightPron = ((queueSummary?.pronunciation?.queued ?? 0) + (queueSummary?.pronunciation?.running ?? 0)) > 0
   const hasFailedPron = (queueSummary?.pronunciation?.failed ?? 0) > 0
 
@@ -659,13 +659,13 @@ export function ReviewPage() {
             <div className="glass-pill" style={{ gap: '6px' }}>
               <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
               <span style={{ color: 'var(--tm)' }}>
-                Meanings ({(queueSummary?.meaning.queued ?? 0) + (queueSummary?.meaning.running ?? 0)})
+                Meanings ({(queueSummary?.meaning?.queued ?? 0) + (queueSummary?.meaning?.running ?? 0)})
               </span>
               <button onClick={() => void handleCancelMeanings()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)', marginLeft: '4px', padding: '2px 6px', height: '22px' }}>✕</button>
             </div>
           ) : hasFailedMeaning ? (
             <button onClick={() => void handleRetryFailedMeanings()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)' }}>
-              Retry meanings ({queueSummary?.meaning.failed})
+              Retry meanings ({queueSummary?.meaning?.failed})
             </button>
           ) : (
             <button
@@ -691,13 +691,13 @@ export function ReviewPage() {
             <div className="glass-pill" style={{ gap: '6px' }}>
               <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
               <span style={{ color: 'var(--tm)' }}>
-                Media ({(queueSummary?.media.queued ?? 0) + (queueSummary?.media.running ?? 0)})
+                Media ({(queueSummary?.media?.queued ?? 0) + (queueSummary?.media?.running ?? 0)})
               </span>
               <button onClick={() => void handleCancelMedia()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)', marginLeft: '4px', padding: '2px 6px', height: '22px' }}>✕</button>
             </div>
           ) : hasFailedMedia ? (
             <button onClick={() => void handleRetryFailedMedia()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)' }}>
-              Retry media ({queueSummary?.media.failed})
+              Retry media ({queueSummary?.media?.failed})
             </button>
           ) : source?.content_type === 'video' && !source.video_downloaded ? (
             <button

@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from backend.application.use_cases.download_video import DownloadVideoUseCase
 from backend.domain.entities.source import Source
 from backend.domain.value_objects.content_type import ContentType

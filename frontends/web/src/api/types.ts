@@ -31,7 +31,7 @@ export interface SourceSummary {
   processing_stage: ProcessingStage | null
 }
 
-export type EnrichmentStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
+export type EnrichmentStatus = 'queued' | 'running' | 'done' | 'failed' | 'idle'
 
 export interface CandidateMeaning {
   meaning: string | null
@@ -70,7 +70,7 @@ export interface SourceVote {
 
 export interface CEFRBreakdown {
   decision_method: 'priority' | 'voting'
-  priority_vote: SourceVote | null
+  priority_votes: SourceVote[]
   votes: SourceVote[]
 }
 
@@ -269,21 +269,20 @@ export interface JobTypeSummary {
 }
 
 export interface QueueGlobalSummary {
-  youtube_dl: JobTypeSummary
-  processing: JobTypeSummary
-  meanings: JobTypeSummary
+  meaning: JobTypeSummary
   media: JobTypeSummary
   pronunciation: JobTypeSummary
+  video_download: JobTypeSummary
 }
 
 export interface QueueJob {
-  job_id: string
+  job_id: number
   job_type: string
   source_id: number
   source_title: string
   status: 'running' | 'queued'
   position: number | null
-  substage: string | null
+  candidate_id: number | null
 }
 
 export interface QueueOrder {

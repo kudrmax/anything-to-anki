@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
+from backend.domain.entities.job import Job
+from backend.domain.value_objects.job_status import JobStatus
+from backend.domain.value_objects.job_type import JobType
 
 logger = logging.getLogger(__name__)
 
@@ -13,21 +17,24 @@ if TYPE_CHECKING:
         CandidatePronunciationRepository,
     )
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.settings_repository import SettingsRepository
 
 
 class EnqueuePronunciationDownloadUseCase:
-    """Finds eligible candidates, marks them QUEUED, returns their IDs for arq enqueue."""
+    """Finds eligible candidates, creates Job rows, returns their IDs."""
 
     def __init__(
         self,
         pronunciation_repo: CandidatePronunciationRepository,
         candidate_repo: CandidateRepository,
         settings_repo: SettingsRepository,
+        job_repo: JobRepository,
     ) -> None:
         self._pronunciation_repo = pronunciation_repo
         self._candidate_repo = candidate_repo
         self._settings_repo = settings_repo
+        self._job_repo = job_repo
 
     def execute(self, source_id: int) -> list[int]:
         from backend.domain.services.candidate_sorting import sort_by_relevance
@@ -45,7 +52,22 @@ class EnqueuePronunciationDownloadUseCase:
         if not eligible_ids:
             return []
 
-        self._pronunciation_repo.mark_queued_bulk(eligible_ids)
+        now = datetime.now(tz=UTC)
+        jobs = [
+            Job(
+                id=None,
+                job_type=JobType.PRONUNCIATION,
+                candidate_id=cid,
+                source_id=source_id,
+                status=JobStatus.QUEUED,
+                error=None,
+                created_at=now,
+                started_at=None,
+            )
+            for cid in eligible_ids
+        ]
+        self._job_repo.create_bulk(jobs)
+
         logger.info(
             "enqueue_pronunciation_download: queued (source_id=%d, count=%d)",
             source_id,

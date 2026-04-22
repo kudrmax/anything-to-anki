@@ -134,7 +134,6 @@ class TestSourcesAPI:
             source_id=source.id,
             lemma="gonna",
             pos="VERB",
-            cefr_level="B1",
             zipf_frequency=3.8,
             is_sweet_spot=True,
             context_fragment="I'm gonna do it",

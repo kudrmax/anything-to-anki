@@ -85,7 +85,7 @@ _check_env:
 ##@ Запуск (читает .env)
 up: _check_env  ## Запустить (ai_proxy + docker compose)
 	$(call start_ai_proxy)
-	docker compose up -d --build
+	docker compose up -d --build --force-recreate
 	$(call check_services,)
 	@printf "\n$(BANNER_COLOR)"
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -129,7 +129,7 @@ up-worktree: _check_env  ## Запустить worktree (WORKTREE_PORT, снос
 	PORT=$(WORKTREE_PORT) AI_PROXY_PORT=$(WORKTREE_AI_PROXY_PORT) \
 	    COMPOSE_PROJECT_NAME=anything-anki-worktree \
 	    INSTANCE_ENV_NAME=worktree \
-	    docker compose up -d --build
+	    docker compose up -d --build --force-recreate
 	$(call check_services,PORT=$(WORKTREE_PORT) AI_PROXY_PORT=$(WORKTREE_AI_PROXY_PORT) COMPOSE_PROJECT_NAME=anything-anki-worktree)
 	@printf "\n$(BANNER_COLOR)"
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -146,13 +146,13 @@ down-worktree:  ## Остановить worktree-контейнеры
 	docker compose -p anything-anki-worktree down
 	$(call stop_ai_proxy)
 
-logs:  ## Логи app + worker + redis + ai_proxy одним потоком
+logs:  ## Логи app + worker + ai_proxy одним потоком
 	@trap 'kill 0' INT TERM; \
 	docker compose logs -f & \
 	tail -F $(AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy        | /' & \
 	wait
 
-logs-worktree:  ## Логи worktree (app + worker + redis + ai_proxy)
+logs-worktree:  ## Логи worktree (app + worker + ai_proxy)
 	@trap 'kill 0' INT TERM; \
 	docker compose -p anything-anki-worktree logs -f & \
 	tail -F $(AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy        | /' & \
@@ -177,6 +177,9 @@ lint: _python_dev  ## Линтинг (ruff)
 
 typecheck: _python_dev  ## Проверка типов (mypy)
 	.venv/bin/mypy backend/src
+
+backfill-breakdowns:  ## Заполнить cefr_breakdowns для старых кандидатов (DRY_RUN=1 для пробного запуска)
+	docker compose exec app python /app/scripts/backfill_cefr_breakdowns.py $(if $(DRY_RUN),--dry-run)
 
 ##@ Прочее
 help:  ## Показать доступные команды

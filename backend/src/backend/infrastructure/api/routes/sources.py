@@ -152,12 +152,18 @@ async def process_source(
 
 
 @router.post("/{source_id}/download-video", status_code=202)
-async def download_video(
+def download_video(
     source_id: int,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, str]:
+    from datetime import UTC, datetime
+
+    from backend.domain.entities.job import Job
+    from backend.domain.value_objects.job_status import JobStatus
+    from backend.domain.value_objects.job_type import JobType
     from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
+
     repo = SqlaSourceRepository(session)
     source = repo.get_by_id(source_id)
     if source is None:
@@ -167,8 +173,20 @@ async def download_video(
     if source.video_path is not None:
         raise HTTPException(status_code=409, detail="Video already downloaded")
 
-    pool = await container.get_redis_pool()
-    await pool.enqueue_job("download_youtube_video", source_id)
+    job_repo = container.job_repository(session)
+    job_repo.create_bulk([
+        Job(
+            id=None,
+            job_type=JobType.VIDEO_DOWNLOAD,
+            candidate_id=None,
+            source_id=source_id,
+            status=JobStatus.QUEUED,
+            error=None,
+            created_at=datetime.now(tz=UTC),
+            started_at=None,
+        ),
+    ])
+    session.commit()
     return {"status": "downloading"}
 
 
@@ -353,35 +371,10 @@ def get_queue_summary(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, dict[str, int]]:
-    """Aggregate counts of meaning/media enrichments by status.
+    """Aggregate counts of jobs by type and status.
     Used by frontend to show 'Cancel queue' / 'Retry failed' button visibility."""
-    from backend.domain.value_objects.enrichment_status import EnrichmentStatus
-
-    meaning_repo = container.candidate_meaning_repository(session)
-    media_repo = container.candidate_media_repository(session)
-    pron_repo = container.candidate_pronunciation_repository(session)
-
-    qs = EnrichmentStatus.QUEUED
-    rs = EnrichmentStatus.RUNNING
-    fs = EnrichmentStatus.FAILED
-
-    return {
-        "meaning": {
-            "queued": len(meaning_repo.get_candidate_ids_by_status(source_id, qs)),
-            "running": len(meaning_repo.get_candidate_ids_by_status(source_id, rs)),
-            "failed": len(meaning_repo.get_candidate_ids_by_status(source_id, fs)),
-        },
-        "media": {
-            "queued": len(media_repo.get_candidate_ids_by_status(source_id, qs)),
-            "running": len(media_repo.get_candidate_ids_by_status(source_id, rs)),
-            "failed": len(media_repo.get_candidate_ids_by_status(source_id, fs)),
-        },
-        "pronunciation": {
-            "queued": len(pron_repo.get_candidate_ids_by_status(source_id, qs)),
-            "running": len(pron_repo.get_candidate_ids_by_status(source_id, rs)),
-            "failed": len(pron_repo.get_candidate_ids_by_status(source_id, fs)),
-        },
-    }
+    job_repo = container.job_repository(session)
+    return job_repo.get_queue_summary(source_id)
 
 
 @router.get("/{source_id}/reprocess-stats")

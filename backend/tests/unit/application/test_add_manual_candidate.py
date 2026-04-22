@@ -18,7 +18,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-
 from backend.application.use_cases.add_manual_candidate import (
     AddManualCandidateUseCase,
 )
@@ -83,7 +82,7 @@ def _patch_classify_detailed(mock: MagicMock) -> MagicMock:
         return CEFRBreakdown(
             final_level=level,
             decision_method="voting",
-            priority_vote=None,
+            priority_votes=[],
             votes=[],
         )
 

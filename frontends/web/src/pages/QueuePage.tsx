@@ -14,11 +14,10 @@ interface JobTypeConfig {
 }
 
 const JOB_TYPE_CONFIGS: JobTypeConfig[] = [
-  { key: 'youtube_dl',   label: 'YouTube DL',   color: '#a78bfa', bg: 'rgba(167,139,250,.15)' },
-  { key: 'processing',   label: 'Processing',   color: '#4ade80', bg: 'rgba(74,222,128,.15)'  },
-  { key: 'meanings',     label: 'Meanings',     color: '#fbbf24', bg: 'rgba(251,191,36,.15)'  },
-  { key: 'media',        label: 'Media',        color: '#38bdf8', bg: 'rgba(56,189,248,.15)'  },
-  { key: 'pronunciation',label: 'Pronunciation',color: '#2dd4bf', bg: 'rgba(45,212,191,.15)'  },
+  { key: 'meaning',       label: 'Meaning',       color: '#fbbf24', bg: 'rgba(251,191,36,.15)'  },
+  { key: 'media',         label: 'Media',         color: '#38bdf8', bg: 'rgba(56,189,248,.15)'  },
+  { key: 'pronunciation', label: 'Pronunciation', color: '#2dd4bf', bg: 'rgba(45,212,191,.15)'  },
+  { key: 'video_download',label: 'Video Download',color: '#a78bfa', bg: 'rgba(167,139,250,.15)' },
 ]
 
 function jobTypeColor(jobType: string): { color: string; bg: string } {
@@ -234,9 +233,9 @@ function QueueJobRow({ job, onCancel }: QueueJobRowProps) {
         <span className="text-xs truncate block" style={{ color: 'var(--text)' }}>
           {job.source_title}
         </span>
-        {job.substage && (
+        {job.candidate_id != null && (
           <span className="text-[10px]" style={{ color: 'var(--td)' }}>
-            {job.substage}
+            candidate #{job.candidate_id}
           </span>
         )}
       </div>

@@ -271,7 +271,7 @@ export const api = {
       }),
     }),
 
-  cancelQueue: (jobType: string, sourceId?: number, jobId?: string) =>
+  cancelQueue: (jobType: string, sourceId?: number, jobId?: number) =>
     req<{ cancelled: number }>('/api/queue/cancel', {
       method: 'POST',
       body: JSON.stringify({

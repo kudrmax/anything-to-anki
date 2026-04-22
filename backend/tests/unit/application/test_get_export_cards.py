@@ -7,7 +7,6 @@ from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 
 def _make_candidate(
@@ -32,8 +31,6 @@ def _make_candidate(
             synonyms=synonyms,
             examples=examples,
             ipa=ipa,
-            status=EnrichmentStatus.DONE,
-            error=None,
             generated_at=datetime(2026, 4, 7, tzinfo=UTC),
         )
     media_obj = None
@@ -44,8 +41,6 @@ def _make_candidate(
             audio_path=audio_path,
             start_ms=None,
             end_ms=None,
-            status=EnrichmentStatus.DONE,
-            error=None,
             generated_at=datetime(2026, 4, 7, tzinfo=UTC),
         )
     return StoredCandidate(

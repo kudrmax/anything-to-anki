@@ -11,21 +11,20 @@ class JobTypeSummaryDTO(BaseModel):
 
 
 class QueueGlobalSummaryDTO(BaseModel):
-    youtube_dl: JobTypeSummaryDTO
-    processing: JobTypeSummaryDTO
-    meanings: JobTypeSummaryDTO
+    meaning: JobTypeSummaryDTO
     media: JobTypeSummaryDTO
     pronunciation: JobTypeSummaryDTO
+    video_download: JobTypeSummaryDTO
 
 
 class QueueJobDTO(BaseModel):
-    job_id: str
+    job_id: int
     job_type: str
     source_id: int
     source_title: str
-    status: str
+    status: str  # "running" | "queued"
     position: int | None
-    substage: str | None
+    candidate_id: int | None
 
 
 class QueueOrderDTO(BaseModel):
@@ -66,4 +65,4 @@ class RetryRequestDTO(BaseModel):
 class CancelRequestDTO(BaseModel):
     job_type: str
     source_id: int | None = None
-    job_id: str | None = None
+    job_id: int | None = None

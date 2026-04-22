@@ -40,7 +40,7 @@ DEFAULT_NETWORK_ERRORS = SCRIPT_DIR / "errors" / "network_errors.txt"
 MAX_RETRIES = 3
 RETRY_BACKOFF_BASE = 2.0
 RATE_LIMIT_PAUSE = 30.0
-PROGRESS_EVERY = 50
+PROGRESS_EVERY = 1
 
 # Global rate limit event — when set, all threads pause
 _rate_limit_lock = threading.Lock()
@@ -115,7 +115,9 @@ def transform_raw_result(word: str, raw: list[RESULT_FORMAT]) -> dict[str, Any]:
     """Transform Blackdeer parser output into our JSONL format."""
     entries: list[dict[str, Any]] = []
 
-    for dict_block in raw:
+    # Only use the first dictionary block (English).
+    # Subsequent blocks (e.g. Learner's) duplicate entries without CEFR levels.
+    for dict_block in raw[:1]:
         for headword, pos_list in dict_block.items():
             for pos_data in pos_list:
                 data = pos_data["data"]
@@ -303,10 +305,13 @@ def main() -> None:
                 if processed % PROGRESS_EVERY == 0 or processed == total:
                     elapsed = time.time() - start_time
                     rate = elapsed / processed if processed > 0 else 0
-                    eta_m = rate * (total - processed) / 60
+                    eta_seconds = rate * (total - processed)
+                    eta_h, eta_rem = divmod(int(eta_seconds), 3600)
+                    eta_min, eta_sec = divmod(eta_rem, 60)
+                    eta_str = f"{eta_h}h{eta_min:02d}m" if eta_h else f"{eta_min}m{eta_sec:02d}s"
                     pct = processed / total * 100
                     print(f"\r[{processed}/{total}] {pct:.1f}% | "
-                          f"{rate:.2f}s/word | ETA {eta_m:.0f}m | "
+                          f"{rate:.2f}s/word | {eta_str} left | "
                           f"OK: {ok_count} NF: {nf_count} NET: {net_count}",
                           end="", file=sys.stderr)
 

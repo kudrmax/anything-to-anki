@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -16,12 +17,14 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.infrastructure.persistence.database import Base
+
+if TYPE_CHECKING:
+    from backend.domain.entities.job import Job
 
 
 class SourceModel(Base):
@@ -105,9 +108,7 @@ def _level_to_str(level: CEFRLevel) -> str | None:
 
 def _breakdown_to_model(breakdown: CEFRBreakdown) -> CEFRBreakdownModel:
     """Map domain CEFRBreakdown to SQLAlchemy model."""
-    all_votes = list(breakdown.votes)
-    if breakdown.priority_vote is not None:
-        all_votes = [breakdown.priority_vote, *all_votes]
+    all_votes = [*breakdown.priority_votes, *breakdown.votes]
 
     cambridge: str | None = None
     cefrpy: str | None = None
@@ -143,10 +144,13 @@ def _breakdown_to_model(breakdown: CEFRBreakdown) -> CEFRBreakdownModel:
     )
 
 
-def _model_to_breakdown(
-    model: CEFRBreakdownModel, parent_cefr_level: str | None,
-) -> CEFRBreakdown:
-    """Map SQLAlchemy model back to domain CEFRBreakdown."""
+def _model_to_breakdown(model: CEFRBreakdownModel) -> CEFRBreakdown:
+    """Map SQLAlchemy model back to domain CEFRBreakdown.
+
+    Final level is computed at runtime via ``resolve_cefr_level``
+    instead of reading the stored ``candidates.cefr_level``.
+    """
+    from backend.domain.services.cefr_level_resolver import resolve_cefr_level
 
     def _make_vote(
         name: str,
@@ -166,26 +170,24 @@ def _model_to_breakdown(
             top = CEFRLevel.UNKNOWN
         return SourceVote(source_name=name, distribution=dist, top_level=top)
 
-    priority_vote = _make_vote("Cambridge Dictionary", model.cambridge)
+    priority_votes = [
+        _make_vote("Oxford 5000", model.oxford),
+        _make_vote("Cambridge Dictionary", model.cambridge),
+    ]
     votes = [
         _make_vote("CEFRpy", model.cefrpy),
         _make_vote("EFLLex", None, model.efllex_distribution),
-        _make_vote("Oxford 5000", model.oxford),
         _make_vote("Kelly List", model.kelly),
     ]
 
-    final_level = CEFRLevel.UNKNOWN
-    if parent_cefr_level:
-        try:
-            final_level = CEFRLevel.from_str(parent_cefr_level)
-        except ValueError:
-            pass
+    all_votes = [*priority_votes, *votes]
+    final_level, decision_method = resolve_cefr_level(all_votes)
 
     return CEFRBreakdown(
         final_level=final_level,
-        decision_method=model.decision_method,
-        priority_vote=priority_vote if model.decision_method == "priority" else None,
-        votes=votes if model.decision_method != "priority" else [priority_vote, *votes],
+        decision_method=decision_method,
+        priority_votes=priority_votes,
+        votes=votes,
     )
 
 
@@ -202,7 +204,6 @@ class StoredCandidateModel(Base):
     source_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     lemma: Mapped[str] = mapped_column(String(100), nullable=False)
     pos: Mapped[str] = mapped_column(String(10), nullable=False)
-    cefr_level: Mapped[str] = mapped_column(String(10), nullable=False)
     zipf_frequency: Mapped[float] = mapped_column(Float, nullable=False)
     is_sweet_spot: Mapped[bool] = mapped_column(nullable=False)
     context_fragment: Mapped[str] = mapped_column(Text, nullable=False)
@@ -225,7 +226,11 @@ class StoredCandidateModel(Base):
         separately by SqlaCandidateRepository which then attaches them."""
         bd: CEFRBreakdown | None = None
         if self.cefr_breakdown is not None:
-            bd = _model_to_breakdown(self.cefr_breakdown, self.cefr_level or None)
+            bd = _model_to_breakdown(self.cefr_breakdown)
+
+        cefr_level: str | None = None
+        if bd is not None and bd.final_level is not CEFRLevel.UNKNOWN:
+            cefr_level = bd.final_level.name
 
         ud: UsageDistribution | None = None
         if self.usage_distribution_json is not None:
@@ -236,7 +241,7 @@ class StoredCandidateModel(Base):
             source_id=self.source_id,
             lemma=self.lemma,
             pos=self.pos,
-            cefr_level=self.cefr_level or None,
+            cefr_level=cefr_level,
             zipf_frequency=self.zipf_frequency,
             context_fragment=self.context_fragment,
             fragment_purity=self.fragment_purity,
@@ -257,7 +262,6 @@ class StoredCandidateModel(Base):
             source_id=candidate.source_id,
             lemma=candidate.lemma,
             pos=candidate.pos,
-            cefr_level=candidate.cefr_level or "",
             zipf_frequency=candidate.zipf_frequency,
             is_sweet_spot=candidate.is_sweet_spot,
             context_fragment=candidate.context_fragment,
@@ -333,8 +337,6 @@ class CandidateMeaningModel(Base):
     synonyms: Mapped[str | None] = mapped_column(Text, nullable=True)
     examples: Mapped[str | None] = mapped_column(Text, nullable=True)
     ipa: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="done")
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
     generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     def to_entity(self) -> CandidateMeaning:
@@ -345,8 +347,6 @@ class CandidateMeaningModel(Base):
             synonyms=self.synonyms,
             examples=self.examples,
             ipa=self.ipa,
-            status=EnrichmentStatus(self.status),
-            error=self.error,
             generated_at=self.generated_at,
         )
 
@@ -359,8 +359,6 @@ class CandidateMeaningModel(Base):
             synonyms=entity.synonyms,
             examples=entity.examples,
             ipa=entity.ipa,
-            status=entity.status.value,
-            error=entity.error,
             generated_at=entity.generated_at,
         )
 
@@ -379,8 +377,6 @@ class CandidateMediaModel(Base):
     audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     start_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     end_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="done")
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
     generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     def to_entity(self) -> CandidateMedia:
@@ -390,8 +386,6 @@ class CandidateMediaModel(Base):
             audio_path=self.audio_path,
             start_ms=self.start_ms,
             end_ms=self.end_ms,
-            status=EnrichmentStatus(self.status),
-            error=self.error,
             generated_at=self.generated_at,
         )
 
@@ -403,8 +397,6 @@ class CandidateMediaModel(Base):
             audio_path=entity.audio_path,
             start_ms=entity.start_ms,
             end_ms=entity.end_ms,
-            status=entity.status.value,
-            error=entity.error,
             generated_at=entity.generated_at,
         )
 
@@ -421,8 +413,6 @@ class CandidatePronunciationModel(Base):
     )
     us_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     uk_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="done")
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
     generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     def to_entity(self) -> CandidatePronunciation:
@@ -430,8 +420,6 @@ class CandidatePronunciationModel(Base):
             candidate_id=self.candidate_id,
             us_audio_path=self.us_audio_path,
             uk_audio_path=self.uk_audio_path,
-            status=EnrichmentStatus(self.status),
-            error=self.error,
             generated_at=self.generated_at,
         )
 
@@ -441,7 +429,61 @@ class CandidatePronunciationModel(Base):
             candidate_id=entity.candidate_id,
             us_audio_path=entity.us_audio_path,
             uk_audio_path=entity.uk_audio_path,
+            generated_at=entity.generated_at,
+        )
+
+
+class JobModel(Base):
+    """SQLAlchemy model for the job queue."""
+
+    __tablename__ = "jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_type: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    candidate_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("candidates.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    source_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="queued", index=True,
+    )
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def to_entity(self) -> Job:
+        from backend.domain.entities.job import Job
+        from backend.domain.value_objects.job_status import JobStatus
+        from backend.domain.value_objects.job_type import JobType
+
+        return Job(
+            id=self.id,
+            job_type=JobType(self.job_type),
+            candidate_id=self.candidate_id,
+            source_id=self.source_id,
+            status=JobStatus(self.status),
+            error=self.error,
+            created_at=self.created_at,
+            started_at=self.started_at,
+        )
+
+    @staticmethod
+    def from_entity(entity: Job) -> JobModel:
+        return JobModel(
+            id=entity.id,
+            job_type=entity.job_type.value,
+            candidate_id=entity.candidate_id,
+            source_id=entity.source_id,
             status=entity.status.value,
             error=entity.error,
-            generated_at=entity.generated_at,
+            created_at=entity.created_at,
+            started_at=entity.started_at,
         )

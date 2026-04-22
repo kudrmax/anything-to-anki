@@ -5,10 +5,10 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
-from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import logging
-import time
-from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends
 
@@ -14,9 +13,10 @@ from backend.application.dto.queue_dtos import (  # noqa: TC001
     QueueOrderDTO,
     RetryRequestDTO,
 )
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
+from backend.domain.entities.job import Job
+from backend.domain.value_objects.job_status import JobStatus
+from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.api.dependencies import get_container, get_db_session
-from backend.infrastructure.api.routes.media import _flush_and_abort_jobs, _register_job_ids
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -27,16 +27,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/queue", tags=["queue"])
 
-_MEANING_BATCH_SIZE = 15
-
-# (container repo method, redis job_type key, arq function, batched?)
-_JOB_TYPE_CONFIG: dict[str, tuple[str, str, str, bool]] = {
-    "meanings": ("candidate_meaning_repository", "meaning", "generate_meanings_batch", True),
-    "media": ("candidate_media_repository", "media", "extract_media_for_candidate", False),
-    "pronunciation": (
-        "candidate_pronunciation_repository", "pronunciation",
-        "download_pronunciation_for_candidate", False,
-    ),
+# Map frontend job_type strings to JobType enum
+_JOB_TYPE_MAP: dict[str, JobType] = {
+    "meaning": JobType.MEANING,
+    "media": JobType.MEDIA,
+    "pronunciation": JobType.PRONUNCIATION,
+    "video_download": JobType.VIDEO_DOWNLOAD,
 }
 
 
@@ -54,14 +50,14 @@ def get_global_summary(
 
 
 @router.get("/order")
-async def get_queue_order(
+def get_queue_order(
     source_id: int | None = None,
     limit: int = 50,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> QueueOrderDTO:
-    use_case = await container.get_queue_order_use_case(session)
-    return await use_case.execute(source_id=source_id, limit=limit)
+    use_case = container.get_queue_order_use_case(session)
+    return use_case.execute(source_id=source_id, limit=limit)
 
 
 @router.get("/failed")
@@ -75,163 +71,136 @@ def get_failed(
 
 
 # ── ACTION endpoints ────────────────────────────────────────────────
-#
-# Cancel and retry reuse the SAME logic as per-source endpoints in
-# generation.py / media.py / pronunciation.py:
-#   cancel = mark_batch_cancelled in DB + _flush_and_abort_jobs in Redis
-#   retry  = mark_queued_bulk in DB + enqueue_job in Redis
 
 
 @router.post("/cancel")
-async def cancel_queued(
+def cancel_queued(
     body: CancelRequestDTO,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, int]:
-    """Cancel queued+running jobs. Same logic as per-source cancel endpoints."""
-    config = _JOB_TYPE_CONFIG.get(body.job_type)
-    if config is None:
+    """Cancel queued+running jobs via JobRepository."""
+    job_type = _JOB_TYPE_MAP.get(body.job_type)
+    if job_type is None:
         return {"cancelled": 0}
 
-    repo_method, redis_key, _, _ = config
-    repo: Any = getattr(container, repo_method)(session)
-    redis: Any = await container.get_redis_pool()
+    job_repo = container.job_repository(session)
 
-    source_ids = _resolve_source_ids(
-        repo, body.source_id, [EnrichmentStatus.QUEUED, EnrichmentStatus.RUNNING],
-    )
+    if body.job_id is not None:
+        # Cancel a single job
+        job_repo.delete(body.job_id)
+        session.commit()
+        return {"cancelled": 1}
 
+    if body.source_id is not None:
+        # Cancel all jobs of type for a specific source
+        count = job_repo.delete_by_source_and_type(body.source_id, job_type)
+        session.commit()
+        return {"cancelled": count}
+
+    # Cancel all jobs of type globally
+    source_ids = job_repo.get_source_ids_with_active_jobs(job_type)
     total = 0
     for sid in source_ids:
-        queued = repo.get_candidate_ids_by_status(sid, EnrichmentStatus.QUEUED)
-        running = repo.get_candidate_ids_by_status(sid, EnrichmentStatus.RUNNING)
-        affected = queued + running
-        if not affected:
-            continue
-        repo.mark_batch_cancelled(affected)
-        await _flush_and_abort_jobs(redis, sid, redis_key)
-        total += len(affected)
-
-    if total:
-        session.commit()
+        total += job_repo.delete_by_source_and_type(sid, job_type)
+    session.commit()
     return {"cancelled": total}
 
 
 @router.post("/retry", status_code=202)
-async def retry_failed(
+def retry_failed(
     body: RetryRequestDTO,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, int]:
-    """Re-enqueue failed jobs. Same logic as per-source retry endpoints."""
-    config = _JOB_TYPE_CONFIG.get(body.job_type)
-    if config is None:
+    """Re-enqueue failed jobs via JobRepository."""
+    job_type = _JOB_TYPE_MAP.get(body.job_type)
+    if job_type is None:
         return {"retried": 0}
 
-    repo_method, redis_key, arq_function, batched = config
-    repo: Any = getattr(container, repo_method)(session)
-    redis: Any = await container.get_redis_pool()
+    job_repo = container.job_repository(session)
 
-    # Collect per-source failed IDs
-    per_source: dict[int, list[int]] = {}
+    # Get failed jobs matching the filter
+    failed_groups = job_repo.get_failed_grouped_by_error(
+        source_id=body.source_id, job_type=job_type,
+    )
 
-    if body.error_text is not None:
-        # Retry by error text — get_candidate_ids_by_error returns flat list
-        # Need to group by source. Use source_ids from failed groups.
-        failed_ids = repo.get_candidate_ids_by_error(
-            body.error_text, source_id=body.source_id,
+    # Filter by error_text if specified
+    candidate_ids_set: set[int] = set()
+    source_ids_to_retry: set[int] = set()
+    for group in failed_groups:
+        if body.error_text is not None and group["error"] != body.error_text:
+            continue
+        candidate_ids_set.update(group["candidate_ids"])
+        source_ids_to_retry.update(group["source_ids"])
+
+    if not candidate_ids_set:
+        return {"retried": 0}
+
+    # Delete failed jobs and re-create matching ones as QUEUED.
+    # When filtering by error_text, delete_failed_by_source_and_type removes ALL
+    # failed jobs for the source+type. We must re-insert non-matching ones as FAILED.
+    to_retry: list[Job] = []
+    to_preserve: list[Job] = []
+    for sid in source_ids_to_retry:
+        deleted = job_repo.delete_failed_by_source_and_type(sid, job_type)
+        for j in deleted:
+            if body.error_text is not None and j.candidate_id not in candidate_ids_set:
+                to_preserve.append(j)
+            else:
+                to_retry.append(j)
+
+    if not to_retry:
+        # Re-insert preserved jobs if we deleted but found nothing to retry
+        if to_preserve:
+            preserved_jobs = [
+                Job(
+                    id=None,
+                    job_type=j.job_type,
+                    candidate_id=j.candidate_id,
+                    source_id=j.source_id,
+                    status=j.status,
+                    error=j.error,
+                    created_at=j.created_at,
+                    started_at=j.started_at,
+                )
+                for j in to_preserve
+            ]
+            job_repo.create_bulk(preserved_jobs)
+            session.commit()
+        return {"retried": 0}
+
+    now = datetime.now(tz=UTC)
+    new_jobs = [
+        Job(
+            id=None,
+            job_type=job_type,
+            candidate_id=j.candidate_id,
+            source_id=j.source_id,
+            status=JobStatus.QUEUED,
+            error=None,
+            created_at=now,
+            started_at=None,
         )
-        if body.source_id is not None:
-            per_source[body.source_id] = failed_ids
-        else:
-            # Group by discovering sources from error groups
-            source_ids = _resolve_source_ids(repo, None, [EnrichmentStatus.FAILED])
-            for sid in source_ids:
-                sid_ids = [
-                    cid for cid in repo.get_candidate_ids_by_error(
-                        body.error_text, source_id=sid,
-                    )
-                ]
-                if sid_ids:
-                    per_source[sid] = sid_ids
-    else:
-        source_ids = _resolve_source_ids(repo, body.source_id, [EnrichmentStatus.FAILED])
-        for sid in source_ids:
-            ids = repo.get_candidate_ids_by_status(sid, EnrichmentStatus.FAILED)
-            if ids:
-                per_source[sid] = ids
-
-    all_ids = [cid for ids in per_source.values() for cid in ids]
-    if not all_ids:
-        return {"retried": 0}
-
-    # Mark queued in DB + commit
-    repo.mark_queued_bulk(all_ids)
+        for j in to_retry
+    ]
+    # Re-insert non-matching failed jobs to preserve them
+    if to_preserve:
+        preserved_jobs = [
+            Job(
+                id=None,
+                job_type=j.job_type,
+                candidate_id=j.candidate_id,
+                source_id=j.source_id,
+                status=j.status,
+                error=j.error,
+                created_at=j.created_at,
+                started_at=j.started_at,
+            )
+            for j in to_preserve
+        ]
+        job_repo.create_bulk(preserved_jobs)
+    job_repo.create_bulk(new_jobs)
     session.commit()
 
-    # Enqueue in Redis per source
-    ts_ms = int(time.time() * 1000)
-    base = datetime.now(tz=UTC)
-    for sid, cids in per_source.items():
-        await _enqueue_for_source(
-            redis, sid, cids, redis_key, arq_function, batched, ts_ms, base,
-        )
-
-    return {"retried": len(all_ids)}
-
-
-# ── Helpers ─────────────────────────────────────────────────────────
-
-
-async def _enqueue_for_source(
-    redis: Any,  # noqa: ANN401
-    source_id: int,
-    candidate_ids: list[int],
-    redis_key: str,
-    arq_function: str,
-    batched: bool,
-    ts_ms: int,
-    base: datetime,
-) -> None:
-    """Enqueue jobs in Redis for one source. Mirrors existing retry endpoints."""
-    job_ids: list[str] = []
-    if batched:
-        batches = [
-            candidate_ids[i:i + _MEANING_BATCH_SIZE]
-            for i in range(0, len(candidate_ids), _MEANING_BATCH_SIZE)
-        ]
-        for i, batch in enumerate(batches):
-            job_id = f"{redis_key}_{source_id}_retry_{ts_ms}_{i:04d}"
-            await redis.enqueue_job(
-                arq_function, batch,
-                _job_id=job_id, _defer_until=base + timedelta(milliseconds=i),
-            )
-            job_ids.append(job_id)
-    else:
-        for i, cid in enumerate(candidate_ids):
-            job_id = f"{redis_key}_{source_id}_{cid}_retry_{ts_ms}"
-            await redis.enqueue_job(
-                arq_function, cid,
-                _job_id=job_id, _defer_until=base + timedelta(milliseconds=i),
-            )
-            job_ids.append(job_id)
-    await _register_job_ids(redis, source_id, redis_key, job_ids)
-
-
-def _resolve_source_ids(
-    repo: Any,  # noqa: ANN401
-    source_id: int | None,
-    statuses: list[EnrichmentStatus],
-) -> list[int]:
-    """Determine which source IDs to operate on.
-
-    If source_id given, returns [source_id].
-    Otherwise discovers sources with activity via repo methods.
-    """
-    if source_id is not None:
-        return [source_id]
-    source_ids: set[int] = set()
-    for status in statuses:
-        sids = repo.get_source_ids_by_enrichment_status(status)
-        source_ids.update(sids)
-    return list(source_ids)
+    return {"retried": len(new_jobs)}

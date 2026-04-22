@@ -9,21 +9,19 @@ services:
     environment:
       ANKI_URL: http://host.docker.internal:8765
       AI_PROXY_URL: http://host.docker.internal:${AI_PROXY_PORT}
-      REDIS_URL: redis://redis:6379
       PROMPTS_CONFIG_PATH: /app/config/prompts.yaml
     volumes:
       - ./data:/data
       - ./config:/app/config:ro
       - ./dictionaries:/app/dictionaries:ro
       - ./anki-templates:/app/anki-templates:ro
+      - ./scripts:/app/scripts:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/settings"]
       interval: 5s
       timeout: 3s
       retries: 3
       start_period: 15s
-    depends_on:
-      - redis
 
   worker:
     build:
@@ -31,17 +29,9 @@ services:
       dockerfile: Dockerfile.worker
     environment:
       AI_PROXY_URL: http://host.docker.internal:${AI_PROXY_PORT}
-      REDIS_URL: redis://redis:6379
       PROMPTS_CONFIG_PATH: /app/config/prompts.yaml
     volumes:
       - ./data:/data
       - ./config:/app/config:ro
       - ./dictionaries:/app/dictionaries:ro
       - ./anki-templates:/app/anki-templates:ro
-    depends_on:
-      - redis
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - ./data/redis:/data

@@ -5,15 +5,10 @@ from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 if TYPE_CHECKING:
-    from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
-    from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
-    from backend.domain.ports.candidate_pronunciation_repository import (
-        CandidatePronunciationRepository,
-    )
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.source_repository import SourceRepository
 
@@ -33,16 +28,12 @@ class GetReprocessStatsUseCase:
         source_repo: SourceRepository,
         candidate_repo: CandidateRepository,
         known_word_repo: KnownWordRepository,
-        meaning_repo: CandidateMeaningRepository,
-        media_repo: CandidateMediaRepository,
-        pronunciation_repo: CandidatePronunciationRepository,
+        job_repo: JobRepository,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
         self._known_word_repo = known_word_repo
-        self._meaning_repo = meaning_repo
-        self._media_repo = media_repo
-        self._pronunciation_repo = pronunciation_repo
+        self._job_repo = job_repo
 
     def execute(self, source_id: int) -> ReprocessStats:
         source = self._source_repo.get_by_id(source_id)
@@ -69,7 +60,7 @@ class GetReprocessStatsUseCase:
             elif c.status == CandidateStatus.PENDING:
                 pending_count += 1
 
-        has_active = self._has_active_enrichments(source_id)
+        has_active = self._job_repo.has_active_jobs_for_source(source_id)
 
         return ReprocessStats(
             learn_count=learn_lost_count,
@@ -78,10 +69,3 @@ class GetReprocessStatsUseCase:
             pending_count=pending_count,
             has_active_jobs=has_active,
         )
-
-    def _has_active_enrichments(self, source_id: int) -> bool:
-        for repo in (self._meaning_repo, self._media_repo, self._pronunciation_repo):
-            for status in (EnrichmentStatus.RUNNING, EnrichmentStatus.QUEUED):
-                if repo.get_candidate_ids_by_status(source_id, status):
-                    return True
-        return False

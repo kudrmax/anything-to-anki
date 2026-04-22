@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
-
 from backend.domain.exceptions import AIServiceError
 from backend.infrastructure.adapters.http_ai_service import HttpAIService
 

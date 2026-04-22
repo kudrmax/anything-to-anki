@@ -4,8 +4,6 @@ from __future__ import annotations
 import json
 
 import pytest
-from sqlalchemy.orm import Session
-
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -15,6 +13,7 @@ from backend.infrastructure.persistence.models import StoredCandidateModel
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
 )
+from sqlalchemy.orm import Session
 
 
 @pytest.mark.integration

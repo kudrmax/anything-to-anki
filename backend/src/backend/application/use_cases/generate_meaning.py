@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.exceptions import CandidateNotFoundError
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 if TYPE_CHECKING:
     from backend.domain.ports.ai_service import AIService
@@ -89,8 +88,6 @@ class GenerateMeaningUseCase:
             synonyms=result.synonyms,
             examples=result.examples,
             ipa=result.ipa,
-            status=EnrichmentStatus.DONE,
-            error=None,
             generated_at=datetime.now(tz=UTC),
         ))
         return GenerateMeaningResponseDTO(
@@ -182,8 +179,6 @@ class GenerateMeaningUseCase:
             synonyms=new_synonyms,
             examples=new_examples,
             ipa=new_ipa,
-            status=EnrichmentStatus.DONE,
-            error=None,
             generated_at=datetime.now(tz=UTC),
         ))
         return GenerateMeaningResponseDTO(

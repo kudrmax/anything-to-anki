@@ -6,8 +6,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from datetime import datetime
 
-    from backend.domain.value_objects.enrichment_status import EnrichmentStatus
-
 
 @dataclass(frozen=True)
 class CandidatePronunciation:
@@ -20,6 +18,4 @@ class CandidatePronunciation:
     candidate_id: int
     us_audio_path: str | None
     uk_audio_path: str | None
-    status: EnrichmentStatus
-    error: str | None
     generated_at: datetime | None
