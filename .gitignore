@@ -21,3 +21,4 @@ scripts/scrapers/*/errors/
 coverage-*.json
 htmlcov/
 /.claude/worktrees
+/.DS_Store
