@@ -1,6 +1,7 @@
 """Tests for JobWorker — SQLite-backed async job worker."""
 from __future__ import annotations
 
+import asyncio
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Generator
@@ -432,6 +433,273 @@ class TestHelpers:
         worker._delete_jobs([job_no_id])
 
         repo_instance.delete_bulk.assert_not_called()
+
+
+@pytest.mark.unit
+class TestRunMeaningBatch:
+    """Tests for the sync _run_meaning_batch method."""
+
+    @patch("backend.infrastructure.queue.job_worker.SqlaJobRepository")
+    @patch("backend.infrastructure.queue.cancellation_token.CancellationToken", autospec=True)
+    def test_calls_execute_batch_with_candidate_ids(
+        self, mock_token_cls: MagicMock, mock_repo_cls: MagicMock,
+    ) -> None:
+        mock_token = MagicMock()
+        mock_token_cls.return_value = mock_token
+
+        container = _make_container()
+        use_case = MagicMock()
+        container.meaning_generation_use_case.return_value = use_case
+
+        # Patch the local import of CancellationToken inside _run_meaning_batch
+        worker = JobWorker(container)
+        primary_job = _make_job(job_type=JobType.MEANING, job_id=1, candidate_id=10)
+
+        with patch(
+            "backend.infrastructure.queue.cancellation_token.CancellationToken",
+            return_value=mock_token,
+        ):
+            worker._run_meaning_batch([10, 11, 12], primary_job)
+
+        use_case.execute_batch.assert_called_once_with([10, 11, 12])
+
+    @patch("backend.infrastructure.queue.job_worker.SqlaJobRepository")
+    def test_raises_cancelled_when_token_cancelled(
+        self, mock_repo_cls: MagicMock,
+    ) -> None:
+        mock_token = MagicMock()
+        mock_token.check.side_effect = CancelledByUserError(1)
+
+        container = _make_container()
+        worker = JobWorker(container)
+        primary_job = _make_job(job_type=JobType.MEANING, job_id=1, candidate_id=10)
+
+        with patch(
+            "backend.infrastructure.queue.cancellation_token.CancellationToken",
+            return_value=mock_token,
+        ), pytest.raises(CancelledByUserError):
+            worker._run_meaning_batch([10], primary_job)
+
+
+@pytest.mark.unit
+class TestRunMedia:
+    """Tests for the sync _run_media method."""
+
+    def test_calls_media_extraction_use_case(self) -> None:
+        container = _make_container()
+        use_case = MagicMock()
+        container.media_extraction_use_case.return_value = use_case
+
+        with patch(
+            "backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository",
+        ) as mock_cand_repo_cls:
+            mock_cand_repo_cls.return_value.get_by_id.return_value = None
+
+            worker = JobWorker(container)
+            job = _make_job(job_type=JobType.MEDIA, candidate_id=42)
+            worker._run_media(job)
+
+        use_case.execute_one.assert_called_once_with(42)
+
+    def test_runs_cleanup_when_candidate_found(self) -> None:
+        container = _make_container()
+        use_case = MagicMock()
+        container.media_extraction_use_case.return_value = use_case
+        cleanup = MagicMock()
+        container.cleanup_youtube_video_use_case.return_value = cleanup
+
+        fake_candidate = MagicMock()
+        fake_candidate.source_id = 5
+
+        with patch(
+            "backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository",
+        ) as mock_cand_repo_cls:
+            mock_cand_repo_cls.return_value.get_by_id.return_value = fake_candidate
+
+            worker = JobWorker(container)
+            job = _make_job(job_type=JobType.MEDIA, candidate_id=42)
+            worker._run_media(job)
+
+        cleanup.execute.assert_called_once_with(5)
+
+
+@pytest.mark.unit
+class TestRunPronunciation:
+    """Tests for the sync _run_pronunciation method."""
+
+    def test_calls_download_pronunciation_use_case(self) -> None:
+        container = _make_container()
+        use_case = MagicMock()
+        container.download_pronunciation_use_case.return_value = use_case
+
+        worker = JobWorker(container)
+        job = _make_job(job_type=JobType.PRONUNCIATION, candidate_id=42)
+        worker._run_pronunciation(job)
+
+        use_case.execute_one.assert_called_once_with(42)
+
+
+@pytest.mark.unit
+class TestHandleMedia:
+    """Tests for _handle_media async method."""
+
+    @pytest.mark.asyncio
+    @patch("backend.infrastructure.queue.job_worker.SqlaJobRepository")
+    async def test_media_timeout_marks_failed(
+        self, mock_repo_cls: MagicMock,
+    ) -> None:
+        repo_instance = MagicMock()
+        mock_repo_cls.return_value = repo_instance
+
+        container = _make_container()
+        worker = JobWorker(container)
+        job = _make_job(job_type=JobType.MEDIA, job_id=1)
+
+        with patch("backend.infrastructure.queue.job_worker.asyncio.wait_for") as mock_wait:
+            mock_wait.side_effect = TimeoutError()
+            await worker._handle_media(job)
+
+        repo_instance.mark_failed_bulk.assert_called_once_with([1], "timeout")
+
+    @pytest.mark.asyncio
+    @patch("backend.infrastructure.queue.job_worker.SqlaJobRepository")
+    async def test_media_success_deletes_job(
+        self, mock_repo_cls: MagicMock,
+    ) -> None:
+        repo_instance = MagicMock()
+        mock_repo_cls.return_value = repo_instance
+
+        container = _make_container()
+        worker = JobWorker(container)
+        job = _make_job(job_type=JobType.MEDIA, job_id=1)
+
+        with patch("backend.infrastructure.queue.job_worker.asyncio.wait_for"):
+            await worker._handle_media(job)
+
+        repo_instance.delete_bulk.assert_called_once_with([1])
+
+
+@pytest.mark.unit
+class TestHandlePronunciation:
+    """Tests for _handle_pronunciation async method."""
+
+    @pytest.mark.asyncio
+    @patch("backend.infrastructure.queue.job_worker.SqlaJobRepository")
+    async def test_pronunciation_timeout_marks_failed(
+        self, mock_repo_cls: MagicMock,
+    ) -> None:
+        repo_instance = MagicMock()
+        mock_repo_cls.return_value = repo_instance
+
+        container = _make_container()
+        worker = JobWorker(container)
+        job = _make_job(job_type=JobType.PRONUNCIATION, job_id=1)
+
+        with patch("backend.infrastructure.queue.job_worker.asyncio.wait_for") as mock_wait:
+            mock_wait.side_effect = TimeoutError()
+            await worker._handle_pronunciation(job)
+
+        repo_instance.mark_failed_bulk.assert_called_once_with([1], "timeout")
+
+    @pytest.mark.asyncio
+    @patch("backend.infrastructure.queue.job_worker.SqlaJobRepository")
+    async def test_pronunciation_success_deletes_job(
+        self, mock_repo_cls: MagicMock,
+    ) -> None:
+        repo_instance = MagicMock()
+        mock_repo_cls.return_value = repo_instance
+
+        container = _make_container()
+        worker = JobWorker(container)
+        job = _make_job(job_type=JobType.PRONUNCIATION, job_id=1)
+
+        with patch("backend.infrastructure.queue.job_worker.asyncio.wait_for"):
+            await worker._handle_pronunciation(job)
+
+        repo_instance.delete_bulk.assert_called_once_with([1])
+
+
+@pytest.mark.unit
+class TestHandleVideoDownload:
+    """Tests for _handle_video_download async method."""
+
+    @pytest.mark.asyncio
+    @patch("backend.infrastructure.queue.job_worker.SqlaJobRepository")
+    async def test_success_deletes_job(
+        self, mock_repo_cls: MagicMock,
+    ) -> None:
+        repo_instance = MagicMock()
+        mock_repo_cls.return_value = repo_instance
+
+        container = _make_container()
+        use_case = MagicMock()
+        container.download_video_use_case.return_value = use_case
+
+        worker = JobWorker(container)
+        job = _make_job(job_type=JobType.VIDEO_DOWNLOAD, job_id=1, candidate_id=None)
+        await worker._handle_video_download(job)
+
+        use_case.execute.assert_called_once_with(10)  # source_id
+        repo_instance.delete_bulk.assert_called_once_with([1])
+
+    @pytest.mark.asyncio
+    @patch("backend.infrastructure.queue.job_worker.SqlaJobRepository")
+    async def test_error_updates_source_status_and_reraises(
+        self, mock_repo_cls: MagicMock,
+    ) -> None:
+        repo_instance = MagicMock()
+        mock_repo_cls.return_value = repo_instance
+
+        container = _make_container()
+        use_case = MagicMock()
+        use_case.execute.side_effect = RuntimeError("download failed")
+        container.download_video_use_case.return_value = use_case
+
+        with patch(
+            "backend.infrastructure.persistence.sqla_source_repository.SqlaSourceRepository",
+        ) as mock_source_repo_cls:
+            source_repo = MagicMock()
+            mock_source_repo_cls.return_value = source_repo
+
+            worker = JobWorker(container)
+            job = _make_job(job_type=JobType.VIDEO_DOWNLOAD, job_id=1, candidate_id=None)
+
+            with pytest.raises(RuntimeError, match="download failed"):
+                await worker._handle_video_download(job)
+
+            source_repo.update_status.assert_called_once()
+
+
+@pytest.mark.unit
+class TestRunLoop:
+    """Tests for the run() main loop."""
+
+    @pytest.mark.asyncio
+    @patch("backend.infrastructure.queue.job_worker.SqlaJobRepository")
+    async def test_run_processes_until_shutdown(
+        self, mock_repo_cls: MagicMock,
+    ) -> None:
+        repo_instance = MagicMock()
+        repo_instance.fail_all_running.return_value = 0
+        repo_instance.dequeue_next.return_value = None
+        mock_repo_cls.return_value = repo_instance
+
+        container = _make_container()
+        worker = JobWorker(container)
+
+        # Shutdown after first poll
+        original_sleep = asyncio.sleep
+
+        async def shutdown_on_sleep(delay: float) -> None:
+            worker._shutdown = True
+
+        with patch("backend.infrastructure.queue.job_worker.asyncio.sleep", shutdown_on_sleep):
+            with patch("backend.infrastructure.queue.job_worker.asyncio.get_running_loop") as mock_loop:
+                mock_loop.return_value = MagicMock()
+                await worker.run()
+
+        repo_instance.fail_all_running.assert_called_once()
+        repo_instance.dequeue_next.assert_called_once()
 
 
 @pytest.mark.unit
