@@ -115,3 +115,24 @@ class TestProcessSourceBreakdownPropagation:
         assert restored.decision_method == original.decision_method
         assert restored.final_level == original.final_level
         assert len(restored.votes) == len(original.votes)
+
+    def test_dto_to_breakdown_uses_runtime_resolver(self) -> None:
+        """dto_to_breakdown must compute level via resolve_cefr_level, not trust DTO fields."""
+        from backend.application.dto.cefr_dtos import dto_to_breakdown
+        from backend.application.dto.cefr_dtos import CEFRBreakdownDTO, SourceVoteDTO
+
+        # DTO says "voting" but Oxford knows the word → resolver should say "priority"
+        dto = CEFRBreakdownDTO(
+            decision_method="voting",  # stale/wrong
+            priority_votes=[
+                SourceVoteDTO(source_name="Oxford 5000", level="B2"),
+                SourceVoteDTO(source_name="Cambridge Dictionary", level=None),
+            ],
+            votes=[
+                SourceVoteDTO(source_name="CEFRpy", level="C1"),
+            ],
+        )
+        restored = dto_to_breakdown(dto)
+        # Resolver sees Oxford B2 → priority, ignoring the stale "voting"
+        assert restored.final_level == CEFRLevel.B2
+        assert restored.decision_method == "priority"

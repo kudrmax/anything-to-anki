@@ -196,3 +196,51 @@ class TestCEFRBreakdownDBRoundtrip:
 
         # Breakdown should be gone too
         assert db_session.query(CEFRBreakdownModel).filter_by(candidate_id=cid).one_or_none() is None
+
+    def test_runtime_level_ignores_stored_cefr_level(self, db_session: Session) -> None:
+        """cefr_level on loaded entity comes from runtime resolution, not DB column.
+
+        We save cefr_level="C2" in the DB but the breakdown votes point to B1
+        (Cambridge priority). After load, cefr_level must be B1 (runtime), not C2.
+        """
+        repo = SqlaCandidateRepository(db_session)
+        candidate = StoredCandidate(
+            source_id=1,
+            lemma="mismatch",
+            pos="NN",
+            cefr_level="C2",  # deliberately wrong — should be overridden
+            zipf_frequency=4.0,
+            context_fragment="a mismatch",
+            fragment_purity="clean",
+            occurrences=1,
+            status=CandidateStatus.PENDING,
+            cefr_breakdown=_make_breakdown(),  # Cambridge knows B1
+        )
+        repo.create_batch([candidate])
+
+        loaded = repo.get_by_source(1)[0]
+        # Runtime resolver sees Cambridge=B1 → final_level=B1, NOT stored "C2"
+        assert loaded.cefr_level == "B1"
+        assert loaded.cefr_breakdown is not None
+        assert loaded.cefr_breakdown.final_level == CEFRLevel.B1
+
+    def test_fallback_to_stored_level_without_breakdown(self, db_session: Session) -> None:
+        """Candidates without a breakdown row use the stored cefr_level as fallback."""
+        repo = SqlaCandidateRepository(db_session)
+        candidate = StoredCandidate(
+            source_id=1,
+            lemma="legacy",
+            pos="NN",
+            cefr_level="B2",
+            zipf_frequency=4.0,
+            context_fragment="legacy word",
+            fragment_purity="clean",
+            occurrences=1,
+            status=CandidateStatus.PENDING,
+            cefr_breakdown=None,  # no breakdown — old candidate
+        )
+        repo.create_batch([candidate])
+
+        loaded = repo.get_by_source(1)[0]
+        assert loaded.cefr_level == "B2"
+        assert loaded.cefr_breakdown is None
