@@ -75,7 +75,6 @@ def _seed_source_with_candidate(
         source_id=source.id,
         lemma=lemma,
         pos="NOUN",
-        cefr_level="B2",
         zipf_frequency=3.5,
         is_sweet_spot=True,
         context_fragment=f"context with {lemma} here",

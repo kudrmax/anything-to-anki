@@ -201,7 +201,6 @@ class StoredCandidateModel(Base):
     source_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     lemma: Mapped[str] = mapped_column(String(100), nullable=False)
     pos: Mapped[str] = mapped_column(String(10), nullable=False)
-    cefr_level: Mapped[str] = mapped_column(String(10), nullable=False)
     zipf_frequency: Mapped[float] = mapped_column(Float, nullable=False)
     is_sweet_spot: Mapped[bool] = mapped_column(nullable=False)
     context_fragment: Mapped[str] = mapped_column(Text, nullable=False)
@@ -226,12 +225,9 @@ class StoredCandidateModel(Base):
         if self.cefr_breakdown is not None:
             bd = _model_to_breakdown(self.cefr_breakdown)
 
-        # Runtime-computed level from breakdown; fallback to stored value
-        # for candidates without a breakdown row (e.g. old phrasal verbs).
+        cefr_level: str | None = None
         if bd is not None and bd.final_level is not CEFRLevel.UNKNOWN:
-            cefr_level: str | None = bd.final_level.name
-        else:
-            cefr_level = self.cefr_level or None
+            cefr_level = bd.final_level.name
 
         ud: UsageDistribution | None = None
         if self.usage_distribution_json is not None:
@@ -263,7 +259,6 @@ class StoredCandidateModel(Base):
             source_id=candidate.source_id,
             lemma=candidate.lemma,
             pos=candidate.pos,
-            cefr_level=candidate.cefr_level or "",
             zipf_frequency=candidate.zipf_frequency,
             is_sweet_spot=candidate.is_sweet_spot,
             context_fragment=candidate.context_fragment,

@@ -25,10 +25,10 @@ class TestSqlaCandidateMeaningRepository:
         with self._Session() as s:
             s.execute(
                 text(
-                    "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                    "INSERT INTO candidates (id, source_id, lemma, pos, "
                     "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
                     "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                    "VALUES (1, 1, 'x', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
+                    "VALUES (1, 1, 'x', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
                 )
             )
             s.commit()
@@ -84,10 +84,10 @@ class TestSqlaCandidateMeaningRepository:
             # add another candidate
             s.execute(
                 text(
-                    "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                    "INSERT INTO candidates (id, source_id, lemma, pos, "
                     "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
                     "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                    "VALUES (2, 1, 'y', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
+                    "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
                 )
             )
             s.commit()
@@ -110,10 +110,10 @@ class TestSqlaCandidateMeaningRepository:
     def test_get_by_candidate_ids_returns_mapping(self) -> None:
         with self._Session() as s:
             s.execute(text(
-                "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                "INSERT INTO candidates (id, source_id, lemma, pos, "
                 "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
                 "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (2, 1, 'y', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
+                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
             ))
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
@@ -139,10 +139,10 @@ class TestSqlaCandidateMeaningRepository:
     def test_get_candidate_ids_without_meaning_returns_only_missing(self) -> None:
         with self._Session() as s:
             s.execute(text(
-                "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                "INSERT INTO candidates (id, source_id, lemma, pos, "
                 "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
                 "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (2, 1, 'y', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
+                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
             ))
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
@@ -159,10 +159,10 @@ class TestSqlaCandidateMeaningRepository:
     def test_count_candidate_ids_without_meaning(self) -> None:
         with self._Session() as s:
             s.execute(text(
-                "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                "INSERT INTO candidates (id, source_id, lemma, pos, "
                 "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
                 "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (2, 1, 'y', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'known', 0, 0)"
+                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'known', 0, 0)"
             ))
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
@@ -173,10 +173,10 @@ class TestSqlaCandidateMeaningRepository:
     def test_mark_queued_bulk_creates_and_updates(self) -> None:
         with self._Session() as s:
             s.execute(text(
-                "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                "INSERT INTO candidates (id, source_id, lemma, pos, "
                 "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
                 "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (2, 1, 'y', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
+                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
             ))
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
@@ -231,10 +231,10 @@ class TestSqlaCandidateMeaningRepository:
     def test_mark_batch_failed(self) -> None:
         with self._Session() as s:
             s.execute(text(
-                "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                "INSERT INTO candidates (id, source_id, lemma, pos, "
                 "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
                 "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (2, 1, 'y', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
+                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
             ))
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
@@ -251,10 +251,10 @@ class TestSqlaCandidateMeaningRepository:
     def test_get_candidate_ids_by_status_failed(self) -> None:
         with self._Session() as s:
             s.execute(text(
-                "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+                "INSERT INTO candidates (id, source_id, lemma, pos, "
                 "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
                 "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (2, 1, 'y', 'NOUN', 'B2', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
+                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
             ))
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
