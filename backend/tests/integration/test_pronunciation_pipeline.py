@@ -28,10 +28,10 @@ if TYPE_CHECKING:
 
 def _insert_candidate(session: Session, candidate_id: int, lemma: str, source_id: int = 1) -> None:
     session.execute(text(
-        "INSERT INTO candidates (id, source_id, lemma, pos, cefr_level, "
+        "INSERT INTO candidates (id, source_id, lemma, pos, "
         "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
         "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-        f"VALUES ({candidate_id}, {source_id}, '{lemma}', 'NOUN', 'B1', "
+        f"VALUES ({candidate_id}, {source_id}, '{lemma}', 'NOUN', "
         f"4.0, 1, 'a {lemma}', 'clean', 1, 'learn', 0, 0)"
     ))
 

@@ -224,23 +224,4 @@ class TestCEFRBreakdownDBRoundtrip:
         assert loaded.cefr_breakdown is not None
         assert loaded.cefr_breakdown.final_level == CEFRLevel.B1
 
-    def test_fallback_to_stored_level_without_breakdown(self, db_session: Session) -> None:
-        """Candidates without a breakdown row use the stored cefr_level as fallback."""
-        repo = SqlaCandidateRepository(db_session)
-        candidate = StoredCandidate(
-            source_id=1,
-            lemma="legacy",
-            pos="NN",
-            cefr_level="B2",
-            zipf_frequency=4.0,
-            context_fragment="legacy word",
-            fragment_purity="clean",
-            occurrences=1,
-            status=CandidateStatus.PENDING,
-            cefr_breakdown=None,  # no breakdown — old candidate
-        )
-        repo.create_batch([candidate])
-
-        loaded = repo.get_by_source(1)[0]
-        assert loaded.cefr_level == "B2"
-        assert loaded.cefr_breakdown is None
+    # fallback test removed: cefr_level column dropped, all candidates must have breakdown
