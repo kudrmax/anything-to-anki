@@ -115,7 +115,9 @@ def transform_raw_result(word: str, raw: list[RESULT_FORMAT]) -> dict[str, Any]:
     """Transform Blackdeer parser output into our JSONL format."""
     entries: list[dict[str, Any]] = []
 
-    for dict_block in raw:
+    # Only use the first dictionary block (English).
+    # Subsequent blocks (e.g. Learner's) duplicate entries without CEFR levels.
+    for dict_block in raw[:1]:
         for headword, pos_list in dict_block.items():
             for pos_data in pos_list:
                 data = pos_data["data"]
