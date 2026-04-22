@@ -13,8 +13,8 @@ def _unknown(name: str) -> SourceVote:
     return _vote(name, CEFRLevel.UNKNOWN)
 
 
-class TestPriorityChain:
-    def test_oxford_wins_over_cambridge(self) -> None:
+class TestBothPrioritySources:
+    def test_takes_lower_when_both_known(self) -> None:
         votes = [
             _vote("Oxford 5000", CEFRLevel.B2),
             _vote("Cambridge Dictionary", CEFRLevel.C1),
@@ -24,7 +24,37 @@ class TestPriorityChain:
         assert level == CEFRLevel.B2
         assert method == "priority"
 
-    def test_cambridge_when_oxford_unknown(self) -> None:
+    def test_takes_lower_cambridge_wins(self) -> None:
+        votes = [
+            _vote("Oxford 5000", CEFRLevel.C1),
+            _vote("Cambridge Dictionary", CEFRLevel.A2),
+        ]
+        level, method = resolve_cefr_level(votes)
+        assert level == CEFRLevel.A2
+        assert method == "priority"
+
+    def test_same_level_both_known(self) -> None:
+        votes = [
+            _vote("Oxford 5000", CEFRLevel.B1),
+            _vote("Cambridge Dictionary", CEFRLevel.B1),
+        ]
+        level, method = resolve_cefr_level(votes)
+        assert level == CEFRLevel.B1
+        assert method == "priority"
+
+
+class TestOnePrioritySource:
+    def test_oxford_only(self) -> None:
+        votes = [
+            _vote("Oxford 5000", CEFRLevel.B2),
+            _unknown("Cambridge Dictionary"),
+            _vote("CEFRpy", CEFRLevel.C2),
+        ]
+        level, method = resolve_cefr_level(votes)
+        assert level == CEFRLevel.B2
+        assert method == "priority"
+
+    def test_cambridge_only(self) -> None:
         votes = [
             _unknown("Oxford 5000"),
             _vote("Cambridge Dictionary", CEFRLevel.B1),
@@ -34,18 +64,7 @@ class TestPriorityChain:
         assert level == CEFRLevel.B1
         assert method == "priority"
 
-    def test_voting_when_both_unknown(self) -> None:
-        votes = [
-            _unknown("Oxford 5000"),
-            _unknown("Cambridge Dictionary"),
-            _vote("CEFRpy", CEFRLevel.A2),
-            _vote("Kelly List", CEFRLevel.A2),
-        ]
-        level, method = resolve_cefr_level(votes)
-        assert level == CEFRLevel.A2
-        assert method == "voting"
-
-    def test_oxford_alone(self) -> None:
+    def test_oxford_alone_in_list(self) -> None:
         votes = [_vote("Oxford 5000", CEFRLevel.A1)]
         level, method = resolve_cefr_level(votes)
         assert level == CEFRLevel.A1
@@ -58,6 +77,17 @@ class TestPriorityChain:
 
 
 class TestVotingFallback:
+    def test_voting_when_both_unknown(self) -> None:
+        votes = [
+            _unknown("Oxford 5000"),
+            _unknown("Cambridge Dictionary"),
+            _vote("CEFRpy", CEFRLevel.A2),
+            _vote("Kelly List", CEFRLevel.A2),
+        ]
+        level, method = resolve_cefr_level(votes)
+        assert level == CEFRLevel.A2
+        assert method == "voting"
+
     def test_equal_weight_majority(self) -> None:
         votes = [
             _unknown("Oxford 5000"),
