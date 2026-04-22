@@ -252,6 +252,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             settings_repo=SqlaSettingsRepository(session),
+            job_repo=SqlaJobRepository(session),
         )
 
     def process_source_use_case(self, session: Session) -> ProcessSourceUseCase:
@@ -290,6 +291,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             settings_repo=SqlaSettingsRepository(session),
+            job_repo=SqlaJobRepository(session),
         )
 
     def mark_candidate_use_case(self, session: Session) -> MarkCandidateUseCase:
