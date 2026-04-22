@@ -85,7 +85,7 @@ _check_env:
 ##@ Запуск (читает .env)
 up: _check_env  ## Запустить (ai_proxy + docker compose)
 	$(call start_ai_proxy)
-	docker compose up -d --build
+	docker compose up -d --build --force-recreate
 	$(call check_services,)
 	@printf "\n$(BANNER_COLOR)"
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -129,7 +129,7 @@ up-worktree: _check_env  ## Запустить worktree (WORKTREE_PORT, снос
 	PORT=$(WORKTREE_PORT) AI_PROXY_PORT=$(WORKTREE_AI_PROXY_PORT) \
 	    COMPOSE_PROJECT_NAME=anything-anki-worktree \
 	    INSTANCE_ENV_NAME=worktree \
-	    docker compose up -d --build
+	    docker compose up -d --build --force-recreate
 	$(call check_services,PORT=$(WORKTREE_PORT) AI_PROXY_PORT=$(WORKTREE_AI_PROXY_PORT) COMPOSE_PROJECT_NAME=anything-anki-worktree)
 	@printf "\n$(BANNER_COLOR)"
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
