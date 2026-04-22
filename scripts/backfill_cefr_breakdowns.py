@@ -1,21 +1,19 @@
 """Backfill missing cefr_breakdowns rows for candidates that predate migration 0013.
 
 Usage (from project root):
-    PYTHONPATH=backend/src python scripts/backfill_cefr_breakdowns.py [--db path/to/app.db] [--dry-run]
+    make backfill-breakdowns            # run on local data/app.db
+    make backfill-breakdowns DRY_RUN=1  # dry run, no writes
 
-Loads all 5 CEFR dictionary sources once, then for each candidate without a
-cefr_breakdowns row, runs classify_detailed(lemma, pos) and inserts the result.
+Runs inside the app Docker container where all Python deps are available.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# These imports require PYTHONPATH=backend/src
-# ---------------------------------------------------------------------------
 from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
@@ -48,20 +46,22 @@ def _level_to_str(level: CEFRLevel) -> str | None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Backfill missing cefr_breakdowns rows")
-    parser.add_argument("--db", default="data/app.db", help="Path to SQLite database")
     parser.add_argument("--dry-run", action="store_true", help="Print what would be done, don't write")
     args = parser.parse_args()
 
-    db_path = Path(args.db)
+    # In Docker: DATA_DIR=/data, dictionaries at /app/dictionaries
+    # Locally with venv: DATA_DIR=data (or .), dictionaries at ./dictionaries
+    data_dir = os.getenv("DATA_DIR", "data")
+    db_path = Path(data_dir) / "app.db"
     if not db_path.exists():
         print(f"Database not found: {db_path}", file=sys.stderr)
         sys.exit(1)
 
-    # Locate dictionaries
-    project_root = Path(__file__).resolve().parents[1]
-    dictionaries_dir = project_root / "dictionaries"
+    dictionaries_dir = Path("/app/dictionaries")
     if not dictionaries_dir.exists():
-        print(f"Dictionaries not found: {dictionaries_dir}", file=sys.stderr)
+        dictionaries_dir = Path("dictionaries")
+    if not dictionaries_dir.exists():
+        print(f"Dictionaries not found", file=sys.stderr)
         sys.exit(1)
 
     print(f"DB: {db_path}")
@@ -69,7 +69,6 @@ def main() -> None:
     print("Loading CEFR sources...")
     classifier = _build_classifier(dictionaries_dir)
 
-    # Direct SQLite — no ORM, no session, simple and safe
     import sqlite3
 
     conn = sqlite3.connect(str(db_path))
@@ -94,7 +93,7 @@ def main() -> None:
     if args.dry_run:
         for cid, lemma, pos in orphans[:10]:
             bd = classifier.classify_detailed(lemma, pos)
-            print(f"  [{cid}] {lemma}/{pos} → {bd.final_level.name} ({bd.decision_method})")
+            print(f"  [{cid}] {lemma}/{pos} -> {bd.final_level.name} ({bd.decision_method})")
         if len(orphans) > 10:
             print(f"  ... and {len(orphans) - 10} more")
         print("Dry run — no changes written.")
@@ -105,7 +104,6 @@ def main() -> None:
     for cid, lemma, pos in orphans:
         bd = classifier.classify_detailed(lemma, pos)
 
-        # Extract per-source values
         cambridge: str | None = None
         cefrpy: str | None = None
         efllex_distribution: str | None = None

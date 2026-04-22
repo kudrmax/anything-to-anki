@@ -178,6 +178,9 @@ lint: _python_dev  ## Линтинг (ruff)
 typecheck: _python_dev  ## Проверка типов (mypy)
 	.venv/bin/mypy backend/src
 
+backfill-breakdowns:  ## Заполнить cefr_breakdowns для старых кандидатов (DRY_RUN=1 для пробного запуска)
+	docker compose exec app python /app/scripts/backfill_cefr_breakdowns.py $(if $(DRY_RUN),--dry-run)
+
 ##@ Прочее
 help:  ## Показать доступные команды
 	@awk 'BEGIN {FS = ":.*##"; printf "\n"} \
