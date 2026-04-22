@@ -524,3 +524,35 @@ class Container:
             settings_repo=SqlaSettingsRepository(session),
             job_repo=SqlaJobRepository(session),
         )
+
+    def get_queue_global_summary_use_case(
+        self, session: Session,
+    ) -> GetQueueGlobalSummaryUseCase:
+        from backend.application.use_cases.get_queue_global_summary import (
+            GetQueueGlobalSummaryUseCase,
+        )
+        return GetQueueGlobalSummaryUseCase(
+            job_repo=SqlaJobRepository(session),
+        )
+
+    def get_queue_order_use_case(
+        self, session: Session,
+    ) -> GetQueueOrderUseCase:
+        from backend.application.use_cases.get_queue_order import (
+            GetQueueOrderUseCase,
+        )
+        return GetQueueOrderUseCase(
+            job_repo=SqlaJobRepository(session),
+            source_repo=SqlaSourceRepository(session),
+        )
+
+    def get_queue_failed_use_case(
+        self, session: Session,
+    ) -> GetQueueFailedUseCase:
+        from backend.application.use_cases.get_queue_failed import (
+            GetQueueFailedUseCase,
+        )
+        return GetQueueFailedUseCase(
+            job_repo=SqlaJobRepository(session),
+            source_repo=SqlaSourceRepository(session),
+        )

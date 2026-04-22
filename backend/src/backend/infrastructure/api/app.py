@@ -22,6 +22,7 @@ from backend.infrastructure.api.routes import (
     stats,
 )
 from backend.infrastructure.api.routes.media import router as media_router
+from backend.infrastructure.api.routes.queue import router as queue_router
 from backend.infrastructure.api.routes.pronunciation import router as pronunciation_router
 from backend.infrastructure.logging_setup import configure_logging
 from backend.infrastructure.persistence.database import (
@@ -65,6 +66,7 @@ app.include_router(export.router)
 app.include_router(stats.router)
 app.include_router(generation.router)
 app.include_router(pronunciation_router)
+app.include_router(queue_router)
 
 _dist_env = os.getenv("FRONTEND_DIST")
 _DIST = Path(_dist_env) if _dist_env else Path(__file__).parents[5] / "frontends" / "web" / "dist"

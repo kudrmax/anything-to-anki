@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from backend.domain.entities.job import Job
+    from backend.domain.value_objects.job_status import JobStatus
     from backend.domain.value_objects.job_type import JobType
 
 
@@ -75,10 +76,10 @@ class JobRepository(ABC):
 
     @abstractmethod
     def get_queue_summary(
-        self, source_id: int,
+        self, source_id: int | None = None,
     ) -> dict[str, dict[str, int]]:
-        """Return {job_type: {status: count}} for the given source.
-        Used by queue-summary endpoint."""
+        """Return {job_type: {status: count}}.
+        If source_id is None, returns global counts."""
 
     @abstractmethod
     def get_jobs_for_candidates(
@@ -94,3 +95,24 @@ class JobRepository(ABC):
         self, job_type: JobType,
     ) -> list[int]:
         """Return distinct source IDs that have QUEUED or RUNNING jobs of the given type."""
+
+    @abstractmethod
+    def get_jobs_by_status(
+        self,
+        statuses: list[JobStatus],
+        source_id: int | None = None,
+        job_type: JobType | None = None,
+        limit: int | None = None,
+    ) -> list[Job]:
+        """Return jobs matching given statuses, ordered by created_at asc.
+        Used by queue management page to list active/queued jobs."""
+
+    @abstractmethod
+    def get_failed_grouped_by_error(
+        self,
+        source_id: int | None = None,
+        job_type: JobType | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return failed jobs grouped by (job_type, error).
+        Each dict: {job_type, error, count, source_ids, candidate_ids}.
+        Used by queue management page."""

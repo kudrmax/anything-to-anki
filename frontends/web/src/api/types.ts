@@ -261,3 +261,55 @@ export interface AnkiTemplates {
   back: string
   css: string
 }
+
+export interface JobTypeSummary {
+  queued: number
+  running: number
+  failed: number
+}
+
+export interface QueueGlobalSummary {
+  meaning: JobTypeSummary
+  media: JobTypeSummary
+  pronunciation: JobTypeSummary
+  video_download: JobTypeSummary
+}
+
+export interface QueueJob {
+  job_id: number
+  job_type: string
+  source_id: number
+  source_title: string
+  status: 'running' | 'queued'
+  position: number | null
+  candidate_id: number | null
+}
+
+export interface QueueOrder {
+  running: QueueJob[]
+  queued: QueueJob[]
+  total_queued: number
+}
+
+export interface FailedSource {
+  source_id: number
+  source_title: string
+  count: number
+}
+
+export interface FailedGroup {
+  error_text: string
+  count: number
+  sources: FailedSource[]
+  candidate_ids: number[]
+}
+
+export interface FailedByJobType {
+  job_type: string
+  total_failed: number
+  groups: FailedGroup[]
+}
+
+export interface QueueFailed {
+  types: FailedByJobType[]
+}

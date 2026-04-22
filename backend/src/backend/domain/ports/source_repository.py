@@ -44,3 +44,10 @@ class SourceRepository(ABC):
 
     @abstractmethod
     def delete(self, source_id: int) -> None: ...
+
+    @abstractmethod
+    def get_title_map(self, source_ids: list[int]) -> dict[int, str]:
+        """Return a mapping {source_id: title} for the given ids.
+
+        Missing source ids are omitted from the result.
+        """

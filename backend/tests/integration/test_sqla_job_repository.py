@@ -379,3 +379,246 @@ class TestSqlaJobRepository:
 
         ids = repo.get_source_ids_with_active_jobs(JobType.MEANING)
         assert ids == [1]
+
+    # --- mark_failed_bulk empty list ---
+
+    def test_mark_failed_bulk_empty_list(self, db_session: Session) -> None:
+        repo = SqlaJobRepository(db_session)
+        # Should not raise, early return
+        repo.mark_failed_bulk([], "error")
+
+    # --- delete_bulk empty list ---
+
+    def test_delete_bulk_empty_list(self, db_session: Session) -> None:
+        repo = SqlaJobRepository(db_session)
+        # Should not raise, early return
+        repo.delete_bulk([])
+
+    # --- get_queue_summary global ---
+
+    def test_get_queue_summary_global(self, db_session: Session) -> None:
+        _insert_source(db_session, 1)
+        _insert_source(db_session, 2)
+        _insert_candidate(db_session, 1, 1)
+        _insert_candidate(db_session, 2, 2)
+        repo = SqlaJobRepository(db_session)
+
+        repo.create_bulk([
+            _make_job(candidate_id=1, source_id=1, job_type=JobType.MEANING),
+            _make_job(candidate_id=2, source_id=2, job_type=JobType.MEANING),
+        ])
+
+        summary = repo.get_queue_summary(source_id=None)
+        assert summary["meaning"]["queued"] == 2
+
+    # --- get_jobs_by_status ---
+
+    def test_get_jobs_by_status_returns_matching(self, db_session: Session) -> None:
+        self._setup_source_and_candidate(db_session)
+        _insert_candidate(db_session, 2, 1)
+        repo = SqlaJobRepository(db_session)
+
+        t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
+        t2 = datetime(2026, 1, 1, 0, 0, 1, tzinfo=UTC)
+        repo.create_bulk([
+            _make_job(candidate_id=1, job_type=JobType.MEANING, created_at=t1),
+            _make_job(candidate_id=2, job_type=JobType.MEANING,
+                      status=JobStatus.FAILED, error="err", created_at=t2),
+        ])
+
+        jobs = repo.get_jobs_by_status([JobStatus.QUEUED, JobStatus.RUNNING])
+        assert len(jobs) == 1
+        assert jobs[0].status == JobStatus.QUEUED
+        assert jobs[0].candidate_id == 1
+
+    def test_get_jobs_by_status_ordered_by_created_at(
+        self, db_session: Session,
+    ) -> None:
+        self._setup_source_and_candidate(db_session)
+        _insert_candidate(db_session, 2, 1)
+        repo = SqlaJobRepository(db_session)
+
+        t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
+        t2 = datetime(2026, 1, 1, 0, 0, 1, tzinfo=UTC)
+        repo.create_bulk([
+            _make_job(candidate_id=2, created_at=t2),
+            _make_job(candidate_id=1, created_at=t1),
+        ])
+
+        jobs = repo.get_jobs_by_status([JobStatus.QUEUED])
+        assert jobs[0].candidate_id == 1
+        assert jobs[1].candidate_id == 2
+
+    def test_get_jobs_by_status_filters_by_source_id(
+        self, db_session: Session,
+    ) -> None:
+        _insert_source(db_session, 1)
+        _insert_source(db_session, 2)
+        _insert_candidate(db_session, 1, 1)
+        _insert_candidate(db_session, 2, 2)
+        repo = SqlaJobRepository(db_session)
+
+        repo.create_bulk([
+            _make_job(candidate_id=1, source_id=1),
+            _make_job(candidate_id=2, source_id=2),
+        ])
+
+        jobs = repo.get_jobs_by_status([JobStatus.QUEUED], source_id=1)
+        assert len(jobs) == 1
+        assert jobs[0].source_id == 1
+
+    def test_get_jobs_by_status_filters_by_job_type(
+        self, db_session: Session,
+    ) -> None:
+        self._setup_source_and_candidate(db_session)
+        _insert_candidate(db_session, 2, 1)
+        repo = SqlaJobRepository(db_session)
+
+        repo.create_bulk([
+            _make_job(candidate_id=1, job_type=JobType.MEANING),
+            _make_job(candidate_id=2, job_type=JobType.MEDIA),
+        ])
+
+        jobs = repo.get_jobs_by_status([JobStatus.QUEUED], job_type=JobType.MEDIA)
+        assert len(jobs) == 1
+        assert jobs[0].job_type == JobType.MEDIA
+
+    def test_get_jobs_by_status_respects_limit(self, db_session: Session) -> None:
+        self._setup_source_and_candidate(db_session)
+        _insert_candidate(db_session, 2, 1)
+        _insert_candidate(db_session, 3, 1)
+        repo = SqlaJobRepository(db_session)
+
+        repo.create_bulk([
+            _make_job(candidate_id=1),
+            _make_job(candidate_id=2),
+            _make_job(candidate_id=3),
+        ])
+
+        jobs = repo.get_jobs_by_status([JobStatus.QUEUED], limit=2)
+        assert len(jobs) == 2
+
+    def test_get_jobs_by_status_empty_when_no_match(
+        self, db_session: Session,
+    ) -> None:
+        self._setup_source_and_candidate(db_session)
+        repo = SqlaJobRepository(db_session)
+
+        jobs = repo.get_jobs_by_status([JobStatus.RUNNING])
+        assert jobs == []
+
+    # --- get_failed_grouped_by_error ---
+
+    def test_get_failed_grouped_by_error_groups_correctly(
+        self, db_session: Session,
+    ) -> None:
+        self._setup_source_and_candidate(db_session)
+        _insert_candidate(db_session, 2, 1)
+        _insert_candidate(db_session, 3, 1)
+        repo = SqlaJobRepository(db_session)
+
+        repo.create_bulk([
+            _make_job(candidate_id=1, status=JobStatus.FAILED, error="timeout"),
+            _make_job(candidate_id=2, status=JobStatus.FAILED, error="timeout"),
+            _make_job(candidate_id=3, status=JobStatus.FAILED, error="network"),
+        ])
+
+        groups = repo.get_failed_grouped_by_error()
+        assert len(groups) == 2
+        # Ordered by count desc — "timeout" group has 2
+        assert groups[0]["error"] == "timeout"
+        assert groups[0]["count"] == 2
+        assert groups[1]["error"] == "network"
+        assert groups[1]["count"] == 1
+
+    def test_get_failed_grouped_by_error_has_source_and_candidate_ids(
+        self, db_session: Session,
+    ) -> None:
+        _insert_source(db_session, 1)
+        _insert_source(db_session, 2)
+        _insert_candidate(db_session, 1, 1)
+        _insert_candidate(db_session, 2, 2)
+        repo = SqlaJobRepository(db_session)
+
+        repo.create_bulk([
+            _make_job(candidate_id=1, source_id=1, status=JobStatus.FAILED,
+                      error="err"),
+            _make_job(candidate_id=2, source_id=2, status=JobStatus.FAILED,
+                      error="err"),
+        ])
+
+        groups = repo.get_failed_grouped_by_error()
+        assert len(groups) == 1
+        assert sorted(groups[0]["source_ids"]) == [1, 2]
+        assert sorted(groups[0]["candidate_ids"]) == [1, 2]
+
+    def test_get_failed_grouped_by_error_filters_by_source_id(
+        self, db_session: Session,
+    ) -> None:
+        _insert_source(db_session, 1)
+        _insert_source(db_session, 2)
+        _insert_candidate(db_session, 1, 1)
+        _insert_candidate(db_session, 2, 2)
+        repo = SqlaJobRepository(db_session)
+
+        repo.create_bulk([
+            _make_job(candidate_id=1, source_id=1, status=JobStatus.FAILED,
+                      error="err"),
+            _make_job(candidate_id=2, source_id=2, status=JobStatus.FAILED,
+                      error="err"),
+        ])
+
+        groups = repo.get_failed_grouped_by_error(source_id=1)
+        assert len(groups) == 1
+        assert groups[0]["source_ids"] == [1]
+
+    def test_get_failed_grouped_by_error_filters_by_job_type(
+        self, db_session: Session,
+    ) -> None:
+        self._setup_source_and_candidate(db_session)
+        _insert_candidate(db_session, 2, 1)
+        repo = SqlaJobRepository(db_session)
+
+        repo.create_bulk([
+            _make_job(candidate_id=1, job_type=JobType.MEANING,
+                      status=JobStatus.FAILED, error="err"),
+            _make_job(candidate_id=2, job_type=JobType.MEDIA,
+                      status=JobStatus.FAILED, error="err"),
+        ])
+
+        groups = repo.get_failed_grouped_by_error(job_type=JobType.MEDIA)
+        assert len(groups) == 1
+        assert groups[0]["job_type"] == JobType.MEDIA.value
+
+    def test_get_failed_grouped_by_error_empty_when_no_failures(
+        self, db_session: Session,
+    ) -> None:
+        self._setup_source_and_candidate(db_session)
+        repo = SqlaJobRepository(db_session)
+
+        repo.create_bulk([_make_job()])  # queued, not failed
+
+        groups = repo.get_failed_grouped_by_error()
+        assert groups == []
+
+    def test_get_failed_grouped_by_error_orders_by_count_desc(
+        self, db_session: Session,
+    ) -> None:
+        self._setup_source_and_candidate(db_session)
+        _insert_candidate(db_session, 2, 1)
+        _insert_candidate(db_session, 3, 1)
+        _insert_candidate(db_session, 4, 1)
+        repo = SqlaJobRepository(db_session)
+
+        repo.create_bulk([
+            _make_job(candidate_id=1, status=JobStatus.FAILED, error="rare"),
+            _make_job(candidate_id=2, status=JobStatus.FAILED, error="common"),
+            _make_job(candidate_id=3, status=JobStatus.FAILED, error="common"),
+            _make_job(candidate_id=4, status=JobStatus.FAILED, error="common"),
+        ])
+
+        groups = repo.get_failed_grouped_by_error()
+        assert groups[0]["error"] == "common"
+        assert groups[0]["count"] == 3
+        assert groups[1]["error"] == "rare"
+        assert groups[1]["count"] == 1

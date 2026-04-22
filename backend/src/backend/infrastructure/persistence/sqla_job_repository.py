@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import CursorResult, delete, func, select, update
 
@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.job import Job
-    from backend.domain.value_objects.job_type import JobType
 
 
 class SqlaJobRepository(JobRepository):
@@ -190,7 +189,7 @@ class SqlaJobRepository(JobRepository):
         return self._session.execute(stmt).scalar_one() > 0
 
     def get_queue_summary(
-        self, source_id: int,
+        self, source_id: int | None = None,
     ) -> dict[str, dict[str, int]]:
         stmt = (
             select(
@@ -198,14 +197,14 @@ class SqlaJobRepository(JobRepository):
                 JobModel.status,
                 func.count(),
             )
-            .where(JobModel.source_id == source_id)
             .group_by(JobModel.job_type, JobModel.status)
         )
+        if source_id is not None:
+            stmt = stmt.where(JobModel.source_id == source_id)
         rows = self._session.execute(stmt).all()
         result: dict[str, dict[str, int]] = {
-            JobType.MEANING.value: {"queued": 0, "running": 0, "failed": 0},
-            JobType.MEDIA.value: {"queued": 0, "running": 0, "failed": 0},
-            JobType.PRONUNCIATION.value: {"queued": 0, "running": 0, "failed": 0},
+            jt.value: {"queued": 0, "running": 0, "failed": 0}
+            for jt in JobType
         }
         for job_type_val, status_val, cnt in rows:
             if job_type_val in result and status_val in result[job_type_val]:
@@ -252,3 +251,62 @@ class SqlaJobRepository(JobRepository):
             .distinct()
         )
         return list(self._session.execute(stmt).scalars().all())
+
+    def get_jobs_by_status(
+        self,
+        statuses: list[JobStatus],
+        source_id: int | None = None,
+        job_type: JobType | None = None,
+        limit: int | None = None,
+    ) -> list[Job]:
+        stmt = (
+            select(JobModel)
+            .where(JobModel.status.in_([s.value for s in statuses]))
+            .order_by(JobModel.created_at.asc(), JobModel.id.asc())
+        )
+        if source_id is not None:
+            stmt = stmt.where(JobModel.source_id == source_id)
+        if job_type is not None:
+            stmt = stmt.where(JobModel.job_type == job_type.value)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        models = self._session.execute(stmt).scalars().all()
+        return [m.to_entity() for m in models]
+
+    def get_failed_grouped_by_error(
+        self,
+        source_id: int | None = None,
+        job_type: JobType | None = None,
+    ) -> list[dict[str, Any]]:
+        stmt = (
+            select(
+                JobModel.job_type,
+                JobModel.error,
+                func.count().label("count"),
+                func.group_concat(JobModel.source_id).label("source_ids_csv"),
+                func.group_concat(JobModel.candidate_id).label("candidate_ids_csv"),
+            )
+            .where(JobModel.status == JobStatus.FAILED.value)
+            .group_by(JobModel.job_type, JobModel.error)
+            .order_by(func.count().desc())
+        )
+        if source_id is not None:
+            stmt = stmt.where(JobModel.source_id == source_id)
+        if job_type is not None:
+            stmt = stmt.where(JobModel.job_type == job_type.value)
+
+        rows = self._session.execute(stmt).all()
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            source_ids_raw = str(row.source_ids_csv or "")
+            candidate_ids_raw = str(row.candidate_ids_csv or "")
+            source_ids = sorted({int(s) for s in source_ids_raw.split(",") if s})
+            candidate_ids = [int(c) for c in candidate_ids_raw.split(",") if c]
+            result.append({
+                "job_type": row.job_type,
+                "error": row.error or "Unknown error",
+                "count": row.count,
+                "source_ids": source_ids,
+                "candidate_ids": candidate_ids,
+            })
+        return result
