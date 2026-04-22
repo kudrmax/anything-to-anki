@@ -22,5 +22,5 @@ class CEFRBreakdown:
 
     final_level: CEFRLevel
     decision_method: str  # "priority" | "voting"
-    priority_vote: SourceVote | None
+    priority_votes: list[SourceVote]
     votes: list[SourceVote]

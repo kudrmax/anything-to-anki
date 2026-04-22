@@ -108,9 +108,7 @@ def _level_to_str(level: CEFRLevel) -> str | None:
 
 def _breakdown_to_model(breakdown: CEFRBreakdown) -> CEFRBreakdownModel:
     """Map domain CEFRBreakdown to SQLAlchemy model."""
-    all_votes = list(breakdown.votes)
-    if breakdown.priority_vote is not None:
-        all_votes = [breakdown.priority_vote, *all_votes]
+    all_votes = [*breakdown.priority_votes, *breakdown.votes]
 
     cambridge: str | None = None
     cefrpy: str | None = None
@@ -146,10 +144,13 @@ def _breakdown_to_model(breakdown: CEFRBreakdown) -> CEFRBreakdownModel:
     )
 
 
-def _model_to_breakdown(
-    model: CEFRBreakdownModel, parent_cefr_level: str | None,
-) -> CEFRBreakdown:
-    """Map SQLAlchemy model back to domain CEFRBreakdown."""
+def _model_to_breakdown(model: CEFRBreakdownModel) -> CEFRBreakdown:
+    """Map SQLAlchemy model back to domain CEFRBreakdown.
+
+    Final level is computed at runtime via ``resolve_cefr_level``
+    instead of reading the stored ``candidates.cefr_level``.
+    """
+    from backend.domain.services.cefr_level_resolver import resolve_cefr_level
 
     def _make_vote(
         name: str,
@@ -169,26 +170,24 @@ def _model_to_breakdown(
             top = CEFRLevel.UNKNOWN
         return SourceVote(source_name=name, distribution=dist, top_level=top)
 
-    priority_vote = _make_vote("Cambridge Dictionary", model.cambridge)
+    priority_votes = [
+        _make_vote("Oxford 5000", model.oxford),
+        _make_vote("Cambridge Dictionary", model.cambridge),
+    ]
     votes = [
         _make_vote("CEFRpy", model.cefrpy),
         _make_vote("EFLLex", None, model.efllex_distribution),
-        _make_vote("Oxford 5000", model.oxford),
         _make_vote("Kelly List", model.kelly),
     ]
 
-    final_level = CEFRLevel.UNKNOWN
-    if parent_cefr_level:
-        try:
-            final_level = CEFRLevel.from_str(parent_cefr_level)
-        except ValueError:
-            pass
+    all_votes = [*priority_votes, *votes]
+    final_level, decision_method = resolve_cefr_level(all_votes)
 
     return CEFRBreakdown(
         final_level=final_level,
-        decision_method=model.decision_method,
-        priority_vote=priority_vote if model.decision_method == "priority" else None,
-        votes=votes if model.decision_method != "priority" else [priority_vote, *votes],
+        decision_method=decision_method,
+        priority_votes=priority_votes,
+        votes=votes,
     )
 
 
@@ -205,7 +204,6 @@ class StoredCandidateModel(Base):
     source_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     lemma: Mapped[str] = mapped_column(String(100), nullable=False)
     pos: Mapped[str] = mapped_column(String(10), nullable=False)
-    cefr_level: Mapped[str] = mapped_column(String(10), nullable=False)
     zipf_frequency: Mapped[float] = mapped_column(Float, nullable=False)
     is_sweet_spot: Mapped[bool] = mapped_column(nullable=False)
     context_fragment: Mapped[str] = mapped_column(Text, nullable=False)
@@ -228,7 +226,11 @@ class StoredCandidateModel(Base):
         separately by SqlaCandidateRepository which then attaches them."""
         bd: CEFRBreakdown | None = None
         if self.cefr_breakdown is not None:
-            bd = _model_to_breakdown(self.cefr_breakdown, self.cefr_level or None)
+            bd = _model_to_breakdown(self.cefr_breakdown)
+
+        cefr_level: str | None = None
+        if bd is not None and bd.final_level is not CEFRLevel.UNKNOWN:
+            cefr_level = bd.final_level.name
 
         ud: UsageDistribution | None = None
         if self.usage_distribution_json is not None:
@@ -239,7 +241,7 @@ class StoredCandidateModel(Base):
             source_id=self.source_id,
             lemma=self.lemma,
             pos=self.pos,
-            cefr_level=self.cefr_level or None,
+            cefr_level=cefr_level,
             zipf_frequency=self.zipf_frequency,
             context_fragment=self.context_fragment,
             fragment_purity=self.fragment_purity,
@@ -260,7 +262,6 @@ class StoredCandidateModel(Base):
             source_id=candidate.source_id,
             lemma=candidate.lemma,
             pos=candidate.pos,
-            cefr_level=candidate.cefr_level or "",
             zipf_frequency=candidate.zipf_frequency,
             is_sweet_spot=candidate.is_sweet_spot,
             context_fragment=candidate.context_fragment,

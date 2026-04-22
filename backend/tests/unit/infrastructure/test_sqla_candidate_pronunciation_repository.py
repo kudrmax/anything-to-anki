@@ -39,7 +39,6 @@ def _insert_candidate(session: Session, candidate_id: int, source_id: int = 1) -
         source_id=source_id,
         lemma="test",
         pos="NOUN",
-        cefr_level="B1",
         zipf_frequency=4.0,
         is_sweet_spot=True,
         context_fragment="a test",

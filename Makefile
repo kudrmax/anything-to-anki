@@ -85,7 +85,7 @@ _check_env:
 ##@ Запуск (читает .env)
 up: _check_env  ## Запустить (ai_proxy + docker compose)
 	$(call start_ai_proxy)
-	docker compose up -d --build
+	docker compose up -d --build --force-recreate
 	$(call check_services,)
 	@printf "\n$(BANNER_COLOR)"
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -95,11 +95,16 @@ up: _check_env  ## Запустить (ai_proxy + docker compose)
 	@printf "\033[0m\n"
 
 up-worktree: _check_env  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий worktree)
-	@# Симлинк dictionaries на main worktree (submodule там уже инициализирован)
+	@# Симлинк dictionaries на main worktree (submodule там уже инициализирован).
 	@# В worktree git создаёт пустую директорию dictionaries/ (submodule placeholder),
 	@# поэтому проверяем наличие реальных файлов, а не просто -e.
 	@main=$$(git worktree list --porcelain | head -1 | awk '{print $$2}'); \
-	if [ "$$main" != "$$(pwd)" ] && [ -d "$$main/dictionaries" ] && [ -n "$$(ls -A "$$main/dictionaries" 2>/dev/null)" ]; then \
+	if [ "$$main" != "$$(pwd)" ]; then \
+	    if [ ! -f "$$main/dictionaries/cefr/efllex.tsv" ]; then \
+	        echo "ERROR: dictionaries submodule not initialized in main worktree."; \
+	        echo "Run:  cd $$main && git submodule update --init dictionaries"; \
+	        exit 1; \
+	    fi; \
 	    if [ -d dictionaries ] && [ ! -L dictionaries ] && [ -z "$$(ls -A dictionaries 2>/dev/null)" ]; then \
 	        rmdir dictionaries; \
 	    fi; \
@@ -124,7 +129,7 @@ up-worktree: _check_env  ## Запустить worktree (WORKTREE_PORT, снос
 	PORT=$(WORKTREE_PORT) AI_PROXY_PORT=$(WORKTREE_AI_PROXY_PORT) \
 	    COMPOSE_PROJECT_NAME=anything-anki-worktree \
 	    INSTANCE_ENV_NAME=worktree \
-	    docker compose up -d --build
+	    docker compose up -d --build --force-recreate
 	$(call check_services,PORT=$(WORKTREE_PORT) AI_PROXY_PORT=$(WORKTREE_AI_PROXY_PORT) COMPOSE_PROJECT_NAME=anything-anki-worktree)
 	@printf "\n$(BANNER_COLOR)"
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -172,6 +177,9 @@ lint: _python_dev  ## Линтинг (ruff)
 
 typecheck: _python_dev  ## Проверка типов (mypy)
 	.venv/bin/mypy backend/src
+
+backfill-breakdowns:  ## Заполнить cefr_breakdowns для старых кандидатов (DRY_RUN=1 для пробного запуска)
+	docker compose exec app python /app/scripts/backfill_cefr_breakdowns.py $(if $(DRY_RUN),--dry-run)
 
 ##@ Прочее
 help:  ## Показать доступные команды

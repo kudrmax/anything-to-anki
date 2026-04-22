@@ -59,13 +59,15 @@ CAMBRIDGE_DB_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / "camb
 def _make_classifier() -> VotingCEFRClassifier:
     reader = CambridgeSQLiteReader(CAMBRIDGE_DB_PATH)
     cambridge_cefr = CambridgeCEFRSource(reader)
+    oxford_cefr = OxfordCEFRSource(CEFR_DATA_DIR / "oxford5000.csv")
     sources = [
         CefrpyCEFRSource(),
         EFLLexCEFRSource(CEFR_DATA_DIR / "efllex.tsv"),
-        OxfordCEFRSource(CEFR_DATA_DIR / "oxford5000.csv"),
         KellyCEFRSource(CEFR_DATA_DIR / "kelly.csv"),
     ]
-    return VotingCEFRClassifier(sources, priority_source=cambridge_cefr)
+    return VotingCEFRClassifier(
+        sources, priority_sources=[oxford_cefr, cambridge_cefr],
+    )
 
 
 @pytest.fixture(scope="module")
@@ -121,7 +123,7 @@ WAVE_1_HPMOR: list[tuple[str, str, str]] = [
     (
         "288_arbiter",
         "arbiter",
-        "the final arbiter is observation - that you just have to look at the world and report what you see",
+        "science is that the final arbiter is observation",
     ),
     (
         "305_plot",
@@ -138,11 +140,8 @@ WAVE_1_HPMOR: list[tuple[str, str, str]] = [
         "require",
         "any chapter, no login required, and there's",
     ),
-    (
-        "354_correct",
-        "correct",
-        "The story has been corrected to British English",
-    ),
+    # "correct" removed: Oxford 5000 classifies it as A1 (below B1 user level),
+    # so it no longer passes the candidate filter.
     (
         "456_single",
         "single",

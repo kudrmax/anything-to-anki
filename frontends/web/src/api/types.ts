@@ -70,7 +70,7 @@ export interface SourceVote {
 
 export interface CEFRBreakdown {
   decision_method: 'priority' | 'voting'
-  priority_vote: SourceVote | null
+  priority_votes: SourceVote[]
   votes: SourceVote[]
 }
 

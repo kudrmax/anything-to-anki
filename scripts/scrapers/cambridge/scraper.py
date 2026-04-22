@@ -396,7 +396,8 @@ def define(word: str,
                                                 current_word_regions,
                                                 current_word_usages,
                                                 current_word_domains)
-                        current_def_block_word = phrase_block.find("span", {"class": "phrase-title"}).text
+                        # Keep all defs under the original headword to preserve
+                        # page order of senses within the same entry-body__el.
 
                 update_word_dict(word_info,
                                 word=current_def_block_word,
