@@ -170,8 +170,11 @@ class Container:
             "MEDIA_ROOT",
             os.path.join(os.getenv("DATA_DIR", "."), "media"),
         )
+        default_prompts = project_root / "config" / "prompts.yaml"
+        if not default_prompts.exists():
+            default_prompts = Path("/app/config/prompts.yaml")
         prompts_path = Path(
-            os.environ.get("PROMPTS_CONFIG_PATH", "config/prompts.yaml")
+            os.environ.get("PROMPTS_CONFIG_PATH", str(default_prompts))
         )
         self._prompts_config: PromptsConfig = PromptsLoader().load(prompts_path)
         self._lazy_media_reconciler: LazyMediaReconciler | None = None  # lazy init on first call
