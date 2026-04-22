@@ -841,12 +841,10 @@ export function CandidateCardV2({
             <p style={{ margin: '10px 0 0', fontSize: FONT_BODY, color: 'var(--error)' }} title={candidate.meaning.error ?? undefined}>
               Failed to generate
             </p>
-          ) : candidate.meaning?.status === 'cancelled' ? (
-            <p style={{ margin: '10px 0 0', fontSize: FONT_BODY, color: 'var(--td)' }}>Cancelled</p>
           ) : null}
           {/* Pronunciation: IPA + Cambridge audio buttons + status — independent of meaning */}
           {(candidate.meaning?.ipa || pronUsUrl || pronUkUrl
-            || pronStatus === 'queued' || pronStatus === 'running' || pronStatus === 'failed' || pronStatus === 'cancelled') && (
+            || pronStatus === 'queued' || pronStatus === 'running' || pronStatus === 'failed') && (
             <div
               style={{
                 marginTop: '8px',
@@ -911,9 +909,6 @@ export function CandidateCardV2({
                 >
                   Failed
                 </span>
-              )}
-              {pronStatus === 'cancelled' && !pronUsUrl && !pronUkUrl && (
-                <span style={{ fontSize: '12px', color: 'var(--td)' }}>Cancelled</span>
               )}
             </div>
           )}

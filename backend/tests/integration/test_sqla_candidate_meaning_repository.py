@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 
 import pytest
 from backend.domain.entities.candidate_meaning import CandidateMeaning
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
@@ -19,9 +18,6 @@ class TestSqlaCandidateMeaningRepository:
         engine = create_engine("sqlite:///:memory:")
         Base.metadata.create_all(engine)
         self._Session = sessionmaker(bind=engine)
-        # Insert a fake candidate row so FK semantics make sense — we use raw SQL
-        # because we only need the ID to satisfy the 1:1 relationship at the
-        # application level (no actual FK in this phase).
         with self._Session() as s:
             s.execute(
                 text(
@@ -48,8 +44,6 @@ class TestSqlaCandidateMeaningRepository:
                 synonyms=None,
                 examples=None,
                 ipa="həˈloʊ",
-                status=EnrichmentStatus.DONE,
-                error=None,
                 generated_at=datetime(2026, 4, 7, tzinfo=UTC),
             )
             repo.upsert(entity)
@@ -59,19 +53,18 @@ class TestSqlaCandidateMeaningRepository:
             assert loaded is not None
             assert loaded.meaning == "hello"
             assert loaded.ipa == "həˈloʊ"
-            assert loaded.status == EnrichmentStatus.DONE
 
     def test_upsert_updates_existing_row(self) -> None:
         with self._Session() as s:
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
                 candidate_id=1, meaning="v1", translation=None, synonyms=None, examples=None,
-                ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
+                ipa=None, generated_at=None,
             ))
             s.commit()
             repo.upsert(CandidateMeaning(
                 candidate_id=1, meaning="v2", translation=None, synonyms=None, examples=None,
-                ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
+                ipa=None, generated_at=None,
             ))
             s.commit()
 
@@ -94,11 +87,11 @@ class TestSqlaCandidateMeaningRepository:
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
                 candidate_id=1, meaning="m1", translation=None, synonyms=None, examples=None,
-                ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
+                ipa=None, generated_at=None,
             ))
             repo.upsert(CandidateMeaning(
                 candidate_id=2, meaning="m2", translation=None, synonyms=None, examples=None,
-                ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
+                ipa=None, generated_at=None,
             ))
             s.commit()
 
@@ -119,11 +112,11 @@ class TestSqlaCandidateMeaningRepository:
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
                 candidate_id=1, meaning="m1", translation=None, synonyms=None, examples=None,
-                ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
+                ipa=None, generated_at=None,
             ))
             repo.upsert(CandidateMeaning(
                 candidate_id=2, meaning="m2", translation=None, synonyms=None, examples=None,
-                ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
+                ipa=None, generated_at=None,
             ))
             s.commit()
 
@@ -149,7 +142,7 @@ class TestSqlaCandidateMeaningRepository:
             # candidate 1 has meaning, candidate 2 does not
             repo.upsert(CandidateMeaning(
                 candidate_id=1, meaning="x", translation=None, synonyms=None, examples=None,
-                ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
+                ipa=None, generated_at=None,
             ))
             s.commit()
 
@@ -170,106 +163,6 @@ class TestSqlaCandidateMeaningRepository:
             assert repo.count_candidate_ids_without_meaning(source_id=1, only_active=True) == 1
             assert repo.count_candidate_ids_without_meaning(source_id=1, only_active=False) == 2
 
-    def test_mark_queued_bulk_creates_and_updates(self) -> None:
-        with self._Session() as s:
-            s.execute(text(
-                "INSERT INTO candidates (id, source_id, lemma, pos, "
-                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
-                "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
-            ))
-            s.commit()
-            repo = SqlaCandidateMeaningRepository(s)
-            # candidate 1: no existing row (will be created)
-            # candidate 2: existing row with meaning (will be flipped to QUEUED, meaning preserved)
-            repo.upsert(CandidateMeaning(
-                candidate_id=2, meaning="existing", translation=None, synonyms=None, examples=None,
-                ipa=None, status=EnrichmentStatus.FAILED, error="old error", generated_at=None,
-            ))
-            s.commit()
-
-            repo.mark_queued_bulk([1, 2])
-            s.commit()
-
-            row1 = repo.get_by_candidate_id(1)
-            row2 = repo.get_by_candidate_id(2)
-            assert row1 is not None and row1.status == EnrichmentStatus.QUEUED
-            assert row1.meaning is None
-            assert row2 is not None and row2.status == EnrichmentStatus.QUEUED
-            assert row2.meaning == "existing"  # preserved
-            assert row2.error is None  # cleared
-
-    def test_mark_running_flips_status(self) -> None:
-        with self._Session() as s:
-            repo = SqlaCandidateMeaningRepository(s)
-            repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning=None, translation=None, synonyms=None, examples=None,
-                ipa=None, status=EnrichmentStatus.QUEUED, error=None, generated_at=None,
-            ))
-            s.commit()
-            repo.mark_running(1)
-            s.commit()
-            loaded = repo.get_by_candidate_id(1)
-            assert loaded is not None
-            assert loaded.status == EnrichmentStatus.RUNNING
-
-    def test_mark_failed_sets_error(self) -> None:
-        with self._Session() as s:
-            repo = SqlaCandidateMeaningRepository(s)
-            repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning=None, translation=None, synonyms=None, examples=None,
-                ipa=None, status=EnrichmentStatus.RUNNING, error=None, generated_at=None,
-            ))
-            s.commit()
-            repo.mark_failed(1, "boom")
-            s.commit()
-            loaded = repo.get_by_candidate_id(1)
-            assert loaded is not None
-            assert loaded.status == EnrichmentStatus.FAILED
-            assert loaded.error == "boom"
-
-    def test_mark_batch_failed(self) -> None:
-        with self._Session() as s:
-            s.execute(text(
-                "INSERT INTO candidates (id, source_id, lemma, pos, "
-                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
-                "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
-            ))
-            s.commit()
-            repo = SqlaCandidateMeaningRepository(s)
-            repo.mark_queued_bulk([1, 2])
-            s.commit()
-            repo.mark_batch_failed([1, 2], "api down")
-            s.commit()
-            r1 = repo.get_by_candidate_id(1)
-            r2 = repo.get_by_candidate_id(2)
-            assert r1 is not None and r1.status == EnrichmentStatus.FAILED
-            assert r2 is not None and r2.status == EnrichmentStatus.FAILED
-            assert r1.error == "api down"
-
-    def test_get_candidate_ids_by_status_failed(self) -> None:
-        with self._Session() as s:
-            s.execute(text(
-                "INSERT INTO candidates (id, source_id, lemma, pos, "
-                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
-                "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
-            ))
-            s.commit()
-            repo = SqlaCandidateMeaningRepository(s)
-            repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning="x", translation=None, synonyms=None, examples=None,
-                ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
-            ))
-            repo.upsert(CandidateMeaning(
-                candidate_id=2, meaning=None, translation=None, synonyms=None, examples=None,
-                ipa=None, status=EnrichmentStatus.FAILED, error="boom", generated_at=None,
-            ))
-            s.commit()
-            failed_ids = repo.get_candidate_ids_by_status(1, EnrichmentStatus.FAILED)
-            assert failed_ids == [2]
-
     def test_persists_translation_and_synonyms(self) -> None:
         with self._Session() as s:
             repo = SqlaCandidateMeaningRepository(s)
@@ -280,8 +173,6 @@ class TestSqlaCandidateMeaningRepository:
                 synonyms="explain, clarify",
                 examples=None,
                 ipa=None,
-                status=EnrichmentStatus.DONE,
-                error=None,
                 generated_at=datetime(2026, 4, 8, tzinfo=UTC),
             ))
             s.commit()
@@ -296,12 +187,12 @@ class TestSqlaCandidateMeaningRepository:
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
                 candidate_id=1, meaning="test", translation="тест", synonyms="check", examples=None,
-                ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
+                ipa=None, generated_at=None,
             ))
             s.commit()
             repo.upsert(CandidateMeaning(
                 candidate_id=1, meaning="test", translation="обновлено", synonyms="updated", examples=None,
-                ipa=None, status=EnrichmentStatus.DONE, error=None, generated_at=None,
+                ipa=None, generated_at=None,
             ))
             s.commit()
 

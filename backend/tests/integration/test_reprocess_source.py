@@ -1,34 +1,31 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy.orm import Session
-
 from backend.application.use_cases.get_reprocess_stats import GetReprocessStatsUseCase
 from backend.application.use_cases.reprocess_source import ReprocessSourceUseCase
+from backend.domain.entities.job import Job
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceHasActiveJobsError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.job_status import JobStatus
+from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_status import SourceStatus
-from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
-    SqlaCandidateMeaningRepository,
-)
-from backend.infrastructure.persistence.sqla_candidate_media_repository import (
-    SqlaCandidateMediaRepository,
-)
-from backend.infrastructure.persistence.sqla_candidate_pronunciation_repository import (
-    SqlaCandidatePronunciationRepository,
-)
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
+)
+from backend.infrastructure.persistence.sqla_job_repository import (
+    SqlaJobRepository,
 )
 from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
 )
+from sqlalchemy.orm import Session
 
 
 def _create_processed_source(db_session: Session) -> int:
@@ -94,9 +91,7 @@ def _make_reprocess_uc(
     return ReprocessSourceUseCase(
         source_repo=SqlaSourceRepository(db_session),
         candidate_repo=SqlaCandidateRepository(db_session),
-        meaning_repo=SqlaCandidateMeaningRepository(db_session),
-        media_repo=SqlaCandidateMediaRepository(db_session),
-        pronunciation_repo=SqlaCandidatePronunciationRepository(db_session),
+        job_repo=SqlaJobRepository(db_session),
         process_source_use_case=process_source_uc,
     )
 
@@ -109,9 +104,7 @@ def _make_stats_uc(db_session: Session) -> GetReprocessStatsUseCase:
         source_repo=SqlaSourceRepository(db_session),
         candidate_repo=SqlaCandidateRepository(db_session),
         known_word_repo=SqlaKnownWordRepository(db_session),
-        meaning_repo=SqlaCandidateMeaningRepository(db_session),
-        media_repo=SqlaCandidateMediaRepository(db_session),
-        pronunciation_repo=SqlaCandidatePronunciationRepository(db_session),
+        job_repo=SqlaJobRepository(db_session),
     )
 
 
@@ -160,7 +153,7 @@ def test_reprocess_blocked_by_active_jobs(db_session: Session) -> None:
     source_id = _create_processed_source(db_session)
 
     candidate_repo = SqlaCandidateRepository(db_session)
-    meaning_repo = SqlaCandidateMeaningRepository(db_session)
+    job_repo = SqlaJobRepository(db_session)
 
     # Get first candidate id
     candidates = candidate_repo.get_by_source(source_id)
@@ -168,11 +161,20 @@ def test_reprocess_blocked_by_active_jobs(db_session: Session) -> None:
     first_candidate_id = candidates[0].id
     assert first_candidate_id is not None
 
-    # Mark a meaning as RUNNING
-    meaning_repo.mark_queued_bulk([first_candidate_id])
-    meaning_repo.mark_running(first_candidate_id)
+    # Create an active (RUNNING) job for this candidate
+    now = datetime.now(tz=UTC)
+    job_repo.create_bulk([Job(
+        id=None,
+        job_type=JobType.MEANING,
+        candidate_id=first_candidate_id,
+        source_id=source_id,
+        status=JobStatus.RUNNING,
+        error=None,
+        created_at=now,
+        started_at=now,
+    )])
 
-    # Attempt reprocess → SourceHasActiveJobsError
+    # Attempt reprocess -> SourceHasActiveJobsError
     process_source_uc = MagicMock()
     reprocess_uc = _make_reprocess_uc(db_session, process_source_uc)
 
@@ -204,7 +206,7 @@ def test_reprocess_error_source_no_candidates(db_session: Session) -> None:
     assert source.id is not None
     source_id = source.id
 
-    # Reprocess → should work
+    # Reprocess -> should work
     process_source_uc = MagicMock()
     reprocess_uc = _make_reprocess_uc(db_session, process_source_uc)
     reprocess_uc.execute(source_id)

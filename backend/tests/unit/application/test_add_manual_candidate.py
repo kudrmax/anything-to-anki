@@ -18,7 +18,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-
 from backend.application.use_cases.add_manual_candidate import (
     AddManualCandidateUseCase,
 )

@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 from backend.application.utils.timecode_mapping import find_timecodes
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.enrichment_status import EnrichmentStatus
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
@@ -80,8 +79,6 @@ class RegenerateCandidateMediaUseCase:
             audio_path=audio_path,
             start_ms=start_ms,
             end_ms=end_ms,
-            status=EnrichmentStatus.DONE,
-            error=None,
             generated_at=datetime.now(tz=UTC),
         ))
 

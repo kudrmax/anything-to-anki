@@ -6,8 +6,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from datetime import datetime
 
-    from backend.domain.value_objects.enrichment_status import EnrichmentStatus
-
 
 @dataclass(frozen=True)
 class CandidateMeaning:
@@ -24,6 +22,4 @@ class CandidateMeaning:
     synonyms: str | None
     examples: str | None
     ipa: str | None
-    status: EnrichmentStatus
-    error: str | None
     generated_at: datetime | None

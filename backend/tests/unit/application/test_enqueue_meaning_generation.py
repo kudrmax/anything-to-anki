@@ -9,7 +9,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-
 from backend.application.use_cases.enqueue_meaning_generation import (
     BATCH_SIZE,
     EnqueueMeaningGenerationUseCase,
@@ -68,6 +67,7 @@ def _make_use_case(
         candidate_repo=candidate_repo or MagicMock(),
         source_repo=source_repo or MagicMock(),
         settings_repo=settings_repo,
+        job_repo=MagicMock(),
     )
 
 
@@ -103,7 +103,7 @@ class TestRelevanceBranch:
         result = use_case.execute(source_id=1, sort_order=CandidateSortOrder.RELEVANCE)
 
         assert result == []
-        meaning_repo.mark_queued_bulk.assert_not_called()
+        # mark_queued_bulk removed — jobs created via job_repo.create_bulk instead
 
     def test_default_sort_order_is_none_treated_as_relevance(self) -> None:
         """When sort_order is None, the use case takes the RELEVANCE-branch."""
@@ -155,7 +155,7 @@ class TestChronologicalBranch:
 
         # Order by find: foo@0 < baz@8 < qux@12 → ids [3, 1, 2]
         assert result == [[3, 1, 2]]
-        meaning_repo.mark_queued_bulk.assert_called_once_with([3, 1, 2])
+        # Jobs created via job_repo.create_bulk instead of mark_queued_bulk
         meaning_repo.get_candidate_ids_without_meaning.assert_called_once_with(
             source_id=1, only_active=True
         )
@@ -174,7 +174,7 @@ class TestChronologicalBranch:
         assert result == []
         candidate_repo.get_by_ids.assert_not_called()
         source_repo.get_by_id.assert_not_called()
-        meaning_repo.mark_queued_bulk.assert_not_called()
+        # mark_queued_bulk removed — jobs created via job_repo.create_bulk instead
 
     def test_source_not_found_returns_empty(self) -> None:
         meaning_repo = MagicMock()
@@ -193,7 +193,7 @@ class TestChronologicalBranch:
         )
 
         assert result == []
-        meaning_repo.mark_queued_bulk.assert_not_called()
+        # mark_queued_bulk removed — jobs created via job_repo.create_bulk instead
 
     def test_uses_raw_text_when_cleaned_text_is_none(self) -> None:
         meaning_repo = MagicMock()

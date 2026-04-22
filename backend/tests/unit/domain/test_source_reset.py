@@ -4,11 +4,10 @@ import dataclasses
 from datetime import UTC, datetime
 
 import pytest
-
 from backend.domain.entities.source import (
-    Source,
     _SOURCE_DERIVED_FIELDS,
     _SOURCE_INPUT_FIELDS,
+    Source,
 )
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod

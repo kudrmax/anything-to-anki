@@ -3,7 +3,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-
 from backend.application.use_cases.create_source_from_url import CreateSourceFromUrlUseCase
 from backend.domain.exceptions import SubtitlesNotAvailableError, UnsupportedUrlError
 from backend.domain.value_objects.content_type import ContentType
