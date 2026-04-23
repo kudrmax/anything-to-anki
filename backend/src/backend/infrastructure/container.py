@@ -10,6 +10,14 @@ from typing import TYPE_CHECKING
 logger = logging.getLogger(__name__)
 
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
+from backend.application.use_cases.assign_source_collection import AssignSourceToCollectionUseCase
+from backend.application.use_cases.create_collection import CreateCollectionUseCase
+from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
+from backend.application.use_cases.list_collections import ListCollectionsUseCase
+from backend.application.use_cases.rename_collection import RenameCollectionUseCase
+from backend.infrastructure.persistence.sqla_collection_repository import (
+    SqlaCollectionRepository,
+)
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.create_source import CreateSourceUseCase
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
@@ -273,6 +281,34 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             settings_repo=SqlaSettingsRepository(session),
             job_repo=SqlaJobRepository(session),
+            collection_repo=SqlaCollectionRepository(session),
+        )
+
+    def create_collection_use_case(self, session: Session) -> CreateCollectionUseCase:
+        return CreateCollectionUseCase(
+            collection_repo=SqlaCollectionRepository(session),
+        )
+
+    def list_collections_use_case(self, session: Session) -> ListCollectionsUseCase:
+        return ListCollectionsUseCase(
+            collection_repo=SqlaCollectionRepository(session),
+            source_repo=SqlaSourceRepository(session),
+        )
+
+    def rename_collection_use_case(self, session: Session) -> RenameCollectionUseCase:
+        return RenameCollectionUseCase(
+            collection_repo=SqlaCollectionRepository(session),
+        )
+
+    def delete_collection_use_case(self, session: Session) -> DeleteCollectionUseCase:
+        return DeleteCollectionUseCase(
+            collection_repo=SqlaCollectionRepository(session),
+        )
+
+    def assign_source_collection_use_case(self, session: Session) -> AssignSourceToCollectionUseCase:
+        return AssignSourceToCollectionUseCase(
+            source_repo=SqlaSourceRepository(session),
+            collection_repo=SqlaCollectionRepository(session),
         )
 
     def process_source_use_case(self, session: Session) -> ProcessSourceUseCase:
