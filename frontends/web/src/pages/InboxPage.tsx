@@ -3,7 +3,7 @@ import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FileText, Link, File, Loader2, Plus, RefreshCw } from 'lucide-react'
 import { api } from '@/api/client'
-import type { AudioTrack, SourceSummary, SourceType, Stats, SubtitleTrack } from '@/api/types'
+import type { AudioTrack, Collection, SourceSummary, SourceType, Stats, SubtitleTrack } from '@/api/types'
 import { SourceCard } from '@/components/SourceCard'
 import { ReprocessModal } from '@/components/ReprocessModal'
 import { useSourcePolling } from '@/hooks/useSourcePolling'
@@ -90,16 +90,89 @@ export function InboxPage() {
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number | null>(null)
   const [showTrackModal, setShowTrackModal] = useState(false)
   const [reprocessSourceId, setReprocessSourceId] = useState<number | null>(null)
+  const [collections, setCollections] = useState<Collection[]>([])
+  const [activeCollectionId, setActiveCollectionId] = useState<number | null>(null)
+  const [newCollectionName, setNewCollectionName] = useState('')
+  const [isCreatingCollection, setIsCreatingCollection] = useState(false)
+  const [renamingCollectionId, setRenamingCollectionId] = useState<number | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [contextMenu, setContextMenu] = useState<{ id: number; x: number; y: number } | null>(null)
 
   const loadSources = useCallback(async () => {
     try {
-      const [list, s] = await Promise.all([api.listSources(), api.getStats()])
+      const [list, s, colls] = await Promise.all([
+        api.listSources(activeCollectionId ?? undefined),
+        api.getStats(),
+        api.listCollections(),
+      ])
       setSources(list)
       setStats(s)
+      setCollections(colls)
     } catch {
       // ignore background reload errors
     }
-  }, [])
+  }, [activeCollectionId])
+
+  const handleCreateCollection = async () => {
+    const name = newCollectionName.trim()
+    if (!name) return
+    try {
+      await api.createCollection(name)
+      setNewCollectionName('')
+      setIsCreatingCollection(false)
+      void loadSources()
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleRenameCollection = async (id: number) => {
+    const name = renameValue.trim()
+    if (!name) return
+    try {
+      await api.renameCollection(id, name)
+      setRenamingCollectionId(null)
+      setContextMenu(null)
+      void loadSources()
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleDeleteCollection = async (id: number) => {
+    const coll = collections.find((c) => c.id === id)
+    if (!coll) return
+    if (!confirm(`Delete "${coll.name}"? The ${coll.source_count} source(s) will become uncategorized.`)) return
+    try {
+      await api.deleteCollection(id)
+      if (activeCollectionId === id) setActiveCollectionId(null)
+      setContextMenu(null)
+      void loadSources()
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleContextMenu = (e: React.MouseEvent, id: number) => {
+    e.preventDefault()
+    setContextMenu({ id, x: e.clientX, y: e.clientY })
+  }
+
+  const handleAssignCollection = async (sourceId: number, collectionId: number | null) => {
+    try {
+      await api.assignSourceCollection(sourceId, collectionId)
+      void loadSources()
+    } catch {
+      // ignore
+    }
+  }
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [contextMenu])
 
   useEffect(() => {
     void loadSources()
@@ -209,6 +282,8 @@ export function InboxPage() {
         candidate_count: 0,
         learn_count: 0,
         processing_stage: null,
+        collection_id: null,
+        collection_name: null,
       }
       setTextInput('')
       setTextSourceType(null)
@@ -561,6 +636,72 @@ export function InboxPage() {
               </button>
             )}
           </div>
+
+          {/* Collection filter chips */}
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <button
+              className="glass-pill text-xs cursor-pointer transition-colors"
+              style={{
+                background: activeCollectionId === null ? 'var(--abg)' : undefined,
+                color: activeCollectionId === null ? 'var(--accent)' : 'var(--tm)',
+                border: activeCollectionId === null ? '1px solid var(--accent)' : '1px solid var(--glass-b)',
+              }}
+              onClick={() => setActiveCollectionId(null)}
+            >
+              All
+            </button>
+            {collections.map((c) => (
+              <button
+                key={c.id}
+                className="glass-pill text-xs cursor-pointer transition-colors"
+                style={{
+                  background: activeCollectionId === c.id ? 'var(--abg)' : undefined,
+                  color: activeCollectionId === c.id ? 'var(--accent)' : 'var(--tm)',
+                  border: activeCollectionId === c.id ? '1px solid var(--accent)' : '1px solid var(--glass-b)',
+                }}
+                onClick={() => setActiveCollectionId(c.id)}
+                onContextMenu={(e) => handleContextMenu(e, c.id)}
+              >
+                {c.name} ({c.source_count})
+              </button>
+            ))}
+            {isCreatingCollection ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  autoFocus
+                  className="glass-pill text-xs px-3 py-1.5 outline-none"
+                  style={{ background: 'var(--surface-menu)', color: 'var(--text)', border: '1px solid var(--accent)', width: '160px' }}
+                  placeholder="Collection name…"
+                  value={newCollectionName}
+                  onChange={(e) => setNewCollectionName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleCreateCollection()
+                    if (e.key === 'Escape') { setIsCreatingCollection(false); setNewCollectionName('') }
+                  }}
+                />
+                <button className="glass-pill text-xs cursor-pointer" style={{ background: 'var(--abg)', color: 'var(--accent)', border: '1px solid var(--accent)' }} onClick={() => void handleCreateCollection()}>Create</button>
+                <button className="glass-pill text-xs cursor-pointer" style={{ color: 'var(--tm)', border: '1px solid var(--glass-b)' }} onClick={() => { setIsCreatingCollection(false); setNewCollectionName('') }}>Cancel</button>
+              </div>
+            ) : (
+              <button className="glass-pill text-xs cursor-pointer" style={{ color: 'var(--td)', border: '1px dashed var(--glass-b)' }} onClick={() => setIsCreatingCollection(true)}>+ New</button>
+            )}
+          </div>
+
+          {/* Context menu */}
+          {contextMenu && (
+            <div className="fixed z-50 rounded-lg py-1 shadow-lg" style={{ left: contextMenu.x, top: contextMenu.y, background: 'var(--surface-menu)', border: '1px solid var(--glass-b)', minWidth: '140px' }}>
+              {renamingCollectionId === contextMenu.id ? (
+                <div className="px-3 py-2 flex items-center gap-1.5">
+                  <input autoFocus className="text-xs outline-none flex-1" style={{ background: 'transparent', color: 'var(--text)' }} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void handleRenameCollection(contextMenu.id); if (e.key === 'Escape') { setRenamingCollectionId(null); setContextMenu(null) } }} />
+                </div>
+              ) : (
+                <>
+                  <button className="w-full text-left px-4 py-2 text-xs cursor-pointer hover:opacity-80" style={{ color: 'var(--text)' }} onClick={(e) => { e.stopPropagation(); const coll = collections.find((c) => c.id === contextMenu.id); setRenameValue(coll?.name ?? ''); setRenamingCollectionId(contextMenu.id) }}>Rename</button>
+                  <button className="w-full text-left px-4 py-2 text-xs cursor-pointer hover:opacity-80" style={{ color: 'var(--src-error)' }} onClick={(e) => { e.stopPropagation(); void handleDeleteCollection(contextMenu.id) }}>Delete collection</button>
+                </>
+              )}
+            </div>
+          )}
 
           {sources.length === 0 ? (
             <div className="rounded-xl border border-dashed p-8 text-center" style={{ borderColor: 'var(--glass-b)' }}>
