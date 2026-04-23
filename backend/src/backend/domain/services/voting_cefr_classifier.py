@@ -40,8 +40,7 @@ class VotingCEFRClassifier(CEFRClassifier):
         ]
         votes = [self._build_vote(s, lemma, pos_tag) for s in self._sources]
 
-        all_votes = [*priority_votes, *votes]
-        final_level, decision_method = resolve_cefr_level(all_votes)
+        final_level, decision_method = resolve_cefr_level(priority_votes, votes)
 
         return CEFRBreakdown(
             final_level=final_level,

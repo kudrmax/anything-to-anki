@@ -52,7 +52,8 @@ class TestVotingCEFRClassifier:
         # B1: 0.25*0.3 + 0.25 = 0.325
         assert classifier.classify("word", "NN") == CEFRLevel.A2
 
-    def test_unknown_wins_when_most_sources_dont_know(self) -> None:
+    def test_single_known_among_unknowns(self) -> None:
+        """When only one regular source knows the word, it wins (unknowns are excluded)."""
         sources = [
             StubSource({CEFRLevel.C2: 1.0}),
             StubSource({CEFRLevel.UNKNOWN: 1.0}),
@@ -60,7 +61,7 @@ class TestVotingCEFRClassifier:
             StubSource({CEFRLevel.UNKNOWN: 1.0}),
         ]
         classifier = VotingCEFRClassifier(sources)
-        assert classifier.classify("word", "NN") == CEFRLevel.UNKNOWN
+        assert classifier.classify("word", "NN") == CEFRLevel.C2
 
     def test_all_unknown(self) -> None:
         sources = [
