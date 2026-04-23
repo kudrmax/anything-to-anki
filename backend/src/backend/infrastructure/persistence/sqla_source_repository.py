@@ -65,6 +65,14 @@ class SqlaSourceRepository(SourceRepository):
         model.video_path = video_path
         self._session.flush()
 
+    def update_collection(self, source_id: int, collection_id: int | None) -> None:
+        model = self._session.get(SourceModel, source_id)
+        if model is None:
+            from backend.domain.exceptions import SourceNotFoundError
+            raise SourceNotFoundError(source_id)
+        model.collection_id = collection_id
+        self._session.flush()
+
     def delete(self, source_id: int) -> None:
         model = self._session.get(SourceModel, source_id)
         if model is not None:

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
+from backend.domain.entities.collection import Collection
 from backend.domain.entities.known_word import KnownWord
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -25,6 +26,32 @@ from backend.infrastructure.persistence.database import Base
 
 if TYPE_CHECKING:
     from backend.domain.entities.job import Job
+
+
+class CollectionModel(Base):
+    """SQLAlchemy model for collections."""
+
+    __tablename__ = "collections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
+    )
+
+    def to_entity(self) -> Collection:
+        return Collection(
+            id=self.id,
+            name=self.name,
+            created_at=self.created_at,
+        )
+
+    @staticmethod
+    def from_entity(collection: Collection) -> CollectionModel:
+        return CollectionModel(
+            name=collection.name,
+            created_at=collection.created_at,
+        )
 
 
 class SourceModel(Base):
@@ -44,6 +71,9 @@ class SourceModel(Base):
     processing_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     video_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     audio_track_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    collection_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("collections.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
@@ -64,6 +94,7 @@ class SourceModel(Base):
             ),
             video_path=self.video_path,
             audio_track_index=self.audio_track_index,
+            collection_id=self.collection_id,
             created_at=self.created_at,
         )
 
@@ -78,6 +109,7 @@ class SourceModel(Base):
             source_url=source.source_url,
             video_path=source.video_path,
             audio_track_index=source.audio_track_index,
+            collection_id=source.collection_id,
             created_at=source.created_at,
         )
 
