@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import os
+import traceback
 from collections.abc import AsyncGenerator  # noqa: TC003
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+import structlog
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import Response
 
 from backend.infrastructure.api.dependencies import get_session_factory
 from backend.infrastructure.api.routes import (
@@ -49,6 +53,35 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(title="AnythingToAnki API", version="0.2.0", lifespan=lifespan)
 
+_log = structlog.get_logger(__name__)
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        method = request.method
+        path = request.url.path
+        try:
+            response = await call_next(request)
+        except Exception:
+            _log.error(
+                "Unhandled exception",
+                method=method,
+                path=path,
+                traceback=traceback.format_exc(),
+            )
+            return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+
+        if response.status_code >= 400:
+            _log.warning(
+                "Error response",
+                method=method,
+                path=path,
+                status=response.status_code,
+            )
+        return response
+
+
+app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

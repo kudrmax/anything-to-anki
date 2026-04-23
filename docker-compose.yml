@@ -21,7 +21,7 @@ services:
       - ./scripts:/app/scripts:ro
       - ${LOCAL_VIDEO_DIR:-/dev/null}:/local-videos:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/settings"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/settings')"]
       interval: 5s
       timeout: 3s
       retries: 3
