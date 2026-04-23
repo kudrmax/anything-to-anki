@@ -24,9 +24,6 @@ class ContainerVideoPathResolver(VideoPathResolver):
         self._local_video_mount = local_video_mount
 
     def resolve(self, stored_path: str, input_method: InputMethod) -> str:
-        # Backward compat: absolute paths from old DB entries — return as-is
-        if os.path.isabs(stored_path):
-            return stored_path
         if input_method == InputMethod.YOUTUBE_URL:
             return os.path.join(self._youtube_base, stored_path)
         return os.path.join(self._local_video_mount, stored_path)
