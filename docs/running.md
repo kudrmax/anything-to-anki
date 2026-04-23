@@ -28,12 +28,25 @@ make typecheck    # mypy
 make help         # Все команды с описанием
 ```
 
+## Словари
+
+Проект использует словарные данные (CEFR, аудио, IPA, usage) в unified JSON формате. Подробности формата — в `dictionaries/README.md`.
+
+**Первоначальная настройка:**
+
+1. Подготовьте словари в unified JSON формате (см. `dictionaries/README.md`)
+2. Положите файлы в `dictionaries/` или укажите путь через `DICTIONARIES_DIR` в `.env`
+3. `make up` автоматически соберёт SQLite-кэш из JSON
+
+**Без словарей проект запустится**, но CEFR-классификация будет использовать только встроенный fallback (cefrpy), а аудио/IPA/usage будут пустыми.
+
 ## Ключевые env vars (в `.env`)
 
 - `INSTANCE_ENV_NAME` — визуальный лейбл копии. Отображается в UI бейджем. **Не** переключатель логики.
 - `PORT` — порт web-приложения на localhost.
 - `AI_PROXY_PORT` — порт ai_proxy на хосте.
 - `COMPOSE_PROJECT_NAME` — имя docker compose проекта (обязано отличаться между копиями).
+- `DICTIONARIES_DIR` — путь к папке с unified-словарями (по умолчанию: `dictionaries/` в корне проекта).
 
 В контейнер также пробрасываются:
 - `DATA_DIR=/data` — путь к данным внутри контейнера (задаётся в `Dockerfile`, трогать не нужно).
