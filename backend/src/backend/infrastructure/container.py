@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import logging
+import os
 from collections.abc import Iterator  # noqa: TC003 — used at runtime by @contextmanager
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
@@ -127,15 +131,13 @@ class Container:
         self._srt_parser = RegexSrtParser()
         project_root = Path(__file__).resolve().parents[4]
 
-        # Dictionary cache
+        # Dictionary cache — DICTIONARIES_DIR is required
         dictionaries_dir_env = os.environ.get("DICTIONARIES_DIR")
-        if dictionaries_dir_env:
-            dict_cache_path = Path(dictionaries_dir_env) / ".cache" / "dict.db"
+        if not dictionaries_dir_env:
+            logger.warning("DICTIONARIES_DIR not set — dictionaries disabled")
+            dict_cache_path = Path("/nonexistent")
         else:
-            dictionaries_dir = project_root / "dictionaries"
-            if not dictionaries_dir.exists():
-                dictionaries_dir = Path("/app/dictionaries")
-            dict_cache_path = dictionaries_dir / ".cache" / "dict.db"
+            dict_cache_path = Path(dictionaries_dir_env) / ".cache" / "dict.db"
 
         self._dict_reader = DictCacheReader(dict_cache_path)
 
