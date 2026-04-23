@@ -14,6 +14,7 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.collection_repository import CollectionRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
@@ -31,14 +32,25 @@ class GetSourcesUseCase:
         candidate_repo: CandidateRepository,
         settings_repo: SettingsRepository,
         job_repo: JobRepository,
+        collection_repo: CollectionRepository,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
         self._settings_repo = settings_repo
         self._job_repo = job_repo
+        self._collection_repo = collection_repo
 
-    def list_all(self) -> list[SourceDTO]:
+    def list_all(self, *, collection_id: int | None = None) -> list[SourceDTO]:
         sources = self._source_repo.list_all()
+        if collection_id is not None:
+            sources = [s for s in sources if s.collection_id == collection_id]
+
+        # Build collection name map
+        collections = self._collection_repo.list_all()
+        coll_names: dict[int, str] = {
+            c.id: c.name for c in collections if c.id is not None  # type: ignore[misc]
+        }
+
         result: list[SourceDTO] = []
         for source in sources:
             assert source.id is not None
@@ -60,6 +72,8 @@ class GetSourcesUseCase:
                     processing_stage=(
                         source.processing_stage.value if source.processing_stage else None
                     ),
+                    collection_id=source.collection_id,
+                    collection_name=coll_names.get(source.collection_id) if source.collection_id else None,
                 )
             )
         return result

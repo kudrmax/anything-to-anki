@@ -46,6 +46,9 @@ class SourceRepository(ABC):
     def delete(self, source_id: int) -> None: ...
 
     @abstractmethod
+    def update_collection(self, source_id: int, collection_id: int | None) -> None: ...
+
+    @abstractmethod
     def get_title_map(self, source_ids: list[int]) -> dict[int, str]:
         """Return a mapping {source_id: title} for the given ids.
 
