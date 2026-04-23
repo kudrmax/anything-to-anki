@@ -43,8 +43,7 @@ def dto_to_breakdown(dto: CEFRBreakdownDTO) -> CEFRBreakdown:
 
     priority_votes = [_dto_to_vote(v) for v in dto.priority_votes]
     votes = [_dto_to_vote(v) for v in dto.votes]
-    all_votes = [*priority_votes, *votes]
-    final, decision_method = resolve_cefr_level(all_votes)
+    final, decision_method = resolve_cefr_level(priority_votes, votes)
     return Bd(
         final_level=final,
         decision_method=decision_method,

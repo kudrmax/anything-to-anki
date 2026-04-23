@@ -37,20 +37,17 @@ from backend.domain.value_objects.fragment_selection_config import (
 from backend.domain.value_objects.input_method import InputMethod
 from backend.infrastructure.adapters.ai_model_mapping import model_id_for
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
-from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
-from backend.infrastructure.adapters.cambridge.pronunciation_source import (
-    CambridgePronunciationSource,
-)
-from backend.infrastructure.adapters.cambridge.sqlite_reader import CambridgeSQLiteReader
-from backend.infrastructure.adapters.cambridge.usage_lookup import CambridgeUsageLookup
 from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
-from backend.infrastructure.adapters.efllex_cefr_source import EFLLexCEFRSource
+from backend.infrastructure.adapters.dict_cache.cefr_source import DictCacheCEFRSource
+from backend.infrastructure.adapters.dict_cache.pronunciation_source import (
+    DictCachePronunciationSource,
+)
+from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
+from backend.infrastructure.adapters.dict_cache.usage_source import DictCacheUsageSource
 from backend.infrastructure.adapters.http_ai_service import HttpAIService
 from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
 )
-from backend.infrastructure.adapters.kelly_cefr_source import KellyCEFRSource
-from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
 from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
 from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
@@ -129,29 +126,37 @@ class Container:
         self._lyrics_parser = RegexLyricsParser(self._text_analyzer)
         self._srt_parser = RegexSrtParser()
         project_root = Path(__file__).resolve().parents[4]
-        # In Docker, project_root resolves to /usr/local/lib (site-packages),
-        # but dictionaries are mounted at /app/dictionaries.
-        dictionaries_dir = project_root / "dictionaries"
-        if not dictionaries_dir.exists():
-            dictionaries_dir = Path("/app/dictionaries")
 
-        cefr_data_dir = dictionaries_dir / "cefr"
-        oxford_cefr = OxfordCEFRSource(cefr_data_dir / "oxford5000.csv")
-        cefr_sources: list[CEFRSource] = [
-            CefrpyCEFRSource(),
-            EFLLexCEFRSource(cefr_data_dir / "efllex.tsv"),
-            KellyCEFRSource(cefr_data_dir / "kelly.csv"),
-        ]
-        # One SQLite reader shared by all Cambridge adapters — no JSONL in RAM
-        cambridge_db_path = dictionaries_dir / "cambridge.db"
-        self._cambridge_reader = CambridgeSQLiteReader(cambridge_db_path)
-        cambridge_cefr = CambridgeCEFRSource(self._cambridge_reader)
-        self._cambridge_usage_lookup = CambridgeUsageLookup(self._cambridge_reader)
-        self._pronunciation_source = CambridgePronunciationSource(self._cambridge_reader)
+        # Dictionary cache
+        dictionaries_dir_env = os.environ.get("DICTIONARIES_DIR")
+        if dictionaries_dir_env:
+            dict_cache_path = Path(dictionaries_dir_env) / ".cache" / "dict.db"
+        else:
+            dictionaries_dir = project_root / "dictionaries"
+            if not dictionaries_dir.exists():
+                dictionaries_dir = Path("/app/dictionaries")
+            dict_cache_path = dictionaries_dir / ".cache" / "dict.db"
+
+        self._dict_reader = DictCacheReader(dict_cache_path)
+
+        # CEFR: dynamic sources from dict.db metadata
+        cefr_sources: list[CEFRSource] = []
+        priority_sources: list[CEFRSource] = []
+        for meta in self._dict_reader.get_cefr_sources():
+            src = DictCacheCEFRSource(self._dict_reader, meta["name"])
+            if meta["priority"] == "high":
+                priority_sources.append(src)
+            else:
+                cefr_sources.append(src)
+        cefr_sources.append(CefrpyCEFRSource())  # built-in fallback
+
         self._cefr_classifier = VotingCEFRClassifier(
             cefr_sources,
-            priority_sources=[oxford_cefr, cambridge_cefr],
+            priority_sources=priority_sources,
         )
+
+        self._pronunciation_source = DictCachePronunciationSource(self._dict_reader)
+        self._usage_source = DictCacheUsageSource(self._dict_reader)
         self._frequency_provider = WordfreqFrequencyProvider()
         self._anki_connector = AnkiConnectConnector()
         self._phrasal_verb_dictionary = JsonPhrasalVerbDictionary()
@@ -229,7 +234,7 @@ class Container:
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
             fragment_selection_config=self._fragment_selection_config,
-            usage_lookup=self._cambridge_usage_lookup,
+            usage_lookup=self._usage_source,
         )
 
     def create_source_use_case(self, session: Session) -> CreateSourceUseCase:

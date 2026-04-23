@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.usage_distribution import UsageDistribution
-    from backend.infrastructure.adapters.cambridge.usage_lookup import CambridgeUsageLookup
+    from backend.domain.ports.usage_source import UsageSource
 
 DIRTY_THRESHOLD: int = 2
 
@@ -52,7 +52,7 @@ class AnalyzeTextUseCase:
         frequency_provider: FrequencyProvider,
         phrasal_verb_detector: PhrasalVerbDetector,
         fragment_selection_config: FragmentSelectionConfig | None = None,
-        usage_lookup: CambridgeUsageLookup | None = None,
+        usage_lookup: UsageSource | None = None,
     ) -> None:
         self._text_cleaner = text_cleaner
         self._text_normalizer = text_normalizer

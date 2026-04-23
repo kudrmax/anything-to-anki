@@ -180,8 +180,7 @@ def _model_to_breakdown(model: CEFRBreakdownModel) -> CEFRBreakdown:
         _make_vote("Kelly List", model.kelly),
     ]
 
-    all_votes = [*priority_votes, *votes]
-    final_level, decision_method = resolve_cefr_level(all_votes)
+    final_level, decision_method = resolve_cefr_level(priority_votes, votes)
 
     return CEFRBreakdown(
         final_level=final_level,
