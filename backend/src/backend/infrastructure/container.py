@@ -52,6 +52,7 @@ from backend.infrastructure.adapters.http_ai_service import HttpAIService
 from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
 )
+from backend.infrastructure.adapters.local_file_reader import LocalFileReader
 from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
 from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
@@ -165,6 +166,7 @@ class Container:
         self._fragment_selection_config = FragmentSelectionConfig()
         self._subtitle_extractor = FfmpegSubtitleExtractor()
         self._media_extractor = FfmpegMediaExtractor()
+        self._file_reader = LocalFileReader()
 
         from backend.infrastructure.adapters.ytdlp_subtitle_fetcher import YtDlpSubtitleFetcher
         from backend.infrastructure.adapters.ytdlp_video_downloader import YtDlpVideoDownloader
@@ -244,6 +246,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             subtitle_extractor=self._subtitle_extractor,
             audio_track_lister=self._subtitle_extractor,
+            file_reader=self._file_reader,
         )
 
     def rename_source_use_case(self, session: Session) -> RenameSourceUseCase:
