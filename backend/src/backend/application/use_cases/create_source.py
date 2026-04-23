@@ -11,6 +11,7 @@ from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
     from backend.domain.ports.audio_track_lister import AudioTrackLister
+    from backend.domain.ports.file_reader import FileReader
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.subtitle_extractor import SubtitleExtractor
     from backend.domain.value_objects.audio_track_info import AudioTrackInfo
@@ -22,15 +23,19 @@ logger = logging.getLogger(__name__)
 class CreateSourceUseCase:
     """Creates a new text source for processing."""
 
+    _VIDEO_EXTENSIONS = frozenset({".mp4", ".mkv", ".avi", ".mov"})
+
     def __init__(
         self,
         source_repo: SourceRepository,
         subtitle_extractor: SubtitleExtractor | None = None,
         audio_track_lister: AudioTrackLister | None = None,
+        file_reader: FileReader | None = None,
     ) -> None:
         self._source_repo = source_repo
         self._subtitle_extractor = subtitle_extractor
         self._audio_track_lister = audio_track_lister
+        self._file_reader = file_reader
 
     def execute(
         self,
@@ -130,3 +135,36 @@ class CreateSourceUseCase:
             created.id, resolved_title, resolved_audio_index,
         )
         return VideoSourceCreated(source_id=created.id)  # type: ignore[arg-type]
+
+    def execute_from_file(
+        self,
+        file_path: str,
+        srt_path: str | None = None,
+        title: str | None = None,
+        subtitle_track_index: int | None = None,
+        audio_track_index: int | None = None,
+    ) -> Source | VideoSourceCreated | TrackSelectionRequired:
+        """Create source from a local file path. Determines type by extension."""
+        assert self._file_reader is not None
+        if not self._file_reader.exists(file_path):
+            msg = f"File not found: {file_path}"
+            raise FileNotFoundError(msg)
+
+        ext = file_path.rsplit(".", 1)[-1].lower() if "." in file_path else ""
+
+        if f".{ext}" in self._VIDEO_EXTENSIONS:
+            srt_text: str | None = None
+            if srt_path is not None:
+                srt_text = self._file_reader.read_text(srt_path)
+            return self.execute_video(
+                video_path=file_path,
+                srt_text=srt_text,
+                title=title,
+                subtitle_track_index=subtitle_track_index,
+                audio_track_index=audio_track_index,
+            )
+
+        # Text file — read content, determine input method
+        content = self._file_reader.read_text(file_path)
+        input_method = InputMethod.SUBTITLES_FILE if ext == "srt" else InputMethod.TEXT_PASTED
+        return self.execute(raw_text=content, input_method=input_method, title=title)
