@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.video_downloader import VideoDownloader
     from backend.domain.ports.video_path_resolver import VideoPathResolver
-    from backend.domain.value_objects.input_method import InputMethod
 
 logger = logging.getLogger(__name__)
 
