@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react'
-import type { ProcessingStage, SourceStatus, SourceSummary } from '@/api/types'
+import type { Collection, ProcessingStage, SourceStatus, SourceSummary } from '@/api/types'
 
 interface SourceCardProps {
   source: SourceSummary
@@ -11,6 +11,8 @@ interface SourceCardProps {
   onRename: (id: number, title: string) => void
   onReprocess: (id: number) => void
   isProcessingLocal: boolean
+  collections: Collection[]
+  onAssignCollection: (sourceId: number, collectionId: number | null) => void
 }
 
 const STATUS_BADGE: Record<SourceStatus, { label: string; bg: string; color: string }> = {
@@ -54,17 +56,30 @@ const GHOST_BTN = {
   border: '1px solid var(--glass-b)',
 } as const
 
-export function SourceCard({ source, onProcess, onReview, onExport, onDelete, onRename, onReprocess, isProcessingLocal }: SourceCardProps) {
+export function SourceCard({ source, onProcess, onReview, onExport, onDelete, onRename, onReprocess, isProcessingLocal, collections, onAssignCollection }: SourceCardProps) {
   const badge = STATUS_BADGE[source.status]
   const border = STATUS_BORDER[source.status]
   const isProcessing = source.status === 'processing' || isProcessingLocal
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(source.title)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [showCollDropdown, setShowCollDropdown] = useState(false)
+  const collRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (isEditing) inputRef.current?.focus()
   }, [isEditing])
+
+  useEffect(() => {
+    if (!showCollDropdown) return
+    const close = (e: MouseEvent) => {
+      if (collRef.current && !collRef.current.contains(e.target as Node)) {
+        setShowCollDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [showCollDropdown])
 
   const handleSave = () => {
     const trimmed = editValue.trim()
@@ -213,6 +228,46 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
           >
             {badge.label}
           </span>
+          {/* Collection badge */}
+          <div ref={collRef} className="relative">
+            <button
+              className="text-[10px] rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+              style={{
+                background: source.collection_name ? 'var(--abg)' : 'transparent',
+                color: source.collection_name ? 'var(--accent)' : 'var(--td)',
+                border: source.collection_name
+                  ? '1px solid color-mix(in srgb, var(--accent) 30%, transparent)'
+                  : '1px dashed var(--glass-b)',
+              }}
+              onClick={(e) => { e.stopPropagation(); setShowCollDropdown(!showCollDropdown) }}
+            >
+              {source.collection_name ?? 'Collection'}
+            </button>
+            {showCollDropdown && (
+              <div
+                className="absolute right-0 top-full mt-1 z-50 rounded-lg py-1 shadow-lg"
+                style={{ background: 'var(--surface-menu)', border: '1px solid var(--glass-b)', minWidth: '160px' }}
+              >
+                <button
+                  className="w-full text-left px-4 py-2 text-xs cursor-pointer hover:opacity-80"
+                  style={{ color: source.collection_id === null ? 'var(--accent)' : 'var(--tm)', fontStyle: 'italic' }}
+                  onClick={(e) => { e.stopPropagation(); onAssignCollection(source.id, null); setShowCollDropdown(false) }}
+                >
+                  No collection
+                </button>
+                {collections.map((c) => (
+                  <button
+                    key={c.id}
+                    className="w-full text-left px-4 py-2 text-xs cursor-pointer hover:opacity-80"
+                    style={{ color: source.collection_id === c.id ? 'var(--accent)' : 'var(--text)' }}
+                    onClick={(e) => { e.stopPropagation(); onAssignCollection(source.id, c.id); setShowCollDropdown(false) }}
+                  >
+                    {c.name} {source.collection_id === c.id ? '✓' : ''}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {!isProcessing && (source.status === 'done' || source.status === 'partially_reviewed' || source.status === 'reviewed' || source.status === 'error') && (
             <button
               onClick={(e) => { e.stopPropagation(); onReprocess(source.id) }}

@@ -720,6 +720,8 @@ export function InboxPage() {
                   onRename={handleRename}
                   onReprocess={handleReprocessClick}
                   isProcessingLocal={processingIds.has(s.id)}
+                  collections={collections}
+                  onAssignCollection={handleAssignCollection}
                 />
               ))}
             </div>
