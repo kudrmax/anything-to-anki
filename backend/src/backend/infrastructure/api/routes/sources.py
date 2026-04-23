@@ -15,7 +15,9 @@ from backend.application.dto.source_dtos import (  # noqa: TC001
     StoredCandidateDTO,
     UpdateTitleRequest,
 )
+from backend.application.dto.collection_dtos import AssignCollectionRequest  # noqa: TC001
 from backend.domain.exceptions import (
+    CollectionNotFoundError,
     SourceAlreadyProcessedError,
     SourceHasActiveJobsError,
     SourceIsProcessingError,
@@ -83,11 +85,12 @@ def create_url_source(
 
 @router.get("")
 def list_sources(
+    collection_id: int | None = None,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> list[SourceDTO]:
     use_case = container.get_sources_use_case(session)
-    return use_case.list_all()
+    return use_case.list_all(collection_id=collection_id)
 
 
 @router.get("/{source_id}")
@@ -128,6 +131,24 @@ def rename_source(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.patch("/{source_id}/collection")
+def assign_source_collection(
+    source_id: int,
+    request: AssignCollectionRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, Any]:
+    try:
+        use_case = container.assign_source_collection_use_case(session)
+        use_case.execute(source_id, request.collection_id)
+        session.commit()
+        return {"source_id": source_id, "collection_id": request.collection_id}
+    except SourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except CollectionNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/{source_id}/process", status_code=202)

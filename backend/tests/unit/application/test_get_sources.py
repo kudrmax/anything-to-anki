@@ -19,11 +19,14 @@ class TestGetSourcesUseCase:
         self.settings_repo.get.return_value = None
         self.job_repo = MagicMock()
         self.job_repo.get_jobs_for_candidates.return_value = {}
+        self.collection_repo = MagicMock()
+        self.collection_repo.list_all.return_value = []
         self.use_case = GetSourcesUseCase(
             source_repo=self.source_repo,
             candidate_repo=self.candidate_repo,
             settings_repo=self.settings_repo,
             job_repo=self.job_repo,
+            collection_repo=self.collection_repo,
         )
 
     def test_list_all(self) -> None:

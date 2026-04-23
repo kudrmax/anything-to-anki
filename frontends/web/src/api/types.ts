@@ -16,6 +16,13 @@ export type CandidateStatus = 'pending' | 'learn' | 'known' | 'skip'
 
 export type CandidateSortOrder = 'relevance' | 'chronological'
 
+export interface Collection {
+  id: number
+  name: string
+  source_count: number
+  created_at: string
+}
+
 export interface SourceSummary {
   id: number
   title: string
@@ -29,6 +36,8 @@ export interface SourceSummary {
   candidate_count: number
   learn_count: number
   processing_stage: ProcessingStage | null
+  collection_id: number | null
+  collection_name: string | null
 }
 
 export type EnrichmentStatus = 'queued' | 'running' | 'done' | 'failed' | 'idle'

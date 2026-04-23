@@ -162,3 +162,19 @@ class CancelledByUserError(Exception):
     def __init__(self, job_id: int) -> None:
         self.job_id = job_id
         super().__init__(f"Job {job_id} cancelled by user")
+
+
+class CollectionNotFoundError(DomainError):
+    """Raised when a collection is not found by ID."""
+
+    def __init__(self, collection_id: int) -> None:
+        super().__init__(f"Collection not found: {collection_id}")
+        self.collection_id = collection_id
+
+
+class CollectionNameExistsError(DomainError):
+    """Raised when a collection name is already taken."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(f"Collection name already exists: {name}")
+        self.name = name

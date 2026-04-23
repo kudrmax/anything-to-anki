@@ -18,6 +18,7 @@ from backend.infrastructure.api.dependencies import get_session_factory
 from backend.infrastructure.api.routes import (
     anki,
     candidates,
+    collections,
     export,
     generation,
     known_words,
@@ -100,6 +101,7 @@ app.include_router(stats.router)
 app.include_router(generation.router)
 app.include_router(pronunciation_router)
 app.include_router(queue_router)
+app.include_router(collections.router)
 
 _dist_env = os.getenv("FRONTEND_DIST")
 _DIST = Path(_dist_env) if _dist_env else Path(__file__).parents[5] / "frontends" / "web" / "dist"

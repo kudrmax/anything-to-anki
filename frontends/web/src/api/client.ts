@@ -4,6 +4,7 @@ import type {
   CandidateSortOrder,
   CandidateStatus,
   CleanupMediaKind,
+  Collection,
   CreateNoteTypeResponse,
   FollowUpAction,
   GenerateMeaningResult,
@@ -66,7 +67,10 @@ export const api = {
       body: JSON.stringify({ title }),
     }),
 
-  listSources: () => req<SourceSummary[]>('/sources'),
+  listSources: (collectionId?: number) =>
+    req<SourceSummary[]>(
+      collectionId != null ? `/sources?collection_id=${collectionId}` : '/sources',
+    ),
 
   getSource: (id: number, sort: CandidateSortOrder = 'relevance') =>
     req<SourceDetail>(`/sources/${id}?sort=${sort}`),
@@ -276,4 +280,30 @@ export const api = {
         job_id: jobId ?? null,
       }),
     }),
+
+  listCollections: () => req<Collection[]>('/collections'),
+
+  createCollection: (name: string) =>
+    req<Collection>('/collections', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+
+  renameCollection: (id: number, name: string) =>
+    req<Collection>(`/collections/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+
+  deleteCollection: (id: number) =>
+    reqVoid(`/collections/${id}`, { method: 'DELETE' }),
+
+  assignSourceCollection: (sourceId: number, collectionId: number | null) =>
+    req<{ source_id: number; collection_id: number | null }>(
+      `/sources/${sourceId}/collection`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ collection_id: collectionId }),
+      },
+    ),
 }

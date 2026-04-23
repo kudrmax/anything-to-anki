@@ -44,6 +44,8 @@ class SourceDTO(BaseModel):
     candidate_count: int
     learn_count: int
     processing_stage: str | None = None
+    collection_id: int | None = None
+    collection_name: str | None = None
 
 
 class CandidateMeaningDTO(BaseModel):
