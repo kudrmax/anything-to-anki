@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.video_downloader import VideoDownloader
+    from backend.domain.ports.video_path_resolver import VideoPathResolver
+    from backend.domain.value_objects.input_method import InputMethod
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +21,15 @@ class DownloadVideoUseCase:
         self,
         source_repo: SourceRepository,
         video_downloader: VideoDownloader,
-        videos_dir: str,
+        video_path_resolver: VideoPathResolver,
     ) -> None:
         self._source_repo = source_repo
         self._video_downloader = video_downloader
-        self._videos_dir = videos_dir
+        self._video_path_resolver = video_path_resolver
 
     def execute(self, source_id: int) -> None:
+        from backend.domain.value_objects.input_method import InputMethod
+
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise ValueError(f"Source {source_id} not found")
@@ -34,10 +38,11 @@ class DownloadVideoUseCase:
         if source.video_path is not None:
             raise ValueError(f"Source {source_id} video already downloaded")
 
-        os.makedirs(self._videos_dir, exist_ok=True)
-        output_path = os.path.join(self._videos_dir, f"{uuid.uuid4()}.mp4")
+        filename = f"{uuid.uuid4()}.mp4"
+        absolute_path = self._video_path_resolver.resolve(filename, InputMethod.YOUTUBE_URL)
+        os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
 
-        self._video_downloader.download(source.source_url, output_path)
+        self._video_downloader.download(source.source_url, absolute_path)
 
-        self._source_repo.update_video_path(source_id, output_path)
-        logger.info("Downloaded video for source %d → %s", source_id, output_path)
+        self._source_repo.update_video_path(source_id, filename)
+        logger.info("Downloaded video for source %d → %s", source_id, filename)

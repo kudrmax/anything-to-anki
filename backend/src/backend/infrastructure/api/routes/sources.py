@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -295,18 +294,19 @@ def create_file_source(
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, Any]:
     from backend.application.dto.video_dtos import TrackSelectionRequired
+    from backend.domain.value_objects.input_method import InputMethod
 
-    local_video_dir = os.getenv("LOCAL_VIDEO_DIR", "")
-    local_video_mount = os.getenv("LOCAL_VIDEO_MOUNT", "")
-
-    def _resolve_path(host_path: str) -> str:
-        """Replace host LOCAL_VIDEO_DIR prefix with container mount point."""
-        if local_video_dir and local_video_mount and host_path.startswith(local_video_dir):
-            return local_video_mount + host_path[len(local_video_dir):]
-        return host_path
-
-    resolved_file_path = _resolve_path(request.file_path)
-    resolved_srt_path = _resolve_path(request.srt_path) if request.srt_path else None
+    resolver = container.video_path_resolver
+    resolved_file_path = resolver.resolve(
+        resolver.to_storage_path(request.file_path, InputMethod.VIDEO_FILE),
+        InputMethod.VIDEO_FILE,
+    )
+    resolved_srt_path: str | None = None
+    if request.srt_path:
+        resolved_srt_path = resolver.resolve(
+            resolver.to_storage_path(request.srt_path, InputMethod.VIDEO_FILE),
+            InputMethod.VIDEO_FILE,
+        )
 
     use_case = container.create_source_use_case(session)
     try:

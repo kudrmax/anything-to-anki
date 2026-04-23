@@ -53,6 +53,7 @@ from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
 )
 from backend.infrastructure.adapters.local_file_reader import LocalFileReader
+from backend.infrastructure.adapters.video_path_resolver import ContainerVideoPathResolver
 from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
 from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
@@ -173,7 +174,11 @@ class Container:
 
         self._url_fetchers: list = [YtDlpSubtitleFetcher()]
         self._video_downloader = YtDlpVideoDownloader()
-        self._videos_dir = os.path.join(os.getenv("DATA_DIR", "."), "videos")
+        self._video_path_resolver = ContainerVideoPathResolver(
+            data_dir=os.getenv("DATA_DIR", "."),
+            local_video_dir=os.getenv("LOCAL_VIDEO_DIR", ""),
+            local_video_mount=os.getenv("LOCAL_VIDEO_MOUNT", "/local-videos"),
+        )
 
         self._media_root = os.environ.get(
             "MEDIA_ROOT",
@@ -247,6 +252,7 @@ class Container:
             subtitle_extractor=self._subtitle_extractor,
             audio_track_lister=self._subtitle_extractor,
             file_reader=self._file_reader,
+            video_path_resolver=self._video_path_resolver,
         )
 
     def rename_source_use_case(self, session: Session) -> RenameSourceUseCase:
@@ -388,6 +394,10 @@ class Container:
     def media_root(self) -> str:
         return self._media_root
 
+    @property
+    def video_path_resolver(self) -> ContainerVideoPathResolver:
+        return self._video_path_resolver
+
     def prompts_config(self) -> PromptsConfig:
         return self._prompts_config
 
@@ -456,7 +466,7 @@ class Container:
         return DownloadVideoUseCase(
             source_repo=SqlaSourceRepository(session),
             video_downloader=self._video_downloader,
-            videos_dir=self._videos_dir,
+            video_path_resolver=self._video_path_resolver,
         )
 
     def cleanup_youtube_video_use_case(self, session: Session) -> CleanupYoutubeVideoUseCase:
