@@ -33,16 +33,19 @@ def upgrade() -> None:
     if "collection_id" not in columns:
         with op.batch_alter_table("sources") as batch_op:
             batch_op.add_column(
-                sa.Column(
-                    "collection_id",
-                    sa.Integer,
-                    sa.ForeignKey("collections.id", ondelete="SET NULL"),
-                    nullable=True,
-                )
+                sa.Column("collection_id", sa.Integer, nullable=True)
+            )
+            batch_op.create_foreign_key(
+                "fk_sources_collection_id",
+                "collections",
+                ["collection_id"],
+                ["id"],
+                ondelete="SET NULL",
             )
 
 
 def downgrade() -> None:
     with op.batch_alter_table("sources") as batch_op:
+        batch_op.drop_constraint("fk_sources_collection_id", type_="foreignkey")
         batch_op.drop_column("collection_id")
     op.drop_table("collections")
