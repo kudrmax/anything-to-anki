@@ -297,12 +297,13 @@ def create_file_source(
     from backend.application.dto.video_dtos import TrackSelectionRequired
 
     local_video_dir = os.getenv("LOCAL_VIDEO_DIR", "")
+    local_video_mount = os.getenv("LOCAL_VIDEO_MOUNT", "")
 
-    def _resolve_path(relative_path: str) -> str:
-        """Resolve a user-provided path relative to LOCAL_VIDEO_DIR."""
-        if not local_video_dir:
-            return relative_path  # no video dir configured, use as-is
-        return os.path.join(local_video_dir, relative_path)
+    def _resolve_path(host_path: str) -> str:
+        """Replace host LOCAL_VIDEO_DIR prefix with container mount point."""
+        if local_video_dir and local_video_mount and host_path.startswith(local_video_dir):
+            return local_video_mount + host_path[len(local_video_dir):]
+        return host_path
 
     resolved_file_path = _resolve_path(request.file_path)
     resolved_srt_path = _resolve_path(request.srt_path) if request.srt_path else None

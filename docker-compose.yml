@@ -11,7 +11,8 @@ services:
       AI_PROXY_URL: http://host.docker.internal:${AI_PROXY_PORT}
       PROMPTS_CONFIG_PATH: /app/config/prompts.yaml
       DICTIONARIES_DIR: /app/dictionaries
-      LOCAL_VIDEO_DIR: /local-videos
+      LOCAL_VIDEO_DIR: ${LOCAL_VIDEO_DIR:-}
+      LOCAL_VIDEO_MOUNT: /local-videos
     volumes:
       - ./data:/data
       - ./config:/app/config:ro
@@ -34,7 +35,8 @@ services:
       AI_PROXY_URL: http://host.docker.internal:${AI_PROXY_PORT}
       PROMPTS_CONFIG_PATH: /app/config/prompts.yaml
       DICTIONARIES_DIR: /app/dictionaries
-      LOCAL_VIDEO_DIR: /local-videos
+      LOCAL_VIDEO_DIR: ${LOCAL_VIDEO_DIR:-}
+      LOCAL_VIDEO_MOUNT: /local-videos
     volumes:
       - ./data:/data
       - ./config:/app/config:ro

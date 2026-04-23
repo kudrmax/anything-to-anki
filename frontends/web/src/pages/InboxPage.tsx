@@ -465,7 +465,7 @@ export function InboxPage() {
                   type="text"
                   value={filePath}
                   onChange={(e) => { setFilePath(e.target.value); setError(null) }}
-                  placeholder="movie.mkv"
+                  placeholder="/path/to/movie.mkv"
                   className="w-full rounded-lg px-4 py-2.5 text-sm transition-colors cosmic-input"
                   style={{ background: 'var(--ibg)', border: '1.5px solid var(--ib)', color: 'var(--text)' }}
                 />
@@ -474,7 +474,7 @@ export function InboxPage() {
                     type="text"
                     value={srtPath}
                     onChange={(e) => setSrtPath(e.target.value)}
-                    placeholder="subtitles.srt (optional)"
+                    placeholder="/path/to/subtitles.srt (optional)"
                     className="w-full rounded-lg px-4 py-2.5 text-sm transition-colors cosmic-input"
                     style={{ background: 'var(--ibg)', border: '1.5px solid var(--ib)', color: 'var(--text)' }}
                   />
