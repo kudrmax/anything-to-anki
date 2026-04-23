@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Generator  # noqa: TC003
+from pathlib import Path
 
 import pytest
 from backend.infrastructure.api.app import app
@@ -154,3 +155,28 @@ class TestSourcesAPI:
         c = candidates[0]
         assert c["frequency_band"] == "MID"
         assert c["usage_distribution"] == {"informal": 0.8, "neutral": 0.2}
+
+
+@pytest.mark.integration
+class TestCreateFileSource:
+    def test_text_file_creates_source(self, client: TestClient, tmp_path: Path) -> None:
+        txt_file = tmp_path / "article.txt"
+        txt_file.write_text("Hello world, this is a test article.", encoding="utf-8")
+
+        resp = client.post("/sources/file", json={
+            "file_path": str(txt_file),
+            "title": "Test Article",
+        })
+
+        assert resp.status_code == 201
+        data = resp.json()
+        assert "id" in data
+        assert data["status"] == "new"
+
+    def test_missing_file_returns_404(self, client: TestClient) -> None:
+        resp = client.post("/sources/file", json={
+            "file_path": "/nonexistent/file.txt",
+        })
+
+        assert resp.status_code == 404
+        assert "not found" in resp.json()["detail"].lower()

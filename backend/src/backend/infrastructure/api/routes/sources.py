@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from backend.application.dto.candidate_dtos import AddManualCandidateRequest  # noqa: TC001
+from backend.application.dto.file_source_dtos import FileSourceRequest  # noqa: TC001
 from backend.application.dto.source_dtos import (  # noqa: TC001
     CreateSourceRequest,
     SourceDetailDTO,
@@ -286,6 +287,60 @@ def add_manual_candidate(
         return result
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.post("/file", status_code=201)
+def create_file_source(
+    request: FileSourceRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, Any]:
+    from backend.application.dto.video_dtos import TrackSelectionRequired
+
+    use_case = container.create_source_use_case(session)
+    try:
+        result = use_case.execute_from_file(
+            file_path=request.file_path,
+            srt_path=request.srt_path,
+            title=request.title,
+            subtitle_track_index=request.subtitle_track_index,
+            audio_track_index=request.audio_track_index,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    if isinstance(result, TrackSelectionRequired):
+        return {
+            "status": "track_selection_required",
+            "file_path": request.file_path,
+            "srt_path": request.srt_path,
+            "subtitle_tracks": [
+                {
+                    "index": t.index,
+                    "language": t.language,
+                    "title": t.title,
+                    "codec": t.codec,
+                }
+                for t in result.subtitle_tracks
+            ],
+            "audio_tracks": [
+                {
+                    "index": t.index,
+                    "language": t.language,
+                    "title": t.title,
+                    "codec": t.codec,
+                    "channels": t.channels,
+                }
+                for t in result.audio_tracks
+            ],
+        }
+
+    # Both Source and VideoSourceCreated
+    source_id = result.source_id if hasattr(result, "source_id") else result.id
+    session.commit()
+    return {"id": source_id, "status": "new"}
 
 
 @router.post("/video", status_code=201)
