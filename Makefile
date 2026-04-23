@@ -82,8 +82,16 @@ _check_env:
 	    exit 1; \
 	fi
 
+##@ Словари
+dict-rebuild: _python_dev  ## Пересобрать словарный кэш с нуля
+	@rm -f $${DICTIONARIES_DIR:-dictionaries}/.cache/dict.db 2>/dev/null || true
+	.venv/bin/python -m backend.cli.build_dict_cache $${DICTIONARIES_DIR:-dictionaries}
+
+dict-update: _python_dev  ## Обновить словарный кэш если JSON изменились
+	@.venv/bin/python -m backend.cli.build_dict_cache $${DICTIONARIES_DIR:-dictionaries} --if-changed
+
 ##@ Запуск (читает .env)
-up: _check_env  ## Запустить (ai_proxy + docker compose)
+up: _check_env dict-update  ## Запустить (ai_proxy + docker compose)
 	$(call start_ai_proxy)
 	docker compose up -d --build --force-recreate
 	$(call check_services,)
@@ -94,25 +102,7 @@ up: _check_env  ## Запустить (ai_proxy + docker compose)
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "\033[0m\n"
 
-up-worktree: _check_env  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий worktree)
-	@# Симлинк dictionaries на main worktree (submodule там уже инициализирован).
-	@# В worktree git создаёт пустую директорию dictionaries/ (submodule placeholder),
-	@# поэтому проверяем наличие реальных файлов, а не просто -e.
-	@main=$$(git worktree list --porcelain | head -1 | awk '{print $$2}'); \
-	if [ "$$main" != "$$(pwd)" ]; then \
-	    if [ ! -f "$$main/dictionaries/cefr/efllex.tsv" ]; then \
-	        echo "ERROR: dictionaries submodule not initialized in main worktree."; \
-	        echo "Run:  cd $$main && git submodule update --init dictionaries"; \
-	        exit 1; \
-	    fi; \
-	    if [ -d dictionaries ] && [ ! -L dictionaries ] && [ -z "$$(ls -A dictionaries 2>/dev/null)" ]; then \
-	        rmdir dictionaries; \
-	    fi; \
-	    if [ ! -e dictionaries ]; then \
-	        ln -s "$$main/dictionaries" dictionaries; \
-	        echo "Symlinked dictionaries → main worktree"; \
-	    fi; \
-	fi
+up-worktree: _check_env dict-update  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий worktree)
 	@# Остановить предыдущий worktree на этих портах (если есть)
 	@containers=$$(docker ps --format '{{.ID}} {{.Ports}}' | grep '$(WORKTREE_PORT)->' | awk '{print $$1}'); \
 	if [ -n "$$containers" ]; then \

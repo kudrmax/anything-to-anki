@@ -22,3 +22,5 @@ coverage-*.json
 htmlcov/
 /.claude/worktrees
 /.DS_Store
+dictionaries/.cache/
+dictionaries_backup_*/
