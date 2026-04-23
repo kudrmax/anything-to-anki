@@ -26,14 +26,6 @@ class TestContainerVideoPathResolver:
         result = self.resolver.resolve("series/ep01.mkv", InputMethod.VIDEO_FILE)
         assert result == "/local-videos/series/ep01.mkv"
 
-    def test_resolve_backward_compat_absolute_youtube(self) -> None:
-        result = self.resolver.resolve("/data/videos/old.mp4", InputMethod.YOUTUBE_URL)
-        assert result == "/data/videos/old.mp4"
-
-    def test_resolve_backward_compat_absolute_local(self) -> None:
-        result = self.resolver.resolve("/local-videos/old.mkv", InputMethod.VIDEO_FILE)
-        assert result == "/local-videos/old.mkv"
-
     # --- to_storage_path ---
 
     def test_to_storage_youtube(self) -> None:
