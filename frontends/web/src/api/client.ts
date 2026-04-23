@@ -211,9 +211,9 @@ export const api = {
       body: JSON.stringify({ source_id: sourceId, kind }),
     }),
 
-  createVideoSource: async (
-    videoFile: File,
-    srtFile: File | null,
+  createFileSource: async (
+    filePath: string,
+    srtPath: string | undefined,
     title: string | undefined,
     subtitleTrackIndex: number | undefined,
     audioTrackIndex: number | undefined,
@@ -222,28 +222,24 @@ export const api = {
     status: string
     subtitle_tracks?: SubtitleTrack[]
     audio_tracks?: AudioTrack[]
-    pending_video_path?: string
+    file_path?: string
+    srt_path?: string
   }> => {
-    const form = new FormData()
-    form.append('video', videoFile)
-    if (srtFile) form.append('srt', srtFile)
-    if (title) form.append('title', title)
-    if (subtitleTrackIndex !== undefined) form.append('subtitle_track_index', String(subtitleTrackIndex))
-    if (audioTrackIndex !== undefined) form.append('audio_track_index', String(audioTrackIndex))
-    const res = await fetch(`${BASE}/sources/video`, { method: 'POST', body: form })
+    const body: Record<string, unknown> = { file_path: filePath }
+    if (srtPath) body.srt_path = srtPath
+    if (title) body.title = title
+    if (subtitleTrackIndex !== undefined) body.subtitle_track_index = subtitleTrackIndex
+    if (audioTrackIndex !== undefined) body.audio_track_index = audioTrackIndex
+    const res = await fetch(`${BASE}/sources/file`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
     if (!res.ok) {
-      const text = await res.text()
-      let detail = text
-      try { detail = JSON.parse(text).detail ?? text } catch { /* use raw text */ }
-      throw new Error(detail)
+      const err = await res.json().catch(() => null)
+      throw new Error(err?.detail ?? res.statusText)
     }
-    return res.json() as Promise<{
-      id?: number
-      status: string
-      subtitle_tracks?: SubtitleTrack[]
-      audio_tracks?: AudioTrack[]
-      pending_video_path?: string
-    }>
+    return res.json()
   },
 
   getAnkiTemplates: () => req<AnkiTemplates>('/anki/templates'),

@@ -47,10 +47,11 @@ make help         # Все команды с описанием
 - `AI_PROXY_PORT` — порт ai_proxy на хосте.
 - `COMPOSE_PROJECT_NAME` — имя docker compose проекта (обязано отличаться между копиями).
 - `DICTIONARIES_DIR` — путь к папке с unified-словарями (по умолчанию: `dictionaries/` в корне проекта).
+- `LOCAL_VIDEO_DIR` — (опционально) папка с локальными видеофайлами. Маунтится в контейнер readonly. Нужна только для добавления локальных видео через вкладку File.
 
 В контейнер также пробрасываются:
 - `DATA_DIR=/data` — путь к данным внутри контейнера (задаётся в `Dockerfile`, трогать не нужно).
-- `AI_PROXY_URL`, `ANKI_URL`, `REDIS_URL`, `PROMPTS_CONFIG_PATH` — задаются в `docker-compose.yml`.
+- `AI_PROXY_URL`, `ANKI_URL`, `PROMPTS_CONFIG_PATH` — задаются в `docker-compose.yml`.
 
 ## Обновление prod до новой версии
 

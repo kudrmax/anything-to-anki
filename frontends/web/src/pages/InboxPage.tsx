@@ -1,23 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Link, File, Upload, Loader2, Plus, RefreshCw } from 'lucide-react'
+import { FileText, Link, File, Loader2, Plus, RefreshCw } from 'lucide-react'
 import { api } from '@/api/client'
 import type { AudioTrack, SourceSummary, SourceType, Stats, SubtitleTrack } from '@/api/types'
 import { SourceCard } from '@/components/SourceCard'
 import { ReprocessModal } from '@/components/ReprocessModal'
 import { useSourcePolling } from '@/hooks/useSourcePolling'
 
-function detectedFileType(files: File[]): string {
-  const exts = files.map((f) => f.name.split('.').pop()?.toLowerCase() ?? '')
-  if (exts.includes('epub')) return 'Book · epub'
-  if (exts.some((e) => ['mp4', 'mkv', 'avi', 'mov'].includes(e)))
-    return exts.includes('srt')
-      ? 'Video + subtitles'
-      : 'Video · ' + exts.find((e) => ['mp4', 'mkv', 'avi', 'mov'].includes(e))
-  if (exts.includes('srt')) return 'Subtitles · srt'
-  if (exts.includes('html')) return 'Article · html'
-  return 'Text · ' + (exts[0] ?? 'txt')
+function detectedFileType(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() ?? ''
+  if (ext === 'epub') return 'Book · epub'
+  if (['mp4', 'mkv', 'avi', 'mov'].includes(ext)) return 'Video · ' + ext
+  if (ext === 'srt') return 'Subtitles · srt'
+  if (ext === 'html') return 'Article · html'
+  return 'Text · ' + (ext || 'txt')
+}
+
+function isVideoPath(path: string): boolean {
+  const ext = path.split('.').pop()?.toLowerCase() ?? ''
+  return ['mp4', 'mkv', 'avi', 'mov'].includes(ext)
 }
 
 function StatWidget({ label, value }: { label: string; value: number }) {
@@ -70,7 +72,10 @@ export function InboxPage() {
   const [textInput, setTextInput] = useState('')
   const [textSourceType, setTextSourceType] = useState<SourceType | null>(null)
   const [urlInput, setUrlInput] = useState('')
-  const [files, setFiles] = useState<File[]>([])
+  const [filePath, setFilePath] = useState('')
+  const [srtPath, setSrtPath] = useState('')
+  const [pendingFilePath, setPendingFilePath] = useState('')
+  const [pendingSrtPath, setPendingSrtPath] = useState('')
   const [adding, setAdding] = useState(false)
   const [processingAll, setProcessingAll] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -79,9 +84,6 @@ export function InboxPage() {
   const processingIdsRef = useRef(processingIds)
   processingIdsRef.current = processingIds
   const [cefrLevel, setCefrLevel] = useState('B2')
-  const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null)
-  const [pendingSrtFile, setPendingSrtFile] = useState<File | null>(null)
-  const [_pendingVideoPath, setPendingVideoPath] = useState('') // kept for future use
   const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrack[]>([])
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([])
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null)
@@ -148,44 +150,39 @@ export function InboxPage() {
     }
 
     if (activeTab === 'file') {
-      const videoExts = ['mp4', 'mkv', 'avi', 'mov']
-      const videoFile = files.find(f => videoExts.includes(f.name.split('.').pop()?.toLowerCase() ?? ''))
-      const srtFile = files.find(f => f.name.toLowerCase().endsWith('.srt')) ?? null
-
-      if (videoFile) {
-        setAdding(true)
-        try {
-          const result = await api.createVideoSource(
-            videoFile,
-            srtFile,
-            title.trim() || undefined,
-            undefined,
-            undefined,
-          )
-          if (result.status === 'track_selection_required') {
-            setPendingVideoFile(videoFile)
-            setPendingSrtFile(srtFile)
-            setPendingVideoPath(result.pending_video_path ?? '')
-            const subs = result.subtitle_tracks ?? []
-            const auds = result.audio_tracks ?? []
-            setSubtitleTracks(subs)
-            setAudioTracks(auds)
-            setSelectedSubtitleIndex(subs.length > 0 ? subs[0].index : null)
-            setSelectedAudioIndex(auds.length > 0 ? auds[0].index : null)
-            setShowTrackModal(true)
-          } else if (result.id) {
-            setFiles([])
-            setTitle('')
-            void loadSources()
-          }
-        } catch (e) {
-          setError(e instanceof Error ? e.message : 'Upload failed')
-        } finally {
-          setAdding(false)
-        }
+      if (!filePath.trim()) {
+        setError('Enter file path')
         return
       }
-      setToast({ text: 'This feature is not implemented yet', key: Date.now() })
+      setAdding(true)
+      try {
+        const result = await api.createFileSource(
+          filePath.trim(),
+          srtPath.trim() || undefined,
+          title.trim() || undefined,
+          undefined,
+          undefined,
+        )
+        if (result.status === 'track_selection_required') {
+          setPendingFilePath(result.file_path ?? filePath.trim())
+          setPendingSrtPath(result.srt_path ?? srtPath.trim())
+          setSubtitleTracks(result.subtitle_tracks ?? [])
+          setAudioTracks(result.audio_tracks ?? [])
+          setSelectedSubtitleIndex(result.subtitle_tracks?.[0]?.index ?? null)
+          setSelectedAudioIndex(result.audio_tracks?.[0]?.index ?? null)
+          setShowTrackModal(true)
+        } else if (result.id) {
+          setFilePath('')
+          setSrtPath('')
+          setTitle('')
+          await loadSources()
+        }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e)
+        setError(msg)
+      } finally {
+        setAdding(false)
+      }
       return
     }
 
@@ -300,31 +297,31 @@ export function InboxPage() {
   }
 
   const handleConfirmTracks = async () => {
-    if (!pendingVideoFile) return
-    // Require a selection for each ambiguous side
+    if (!pendingFilePath) return
     if (subtitleTracks.length > 0 && selectedSubtitleIndex === null) return
     if (audioTracks.length > 0 && selectedAudioIndex === null) return
     setShowTrackModal(false)
     setAdding(true)
     try {
-      const result = await api.createVideoSource(
-        pendingVideoFile,
-        pendingSrtFile,
+      const result = await api.createFileSource(
+        pendingFilePath,
+        pendingSrtPath || undefined,
         title.trim() || undefined,
         subtitleTracks.length > 0 ? selectedSubtitleIndex ?? undefined : undefined,
         audioTracks.length > 0 ? selectedAudioIndex ?? undefined : undefined,
       )
       if (result.id) {
-        setFiles([])
+        setFilePath('')
+        setSrtPath('')
         setTitle('')
-        setPendingVideoFile(null)
-        setPendingSrtFile(null)
+        setPendingFilePath('')
+        setPendingSrtPath('')
         setSubtitleTracks([])
         setAudioTracks([])
-        void loadSources()
+        await loadSources()
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed')
+    } catch (e: unknown) {
+      setToast({ text: e instanceof Error ? e.message : String(e), key: Date.now() })
     } finally {
       setAdding(false)
     }
@@ -332,23 +329,12 @@ export function InboxPage() {
 
   const handleCancelTrackSelection = () => {
     setShowTrackModal(false)
-    setPendingVideoFile(null)
-    setPendingSrtFile(null)
+    setPendingFilePath('')
+    setPendingSrtPath('')
     setSubtitleTracks([])
     setAudioTracks([])
     setSelectedSubtitleIndex(null)
     setSelectedAudioIndex(null)
-  }
-
-  const handleGlobalDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    if (activeTab !== 'file') setActiveTab('file')
-  }
-
-  const handleGlobalDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setActiveTab('file')
-    setFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)])
   }
 
   const pendingCount = sources.filter((s) => s.status === 'new' || s.status === 'error').length
@@ -366,8 +352,6 @@ export function InboxPage() {
         {/* ── LEFT COLUMN: FORM ── */}
         <section
           className="flex flex-col gap-4"
-          onDragOver={handleGlobalDragOver}
-          onDrop={handleGlobalDrop}
         >
           <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>
             Add source
@@ -477,109 +461,37 @@ export function InboxPage() {
             {/* ── FILE TAB ── */}
             {activeTab === 'file' && (
               <div className="flex flex-col gap-2.5">
-                {files.length === 0 && (
-                  <div
-                    onClick={() => document.getElementById('anki-file-input')?.click()}
-                    className="flex flex-col items-center gap-2 rounded-xl p-6 text-center cursor-pointer transition-all"
-                    style={{ border: '1.5px dashed var(--ag)', background: 'var(--abg)' }}
-                    onMouseEnter={(e) => {
-                      const el = e.currentTarget as HTMLDivElement
-                      el.style.borderColor = 'var(--accent)'
-                      el.style.background = 'var(--abg)'
-                    }}
-                    onMouseLeave={(e) => {
-                      const el = e.currentTarget as HTMLDivElement
-                      el.style.borderColor = 'var(--ag)'
-                      el.style.background = 'var(--abg)'
-                    }}
-                  >
-                    <Upload size={28} style={{ color: 'var(--accent)' }} />
-                    <div className="text-sm font-medium" style={{ color: 'var(--text)' }}>Drop file here</div>
-                    <div className="text-[11px]" style={{ color: 'var(--td)' }}>
-                      .epub · .srt · .html · .txt · .mp4 · .mkv · any video
-                    </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); document.getElementById('anki-file-input')?.click() }}
-                      className="glass-pill mt-1 text-xs font-medium cursor-pointer"
-                      style={{ color: 'var(--tm)' }}
-                    >
-                      Choose file
-                    </button>
-                  </div>
-                )}
                 <input
-                  id="anki-file-input"
-                  type="file"
-                  multiple
-                  accept=".epub,.srt,.html,.txt,video/*"
-                  // visually hidden but kept in layout — `display: none` causes
-                  // some browsers to fire `change` with empty FileList after picker
-                  style={{
-                    position: 'absolute',
-                    width: '1px',
-                    height: '1px',
-                    padding: 0,
-                    margin: '-1px',
-                    overflow: 'hidden',
-                    clip: 'rect(0,0,0,0)',
-                    whiteSpace: 'nowrap',
-                    border: 0,
-                  }}
-                  onChange={(e) => {
-                    setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])])
-                    e.target.value = ''
-                  }}
+                  type="text"
+                  value={filePath}
+                  onChange={(e) => { setFilePath(e.target.value); setError(null) }}
+                  placeholder="/path/to/movie.mkv"
+                  className="w-full rounded-lg px-4 py-2.5 text-sm transition-colors cosmic-input"
+                  style={{ background: 'var(--ibg)', border: '1.5px solid var(--ib)', color: 'var(--text)' }}
                 />
-                {files.length > 0 && (
-                  <div className="flex flex-col gap-1.5">
-                    {files.map((f, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2"
-                        style={{ background: 'var(--glass)', border: '1px solid var(--glass-b)' }}
-                      >
-                        <File size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>{f.name}</div>
-                          <div className="text-[10px]" style={{ color: 'var(--tm)' }}>
-                            {f.name.split('.').pop()?.toUpperCase()}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                          className="glass-pill text-xs cursor-pointer"
-                          style={{ color: 'var(--td)', padding: '2px 6px', height: '22px' }}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => document.getElementById('anki-file-input')?.click()}
-                      className="text-[11px] text-left transition-colors cursor-pointer hover:brightness-125"
-                      style={{ color: 'var(--tm)' }}
+                {filePath.trim() && isVideoPath(filePath.trim()) && (
+                  <input
+                    type="text"
+                    value={srtPath}
+                    onChange={(e) => setSrtPath(e.target.value)}
+                    placeholder="/path/to/subtitles.srt (optional)"
+                    className="w-full rounded-lg px-4 py-2.5 text-sm transition-colors cosmic-input"
+                    style={{ background: 'var(--ibg)', border: '1.5px solid var(--ib)', color: 'var(--text)' }}
+                  />
+                )}
+                {filePath.trim() && (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full"
+                      style={{
+                        background: 'var(--abg)',
+                        border: '1px solid var(--ag)',
+                        color: 'var(--accent)',
+                      }}
                     >
-                      + Add another file
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full"
-                        style={{
-                          background: 'var(--abg)',
-                          border: '1px solid var(--ag)',
-                          color: 'var(--accent)',
-                        }}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent)' }} />
-                        {detectedFileType(files)}
-                      </span>
-                      <span
-                        className="text-[11px] underline underline-offset-2 cursor-pointer"
-                        style={{ color: 'var(--tm)' }}
-                      >
-                        change
-                      </span>
-                    </div>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent)' }} />
+                      {detectedFileType(filePath.trim())}
+                    </span>
                   </div>
                 )}
               </div>
