@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -295,11 +296,22 @@ def create_file_source(
 ) -> dict[str, Any]:
     from backend.application.dto.video_dtos import TrackSelectionRequired
 
+    local_video_dir = os.getenv("LOCAL_VIDEO_DIR", "")
+
+    def _resolve_path(relative_path: str) -> str:
+        """Resolve a user-provided path relative to LOCAL_VIDEO_DIR."""
+        if not local_video_dir:
+            return relative_path  # no video dir configured, use as-is
+        return os.path.join(local_video_dir, relative_path)
+
+    resolved_file_path = _resolve_path(request.file_path)
+    resolved_srt_path = _resolve_path(request.srt_path) if request.srt_path else None
+
     use_case = container.create_source_use_case(session)
     try:
         result = use_case.execute_from_file(
-            file_path=request.file_path,
-            srt_path=request.srt_path,
+            file_path=resolved_file_path,
+            srt_path=resolved_srt_path,
             title=request.title,
             subtitle_track_index=request.subtitle_track_index,
             audio_track_index=request.audio_track_index,

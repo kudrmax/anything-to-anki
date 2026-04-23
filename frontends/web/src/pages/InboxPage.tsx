@@ -469,7 +469,7 @@ export function InboxPage() {
                     type="text"
                     value={filePath}
                     onChange={(e) => { setFilePath(e.target.value); setError(null) }}
-                    placeholder="/path/to/file.mp4"
+                    placeholder="movie.mkv"
                     className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
                   />
                 </div>
@@ -482,7 +482,7 @@ export function InboxPage() {
                       type="text"
                       value={srtPath}
                       onChange={(e) => setSrtPath(e.target.value)}
-                      placeholder="/path/to/subtitles.srt"
+                      placeholder="subtitles.srt"
                       className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
                     />
                   </div>
