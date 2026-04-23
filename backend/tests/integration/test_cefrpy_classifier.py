@@ -6,27 +6,41 @@ from pathlib import Path
 import pytest
 from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
 from backend.domain.value_objects.cefr_level import CEFRLevel
-from backend.infrastructure.adapters.cambridge.cefr_source import CambridgeCEFRSource
-from backend.infrastructure.adapters.cambridge.sqlite_reader import CambridgeSQLiteReader
 from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
-from backend.infrastructure.adapters.efllex_cefr_source import EFLLexCEFRSource
-from backend.infrastructure.adapters.kelly_cefr_source import KellyCEFRSource
-from backend.infrastructure.adapters.oxford_cefr_source import OxfordCEFRSource
+from backend.infrastructure.adapters.dict_cache.cefr_source import DictCacheCEFRSource
+from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
 
-DATA_DIR = Path(__file__).resolve().parents[3] / "dictionaries" / "cefr"
-CAMBRIDGE_DB_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / "cambridge.db"
+from backend.domain.ports.cefr_source import CEFRSource
+
+DICT_CACHE_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / ".cache" / "dict.db"
+
+_SKIP_NO_DICT_CACHE = pytest.mark.skipif(
+    not DICT_CACHE_PATH.exists(),
+    reason=f"dict.db not found at {DICT_CACHE_PATH}",
+)
+
+
+def _make_classifier() -> VotingCEFRClassifier:
+    reader = DictCacheReader(DICT_CACHE_PATH)
+
+    cefr_sources: list[CEFRSource] = []
+    priority_sources: list[CEFRSource] = []
+    for meta in reader.get_cefr_sources():
+        src = DictCacheCEFRSource(reader, meta["name"])
+        if meta["priority"] == "high":
+            priority_sources.append(src)
+        else:
+            cefr_sources.append(src)
+    cefr_sources.append(CefrpyCEFRSource())
+
+    return VotingCEFRClassifier(cefr_sources, priority_sources=priority_sources)
 
 
 @pytest.mark.integration
+@_SKIP_NO_DICT_CACHE
 class TestVotingCEFRClassifierIntegration:
     def setup_method(self) -> None:
-        sources = [
-            CefrpyCEFRSource(),
-            EFLLexCEFRSource(DATA_DIR / "efllex.tsv"),
-            OxfordCEFRSource(DATA_DIR / "oxford5000.csv"),
-            KellyCEFRSource(DATA_DIR / "kelly.csv"),
-        ]
-        self.classifier = VotingCEFRClassifier(sources)
+        self.classifier = _make_classifier()
 
     def test_common_word_reasonable_level(self) -> None:
         level = self.classifier.classify("happy", "JJ")
@@ -52,23 +66,15 @@ class TestVotingCEFRClassifierIntegration:
 
 
 @pytest.mark.integration
-class TestVotingCEFRClassifierWithCambridgeIntegration:
-    """Full integration: Cambridge priority + 4 fallback sources."""
+@_SKIP_NO_DICT_CACHE
+class TestVotingCEFRClassifierWithPriorityIntegration:
+    """Full integration: priority sources + fallback sources from dict.db."""
 
     def setup_method(self) -> None:
-        cambridge_cefr = CambridgeCEFRSource(CambridgeSQLiteReader(CAMBRIDGE_DB_PATH))
-        oxford_cefr = OxfordCEFRSource(DATA_DIR / "oxford5000.csv")
-        sources = [
-            CefrpyCEFRSource(),
-            EFLLexCEFRSource(DATA_DIR / "efllex.tsv"),
-            KellyCEFRSource(DATA_DIR / "kelly.csv"),
-        ]
-        self.classifier = VotingCEFRClassifier(
-            sources, priority_sources=[oxford_cefr, cambridge_cefr],
-        )
+        self.classifier = _make_classifier()
 
-    def test_common_word_uses_cambridge(self) -> None:
-        """'happy' has Cambridge CEFR — should return a reasonable level."""
+    def test_common_word_has_level(self) -> None:
+        """'happy' should return a reasonable level."""
         level = self.classifier.classify("happy", "JJ")
         assert level in (CEFRLevel.A1, CEFRLevel.A2, CEFRLevel.B1)
 
@@ -82,6 +88,6 @@ class TestVotingCEFRClassifierWithCambridgeIntegration:
         assert level != CEFRLevel.C2
 
     def test_and_is_basic(self) -> None:
-        """'and' is A2 in Cambridge — sanity check."""
+        """'and' is a basic word — sanity check."""
         level = self.classifier.classify("and", "CC")
         assert level in (CEFRLevel.A1, CEFRLevel.A2)
