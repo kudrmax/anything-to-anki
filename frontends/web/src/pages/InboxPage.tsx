@@ -101,7 +101,7 @@ export function InboxPage() {
   const loadSources = useCallback(async () => {
     try {
       const [list, s, colls] = await Promise.all([
-        api.listSources(activeCollectionId ?? undefined),
+        api.listSources(),
         api.getStats(),
         api.listCollections(),
       ])
@@ -111,7 +111,11 @@ export function InboxPage() {
     } catch {
       // ignore background reload errors
     }
-  }, [activeCollectionId])
+  }, [])
+
+  const filteredSources = activeCollectionId === null
+    ? sources
+    : sources.filter((s) => s.collection_id === activeCollectionId)
 
   const handleCreateCollection = async () => {
     const name = newCollectionName.trim()
@@ -703,13 +707,15 @@ export function InboxPage() {
             </div>
           )}
 
-          {sources.length === 0 ? (
+          {filteredSources.length === 0 ? (
             <div className="rounded-xl border border-dashed p-8 text-center" style={{ borderColor: 'var(--glass-b)' }}>
-              <p className="text-sm" style={{ color: 'var(--td)' }}>No sources yet. Add one to get started.</p>
+              <p className="text-sm" style={{ color: 'var(--td)' }}>
+                {sources.length === 0 ? 'No sources yet. Add one to get started.' : 'No sources in this collection.'}
+              </p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {sources.map((s) => (
+              {filteredSources.map((s) => (
                 <SourceCard
                   key={s.id}
                   source={s}

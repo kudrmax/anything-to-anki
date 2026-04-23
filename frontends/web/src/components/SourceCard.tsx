@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import type { Collection, ProcessingStage, SourceStatus, SourceSummary } from '@/api/types'
 
@@ -56,6 +57,65 @@ const GHOST_BTN = {
   border: '1px solid var(--glass-b)',
 } as const
 
+function CollectionDropdown({ anchorEl, collections, currentCollectionId, onSelect, onClose }: {
+  anchorEl: HTMLElement
+  collections: Collection[]
+  currentCollectionId: number | null
+  onSelect: (collectionId: number | null) => void
+  onClose: () => void
+}) {
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const rect = anchorEl.getBoundingClientRect()
+    setPos({ top: rect.bottom + 4, left: rect.left })
+  }, [anchorEl])
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) && !anchorEl.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [anchorEl, onClose])
+
+  return (
+    <div ref={dropdownRef} className="glass-card glass-dropdown" style={{
+      position: 'fixed',
+      top: pos.top,
+      left: pos.left,
+      zIndex: 9999,
+      borderRadius: '12px',
+      padding: '4px 0',
+      minWidth: '180px',
+    }}>
+      <button
+        onClick={(e) => { e.stopPropagation(); onSelect(null) }}
+        className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
+        style={{ color: currentCollectionId === null ? 'var(--accent)' : 'var(--text-muted-light)', fontStyle: 'italic' }}
+      >
+        No collection
+      </button>
+      {collections.length > 0 && (
+        <div style={{ height: '1px', background: 'var(--surface-divider)', margin: '4px 0' }} />
+      )}
+      {collections.map((c) => (
+        <button
+          key={c.id}
+          onClick={(e) => { e.stopPropagation(); onSelect(c.id) }}
+          className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/[0.08] cursor-pointer transition-colors"
+          style={{ color: currentCollectionId === c.id ? 'var(--accent)' : 'var(--text-muted-light)' }}
+        >
+          {c.name} {currentCollectionId === c.id ? '✓' : ''}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function SourceCard({ source, onProcess, onReview, onExport, onDelete, onRename, onReprocess, isProcessingLocal, collections, onAssignCollection }: SourceCardProps) {
   const badge = STATUS_BADGE[source.status]
   const border = STATUS_BORDER[source.status]
@@ -64,22 +124,11 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
   const [editValue, setEditValue] = useState(source.title)
   const inputRef = useRef<HTMLInputElement>(null)
   const [showCollDropdown, setShowCollDropdown] = useState(false)
-  const collRef = useRef<HTMLDivElement>(null)
+  const collRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (isEditing) inputRef.current?.focus()
   }, [isEditing])
-
-  useEffect(() => {
-    if (!showCollDropdown) return
-    const close = (e: MouseEvent) => {
-      if (collRef.current && !collRef.current.contains(e.target as Node)) {
-        setShowCollDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [showCollDropdown])
 
   const handleSave = () => {
     const trimmed = editValue.trim()
@@ -104,7 +153,7 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
 
   return (
     <div
-      className={`group glass-card rounded-2xl px-5 py-[18px] flex items-start gap-3 relative overflow-hidden${isReviewable ? ' cursor-pointer' : ''}`}
+      className={`group glass-card rounded-2xl px-5 py-[18px] flex items-start gap-3 relative${isReviewable ? ' cursor-pointer' : ''}`}
       onClick={isReviewable ? () => onReview(source.id) : undefined}
     >
       {/* Left status border */}
@@ -158,6 +207,32 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
         </div>
 
         <div className="flex items-center gap-2 text-xs mt-0.5">
+          {/* Collection badge */}
+          <button
+            ref={collRef}
+            className="px-1.5 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors"
+            style={{
+              background: source.collection_name ? 'var(--abg)' : undefined,
+              color: source.collection_name ? 'var(--accent)' : 'var(--td)',
+              border: source.collection_name
+                ? '1px solid color-mix(in srgb, var(--accent) 30%, transparent)'
+                : '1px dashed var(--glass-b)',
+            }}
+            onClick={(e) => { e.stopPropagation(); setShowCollDropdown(!showCollDropdown) }}
+          >
+            {source.collection_name ?? '+ collection'}
+          </button>
+          {showCollDropdown && collRef.current && createPortal(
+            <CollectionDropdown
+              anchorEl={collRef.current}
+              collections={collections}
+              currentCollectionId={source.collection_id}
+              onSelect={(collectionId) => { onAssignCollection(source.id, collectionId); setShowCollDropdown(false) }}
+              onClose={() => setShowCollDropdown(false)}
+            />,
+            document.body,
+          )}
+
           <span style={{ color: 'var(--tm)' }}>{formatDate(source.created_at)}</span>
           {source.source_type === 'lyrics_pasted' && (
             <span
@@ -228,46 +303,6 @@ export function SourceCard({ source, onProcess, onReview, onExport, onDelete, on
           >
             {badge.label}
           </span>
-          {/* Collection badge */}
-          <div ref={collRef} className="relative">
-            <button
-              className="text-[10px] rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-              style={{
-                background: source.collection_name ? 'var(--abg)' : 'transparent',
-                color: source.collection_name ? 'var(--accent)' : 'var(--td)',
-                border: source.collection_name
-                  ? '1px solid color-mix(in srgb, var(--accent) 30%, transparent)'
-                  : '1px dashed var(--glass-b)',
-              }}
-              onClick={(e) => { e.stopPropagation(); setShowCollDropdown(!showCollDropdown) }}
-            >
-              {source.collection_name ?? 'Collection'}
-            </button>
-            {showCollDropdown && (
-              <div
-                className="absolute right-0 top-full mt-1 z-50 rounded-lg py-1 shadow-lg"
-                style={{ background: 'var(--surface-menu)', border: '1px solid var(--glass-b)', minWidth: '160px' }}
-              >
-                <button
-                  className="w-full text-left px-4 py-2 text-xs cursor-pointer hover:opacity-80"
-                  style={{ color: source.collection_id === null ? 'var(--accent)' : 'var(--tm)', fontStyle: 'italic' }}
-                  onClick={(e) => { e.stopPropagation(); onAssignCollection(source.id, null); setShowCollDropdown(false) }}
-                >
-                  No collection
-                </button>
-                {collections.map((c) => (
-                  <button
-                    key={c.id}
-                    className="w-full text-left px-4 py-2 text-xs cursor-pointer hover:opacity-80"
-                    style={{ color: source.collection_id === c.id ? 'var(--accent)' : 'var(--text)' }}
-                    onClick={(e) => { e.stopPropagation(); onAssignCollection(source.id, c.id); setShowCollDropdown(false) }}
-                  >
-                    {c.name} {source.collection_id === c.id ? '✓' : ''}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
           {!isProcessing && (source.status === 'done' || source.status === 'partially_reviewed' || source.status === 'reviewed' || source.status === 'error') && (
             <button
               onClick={(e) => { e.stopPropagation(); onReprocess(source.id) }}
