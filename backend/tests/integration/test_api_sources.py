@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Generator  # noqa: TC003
-from pathlib import Path
+from pathlib import Path  # noqa: TC003
 
 import pytest
 from backend.infrastructure.api.app import app
