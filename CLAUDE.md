@@ -72,7 +72,7 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 ### Worktree
 
-В worktree: `make copy-dev-db` (копирует `data/app.db` из main), потом `make up-worktree`. Команда `up-worktree` использует `WORKTREE_PORT`/`WORKTREE_AI_PROXY_PORT` из `.env` и автоматически сносит предыдущий worktree, если он запущен.
+В worktree: `make up-worktree`. Команда использует `WORKTREE_PORT`/`WORKTREE_AI_PROXY_PORT` из `.env` и автоматически сносит предыдущий worktree, если он запущен.
 
 > # КРИТИЧЕСКОЕ ПРАВИЛО: контейнеры — только через make
 >
