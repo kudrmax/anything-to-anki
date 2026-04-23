@@ -27,6 +27,7 @@ class Source:
     source_url: str | None = None
     video_path: str | None = None
     audio_track_index: int | None = None
+    collection_id: int | None = None
     processing_stage: ProcessingStage | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
 
@@ -42,6 +43,7 @@ class Source:
             source_url=self.source_url,
             video_path=self.video_path,
             audio_track_index=self.audio_track_index,
+            collection_id=self.collection_id,
             created_at=self.created_at,
             status=SourceStatus.NEW,
         )
@@ -49,7 +51,7 @@ class Source:
 
 _SOURCE_INPUT_FIELDS: frozenset[str] = frozenset({
     "id", "raw_text", "title", "input_method", "content_type",
-    "source_url", "video_path", "audio_track_index", "created_at",
+    "source_url", "video_path", "audio_track_index", "collection_id", "created_at",
 })
 
 _SOURCE_DERIVED_FIELDS: frozenset[str] = frozenset({
