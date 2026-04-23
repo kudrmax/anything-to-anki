@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 
 class DeleteCollectionUseCase:
-    """Deletes a collection. Sources are NOT deleted — they become uncategorized (ON DELETE SET NULL)."""
+    """Deletes a collection. Sources become uncategorized (ON DELETE SET NULL)."""
 
     def __init__(self, collection_repo: CollectionRepository) -> None:
         self._collection_repo = collection_repo

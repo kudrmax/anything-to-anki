@@ -73,7 +73,11 @@ class GetSourcesUseCase:
                         source.processing_stage.value if source.processing_stage else None
                     ),
                     collection_id=source.collection_id,
-                    collection_name=coll_names.get(source.collection_id) if source.collection_id else None,
+                    collection_name=(
+                        coll_names.get(source.collection_id)
+                        if source.collection_id
+                        else None
+                    ),
                 )
             )
         return result

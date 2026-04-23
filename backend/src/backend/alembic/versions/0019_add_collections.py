@@ -13,26 +13,33 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "collections",
-        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
-        sa.Column("name", sa.String(200), nullable=False, unique=True),
-        sa.Column(
-            "created_at",
-            sa.DateTime,
-            nullable=False,
-            server_default=sa.func.now(),
-        ),
-    )
-    with op.batch_alter_table("sources") as batch_op:
-        batch_op.add_column(
+    conn = op.get_bind()
+    tables = sa.inspect(conn).get_table_names()
+
+    if "collections" not in tables:
+        op.create_table(
+            "collections",
+            sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+            sa.Column("name", sa.String(200), nullable=False, unique=True),
             sa.Column(
-                "collection_id",
-                sa.Integer,
-                sa.ForeignKey("collections.id", ondelete="SET NULL"),
-                nullable=True,
-            )
+                "created_at",
+                sa.DateTime,
+                nullable=False,
+                server_default=sa.func.now(),
+            ),
         )
+
+    columns = [c["name"] for c in sa.inspect(conn).get_columns("sources")]
+    if "collection_id" not in columns:
+        with op.batch_alter_table("sources") as batch_op:
+            batch_op.add_column(
+                sa.Column(
+                    "collection_id",
+                    sa.Integer,
+                    sa.ForeignKey("collections.id", ondelete="SET NULL"),
+                    nullable=True,
+                )
+            )
 
 
 def downgrade() -> None:
