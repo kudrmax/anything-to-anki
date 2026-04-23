@@ -8,6 +8,7 @@ from backend.domain.entities.source import Source
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.infrastructure.adapters.video_path_resolver import ContainerVideoPathResolver
 
 
 def _make_youtube_source(source_url: str = "https://youtube.com/watch?v=abc") -> Source:
@@ -25,11 +26,15 @@ class TestDownloadVideo:
     def setup_method(self) -> None:
         self.source_repo = MagicMock()
         self.video_downloader = MagicMock()
-        self.videos_dir = "/data/videos"
+        self.resolver = ContainerVideoPathResolver(
+            data_dir="/data",
+            local_video_dir="",
+            local_video_mount="/local-videos",
+        )
         self.use_case = DownloadVideoUseCase(
             source_repo=self.source_repo,
             video_downloader=self.video_downloader,
-            videos_dir=self.videos_dir,
+            video_path_resolver=self.resolver,
         )
 
     def test_downloads_and_sets_video_path(self) -> None:
@@ -40,8 +45,14 @@ class TestDownloadVideo:
         self.video_downloader.download.assert_called_once()
         call_args = self.video_downloader.download.call_args
         assert call_args[0][0] == "https://youtube.com/watch?v=abc"
+        # downloader receives absolute path
         assert call_args[0][1].startswith("/data/videos/")
         assert call_args[0][1].endswith(".mp4")
+        # DB receives relative filename only
+        update_call_args = self.source_repo.update_video_path.call_args
+        stored = update_call_args[0][1]
+        assert not stored.startswith("/"), f"Expected relative path in DB, got: {stored}"
+        assert stored.endswith(".mp4")
 
     def test_raises_if_no_source_url(self) -> None:
         source = _make_youtube_source()

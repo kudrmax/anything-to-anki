@@ -39,10 +39,13 @@ class TestCleanupYoutubeVideo:
         self.source_repo = MagicMock()
         self.media_repo = MagicMock()
         self.job_repo = MagicMock()
+        self.video_path_resolver = MagicMock()
+        self.video_path_resolver.resolve.side_effect = lambda path, _method: path
         self.use_case = CleanupYoutubeVideoUseCase(
             source_repo=self.source_repo,
             media_repo=self.media_repo,
             job_repo=self.job_repo,
+            video_path_resolver=self.video_path_resolver,
         )
 
     def test_deletes_video_when_all_media_done(self) -> None:

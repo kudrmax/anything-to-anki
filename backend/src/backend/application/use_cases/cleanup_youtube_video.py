@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.video_path_resolver import VideoPathResolver
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +24,12 @@ class CleanupYoutubeVideoUseCase:
         source_repo: SourceRepository,
         media_repo: CandidateMediaRepository,
         job_repo: JobRepository,
+        video_path_resolver: VideoPathResolver,
     ) -> None:
         self._source_repo = source_repo
         self._media_repo = media_repo
         self._job_repo = job_repo
+        self._video_path_resolver = video_path_resolver
 
     def execute(self, source_id: int) -> None:
         source = self._source_repo.get_by_id(source_id)
@@ -49,9 +52,9 @@ class CleanupYoutubeVideoUseCase:
         if not all(m.screenshot_path is not None for m in all_media):
             return
 
-        video_path = source.video_path
-        if os.path.exists(video_path):
-            os.remove(video_path)
-            logger.info("Cleaned up YouTube video: %s (source %d)", video_path, source_id)
+        resolved_path = self._video_path_resolver.resolve(source.video_path, source.input_method)
+        if os.path.exists(resolved_path):
+            os.remove(resolved_path)
+            logger.info("Cleaned up YouTube video: %s (source %d)", resolved_path, source_id)
 
         self._source_repo.update_video_path(source_id, None)

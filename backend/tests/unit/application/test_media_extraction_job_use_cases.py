@@ -62,12 +62,16 @@ class TestMediaExtractionUseCase:
         candidate_repo.get_by_id.return_value = candidate
         source_repo.get_by_id.return_value = source
 
+        video_path_resolver = MagicMock()
+        video_path_resolver.resolve.side_effect = lambda path, _method: path
+
         uc = MediaExtractionUseCase(
             candidate_repo=candidate_repo,
             media_repo=media_repo,
             source_repo=source_repo,
             media_extractor=media_extractor,
             media_root="/tmp/media",
+            video_path_resolver=video_path_resolver,
         )
         return uc, candidate_repo, media_repo, source_repo, media_extractor
 

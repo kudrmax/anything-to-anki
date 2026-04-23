@@ -51,6 +51,8 @@ class TestRegenerateCandidateMedia:
         parser.parse_structured.return_value = _make_parsed_srt()
         media_extractor = MagicMock()
         media_repo = MagicMock()
+        video_path_resolver = MagicMock()
+        video_path_resolver.resolve.side_effect = lambda path, _method: path
 
         uc = RegenerateCandidateMediaUseCase(
             candidate_repo=candidate_repo,
@@ -59,6 +61,7 @@ class TestRegenerateCandidateMedia:
             structured_srt_parser=parser,
             media_extractor=media_extractor,
             media_root="/tmp/media",
+            video_path_resolver=video_path_resolver,
         )
 
         base = "backend.application.use_cases.regenerate_candidate_media.os"
@@ -112,6 +115,8 @@ class TestRegenerateCandidateMedia:
         parser.parse_structured.return_value = _make_parsed_srt()
         media_extractor = MagicMock()
         media_repo = MagicMock()
+        video_path_resolver = MagicMock()
+        video_path_resolver.resolve.side_effect = lambda path, _method: path
 
         uc = RegenerateCandidateMediaUseCase(
             candidate_repo=candidate_repo,
@@ -120,6 +125,7 @@ class TestRegenerateCandidateMedia:
             structured_srt_parser=parser,
             media_extractor=media_extractor,
             media_root="/tmp/media",
+            video_path_resolver=video_path_resolver,
         )
 
         base = "backend.application.use_cases.regenerate_candidate_media.os"
@@ -143,6 +149,7 @@ class TestRegenerateCandidateMedia:
             structured_srt_parser=MagicMock(),
             media_extractor=MagicMock(),
             media_root="/tmp/media",
+            video_path_resolver=MagicMock(),
         )
 
         with pytest.raises(ValueError, match="not found"):
@@ -167,6 +174,7 @@ class TestRegenerateCandidateMedia:
             structured_srt_parser=MagicMock(),
             media_extractor=MagicMock(),
             media_root="/tmp/media",
+            video_path_resolver=MagicMock(),
         )
 
         with pytest.raises(ValueError, match="not a video"):
@@ -186,6 +194,9 @@ class TestRegenerateCandidateMedia:
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = source
 
+        video_path_resolver = MagicMock()
+        video_path_resolver.resolve.side_effect = lambda path, _method: path
+
         uc = RegenerateCandidateMediaUseCase(
             candidate_repo=candidate_repo,
             media_repo=MagicMock(),
@@ -193,6 +204,7 @@ class TestRegenerateCandidateMedia:
             structured_srt_parser=MagicMock(),
             media_extractor=MagicMock(),
             media_root="/tmp/media",
+            video_path_resolver=video_path_resolver,
         )
 
         exists_path = "backend.application.use_cases.regenerate_candidate_media.os.path.exists"
@@ -222,6 +234,9 @@ class TestRegenerateCandidateMedia:
         parser = MagicMock()
         parser.parse_structured.return_value = _make_parsed_srt()
 
+        video_path_resolver = MagicMock()
+        video_path_resolver.resolve.side_effect = lambda path, _method: path
+
         uc = RegenerateCandidateMediaUseCase(
             candidate_repo=candidate_repo,
             media_repo=MagicMock(),
@@ -229,6 +244,7 @@ class TestRegenerateCandidateMedia:
             structured_srt_parser=parser,
             media_extractor=MagicMock(),
             media_root="/tmp/media",
+            video_path_resolver=video_path_resolver,
         )
 
         exists_path = "backend.application.use_cases.regenerate_candidate_media.os.path.exists"

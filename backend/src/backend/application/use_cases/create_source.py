@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.file_reader import FileReader
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.subtitle_extractor import SubtitleExtractor
+    from backend.domain.ports.video_path_resolver import VideoPathResolver
     from backend.domain.value_objects.audio_track_info import AudioTrackInfo
     from backend.domain.value_objects.subtitle_track_info import SubtitleTrackInfo
 
@@ -31,11 +32,13 @@ class CreateSourceUseCase:
         subtitle_extractor: SubtitleExtractor | None = None,
         audio_track_lister: AudioTrackLister | None = None,
         file_reader: FileReader | None = None,
+        video_path_resolver: VideoPathResolver | None = None,
     ) -> None:
         self._source_repo = source_repo
         self._subtitle_extractor = subtitle_extractor
         self._audio_track_lister = audio_track_lister
         self._file_reader = file_reader
+        self._video_path_resolver = video_path_resolver
 
     def execute(
         self,
@@ -120,13 +123,18 @@ class CreateSourceUseCase:
         # --- 4. All resolved — create the source ---
         assert raw_srt is not None
         resolved_title = (title or "").strip() or video_path.rsplit("/", 1)[-1]
+        storage_path = (
+            self._video_path_resolver.to_storage_path(video_path, InputMethod.VIDEO_FILE)
+            if self._video_path_resolver is not None
+            else video_path
+        )
         source = Source(
             raw_text=raw_srt,
             status=SourceStatus.NEW,
             input_method=InputMethod.VIDEO_FILE,
             content_type=ContentType.VIDEO,
             title=resolved_title,
-            video_path=video_path,
+            video_path=storage_path,
             audio_track_index=resolved_audio_index,
         )
         created = self._source_repo.create(source)
