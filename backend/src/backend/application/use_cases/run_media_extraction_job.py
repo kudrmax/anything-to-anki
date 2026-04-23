@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.media_extractor import MediaExtractor
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.video_path_resolver import VideoPathResolver
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +37,14 @@ class MediaExtractionUseCase:
         source_repo: SourceRepository,
         media_extractor: MediaExtractor,
         media_root: str,
+        video_path_resolver: VideoPathResolver,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._media_repo = media_repo
         self._source_repo = source_repo
         self._media_extractor = media_extractor
         self._media_root = media_root
+        self._video_path_resolver = video_path_resolver
 
     def execute_one(self, candidate_id: int) -> None:
         candidate = self._candidate_repo.get_by_id(candidate_id)
@@ -54,7 +57,10 @@ class MediaExtractionUseCase:
         source = self._source_repo.get_by_id(candidate.source_id)
         if source is None:
             raise PermanentMediaError(f"Source {candidate.source_id} not found")
-        if source.video_path is None or not os.path.exists(source.video_path):
+        if source.video_path is None:
+            raise BadVideoFormatError(f"Video missing for source {source.id}")
+        resolved_video_path = self._video_path_resolver.resolve(source.video_path, source.input_method)
+        if not os.path.exists(resolved_video_path):
             raise BadVideoFormatError(f"Video missing for source {source.id}")
 
         start_ms = media.start_ms
@@ -67,9 +73,9 @@ class MediaExtractionUseCase:
 
         ts_ms = (start_ms + end_ms) // 2
         # Transient errors (subprocess.TimeoutExpired, OSError) propagate → worker retries
-        self._media_extractor.extract_screenshot(source.video_path, ts_ms, screenshot_path)
+        self._media_extractor.extract_screenshot(resolved_video_path, ts_ms, screenshot_path)
         self._media_extractor.extract_audio(
-            source.video_path, start_ms, end_ms, audio_path,
+            resolved_video_path, start_ms, end_ms, audio_path,
             audio_track_index=source.audio_track_index,
         )
 

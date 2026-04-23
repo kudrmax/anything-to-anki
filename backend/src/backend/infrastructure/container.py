@@ -420,6 +420,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             media_extractor=self._media_extractor,
             media_root=self._media_root,
+            video_path_resolver=self._video_path_resolver,
         )
 
     def get_media_storage_stats_use_case(self, session: Session) -> GetMediaStorageStatsUseCase:
@@ -452,6 +453,7 @@ class Container:
             structured_srt_parser=self._srt_parser,
             media_extractor=self._media_extractor,
             media_root=self._media_root,
+            video_path_resolver=self._video_path_resolver,
         )
 
     def create_source_from_url_use_case(self, session: Session) -> CreateSourceFromUrlUseCase:
@@ -475,6 +477,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             media_repo=SqlaCandidateMediaRepository(session),
             job_repo=SqlaJobRepository(session),
+            video_path_resolver=self._video_path_resolver,
         )
 
     def candidate_meaning_repository(self, session: Session) -> SqlaCandidateMeaningRepository:
