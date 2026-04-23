@@ -8,14 +8,12 @@
 
 Подготовьте JSON-файлы в формате, описанном ниже. Для генерации из открытых источников (Cambridge, Oxford 5000, EFLLex, Kelly) используйте конвертеры из [anything-to-anki-parsers](https://github.com/kudrmax/anything-to-anki-parsers).
 
-### 2. Разместить файлы
+### 2. Указать путь в `.env`
 
-**Вариант A:** положите файлы прямо в эту папку (`dictionaries/`).
-
-**Вариант B:** храните файлы в отдельной папке и укажите путь в `.env`:
+В `.env` проекта задайте `DICTIONARIES_DIR` — путь к папке с unified JSON файлами:
 
 ```bash
-DICTIONARIES_DIR=/path/to/your/dictionaries
+DICTIONARIES_DIR=/path/to/your/unified/dictionaries
 ```
 
 ### 3. Собрать кэш и запустить

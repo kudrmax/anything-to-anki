@@ -34,11 +34,11 @@ make help         # Все команды с описанием
 
 **Первоначальная настройка:**
 
-1. Подготовьте словари в unified JSON формате (см. `dictionaries/README.md`)
-2. Положите файлы в `dictionaries/` или укажите путь через `DICTIONARIES_DIR` в `.env`
+1. Подготовьте словари в unified JSON формате (см. `dictionaries/README.md`). Для генерации из открытых источников — [anything-to-anki-parsers](https://github.com/kudrmax/anything-to-anki-parsers)
+2. Укажите путь к папке с unified JSON через `DICTIONARIES_DIR` в `.env`
 3. `make up` автоматически соберёт SQLite-кэш из JSON
 
-**Без словарей проект запустится**, но CEFR-классификация будет использовать только встроенный fallback (cefrpy), а аудио/IPA/usage будут пустыми.
+**Без `DICTIONARIES_DIR`** проект запустится, но CEFR-классификация будет использовать только встроенный fallback (cefrpy), а аудио/IPA/usage будут пустыми.
 
 ## Ключевые env vars (в `.env`)
 

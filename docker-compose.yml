@@ -10,10 +10,11 @@ services:
       ANKI_URL: http://host.docker.internal:8765
       AI_PROXY_URL: http://host.docker.internal:${AI_PROXY_PORT}
       PROMPTS_CONFIG_PATH: /app/config/prompts.yaml
+      DICTIONARIES_DIR: /app/dictionaries
     volumes:
       - ./data:/data
       - ./config:/app/config:ro
-      - ./dictionaries:/app/dictionaries:ro
+      - ${DICTIONARIES_DIR}:/app/dictionaries:ro
       - ./anki-templates:/app/anki-templates:ro
       - ./scripts:/app/scripts:ro
     healthcheck:
@@ -30,8 +31,9 @@ services:
     environment:
       AI_PROXY_URL: http://host.docker.internal:${AI_PROXY_PORT}
       PROMPTS_CONFIG_PATH: /app/config/prompts.yaml
+      DICTIONARIES_DIR: /app/dictionaries
     volumes:
       - ./data:/data
       - ./config:/app/config:ro
-      - ./dictionaries:/app/dictionaries:ro
+      - ${DICTIONARIES_DIR}:/app/dictionaries:ro
       - ./anki-templates:/app/anki-templates:ro

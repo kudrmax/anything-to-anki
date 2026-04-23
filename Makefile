@@ -83,12 +83,18 @@ _check_env:
 	fi
 
 ##@ Словари
-dict-rebuild: _python_dev  ## Пересобрать словарный кэш с нуля
-	@rm -f $${DICTIONARIES_DIR:-dictionaries}/.cache/dict.db 2>/dev/null || true
-	.venv/bin/python -m backend.cli.build_dict_cache $${DICTIONARIES_DIR:-dictionaries}
+_check_dictionaries_dir:
+	@if [ -z "$${DICTIONARIES_DIR}" ]; then \
+	    echo "ERROR: DICTIONARIES_DIR not set in .env. Set it to the path of your unified dictionaries folder."; \
+	    exit 1; \
+	fi
 
-dict-update: _python_dev  ## Обновить словарный кэш если JSON изменились
-	@.venv/bin/python -m backend.cli.build_dict_cache $${DICTIONARIES_DIR:-dictionaries} --if-changed
+dict-rebuild: _python_dev _check_dictionaries_dir  ## Пересобрать словарный кэш с нуля
+	@rm -f $${DICTIONARIES_DIR}/.cache/dict.db 2>/dev/null || true
+	.venv/bin/python -m backend.cli.build_dict_cache $${DICTIONARIES_DIR}
+
+dict-update: _python_dev _check_dictionaries_dir  ## Обновить словарный кэш если JSON изменились
+	@.venv/bin/python -m backend.cli.build_dict_cache $${DICTIONARIES_DIR} --if-changed
 
 ##@ Запуск (читает .env)
 up: _check_env dict-update  ## Запустить (ai_proxy + docker compose)
