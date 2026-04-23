@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
-import uuid
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.candidate_dtos import AddManualCandidateRequest  # noqa: TC001
 from backend.application.dto.file_source_dtos import FileSourceRequest  # noqa: TC001
@@ -341,83 +339,6 @@ def create_file_source(
     source_id = result.source_id if hasattr(result, "source_id") else result.id
     session.commit()
     return {"id": source_id, "status": "new"}
-
-
-@router.post("/video", status_code=201)
-async def create_video_source(
-    video: UploadFile = File(...),  # noqa: B008
-    srt: UploadFile | None = File(None),  # noqa: B008
-    title: str | None = Form(None),  # noqa: B008
-    subtitle_track_index: int | None = Form(None),  # noqa: B008
-    audio_track_index: int | None = Form(None),  # noqa: B008
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, Any]:
-    from backend.application.dto.video_dtos import TrackSelectionRequired
-
-    # Save video to disk
-    data_dir = os.getenv("DATA_DIR", ".")
-    videos_dir = os.path.join(data_dir, "videos")
-    os.makedirs(videos_dir, exist_ok=True)
-    ext = os.path.splitext(video.filename or "video.mp4")[1]
-    video_filename = f"{uuid.uuid4()}{ext}"
-    video_path = os.path.join(videos_dir, video_filename)
-    CHUNK_SIZE = 64 * 1024  # 64 KB
-    total_bytes = 0
-    with open(video_path, "wb") as f:
-        while chunk := await video.read(CHUNK_SIZE):
-            f.write(chunk)
-            total_bytes += len(chunk)
-    logger.info(
-        "Uploaded video %s (%d bytes) subtitle_track=%s audio_track=%s",
-        video_filename, total_bytes, subtitle_track_index, audio_track_index,
-    )
-
-    srt_text: str | None = None
-    if srt is not None:
-        srt_bytes = await srt.read()
-        srt_text = srt_bytes.decode("utf-8", errors="replace")
-
-    use_case = container.create_source_use_case(session)
-    try:
-        result = use_case.execute_video(
-            video_path=video_path,
-            srt_text=srt_text,
-            title=title,
-            subtitle_track_index=subtitle_track_index,
-            audio_track_index=audio_track_index,
-        )
-    except ValueError as e:
-        os.remove(video_path)
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-    if isinstance(result, TrackSelectionRequired):
-        return {
-            "status": "track_selection_required",
-            "pending_video_path": video_path,
-            "subtitle_tracks": [
-                {
-                    "index": t.index,
-                    "language": t.language,
-                    "title": t.title,
-                    "codec": t.codec,
-                }
-                for t in result.subtitle_tracks
-            ],
-            "audio_tracks": [
-                {
-                    "index": t.index,
-                    "language": t.language,
-                    "title": t.title,
-                    "codec": t.codec,
-                    "channels": t.channels,
-                }
-                for t in result.audio_tracks
-            ],
-        }
-
-    session.commit()
-    return {"id": result.source_id, "status": "new"}
 
 
 @router.get("/{source_id}/queue-summary")
