@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+import sys
 from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import CancelledByUserError, PermanentAIError, PermanentMediaError
@@ -91,7 +92,9 @@ class JobWorker:
                 case JobType.VIDEO_DOWNLOAD:
                     await self._handle_video_download(job)
                 case JobType.TTS:
+                    # TTS handler manages its own lifecycle via subprocess
                     await self._handle_tts(job)
+                    return True
         except CancelledByUserError:
             logger.info("Job %d cancelled by user", job.id)
         except (PermanentAIError, PermanentMediaError) as exc:
@@ -102,9 +105,6 @@ class JobWorker:
             self._mark_jobs_failed([job], f"{type(exc).__name__}: {exc}")
         else:
             self._delete_jobs([job])
-
-        if job.job_type == JobType.TTS:
-            self._maybe_unload_tts()
 
         return True
 
@@ -222,24 +222,25 @@ class JobWorker:
             use_case.execute_one(job.candidate_id)
 
     async def _handle_tts(self, job: Job) -> None:
-        """Single-candidate TTS generation."""
-        try:
-            await asyncio.wait_for(
-                asyncio.to_thread(self._run_tts, job),
-                timeout=JOB_TIMEOUT,
-            )
-        except TimeoutError:
-            logger.warning("TTS generation timed out for job %d", job.id)
-            self._mark_jobs_failed([job], "timeout")
-            return
-        self._delete_jobs([job])
+        """Spawn TTS subprocess to handle all TTS jobs.
 
-    def _run_tts(self, job: Job) -> None:
-        """Sync TTS generation — runs in a thread."""
-        assert job.candidate_id is not None
+        Requeues the current job so the subprocess can pick it up,
+        then spawns a separate process that loads PyTorch/kokoro,
+        processes all TTS jobs, and exits — freeing all TTS memory.
+        """
+        assert job.id is not None
         with self._container.session_scope() as session:
-            use_case = self._container.generate_tts_use_case(session)
-            use_case.execute_one(job.candidate_id)
+            SqlaJobRepository(session).requeue(job.id)
+
+        logger.info("Spawning TTS subprocess")
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, "-m", "backend.infrastructure.queue.tts_subprocess",
+        )
+        await proc.wait()
+        if proc.returncode != 0:
+            logger.error("TTS subprocess exited with code %d", proc.returncode)
+        else:
+            logger.info("TTS subprocess finished successfully")
 
     async def _handle_video_download(self, job: Job) -> None:
         """YouTube video download — special error handling for source status."""
@@ -265,16 +266,6 @@ class JobWorker:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-
-    def _maybe_unload_tts(self) -> None:
-        """Unload TTS model if no more TTS jobs in queue."""
-        with self._container.session_scope() as session:
-            job_repo = SqlaJobRepository(session)
-            summary = job_repo.get_queue_summary()
-            tts_counts = summary.get(JobType.TTS.value, {})
-            has_more = (tts_counts.get("queued", 0) + tts_counts.get("running", 0)) > 0
-        if not has_more:
-            self._container.tts_generator.unload()
 
     def _mark_jobs_failed(self, jobs: list[Job], error: str) -> None:
         job_ids = [j.id for j in jobs if j.id is not None]

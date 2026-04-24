@@ -175,8 +175,7 @@ class Container:
 
         self._pronunciation_source = DictCachePronunciationSource(self._dict_reader)
 
-        from backend.infrastructure.adapters.kokoro_tts_generator import KokoroTTSGenerator
-        self._tts_generator = KokoroTTSGenerator()
+        self._tts_generator: KokoroTTSGenerator | None = None
         self._usage_source = DictCacheUsageSource(self._dict_reader)
         self._frequency_provider = WordfreqFrequencyProvider()
         self._anki_connector = AnkiConnectConnector()
@@ -438,6 +437,9 @@ class Container:
 
     @property
     def tts_generator(self) -> KokoroTTSGenerator:
+        if self._tts_generator is None:
+            from backend.infrastructure.adapters.kokoro_tts_generator import KokoroTTSGenerator
+            self._tts_generator = KokoroTTSGenerator()
         return self._tts_generator
 
     def prompts_config(self) -> PromptsConfig:
