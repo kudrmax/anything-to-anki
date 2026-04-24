@@ -90,6 +90,8 @@ class JobWorker:
                     await self._handle_pronunciation(job)
                 case JobType.VIDEO_DOWNLOAD:
                     await self._handle_video_download(job)
+                case JobType.TTS:
+                    await self._handle_tts(job)
         except CancelledByUserError:
             logger.info("Job %d cancelled by user", job.id)
         except (PermanentAIError, PermanentMediaError) as exc:
@@ -100,6 +102,9 @@ class JobWorker:
             self._mark_jobs_failed([job], f"{type(exc).__name__}: {exc}")
         else:
             self._delete_jobs([job])
+
+        if job.job_type == JobType.TTS:
+            self._maybe_unload_tts()
 
         return True
 
@@ -216,6 +221,26 @@ class JobWorker:
             use_case = self._container.download_pronunciation_use_case(session)
             use_case.execute_one(job.candidate_id)
 
+    async def _handle_tts(self, job: Job) -> None:
+        """Single-candidate TTS generation."""
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(self._run_tts, job),
+                timeout=JOB_TIMEOUT,
+            )
+        except TimeoutError:
+            logger.warning("TTS generation timed out for job %d", job.id)
+            self._mark_jobs_failed([job], "timeout")
+            return
+        self._delete_jobs([job])
+
+    def _run_tts(self, job: Job) -> None:
+        """Sync TTS generation — runs in a thread."""
+        assert job.candidate_id is not None
+        with self._container.session_scope() as session:
+            use_case = self._container.generate_tts_use_case(session)
+            use_case.execute_one(job.candidate_id)
+
     async def _handle_video_download(self, job: Job) -> None:
         """YouTube video download — special error handling for source status."""
         try:
@@ -240,6 +265,16 @@ class JobWorker:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _maybe_unload_tts(self) -> None:
+        """Unload TTS model if no more TTS jobs in queue."""
+        with self._container.session_scope() as session:
+            job_repo = SqlaJobRepository(session)
+            summary = job_repo.get_queue_summary()
+            tts_counts = summary.get(JobType.TTS.value, {})
+            has_more = (tts_counts.get("queued", 0) + tts_counts.get("running", 0)) > 0
+        if not has_more:
+            self._container.tts_generator.unload()
 
     def _mark_jobs_failed(self, jobs: list[Job], error: str) -> None:
         job_ids = [j.id for j in jobs if j.id is not None]

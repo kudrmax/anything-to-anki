@@ -83,6 +83,9 @@ from backend.infrastructure.persistence.sqla_candidate_media_repository import (
 from backend.infrastructure.persistence.sqla_candidate_pronunciation_repository import (
     SqlaCandidatePronunciationRepository,
 )
+from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
+    SqlaCandidateTTSRepository,
+)
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
@@ -102,6 +105,9 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session, sessionmaker
 
     from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
+    from backend.application.use_cases.enqueue_tts_generation import EnqueueTTSGenerationUseCase
+    from backend.application.use_cases.generate_tts import GenerateTTSUseCase
+    from backend.infrastructure.adapters.kokoro_tts_generator import KokoroTTSGenerator
     from backend.application.use_cases.cleanup_youtube_video import CleanupYoutubeVideoUseCase
     from backend.application.use_cases.create_source_from_url import CreateSourceFromUrlUseCase
     from backend.application.use_cases.download_pronunciation import DownloadPronunciationUseCase
@@ -168,6 +174,9 @@ class Container:
         )
 
         self._pronunciation_source = DictCachePronunciationSource(self._dict_reader)
+
+        from backend.infrastructure.adapters.kokoro_tts_generator import KokoroTTSGenerator
+        self._tts_generator = KokoroTTSGenerator()
         self._usage_source = DictCacheUsageSource(self._dict_reader)
         self._frequency_provider = WordfreqFrequencyProvider()
         self._anki_connector = AnkiConnectConnector()
@@ -434,6 +443,10 @@ class Container:
     def video_path_resolver(self) -> ContainerVideoPathResolver:
         return self._video_path_resolver
 
+    @property
+    def tts_generator(self) -> KokoroTTSGenerator:
+        return self._tts_generator
+
     def prompts_config(self) -> PromptsConfig:
         return self._prompts_config
 
@@ -551,6 +564,25 @@ class Container:
         )
         return EnqueuePronunciationDownloadUseCase(
             pronunciation_repo=SqlaCandidatePronunciationRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
+            job_repo=SqlaJobRepository(session),
+        )
+
+    def generate_tts_use_case(self, session: Session) -> GenerateTTSUseCase:
+        from backend.application.use_cases.generate_tts import GenerateTTSUseCase
+        return GenerateTTSUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            tts_repo=SqlaCandidateTTSRepository(session),
+            tts_generator=self._tts_generator,
+            settings_repo=SqlaSettingsRepository(session),
+            media_root=self._media_root,
+        )
+
+    def enqueue_tts_generation_use_case(self, session: Session) -> EnqueueTTSGenerationUseCase:
+        from backend.application.use_cases.enqueue_tts_generation import EnqueueTTSGenerationUseCase
+        return EnqueueTTSGenerationUseCase(
+            tts_repo=SqlaCandidateTTSRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             settings_repo=SqlaSettingsRepository(session),
             job_repo=SqlaJobRepository(session),
