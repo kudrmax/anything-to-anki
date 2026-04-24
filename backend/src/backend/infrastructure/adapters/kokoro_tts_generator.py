@@ -3,8 +3,10 @@ from __future__ import annotations
 import gc
 import logging
 import subprocess
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from backend.domain.ports.tts_generator import TTSGenerator
 
@@ -21,7 +23,7 @@ class KokoroTTSGenerator(TTSGenerator):
         self._pipeline: Any = None  # kokoro.KPipeline, lazy
         self._current_lang: str = ""
 
-    def _ensure_loaded(self, lang_code: str) -> Any:
+    def _ensure_loaded(self, lang_code: str) -> Any:  # noqa: ANN401
         """Load the Kokoro pipeline if not already loaded."""
         if self._pipeline is not None and self._current_lang == lang_code:
             return self._pipeline

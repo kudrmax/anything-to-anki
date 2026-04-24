@@ -3,7 +3,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-
 from backend.application.use_cases.enqueue_tts_generation import (
     EnqueueTTSGenerationUseCase,
 )

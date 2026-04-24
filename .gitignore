@@ -17,6 +17,7 @@ kanban/
 /.superpowers/brainstorm/15821-1775418982
 .worktrees/
 scripts/scrapers/*/errors/
+scripts/tts_test_venv/
 .coverage
 coverage-*.json
 htmlcov/

@@ -17,11 +17,13 @@ dependencies = [
     "PyYAML>=6.0",
     "structlog>=24.1",
     "yt-dlp>=2024.0",
-    "kokoro>=0.9",
-    "soundfile>=0.12",
 ]
 
 [project.optional-dependencies]
+tts = [
+    "kokoro>=0.7",
+    "soundfile>=0.12",
+]
 dev = [
     "pytest>=8.0",
     "pytest-cov",

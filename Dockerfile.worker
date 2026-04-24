@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY backend/pyproject.toml ./backend/
 RUN mkdir -p ./backend/src/backend && touch ./backend/src/backend/__init__.py
-RUN pip install --no-cache-dir ./backend
+RUN pip install --no-cache-dir "./backend[tts]"
 
 COPY backend/src/ ./backend/src/
 RUN pip install --no-deps --no-cache-dir ./backend
