@@ -61,7 +61,7 @@ from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
 )
 from backend.infrastructure.adapters.local_file_reader import LocalFileReader
-from backend.infrastructure.adapters.video_path_resolver import ContainerVideoPathResolver
+from backend.infrastructure.adapters.video_path_resolver import VideoPathResolverImpl
 from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
 from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
@@ -191,15 +191,12 @@ class Container:
 
         self._url_fetchers: list = [YtDlpSubtitleFetcher()]
         self._video_downloader = YtDlpVideoDownloader()
-        self._video_path_resolver = ContainerVideoPathResolver(
-            data_dir=os.getenv("DATA_DIR", "."),
-            local_video_dir=os.getenv("LOCAL_VIDEO_DIR", ""),
-            local_video_mount=os.getenv("LOCAL_VIDEO_MOUNT", "/local-videos"),
-        )
+        data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
+        self._video_path_resolver = VideoPathResolverImpl(data_dir=data_dir)
 
         self._media_root = os.environ.get(
             "MEDIA_ROOT",
-            os.path.join(os.getenv("DATA_DIR", "."), "media"),
+            os.path.join(data_dir, "media"),
         )
         default_prompts = project_root / "config" / "prompts.yaml"
         if not default_prompts.exists():
@@ -440,7 +437,7 @@ class Container:
         return self._media_root
 
     @property
-    def video_path_resolver(self) -> ContainerVideoPathResolver:
+    def video_path_resolver(self) -> VideoPathResolverImpl:
         return self._video_path_resolver
 
     @property
