@@ -199,16 +199,12 @@ class Container:
             os.path.join(data_dir, "media"),
         )
         default_prompts = project_root / "config" / "prompts.yaml"
-        if not default_prompts.exists():
-            default_prompts = Path("/app/config/prompts.yaml")
         prompts_path = Path(
             os.environ.get("PROMPTS_CONFIG_PATH", str(default_prompts))
         )
         self._prompts_config: PromptsConfig = PromptsLoader().load(prompts_path)
         self._lazy_media_reconciler: LazyMediaReconciler | None = None  # lazy init on first call
         templates_dir = project_root / "anki-templates"
-        if not templates_dir.exists():
-            templates_dir = Path("/app/anki-templates")
         self._anki_template_renderer = AnkiTemplateRenderer(templates_dir)
         # Session factory — lazy-loaded to avoid circular import with api.dependencies
         self._session_factory: sessionmaker[Session] | None = None
