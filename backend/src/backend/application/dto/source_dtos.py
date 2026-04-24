@@ -83,6 +83,15 @@ class CandidatePronunciationDTO(BaseModel):
     generated_at: datetime | None
 
 
+class CandidateTTSDTO(BaseModel):
+    """TTS audio enrichment of a candidate (1:1)."""
+
+    audio_path: str | None = None
+    status: str = "done"
+    error: str | None = None
+    generated_at: datetime | None = None
+
+
 class StoredCandidateDTO(BaseModel):
     """A persisted word candidate."""
 
@@ -102,6 +111,7 @@ class StoredCandidateDTO(BaseModel):
     meaning: CandidateMeaningDTO | None = None
     media: CandidateMediaDTO | None = None
     pronunciation: CandidatePronunciationDTO | None = None
+    tts: CandidateTTSDTO | None = None
     cefr_breakdown: CEFRBreakdownDTO | None = None
     usage_distribution: dict[str, float] | None = None
     frequency_band: str | None = None
@@ -174,6 +184,21 @@ def _derive_pronunciation_status(
         c.pronunciation.us_audio_path is not None
         or c.pronunciation.uk_audio_path is not None
     ):
+        return "done", None
+    return "done", None
+
+
+def _derive_tts_status(
+    c: StoredCandidate,
+    jobs_by_candidate: dict[int, dict[str, Job]] | None,
+) -> tuple[str, str | None]:
+    """Return (status, error) for the TTS enrichment."""
+    if jobs_by_candidate and c.id is not None:
+        jobs_for_cand = jobs_by_candidate.get(c.id, {})
+        job = jobs_for_cand.get("tts")
+        if job is not None:
+            return job.status.value, job.error
+    if c.tts is not None and c.tts.audio_path is not None:
         return "done", None
     return "done", None
 
@@ -272,6 +297,27 @@ def stored_candidate_to_dto(
                     generated_at=None,
                 )
 
+    tts_dto: CandidateTTSDTO | None = None
+    if c.tts is not None:
+        t_status, t_error = _derive_tts_status(c, jobs_by_candidate)
+        tts_dto = CandidateTTSDTO(
+            audio_path=c.tts.audio_path,
+            status=t_status,
+            error=t_error,
+            generated_at=c.tts.generated_at,
+        )
+    else:
+        if jobs_by_candidate and c.id is not None:
+            jobs_for_cand = jobs_by_candidate.get(c.id, {})
+            job = jobs_for_cand.get("tts")
+            if job is not None:
+                tts_dto = CandidateTTSDTO(
+                    audio_path=None,
+                    status=job.status.value,
+                    error=job.error,
+                    generated_at=None,
+                )
+
     breakdown_dto: CEFRBreakdownDTO | None = None
     if c.cefr_breakdown is not None:
         breakdown_dto = breakdown_to_dto(c.cefr_breakdown)
@@ -293,6 +339,7 @@ def stored_candidate_to_dto(
         meaning=meaning_dto,
         media=media_dto,
         pronunciation=pronunciation_dto,
+        tts=tts_dto,
         cefr_breakdown=breakdown_dto,
         usage_distribution=c.usage_distribution.to_dict() if c.usage_distribution else None,
         frequency_band=c.frequency_band.name,
