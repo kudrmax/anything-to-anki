@@ -25,6 +25,7 @@ class CardPreviewDTO(BaseModel):
     audio_url: str | None = None
     pronunciation_us_url: str | None = None
     pronunciation_uk_url: str | None = None
+    tts_audio_url: str | None = None
 
 
 class ExportSectionDTO(BaseModel):

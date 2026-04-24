@@ -454,6 +454,13 @@ export function CandidateCardV2({
     ? `/media/${sourceId}/${candidate.pronunciation.uk_audio_path.split('/').pop()}`
     : null
   const pronStatus = candidate.pronunciation?.status
+
+  // TTS audio
+  const ttsUrl = candidate.tts?.audio_path
+    ? `/media/${sourceId}/${candidate.tts.audio_path.split('/').pop()}`
+    : null
+  const ttsStatus = candidate.tts?.status
+
   const showMediaColumn = !!(
     finalShot || finalAudio
     || mediaStatus === 'queued' || mediaStatus === 'running' || mediaStatus === 'failed'
@@ -856,9 +863,10 @@ export function CandidateCardV2({
               Failed to generate
             </p>
           ) : null}
-          {/* Pronunciation: IPA + Cambridge audio buttons + status — independent of meaning */}
+          {/* Pronunciation: IPA + Cambridge audio buttons + TTS status — independent of meaning */}
           {(candidate.meaning?.ipa || pronUsUrl || pronUkUrl
-            || pronStatus === 'queued' || pronStatus === 'running' || pronStatus === 'failed') && (
+            || pronStatus === 'queued' || pronStatus === 'running' || pronStatus === 'failed'
+            || ttsUrl || ttsStatus === 'queued' || ttsStatus === 'running' || ttsStatus === 'failed') && (
             <div
               style={{
                 marginTop: '8px',
@@ -922,6 +930,35 @@ export function CandidateCardV2({
                   title={candidate.pronunciation?.error ?? undefined}
                 >
                   Failed
+                </span>
+              )}
+              {ttsUrl && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleAudio(ttsUrl) }}
+                  className="glass-pill"
+                  style={{
+                    padding: '1px 8px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    color: isAudioPlaying ? 'var(--accent)' : 'var(--text)',
+                  }}
+                  title="Play TTS audio"
+                >
+                  TTS
+                </button>
+              )}
+              {ttsStatus === 'running' && !ttsUrl && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--td)' }}>
+                  <Loader2 size={12} className="animate-spin" /> TTS...
+                </span>
+              )}
+              {ttsStatus === 'queued' && !ttsUrl && (
+                <span style={{ fontSize: '12px', color: 'var(--td)' }}>TTS queued</span>
+              )}
+              {ttsStatus === 'failed' && !ttsUrl && (
+                <span style={{ fontSize: '12px', color: 'var(--error)' }} title={candidate.tts?.error ?? undefined}>
+                  TTS failed
                 </span>
               )}
             </div>

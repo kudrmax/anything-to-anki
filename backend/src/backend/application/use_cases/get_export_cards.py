@@ -77,6 +77,11 @@ class GetExportCardsUseCase:
             filename = candidate.pronunciation.uk_audio_path.rsplit("/", 1)[-1]
             pronunciation_uk_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
 
+        tts_audio_url: str | None = None
+        if candidate.tts and candidate.tts.audio_path:
+            filename = candidate.tts.audio_path.rsplit("/", 1)[-1]
+            tts_audio_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
+
         meaning_obj = candidate.meaning
         meaning_text = meaning_obj.meaning if meaning_obj else None
         ipa_text = meaning_obj.ipa if meaning_obj else None
@@ -105,4 +110,5 @@ class GetExportCardsUseCase:
             audio_url=audio_url,
             pronunciation_us_url=pronunciation_us_url,
             pronunciation_uk_url=pronunciation_uk_url,
+            tts_audio_url=tts_audio_url,
         )

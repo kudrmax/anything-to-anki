@@ -107,6 +107,7 @@ export interface StoredCandidate {
   meaning: CandidateMeaning | null
   media: CandidateMedia | null
   pronunciation: CandidatePronunciation | null
+  tts: CandidateTTS | null
   cefr_breakdown?: CEFRBreakdown | null
   frequency_band: string | null
   usage_distribution: Record<string, number> | null
@@ -146,6 +147,7 @@ export interface CardPreview {
   audio_url: string | null
   pronunciation_us_url: string | null
   pronunciation_uk_url: string | null
+  tts_audio_url: string | null
 }
 
 export interface ExportSection {
