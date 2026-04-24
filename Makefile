@@ -115,7 +115,7 @@ setup:  ## Одноразовая установка зависимостей (b
 	    fi; \
 	done
 	@echo "\n=== Creating Python venv ==="
-	@python3 -m venv .venv
+	@python3.12 -m venv .venv
 	@.venv/bin/pip install -e "backend/[dev,tts]"
 	@.venv/bin/pip install -e ".[ai-proxy]"
 	@echo "\n=== Installing frontend dependencies ==="
