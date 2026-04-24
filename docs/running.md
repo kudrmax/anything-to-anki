@@ -2,6 +2,14 @@
 
 Проект клонирован в две независимые рабочие копии: `anything-to-anki/` (dev) и `anything-to-anki-prod/` (prod). В каждой — одинаковый набор команд, поведение различается через локальный `.env`.
 
+## Первоначальная установка
+
+```bash
+make setup    # Ставит brew-зависимости, Python venv, Node modules
+```
+
+Запускается один раз после клонирования. Ставит: python@3.12, node, ffmpeg, espeak-ng, создаёт `.venv`, устанавливает Python и Node зависимости.
+
 ## Характеристики копий
 
 | | dev | prod |
@@ -10,7 +18,6 @@
 | ai_proxy порт | `8766` | `8767` |
 | БД | `./data/app.db` (в dev-папке) | `./data/app.db` (в prod-папке) |
 | `INSTANCE_ENV_NAME` | `dev` | `prod` |
-| Docker project | `anything-anki-dev` | `anything-anki-prod` |
 | URL | http://localhost:17832 | http://localhost:17833 |
 
 Значения задаются в `./.env` каждой копии. Шаблон — `.env.example` (коммитится в git). При первом запуске в новой копии: `cp .env.example .env` и при необходимости отредактировать (в prod-копии — поменять значения на prod-шные).
@@ -18,15 +25,26 @@
 ## Команды (в каждой копии)
 
 ```
-make up           # Поднять (ai_proxy на хосте + docker compose в фоне)
-make down         # Остановить
-make logs         # Все логи: app + worker + redis + ai_proxy одним потоком
+make setup        # Одноразовая установка зависимостей
+make up           # Собрать фронтенд + запустить ai_proxy, app, worker
+make down         # Остановить все процессы
+make logs         # Все логи: app + worker + ai_proxy одним потоком
 
 make test         # Запустить backend-тесты
 make lint         # ruff
 make typecheck    # mypy
 make help         # Все команды с описанием
 ```
+
+## Архитектура процессов
+
+`make up` запускает три фоновых процесса:
+
+1. **ai_proxy** — прокси к Claude API (на хосте, порт из `AI_PROXY_PORT`)
+2. **app** — FastAPI (uvicorn) + собранная статика фронтенда (порт из `PORT`)
+3. **worker** — поллит SQLite-очередь, обрабатывает фоновые задачи
+
+TTS-задачи обрабатываются в отдельном subprocess, который spawn'ится worker'ом по требованию. После обработки всех TTS-задач subprocess завершается, освобождая RAM от PyTorch/kokoro.
 
 ## Словари
 
@@ -45,13 +63,7 @@ make help         # Все команды с описанием
 - `INSTANCE_ENV_NAME` — визуальный лейбл копии. Отображается в UI бейджем. **Не** переключатель логики.
 - `PORT` — порт web-приложения на localhost.
 - `AI_PROXY_PORT` — порт ai_proxy на хосте.
-- `COMPOSE_PROJECT_NAME` — имя docker compose проекта (обязано отличаться между копиями).
-- `DICTIONARIES_DIR` — путь к папке с unified-словарями (по умолчанию: `dictionaries/` в корне проекта).
-- `LOCAL_VIDEO_DIR` — (опционально) папка с локальными видеофайлами. Маунтится в контейнер readonly. Нужна только для добавления локальных видео через вкладку File.
-
-В контейнер также пробрасываются:
-- `DATA_DIR=/data` — путь к данным внутри контейнера (задаётся в `Dockerfile`, трогать не нужно).
-- `AI_PROXY_URL`, `ANKI_URL`, `PROMPTS_CONFIG_PATH` — задаются в `docker-compose.yml`.
+- `DICTIONARIES_DIR` — путь к папке с unified-словарями.
 
 ## Обновление prod до новой версии
 
@@ -87,7 +99,7 @@ cp .env.example .env
 #   INSTANCE_ENV_NAME=prod
 #   PORT=17833
 #   AI_PROXY_PORT=8767
-#   COMPOSE_PROJECT_NAME=anything-anki-prod
+make setup
 make up
 ```
 
