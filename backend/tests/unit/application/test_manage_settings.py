@@ -111,3 +111,28 @@ class TestManageSettingsUseCase:
         req = UpdateSettingsRequest(anki_field_synonyms="Syn")
         self.use_case.update_settings(req)
         self.settings_repo.set.assert_any_call("anki_field_synonyms", "Syn")
+
+    def test_get_settings_tts_enabled_voices_default_is_all_28(self) -> None:
+        self.settings_repo.get.return_value = None
+        result = self.use_case.get_settings()
+        assert len(result.tts_enabled_voices) == 28
+        assert isinstance(result.tts_enabled_voices, list)
+        assert "af_heart" in result.tts_enabled_voices
+        assert "bm_lewis" in result.tts_enabled_voices
+
+    def test_get_settings_tts_speed_default_is_1_0(self) -> None:
+        self.settings_repo.get.return_value = None
+        result = self.use_case.get_settings()
+        assert result.tts_speed == 1.0
+        assert isinstance(result.tts_speed, float)
+
+    def test_get_settings_anki_field_audio_tts_default(self) -> None:
+        self.settings_repo.get.return_value = None
+        result = self.use_case.get_settings()
+        assert result.anki_field_audio_tts == "AudioTTS"
+
+    def test_update_tts_speed_stores_as_string_reads_as_float(self) -> None:
+        self.settings_repo.get.return_value = None
+        req = UpdateSettingsRequest(tts_speed=0.75)
+        self.use_case.update_settings(req)
+        self.settings_repo.set.assert_any_call("tts_speed", "0.75")
