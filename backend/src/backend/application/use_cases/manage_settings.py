@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
 from backend.application.dto.settings_dtos import SettingsDTO, UpdateSettingsRequest
+from backend.application.use_cases.generate_tts import ALL_VOICES
 
 if TYPE_CHECKING:
     from backend.domain.ports.settings_repository import SettingsRepository
@@ -46,10 +47,14 @@ _SETTING_KEYS: dict[str, str] = {
     "anki_field_audio_target_uk": _DEFAULT_FIELD_AUDIO_TARGET_UK,
     "enable_definitions": _DEFAULT_ENABLE_DEFINITIONS,
     "usage_group_order": json.dumps(DEFAULT_USAGE_GROUP_ORDER),
+    "tts_enabled_voices": json.dumps(ALL_VOICES),
+    "tts_speed": "1.0",
+    "anki_field_audio_tts": "AudioTTS",
 }
 
 _BOOL_KEYS: frozenset[str] = frozenset({"enable_definitions"})
-_JSON_LIST_KEYS: frozenset[str] = frozenset({"usage_group_order"})
+_JSON_LIST_KEYS: frozenset[str] = frozenset({"usage_group_order", "tts_enabled_voices"})
+_FLOAT_KEYS: frozenset[str] = frozenset({"tts_speed"})
 
 
 class ManageSettingsUseCase:
@@ -63,12 +68,14 @@ class ManageSettingsUseCase:
             key: (self._settings_repo.get(key, default) or default)
             for key, default in _SETTING_KEYS.items()
         }
-        values: dict[str, str | bool | list[str]] = {}
+        values: dict[str, str | bool | float | list[str]] = {}
         for k, v in raw.items():
             if k in _BOOL_KEYS:
                 values[k] = v.lower() == "true"
             elif k in _JSON_LIST_KEYS:
                 values[k] = json.loads(v)
+            elif k in _FLOAT_KEYS:
+                values[k] = float(v)
             else:
                 values[k] = v
         return SettingsDTO(**values)  # type: ignore[arg-type]
@@ -81,6 +88,8 @@ class ManageSettingsUseCase:
                     str_value = str(value).lower()
                 elif key in _JSON_LIST_KEYS:
                     str_value = json.dumps(value)
+                elif key in _FLOAT_KEYS:
+                    str_value = str(value)
                 else:
                     str_value = str(value)
                 self._settings_repo.set(key, str_value)

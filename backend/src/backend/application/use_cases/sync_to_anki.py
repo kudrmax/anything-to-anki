@@ -33,6 +33,7 @@ _DEFAULT_FIELD_AUDIO: str = "Audio"
 _DEFAULT_FIELD_EXAMPLES: str = "Examples"
 _DEFAULT_FIELD_AUDIO_TARGET_US: str = "AudioTargetUS"
 _DEFAULT_FIELD_AUDIO_TARGET_UK: str = "AudioTargetUK"
+_DEFAULT_FIELD_AUDIO_TTS: str = "AudioTTS"
 
 
 class SyncToAnkiUseCase:
@@ -102,6 +103,10 @@ class SyncToAnkiUseCase:
             self._settings_repo.get("anki_field_audio_target_uk", _DEFAULT_FIELD_AUDIO_TARGET_UK)
             or _DEFAULT_FIELD_AUDIO_TARGET_UK
         )
+        field_audio_tts = (
+            self._settings_repo.get("anki_field_audio_tts", _DEFAULT_FIELD_AUDIO_TTS)
+            or _DEFAULT_FIELD_AUDIO_TTS
+        )
 
         candidates = self._candidate_repo.get_by_source(source_id)
         learn_candidates = [c for c in candidates if c.status == CandidateStatus.LEARN]
@@ -139,6 +144,7 @@ class SyncToAnkiUseCase:
                 field_translation, field_synonyms, field_examples,
                 field_image, field_audio,
                 field_audio_target_us, field_audio_target_uk,
+                field_audio_tts,
             ]
             if f
         ]
@@ -265,6 +271,16 @@ class SyncToAnkiUseCase:
                     filename = os.path.basename(uk_path)
                     self._connector.store_media_file(filename, uk_path)
                     note[field_audio_target_uk] = f'[sound:{filename}]'
+                if (
+                    field_audio_tts
+                    and candidate.tts
+                    and candidate.tts.audio_path
+                    and os.path.exists(candidate.tts.audio_path)
+                ):
+                    tts_path = candidate.tts.audio_path
+                    filename = os.path.basename(tts_path)
+                    self._connector.store_media_file(filename, tts_path)
+                    note[field_audio_tts] = f'[sound:{filename}]'
 
                 results = self._connector.add_notes(
                     deck_name=deck_name,

@@ -26,6 +26,9 @@ class SettingsDTO(BaseModel):
     anki_field_audio_target_uk: str
     enable_definitions: bool
     usage_group_order: list[str]
+    tts_enabled_voices: list[str]
+    tts_speed: float
+    anki_field_audio_tts: str
 
 
 class UpdateSettingsRequest(BaseModel):
@@ -49,6 +52,9 @@ class UpdateSettingsRequest(BaseModel):
     anki_field_audio_target_uk: str | None = None
     enable_definitions: bool | None = None
     usage_group_order: list[str] | None = None
+    tts_enabled_voices: list[str] | None = None
+    tts_speed: float | None = None
+    anki_field_audio_tts: str | None = None
 
     @field_validator("cefr_level")
     @classmethod
