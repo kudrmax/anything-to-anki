@@ -1,16 +1,18 @@
-.PHONY: up up-worktree down down-worktree logs logs-worktree test coverage lint typecheck help _python_dev _check_env
+.PHONY: up down logs setup up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths _check_env _check_setup
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
-# docker compose читает .env сам — это только для ai_proxy и echo.
 # -include не падает если файла нет; если .env создаётся правилом ниже,
 # Make автоматически перечитывает Makefile с новыми переменными.
 -include .env
 export
 
 # ── Константы ─────────────────────────────────────────────────────
-AI_VENV := .venv-ai-proxy
 AI_PID  := .pids/ai_proxy.pid
 AI_LOG  := .logs/ai_proxy.log
+APP_PID := .pids/app.pid
+APP_LOG := .logs/app.log
+WRK_PID := .pids/worker.pid
+WRK_LOG := .logs/worker.log
 
 # Цвет баннера: зелёный для prod, жёлтый для всего остального (dev и т.п.).
 # Чисто визуальная разметка — совпадает с цветом бейджа в UI.
@@ -21,6 +23,18 @@ BANNER_COLOR := \033[1;33m
 endif
 
 # ── Вспомогательные макросы ────────────────────────────────────────
+# Убить процесс по PID-файлу. $(1) — путь к PID-файлу, $(2) — название для лога.
+define kill_by_pid
+	@if [ -f $(1) ]; then \
+	    pid=$$(cat $(1)); \
+	    if kill -0 $$pid 2>/dev/null; then \
+	        kill $$pid; \
+	        echo "Stopped $(2) (PID $$pid)"; \
+	    fi; \
+	    rm -f $(1); \
+	fi
+endef
+
 # Убить ai_proxy на порту $(1). Проверяем что это именно ai_proxy (grep по args),
 # чтобы случайно не убить чужой процесс на том же порту.
 define kill_ai_proxy_on_port
@@ -32,32 +46,28 @@ define kill_ai_proxy_on_port
 	fi
 endef
 
-# Всегда перезапускает ai_proxy: убивает старый процесс и стартует новый.
-# Использует AI_PROXY_PORT из .env.
 define start_ai_proxy
 	@mkdir -p .pids .logs
-	@[ -d $(AI_VENV) ] || (echo "Creating AI proxy venv..." && \
-	    python3 -m venv $(AI_VENV))
-	@$(AI_VENV)/bin/pip install -e ".[ai-proxy]"
 	$(call kill_ai_proxy_on_port,$(AI_PROXY_PORT))
-	@$(AI_VENV)/bin/python ai_proxy.py --port $(AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > $(AI_PID); \
-	    echo "AI proxy started on port $(AI_PROXY_PORT) (PID $$(cat $(AI_PID)))"
+	@.venv/bin/python ai_proxy.py --port $(AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > $(AI_PID); \
+	    echo "ai_proxy started on port $(AI_PROXY_PORT) (PID $$(cat $(AI_PID)))"
 endef
 
-# Проверить что все контейнеры живы после docker compose up.
-# $(1) — префикс env-переменных для docker compose (пустой для основного инстанса).
-define check_services
-	@sleep 2; \
-	failed=$$($(1) docker compose ps --status exited --status restarting --format '{{.Service}}' 2>/dev/null); \
-	if [ -n "$$failed" ]; then \
-	    printf "\n\033[1;31m✗ Сервисы не запустились: %s\033[0m\n" "$$failed"; \
-	    printf "  Логи: make logs\n\n"; \
-	    $(1) docker compose logs --tail 30 $$failed; \
-	    exit 1; \
-	fi
+define start_app
+	@mkdir -p .pids .logs
+	@AI_PROXY_URL=http://localhost:$(AI_PROXY_PORT) \
+	    .venv/bin/uvicorn backend.infrastructure.api.app:app \
+	    --host 0.0.0.0 --port $(PORT) >> $(APP_LOG) 2>&1 & echo $$! > $(APP_PID); \
+	    echo "app started on port $(PORT) (PID $$(cat $(APP_PID)))"
 endef
 
-# Остановить ai_proxy.
+define start_worker
+	@mkdir -p .pids .logs
+	@AI_PROXY_URL=http://localhost:$(AI_PROXY_PORT) \
+	    .venv/bin/python -m backend.infrastructure.queue >> $(WRK_LOG) 2>&1 & echo $$! > $(WRK_PID); \
+	    echo "worker started (PID $$(cat $(WRK_PID)))"
+endef
+
 define stop_ai_proxy
 	$(call kill_ai_proxy_on_port,$(AI_PROXY_PORT))
 	@rm -f $(AI_PID)
@@ -75,12 +85,42 @@ endef
 	    exit 1; \
 	fi
 
-# Проверить что .env существует.
 _check_env:
 	@if [ ! -f .env ]; then \
 	    echo "ERROR: .env file missing. Copy .env.example to .env and fill in values."; \
 	    exit 1; \
 	fi
+
+_check_setup:
+	@if [ ! -d .venv ]; then \
+	    echo "ERROR: .venv not found. Run 'make setup' first."; \
+	    exit 1; \
+	fi
+	@if [ ! -d frontends/web/node_modules ]; then \
+	    echo "ERROR: node_modules not found. Run 'make setup' first."; \
+	    exit 1; \
+	fi
+	@command -v ffmpeg >/dev/null || (echo "ERROR: ffmpeg not installed. Run 'make setup' first." && exit 1)
+
+##@ Установка
+setup:  ## Одноразовая установка зависимостей (brew, Python, Node)
+	@echo "=== Checking brew dependencies ==="
+	@command -v brew >/dev/null || (echo "ERROR: Homebrew not installed. Install from https://brew.sh" && exit 1)
+	@for pkg in python@3.12 node ffmpeg espeak; do \
+	    if ! brew list $$pkg >/dev/null 2>&1; then \
+	        echo "Installing $$pkg..."; \
+	        HOMEBREW_BOTTLE_DOMAIN="" HOMEBREW_CORE_GIT_REMOTE="" HOMEBREW_BREW_GIT_REMOTE="" brew install $$pkg; \
+	    else \
+	        echo "$$pkg: already installed"; \
+	    fi; \
+	done
+	@echo "\n=== Creating Python venv ==="
+	@python3 -m venv .venv
+	@.venv/bin/pip install -e "backend/[dev,tts]"
+	@.venv/bin/pip install -e ".[ai-proxy]"
+	@echo "\n=== Installing frontend dependencies ==="
+	@cd frontends/web && npm install
+	@echo "\n=== Setup complete. Run 'make up' to start. ==="
 
 ##@ Словари
 _check_dictionaries_dir:
@@ -89,18 +129,20 @@ _check_dictionaries_dir:
 	    exit 1; \
 	fi
 
-dict-rebuild: _python_dev _check_dictionaries_dir  ## Пересобрать словарный кэш с нуля
+dict-rebuild: _check_setup _check_dictionaries_dir  ## Пересобрать словарный кэш с нуля
 	@rm -f $${DICTIONARIES_DIR}/.cache/dict.db 2>/dev/null || true
 	.venv/bin/python -m backend.cli.build_dict_cache $${DICTIONARIES_DIR}
 
-dict-update: _python_dev _check_dictionaries_dir  ## Обновить словарный кэш если JSON изменились
+dict-update: _check_setup _check_dictionaries_dir  ## Обновить словарный кэш если JSON изменились
 	@.venv/bin/python -m backend.cli.build_dict_cache $${DICTIONARIES_DIR} --if-changed
 
 ##@ Запуск (читает .env)
-up: _check_env dict-update  ## Запустить (ai_proxy + docker compose)
+up: _check_env _check_setup dict-update  ## Запустить (ai_proxy + app + worker)
+	@echo "Building frontend..."
+	@cd frontends/web && npm run build
 	$(call start_ai_proxy)
-	docker compose up -d --build --force-recreate
-	$(call check_services,)
+	$(call start_app)
+	$(call start_worker)
 	@printf "\n$(BANNER_COLOR)"
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "  AnythingToAnki  [instance: %s]\n" "$(INSTANCE_ENV_NAME)"
@@ -108,26 +150,22 @@ up: _check_env dict-update  ## Запустить (ai_proxy + docker compose)
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "\033[0m\n"
 
-up-worktree: _check_env dict-update  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий worktree)
-	@# Остановить предыдущий worktree на этих портах (если есть)
-	@containers=$$(docker ps --format '{{.ID}} {{.Ports}}' | grep '$(WORKTREE_PORT)->' | awk '{print $$1}'); \
-	if [ -n "$$containers" ]; then \
-	    echo "Stopping previous worktree on port $(WORKTREE_PORT)..."; \
-	    echo "$$containers" | xargs docker stop; \
-	fi
+up-worktree: _check_env _check_setup dict-update  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий)
+	@echo "Building frontend..."
+	@cd frontends/web && npm run build
 	$(call kill_ai_proxy_on_port,$(WORKTREE_AI_PROXY_PORT))
 	@mkdir -p .pids .logs
-	@[ -d $(AI_VENV) ] || (echo "Creating AI proxy venv..." && \
-	    python3 -m venv $(AI_VENV))
-	@$(AI_VENV)/bin/pip install -e ".[ai-proxy]"
-	@$(AI_VENV)/bin/python ai_proxy.py --port $(WORKTREE_AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > $(AI_PID); \
-	    echo "AI proxy started on port $(WORKTREE_AI_PROXY_PORT) (PID $$(cat $(AI_PID)))"
-	PORT=$(WORKTREE_PORT) AI_PROXY_PORT=$(WORKTREE_AI_PROXY_PORT) \
-	    COMPOSE_PROJECT_NAME=anything-anki-worktree \
+	@.venv/bin/python ai_proxy.py --port $(WORKTREE_AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > .pids/ai_proxy_wt.pid; \
+	    echo "ai_proxy started on port $(WORKTREE_AI_PROXY_PORT)"
+	@AI_PROXY_URL=http://localhost:$(WORKTREE_AI_PROXY_PORT) \
 	    INSTANCE_ENV_NAME=worktree \
-	    docker compose up -d --build --force-recreate
-	$(call check_services,PORT=$(WORKTREE_PORT) AI_PROXY_PORT=$(WORKTREE_AI_PROXY_PORT) COMPOSE_PROJECT_NAME=anything-anki-worktree)
-	@printf "\n$(BANNER_COLOR)"
+	    .venv/bin/uvicorn backend.infrastructure.api.app:app \
+	    --host 0.0.0.0 --port $(WORKTREE_PORT) >> .logs/app_wt.log 2>&1 & echo $$! > .pids/app_wt.pid; \
+	    echo "app started on port $(WORKTREE_PORT)"
+	@AI_PROXY_URL=http://localhost:$(WORKTREE_AI_PROXY_PORT) \
+	    .venv/bin/python -m backend.infrastructure.queue >> .logs/worker_wt.log 2>&1 & echo $$! > .pids/worker_wt.pid; \
+	    echo "worker started"
+	@printf "\n\033[1;33m"
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "  AnythingToAnki  [worktree]\n"
 	@printf "  → http://localhost:%s\n" "$(WORKTREE_PORT)"
@@ -135,47 +173,48 @@ up-worktree: _check_env dict-update  ## Запустить worktree (WORKTREE_PO
 	@printf "\033[0m\n"
 
 down:  ## Остановить
-	docker compose down
+	$(call kill_by_pid,$(APP_PID),app)
+	$(call kill_by_pid,$(WRK_PID),worker)
 	$(call stop_ai_proxy)
 
-down-worktree:  ## Остановить worktree-контейнеры
-	docker compose -p anything-anki-worktree down
-	$(call stop_ai_proxy)
+down-worktree:  ## Остановить worktree
+	$(call kill_by_pid,.pids/app_wt.pid,worktree app)
+	$(call kill_by_pid,.pids/worker_wt.pid,worktree worker)
+	$(call kill_by_pid,.pids/ai_proxy_wt.pid,worktree ai_proxy)
 
 logs:  ## Логи app + worker + ai_proxy одним потоком
 	@trap 'kill 0' INT TERM; \
-	docker compose logs -f & \
+	tail -F $(APP_LOG) 2>/dev/null | sed -l 's/^/app             | /' & \
+	tail -F $(WRK_LOG) 2>/dev/null | sed -l 's/^/worker          | /' & \
 	tail -F $(AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy        | /' & \
 	wait
 
 logs-worktree:  ## Логи worktree (app + worker + ai_proxy)
 	@trap 'kill 0' INT TERM; \
-	docker compose -p anything-anki-worktree logs -f & \
+	tail -F .logs/app_wt.log 2>/dev/null | sed -l 's/^/app             | /' & \
+	tail -F .logs/worker_wt.log 2>/dev/null | sed -l 's/^/worker          | /' & \
 	tail -F $(AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy        | /' & \
 	wait
 
 ##@ Разработка
-_python_dev:
-	@[ -d .venv ] || python3 -m venv .venv
-	@.venv/bin/pip install -e "backend/[dev]"
-
-test: _python_dev  ## Запустить тесты
+test: _check_setup  ## Запустить тесты
 	.venv/bin/python -m pytest
 
-coverage: _python_dev  ## Тесты с отчётом покрытия
+coverage: _check_setup  ## Тесты с отчётом покрытия
 	.venv/bin/python -m pytest --cov --cov-report=term
 
-test-ai: _python_dev  ## Интеграционные тесты AI (реальный ai_proxy + Claude API)
+test-ai: _check_setup  ## Интеграционные тесты AI (реальный ai_proxy + Claude API)
 	.venv/bin/python -m pytest -m ai_integration -v
 
-lint: _python_dev  ## Линтинг (ruff)
+lint: _check_setup  ## Линтинг (ruff)
 	.venv/bin/ruff check .
 
-typecheck: _python_dev  ## Проверка типов (mypy)
+typecheck: _check_setup  ## Проверка типов (mypy)
 	.venv/bin/mypy backend/src
 
-backfill-breakdowns:  ## Заполнить cefr_breakdowns для старых кандидатов (DRY_RUN=1 для пробного запуска)
-	docker compose exec app python /app/scripts/backfill_cefr_breakdowns.py $(if $(DRY_RUN),--dry-run)
+##@ Миграция
+migrate-paths: _check_setup  ## Мигрировать Docker-пути в БД (dry-run, APPLY=1 для применения)
+	.venv/bin/python scripts/migrate_docker_paths.py $(if $(APPLY),--apply)
 
 ##@ Прочее
 help:  ## Показать доступные команды
