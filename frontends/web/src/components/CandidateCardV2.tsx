@@ -941,7 +941,8 @@ export function CandidateCardV2({
                     fontSize: '11px',
                     fontWeight: 600,
                     cursor: 'pointer',
-                    color: isAudioPlaying ? 'var(--accent)' : 'var(--text)',
+                    border: 'none',
+                    borderRadius: '999px',
                   }}
                   title="Play TTS audio"
                 >

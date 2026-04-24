@@ -329,6 +329,9 @@ export function SettingsPage() {
                   { key: 'anki_field_translation', label: 'Translation' },
                   { key: 'anki_field_synonyms', label: 'Synonyms' },
                   { key: 'anki_field_examples', label: 'Examples' },
+                  { key: 'anki_field_audio_target_us', label: 'Audio US' },
+                  { key: 'anki_field_audio_target_uk', label: 'Audio UK' },
+                  { key: 'anki_field_audio_tts', label: 'Audio TTS' },
                 ] as { key: keyof Settings; label: string }[]
               ).map(({ key, label }, i) => (
                 <div key={key} className="flex items-center gap-3 px-4 py-2.5" style={i > 0 ? { borderTop: '1px solid var(--glass-b)' } : undefined}>
@@ -594,21 +597,6 @@ export function SettingsPage() {
                   {(form.tts_speed ?? 1.0).toFixed(1)}
                 </span>
               </div>
-            </div>
-          </div>
-
-          {/* Anki field */}
-          <div className="glass-card rounded-xl px-4 py-2.5">
-            <div className="flex items-center gap-3">
-              <span className="text-xs w-24 shrink-0" style={{ color: 'var(--td)' }}>Anki field</span>
-              <input
-                type="text"
-                value={form.anki_field_audio_tts ?? 'AudioTTS'}
-                onChange={(e) => setField('anki_field_audio_tts', e.target.value)}
-                placeholder="AudioTTS"
-                className="flex-1 bg-transparent text-sm focus:outline-none"
-                style={{ color: 'var(--text)' }}
-              />
             </div>
           </div>
 
