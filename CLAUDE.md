@@ -27,7 +27,7 @@
 
 - **[docs/project-map.md](docs/project-map.md)** — структура репозитория, что где лежит
 - **[docs/architecture.md](docs/architecture.md)** — Clean Architecture, слои, порты и адаптеры
-- **[docs/workers.md](docs/workers.md)** — arq, очереди, жизненный цикл задачи
+- **[docs/workers.md](docs/workers.md)** — SQLite job queue, воркер, TTS subprocess
 - **[docs/ai-integration.md](docs/ai-integration.md)** — ai_proxy, адаптеры, промпты
 - **[docs/running.md](docs/running.md)** — запуск dev/prod, `make`-команды, env vars
 - **[docs/migrations.md](docs/migrations.md)** — как добавить Alembic-миграцию
@@ -58,7 +58,7 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 ## Dev/Prod — главное правило
 
-Две независимые рабочие копии проекта: `anything-to-anki/` (dev) и `anything-to-anki-prod/` (prod). У каждой — своя `./data/`, свой `./.env`, свои docker-контейнеры. В каждой копии команды одинаковые: `make up/down/logs`. Подробности — `docs/running.md`.
+Две независимые рабочие копии проекта: `anything-to-anki/` (dev) и `anything-to-anki-prod/` (prod). У каждой — своя `./data/`, свой `./.env`, свои процессы. В каждой копии команды одинаковые: `make up/down/logs`. Подробности — `docs/running.md`.
 
 > # КРИТИЧЕСКОЕ ПРАВИЛО: две рабочие копии, никакого общего состояния
 >
@@ -74,9 +74,9 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 В worktree: `make up-worktree`. Команда использует `WORKTREE_PORT`/`WORKTREE_AI_PROXY_PORT` из `.env` и автоматически сносит предыдущий worktree, если он запущен.
 
-> # КРИТИЧЕСКОЕ ПРАВИЛО: контейнеры — только через make
+> # КРИТИЧЕСКОЕ ПРАВИЛО: процессы — только через make
 >
-> **НИКОГДА не запускать `docker compose` / `docker` напрямую.** Только `make up`, `make up-worktree`, `make down`, `make logs` и другие make-команды. Если make-команда не делает то, что нужно (не пересобирает image, не перезапускает worker и т.п.) — **чинить Makefile**, а не обходить его ручными docker-командами.
+> **НИКОГДА не запускать процессы напрямую.** Только `make up`, `make up-worktree`, `make down`, `make logs` и другие make-команды. Если make-команда не делает то, что нужно — **чинить Makefile**, а не обходить его ручными командами.
 
 ---
 
@@ -112,7 +112,7 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 ## Работа с багами
 
-**Первым делом при любой проблеме — логи, а не вопросы пользователю.** Все логи доступны через `make logs` в соответствующей копии (app + worker + redis + ai_proxy одним потоком). Если какой-то лог не попадает в `make logs` — это баг в Makefile, сначала добавить, потом продолжать.
+**Первым делом при любой проблеме — логи, а не вопросы пользователю.** Все логи доступны через `make logs` в соответствующей копии (app + worker + ai_proxy одним потоком). Если какой-то лог не попадает в `make logs` — это баг в Makefile, сначала добавить, потом продолжать.
 
 > # ПРАВИЛО 1: Найденный баг = сообщил + разобрался
 >
@@ -158,7 +158,6 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 ## Подводные камни
 
-- **Docker networking:** не добавлять `extra_hosts: host-gateway` — ломает `host.docker.internal` на macOS
-- **`claude-agent-sdk` → Keychain:** SDK не работает в контейнере, только через `ai_proxy` на хосте (см. `docs/ai-integration.md`)
+- **`claude-agent-sdk` → Keychain:** SDK аутентифицируется через Keychain, работает только через `ai_proxy` на хосте (см. `docs/ai-integration.md`)
 - **Frontend build check** — `npm run build`, не `tsc --noEmit` (см. `docs/verify-before-done.md`)
 - **Миграции — только Alembic,** никаких inline `ALTER TABLE` или `execute(text(...))` для DDL

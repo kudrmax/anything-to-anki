@@ -44,6 +44,35 @@ class SqlaJobRepository(JobRepository):
         self._session.flush()
         return model.to_entity()
 
+    def dequeue_next_by_type(self, job_type: JobType) -> Job | None:
+        """Dequeue the next QUEUED job of the given type."""
+        stmt = (
+            select(JobModel)
+            .where(
+                JobModel.status == JobStatus.QUEUED.value,
+                JobModel.job_type == job_type.value,
+            )
+            .order_by(JobModel.created_at.asc(), JobModel.id.asc())
+            .limit(1)
+            .with_for_update()
+        )
+        model = self._session.execute(stmt).scalar_one_or_none()
+        if model is None:
+            return None
+        model.status = JobStatus.RUNNING.value
+        model.started_at = datetime.now(tz=UTC)
+        self._session.flush()
+        return model.to_entity()
+
+    def requeue(self, job_id: int) -> None:
+        """Put a RUNNING job back to QUEUED."""
+        self._session.execute(
+            update(JobModel)
+            .where(JobModel.id == job_id)
+            .values(status=JobStatus.QUEUED.value, started_at=None)
+        )
+        self._session.flush()
+
     def dequeue_batch(
         self, job_type: JobType, source_id: int, limit: int,
     ) -> list[Job]:

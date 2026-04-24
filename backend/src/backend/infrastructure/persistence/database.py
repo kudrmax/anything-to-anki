@@ -16,7 +16,7 @@ class Base(DeclarativeBase):
 
 
 def default_db_url() -> str:
-    data_dir = os.getenv("DATA_DIR", ".")
+    data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
     return f"sqlite:///{data_dir}/app.db"
 
 
