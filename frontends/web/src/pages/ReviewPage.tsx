@@ -55,6 +55,7 @@ export function ReviewPage() {
   const hoverFromCardRef = useRef(false)
   const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set())
   const [regeneratingMediaIds, setRegeneratingMediaIds] = useState<Set<number>>(new Set())
+  const [generatingTTSIds, setGeneratingTTSIds] = useState<Set<number>>(new Set())
   const [queueSummary, setQueueSummary] = useState<QueueSummary | null>(null)
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null)
   const [vpnBlocked, setVpnBlocked] = useState(false)
@@ -501,6 +502,24 @@ export function ReviewPage() {
     }
   }, [sourceId, loadCandidates, loadQueueSummary])
 
+  const handleGenerateCandidateTTS = useCallback(async (candidateId: number) => {
+    setGeneratingTTSIds((prev) => new Set(prev).add(candidateId))
+    try {
+      await api.generateCandidateTTS(candidateId)
+      await loadCandidates()
+      await loadQueueSummary()
+      setToast({ text: 'TTS enqueued', key: Date.now() })
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'TTS failed', key: Date.now() })
+    } finally {
+      setGeneratingTTSIds((prev) => {
+        const next = new Set(prev)
+        next.delete(candidateId)
+        return next
+      })
+    }
+  }, [loadCandidates, loadQueueSummary])
+
   const handleRegenerateCandidateMedia = useCallback(async (candidateId: number) => {
     setRegeneratingMediaIds((prev) => new Set(prev).add(candidateId))
     try {
@@ -901,6 +920,8 @@ export function ReviewPage() {
                 audioUrl={mediaMap[c.id]?.audioUrl}
                 onRegenerateMedia={source?.content_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                 isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
+                onGenerateTTS={(id) => void handleGenerateCandidateTTS(id)}
+                isGeneratingTTS={generatingTTSIds.has(c.id)}
                 isAudioPlaying={playingCandidateId === c.id}
                 onPlayAudio={(url) => playAudio(c.id, url)}
                 onStopAudio={stopAudio}
@@ -937,7 +958,9 @@ export function ReviewPage() {
                   audioUrl={mediaMap[c.id]?.audioUrl}
                   onRegenerateMedia={source?.content_type === 'video' ? (id) => void handleRegenerateCandidateMedia(id) : undefined}
                   isRegeneratingMedia={regeneratingMediaIds.has(c.id)}
-                    isAudioPlaying={playingCandidateId === c.id}
+                  onGenerateTTS={(id) => void handleGenerateCandidateTTS(id)}
+                  isGeneratingTTS={generatingTTSIds.has(c.id)}
+                  isAudioPlaying={playingCandidateId === c.id}
                   onPlayAudio={(url) => playAudio(c.id, url)}
                   onStopAudio={stopAudio}
                   onReplaceWithExample={handleReplaceWithExample}

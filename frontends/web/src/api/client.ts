@@ -178,6 +178,9 @@ export const api = {
   retryFailedTTS: (sourceId: number) =>
     req<{ enqueued: number }>(`/sources/${sourceId}/tts/retry-failed`, { method: 'POST' }),
 
+  generateCandidateTTS: (candidateId: number) =>
+    req<{ status: string }>(`/candidates/${candidateId}/generate-tts`, { method: 'POST' }),
+
   getQueueSummary: (sourceId: number) =>
     req<QueueSummary>(`/sources/${sourceId}/queue-summary`),
 

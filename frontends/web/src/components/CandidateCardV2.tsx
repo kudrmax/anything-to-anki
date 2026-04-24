@@ -32,6 +32,8 @@ interface CandidateCardV2Props {
   audioUrl?: string | null
   onRegenerateMedia?: (id: number) => void
   isRegeneratingMedia?: boolean
+  onGenerateTTS?: (id: number) => void
+  isGeneratingTTS?: boolean
   // Audio playback is lifted to the parent so that:
   //  - only one audio plays at a time across cards
   //  - the parent can auto-play the next card's audio after a mark click
@@ -403,6 +405,8 @@ export function CandidateCardV2({
   audioUrl,
   onRegenerateMedia,
   isRegeneratingMedia,
+  onGenerateTTS,
+  isGeneratingTTS,
   isAudioPlaying,
   onPlayAudio,
   onStopAudio,
@@ -538,6 +542,16 @@ export function CandidateCardV2({
               title="Generate screenshot and audio (uses current fragment boundaries)"
             >
               {isRegeneratingMedia ? <Loader2 size={13} className="animate-spin" /> : <Film size={13} />}
+            </ToolbarButton>
+          )}
+          {onGenerateTTS && (
+            <ToolbarButton
+              onClick={() => onGenerateTTS(candidate.id)}
+              disabled={isGeneratingTTS}
+              ariaLabel="Generate TTS audio"
+              title="Generate text-to-speech audio for this phrase"
+            >
+              {isGeneratingTTS ? <Loader2 size={13} className="animate-spin" /> : <Volume2 size={13} />}
             </ToolbarButton>
           )}
           {isEditingFragment ? (
