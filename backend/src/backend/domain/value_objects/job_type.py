@@ -8,3 +8,4 @@ class JobType(Enum):
     MEDIA = "media"
     PRONUNCIATION = "pronunciation"
     VIDEO_DOWNLOAD = "video_download"
+    TTS = "tts"
