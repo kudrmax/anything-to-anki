@@ -10,6 +10,7 @@ from backend.infrastructure.persistence.models import (
     CandidateMeaningModel,
     CandidateMediaModel,
     CandidatePronunciationModel,
+    CandidateTTSModel,
     StoredCandidateModel,
 )
 
@@ -120,9 +121,11 @@ class SqlaCandidateRepository(CandidateRepository):
         meaning_model = self._session.get(CandidateMeaningModel, entity.id)
         media_model = self._session.get(CandidateMediaModel, entity.id)
         pron_model = self._session.get(CandidatePronunciationModel, entity.id)
+        tts_model = self._session.get(CandidateTTSModel, entity.id)
         entity.meaning = meaning_model.to_entity() if meaning_model else None
         entity.media = media_model.to_entity() if media_model else None
         entity.pronunciation = pron_model.to_entity() if pron_model else None
+        entity.tts = tts_model.to_entity() if tts_model else None
         return entity
 
     def _bulk_attach(self, entities: list[StoredCandidate]) -> list[StoredCandidate]:
@@ -144,12 +147,19 @@ class SqlaCandidateRepository(CandidateRepository):
             .filter(CandidatePronunciationModel.candidate_id.in_(ids))
             .all()
         )
+        tts_rows = (
+            self._session.query(CandidateTTSModel)
+            .filter(CandidateTTSModel.candidate_id.in_(ids))
+            .all()
+        )
         meanings = {r.candidate_id: r.to_entity() for r in meaning_rows}
         medias = {r.candidate_id: r.to_entity() for r in media_rows}
         prons = {r.candidate_id: r.to_entity() for r in pron_rows}
+        ttses = {r.candidate_id: r.to_entity() for r in tts_rows}
         for e in entities:
             if e.id is not None:
                 e.meaning = meanings.get(e.id)
                 e.media = medias.get(e.id)
                 e.pronunciation = prons.get(e.id)
+                e.tts = ttses.get(e.id)
         return entities
