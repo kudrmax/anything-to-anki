@@ -24,6 +24,37 @@ const USAGE_GROUP_LABELS: Record<string, string> = {
   other: 'Literary, trademark, etc.',
 }
 
+const TTS_VOICES: { id: string; label: string; accent: string; gender: string }[] = [
+  { id: 'af_heart', label: 'Heart', accent: 'US', gender: 'F' },
+  { id: 'af_alloy', label: 'Alloy', accent: 'US', gender: 'F' },
+  { id: 'af_aoede', label: 'Aoede', accent: 'US', gender: 'F' },
+  { id: 'af_bella', label: 'Bella', accent: 'US', gender: 'F' },
+  { id: 'af_jessica', label: 'Jessica', accent: 'US', gender: 'F' },
+  { id: 'af_kore', label: 'Kore', accent: 'US', gender: 'F' },
+  { id: 'af_nicole', label: 'Nicole', accent: 'US', gender: 'F' },
+  { id: 'af_nova', label: 'Nova', accent: 'US', gender: 'F' },
+  { id: 'af_river', label: 'River', accent: 'US', gender: 'F' },
+  { id: 'af_sarah', label: 'Sarah', accent: 'US', gender: 'F' },
+  { id: 'af_sky', label: 'Sky', accent: 'US', gender: 'F' },
+  { id: 'am_adam', label: 'Adam', accent: 'US', gender: 'M' },
+  { id: 'am_echo', label: 'Echo', accent: 'US', gender: 'M' },
+  { id: 'am_eric', label: 'Eric', accent: 'US', gender: 'M' },
+  { id: 'am_fenrir', label: 'Fenrir', accent: 'US', gender: 'M' },
+  { id: 'am_liam', label: 'Liam', accent: 'US', gender: 'M' },
+  { id: 'am_michael', label: 'Michael', accent: 'US', gender: 'M' },
+  { id: 'am_onyx', label: 'Onyx', accent: 'US', gender: 'M' },
+  { id: 'am_puck', label: 'Puck', accent: 'US', gender: 'M' },
+  { id: 'am_santa', label: 'Santa', accent: 'US', gender: 'M' },
+  { id: 'bf_alice', label: 'Alice', accent: 'GB', gender: 'F' },
+  { id: 'bf_emma', label: 'Emma', accent: 'GB', gender: 'F' },
+  { id: 'bf_isabella', label: 'Isabella', accent: 'GB', gender: 'F' },
+  { id: 'bf_lily', label: 'Lily', accent: 'GB', gender: 'F' },
+  { id: 'bm_daniel', label: 'Daniel', accent: 'GB', gender: 'M' },
+  { id: 'bm_fable', label: 'Fable', accent: 'GB', gender: 'M' },
+  { id: 'bm_george', label: 'George', accent: 'GB', gender: 'M' },
+  { id: 'bm_lewis', label: 'Lewis', accent: 'GB', gender: 'M' },
+]
+
 const INPUT_STYLE = {
   background: 'var(--ibg)',
   border: '1.5px solid var(--ib)',
@@ -210,7 +241,7 @@ export function SettingsPage() {
     }
   }, [])
 
-  const setField = (key: keyof Settings, value: string | boolean) => {
+  const setField = (key: keyof Settings, value: string | boolean | number | string[]) => {
     setForm((prev) => prev ? { ...prev, [key]: value } : prev)
     setVerifyResult(null)
     setCreateResult(null)
@@ -538,6 +569,80 @@ export function SettingsPage() {
               ))}
             </select>
             <p className="text-xs" style={{ color: 'var(--td)' }}>Reserved for future AI-powered features.</p>
+          </div>
+        </section>
+
+        {/* Text-to-Speech */}
+        <section className="flex flex-col gap-4">
+          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>Text-to-Speech</h2>
+
+          {/* Speed */}
+          <div className="glass-card rounded-xl px-4 py-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm" style={{ color: 'var(--text)' }}>Speed</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.1"
+                  value={form.tts_speed ?? 1.0}
+                  onChange={(e) => setField('tts_speed', parseFloat(e.target.value))}
+                  className="w-24"
+                />
+                <span className="text-xs w-8 text-right" style={{ color: 'var(--td)' }}>
+                  {(form.tts_speed ?? 1.0).toFixed(1)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Anki field */}
+          <div className="glass-card rounded-xl px-4 py-2.5">
+            <div className="flex items-center gap-3">
+              <span className="text-xs w-24 shrink-0" style={{ color: 'var(--td)' }}>Anki field</span>
+              <input
+                type="text"
+                value={form.anki_field_audio_tts ?? 'AudioTTS'}
+                onChange={(e) => setField('anki_field_audio_tts', e.target.value)}
+                placeholder="AudioTTS"
+                className="flex-1 bg-transparent text-sm focus:outline-none"
+                style={{ color: 'var(--text)' }}
+              />
+            </div>
+          </div>
+
+          {/* Voices */}
+          <p className="text-xs" style={{ color: 'var(--td)' }}>
+            Enabled voices (random selection from checked)
+          </p>
+          <div className="glass-card rounded-xl overflow-hidden" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+            {TTS_VOICES.map((voice, i) => {
+              const enabled = form.tts_enabled_voices ?? TTS_VOICES.map(v => v.id)
+              const isChecked = enabled.includes(voice.id)
+              return (
+                <label
+                  key={voice.id}
+                  className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-black/5"
+                  style={i > 0 ? { borderTop: '1px solid var(--glass-b)' } : undefined}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => {
+                      const next = isChecked
+                        ? enabled.filter((v: string) => v !== voice.id)
+                        : [...enabled, voice.id]
+                      setField('tts_enabled_voices', next)
+                    }}
+                  />
+                  <span className="text-sm" style={{ color: 'var(--text)' }}>{voice.label}</span>
+                  <span className="text-xs ml-auto" style={{ color: 'var(--td)' }}>
+                    {voice.accent} {voice.gender}
+                  </span>
+                </label>
+              )
+            })}
           </div>
         </section>
 

@@ -166,6 +166,18 @@ export const api = {
   retryFailedPronunciation: (sourceId: number) =>
     req<{ enqueued: number }>(`/sources/${sourceId}/pronunciation/retry-failed`, { method: 'POST' }),
 
+  enqueueTTSGeneration: (sourceId: number) =>
+    req<{ enqueued: number }>(
+      `/sources/${sourceId}/tts/generate`,
+      { method: 'POST' },
+    ),
+
+  cancelTTSQueue: (sourceId: number) =>
+    req<{ cancelled: number }>(`/sources/${sourceId}/tts/cancel`, { method: 'POST' }),
+
+  retryFailedTTS: (sourceId: number) =>
+    req<{ enqueued: number }>(`/sources/${sourceId}/tts/retry-failed`, { method: 'POST' }),
+
   getQueueSummary: (sourceId: number) =>
     req<QueueSummary>(`/sources/${sourceId}/queue-summary`),
 

@@ -71,6 +71,13 @@ export interface CandidatePronunciation {
   generated_at: string | null
 }
 
+export interface CandidateTTS {
+  audio_path: string | null
+  status: EnrichmentStatus
+  error: string | null
+  generated_at: string | null
+}
+
 export interface SourceVote {
   source_name: string
   level: string | null
@@ -178,6 +185,9 @@ export interface Settings {
   anki_field_audio_target_us: string
   anki_field_audio_target_uk: string
   usage_group_order: string[]
+  tts_enabled_voices: string[]
+  tts_speed: number
+  anki_field_audio_tts: string
 }
 
 export interface KnownWord {
@@ -222,6 +232,7 @@ export interface QueueSummary {
   meaning: QueueStatus
   media: QueueStatus
   pronunciation: QueueStatus
+  tts: QueueStatus
 }
 
 export interface ReprocessStats {

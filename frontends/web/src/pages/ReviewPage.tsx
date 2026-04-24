@@ -177,7 +177,8 @@ export function ReviewPage() {
     const meaningInflight = (queueSummary?.meaning?.queued ?? 0) + (queueSummary?.meaning?.running ?? 0)
     const mediaInflight = (queueSummary?.media?.queued ?? 0) + (queueSummary?.media?.running ?? 0)
     const pronInflight = (queueSummary?.pronunciation?.queued ?? 0) + (queueSummary?.pronunciation?.running ?? 0)
-    if (meaningInflight + mediaInflight + pronInflight === 0) return
+    const ttsInflight = (queueSummary?.tts?.queued ?? 0) + (queueSummary?.tts?.running ?? 0)
+    if (meaningInflight + mediaInflight + pronInflight + ttsInflight === 0) return
 
     const interval = setInterval(() => {
       void loadCandidates()
@@ -471,6 +472,35 @@ export function ReviewPage() {
     }
   }, [sourceId, loadCandidates, loadQueueSummary])
 
+  const handleGenerateTTS = useCallback(async () => {
+    try {
+      await api.enqueueTTSGeneration(sourceId)
+      await loadCandidates()
+      await loadQueueSummary()
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Failed to enqueue TTS', key: Date.now() })
+    }
+  }, [sourceId, loadCandidates, loadQueueSummary])
+
+  const handleCancelTTS = useCallback(async () => {
+    try {
+      await api.cancelTTSQueue(sourceId)
+      await loadQueueSummary()
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Failed to cancel', key: Date.now() })
+    }
+  }, [sourceId, loadQueueSummary])
+
+  const handleRetryTTS = useCallback(async () => {
+    try {
+      await api.retryFailedTTS(sourceId)
+      await loadCandidates()
+      await loadQueueSummary()
+    } catch (e) {
+      setToast({ text: e instanceof Error ? e.message : 'Failed to retry', key: Date.now() })
+    }
+  }, [sourceId, loadCandidates, loadQueueSummary])
+
   const handleRegenerateCandidateMedia = useCallback(async (candidateId: number) => {
     setRegeneratingMediaIds((prev) => new Set(prev).add(candidateId))
     try {
@@ -581,6 +611,8 @@ export function ReviewPage() {
   const hasFailedMedia = (queueSummary?.media?.failed ?? 0) > 0
   const hasInflightPron = ((queueSummary?.pronunciation?.queued ?? 0) + (queueSummary?.pronunciation?.running ?? 0)) > 0
   const hasFailedPron = (queueSummary?.pronunciation?.failed ?? 0) > 0
+  const hasInflightTTS = ((queueSummary?.tts?.queued ?? 0) + (queueSummary?.tts?.running ?? 0)) > 0
+  const hasFailedTTS = (queueSummary?.tts?.failed ?? 0) > 0
 
   const markedCount = ratedCandidates.length
   const learnCount = candidates.filter((c) => c.status === 'learn').length
@@ -753,6 +785,32 @@ export function ReviewPage() {
             >
               <Volume2 size={10} />
               Pronunciation
+            </button>
+          )
+        )}
+
+        {/* TTS actions — only for non-video sources */}
+        {candidates.length > 0 && source?.content_type !== 'video' && (
+          hasInflightTTS ? (
+            <div className="glass-pill" style={{ gap: '6px' }}>
+              <Loader2 size={10} className="animate-spin" style={{ color: 'var(--tm)' }} />
+              <span style={{ color: 'var(--tm)' }}>
+                TTS ({(queueSummary?.tts?.queued ?? 0) + (queueSummary?.tts?.running ?? 0)})
+              </span>
+              <button onClick={() => void handleCancelTTS()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)', marginLeft: '4px', padding: '2px 6px', height: '22px' }}>✕</button>
+            </div>
+          ) : hasFailedTTS ? (
+            <button onClick={() => void handleRetryTTS()} className="glass-pill cursor-pointer" style={{ color: 'var(--error)' }}>
+              Retry TTS ({queueSummary?.tts?.failed})
+            </button>
+          ) : (
+            <button
+              className="glass-pill cursor-pointer"
+              onClick={() => void handleGenerateTTS()}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Volume2 size={10} />
+              TTS
             </button>
           )
         )}
