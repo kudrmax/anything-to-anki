@@ -319,7 +319,7 @@ class KnownWordModel(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     lemma: Mapped[str] = mapped_column(String(100), nullable=False)
-    pos: Mapped[str] = mapped_column(String(10), nullable=False)
+    pos: Mapped[str | None] = mapped_column(String(10), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
