@@ -64,67 +64,77 @@ export function CalibratePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--tm)' }} />
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 size={20} className="animate-spin" style={{ color: 'var(--tm)' }} />
       </div>
     )
   }
 
   if (words.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <h1 className="text-sm font-medium uppercase tracking-wider mb-6" style={{ color: 'var(--tm)' }}>Calibrate Vocabulary</h1>
-        <p className="text-sm mb-6" style={{ color: 'var(--td)' }}>All words reviewed.</p>
-        <button onClick={() => navigate('/settings')} className={BTN} style={BTN_SECONDARY}>
-          Finish
-        </button>
+      <div className="flex-1 overflow-y-auto">
+        <main className="mx-auto max-w-lg px-4 py-8 flex flex-col gap-8">
+          <section className="flex flex-col gap-4">
+            <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>Calibrate Vocabulary</h2>
+            <p className="text-sm" style={{ color: 'var(--td)' }}>All words reviewed.</p>
+            <button onClick={() => navigate('/settings')} className={BTN} style={BTN_SECONDARY}>
+              Finish
+            </button>
+          </section>
+        </main>
       </div>
     )
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-sm font-medium uppercase tracking-wider mb-2" style={{ color: 'var(--tm)' }}>Calibrate Vocabulary</h1>
-      <p className="text-xs mb-6" style={{ color: 'var(--td)' }}>
-        Tap words you already know. Then press &quot;Next&quot; to continue.
-      </p>
+    <div className="flex-1 overflow-y-auto">
+      <main className="mx-auto max-w-lg px-4 py-8 flex flex-col gap-8">
 
-      <div className="flex flex-wrap gap-2 mb-8">
-        {words.map(w => (
-          <button
-            key={w.lemma}
-            onClick={() => toggleWord(w.lemma)}
-            className="rounded-full px-3 py-1.5 text-sm font-medium transition-all cursor-pointer hover:brightness-110"
-            style={
-              selected.has(w.lemma)
-                ? { border: '1px solid var(--accent)', color: '#fff', background: 'var(--accent)' }
-                : { border: '1px solid var(--glass-b)', color: 'var(--text)', background: 'var(--glass)' }
-            }
-          >
-            {w.lemma}
-          </button>
-        ))}
-      </div>
+        <section className="flex flex-col gap-4">
+          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>Calibrate Vocabulary</h2>
+          <p className="text-xs" style={{ color: 'var(--td)' }}>
+            Tap words you already know. Then press &quot;Next&quot; to continue.
+          </p>
 
-      <div className="flex gap-3">
-        <button
-          onClick={() => saveAndContinue(false)}
-          disabled={saving}
-          className={BTN}
-          style={BTN_PRIMARY}
-        >
-          {saving && <Loader2 size={11} className="animate-spin" />}
-          {saving ? 'Saving...' : `Next ${words.length} words`}
-        </button>
-        <button
-          onClick={() => saveAndContinue(true)}
-          disabled={saving}
-          className={BTN}
-          style={BTN_SECONDARY}
-        >
-          Finish
-        </button>
-      </div>
+          <div className="flex flex-wrap gap-2">
+            {words.map(w => (
+              <button
+                key={w.lemma}
+                onClick={() => toggleWord(w.lemma)}
+                className="rounded-full px-3 py-1.5 text-sm font-medium transition-all cursor-pointer hover:brightness-110"
+                style={
+                  selected.has(w.lemma)
+                    ? { border: '1px solid var(--accent)', color: '#fff', background: 'var(--accent)' }
+                    : { border: '1px solid var(--glass-b)', color: 'var(--text)', background: 'var(--glass)' }
+                }
+              >
+                {w.lemma}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => saveAndContinue(false)}
+              disabled={saving}
+              className={BTN}
+              style={BTN_PRIMARY}
+            >
+              {saving && <Loader2 size={11} className="animate-spin" />}
+              {saving ? 'Saving...' : `Next ${words.length} words`}
+            </button>
+            <button
+              onClick={() => saveAndContinue(true)}
+              disabled={saving}
+              className={BTN}
+              style={BTN_SECONDARY}
+            >
+              Finish
+            </button>
+          </div>
+        </section>
+
+      </main>
     </div>
   )
 }
