@@ -18,6 +18,10 @@ from backend.application.use_cases.rename_collection import RenameCollectionUseC
 from backend.infrastructure.persistence.sqla_collection_repository import (
     SqlaCollectionRepository,
 )
+from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
+from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
+from backend.infrastructure.adapters.dict_cache.word_corpus_provider import DictCacheWordCorpusProvider
+from backend.infrastructure.persistence.sqla_bootstrap_index_repository import SqlaBootstrapIndexRepository
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.create_source import CreateSourceUseCase
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
@@ -156,6 +160,7 @@ class Container:
             dict_cache_path = Path(dictionaries_dir_env) / ".cache" / "dict.db"
 
         self._dict_reader = DictCacheReader(dict_cache_path)
+        self._word_corpus_provider = DictCacheWordCorpusProvider(self._dict_reader)
 
         # CEFR: dynamic sources from dict.db metadata
         cefr_sources: list[CEFRSource] = []
@@ -423,6 +428,22 @@ class Container:
         return GetStatsUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             known_word_repo=SqlaKnownWordRepository(session),
+        )
+
+    def build_bootstrap_index_use_case(self, session: Session) -> BuildBootstrapIndexUseCase:
+        return BuildBootstrapIndexUseCase(
+            corpus_provider=self._word_corpus_provider,
+            cefr_classifier=self._cefr_classifier,
+            frequency_provider=self._frequency_provider,
+            index_repo=SqlaBootstrapIndexRepository(session),
+            phrasal_verb_dictionary=self._phrasal_verb_dictionary,
+        )
+
+    def get_bootstrap_words_use_case(self, session: Session) -> GetBootstrapWordsUseCase:
+        return GetBootstrapWordsUseCase(
+            index_repo=SqlaBootstrapIndexRepository(session),
+            known_word_repo=SqlaKnownWordRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
         )
 
     def anki_connector(self) -> AnkiConnectConnector:

@@ -70,6 +70,15 @@ class DictCacheReader:
             return None, None
         return row[0], row[1]
 
+    def get_all_lemma_pos_pairs(self) -> list[tuple[str, str]]:
+        """Return all distinct (lemma, pos) pairs from the CEFR table."""
+        if self._conn is None:
+            return []
+        rows = self._conn.execute(
+            "SELECT DISTINCT lemma, pos FROM cefr"
+        ).fetchall()
+        return [(r[0], r[1]) for r in rows]
+
     def get_usage_labels(self, lemma: str, pos: str) -> list[str] | None:
         if self._conn is None:
             return None

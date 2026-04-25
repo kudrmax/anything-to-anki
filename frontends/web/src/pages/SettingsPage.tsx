@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { CheckCircle, Loader2, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import { api } from '@/api/client'
-import type { CleanupMediaKind, CreateNoteTypeResponse, KnownWord, Settings, SourceMediaStats, VerifyNoteTypeResponse } from '@/api/types'
+import type { BootstrapStatus, CleanupMediaKind, CreateNoteTypeResponse, KnownWord, Settings, SourceMediaStats, VerifyNoteTypeResponse } from '@/api/types'
 import { autoPlayAudioPref } from '@/lib/preferences'
 import { useTheme } from '@/lib/ThemeProvider'
 import type { ThemeName } from '@/lib/preferences'
@@ -62,6 +63,8 @@ const INPUT_STYLE = {
 } as const
 
 export function SettingsPage() {
+  const navigate = useNavigate()
+  const [bootstrapStatus, setBootstrapStatus] = useState<BootstrapStatus | null>(null)
   const [_settings, setSettings] = useState<Settings | null>(null)
   const [form, setForm] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -112,6 +115,42 @@ export function SettingsPage() {
   useEffect(() => {
     void loadMediaStats()
   }, [loadMediaStats])
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null
+
+    const fetchStatus = async () => {
+      try {
+        const s = await api.getBootstrapStatus()
+        setBootstrapStatus(s)
+        if (s.status === 'building' && !timer) {
+          timer = setInterval(async () => {
+            const updated = await api.getBootstrapStatus()
+            setBootstrapStatus(updated)
+            if (updated.status !== 'building' && timer) {
+              clearInterval(timer)
+              timer = null
+            }
+          }, 2000)
+        }
+      } catch { /* ignore */ }
+    }
+    fetchStatus()
+
+    return () => { if (timer) clearInterval(timer) }
+  }, [])
+
+  const handleBootstrapBuild = async () => {
+    try {
+      await api.startBootstrapBuild()
+      setBootstrapStatus(prev => prev ? { ...prev, status: 'building' } : prev)
+      const timer = setInterval(async () => {
+        const updated = await api.getBootstrapStatus()
+        setBootstrapStatus(updated)
+        if (updated.status !== 'building') clearInterval(timer)
+      }, 2000)
+    } catch { /* ignore */ }
+  }
 
   const handleCleanup = async (sourceId: number, kind: CleanupMediaKind) => {
     const kindLabel = kind === 'all' ? 'all media' : kind === 'images' ? 'images' : 'audio'
@@ -645,6 +684,53 @@ export function SettingsPage() {
           {saving && <Loader2 size={14} className="animate-spin" />}
           {saved ? 'Saved ✓' : 'Save settings'}
         </button>
+
+        {/* Vocabulary Calibration */}
+        <section className="flex flex-col gap-4">
+          <h2 className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--tm)' }}>Vocabulary Calibration</h2>
+          {bootstrapStatus && (
+            <div className="space-y-2">
+              {bootstrapStatus.status === 'none' && (
+                <>
+                  <p className="text-sm" style={{ color: 'var(--td)' }}>Calibration data not prepared.</p>
+                  <button onClick={handleBootstrapBuild} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:brightness-110 cursor-pointer" style={{ border: '1px solid var(--glass-b)', color: 'var(--accent)', background: 'var(--abg)' }}>
+                    Prepare
+                  </button>
+                </>
+              )}
+              {bootstrapStatus.status === 'building' && (
+                <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--td)' }}>
+                  <Loader2 size={14} className="animate-spin" />
+                  Preparing calibration data...
+                </div>
+              )}
+              {bootstrapStatus.status === 'error' && (
+                <>
+                  <p className="text-sm" style={{ color: 'var(--error, #f87171)' }}>{bootstrapStatus.error}</p>
+                  <button onClick={handleBootstrapBuild} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:brightness-110 cursor-pointer" style={{ border: '1px solid var(--glass-b)', color: 'var(--accent)', background: 'var(--abg)' }}>
+                    Retry
+                  </button>
+                </>
+              )}
+              {bootstrapStatus.status === 'ready' && (
+                <>
+                  <p className="text-sm" style={{ color: 'var(--td)' }}>
+                    Ready — {bootstrapStatus.word_count} words
+                    {bootstrapStatus.built_at && `, built ${new Date(bootstrapStatus.built_at).toLocaleDateString()}`}
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => navigate('/calibrate')} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:brightness-110 cursor-pointer" style={{ border: '1px solid var(--glass-b)', color: 'var(--accent)', background: 'var(--abg)' }}>
+                      Calibrate vocabulary
+                    </button>
+                    <button onClick={handleBootstrapBuild} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:brightness-110 cursor-pointer" style={{ border: '1px solid var(--glass-b)', color: 'var(--tm)', background: 'var(--glass)' }}>
+                      Rebuild
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </section>
 
         {/* Whitelist section */}
         <section className="flex flex-col gap-4">

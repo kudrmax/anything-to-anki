@@ -1,6 +1,8 @@
 import type {
   AnkiStatus,
   AnkiTemplates,
+  BootstrapStatus,
+  BootstrapWord,
   CandidateSortOrder,
   CandidateStatus,
   CleanupMediaKind,
@@ -321,4 +323,21 @@ export const api = {
         body: JSON.stringify({ collection_id: collectionId }),
       },
     ),
+
+  getBootstrapStatus: () => req<BootstrapStatus>('/api/bootstrap/status'),
+
+  startBootstrapBuild: () =>
+    req<{ status: string }>('/api/bootstrap/build', { method: 'POST' }),
+
+  getBootstrapWords: (excluded: string[]) =>
+    req<BootstrapWord[]>('/api/bootstrap/words', {
+      method: 'POST',
+      body: JSON.stringify({ excluded }),
+    }),
+
+  saveBootstrapKnown: (lemmas: string[]) =>
+    req<{ saved: number }>('/api/bootstrap/known', {
+      method: 'POST',
+      body: JSON.stringify({ lemmas }),
+    }),
 }
