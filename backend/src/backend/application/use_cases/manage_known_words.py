@@ -28,3 +28,8 @@ class ManageKnownWordsUseCase:
 
     def delete(self, known_word_id: int) -> None:
         self._known_word_repo.remove(known_word_id)
+
+    def add_bulk(self, lemmas: list[str]) -> None:
+        """Add multiple words as known (pos=None, meaning known for any POS)."""
+        for lemma in lemmas:
+            self._known_word_repo.add(lemma, None)

@@ -22,3 +22,15 @@ class TestManageKnownWordsUseCase:
     def test_delete(self) -> None:
         self.use_case.delete(1)
         self.known_word_repo.remove.assert_called_once_with(1)
+
+    def test_add_bulk(self) -> None:
+        self.known_word_repo.add.return_value = KnownWord(id=1, lemma="test", pos=None)
+        self.use_case.add_bulk(["elaborate", "nuance", "ubiquitous"])
+        assert self.known_word_repo.add.call_count == 3
+        self.known_word_repo.add.assert_any_call("elaborate", None)
+        self.known_word_repo.add.assert_any_call("nuance", None)
+        self.known_word_repo.add.assert_any_call("ubiquitous", None)
+
+    def test_add_bulk_empty(self) -> None:
+        self.use_case.add_bulk([])
+        self.known_word_repo.add.assert_not_called()
