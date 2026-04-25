@@ -9,6 +9,6 @@ class KnownWord:
     """A word the user already knows (whitelist entry)."""
 
     lemma: str
-    pos: str
+    pos: str | None
     id: int | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))

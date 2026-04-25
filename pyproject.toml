@@ -38,6 +38,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
+pythonpath = ["backend/src"]
 markers = [
     "unit: unit tests (no external dependencies)",
     "integration: integration tests (may require external services)",

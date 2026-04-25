@@ -9,6 +9,7 @@ from backend.application.utils.timecode_mapping import find_timecodes
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceAlreadyProcessedError, SourceNotFoundError
+from backend.domain.services.known_word_filter import KnownWordFilter
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
@@ -114,8 +115,8 @@ class ProcessSourceUseCase:
         )
         result = self._analyze_text.execute(request)
 
-        known_pairs = self._known_word_repo.get_all_pairs()
-        filtered = [c for c in result.candidates if (c.lemma, c.pos) not in known_pairs]
+        known_filter = KnownWordFilter(self._known_word_repo.get_all_pairs())
+        filtered = [c for c in result.candidates if not known_filter.is_known(c.lemma, c.pos)]
 
         if parsed_srt is not None:
             self._notify_stage(source_id, ProcessingStage.MAPPING_TIMECODES, on_stage_commit)

@@ -19,12 +19,15 @@ class SqlaKnownWordRepository(KnownWordRepository):
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def add(self, lemma: str, pos: str) -> KnownWord:
-        existing = (
-            self._session.query(KnownWordModel)
-            .filter(KnownWordModel.lemma == lemma, KnownWordModel.pos == pos)
-            .first()
+    def add(self, lemma: str, pos: str | None) -> KnownWord:
+        query = self._session.query(KnownWordModel).filter(
+            KnownWordModel.lemma == lemma,
         )
+        if pos is None:
+            query = query.filter(KnownWordModel.pos.is_(None))
+        else:
+            query = query.filter(KnownWordModel.pos == pos)
+        existing = query.first()
         if existing:
             return existing.to_entity()
         model = KnownWordModel(lemma=lemma, pos=pos)
@@ -44,15 +47,17 @@ class SqlaKnownWordRepository(KnownWordRepository):
         )
         return [m.to_entity() for m in models]
 
-    def exists(self, lemma: str, pos: str) -> bool:
-        return (
-            self._session.query(KnownWordModel)
-            .filter(KnownWordModel.lemma == lemma, KnownWordModel.pos == pos)
-            .first()
-            is not None
+    def exists(self, lemma: str, pos: str | None) -> bool:
+        query = self._session.query(KnownWordModel).filter(
+            KnownWordModel.lemma == lemma,
         )
+        if pos is None:
+            query = query.filter(KnownWordModel.pos.is_(None))
+        else:
+            query = query.filter(KnownWordModel.pos == pos)
+        return query.first() is not None
 
-    def get_all_pairs(self) -> set[tuple[str, str]]:
+    def get_all_pairs(self) -> set[tuple[str, str | None]]:
         rows = self._session.query(KnownWordModel.lemma, KnownWordModel.pos).all()
         return {(r.lemma, r.pos) for r in rows}
 

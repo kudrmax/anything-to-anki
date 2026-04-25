@@ -195,7 +195,7 @@ export interface Settings {
 export interface KnownWord {
   id: number
   lemma: string
-  pos: string
+  pos: string | null
   created_at: string
 }
 

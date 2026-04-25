@@ -10,5 +10,5 @@ class KnownWordDTO(BaseModel):
 
     id: int
     lemma: str
-    pos: str
+    pos: str | None
     created_at: datetime

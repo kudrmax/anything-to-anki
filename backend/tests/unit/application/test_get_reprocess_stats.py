@@ -160,3 +160,63 @@ class TestGetReprocessStatsUseCase:
 
         with pytest.raises(SourceNotFoundError):
             use_case.execute(999)
+
+    def test_learn_filtered_by_wildcard(self) -> None:
+        """Wildcard known entry covers any POS — learn candidate not counted as lost."""
+        use_case, mocks = _make_use_case()
+        mocks["source_repo"].get_by_id.return_value = MagicMock()
+        mocks["candidate_repo"].get_by_source.return_value = [
+            _make_candidate(1, CandidateStatus.LEARN, lemma="pursuit", pos="NOUN"),
+        ]
+        mocks["known_word_repo"].get_all_pairs.return_value = {("pursuit", None)}
+        mocks["job_repo"].has_active_jobs_for_source.return_value = False
+
+        result = use_case.execute(1)
+
+        assert result.learn_count == 0
+
+    def test_known_filtered_by_wildcard(self) -> None:
+        """Wildcard known entry covers any POS — known candidate not counted as lost."""
+        use_case, mocks = _make_use_case()
+        mocks["source_repo"].get_by_id.return_value = MagicMock()
+        mocks["candidate_repo"].get_by_source.return_value = [
+            _make_candidate(1, CandidateStatus.KNOWN, lemma="pursuit", pos="NOUN"),
+        ]
+        mocks["known_word_repo"].get_all_pairs.return_value = {("pursuit", None)}
+        mocks["job_repo"].has_active_jobs_for_source.return_value = False
+
+        result = use_case.execute(1)
+
+        assert result.known_count == 0
+
+    def test_wildcard_does_not_cover_other_lemma(self) -> None:
+        """Wildcard for 'pursuit' must not affect 'ambition'."""
+        use_case, mocks = _make_use_case()
+        mocks["source_repo"].get_by_id.return_value = MagicMock()
+        mocks["candidate_repo"].get_by_source.return_value = [
+            _make_candidate(1, CandidateStatus.LEARN, lemma="ambition", pos="NOUN"),
+        ]
+        mocks["known_word_repo"].get_all_pairs.return_value = {("pursuit", None)}
+        mocks["job_repo"].has_active_jobs_for_source.return_value = False
+
+        result = use_case.execute(1)
+
+        assert result.learn_count == 1
+
+    def test_exact_and_wildcard_coexist(self) -> None:
+        """Both exact and wildcard present — different POS still covered by wildcard."""
+        use_case, mocks = _make_use_case()
+        mocks["source_repo"].get_by_id.return_value = MagicMock()
+        mocks["candidate_repo"].get_by_source.return_value = [
+            _make_candidate(1, CandidateStatus.LEARN, lemma="run", pos="NOUN"),
+            _make_candidate(1, CandidateStatus.LEARN, lemma="run", pos="VERB"),
+        ]
+        mocks["known_word_repo"].get_all_pairs.return_value = {
+            ("run", "VERB"),
+            ("run", None),
+        }
+        mocks["job_repo"].has_active_jobs_for_source.return_value = False
+
+        result = use_case.execute(1)
+
+        assert result.learn_count == 0
