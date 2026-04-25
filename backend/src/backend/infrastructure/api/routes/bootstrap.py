@@ -44,7 +44,7 @@ def get_bootstrap_status(
 
 
 @router.post("/build", status_code=202)
-def start_bootstrap_build(
+async def start_bootstrap_build(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, str]:

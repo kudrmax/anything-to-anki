@@ -60,7 +60,11 @@ class BuildBootstrapIndexUseCase:
         for lemma, pos in pairs:
             if pos == _PHRASAL_VERB_POS:
                 continue
-            cefr = self._cefr_classifier.classify(lemma, pos)
+            try:
+                cefr = self._cefr_classifier.classify(lemma, pos)
+            except Exception:
+                logger.debug("Failed to classify %r/%r, skipping", lemma, pos)
+                continue
             if cefr is CEFRLevel.UNKNOWN:
                 continue
             lemma_cefr_levels.setdefault(lemma, set()).add(cefr)
