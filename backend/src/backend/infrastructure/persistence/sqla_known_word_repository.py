@@ -57,7 +57,7 @@ class SqlaKnownWordRepository(KnownWordRepository):
             query = query.filter(KnownWordModel.pos == pos)
         return query.first() is not None
 
-    def get_all_pairs(self) -> set[tuple[str, str]]:
+    def get_all_pairs(self) -> set[tuple[str, str | None]]:
         rows = self._session.query(KnownWordModel.lemma, KnownWordModel.pos).all()
         return {(r.lemma, r.pos) for r in rows}
 
