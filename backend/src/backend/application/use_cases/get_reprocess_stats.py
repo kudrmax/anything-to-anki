@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import SourceNotFoundError
+from backend.domain.services.known_word_filter import KnownWordFilter
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
@@ -41,7 +42,7 @@ class GetReprocessStatsUseCase:
             raise SourceNotFoundError(source_id)
 
         candidates = self._candidate_repo.get_by_source(source_id)
-        known_pairs = self._known_word_repo.get_all_pairs()
+        known_filter = KnownWordFilter(self._known_word_repo.get_all_pairs())
 
         learn_lost_count = 0
         known_lost_count = 0
@@ -50,10 +51,10 @@ class GetReprocessStatsUseCase:
 
         for c in candidates:
             if c.status == CandidateStatus.LEARN:
-                if (c.lemma, c.pos) not in known_pairs:
+                if not known_filter.is_known(c.lemma, c.pos):
                     learn_lost_count += 1
             elif c.status == CandidateStatus.KNOWN:
-                if (c.lemma, c.pos) not in known_pairs:
+                if not known_filter.is_known(c.lemma, c.pos):
                     known_lost_count += 1
             elif c.status == CandidateStatus.SKIP:
                 skip_count += 1
