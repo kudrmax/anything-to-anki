@@ -4,6 +4,10 @@ import { Loader2 } from 'lucide-react'
 import { api } from '@/api/client'
 import type { BootstrapWord } from '@/api/types'
 
+const BTN = 'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 transition-all hover:brightness-110 cursor-pointer'
+const BTN_PRIMARY = { border: '1px solid var(--glass-b)', color: 'var(--accent)', background: 'var(--abg)' } as const
+const BTN_SECONDARY = { border: '1px solid var(--glass-b)', color: 'var(--tm)', background: 'var(--glass)' } as const
+
 export function CalibratePage() {
   const navigate = useNavigate()
   const [words, setWords] = useState<BootstrapWord[]>([])
@@ -61,7 +65,7 @@ export function CalibratePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-neutral-400" />
+        <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--tm)' }} />
       </div>
     )
   }
@@ -69,12 +73,9 @@ export function CalibratePage() {
   if (words.length === 0) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <h1 className="text-xl font-semibold mb-6">Calibrate Vocabulary</h1>
-        <p className="text-neutral-500 mb-6">All words reviewed.</p>
-        <button
-          onClick={() => navigate('/settings')}
-          className="px-4 py-2 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700 transition-colors"
-        >
+        <h1 className="text-sm font-medium uppercase tracking-wider mb-6" style={{ color: 'var(--tm)' }}>Calibrate Vocabulary</h1>
+        <p className="text-sm mb-6" style={{ color: 'var(--td)' }}>All words reviewed.</p>
+        <button onClick={() => navigate('/settings')} className={BTN} style={BTN_SECONDARY}>
           Finish
         </button>
       </div>
@@ -83,8 +84,8 @@ export function CalibratePage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-xl font-semibold mb-2">Calibrate Vocabulary</h1>
-      <p className="text-sm text-neutral-500 mb-6">
+      <h1 className="text-sm font-medium uppercase tracking-wider mb-2" style={{ color: 'var(--tm)' }}>Calibrate Vocabulary</h1>
+      <p className="text-xs mb-6" style={{ color: 'var(--td)' }}>
         Tap words you already know. Then press &quot;Next&quot; to continue.
       </p>
 
@@ -93,11 +94,12 @@ export function CalibratePage() {
           <button
             key={w.lemma}
             onClick={() => toggleWord(w.lemma)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+            className="rounded-full px-3 py-1.5 text-sm font-medium transition-all cursor-pointer hover:brightness-110"
+            style={
               selected.has(w.lemma)
-                ? 'bg-green-600 text-white border-green-600'
-                : 'bg-neutral-100 text-neutral-700 border-neutral-300 hover:border-neutral-400 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-600 dark:hover:border-neutral-500'
-            }`}
+                ? { border: '1px solid var(--accent)', color: '#fff', background: 'var(--accent)' }
+                : { border: '1px solid var(--glass-b)', color: 'var(--text)', background: 'var(--glass)' }
+            }
           >
             {w.lemma}
           </button>
@@ -108,14 +110,17 @@ export function CalibratePage() {
         <button
           onClick={() => saveAndContinue(false)}
           disabled={saving}
-          className="px-4 py-2 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700 disabled:opacity-50 transition-colors"
+          className={BTN}
+          style={BTN_PRIMARY}
         >
+          {saving && <Loader2 size={11} className="animate-spin" />}
           {saving ? 'Saving...' : `Next ${words.length} words`}
         </button>
         <button
           onClick={() => saveAndContinue(true)}
           disabled={saving}
-          className="px-4 py-2 rounded-lg border border-neutral-300 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50 transition-colors dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          className={BTN}
+          style={BTN_SECONDARY}
         >
           Finish
         </button>

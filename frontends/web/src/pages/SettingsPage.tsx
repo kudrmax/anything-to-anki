@@ -706,7 +706,7 @@ export function SettingsPage() {
               )}
               {bootstrapStatus.status === 'error' && (
                 <>
-                  <p className="text-sm text-rose-400">{bootstrapStatus.error}</p>
+                  <p className="text-sm" style={{ color: 'var(--error, #f87171)' }}>{bootstrapStatus.error}</p>
                   <button onClick={handleBootstrapBuild} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:brightness-110 cursor-pointer" style={{ border: '1px solid var(--glass-b)', color: 'var(--accent)', background: 'var(--abg)' }}>
                     Retry
                   </button>
