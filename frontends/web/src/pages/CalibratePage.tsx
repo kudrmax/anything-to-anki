@@ -69,7 +69,7 @@ export function CalibratePage() {
   if (words.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto">
-        <main className="mx-auto max-w-lg px-4 py-8 flex flex-col gap-6">
+        <main className="mx-auto max-w-3xl px-4 py-8 flex flex-col gap-6">
           <span className="text-sm" style={{ color: 'var(--td)' }}>All words reviewed.</span>
           <button onClick={() => navigate('/settings')} className="glass-pill cursor-pointer" style={{ alignSelf: 'flex-start' }}>
             <span style={{ color: 'var(--tm)' }}>Finish</span>
@@ -81,7 +81,7 @@ export function CalibratePage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <main className="mx-auto max-w-lg px-4 py-8 flex flex-col gap-6">
+      <main className="mx-auto max-w-3xl px-4 py-8 flex flex-col gap-6">
 
         <p className="text-xs" style={{ color: 'var(--td)' }}>
           Tap words you already know. Then press Next to continue.
