@@ -90,12 +90,12 @@ export function CalibratePage() {
         <div className="glass-panel overflow-hidden">
           <div
             className="grid"
-            style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}
+            style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}
           >
             {words.map((w, i) => {
               const isSelected = selected.has(w.lemma)
-              const col = i % 5
-              const row = Math.floor(i / 5)
+              const col = i % 3
+              const row = Math.floor(i / 3)
               return (
                 <button
                   key={w.lemma}
@@ -105,8 +105,8 @@ export function CalibratePage() {
                     padding: '14px 6px',
                     background: isSelected ? 'var(--accent)' : 'transparent',
                     color: isSelected ? '#fff' : 'var(--text)',
-                    borderRight: col < 4 ? '0.5px solid var(--glass-b)' : undefined,
-                    borderBottom: row < Math.ceil(words.length / 5) - 1 ? '0.5px solid var(--glass-b)' : undefined,
+                    borderRight: col < 2 ? '0.5px solid var(--glass-b)' : undefined,
+                    borderBottom: row < Math.ceil(words.length / 3) - 1 ? '0.5px solid var(--glass-b)' : undefined,
                     transition: 'background 150ms ease, color 150ms ease',
                   }}
                 >
