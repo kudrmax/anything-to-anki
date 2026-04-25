@@ -87,30 +87,34 @@ export function CalibratePage() {
           Tap words you already know. Then press Next to continue.
         </p>
 
-        <div
-          className="grid gap-[1px]"
-          style={{
-            gridTemplateColumns: 'repeat(5, 1fr)',
-            background: 'var(--glass-b)',
-            borderRadius: 'var(--card-radius, 12px)',
-            overflow: 'hidden',
-            border: '0.5px solid var(--glass-b)',
-          }}
-        >
-          {words.map(w => (
-            <button
-              key={w.lemma}
-              onClick={() => toggleWord(w.lemma)}
-              className="cursor-pointer transition-all text-sm font-medium text-center"
-              style={{
-                padding: '12px 4px',
-                background: selected.has(w.lemma) ? 'var(--accent)' : 'var(--glass)',
-                color: selected.has(w.lemma) ? '#fff' : 'var(--text)',
-              }}
-            >
-              {w.lemma}
-            </button>
-          ))}
+        <div className="glass-panel overflow-hidden">
+          <div
+            className="grid"
+            style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}
+          >
+            {words.map((w, i) => {
+              const isSelected = selected.has(w.lemma)
+              const col = i % 5
+              const row = Math.floor(i / 5)
+              return (
+                <button
+                  key={w.lemma}
+                  onClick={() => toggleWord(w.lemma)}
+                  className="cursor-pointer text-sm font-medium text-center"
+                  style={{
+                    padding: '14px 6px',
+                    background: isSelected ? 'var(--accent)' : 'transparent',
+                    color: isSelected ? '#fff' : 'var(--text)',
+                    borderRight: col < 4 ? '0.5px solid var(--glass-b)' : undefined,
+                    borderBottom: row < Math.ceil(words.length / 5) - 1 ? '0.5px solid var(--glass-b)' : undefined,
+                    transition: 'background 150ms ease, color 150ms ease',
+                  }}
+                >
+                  {w.lemma}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         <div className="flex gap-2">
