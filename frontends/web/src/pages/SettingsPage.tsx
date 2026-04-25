@@ -667,7 +667,7 @@ export function SettingsPage() {
                       className="shrink-0 text-xs px-1.5 py-0.5 rounded"
                       style={{ color: 'var(--td)', background: 'var(--glass)' }}
                     >
-                      {w.pos.toLowerCase()}
+                      {w.pos ? w.pos.toLowerCase() : 'any'}
                     </span>
                   </div>
                   <button
