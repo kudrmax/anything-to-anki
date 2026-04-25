@@ -87,15 +87,28 @@ export function CalibratePage() {
           Tap words you already know. Then press Next to continue.
         </p>
 
-        <div className="flex flex-wrap gap-2">
+        <div
+          className="grid gap-[1px]"
+          style={{
+            gridTemplateColumns: 'repeat(5, 1fr)',
+            background: 'var(--glass-b)',
+            borderRadius: 'var(--card-radius, 12px)',
+            overflow: 'hidden',
+            border: '0.5px solid var(--glass-b)',
+          }}
+        >
           {words.map(w => (
             <button
               key={w.lemma}
               onClick={() => toggleWord(w.lemma)}
-              className={`glass-pill cursor-pointer ${selected.has(w.lemma) ? 'glass-pill-prominent' : ''}`}
-              style={selected.has(w.lemma) ? { background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' } : undefined}
+              className="cursor-pointer transition-all text-sm font-medium text-center"
+              style={{
+                padding: '12px 4px',
+                background: selected.has(w.lemma) ? 'var(--accent)' : 'var(--glass)',
+                color: selected.has(w.lemma) ? '#fff' : 'var(--text)',
+              }}
             >
-              <span style={selected.has(w.lemma) ? { color: '#fff' } : { color: 'var(--text)' }}>{w.lemma}</span>
+              {w.lemma}
             </button>
           ))}
         </div>
