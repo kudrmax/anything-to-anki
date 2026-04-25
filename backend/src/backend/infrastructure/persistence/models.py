@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from backend.domain.entities.bootstrap_index_meta import BootstrapIndexMeta
+from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
@@ -547,4 +549,43 @@ class JobModel(Base):
             error=entity.error,
             created_at=entity.created_at,
             started_at=entity.started_at,
+        )
+
+
+class BootstrapIndexMetaModel(Base):
+    """SQLAlchemy model for bootstrap calibration metadata."""
+
+    __tablename__ = "bootstrap_index_meta"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="none")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    built_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    word_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    def to_entity(self) -> BootstrapIndexMeta:
+        from backend.domain.value_objects.bootstrap_index_status import BootstrapIndexStatus
+        return BootstrapIndexMeta(
+            status=BootstrapIndexStatus(self.status),
+            error=self.error,
+            built_at=self.built_at,
+            word_count=self.word_count,
+        )
+
+
+class BootstrapWordCellModel(Base):
+    """SQLAlchemy model for bootstrap calibration word entries."""
+
+    __tablename__ = "bootstrap_word_cell"
+
+    lemma: Mapped[str] = mapped_column(String(100), primary_key=True)
+    cefr_level: Mapped[str] = mapped_column(String(2), primary_key=True)
+    zipf_value: Mapped[float] = mapped_column(Float, nullable=False)
+
+    def to_entity(self) -> BootstrapWordEntry:
+        from backend.domain.value_objects.cefr_level import CEFRLevel
+        return BootstrapWordEntry(
+            lemma=self.lemma,
+            cefr_level=CEFRLevel.from_str(self.cefr_level),
+            zipf_value=self.zipf_value,
         )
