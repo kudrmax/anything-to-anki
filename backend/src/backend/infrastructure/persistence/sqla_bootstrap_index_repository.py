@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.domain.entities.bootstrap_index_meta import BootstrapIndexMeta
-from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
+from backend.domain.entities.bootstrap_index_meta import BootstrapIndexMeta  # noqa: TC001
 from backend.domain.ports.bootstrap_index_repository import BootstrapIndexRepository
 from backend.domain.value_objects.bootstrap_index_status import BootstrapIndexStatus
 from backend.infrastructure.persistence.models import (
@@ -15,6 +14,8 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from sqlalchemy.orm import Session
+
+    from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
 
 
 class SqlaBootstrapIndexRepository(BootstrapIndexRepository):

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.cefr_level import CEFRLevel
+if TYPE_CHECKING:
+    from backend.domain.value_objects.cefr_level import CEFRLevel
 
 
 @dataclass(frozen=True)

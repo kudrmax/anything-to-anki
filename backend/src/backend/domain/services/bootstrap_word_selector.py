@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import random
+from typing import TYPE_CHECKING
 
 from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
-from backend.domain.value_objects.cefr_level import CEFRLevel
+
+if TYPE_CHECKING:
+    from backend.domain.value_objects.cefr_level import CEFRLevel
 
 # Zipf band boundaries: [lower, upper)
 # Last band [5.0, 5.5] is inclusive on both ends
@@ -63,7 +66,7 @@ class BootstrapWordSelector:
 
         # Step 3: Pick one random word from each cell
         result: list[BootstrapWordEntry] = []
-        for (cell_cefr, band), lemmas in cells.items():
+        for (cell_cefr, _band), lemmas in cells.items():
             chosen_lemma = random.choice(lemmas)
             result.append(
                 BootstrapWordEntry(

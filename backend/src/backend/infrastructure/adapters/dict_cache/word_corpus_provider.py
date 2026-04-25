@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from backend.domain.ports.word_corpus_provider import WordCorpusProvider
-from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
+
+if TYPE_CHECKING:
+    from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
 
 
 class DictCacheWordCorpusProvider(WordCorpusProvider):
