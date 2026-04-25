@@ -335,3 +335,16 @@ export interface FailedByJobType {
 export interface QueueFailed {
   types: FailedByJobType[]
 }
+
+export interface BootstrapStatus {
+  status: 'none' | 'building' | 'ready' | 'error'
+  error: string | null
+  built_at: string | null
+  word_count: number
+}
+
+export interface BootstrapWord {
+  lemma: string
+  cefr_level: string
+  zipf_value: number
+}
