@@ -7,6 +7,7 @@ import { ExportPage } from '@/pages/ExportPage'
 import { GlobalExportPage } from '@/pages/GlobalExportPage'
 import { QueuePage } from '@/pages/QueuePage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { CalibratePage } from '@/pages/CalibratePage'
 
 export function App() {
   return (
@@ -19,6 +20,7 @@ export function App() {
           <Route path="/export" element={<ErrorBoundary><GlobalExportPage /></ErrorBoundary>} />
           <Route path="/queue" element={<ErrorBoundary><QueuePage /></ErrorBoundary>} />
           <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
+          <Route path="/calibrate" element={<ErrorBoundary><CalibratePage /></ErrorBoundary>} />
         </Route>
       </Routes>
     </BrowserRouter>
