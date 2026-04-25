@@ -236,3 +236,94 @@ class TestProcessSourceParsers:
         mocks["subtitles_parser"].parse.assert_not_called()
         call_args = mocks["analyze_text"].execute.call_args[0][0]
         assert call_args.raw_text == raw
+
+
+@pytest.mark.unit
+class TestProcessSourceKnownWordWildcard:
+    def test_wildcard_filters_any_pos(self) -> None:
+        """A wildcard known entry (lemma, None) should filter candidates of any POS."""
+        uc, mocks = _make_use_case()
+        mocks["source_repo"].get_by_id.return_value = Source(
+            id=1, raw_text="Hello", status=SourceStatus.PROCESSING,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
+        )
+        mocks["settings_repo"].get.return_value = "B1"
+        mocks["known_word_repo"].get_all_pairs.return_value = {("pursuit", None)}
+        mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
+            cleaned_text="Hello",
+            candidates=[
+                WordCandidateDTO(
+                    lemma="pursuit", pos="NOUN", cefr_level="B2",
+                    zipf_frequency=3.5, is_sweet_spot=True,
+                    context_fragment="in pursuit of",
+                    fragment_purity="clean", occurrences=1,
+                ),
+            ],
+            total_tokens=2,
+            unique_lemmas=1,
+        )
+
+        uc.execute(1)
+
+        saved = mocks["candidate_repo"].create_batch.call_args[0][0]
+        assert len(saved) == 0
+
+    def test_wildcard_does_not_filter_other_lemmas(self) -> None:
+        """A wildcard for 'pursuit' must not filter 'ambition'."""
+        uc, mocks = _make_use_case()
+        mocks["source_repo"].get_by_id.return_value = Source(
+            id=1, raw_text="Hello", status=SourceStatus.PROCESSING,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
+        )
+        mocks["settings_repo"].get.return_value = "B1"
+        mocks["known_word_repo"].get_all_pairs.return_value = {("pursuit", None)}
+        mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
+            cleaned_text="Hello",
+            candidates=[
+                WordCandidateDTO(
+                    lemma="ambition", pos="NOUN", cefr_level="B2",
+                    zipf_frequency=3.5, is_sweet_spot=True,
+                    context_fragment="burning ambition",
+                    fragment_purity="clean", occurrences=1,
+                ),
+            ],
+            total_tokens=2,
+            unique_lemmas=1,
+        )
+
+        uc.execute(1)
+
+        saved = mocks["candidate_repo"].create_batch.call_args[0][0]
+        assert len(saved) == 1
+        assert saved[0].lemma == "ambition"
+
+    def test_exact_and_wildcard_together(self) -> None:
+        """Both exact and wildcard entries present — all matching lemmas filtered."""
+        uc, mocks = _make_use_case()
+        mocks["source_repo"].get_by_id.return_value = Source(
+            id=1, raw_text="Hello", status=SourceStatus.PROCESSING,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
+        )
+        mocks["settings_repo"].get.return_value = "B1"
+        mocks["known_word_repo"].get_all_pairs.return_value = {
+            ("run", "VERB"),
+            ("run", None),
+        }
+        mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
+            cleaned_text="Hello",
+            candidates=[
+                WordCandidateDTO(
+                    lemma="run", pos="NOUN", cefr_level="B1",
+                    zipf_frequency=4.0, is_sweet_spot=True,
+                    context_fragment="a run in the park",
+                    fragment_purity="clean", occurrences=1,
+                ),
+            ],
+            total_tokens=2,
+            unique_lemmas=1,
+        )
+
+        uc.execute(1)
+
+        saved = mocks["candidate_repo"].create_batch.call_args[0][0]
+        assert len(saved) == 0
