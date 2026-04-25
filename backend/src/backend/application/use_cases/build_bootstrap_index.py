@@ -21,6 +21,12 @@ _ZIPF_MIN = 3.0
 _ZIPF_MAX = 5.5
 
 
+def _is_multi_word(lemma: str) -> bool:
+    """Multi-word lemmas (e.g. 'police station') are skipped because
+    the pipeline tokenizes text into single tokens and cannot match them."""
+    return " " in lemma
+
+
 class BuildBootstrapIndexUseCase:
     """Builds the bootstrap calibration index from the word corpus."""
 
@@ -60,7 +66,7 @@ class BuildBootstrapIndexUseCase:
 
         lemma_cefr_levels: dict[str, set[CEFRLevel]] = {}
         for lemma, pos in pairs:
-            if self._phrasal_verb_dictionary.contains_phrase(lemma):
+            if _is_multi_word(lemma) or self._phrasal_verb_dictionary.contains_phrase(lemma):
                 continue
             try:
                 cefr = self._cefr_classifier.classify(lemma, pos)
