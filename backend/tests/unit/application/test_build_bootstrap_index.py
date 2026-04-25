@@ -14,11 +14,14 @@ class TestBuildBootstrapIndexUseCase:
         self.cefr_classifier = MagicMock()
         self.frequency_provider = MagicMock()
         self.index_repo = MagicMock()
+        self.phrasal_verb_dictionary = MagicMock()
+        self.phrasal_verb_dictionary.contains_phrase.return_value = False
         self.use_case = BuildBootstrapIndexUseCase(
             corpus_provider=self.corpus_provider,
             cefr_classifier=self.cefr_classifier,
             frequency_provider=self.frequency_provider,
             index_repo=self.index_repo,
+            phrasal_verb_dictionary=self.phrasal_verb_dictionary,
         )
 
     def test_builds_index_from_corpus(self) -> None:
@@ -68,7 +71,11 @@ class TestBuildBootstrapIndexUseCase:
         assert len(rebuild_entries) == 0
 
     def test_filters_phrasal_verbs(self) -> None:
-        self.corpus_provider.get_all_lemma_pos_pairs.return_value = [("give in", "phrasal verb")]
+        self.corpus_provider.get_all_lemma_pos_pairs.return_value = [
+            ("give in", "verb"),
+            ("turn down", "phrasal verb"),
+        ]
+        self.phrasal_verb_dictionary.contains_phrase.side_effect = lambda phrase: phrase in {"give in", "turn down"}
         self.cefr_classifier.classify.return_value = CEFRLevel.B2
         self.frequency_provider.get_zipf_value.return_value = 4.0
 

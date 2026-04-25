@@ -12,13 +12,13 @@ if TYPE_CHECKING:
     from backend.domain.ports.bootstrap_index_repository import BootstrapIndexRepository
     from backend.domain.ports.cefr_classifier import CEFRClassifier
     from backend.domain.ports.frequency_provider import FrequencyProvider
+    from backend.domain.ports.phrasal_verb_dictionary import PhrasalVerbDictionary
     from backend.domain.ports.word_corpus_provider import WordCorpusProvider
 
 logger = logging.getLogger(__name__)
 
 _ZIPF_MIN = 3.0
 _ZIPF_MAX = 5.5
-_PHRASAL_VERB_POS = "phrasal verb"
 
 
 class BuildBootstrapIndexUseCase:
@@ -30,11 +30,13 @@ class BuildBootstrapIndexUseCase:
         cefr_classifier: CEFRClassifier,
         frequency_provider: FrequencyProvider,
         index_repo: BootstrapIndexRepository,
+        phrasal_verb_dictionary: PhrasalVerbDictionary,
     ) -> None:
         self._corpus_provider = corpus_provider
         self._cefr_classifier = cefr_classifier
         self._frequency_provider = frequency_provider
         self._index_repo = index_repo
+        self._phrasal_verb_dictionary = phrasal_verb_dictionary
 
     def execute(self) -> None:
         self._index_repo.set_meta(status=BootstrapIndexStatus.BUILDING)
@@ -58,7 +60,7 @@ class BuildBootstrapIndexUseCase:
 
         lemma_cefr_levels: dict[str, set[CEFRLevel]] = {}
         for lemma, pos in pairs:
-            if pos == _PHRASAL_VERB_POS:
+            if self._phrasal_verb_dictionary.contains_phrase(lemma):
                 continue
             try:
                 cefr = self._cefr_classifier.classify(lemma, pos)

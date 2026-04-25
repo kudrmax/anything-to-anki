@@ -436,6 +436,7 @@ class Container:
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
             index_repo=SqlaBootstrapIndexRepository(session),
+            phrasal_verb_dictionary=self._phrasal_verb_dictionary,
         )
 
     def get_bootstrap_words_use_case(self, session: Session) -> GetBootstrapWordsUseCase:
