@@ -17,6 +17,7 @@ from starlette.responses import Response
 from backend.infrastructure.api.dependencies import get_session_factory
 from backend.infrastructure.api.routes import (
     anki,
+    bootstrap,
     candidates,
     collections,
     export,
@@ -105,6 +106,7 @@ app.include_router(pronunciation_router)
 app.include_router(tts_router)
 app.include_router(queue_router)
 app.include_router(collections.router)
+app.include_router(bootstrap.router)
 
 _dist_env = os.getenv("FRONTEND_DIST")
 _DIST = Path(_dist_env) if _dist_env else Path(__file__).parents[5] / "frontends" / "web" / "dist"
