@@ -35,27 +35,31 @@ define kill_by_pid
 	fi
 endef
 
-# Убить ai_proxy на порту $(1). Проверяем что это именно ai_proxy (grep по args),
-# чтобы случайно не убить чужой процесс на том же порту.
-define kill_ai_proxy_on_port
-	@pid=$$(lsof -ti :$(1) 2>/dev/null); \
-	if [ -n "$$pid" ] && ps -p $$pid -o args= 2>/dev/null | grep -q ai_proxy; then \
-	    kill $$pid 2>/dev/null || true; \
-	    echo "Killed ai_proxy on port $(1) (PID $$pid)"; \
-	    sleep 0.5; \
-	fi
+# Убить процесс на порту $(1), если он соответствует паттерну $(2) в args.
+# Безопасно: не убьёт чужой процесс на том же порту.
+define kill_on_port
+	@pids=$$(lsof -ti :$(1) 2>/dev/null); \
+	for pid in $$pids; do \
+	    if ps -p $$pid -o args= 2>/dev/null | grep -q '$(2)'; then \
+	        kill $$pid 2>/dev/null || true; \
+	        echo "Killed $(2) on port $(1) (PID $$pid)"; \
+	    fi; \
+	done; \
+	if [ -n "$$pids" ]; then sleep 0.5; fi
 endef
 
 define start_ai_proxy
 	@mkdir -p .pids .logs
-	$(call kill_ai_proxy_on_port,$(AI_PROXY_PORT))
+	$(call kill_on_port,$(AI_PROXY_PORT),ai_proxy)
 	@.venv/bin/python ai_proxy.py --port $(AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > $(AI_PID); \
 	    echo "ai_proxy started on port $(AI_PROXY_PORT) (PID $$(cat $(AI_PID)))"
 endef
 
 define start_app
 	@mkdir -p .pids .logs
+	$(call kill_on_port,$(PORT),uvicorn)
 	@AI_PROXY_URL=http://localhost:$(AI_PROXY_PORT) \
+	    no_proxy=localhost,127.0.0.1 \
 	    .venv/bin/uvicorn backend.infrastructure.api.app:app \
 	    --host 0.0.0.0 --port $(PORT) >> $(APP_LOG) 2>&1 & echo $$! > $(APP_PID); \
 	    echo "app started on port $(PORT) (PID $$(cat $(APP_PID)))"
@@ -64,12 +68,13 @@ endef
 define start_worker
 	@mkdir -p .pids .logs
 	@AI_PROXY_URL=http://localhost:$(AI_PROXY_PORT) \
+	    no_proxy=localhost,127.0.0.1 \
 	    .venv/bin/python -m backend.infrastructure.queue >> $(WRK_LOG) 2>&1 & echo $$! > $(WRK_PID); \
 	    echo "worker started (PID $$(cat $(WRK_PID)))"
 endef
 
 define stop_ai_proxy
-	$(call kill_ai_proxy_on_port,$(AI_PROXY_PORT))
+	$(call kill_on_port,$(AI_PROXY_PORT),ai_proxy)
 	@rm -f $(AI_PID)
 endef
 
@@ -106,7 +111,7 @@ _check_setup:
 setup:  ## Одноразовая установка зависимостей (brew, Python, Node)
 	@echo "=== Checking brew dependencies ==="
 	@command -v brew >/dev/null || (echo "ERROR: Homebrew not installed. Install from https://brew.sh" && exit 1)
-	@for pkg in python@3.12 node ffmpeg espeak; do \
+	@for pkg in python@3.12 node espeak; do \
 	    if ! brew list $$pkg >/dev/null 2>&1; then \
 	        echo "Installing $$pkg..."; \
 	        HOMEBREW_BOTTLE_DOMAIN="" HOMEBREW_CORE_GIT_REMOTE="" HOMEBREW_BREW_GIT_REMOTE="" brew install $$pkg; \
@@ -114,8 +119,22 @@ setup:  ## Одноразовая установка зависимостей (b
 	        echo "$$pkg: already installed"; \
 	    fi; \
 	done
+	@echo "=== Checking ffmpeg with webp support ==="
+	@if ffmpeg -encoders 2>/dev/null | grep -q libwebp; then \
+	    echo "ffmpeg: ok (webp supported)"; \
+	elif command -v ffmpeg >/dev/null 2>&1; then \
+	    echo "ERROR: ffmpeg is installed but without webp encoder support."; \
+	    echo "Please uninstall it and re-run make setup:"; \
+	    echo "  brew uninstall ffmpeg"; \
+	    echo "  make setup"; \
+	    exit 1; \
+	else \
+	    echo "Installing ffmpeg with webp support..."; \
+	    HOMEBREW_BOTTLE_DOMAIN="" HOMEBREW_CORE_GIT_REMOTE="" HOMEBREW_BREW_GIT_REMOTE="" brew tap homebrew-ffmpeg/ffmpeg; \
+	    HOMEBREW_BOTTLE_DOMAIN="" HOMEBREW_CORE_GIT_REMOTE="" HOMEBREW_BREW_GIT_REMOTE="" brew install homebrew-ffmpeg/ffmpeg/ffmpeg --with-webp; \
+	fi
 	@echo "\n=== Creating Python venv ==="
-	@python3.12 -m venv .venv
+	@python3.12 -m venv .venv --clear
 	@.venv/bin/pip install -e "backend/[dev,tts]"
 	@.venv/bin/pip install -e ".[ai-proxy]"
 	@echo "\n=== Installing frontend dependencies ==="
@@ -153,16 +172,18 @@ up: _check_env _check_setup dict-update  ## Запустить (ai_proxy + app +
 up-worktree: _check_env _check_setup dict-update  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий)
 	@echo "Building frontend..."
 	@cd frontends/web && npm run build
-	$(call kill_ai_proxy_on_port,$(WORKTREE_AI_PROXY_PORT))
+	$(call kill_on_port,$(WORKTREE_AI_PROXY_PORT),ai_proxy)
 	@mkdir -p .pids .logs
 	@.venv/bin/python ai_proxy.py --port $(WORKTREE_AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > .pids/ai_proxy_wt.pid; \
 	    echo "ai_proxy started on port $(WORKTREE_AI_PROXY_PORT)"
 	@AI_PROXY_URL=http://localhost:$(WORKTREE_AI_PROXY_PORT) \
+	    no_proxy=localhost,127.0.0.1 \
 	    INSTANCE_ENV_NAME=worktree \
 	    .venv/bin/uvicorn backend.infrastructure.api.app:app \
 	    --host 0.0.0.0 --port $(WORKTREE_PORT) >> .logs/app_wt.log 2>&1 & echo $$! > .pids/app_wt.pid; \
 	    echo "app started on port $(WORKTREE_PORT)"
 	@AI_PROXY_URL=http://localhost:$(WORKTREE_AI_PROXY_PORT) \
+	    no_proxy=localhost,127.0.0.1 \
 	    .venv/bin/python -m backend.infrastructure.queue >> .logs/worker_wt.log 2>&1 & echo $$! > .pids/worker_wt.pid; \
 	    echo "worker started"
 	@printf "\n\033[1;33m"
@@ -174,6 +195,7 @@ up-worktree: _check_env _check_setup dict-update  ## Запустить worktree
 
 down:  ## Остановить
 	$(call kill_by_pid,$(APP_PID),app)
+	$(call kill_on_port,$(PORT),uvicorn)
 	$(call kill_by_pid,$(WRK_PID),worker)
 	$(call stop_ai_proxy)
 
