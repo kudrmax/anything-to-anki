@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.use_cases.get_reprocess_stats import GetReprocessStatsUseCase
 from backend.application.use_cases.reprocess_source import ReprocessSourceUseCase
+from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.job import Job
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -16,8 +17,14 @@ from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
+    SqlaCandidateMeaningRepository,
+)
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
+)
+from backend.infrastructure.persistence.sqla_enrichment_cache_repository import (
+    SqlaEnrichmentCacheRepository,
 )
 from backend.infrastructure.persistence.sqla_job_repository import (
     SqlaJobRepository,
@@ -93,6 +100,7 @@ def _make_reprocess_uc(
         candidate_repo=SqlaCandidateRepository(db_session),
         job_repo=SqlaJobRepository(db_session),
         process_source_use_case=process_source_uc,
+        enrichment_cache_repo=SqlaEnrichmentCacheRepository(db_session),
     )
 
 
@@ -218,3 +226,80 @@ def test_reprocess_error_source_no_candidates(db_session: Session) -> None:
     assert updated.error_message is None
 
     process_source_uc.start.assert_called_once_with(source_id)
+
+
+@pytest.mark.integration
+def test_reprocess_saves_enrichment_to_cache(db_session: Session) -> None:
+    from backend.infrastructure.persistence.models import EnrichmentCacheModel
+
+    source_id = _create_processed_source(db_session)
+
+    candidate_repo = SqlaCandidateRepository(db_session)
+    meaning_repo = SqlaCandidateMeaningRepository(db_session)
+    candidates = candidate_repo.get_by_source(source_id)
+    now = datetime.now(tz=UTC)
+    meaning_repo.upsert(CandidateMeaning(
+        candidate_id=candidates[0].id,
+        meaning="to delay doing something",
+        translation="откладывать",
+        synonyms=None,
+        examples=None,
+        ipa="/prəˈkræs.tɪ.neɪt/",
+        generated_at=now,
+    ))
+    db_session.flush()
+
+    process_source_uc = MagicMock()
+    reprocess_uc = _make_reprocess_uc(db_session, process_source_uc)
+    reprocess_uc.execute(source_id)
+
+    cache_rows = db_session.query(EnrichmentCacheModel).filter_by(source_id=source_id).all()
+    assert len(cache_rows) == 3  # all 3 candidates saved
+
+    assert len(candidate_repo.get_by_source(source_id)) == 0
+
+
+@pytest.mark.integration
+def test_finalize_restores_enrichment(db_session: Session) -> None:
+    source_id = _create_processed_source(db_session)
+
+    candidate_repo = SqlaCandidateRepository(db_session)
+    meaning_repo = SqlaCandidateMeaningRepository(db_session)
+    candidates = candidate_repo.get_by_source(source_id)
+    now = datetime.now(tz=UTC)
+    meaning_repo.upsert(CandidateMeaning(
+        candidate_id=candidates[0].id,
+        meaning="to delay doing something",
+        translation="откладывать",
+        synonyms=None,
+        examples=None,
+        ipa="/prəˈkræs.tɪ.neɪt/",
+        generated_at=now,
+    ))
+    db_session.flush()
+
+    process_source_uc = MagicMock()
+    reprocess_uc = _make_reprocess_uc(db_session, process_source_uc)
+    reprocess_uc.execute(source_id)
+
+    new_candidates = candidate_repo.create_batch([
+        StoredCandidate(
+            source_id=source_id,
+            lemma="procrastinate",
+            pos="VERB",
+            cefr_level="C2",
+            zipf_frequency=3.2,
+            context_fragment="She tends to procrastinate when facing deadlines.",
+            fragment_purity="pure",
+            occurrences=1,
+            status=CandidateStatus.PENDING,
+        ),
+    ])
+
+    reprocess_uc.finalize(source_id)
+
+    assert new_candidates[0].id is not None
+    m = meaning_repo.get_by_candidate_id(new_candidates[0].id)
+    assert m is not None
+    assert m.meaning == "to delay doing something"
+    assert m.ipa == "/prəˈkræs.tɪ.neɪt/"

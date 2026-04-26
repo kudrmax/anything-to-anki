@@ -333,11 +333,15 @@ class Container:
         )
 
     def reprocess_source_use_case(self, session: Session) -> ReprocessSourceUseCase:
+        from backend.infrastructure.persistence.sqla_enrichment_cache_repository import (
+            SqlaEnrichmentCacheRepository,
+        )
         return ReprocessSourceUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             job_repo=SqlaJobRepository(session),
             process_source_use_case=self.process_source_use_case(session),
+            enrichment_cache_repo=SqlaEnrichmentCacheRepository(session),
         )
 
     def get_reprocess_stats_use_case(self, session: Session) -> GetReprocessStatsUseCase:
@@ -590,7 +594,7 @@ class Container:
         return GenerateTTSUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             tts_repo=SqlaCandidateTTSRepository(session),
-            tts_generator=self._tts_generator,
+            tts_generator=self.tts_generator,
             settings_repo=SqlaSettingsRepository(session),
             media_root=self._media_root,
         )

@@ -219,6 +219,9 @@ async def _process_background(
     try:
         use_case = container.process_source_use_case(bg_session)
         await asyncio.to_thread(use_case.execute, source_id, on_stage_commit=bg_session.commit)
+        # Restore enrichment from cache (best-effort, uses bg_session)
+        reprocess_uc = container.reprocess_source_use_case(bg_session)
+        reprocess_uc.finalize(source_id)
         bg_session.commit()
     except Exception:
         logger.exception("Background processing failed (source_id=%d)", source_id)

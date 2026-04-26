@@ -33,6 +33,7 @@ from backend.infrastructure.api.routes.pronunciation import router as pronunciat
 from backend.infrastructure.api.routes.tts import router as tts_router
 from backend.infrastructure.logging_setup import configure_logging
 from backend.infrastructure.persistence.database import (
+    cleanup_enrichment_cache,
     reconcile_media_files,
     reset_stuck_processing,
     run_alembic_migrations,
@@ -49,6 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if ":memory:" not in db_url:
         run_alembic_migrations(db_url)
     reset_stuck_processing(session_factory)
+    cleanup_enrichment_cache(session_factory)
     data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
     media_root = os.environ.get("MEDIA_ROOT", os.path.join(data_dir, "media"))
     reconcile_media_files(session_factory, media_root)

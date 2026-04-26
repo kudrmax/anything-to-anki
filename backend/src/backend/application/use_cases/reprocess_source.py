@@ -13,6 +13,7 @@ from backend.domain.value_objects.source_status import SourceStatus
 if TYPE_CHECKING:
     from backend.application.use_cases.process_source import ProcessSourceUseCase
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.enrichment_cache_repository import EnrichmentCacheRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_repository import SourceRepository
 
@@ -33,11 +34,13 @@ class ReprocessSourceUseCase:
         candidate_repo: CandidateRepository,
         job_repo: JobRepository,
         process_source_use_case: ProcessSourceUseCase,
+        enrichment_cache_repo: EnrichmentCacheRepository | None = None,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
         self._job_repo = job_repo
         self._process_source_uc = process_source_use_case
+        self._enrichment_cache_repo = enrichment_cache_repo
 
     def execute(self, source_id: int) -> None:
         source = self._source_repo.get_by_id(source_id)
@@ -49,6 +52,10 @@ class ReprocessSourceUseCase:
         if self._job_repo.has_active_jobs_for_source(source_id):
             raise SourceHasActiveJobsError(source_id)
 
+        if self._enrichment_cache_repo is not None:
+            logger.info("reprocess_source: saving enrichment to cache (source_id=%d)", source_id)
+            self._enrichment_cache_repo.save_from_source(source_id)
+
         logger.info("reprocess_source: deleting candidates (source_id=%d)", source_id)
         self._candidate_repo.delete_by_source(source_id)
 
@@ -57,3 +64,21 @@ class ReprocessSourceUseCase:
 
         logger.info("reprocess_source: starting pipeline (source_id=%d)", source_id)
         self._process_source_uc.start(source_id)
+
+    def finalize(self, source_id: int) -> None:
+        """Restore enrichment from cache for matching candidates. Best-effort."""
+        if self._enrichment_cache_repo is None:
+            return
+        try:
+            restored = self._enrichment_cache_repo.restore_to_candidates(source_id)
+            self._enrichment_cache_repo.cleanup(source_id)
+            logger.info(
+                "enrichment restore: %d candidates restored (source_id=%d)",
+                restored, source_id,
+            )
+        except Exception:
+            logger.warning(
+                "enrichment restore failed (source_id=%d), continuing without",
+                source_id,
+                exc_info=True,
+            )

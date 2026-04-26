@@ -496,6 +496,37 @@ class CandidateTTSModel(Base):
         )
 
 
+class EnrichmentCacheModel(Base):
+    """Temporary cache for enrichment data during source reprocessing."""
+
+    __tablename__ = "enrichment_cache"
+
+    source_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    lemma: Mapped[str] = mapped_column(String(100), primary_key=True, nullable=False)
+    pos: Mapped[str] = mapped_column(String(10), primary_key=True, nullable=False)
+    context_fragment: Mapped[str] = mapped_column(Text, primary_key=True, nullable=False)
+    # meaning
+    meaning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    translation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    synonyms: Mapped[str | None] = mapped_column(Text, nullable=True)
+    examples: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ipa: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    meaning_generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # media
+    screenshot_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    start_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    end_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    media_generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # pronunciation
+    us_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uk_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pronunciation_generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # tts
+    tts_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tts_generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class JobModel(Base):
     """SQLAlchemy model for the job queue."""
 
