@@ -69,7 +69,7 @@ export function CEFRBreakdownTooltip({ breakdown, cefrLevel, anchorEl, onClose }
   }, [anchorEl, onClose])
 
   const decidingPriority = breakdown.decision_method === 'priority'
-    ? breakdown.priority_votes.find(v => v.level != null)
+    ? breakdown.priority_votes.find(v => v.level === cefrLevel)
     : null
   const headerText = decidingPriority
     ? `${cefrLevel}  resolved by ${decidingPriority.source_name}`
