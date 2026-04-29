@@ -108,7 +108,7 @@ _check_setup:
 	@command -v ffmpeg >/dev/null || (echo "ERROR: ffmpeg not installed. Run 'make setup' first." && exit 1)
 
 ##@ Установка
-setup:  ## Одноразовая установка зависимостей (brew, Python, Node)
+setup: down  ## Одноразовая установка зависимостей (brew, Python, Node)
 	@echo "=== Checking brew dependencies ==="
 	@command -v brew >/dev/null || (echo "ERROR: Homebrew not installed. Install from https://brew.sh" && exit 1)
 	@for pkg in python@3.12 node espeak; do \
