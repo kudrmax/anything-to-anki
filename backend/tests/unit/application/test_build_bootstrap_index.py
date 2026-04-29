@@ -93,6 +93,21 @@ class TestBuildBootstrapIndexUseCase:
         assert calls[1].kwargs["status"] == BootstrapIndexStatus.ERROR
         assert "db broken" in calls[1].kwargs["error"]
 
+    def test_filters_hyphenated_words(self) -> None:
+        self.corpus_provider.get_all_lemma_pos_pairs.return_value = [
+            ("brother-in-law", "noun"),
+            ("well-known", "adjective"),
+            ("elaborate", "verb"),
+        ]
+        self.cefr_classifier.classify.return_value = CEFRLevel.B2
+        self.frequency_provider.get_zipf_value.return_value = 4.0
+
+        self.use_case.execute()
+
+        rebuild_entries = self.index_repo.rebuild.call_args[0][0]
+        assert len(rebuild_entries) == 1
+        assert rebuild_entries[0].lemma == "elaborate"
+
     def test_deduplicates_same_lemma_cefr(self) -> None:
         self.corpus_provider.get_all_lemma_pos_pairs.return_value = [
             ("fast", "adjective"),

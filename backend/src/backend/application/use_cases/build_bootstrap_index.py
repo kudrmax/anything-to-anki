@@ -22,9 +22,10 @@ _ZIPF_MAX = 5.5
 
 
 def _is_multi_word(lemma: str) -> bool:
-    """Multi-word lemmas (e.g. 'police station') are skipped because
-    the pipeline tokenizes text into single tokens and cannot match them."""
-    return " " in lemma
+    """Multi-word or hyphenated lemmas (e.g. 'police station', 'brother-in-law')
+    are skipped because the pipeline tokenizes text into single tokens
+    and cannot match them."""
+    return " " in lemma or "-" in lemma
 
 
 class BuildBootstrapIndexUseCase:
