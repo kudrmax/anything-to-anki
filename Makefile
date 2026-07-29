@@ -123,25 +123,27 @@ setup-brew:  ## Установить brew-пакеты (python@3.12, node, espea
 	    fi; \
 	done
 
-setup-media:  ## Проверить/установить ffmpeg с поддержкой webp
-	@echo "=== Checking ffmpeg with webp support ==="
-	@if ffmpeg -encoders 2>/dev/null | grep -q libwebp; then \
-	    echo "ffmpeg: ok (webp supported)"; \
-	elif command -v ffmpeg >/dev/null 2>&1; then \
-	    echo "ERROR: ffmpeg is installed but without webp encoder support."; \
-	    echo "Please uninstall it and re-run make setup:"; \
-	    echo "  brew uninstall ffmpeg"; \
-	    echo "  make setup"; \
-	    exit 1; \
+# Подойдёт любой ffmpeg: webp кодирует Pillow, а не ffmpeg. Раньше здесь
+# требовалась сборка с libwebp — из-за этого setup упирался в часовую сборку
+# из исходников, а обновление homebrew/core ломало генерацию скриншотов.
+setup-media:  ## Проверить/установить ffmpeg
+	@echo "=== Checking ffmpeg ==="
+	@if command -v ffmpeg >/dev/null 2>&1; then \
+	    echo "ffmpeg: already installed"; \
 	else \
-	    echo "Installing ffmpeg with webp support..."; \
-	    HOMEBREW_BOTTLE_DOMAIN="" HOMEBREW_CORE_GIT_REMOTE="" HOMEBREW_BREW_GIT_REMOTE="" brew tap homebrew-ffmpeg/ffmpeg; \
-	    HOMEBREW_BOTTLE_DOMAIN="" HOMEBREW_CORE_GIT_REMOTE="" HOMEBREW_BREW_GIT_REMOTE="" brew install homebrew-ffmpeg/ffmpeg/ffmpeg --with-webp; \
+	    echo "Installing ffmpeg..."; \
+	    HOMEBREW_BOTTLE_DOMAIN="" HOMEBREW_CORE_GIT_REMOTE="" HOMEBREW_BREW_GIT_REMOTE="" brew install ffmpeg; \
 	fi
 
-setup-python:  ## Создать venv и поставить Python-зависимости
-	@echo "\n=== Creating Python venv ==="
-	@python3.12 -m venv .venv --clear
+# venv не пересоздаётся: он весит больше гигабайта (torch, spacy, kokoro) и
+# качается из сети, включая en_core_web_sm с GitHub. Обрыв связи на этом шаге
+# оставил бы копию вообще без окружения.
+setup-python:  ## Создать venv (если его нет) и поставить Python-зависимости
+	@echo "\n=== Installing Python dependencies ==="
+	@if [ ! -d .venv ]; then \
+	    echo "Creating venv..."; \
+	    python3.12 -m venv .venv; \
+	fi
 	@.venv/bin/pip install -e "backend/[dev,tts]"
 	@.venv/bin/pip install -e ".[ai-proxy]"
 

@@ -1,28 +1,49 @@
 # backend/tests/unit/infrastructure/test_ffmpeg_media_extractor.py
 from __future__ import annotations
 
+import io
+import logging
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
 from backend.infrastructure.adapters.ffmpeg_media_extractor import (
     _AUDIO_BITRATE,
     _AUDIO_CHANNELS,
+    _SCREENSHOT_FRAME_CODEC,
     _SCREENSHOT_MAX_WIDTH,
-    _SCREENSHOT_WEBP_QUALITY,
+    _SCREENSHOT_PIPE_FORMAT,
+    _SCREENSHOT_PIPE_TARGET,
     FfmpegMediaExtractor,
 )
+from PIL import Image
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+_WEBP_RIFF_HEADER = b"RIFF"
+_WEBP_FORMAT_MARKER = b"WEBP"
+_WEBP_FORMAT_OFFSET = 8
+
+
+def _png_frame() -> bytes:
+    """Кадр, который в реальности приходит от ffmpeg через stdout."""
+    buffer = io.BytesIO()
+    Image.new("RGB", (8, 8), color="red").save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 @pytest.mark.unit
 class TestFfmpegMediaExtractorScreenshot:
     @patch("backend.infrastructure.adapters.ffmpeg_media_extractor.subprocess.run")
-    def test_extract_screenshot_uses_webp_with_scale_and_quality(
-        self, mock_run: MagicMock,
+    def test_extract_screenshot_pipes_frame_and_encodes_webp(
+        self, mock_run: MagicMock, tmp_path: Path,
     ) -> None:
-        mock_run.return_value = MagicMock(returncode=0)
+        mock_run.return_value = MagicMock(returncode=0, stdout=_png_frame(), stderr=b"")
+        out_path = tmp_path / "1_screenshot.webp"
         extractor = FfmpegMediaExtractor()
 
-        extractor.extract_screenshot("/videos/movie.mkv", 5000, "/media/1_screenshot.webp")
+        extractor.extract_screenshot("/videos/movie.mkv", 5000, str(out_path))
 
         args = mock_run.call_args[0][0]
         assert args[0] == "ffmpeg"
@@ -36,17 +57,38 @@ class TestFfmpegMediaExtractorScreenshot:
         vf_idx = args.index("-vf")
         assert "scale=" in args[vf_idx + 1]
         assert str(_SCREENSHOT_MAX_WIDTH) in args[vf_idx + 1]
-        assert "-c:v" in args
+        # ffmpeg only decodes: the frame goes to stdout, WebP is Pillow's job
+        format_idx = args.index("-f")
+        assert args[format_idx + 1] == _SCREENSHOT_PIPE_FORMAT
         codec_idx = args.index("-c:v")
-        assert args[codec_idx + 1] == "libwebp"
-        assert "-quality" in args
-        q_idx = args.index("-quality")
-        assert args[q_idx + 1] == str(_SCREENSHOT_WEBP_QUALITY)
-        assert args[-1] == "/media/1_screenshot.webp"
+        assert args[codec_idx + 1] == _SCREENSHOT_FRAME_CODEC
+        assert args[-1] == _SCREENSHOT_PIPE_TARGET
+        assert str(out_path) not in args
         mock_run.assert_called_once()
         _, kwargs = mock_run.call_args
         assert kwargs.get("check") is True
         assert kwargs.get("capture_output") is True
+
+        data = out_path.read_bytes()
+        assert data[:4] == _WEBP_RIFF_HEADER
+        assert data[_WEBP_FORMAT_OFFSET:_WEBP_FORMAT_OFFSET + 4] == _WEBP_FORMAT_MARKER
+
+    @patch("backend.infrastructure.adapters.ffmpeg_media_extractor.subprocess.run")
+    def test_extract_screenshot_raises_and_logs_when_no_frame_decoded(
+        self, mock_run: MagicMock, tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Пустой вывод при коде возврата 0 — ошибка, а не успешный скриншот."""
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout=b"", stderr=b"Output file is empty, nothing was encoded",
+        )
+        out_path = tmp_path / "1_screenshot.webp"
+        extractor = FfmpegMediaExtractor()
+
+        with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError):
+            extractor.extract_screenshot("/videos/movie.mkv", 5000, str(out_path))
+
+        assert not out_path.exists()
+        assert "Output file is empty" in caplog.text
 
 
 @pytest.mark.unit
