@@ -1,4 +1,4 @@
-.PHONY: up down logs setup up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths _check_env _check_setup
+.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths _check_env _check_setup
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # -include не падает если файла нет; если .env создаётся правилом ниже,
@@ -108,7 +108,10 @@ _check_setup:
 	@command -v ffmpeg >/dev/null || (echo "ERROR: ffmpeg not installed. Run 'make setup' first." && exit 1)
 
 ##@ Установка
-setup: down  ## Одноразовая установка зависимостей (brew, Python, Node)
+setup: down setup-brew setup-media setup-python setup-frontend  ## Одноразовая установка зависимостей (brew, ffmpeg, Python, Node)
+	@echo "\n=== Setup complete. Run 'make up' to start. ==="
+
+setup-brew:  ## Установить brew-пакеты (python@3.12, node, espeak)
 	@echo "=== Checking brew dependencies ==="
 	@command -v brew >/dev/null || (echo "ERROR: Homebrew not installed. Install from https://brew.sh" && exit 1)
 	@for pkg in python@3.12 node espeak; do \
@@ -119,6 +122,8 @@ setup: down  ## Одноразовая установка зависимосте
 	        echo "$$pkg: already installed"; \
 	    fi; \
 	done
+
+setup-media:  ## Проверить/установить ffmpeg с поддержкой webp
 	@echo "=== Checking ffmpeg with webp support ==="
 	@if ffmpeg -encoders 2>/dev/null | grep -q libwebp; then \
 	    echo "ffmpeg: ok (webp supported)"; \
@@ -133,13 +138,16 @@ setup: down  ## Одноразовая установка зависимосте
 	    HOMEBREW_BOTTLE_DOMAIN="" HOMEBREW_CORE_GIT_REMOTE="" HOMEBREW_BREW_GIT_REMOTE="" brew tap homebrew-ffmpeg/ffmpeg; \
 	    HOMEBREW_BOTTLE_DOMAIN="" HOMEBREW_CORE_GIT_REMOTE="" HOMEBREW_BREW_GIT_REMOTE="" brew install homebrew-ffmpeg/ffmpeg/ffmpeg --with-webp; \
 	fi
+
+setup-python:  ## Создать venv и поставить Python-зависимости
 	@echo "\n=== Creating Python venv ==="
 	@python3.12 -m venv .venv --clear
 	@.venv/bin/pip install -e "backend/[dev,tts]"
 	@.venv/bin/pip install -e ".[ai-proxy]"
+
+setup-frontend:  ## Поставить зависимости фронтенда (npm install)
 	@echo "\n=== Installing frontend dependencies ==="
 	@cd frontends/web && npm install
-	@echo "\n=== Setup complete. Run 'make up' to start. ==="
 
 ##@ Словари
 _check_dictionaries_dir:
