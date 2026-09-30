@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '@/layouts/AppLayout'
+import { AppShell } from '@/shell'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { InboxPage } from '@/pages/InboxPage'
 import { ReviewPage } from '@/pages/ReviewPage'
@@ -13,6 +14,8 @@ export function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route element={<AppShell />}>
+        </Route>
         <Route element={<AppLayout />}>
           <Route path="/" element={<ErrorBoundary><InboxPage /></ErrorBoundary>} />
           <Route path="/sources/:id/review" element={<ErrorBoundary><ReviewPage /></ErrorBoundary>} />

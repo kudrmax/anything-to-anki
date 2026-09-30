@@ -6,5 +6,3 @@ lib/ThemeProvider.tsx
 lib/design-tokens.ts
 index.css
 App.css
-App.tsx
-main.tsx
