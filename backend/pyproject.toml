@@ -17,6 +17,9 @@ dependencies = [
     "PyYAML>=6.0",
     "structlog>=24.1",
     "yt-dlp>=2024.0",
+    # WebP-кодирование скриншотов. Внутри колеса едет своя libwebp, поэтому
+    # результат не зависит от того, с какими кодеками собран системный ffmpeg.
+    "pillow>=11.0",
 ]
 
 [project.optional-dependencies]

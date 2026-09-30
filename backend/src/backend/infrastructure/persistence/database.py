@@ -15,9 +15,32 @@ class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
 
 
+SQLITE_FILE_URL_PREFIX = "sqlite:///"
+SQLITE_IN_MEMORY_PATH = ":memory:"
+
+
 def default_db_url() -> str:
     data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
     return f"sqlite:///{data_dir}/app.db"
+
+
+def _ensure_sqlite_directory(db_url: str) -> None:
+    """Create the directory for a file-based SQLite DB if it does not exist.
+
+    `data/` is gitignored, so a freshly cloned copy has no such directory.
+    SQLite does not create missing parents and fails with
+    'unable to open database file' — the app would not start at all.
+    """
+    if not db_url.startswith(SQLITE_FILE_URL_PREFIX):
+        return
+
+    db_path = db_url[len(SQLITE_FILE_URL_PREFIX):]
+    if not db_path or db_path == SQLITE_IN_MEMORY_PATH:
+        return
+
+    parent_dir = os.path.dirname(db_path)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
 
 
 def run_alembic_migrations(db_url: str) -> None:
@@ -48,7 +71,9 @@ def _enable_sqlite_foreign_keys(dbapi_conn: object, _connection_record: object) 
 
 def create_session_factory(db_url: str | None = None) -> sessionmaker[Session]:
     """Create a SQLAlchemy session factory."""
-    engine = create_engine(db_url or default_db_url(), connect_args={"check_same_thread": False})
+    resolved_url = db_url or default_db_url()
+    _ensure_sqlite_directory(resolved_url)
+    engine = create_engine(resolved_url, connect_args={"check_same_thread": False})
     event.listen(engine, "connect", _enable_sqlite_foreign_keys)
     return sessionmaker(bind=engine)
 
