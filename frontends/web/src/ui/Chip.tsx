@@ -5,9 +5,10 @@ interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   on?: boolean
   outlined?: boolean
   small?: boolean
+  large?: boolean
 }
 
-export function Chip({ on = false, outlined = false, small = false, className, ...rest }: ChipProps) {
-  const classes = [css.chip, on && css.on, outlined && !on && css.outlined, small && css.small, className].filter(Boolean).join(' ')
+export function Chip({ on = false, outlined = false, small = false, large = false, className, ...rest }: ChipProps) {
+  const classes = [css.chip, on && css.on, outlined && !on && css.outlined, small && css.small, large && css.large, className].filter(Boolean).join(' ')
   return <button type="button" className={classes} aria-pressed={on} {...rest} />
 }

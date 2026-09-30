@@ -1,5 +1,6 @@
-.field { display: block; width: 100%; height: var(--h); padding: 0 var(--s4); background: var(--soft); border: 0; outline: 0; border-radius: var(--rc); }
+.field { display: block; width: 100%; height: var(--h); padding: 0 var(--s4); background: var(--soft); color: var(--tx); border: 0; outline: 0; border-radius: var(--rc); }
 .field:focus { box-shadow: inset 0 0 0 var(--bw) var(--ac); }
 .field::placeholder { color: var(--tx3); }
 .area { height: var(--field-area); padding: var(--s3) var(--s4); resize: none; }
 .select { width: auto; max-width: var(--menu); flex: none; text-overflow: ellipsis; font-size: var(--fs-c); color: var(--tx2); }
+.range { flex: none; width: calc(var(--h) * 5); accent-color: var(--ac); }

@@ -1,18 +1,22 @@
-import type { ReactNode } from 'react'
+import type { HTMLAttributes, ReactNode } from 'react'
 import css from './DividerRow.module.css'
 
-interface DividerRowProps {
+interface DividerRowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
   label: ReactNode
   hint?: ReactNode
+  /** Элемент перед подписью, например ручка перетаскивания. */
+  lead?: ReactNode
   compact?: boolean
   last?: boolean
+  state?: 'dragging' | 'target'
   children?: ReactNode
 }
 
-export function DividerRow({ label, hint, compact = false, last = false, children }: DividerRowProps) {
-  const classes = [css.row, compact && css.compact, last && css.last].filter(Boolean).join(' ')
+export function DividerRow({ label, hint, lead, compact = false, last = false, state, children, ...rest }: DividerRowProps) {
+  const classes = [css.row, compact && css.compact, last && css.last, state && css[state]].filter(Boolean).join(' ')
   return (
-    <div className={classes}>
+    <div className={classes} {...rest}>
+      {lead}
       <div className={css.text}>
         <div>{label}</div>
         {hint && <div className={css.hint}>{hint}</div>}

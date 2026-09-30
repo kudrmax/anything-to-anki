@@ -14,3 +14,7 @@ export function TextArea({ className, ...rest }: TextareaHTMLAttributes<HTMLText
 export function Select({ className, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className={join(css.field, css.select, className)} {...rest} />
 }
+
+export function Range({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input type="range" className={join(css.range, className)} {...rest} />
+}

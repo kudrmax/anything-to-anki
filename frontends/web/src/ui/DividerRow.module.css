@@ -5,3 +5,5 @@
 .hint { font-size: var(--fs-s); color: var(--tx3); }
 .group { font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); padding: var(--py) var(--px) 0 var(--off); }
 .flush { padding-left: 0; padding-right: 0; }
+.dragging { opacity: var(--o-dim); }
+.target { background: var(--hover); }
