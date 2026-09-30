@@ -1,6 +1,8 @@
 /* Единственное место, где живут визуальные значения. */
 :root {
   /* база: тёмная тема */
+  color-scheme: dark;
+  --scroll-thumb: color-mix(in srgb, var(--tx3) 35%, transparent);
   --bg: #100f0e;
   --card: #181716;
   --soft: #222120;
@@ -117,6 +119,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --bg: #f5f5f5;
   --card: #ffffff;
   --soft: #ebebeb;
