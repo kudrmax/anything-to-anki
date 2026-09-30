@@ -1,46 +1,16 @@
 """Integration test: VotingCEFRClassifier with all real sources."""
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
-from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
 from backend.domain.value_objects.cefr_level import CEFRLevel
-from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
-from backend.infrastructure.adapters.dict_cache.cefr_source import DictCacheCEFRSource
-from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
 
-from backend.domain.ports.cefr_source import CEFRSource
-
-DICT_CACHE_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / ".cache" / "dict.db"
-
-_SKIP_NO_DICT_CACHE = pytest.mark.skipif(
-    not DICT_CACHE_PATH.exists(),
-    reason=f"dict.db not found at {DICT_CACHE_PATH}",
-)
-
-
-def _make_classifier() -> VotingCEFRClassifier:
-    reader = DictCacheReader(DICT_CACHE_PATH)
-
-    cefr_sources: list[CEFRSource] = []
-    priority_sources: list[CEFRSource] = []
-    for meta in reader.get_cefr_sources():
-        src = DictCacheCEFRSource(reader, meta["name"])
-        if meta["priority"] == "high":
-            priority_sources.append(src)
-        else:
-            cefr_sources.append(src)
-    cefr_sources.append(CefrpyCEFRSource())
-
-    return VotingCEFRClassifier(cefr_sources, priority_sources=priority_sources)
+from tests.integration.dict_cache_support import make_voting_classifier
 
 
 @pytest.mark.integration
-@_SKIP_NO_DICT_CACHE
 class TestVotingCEFRClassifierIntegration:
     def setup_method(self) -> None:
-        self.classifier = _make_classifier()
+        self.classifier = make_voting_classifier()
 
     def test_common_word_reasonable_level(self) -> None:
         level = self.classifier.classify("happy", "JJ")
@@ -66,12 +36,11 @@ class TestVotingCEFRClassifierIntegration:
 
 
 @pytest.mark.integration
-@_SKIP_NO_DICT_CACHE
 class TestVotingCEFRClassifierWithPriorityIntegration:
     """Full integration: priority sources + fallback sources from dict.db."""
 
     def setup_method(self) -> None:
-        self.classifier = _make_classifier()
+        self.classifier = make_voting_classifier()
 
     def test_common_word_has_level(self) -> None:
         """'happy' should return a reasonable level."""

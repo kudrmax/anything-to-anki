@@ -229,10 +229,10 @@ logs-worktree:  ## Логи worktree (app + worker + ai_proxy)
 	wait
 
 ##@ Разработка
-test: _check_setup  ## Запустить тесты
+test: _check_setup dict-update  ## Запустить тесты
 	.venv/bin/python -m pytest
 
-coverage: _check_setup  ## Тесты с отчётом покрытия
+coverage: _check_setup dict-update  ## Тесты с отчётом покрытия
 	.venv/bin/python -m pytest --cov --cov-report=term
 
 test-ai: _check_setup  ## Интеграционные тесты AI (реальный ai_proxy + Claude API)
