@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { Target, Volume2 } from 'lucide-react'
 import type { EnrichmentStatus, StoredCandidate } from '@/api/types'
 import { FREQ_BAND_LABEL, isDivider, meaningParts, mediaUrl, nonEmptyLines, primaryUsageGroup } from '@/lib/text/meaning'
-import { Button, Chip, Icon, Spinner, Text } from '@/ui'
+import { Button, Chip, Icon, MediaThumb, Spinner, Text } from '@/ui'
 import { CefrTooltip } from './CefrTooltip'
-import { MediaThumb } from './MediaThumb'
 import { PhraseActions } from './PhraseActions'
 import type { Review } from './useReview'
+import phrase from '@/ui/phrase.module.css'
 import css from './review.module.css'
 
 interface PhraseDetailsProps {
@@ -89,20 +89,20 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
       <div className={css.body}>
         <div className={css.text}>
           {paragraphs.map((paragraph, i) => isDivider(paragraph)
-            ? <hr key={i} className={css.divider} />
-            : <p key={i} className={i === 0 ? css.definition : css.context}><RichText text={paragraph} candidate={candidate} /></p>)}
+            ? <hr key={i} className={phrase.divider} />
+            : <p key={i} className={i === 0 ? phrase.definition : phrase.context}><RichText text={paragraph} candidate={candidate} /></p>)}
           {paragraphs.length === 0 && (
             isActive(meaning?.status)
               ? <StatusText status={meaning?.status} error={meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
               : <Button variant="accent-link" busy={review.busy.generating.has(candidate.id)} onClick={() => void review.generate(candidate.id)}>Generate meaning</Button>
           )}
           {(meaning?.translation || meaning?.synonyms) && (
-            <p className={css.translation}>
+            <p className={phrase.translation}>
               {[meaning.translation, meaning.synonyms].filter(Boolean).join(' · ')}
             </p>
           )}
           {examples.length > 0 && (
-            <ul className={css.examples}>
+            <ul className={phrase.examples}>
               {examples.map((line, i) => <li key={i}><RichText text={line} candidate={candidate} /></li>)}
             </ul>
           )}

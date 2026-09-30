@@ -3,7 +3,7 @@ import { FREQ_BAND_LABEL, highlightParts } from '@/lib/text/meaning'
 import { Row, type Tone } from '@/ui'
 import { PhraseDetails } from './PhraseDetails'
 import type { Review } from './useReview'
-import css from './review.module.css'
+import phrase from '@/ui/phrase.module.css'
 
 const TONE: Record<CandidateStatus, Tone> = { pending: 'idle', learn: 'ok', known: 'off', skip: 'off' }
 
@@ -15,7 +15,7 @@ interface PhraseRowProps {
 
 export function PhraseRow({ candidate, current, review }: PhraseRowProps) {
   const dimmed = !current && (candidate.status === 'known' || candidate.status === 'skip')
-  const targetClass = [css.target, current && css.targetCurrent, dimmed && css.targetRated].filter(Boolean).join(' ')
+  const targetClass = [phrase.target, current && phrase.targetCurrent, dimmed && phrase.targetRated].filter(Boolean).join(' ')
   const kind = candidate.is_phrasal_verb ? 'phrasal' : candidate.cefr_level
   const frequency = candidate.frequency_band ? FREQ_BAND_LABEL[candidate.frequency_band]?.toLowerCase() : null
 

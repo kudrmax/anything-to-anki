@@ -4,7 +4,7 @@ import type { CandidateStatus, CardPreview, FollowUpAction, QueueStatus, QueueSu
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { mediaUrl } from '@/lib/text/meaning'
 import { useToast } from '@/ui'
-import { useAudioPlayer } from './useAudioPlayer'
+import { useAudioPlayer } from '@/lib/useAudioPlayer'
 
 const VPN_ERROR_MARKER = 'Blocked country'
 const POLL_INTERVAL_MS = 3000

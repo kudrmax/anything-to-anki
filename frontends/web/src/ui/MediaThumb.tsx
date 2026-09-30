@@ -1,7 +1,7 @@
 import { CirclePlay, CircleStop } from 'lucide-react'
 import type { EnrichmentStatus } from '@/api/types'
-import { Icon } from '@/ui'
-import css from './review.module.css'
+import { Icon } from './Icon'
+import css from './MediaThumb.module.css'
 
 interface MediaThumbProps {
   screenshotUrl: string | null
