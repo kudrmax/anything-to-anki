@@ -4,6 +4,7 @@
 anything-to-anki/
 ├── backend/                              # Python backend, Clean Architecture
 ├── frontends/web/                        # React 19 + Vite, CSS-модули на токенах (src/styles/tokens.css)
+├── frontends/macos/                      # Swift-оболочка: окно с web UI, сама делает make up / make down
 ├── ai_proxy.py                           # FastAPI-обёртка над claude-agent-sdk, отдельный процесс
 ├── config/                               # Конфигурация (prompts.yaml и др.)
 ├── data/                                 # Данные этой рабочей копии (в .gitignore)
@@ -22,6 +23,7 @@ anything-to-anki/
 
 - **backend/** — вся бизнес-логика, трёхслойная Clean Architecture. Единственное место, где живут домен и use cases. Детали — `docs/architecture.md`.
 - **frontends/web/** — чисто презентационный слой. Не содержит бизнес-логики (см. красный блок в CLAUDE.md).
+- **frontends/macos/** — тонкая оболочка (AppKit + WKWebView), не фронтенд со своей логикой. `LauncherCore` решает, запускать ли `make up` и останавливать ли процессы при выходе (тесты — `make test-macos`); `AnythingToAnki` — окно, меню и мост `pickFile`, через который web UI получает полный путь к файлу из окна выбора Finder. Собирается `make app`, см. `docs/running.md`.
 - **ai_proxy.py** — отдельный процесс рядом с app и worker. Причины и устройство — `docs/ai-integration.md`.
 - **config/** — конфигурация приложения (промпты для AI и прочее). Приложение её только читает.
 - **data/** — единственное место, где живут пользовательские данные этой копии: БД, медиа, видео. У dev- и prod-копии она своя, общего состояния между копиями нет.
