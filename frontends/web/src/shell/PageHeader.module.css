@@ -1,4 +1,4 @@
-.header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3) var(--gap); min-height: var(--h); margin: var(--s7) 0 var(--gap); padding: 0 var(--px); font-size: var(--fs-s); color: var(--tx3); }
+.header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3) var(--gap); min-height: var(--h); margin: var(--page-top) 0 var(--gap); padding: 0 var(--px); font-size: var(--fs-s); color: var(--tx3); }
 .lead { flex: 1 1 calc(var(--h) * 8); min-width: 0; display: flex; align-items: center; gap: var(--gap); }
 .back { margin-left: calc(var(--s3) * -1); }
 .title { min-width: 0; font: var(--fw-b) var(--fs-h1)/var(--lh-tight) var(--ui); letter-spacing: var(--ls-tight); color: var(--tx); overflow-wrap: break-word; }

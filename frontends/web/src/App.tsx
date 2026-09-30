@@ -1,7 +1,5 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import { AppLayout } from '@/layouts/AppLayout'
-import { AppShell } from '@/shell'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { AppShell, ErrorBoundary } from '@/shell'
 import { SourcesScreen } from '@/screens/sources/SourcesScreen'
 import { ReviewScreen } from '@/screens/review/ReviewScreen'
 import { ExportScreen } from '@/screens/export/ExportScreen'
@@ -21,8 +19,6 @@ export function App() {
           <Route path="/export" element={<ErrorBoundary><ExportScreen /></ErrorBoundary>} />
           <Route path="/sources/:id/review" element={<ErrorBoundary><ReviewScreen /></ErrorBoundary>} />
           <Route path="/" element={<ErrorBoundary><SourcesScreen /></ErrorBoundary>} />
-        </Route>
-        <Route element={<AppLayout />}>
         </Route>
       </Routes>
     </BrowserRouter>

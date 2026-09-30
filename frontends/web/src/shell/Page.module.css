@@ -2,7 +2,7 @@
 .full { grid-column: 1 / -1; }
 .banner { margin-bottom: var(--s3); }
 .content { min-width: 0; }
-.aside { position: sticky; top: var(--s7); display: flex; flex-direction: column; gap: var(--s7); padding-top: var(--py); }
+.aside { position: sticky; top: var(--page-top); display: flex; flex-direction: column; gap: var(--s7); padding-top: var(--py); }
 .asideTitle { font-size: var(--fs-s); font-weight: var(--fw); color: var(--tx3); line-height: var(--lh-label); margin-bottom: var(--s3); }
 @media (max-width: 1100px) {
   .page { grid-template-columns: minmax(0, 1fr); }
