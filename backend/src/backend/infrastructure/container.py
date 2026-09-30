@@ -66,6 +66,9 @@ from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.slang_normalizer import SlangNormalizer
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
+from backend.infrastructure.adapters.throttled_http_file_downloader import (
+    ThrottledHttpFileDownloader,
+)
 from backend.infrastructure.adapters.video_path_resolver import VideoPathResolverImpl
 from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
@@ -193,6 +196,7 @@ class Container:
         self._usage_source = DictCacheUsageSource(self._dict_reader)
         self._frequency_provider = WordfreqFrequencyProvider()
         self._anki_connector = AnkiConnectConnector()
+        self._file_downloader = ThrottledHttpFileDownloader()
         self._phrasal_verb_dictionary = JsonPhrasalVerbDictionary()
         self._fragment_selection_config = FragmentSelectionConfig()
         self._subtitle_extractor = FfmpegSubtitleExtractor()
@@ -582,6 +586,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             pronunciation_repo=SqlaCandidatePronunciationRepository(session),
             pronunciation_source=self._pronunciation_source,
+            file_downloader=self._file_downloader,
             media_root=self._media_root,
         )
 
