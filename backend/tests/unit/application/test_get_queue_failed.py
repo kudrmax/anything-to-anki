@@ -29,6 +29,7 @@ class TestGetQueueFailedUseCase:
                 "error": "API timeout",
                 "count": 3,
                 "source_ids": [1, 2],
+                "source_counts": {1: 2, 2: 1},
                 "candidate_ids": [10, 20, 30],
             },
             {
@@ -36,6 +37,7 @@ class TestGetQueueFailedUseCase:
                 "error": "File not found",
                 "count": 1,
                 "source_ids": [1],
+                "source_counts": {1: 1},
                 "candidate_ids": [40],
             },
         ]
@@ -49,6 +51,10 @@ class TestGetQueueFailedUseCase:
         assert meaning_type.total_failed == 3
         assert len(meaning_type.groups) == 1
         assert meaning_type.groups[0].error_text == "API timeout"
+        failed_per_source = {
+            s.source_title: s.count for s in meaning_type.groups[0].sources
+        }
+        assert failed_per_source == {"Source A": 2, "Source B": 1}
 
     def test_passes_source_id_filter(self) -> None:
         job_repo = MagicMock()
@@ -69,6 +75,7 @@ class TestGetQueueFailedUseCase:
                 "error": "err",
                 "count": 2,
                 "source_ids": [1],
+                "source_counts": {1: 2},
                 "candidate_ids": [10, 20],
             },
         ]

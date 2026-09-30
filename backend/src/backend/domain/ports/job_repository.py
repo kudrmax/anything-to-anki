@@ -114,5 +114,6 @@ class JobRepository(ABC):
         job_type: JobType | None = None,
     ) -> list[dict[str, Any]]:
         """Return failed jobs grouped by (job_type, error).
-        Each dict: {job_type, error, count, source_ids, candidate_ids}.
+        Each dict: {job_type, error, count, source_ids, source_counts, candidate_ids};
+        source_counts maps source id to its number of failed jobs in the group.
         Used by queue management page."""

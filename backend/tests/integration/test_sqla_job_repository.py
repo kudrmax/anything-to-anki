@@ -554,6 +554,7 @@ class TestSqlaJobRepository:
         assert len(groups) == 1
         assert sorted(groups[0]["source_ids"]) == [1, 2]
         assert sorted(groups[0]["candidate_ids"]) == [1, 2]
+        assert groups[0]["source_counts"] == {1: 1, 2: 1}
 
     def test_get_failed_grouped_by_error_filters_by_source_id(
         self, db_session: Session,
