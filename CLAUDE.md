@@ -24,10 +24,10 @@
 ## Репозитории
 
 1. **anything-to-anki** — приложение. Весь код пишется сюда.
-   - `~/Applications/anything-to-anki` — dev, работать здесь.
-   - `~/Applications/anything-to-anki-prod` — prod, код не править: только `git pull && make down && make up`.
+   - `~/projects/anything-to-anki` — dev, работать здесь.
+   - `~/projects/anything-to-anki-prod` — prod, код не править: только `git pull && make down && make up`.
 
-2. **anything-to-anki-dicts** (`~/PycharmProjects/anything-to-anki-dicts`) — словарные данные, не код. Приложение читает папку `unified/`; она общая для dev и prod.
+2. **anything-to-anki-dicts** (`~/projects/anything-to-anki-dicts`) — словарные данные, не код. Приложение читает папку `unified/`; она общая для dev и prod.
 
 3. **anything-to-anki-parsers** (локально не склонирован) — скрипты, которые собирают словари для `dicts/unified`.
 
