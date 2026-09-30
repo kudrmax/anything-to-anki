@@ -132,32 +132,41 @@ async def _generate_structured(
     tokens_used = 0
     result_subtype: str | None = None
     error_context: list[str] = []
+    # What the CLI itself reported (e.g. an expired login). The SDK then raises
+    # its own generic "returned an error result" exception, which hides it.
+    cli_error: str | None = None
 
-    async for message in query(prompt=user_prompt, options=options):
-        if isinstance(message, AssistantMessage):
-            if message.error:
-                error_context.append(f"AssistantMessage.error={message.error}")
-                logger.error("AI error: %s", message.error)
-            for block in message.content:
-                if isinstance(block, TextBlock):
-                    error_context.append(f"AI text: {block.text[:500]}")
+    try:
+        async for message in query(prompt=user_prompt, options=options):
+            if isinstance(message, AssistantMessage):
+                if message.error:
+                    error_context.append(f"AssistantMessage.error={message.error}")
+                    logger.error("AI error: %s", message.error)
+                for block in message.content:
+                    if isinstance(block, TextBlock):
+                        error_context.append(f"AI text: {block.text[:500]}")
 
-        elif isinstance(message, ResultMessage):
-            result_subtype = message.subtype
-            structured_output = message.structured_output
-            usage = message.usage or {}
-            tokens_used = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+            elif isinstance(message, ResultMessage):
+                result_subtype = message.subtype
+                structured_output = message.structured_output
+                usage = message.usage or {}
+                tokens_used = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
 
-            if message.is_error or message.errors:
-                logger.error(
-                    "ResultMessage error: subtype=%s, is_error=%s, result=%s, errors=%s",
-                    message.subtype, message.is_error, message.result, message.errors,
-                )
-                error_context.append(
-                    f"result_error: subtype={message.subtype}, errors={message.errors}"
-                )
-            elif message.subtype != "success":
-                logger.warning("ResultMessage subtype=%s (not success)", message.subtype)
+                if message.is_error or message.errors:
+                    logger.error(
+                        "ResultMessage error: subtype=%s, is_error=%s, result=%s, errors=%s",
+                        message.subtype, message.is_error, message.result, message.errors,
+                    )
+                    error_context.append(
+                        f"result_error: subtype={message.subtype}, errors={message.errors}"
+                    )
+                    cli_error = message.result or cli_error
+                elif message.subtype != "success":
+                    logger.warning("ResultMessage subtype=%s (not success)", message.subtype)
+    except Exception as e:
+        if cli_error:
+            raise RuntimeError(cli_error) from e
+        raise
 
     if structured_output is None:
         detail = f"subtype={result_subtype}, context={error_context}"
