@@ -10,6 +10,8 @@ make setup    # Ставит brew-зависимости, Python venv, Node modu
 
 Запускается один раз после клонирования. Ставит: python@3.12, node, ffmpeg, espeak-ng, создаёт `.venv`, устанавливает Python и Node зависимости.
 
+Версии Python-пакетов зафиксированы в `requirements.lock`, поэтому dev и prod получают одинаковое окружение. Чтобы обновить зависимости: в dev-копии поставить новые версии в `.venv`, прогнать проверки, выполнить `make lock` и закоммитить `requirements.lock`; в prod после `git pull` выполнить `make setup`.
+
 ## Характеристики копий
 
 | | dev | prod |
@@ -25,7 +27,8 @@ make setup    # Ставит brew-зависимости, Python venv, Node modu
 ## Команды (в каждой копии)
 
 ```
-make setup        # Одноразовая установка зависимостей
+make setup        # Установка зависимостей (версии — из requirements.lock)
+make lock         # Зафиксировать версии Python-пакетов из текущего venv
 make up           # Собрать фронтенд + запустить ai_proxy, app, worker
 make down         # Остановить все процессы
 make logs         # Все логи: app + worker + ai_proxy одним потоком
