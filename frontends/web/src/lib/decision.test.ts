@@ -6,7 +6,7 @@ describe('decisionChange', () => {
     expect(decisionChange('pending', 'learn')).toBe('learn')
     expect(decisionChange('learn', 'skip')).toBe('skip')
   })
-  it('does nothing when the phrase already has this decision (the API cannot return it to pending)', () => {
-    expect(decisionChange('known', 'known')).toBeNull()
+  it('undoes the decision when it is chosen again', () => {
+    expect(decisionChange('known', 'known')).toBe('pending')
   })
 })

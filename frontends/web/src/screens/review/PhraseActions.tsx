@@ -27,10 +27,7 @@ export function PhraseActions({ candidate, review }: { candidate: StoredCandidat
   const isVideo = review.source?.content_type === 'video'
   const isEditing = review.editing?.candidateId === id
 
-  const decide = (status: Decision) => {
-    const change = decisionChange(candidate.status, status)
-    if (change) void review.mark(id, change)
-  }
+  const decide = (status: Decision) => void review.mark(id, decisionChange(candidate.status, status))
   const isPrimary = (status: CandidateStatus) => (isRated ? candidate.status === status : status === 'learn')
 
   const followUpItems: MenuItem[] = [

@@ -17,6 +17,9 @@ class KnownWordRepository(ABC):
     def remove(self, known_word_id: int) -> None: ...
 
     @abstractmethod
+    def remove_by_lemma(self, lemma: str, pos: str | None) -> None: ...
+
+    @abstractmethod
     def list_all(self) -> list[KnownWord]: ...
 
     @abstractmethod

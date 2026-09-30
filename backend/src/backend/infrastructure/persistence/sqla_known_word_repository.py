@@ -8,7 +8,7 @@ from backend.domain.ports.known_word_repository import KnownWordRepository
 from backend.infrastructure.persistence.models import KnownWordModel
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+    from sqlalchemy.orm import Query, Session
 
     from backend.domain.entities.known_word import KnownWord
 
@@ -47,15 +47,18 @@ class SqlaKnownWordRepository(KnownWordRepository):
         )
         return [m.to_entity() for m in models]
 
+    def remove_by_lemma(self, lemma: str, pos: str | None) -> None:
+        self._matching(lemma, pos).delete(synchronize_session="fetch")
+        self._session.flush()
+
     def exists(self, lemma: str, pos: str | None) -> bool:
-        query = self._session.query(KnownWordModel).filter(
-            KnownWordModel.lemma == lemma,
-        )
+        return self._matching(lemma, pos).first() is not None
+
+    def _matching(self, lemma: str, pos: str | None) -> Query[KnownWordModel]:
+        query = self._session.query(KnownWordModel).filter(KnownWordModel.lemma == lemma)
         if pos is None:
-            query = query.filter(KnownWordModel.pos.is_(None))
-        else:
-            query = query.filter(KnownWordModel.pos == pos)
-        return query.first() is not None
+            return query.filter(KnownWordModel.pos.is_(None))
+        return query.filter(KnownWordModel.pos == pos)
 
     def get_all_pairs(self) -> set[tuple[str, str | None]]:
         rows = self._session.query(KnownWordModel.lemma, KnownWordModel.pos).all()
