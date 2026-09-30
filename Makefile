@@ -1,4 +1,4 @@
-.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths _check_env _check_setup
+.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths _check_env _check_setup
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # -include не падает если файла нет; если .env создаётся правилом ниже,
@@ -13,6 +13,7 @@ APP_PID := .pids/app.pid
 APP_LOG := .logs/app.log
 WRK_PID := .pids/worker.pid
 WRK_LOG := .logs/worker.log
+LOCK_FILE       := requirements.lock
 SPACY_MODEL     := en_core_web_sm
 SPACY_MODEL_URL := https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
 
@@ -149,13 +150,20 @@ setup-python:  ## Создать venv (если его нет) и постави
 	    echo "Creating venv..."; \
 	    python3.12 -m venv .venv; \
 	fi
-	@.venv/bin/pip install -e "backend/[dev,tts]"
-	@.venv/bin/pip install -e ".[ai-proxy]"
+	@.venv/bin/pip install -c $(LOCK_FILE) -e "backend/[dev,tts]"
+	@.venv/bin/pip install -c $(LOCK_FILE) -e ".[ai-proxy]"
 	@if .venv/bin/python -c "import $(SPACY_MODEL)" 2>/dev/null; then \
 	    echo "$(SPACY_MODEL): already installed"; \
 	else \
 	    .venv/bin/pip install --no-cache-dir "$(SPACY_MODEL_URL)"; \
 	fi
+
+# Версии зафиксированы в $(LOCK_FILE), чтобы dev- и prod-копия ставили одно и
+# то же: без него каждая копия получала то, что было свежим в день установки.
+# Модель spaCy в lock не входит — она ставится выше по своему URL.
+lock: _check_setup  ## Зафиксировать версии Python-зависимостей из текущего venv
+	@.venv/bin/pip freeze --exclude-editable | grep -v "^$(SPACY_MODEL) @" > $(LOCK_FILE)
+	@echo "$(LOCK_FILE): $$(wc -l < $(LOCK_FILE) | tr -d ' ') packages pinned"
 
 setup-frontend:  ## Поставить зависимости фронтенда (npm install)
 	@echo "\n=== Installing frontend dependencies ==="
