@@ -1,0 +1,2 @@
+.boundary { max-width: var(--col); margin: 0 auto; padding: var(--s7) var(--px); }
+.trace { margin: 0; padding: var(--s4); max-height: var(--trace-max); overflow: auto; border-radius: var(--rc); background: var(--soft); color: var(--tx2); font: var(--fs-xs)/var(--lh-read) var(--mono); }

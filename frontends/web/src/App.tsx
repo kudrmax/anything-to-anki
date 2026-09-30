@@ -1,26 +1,24 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import { AppLayout } from '@/layouts/AppLayout'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { InboxPage } from '@/pages/InboxPage'
-import { ReviewPage } from '@/pages/ReviewPage'
-import { ExportPage } from '@/pages/ExportPage'
-import { GlobalExportPage } from '@/pages/GlobalExportPage'
-import { QueuePage } from '@/pages/QueuePage'
-import { SettingsPage } from '@/pages/SettingsPage'
-import { CalibratePage } from '@/pages/CalibratePage'
+import { AppShell, ErrorBoundary } from '@/shell'
+import { SourcesScreen } from '@/screens/sources/SourcesScreen'
+import { ReviewScreen } from '@/screens/review/ReviewScreen'
+import { ExportScreen } from '@/screens/export/ExportScreen'
+import { QueueScreen } from '@/screens/queue/QueueScreen'
+import { SettingsScreen } from '@/screens/settings/SettingsScreen'
+import { CalibrateScreen } from '@/screens/calibrate/CalibrateScreen'
 
 export function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<AppLayout />}>
-          <Route path="/" element={<ErrorBoundary><InboxPage /></ErrorBoundary>} />
-          <Route path="/sources/:id/review" element={<ErrorBoundary><ReviewPage /></ErrorBoundary>} />
-          <Route path="/sources/:id/export" element={<ErrorBoundary><ExportPage /></ErrorBoundary>} />
-          <Route path="/export" element={<ErrorBoundary><GlobalExportPage /></ErrorBoundary>} />
-          <Route path="/queue" element={<ErrorBoundary><QueuePage /></ErrorBoundary>} />
-          <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
-          <Route path="/calibrate" element={<ErrorBoundary><CalibratePage /></ErrorBoundary>} />
+        <Route element={<AppShell />}>
+          <Route path="/settings" element={<ErrorBoundary><SettingsScreen /></ErrorBoundary>} />
+          <Route path="/calibrate" element={<ErrorBoundary><CalibrateScreen /></ErrorBoundary>} />
+          <Route path="/queue" element={<ErrorBoundary><QueueScreen /></ErrorBoundary>} />
+          <Route path="/sources/:id/export" element={<ErrorBoundary><ExportScreen /></ErrorBoundary>} />
+          <Route path="/export" element={<ErrorBoundary><ExportScreen /></ErrorBoundary>} />
+          <Route path="/sources/:id/review" element={<ErrorBoundary><ReviewScreen /></ErrorBoundary>} />
+          <Route path="/" element={<ErrorBoundary><SourcesScreen /></ErrorBoundary>} />
         </Route>
       </Routes>
     </BrowserRouter>

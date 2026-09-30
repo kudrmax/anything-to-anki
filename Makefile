@@ -186,7 +186,7 @@ dict-update: _check_setup _check_dictionaries_dir  ## Обновить слов�
 ##@ Запуск (читает .env)
 up: _check_env _check_setup dict-update  ## Запустить (ai_proxy + app + worker)
 	@echo "Building frontend..."
-	@cd frontends/web && npm run build
+	@cd frontends/web && VITE_INSTANCE_ENV_NAME=$(INSTANCE_ENV_NAME) npm run build
 	$(call start_ai_proxy)
 	$(call start_app)
 	$(call start_worker)
@@ -199,7 +199,7 @@ up: _check_env _check_setup dict-update  ## Запустить (ai_proxy + app +
 
 up-worktree: _check_env _check_setup dict-update  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий)
 	@echo "Building frontend..."
-	@cd frontends/web && npm run build
+	@cd frontends/web && VITE_INSTANCE_ENV_NAME=worktree npm run build
 	$(call kill_on_port,$(WORKTREE_AI_PROXY_PORT),ai_proxy)
 	@mkdir -p .pids .logs
 	@.venv/bin/python ai_proxy.py --port $(WORKTREE_AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > .pids/ai_proxy_wt.pid; \

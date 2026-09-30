@@ -1,0 +1,4 @@
+.banner { display: flex; align-items: center; gap: var(--gap); min-height: var(--h); padding: var(--s2) var(--s2) var(--s2) var(--px); border-radius: var(--r); font-size: var(--fs-c); }
+.warn { background: var(--warn-tint); color: var(--warn); }
+.err { background: var(--err-tint); color: var(--err); }
+.text { flex: 1; min-width: 0; padding: var(--s3) 0; }

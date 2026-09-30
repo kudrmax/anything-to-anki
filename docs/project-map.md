@@ -3,7 +3,7 @@
 ```
 anything-to-anki/
 ├── backend/                              # Python backend, Clean Architecture
-├── frontends/web/                        # React 19 + Vite + TailwindCSS
+├── frontends/web/                        # React 19 + Vite, CSS-модули на токенах (src/styles/tokens.css)
 ├── ai_proxy.py                           # FastAPI-обёртка над claude-agent-sdk, отдельный процесс
 ├── config/                               # Конфигурация (prompts.yaml и др.)
 ├── data/                                 # Данные этой рабочей копии (в .gitignore)

@@ -1,0 +1,15 @@
+/* Фраза, изучаемое слово и текст значения — общие для Review и Export. */
+.target { font-weight: var(--fw-b); text-decoration: underline; text-decoration-color: var(--ac); text-decoration-thickness: var(--underline); text-underline-offset: var(--s2); }
+.targetCurrent { color: var(--ac); }
+.targetRated { font-weight: inherit; text-decoration-color: transparent; }
+.definition { font-size: var(--fs-l); line-height: var(--lh-read); margin-bottom: var(--s3); }
+.context { font-size: var(--fs-b); line-height: var(--lh-read); color: var(--tx2); margin-bottom: var(--s3); }
+.definition b, .context b, .examples b { font-weight: var(--fw-m); color: var(--tx); }
+.divider { border: 0; border-top: var(--bw) solid var(--line); margin: var(--s4) 0; }
+.translation { font-size: var(--fs-b); color: var(--tx2); margin-top: var(--s5); }
+.examples { list-style: none; margin-top: var(--s5); padding-left: var(--s5); border-left: var(--bw) solid var(--line); font-size: var(--fs-b); line-height: var(--lh-read); color: var(--tx2); }
+.separator { margin: 0 var(--s3); color: var(--tx3); }
+.html b, .html strong { font-weight: var(--fw-b); text-decoration: underline; text-decoration-color: var(--ac); text-decoration-thickness: var(--underline); text-underline-offset: var(--s2); }
+.brief { font-size: var(--fs-b); line-height: var(--lh-read); color: var(--tx2); margin-top: var(--s2); }
+.note { font-size: var(--fs-s); color: var(--tx3); margin-top: var(--s1); }
+.warning { font-size: var(--fs-s); color: var(--warn); margin-top: var(--s1); }

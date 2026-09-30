@@ -1,0 +1,2 @@
+.toast { position: fixed; right: var(--toast-edge); bottom: var(--toast-edge); z-index: var(--z-toast); max-width: var(--modal); padding: var(--s4) var(--s5); border-radius: var(--rc); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line), var(--shadow-pop); font-size: var(--fs-c); }
+.warn { color: var(--warn); }

@@ -1,0 +1,8 @@
+.chip { display: inline-flex; align-items: center; gap: var(--s3); height: var(--h); padding: 0 var(--gap); border-radius: var(--rc); color: var(--tx2); font-size: var(--fs-c); flex: none; white-space: nowrap; transition: background var(--t), color var(--t); }
+.chip:hover, .on { background: var(--soft); color: var(--tx); }
+.on { font-weight: var(--fw-m); }
+.outlined { box-shadow: inset 0 0 0 var(--bw) var(--line); }
+.small { height: var(--h-s); padding: 0 var(--s3); border-radius: var(--r-s); gap: var(--s2); background: var(--soft); font-size: var(--fs-xs); font-weight: var(--fw-m); }
+.small.on { color: var(--ac); }
+.large { height: var(--h-word); padding: 0 var(--s6); background: var(--soft); font-size: var(--fs-t); }
+.large.on { background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--ac); font-weight: var(--fw); }

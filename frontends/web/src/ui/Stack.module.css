@@ -1,0 +1,7 @@
+.stack { display: flex; flex-direction: column; min-width: 0; }
+.row { flex-direction: row; align-items: center; }
+.wrap { flex-wrap: wrap; }
+.xs { gap: var(--s2); }
+.s { gap: var(--s3); }
+.m { gap: var(--gap); }
+.l { gap: var(--s6); }

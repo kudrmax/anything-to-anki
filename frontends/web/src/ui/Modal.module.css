@@ -1,0 +1,5 @@
+.overlay { position: fixed; inset: 0; z-index: var(--z-modal); display: grid; place-items: center; padding: var(--s6); background: var(--overlay); }
+.modal { width: 100%; max-width: var(--modal); max-height: 100%; overflow: auto; padding: var(--s6); border-radius: var(--r); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line), var(--shadow-pop); }
+.title { font-size: var(--fs-h2); font-weight: var(--fw-b); letter-spacing: var(--ls-tight); margin-bottom: var(--s5); }
+.content { display: flex; flex-direction: column; gap: var(--s4); }
+.footer { display: flex; justify-content: flex-end; align-items: center; gap: var(--gap); margin-top: var(--s6); }

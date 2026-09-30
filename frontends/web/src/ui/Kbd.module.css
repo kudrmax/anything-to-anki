@@ -1,0 +1,1 @@
+.kbd { font: var(--fs-xs) var(--mono); opacity: var(--o-kbd); border: var(--bw) solid currentColor; border-radius: var(--r-xs); padding: 0 var(--s2); }
