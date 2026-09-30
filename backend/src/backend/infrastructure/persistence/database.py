@@ -55,7 +55,6 @@ def run_alembic_migrations(db_url: str) -> None:
     from alembic.config import Config
 
     # alembic/ lives at backend/src/backend/alembic/ — find it relative to this file.
-    # Works both in development (editable install) and in Docker (installed package).
     alembic_dir = _Path(__file__).parent.parent.parent / "alembic"
     cfg = Config()
     cfg.set_main_option("script_location", str(alembic_dir))

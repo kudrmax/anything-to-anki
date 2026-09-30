@@ -1,4 +1,4 @@
-"""AI Proxy — runs on the host, serves meaning generation to the Docker container.
+"""AI Proxy — separate process that serves meaning generation to the backend.
 
 Usage:
     python ai_proxy.py                  # default port 8766
@@ -18,7 +18,7 @@ from typing import Any
 import httpx
 import uvicorn
 
-# Import directly — this script runs on the host where claude-agent-sdk is installed.
+# Import directly — claude-agent-sdk is installed for this process only ([ai-proxy] extra).
 from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, ResultMessage, query
 from claude_agent_sdk.types import TextBlock
 from fastapi import FastAPI, HTTPException

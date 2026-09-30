@@ -2,9 +2,9 @@
 
 These tests verify the FULL chain that runs in production:
 
-    HttpAIService (backend in Docker)
+    HttpAIService (backend)
         → HTTP POST →
-    ai_proxy.py (host process)
+    ai_proxy.py (separate process)
         → claude_agent_sdk →
     Claude API
         → structured JSON →
@@ -13,13 +13,13 @@ These tests verify the FULL chain that runs in production:
     HttpAIService → GenerationResult / BatchMeaningResult
 
 **Why this exists:** production has had connectivity and contract-mismatch
-issues between the Docker container and ai_proxy that were invisible to
+issues between the backend and ai_proxy that were invisible to
 unit tests (which mock httpx). These tests catch:
 - JSON schema drift between ai_proxy responses and HttpAIService parsing
 - ai_proxy startup / import failures
 - claude_agent_sdk auth issues (Keychain, CLI path)
 - Timeout mismatches
-- Network connectivity (host.docker.internal equivalent)
+- Network connectivity to the ai_proxy port
 
 **How to run:**
     make test-ai                          # via Makefile
