@@ -73,7 +73,7 @@ TTS-задачи обрабатываются в отдельном subprocess, 
 1. Закоммитить работу в dev-копии (и запушить, если есть remote).
 2. Перейти в prod-копию:
    ```bash
-   cd ~/PycharmProjects/anything-to-anki-prod
+   cd ~/projects/anything-to-anki-prod
    git pull origin master
    make down && make up
    ```
@@ -83,7 +83,7 @@ TTS-задачи обрабатываются в отдельном subprocess, 
 ## Откат prod
 
 ```bash
-cd ~/PycharmProjects/anything-to-anki-prod
+cd ~/projects/anything-to-anki-prod
 git log --oneline -10       # найти предыдущий рабочий коммит
 git checkout <sha>
 make down && make up
@@ -91,10 +91,25 @@ make down && make up
 
 ⚠ Откат НЕ откатывает Alembic-миграции. Если обновление включало миграцию, после отката нужно вручную решить, что делать со схемой. Политика: не выкатывать миграции вместе с непроверенным кодом.
 
+## Перенос рабочей копии в другую папку
+
+В `.venv` и в БД (пути к медиа) зашиты абсолютные пути, поэтому после переноса папки:
+
+```bash
+make down                    # до переноса
+# ...перенести папку...
+trash .venv && make setup    # окружение пересоздаётся с версиями из requirements.lock
+make migrate-paths           # dry-run: сколько путей к медиа устарело
+make migrate-paths APPLY=1
+make up
+```
+
+Если переехала папка словарей — поправить `DICTIONARIES_DIR` в `.env` каждой копии.
+
 ## Создание prod-копии (один раз)
 
 ```bash
-cd ~/PycharmProjects
+cd ~/projects
 git clone anything-to-anki anything-to-anki-prod
 cd anything-to-anki-prod
 cp .env.example .env

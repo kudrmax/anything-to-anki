@@ -263,8 +263,8 @@ typecheck: _check_setup  ## Проверка типов (mypy)
 	.venv/bin/mypy backend/src
 
 ##@ Миграция
-migrate-paths: _check_setup  ## Мигрировать Docker-пути в БД (dry-run, APPLY=1 для применения)
-	.venv/bin/python scripts/migrate_docker_paths.py $(if $(APPLY),--apply)
+migrate-paths: _check_setup  ## Перевести пути к медиа в БД на эту копию (dry-run, APPLY=1 для применения)
+	.venv/bin/python scripts/relocate_media_paths.py $(if $(APPLY),--apply)
 
 ##@ Прочее
 help:  ## Показать доступные команды
