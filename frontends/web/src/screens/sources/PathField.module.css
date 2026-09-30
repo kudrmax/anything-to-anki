@@ -1,0 +1,2 @@
+.row { display: flex; gap: var(--s3); }
+.field { flex: 1; min-width: 0; }

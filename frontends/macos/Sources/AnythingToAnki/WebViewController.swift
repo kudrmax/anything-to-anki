@@ -6,6 +6,7 @@ final class WebViewController: NSViewController {
     var onLoadFailed: ((String) -> Void)?
 
     private let config: AppConfig
+    private let filePicker = FilePickerBridge()
     private lazy var webView: WKWebView = makeWebView()
 
     init(config: AppConfig) {
@@ -18,6 +19,11 @@ final class WebViewController: NSViewController {
 
     override func loadView() {
         view = webView
+    }
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        filePicker.attach(to: view.window)
     }
 
     func loadApp() {
@@ -42,6 +48,7 @@ final class WebViewController: NSViewController {
         let configuration = WKWebViewConfiguration()
         configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.preferences.isElementFullscreenEnabled = true
+        configuration.userContentController.addScriptMessageHandler(filePicker, contentWorld: .page, name: FilePickerBridge.name)
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = self
         webView.uiDelegate = self
