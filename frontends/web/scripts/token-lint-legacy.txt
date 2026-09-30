@@ -1,0 +1,10 @@
+# Ещё не переписанный код. Каждая задача убирает свои строки; Task 9 удаляет файл.
+pages/
+components/
+layouts/
+lib/ThemeProvider.tsx
+lib/design-tokens.ts
+index.css
+App.css
+App.tsx
+main.tsx
