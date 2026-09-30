@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -40,18 +40,20 @@ def _build_use_case(
     pronunciation_repo: MagicMock,
     pronunciation_source: MagicMock,
     media_root: str,
+    file_downloader: MagicMock,
 ) -> DownloadPronunciationUseCase:
     return DownloadPronunciationUseCase(
         candidate_repo=candidate_repo,
         pronunciation_repo=pronunciation_repo,
         pronunciation_source=pronunciation_source,
+        file_downloader=file_downloader,
         media_root=media_root,
     )
 
 
 @pytest.mark.unit
-@patch("backend.application.use_cases.download_pronunciation.download_file")
-def test_downloads_both_us_and_uk(mock_dl: MagicMock, tmp_path: Path) -> None:
+def test_downloads_both_us_and_uk(tmp_path: Path) -> None:
+    file_downloader = MagicMock()
     candidate_repo = MagicMock()
     pronunciation_repo = MagicMock()
     pronunciation_source = MagicMock()
@@ -63,10 +65,12 @@ def test_downloads_both_us_and_uk(mock_dl: MagicMock, tmp_path: Path) -> None:
         "https://example.com/uk.mp3",
     )
 
-    uc = _build_use_case(candidate_repo, pronunciation_repo, pronunciation_source, str(tmp_path))
+    uc = _build_use_case(
+        candidate_repo, pronunciation_repo, pronunciation_source, str(tmp_path), file_downloader,
+    )
     uc.execute_one(1)
 
-    assert mock_dl.call_count == 2
+    assert file_downloader.download.call_count == 2
     pronunciation_repo.upsert.assert_called_once()
     upserted: CandidatePronunciation = pronunciation_repo.upsert.call_args[0][0]
     assert upserted.us_audio_path is not None
@@ -76,8 +80,8 @@ def test_downloads_both_us_and_uk(mock_dl: MagicMock, tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
-@patch("backend.application.use_cases.download_pronunciation.download_file")
-def test_no_audio_available(mock_dl: MagicMock, tmp_path: Path) -> None:
+def test_no_audio_available(tmp_path: Path) -> None:
+    file_downloader = MagicMock()
     candidate_repo = MagicMock()
     pronunciation_repo = MagicMock()
     pronunciation_source = MagicMock()
@@ -85,10 +89,12 @@ def test_no_audio_available(mock_dl: MagicMock, tmp_path: Path) -> None:
     candidate_repo.get_by_id.return_value = _make_candidate()
     pronunciation_source.get_audio_urls.return_value = (None, None)
 
-    uc = _build_use_case(candidate_repo, pronunciation_repo, pronunciation_source, str(tmp_path))
+    uc = _build_use_case(
+        candidate_repo, pronunciation_repo, pronunciation_source, str(tmp_path), file_downloader,
+    )
     uc.execute_one(1)
 
-    mock_dl.assert_not_called()
+    file_downloader.download.assert_not_called()
     pronunciation_repo.upsert.assert_called_once()
     upserted: CandidatePronunciation = pronunciation_repo.upsert.call_args[0][0]
     assert upserted.us_audio_path is None
@@ -96,8 +102,8 @@ def test_no_audio_available(mock_dl: MagicMock, tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
-@patch("backend.application.use_cases.download_pronunciation.download_file")
-def test_only_us_audio(mock_dl: MagicMock, tmp_path: Path) -> None:
+def test_only_us_audio(tmp_path: Path) -> None:
+    file_downloader = MagicMock()
     candidate_repo = MagicMock()
     pronunciation_repo = MagicMock()
     pronunciation_source = MagicMock()
@@ -105,10 +111,12 @@ def test_only_us_audio(mock_dl: MagicMock, tmp_path: Path) -> None:
     candidate_repo.get_by_id.return_value = _make_candidate()
     pronunciation_source.get_audio_urls.return_value = ("https://example.com/us.mp3", None)
 
-    uc = _build_use_case(candidate_repo, pronunciation_repo, pronunciation_source, str(tmp_path))
+    uc = _build_use_case(
+        candidate_repo, pronunciation_repo, pronunciation_source, str(tmp_path), file_downloader,
+    )
     uc.execute_one(1)
 
-    assert mock_dl.call_count == 1
+    assert file_downloader.download.call_count == 1
     pronunciation_repo.upsert.assert_called_once()
     upserted: CandidatePronunciation = pronunciation_repo.upsert.call_args[0][0]
     assert upserted.us_audio_path is not None
@@ -116,17 +124,19 @@ def test_only_us_audio(mock_dl: MagicMock, tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
-@patch("backend.application.use_cases.download_pronunciation.download_file")
-def test_candidate_not_found(mock_dl: MagicMock, tmp_path: Path) -> None:
+def test_candidate_not_found(tmp_path: Path) -> None:
+    file_downloader = MagicMock()
     candidate_repo = MagicMock()
     pronunciation_repo = MagicMock()
     pronunciation_source = MagicMock()
 
     candidate_repo.get_by_id.return_value = None
 
-    uc = _build_use_case(candidate_repo, pronunciation_repo, pronunciation_source, str(tmp_path))
+    uc = _build_use_case(
+        candidate_repo, pronunciation_repo, pronunciation_source, str(tmp_path), file_downloader,
+    )
     uc.execute_one(999)
 
-    mock_dl.assert_not_called()
+    file_downloader.download.assert_not_called()
     pronunciation_source.get_audio_urls.assert_not_called()
     pronunciation_repo.upsert.assert_not_called()

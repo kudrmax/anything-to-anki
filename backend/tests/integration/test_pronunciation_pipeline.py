@@ -6,7 +6,7 @@ Uses in-memory SQLite and mocked HTTP downloads.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from backend.infrastructure.persistence.database import Base
@@ -71,11 +71,11 @@ class TestPronunciationPipeline:
                 candidate_repo=candidate_repo,
                 pronunciation_repo=pron_repo,
                 pronunciation_source=pron_source,
+                file_downloader=MagicMock(),
                 media_root=str(tmp_path),
             )
 
-            with patch("backend.application.use_cases.download_pronunciation.download_file"):
-                use_case.execute_one(1)
+            use_case.execute_one(1)
 
             session.commit()
 
@@ -111,6 +111,7 @@ class TestPronunciationPipeline:
                 candidate_repo=candidate_repo,
                 pronunciation_repo=pron_repo,
                 pronunciation_source=pron_source,
+                file_downloader=MagicMock(),
                 media_root=str(tmp_path),
             )
 
