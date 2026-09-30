@@ -11,6 +11,7 @@ final class MainWindowController: NSWindowController {
     private let webController: WebViewController
     private let statusController = StatusViewController()
     private let backgroundStore = PageBackgroundStore()
+    private var status: LaunchStatus?
     private var backgroundObservation: NSKeyValueObservation?
 
     init(config: AppConfig) {
@@ -54,18 +55,24 @@ final class MainWindowController: NSWindowController {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     func showStatus(_ status: LaunchStatus) {
+        self.status = status
         statusController.show(status)
         setContent(statusController)
     }
 
     func showApp() {
+        status = nil
         webController.loadApp()
         setContent(webController)
     }
 
+    /// Cmd+R: reloads the page, retries a failed start, and does nothing while starting or stopping.
     func reload() {
-        guard window?.contentViewController === webController else { return onRetry?() ?? () }
-        webController.reload()
+        switch status {
+        case nil: webController.reload()
+        case .failed: onRetry?()
+        case .starting, .stopping: break
+        }
     }
 
     private func setContent(_ controller: NSViewController) {

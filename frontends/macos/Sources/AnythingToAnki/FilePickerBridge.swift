@@ -8,6 +8,12 @@ final class FilePickerBridge: NSObject, WKScriptMessageHandlerWithReply {
     static let name = "pickFile"
 
     private weak var window: NSWindow?
+    private let isAppFrame: (WKFrameInfo) -> Bool
+
+    /// Only the app's own top-level page may ask for paths; embedded frames get nil.
+    init(isAppFrame: @escaping (WKFrameInfo) -> Bool) {
+        self.isAppFrame = isAppFrame
+    }
 
     func attach(to window: NSWindow?) {
         self.window = window
@@ -18,6 +24,7 @@ final class FilePickerBridge: NSObject, WKScriptMessageHandlerWithReply {
         didReceive message: WKScriptMessage,
         replyHandler: @escaping (Any?, String?) -> Void
     ) {
+        guard isAppFrame(message.frameInfo) else { return replyHandler(nil, nil) }
         let body = message.body as? [String: Any]
         let extensions = body?["extensions"] as? [String] ?? []
 

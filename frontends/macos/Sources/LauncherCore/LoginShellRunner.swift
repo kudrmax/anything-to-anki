@@ -17,7 +17,7 @@ public struct LoginShellRunner: CommandRunner {
             let log = try FileHandle(forWritingTo: logURL)
             defer { try? log.close() }
             let exitCode = try await launch(command, in: directory, output: log)
-            let output = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
+            let output = String(decoding: (try? Data(contentsOf: logURL)) ?? Data(), as: UTF8.self)
             return CommandResult(exitCode: exitCode, output: output)
         } catch {
             return CommandResult(exitCode: -1, output: "Could not run `\(command)`: \(error.localizedDescription)")

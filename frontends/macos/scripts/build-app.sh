@@ -8,6 +8,12 @@ port=${2:?port}
 env_name=${3:?instance env name}
 
 macos_dir=${0:A:h:h}
+
+command -v trash >/dev/null || { echo "ERROR: 'trash' not found (macOS 15+ has it, or: brew install trash)"; exit 1; }
+if [[ $(git -C "$project_dir" rev-parse --git-dir) != $(git -C "$project_dir" rev-parse --git-common-dir) ]]; then
+    echo "ERROR: make app is for the dev and prod copies, not a worktree: the app would run make up on the dev port."
+    exit 1
+fi
 install_dir="$HOME/Applications"
 build_dir="$macos_dir/.build/app"
 
@@ -16,7 +22,7 @@ if [[ $env_name == prod ]]; then
     bundle_id="local.anything-to-anki"
 else
     app_name="AnythingToAnki ${(C)env_name}"
-    bundle_id="local.anything-to-anki.${env_name:l}"
+    bundle_id="local.anything-to-anki.${${env_name:l}//[^a-z0-9-]/-}"
 fi
 version=$(git -C "$project_dir" rev-parse --short HEAD)
 bundle="$build_dir/$app_name.app"
@@ -28,13 +34,17 @@ binary="$(swift build --package-path "$macos_dir" -c release --show-bin-path)/An
 [[ -e $build_dir ]] && trash "$build_dir"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 cp "$binary" "$bundle/Contents/MacOS/$app_name"
-sed -e "s|@APP_NAME@|$app_name|g" \
-    -e "s|@BUNDLE_ID@|$bundle_id|g" \
-    -e "s|@VERSION@|$version|g" \
-    -e "s|@PROJECT_DIR@|$project_dir|g" \
-    -e "s|@PORT@|$port|g" \
-    "$macos_dir/Resources/Info.plist.template" > "$bundle/Contents/Info.plist"
-plutil -lint -s "$bundle/Contents/Info.plist"
+plist="$bundle/Contents/Info.plist"
+cp "$macos_dir/Resources/Info.plist" "$plist"
+for key in CFBundleName CFBundleDisplayName CFBundleExecutable; do
+    plutil -replace $key -string "$app_name" "$plist"
+done
+plutil -replace CFBundleIdentifier -string "$bundle_id" "$plist"
+plutil -replace CFBundleShortVersionString -string "$version" "$plist"
+plutil -replace CFBundleVersion -string "$version" "$plist"
+plutil -replace A2AProjectDir -string "$project_dir" "$plist"
+plutil -replace A2APort -string "$port" "$plist"
+plutil -lint -s "$plist"
 
 iconset="$build_dir/AppIcon.iconset"
 mkdir -p "$iconset"

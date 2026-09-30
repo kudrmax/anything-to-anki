@@ -173,9 +173,9 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
           )}
           {tab === 'file' && (
             <>
-              <PathField value={filePath} placeholder="/path/to/movie.mkv" onChange={setFilePath} />
+              <PathField value={filePath} placeholder="/path/to/movie.mkv" onChange={setFilePath} onError={setError} />
               {isVideoPath(filePath) && (
-                <PathField value={srtPath} placeholder="/path/to/subtitles.srt (optional)" extensions={SUBTITLE_EXTENSIONS} onChange={setSrtPath} />
+                <PathField value={srtPath} placeholder="/path/to/subtitles.srt (optional)" extensions={SUBTITLE_EXTENSIONS} onChange={setSrtPath} onError={setError} />
               )}
               {filePath.trim() && <Text tone="muted" size="s">{detectedFileType(filePath)}</Text>}
             </>

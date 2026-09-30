@@ -5,6 +5,7 @@ import LauncherCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var launcher: ServerLauncher?
     private var windowController: MainWindowController?
+    private var isTerminating = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let config: AppConfig
@@ -33,6 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let launcher else { return .terminateNow }
+        if isTerminating { return .terminateLater }
+        isTerminating = true
         windowController?.showStatus(.stopping)
         Task {
             await launcher.stop()
@@ -53,10 +56,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func launch() {
-        guard let launcher, let windowController else { return }
+        guard let launcher, let windowController, !isTerminating else { return }
         windowController.showStatus(.starting)
         Task {
             let outcome = await launcher.start()
+            guard !isTerminating else { return }
             switch outcome {
             case .ready:
                 windowController.showApp()

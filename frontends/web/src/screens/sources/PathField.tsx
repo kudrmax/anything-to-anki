@@ -8,10 +8,11 @@ interface PathFieldProps {
   placeholder: string
   extensions?: readonly string[]
   onChange: (path: string) => void
+  onError: (message: string) => void
 }
 
 /** A file path typed by hand; inside the macOS app it can also be picked in Finder. */
-export function PathField({ value, placeholder, extensions, onChange }: PathFieldProps) {
+export function PathField({ value, placeholder, extensions, onChange, onError }: PathFieldProps) {
   const [host] = useState(() => nativeHost())
   const [picking, setPicking] = useState(false)
 
@@ -21,6 +22,8 @@ export function PathField({ value, placeholder, extensions, onChange }: PathFiel
     try {
       const path = await host.pickFile(extensions)
       if (path) onChange(path)
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'Could not open the file picker')
     } finally {
       setPicking(false)
     }

@@ -19,6 +19,12 @@ final class SystemAdaptersTests: XCTestCase {
         XCTAssertLessThan(ContinuousClock.now - started, .seconds(4))
     }
 
+    func testRunnerKeepsOutputWithInvalidUTF8() async {
+        let result = await LoginShellRunner().run("printf 'bad \\377 byte\\nstill here'", in: FileManager.default.temporaryDirectory)
+
+        XCTAssertTrue(result.output.contains("still here"))
+    }
+
     func testProbeReportsClosedPortAsDown() async {
         let probe = HTTPHealthProbe(url: URL(string: "http://localhost:1/")!)
 

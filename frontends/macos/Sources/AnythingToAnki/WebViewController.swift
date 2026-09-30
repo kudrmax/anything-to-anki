@@ -6,7 +6,9 @@ final class WebViewController: NSViewController {
     var onLoadFailed: ((String) -> Void)?
 
     private let config: AppConfig
-    private let filePicker = FilePickerBridge()
+    private lazy var filePicker = FilePickerBridge(isAppFrame: { [config] frame in
+        frame.isMainFrame && frame.request.url.map(config.isAppURL) == true
+    })
     private lazy var webView: WKWebView = makeWebView()
 
     init(config: AppConfig) {
@@ -28,8 +30,12 @@ final class WebViewController: NSViewController {
 
     func loadApp() {
         loadViewIfNeeded()
-        if webView.url.map(config.isAppURL) == true { return }
-        webView.load(URLRequest(url: config.serverURL))
+        // After a failed load the old page is still shown, so a retry has to reload it.
+        if webView.url.map(config.isAppURL) == true {
+            webView.reload()
+        } else {
+            webView.load(URLRequest(url: config.serverURL))
+        }
     }
 
     func reload() {
@@ -78,7 +84,16 @@ extension WebViewController: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        guard !Self.isInterruption(error) else { return }
         onLoadFailed?(error.localizedDescription)
+    }
+
+    /// A load superseded by another one (double Cmd+R, a click mid-load) is not a failure.
+    private static func isInterruption(_ error: Error) -> Bool {
+        let error = error as NSError
+        let frameLoadInterrupted = 102
+        return (error.domain == NSURLErrorDomain && error.code == NSURLErrorCancelled)
+            || (error.domain == "WebKitErrorDomain" && error.code == frameLoadInterrupted)
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
