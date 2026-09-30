@@ -126,8 +126,8 @@ export function Anki({ store, form }: SectionProps) {
           </Stack>
         }
       >
-        <Button busy={store.verifying} onClick={() => void store.verify()}>Verify note type</Button>
-        <Button busy={store.creating} onClick={() => void store.createNoteType()}>Create type</Button>
+        <Button busy={store.verifying} disabled={!form.anki_note_type.trim()} onClick={() => void store.verify()}>Verify note type</Button>
+        <Button busy={store.creating} disabled={!form.anki_note_type.trim()} onClick={() => void store.createNoteType()}>Create type</Button>
       </DividerRow>
       <DividerRow last label="Card template" hint="Copy and paste into Anki's card template editor. Field names match your mapping above.">
         {TEMPLATE_PARTS.map(({ part, label }) => (

@@ -54,9 +54,9 @@ export function SettingsScreen() {
     <Aside title="Sections">
       <nav className={css.toc}>
         {sections.map(section => (
-          <button key={section.id} type="button" className={section.id === activeId ? `${css.link} ${css.on}` : css.link} onClick={() => jump(section.id)}>
+          <Button key={section.id} variant={section.id === activeId ? 'accent-link' : 'link'} onClick={() => jump(section.id)}>
             {section.title}
-          </button>
+          </Button>
         ))}
       </nav>
     </Aside>

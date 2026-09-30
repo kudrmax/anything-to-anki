@@ -119,7 +119,7 @@ export function SourceRow({ source, collections, onProcess, onReview, onExport, 
       actions={!isProcessing && (
         <>
           <IconButton icon={Pencil} label="Rename" onClick={startEditing} />
-          <IconButton icon={RefreshCw} label="Reprocess" onClick={() => onReprocess(source.id)} />
+          {source.status !== 'new' && <IconButton icon={RefreshCw} label="Reprocess" onClick={() => onReprocess(source.id)} />}
           <IconButton icon={Trash2} label="Delete" onClick={() => onDelete(source.id)} />
         </>
       )}

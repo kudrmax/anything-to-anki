@@ -1,3 +1,5 @@
+import type { CandidateMeaning } from '@/api/types'
+
 export const FREQ_BAND_LABEL: Record<string, string> = {
   ULTRA_COMMON: 'Ultra Common',
   COMMON: 'Common',
@@ -106,4 +108,10 @@ export function parseExamples(examples: string | null | undefined): string[] {
 /** Медиа отдаётся относительным путём /media/{source}/{имя файла}. */
 export function mediaUrl(sourceId: number, path: string | null | undefined): string | null {
   return path ? `/media/${sourceId}/${path.split('/').pop()}` : null
+}
+
+/** Что предложить во фразе без текста значения: сгенерировать, повторить после ошибки или ничего. */
+export function meaningAction(meaning: CandidateMeaning | null): 'generate' | 'retry' | null {
+  if (meaning?.meaning || meaning?.status === 'running') return null
+  return meaning?.status === 'failed' ? 'retry' : 'generate'
 }

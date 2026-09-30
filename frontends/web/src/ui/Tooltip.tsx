@@ -6,11 +6,13 @@ interface TooltipProps {
   anchor: HTMLElement | null
   /** Точка привязки вместо элемента, в координатах окна. */
   point?: { x: number; top: number; bottom: number }
+  /** dialog — всплывающее окно с действиями (блокирует хоткеи экрана), tooltip — подсказка. */
+  role?: 'dialog' | 'tooltip'
   onClose: () => void
   children: ReactNode
 }
 
-export function Tooltip({ anchor, point, onClose, children }: TooltipProps) {
+export function Tooltip({ anchor, point, role = 'tooltip', onClose, children }: TooltipProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
 
@@ -43,9 +45,8 @@ export function Tooltip({ anchor, point, onClose, children }: TooltipProps) {
     }
   }, [onClose])
 
-  const style = { '--x': `${position?.x ?? 0}px`, '--y': `${position?.y ?? 0}px` } as CSSProperties
   return createPortal(
-    <div ref={ref} role="dialog" className={position ? css.tooltip : `${css.tooltip} ${css.measuring}`} style={style}>
+    <div ref={ref} role={role} className={position ? css.tooltip : `${css.tooltip} ${css.measuring}`} style={{ '--x': `${position?.x ?? 0}px`, '--y': `${position?.y ?? 0}px` } as CSSProperties}>
       {children}
     </div>,
     document.body,

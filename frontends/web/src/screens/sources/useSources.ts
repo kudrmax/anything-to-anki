@@ -146,7 +146,7 @@ export function useSources() {
   const pendingCount = sources.filter(s => s.status === 'new' || s.status === 'error').length
 
   return {
-    sources, stats, collections, cefrLevel, error, pendingCount, processingAll,
+    sources, stats, collections, cefrLevel, error, clearError: () => setError(null), pendingCount, processingAll,
     reload, prepend, process, processAll, remove, rename, assignCollection, reprocess,
     createCollection, renameCollection, deleteCollection,
   }

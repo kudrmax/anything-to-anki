@@ -50,9 +50,9 @@ export function Menu({ trigger, items, footer, emptyText, align = 'end', openOn 
       {open && (
         <div className={`${css.menu} ${css[align]}`} role="menu" onClick={e => e.stopPropagation()}>
           {items.length === 0 && emptyText && <div className={css.empty}>{emptyText}</div>}
-          {items.map(item => (
+          {items.map((item, index) => (
             <button
-              key={item.label}
+              key={index}
               type="button"
               role="menuitem"
               disabled={item.disabled}

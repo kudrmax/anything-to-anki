@@ -5,9 +5,13 @@ import { Banner, Button, DividerRow, Empty, GroupLabel, Spinner, StatusDot, Text
 import { ExportCardRow } from './ExportCardRow'
 import { useExport } from './useExport'
 
+/** Общий экспорт и экспорт источника — разные экземпляры: состояние одного не переходит в другой. */
 export function ExportScreen() {
   const { id } = useParams<{ id: string }>()
-  const sourceId = id === undefined ? undefined : Number(id)
+  return <ExportView key={id ?? 'all'} sourceId={id === undefined ? undefined : Number(id)} />
+}
+
+function ExportView({ sourceId }: { sourceId: number | undefined }) {
   const exporter = useExport(sourceId)
   const player = useAudioPlayer()
   const back = sourceId === undefined ? undefined : `/sources/${sourceId}/review`

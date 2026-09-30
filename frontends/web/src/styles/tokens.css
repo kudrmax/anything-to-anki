@@ -30,6 +30,10 @@
   --page-bg: radial-gradient(900px 420px at 18% -10%, var(--glow-a), transparent 60%),
              radial-gradient(700px 380px at 95% 105%, var(--glow-b), transparent 60%), var(--bg);
   --overlay: color-mix(in srgb, var(--bg) 70%, transparent);
+  --warn-tint: color-mix(in srgb, var(--warn) 14%, transparent);
+  --err-tint: color-mix(in srgb, var(--err) 14%, transparent);
+  --media-veil: color-mix(in srgb, var(--bg) 25%, transparent);
+  --fade-bottom: linear-gradient(transparent, var(--bg) 40%);
 
   /* форма */
   --r: 16px;          /* строки, поверхности, окна */
@@ -50,10 +54,19 @@
   --thumb-h: 72px;
   --field-area: 128px;
   --prog: 3px;
+  --progress-inline-w: calc(var(--h) * 3);
+  --range-w: calc(var(--h) * 5);
+  --control-w: calc(var(--h) * 7);
+  --label-w: calc(var(--h) * 2.3);
+  --trace-max: calc(var(--h) * 7);
+  --header-lead-min: calc(var(--h) * 8);
+  --source-max: calc(100dvh - var(--h) * 4);
   --icon-stroke: 1.75;
   --dot-bw: 1.5px;
   --switch-w: 38px;
   --switch-h: 22px;
+  --switch-knob: calc(var(--switch-h) - 2 * var(--s2));
+  --switch-travel: calc(var(--switch-w) - var(--switch-knob) - 2 * var(--s2));
   --h-row: 56px;
   --h-row-s: 44px;
 
@@ -64,7 +77,8 @@
   --col-gap: 80px;
   --page-x: 44px;
   --page-top: 28px;
-  --page-x-narrow: 22px;
+  --page-cols: minmax(0, var(--col)) var(--aside);
+  --aside-position: sticky;
   --modal: 480px;
   --menu: 240px;
 
@@ -93,7 +107,7 @@
   /* движение */
   --t: 150ms;
   --spin: 1s;
-  --toast: 3s;
+  --turn: 360deg;
 }
 
 [data-theme="light"] {
@@ -111,4 +125,13 @@
   --err: #a83c30;
   --glow-strength: 9%;
   --fill-shadow: none;
+}
+
+/* узкое окно: одна колонка. Единственное место с брейкпоинтом. */
+@media (max-width: 1100px) {
+  :root {
+    --page-x: 22px;
+    --page-cols: minmax(0, 1fr);
+    --aside-position: static;
+  }
 }

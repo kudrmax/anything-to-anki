@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Target, Volume2 } from 'lucide-react'
 import type { EnrichmentStatus, StoredCandidate } from '@/api/types'
-import { FREQ_BAND_LABEL, isDivider, meaningParts, mediaUrl, nonEmptyLines, primaryUsageGroup } from '@/lib/text/meaning'
+import { FREQ_BAND_LABEL, isDivider, meaningAction, meaningParts, mediaUrl, nonEmptyLines, primaryUsageGroup } from '@/lib/text/meaning'
 import { Button, Chip, Icon, MediaThumb, Spinner, Text } from '@/ui'
 import { CefrTooltip } from './CefrTooltip'
 import { PhraseActions } from './PhraseActions'
@@ -57,34 +57,39 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
     </Chip>
   )
 
+  const action = meaningAction(meaning)
+  const hasMeta = facts.length > 0 || candidate.is_phrasal_verb || Boolean(candidate.cefr_level || meaning?.ipa || usUrl || ukUrl || ttsUrl)
+    || isActive(candidate.pronunciation?.status) || isActive(candidate.tts?.status)
   const paragraphs = meaning?.meaning ? nonEmptyLines(meaning.meaning) : []
   const examples = meaning?.examples ? nonEmptyLines(meaning.examples) : []
 
   return (
     <div className={css.details}>
-      <div className={css.meta}>
-        {facts.map(fact => <span key={fact}>{fact}</span>)}
-        {candidate.is_phrasal_verb ? <span>phrasal</span> : candidate.cefr_level && (
-          <span
-            className={css.cefr}
-            onMouseEnter={e => candidate.cefr_breakdown && setCefrAnchor(e.currentTarget)}
-            onMouseLeave={() => setCefrAnchor(null)}
-          >
-            {candidate.is_sweet_spot && <Icon as={Target} size="s" />}
-            {candidate.cefr_level}
-          </span>
-        )}
-        {meaning?.ipa && <Text mono>{meaning.ipa}</Text>}
-        {audioChip('US', usUrl, 'Play US pronunciation')}
-        {audioChip('UK', ukUrl, 'Play UK pronunciation')}
-        {!hasPronunciationAudio && (
-          <StatusText status={candidate.pronunciation?.status} error={candidate.pronunciation?.error} labels={{ running: 'Downloading...', queued: 'Queued', failed: 'Failed' }} />
-        )}
-        {audioChip('TTS', ttsUrl, 'Play TTS audio')}
-        {!ttsUrl && (
-          <StatusText status={candidate.tts?.status} error={candidate.tts?.error} labels={{ running: 'TTS...', queued: 'TTS queued', failed: 'TTS failed' }} />
-        )}
-      </div>
+      {hasMeta && (
+        <div className={css.meta}>
+          {facts.map(fact => <span key={fact}>{fact}</span>)}
+          {candidate.is_phrasal_verb ? <span>phrasal</span> : candidate.cefr_level && (
+            <span
+              className={css.cefr}
+              onMouseEnter={e => candidate.cefr_breakdown && setCefrAnchor(e.currentTarget)}
+              onMouseLeave={() => setCefrAnchor(null)}
+            >
+              {candidate.is_sweet_spot && <Icon as={Target} size="s" />}
+              {candidate.cefr_level}
+            </span>
+          )}
+          {meaning?.ipa && <Text mono>{meaning.ipa}</Text>}
+          {audioChip('US', usUrl, 'Play US pronunciation')}
+          {audioChip('UK', ukUrl, 'Play UK pronunciation')}
+          {!hasPronunciationAudio && (
+            <StatusText status={candidate.pronunciation?.status} error={candidate.pronunciation?.error} labels={{ running: 'Downloading...', queued: 'Queued', failed: 'Failed' }} />
+          )}
+          {audioChip('TTS', ttsUrl, 'Play TTS audio')}
+          {!ttsUrl && (
+            <StatusText status={candidate.tts?.status} error={candidate.tts?.error} labels={{ running: 'TTS...', queued: 'TTS queued', failed: 'TTS failed' }} />
+          )}
+        </div>
+      )}
 
       <div className={css.body}>
         <div className={css.text}>
@@ -92,9 +97,14 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
             ? <hr key={i} className={phrase.divider} />
             : <p key={i} className={i === 0 ? phrase.definition : phrase.context}><RichText text={paragraph} candidate={candidate} /></p>)}
           {paragraphs.length === 0 && (
-            isActive(meaning?.status)
-              ? <StatusText status={meaning?.status} error={meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
-              : <Button variant="accent-link" busy={review.busy.generating.has(candidate.id)} onClick={() => void review.generate(candidate.id)}>Generate meaning</Button>
+            <div className={css.status}>
+              <StatusText status={meaning?.status} error={meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
+              {action && (
+                <Button variant="accent-link" busy={review.busy.generating.has(candidate.id)} onClick={() => void review.generate(candidate.id)}>
+                  {action === 'retry' ? 'Retry' : 'Generate meaning'}
+                </Button>
+              )}
+            </div>
           )}
           {(meaning?.translation || meaning?.synonyms) && (
             <p className={phrase.translation}>

@@ -67,7 +67,7 @@ export function SourcesScreen() {
   )
 
   return (
-    <Page header={header} aside={aside} banner={store.error && <Banner tone="err">{store.error}</Banner>}>
+    <Page header={header} aside={aside} banner={store.error && <Banner tone="err" onDismiss={store.clearError}>{store.error}</Banner>}>
       {filtered.length === 0 && (
         <Empty>{sources.length === 0 ? 'No sources yet. Add one to get started.' : 'No sources in this collection.'}</Empty>
       )}

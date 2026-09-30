@@ -10,7 +10,7 @@
 .spacer { flex: 1; }
 
 /* текст источника */
-.source { position: relative; max-height: calc(100dvh - var(--h) * 4); overflow: auto; font-size: var(--fs-m); line-height: var(--lh-loose); color: var(--tx3); white-space: pre-wrap; }
+.source { position: relative; max-height: var(--source-max); overflow: auto; font-size: var(--fs-m); line-height: var(--lh-loose); color: var(--tx3); white-space: pre-wrap; }
 .fragment { color: var(--tx2); }
 .mark { background: none; color: inherit; cursor: pointer; }
 .markPending { color: var(--tx2); text-decoration: underline; text-decoration-color: var(--ac-underline); text-underline-offset: var(--s2); }
@@ -21,10 +21,7 @@
 /* попап выделения */
 .popover { display: flex; flex-direction: column; gap: var(--s3); min-width: var(--menu); font-size: var(--fs-m); }
 .popoverFooter { display: flex; justify-content: flex-end; align-items: center; gap: var(--gap); margin-top: var(--s3); }
-.words { display: flex; flex-wrap: wrap; gap: var(--s2); user-select: none; }
-.word { padding: 0 var(--s2); border-radius: var(--r-xs); cursor: pointer; }
-.word:hover { background: var(--hover); }
-.wordOn, .wordOn:hover { background: var(--ac-tint); color: var(--ac); }
+.words { display: flex; flex-wrap: wrap; gap: var(--s2); }
 .added { color: var(--ok); }
 .removed { color: var(--err); text-decoration: line-through; }
 

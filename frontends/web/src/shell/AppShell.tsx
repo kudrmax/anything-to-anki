@@ -1,11 +1,11 @@
 import { Outlet } from 'react-router-dom'
 import '@/styles/base.css'
-import { useTheme } from '@/lib/theme'
+import { useApplyTheme } from '@/lib/theme'
 import { Rail } from './Rail'
 import css from './AppShell.module.css'
 
 export function AppShell() {
-  useTheme()
+  useApplyTheme()
   return (
     <div className={css.shell}>
       <Rail />

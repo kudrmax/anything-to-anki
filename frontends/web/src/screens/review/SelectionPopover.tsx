@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { computeDiff } from '@/lib/text/diff'
-import { Button, Text, Tooltip } from '@/ui'
+import { Button, Chip, Text, Tooltip } from '@/ui'
 import type { SelectionPoint } from './SourceText'
 import type { Editing } from './useReview'
 import css from './review.module.css'
@@ -41,7 +41,7 @@ export function SelectionPopover({ phrase, point, editing, onSetBoundary, onAddW
   })
 
   return (
-    <Tooltip anchor={null} point={point} onClose={onCancel}>
+    <Tooltip anchor={null} point={point} role="dialog" onClose={onCancel}>
       <div className={css.popover}>
         {editing ? (
           <>
@@ -60,7 +60,7 @@ export function SelectionPopover({ phrase, point, editing, onSetBoundary, onAddW
             <Text tone="muted" size="s">Tap words to select target</Text>
             <div className={css.words}>
               {words.map((word, i) => (
-                <span key={i} className={selected.has(i) ? `${css.word} ${css.wordOn}` : css.word} onClick={() => toggleWord(i)}>{word}</span>
+                <Chip key={i} small on={selected.has(i)} onClick={() => toggleWord(i)}>{word}</Chip>
               ))}
             </div>
             {target && <Text tone="muted" size="s">Target: <Text tone="accent">{target}</Text></Text>}

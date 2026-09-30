@@ -3,4 +3,4 @@
 .field::placeholder { color: var(--tx3); }
 .area { height: var(--field-area); padding: var(--s3) var(--s4); resize: none; }
 .select { width: auto; max-width: var(--menu); flex: none; text-overflow: ellipsis; font-size: var(--fs-c); color: var(--tx2); }
-.range { flex: none; width: calc(var(--h) * 5); accent-color: var(--ac); }
+.range { flex: none; width: var(--range-w); accent-color: var(--ac); }
