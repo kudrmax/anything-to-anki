@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from backend.application.dto.source_dtos import StoredCandidateDTO
+from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import CandidateNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -51,21 +51,8 @@ class ReplaceWithExampleUseCase:
             surface_form=None,
             is_phrasal_verb=original.is_phrasal_verb,
             has_custom_context_fragment=True,
+            cefr_breakdown=original.cefr_breakdown,
+            usage_distribution=original.usage_distribution,
         )
         saved = self._candidate_repo.create_batch([new_candidate])[0]
-
-        return StoredCandidateDTO(
-            id=saved.id,  # type: ignore[arg-type]
-            lemma=saved.lemma,
-            pos=saved.pos,
-            cefr_level=saved.cefr_level,
-            zipf_frequency=saved.zipf_frequency,
-            is_sweet_spot=saved.is_sweet_spot,
-            context_fragment=saved.context_fragment,
-            fragment_purity=saved.fragment_purity,
-            occurrences=saved.occurrences,
-            status=saved.status.value,
-            surface_form=saved.surface_form,
-            is_phrasal_verb=saved.is_phrasal_verb,
-            has_custom_context_fragment=saved.has_custom_context_fragment,
-        )
+        return stored_candidate_to_dto(saved)

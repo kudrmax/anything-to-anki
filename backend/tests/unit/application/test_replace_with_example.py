@@ -8,6 +8,9 @@ from backend.application.use_cases.replace_with_example import ReplaceWithExampl
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import CandidateNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
+from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.usage_distribution import UsageDistribution
 
 
 def _candidate(
@@ -23,6 +26,8 @@ def _candidate(
     occurrences: int = 2,
     is_phrasal_verb: bool = False,
     surface_form: str | None = "ran",
+    cefr_breakdown: CEFRBreakdown | None = None,
+    usage_distribution: UsageDistribution | None = None,
 ) -> StoredCandidate:
     return StoredCandidate(
         id=candidate_id,
@@ -37,6 +42,22 @@ def _candidate(
         status=CandidateStatus.PENDING,
         surface_form=surface_form,
         is_phrasal_verb=is_phrasal_verb,
+        cefr_breakdown=cefr_breakdown,
+        usage_distribution=usage_distribution,
+    )
+
+
+def _breakdown() -> CEFRBreakdown:
+    vote = SourceVote(
+        source_name="Oxford 5000",
+        distribution={CEFRLevel.B1: 1.0},
+        top_level=CEFRLevel.B1,
+    )
+    return CEFRBreakdown(
+        final_level=CEFRLevel.B1,
+        decision_method="priority",
+        priority_votes=[vote],
+        votes=[],
     )
 
 
@@ -152,3 +173,19 @@ class TestReplaceWithExampleHappyPath:
 
         created = repo.create_batch.call_args[0][0][0]
         assert created.context_fragment == "She runs every morning."
+
+    def test_new_candidate_keeps_cefr_breakdown_and_usage(self) -> None:
+        """The level is derived from the breakdown on load, so a replacement
+        without it would come back from the DB with no CEFR level."""
+        breakdown = _breakdown()
+        usage = UsageDistribution(groups={"informal": 1.0})
+        repo = _mock_repo(_candidate(cefr_breakdown=breakdown, usage_distribution=usage))
+        use_case = _make_use_case(candidate_repo=repo)
+
+        result = use_case.execute(candidate_id=1, example_text="She runs every morning.")
+
+        created = repo.create_batch.call_args[0][0][0]
+        assert created.cefr_breakdown == breakdown
+        assert created.usage_distribution == usage
+        assert result.cefr_breakdown is not None
+        assert result.usage_distribution == {"informal": 1.0}
