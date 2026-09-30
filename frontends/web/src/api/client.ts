@@ -20,7 +20,6 @@ import type {
   Settings,
   SourceDetail,
   SourceMediaStats,
-  SourceStatus,
   SourceSummary,
   SourceType,
   Stats,
@@ -89,11 +88,6 @@ export const api = {
       body: JSON.stringify({ status }),
     }),
 
-  updateSourceStatus: (id: number, status: SourceStatus) =>
-    req<{ id: number; status: string }>(`/sources/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    }),
 
   getAnkiStatus: () => req<AnkiStatus>('/anki/status'),
 

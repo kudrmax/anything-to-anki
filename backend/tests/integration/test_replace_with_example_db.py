@@ -6,6 +6,7 @@ row on load, so the replacement must be persisted together with a breakdown.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
@@ -58,7 +59,7 @@ def test_replacement_keeps_cefr_level_after_reload(db_session: Session, source_i
     ])[0]
     assert original.id is not None
 
-    result = ReplaceWithExampleUseCase(candidate_repo=repo).execute(
+    result = ReplaceWithExampleUseCase(candidate_repo=repo, review_status=MagicMock()).execute(
         candidate_id=original.id, example_text="She paid in advance.",
     )
     db_session.expire_all()

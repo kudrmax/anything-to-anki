@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { GripVertical, X } from 'lucide-react'
+import { GripVertical } from 'lucide-react'
 import type { Settings } from '@/api/types'
 import { autoPlayAudioPref, type ThemePref } from '@/lib/preferences'
 import { formatBytes } from '@/lib/text/format'
 import { useTheme } from '@/lib/theme'
-import { Button, Chip, DividerRow, Empty, Field, Icon, Label, Range, Segmented, Spinner, Stack, Switch, Text } from '@/ui'
+import { Button, Chip, DividerRow, Empty, Field, Icon, Label, Range, RemovableChip, Segmented, Spinner, Stack, Switch, Text } from '@/ui'
 import type { SettingsStore, TemplatePart } from './useSettings'
 import css from './settings.module.css'
 
@@ -272,10 +272,12 @@ export function KnownWords({ store }: { store: SettingsStore }) {
       {store.knownWords.length === 0 ? <Empty>No known words yet.</Empty> : (
         <Stack row wrap>
           {store.knownWords.map(word => (
-            <Chip key={word.id} outlined disabled={store.deletingId === word.id} title="Remove" onClick={() => void store.deleteWord(word.id)}>
-              {word.lemma} · {word.pos ?? 'any'}
-              <Icon as={X} size="s" />
-            </Chip>
+            <RemovableChip
+              key={word.id}
+              label={`${word.lemma} · ${word.pos ?? 'any'}`}
+              disabled={store.deletingId === word.id}
+              onRemove={() => void store.deleteWord(word.id)}
+            />
           ))}
         </Stack>
       )}

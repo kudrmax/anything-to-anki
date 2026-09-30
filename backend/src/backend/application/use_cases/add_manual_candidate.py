@@ -9,6 +9,7 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
 if TYPE_CHECKING:
+    from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.cefr_classifier import CEFRClassifier
     from backend.domain.ports.frequency_provider import FrequencyProvider
@@ -32,6 +33,7 @@ class AddManualCandidateUseCase:
         cefr_classifier: CEFRClassifier,
         frequency_provider: FrequencyProvider,
         phrasal_verb_detector: PhrasalVerbDetector,
+        review_status: ReviewStatusUpdater,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
@@ -39,6 +41,7 @@ class AddManualCandidateUseCase:
         self._cefr_classifier = cefr_classifier
         self._frequency_provider = frequency_provider
         self._phrasal_verb_detector = phrasal_verb_detector
+        self._review_status = review_status
 
     def execute(
         self,
@@ -110,4 +113,5 @@ class AddManualCandidateUseCase:
             cefr_breakdown=breakdown,
         )
         saved = self._candidate_repo.create_batch([candidate])[0]
+        self._review_status.refresh(source_id)
         return stored_candidate_to_dto(saved)

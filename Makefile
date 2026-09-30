@@ -183,8 +183,15 @@ dict-rebuild: _check_setup _check_dictionaries_dir  ## Пересобрать с
 dict-update: _check_setup _check_dictionaries_dir  ## Обновить словарный кэш если JSON изменились
 	@.venv/bin/python -m backend.cli.build_dict_cache $${DICTIONARIES_DIR} --if-changed
 
+# Зависимости фронтенда ставятся заново, если package-lock.json новее установленных
+# (например, после git pull) — иначе сборка падает на новых пакетах.
+define install_frontend_deps
+	@cd frontends/web && ( [ node_modules/.package-lock.json -nt package-lock.json ] || { echo "Installing frontend dependencies..."; npm install --no-audit --no-fund; } )
+endef
+
 ##@ Запуск (читает .env)
 up: _check_env _check_setup dict-update  ## Запустить (ai_proxy + app + worker)
+	$(call install_frontend_deps)
 	@echo "Building frontend..."
 	@cd frontends/web && VITE_INSTANCE_ENV_NAME=$(INSTANCE_ENV_NAME) npm run build
 	$(call start_ai_proxy)
@@ -198,6 +205,7 @@ up: _check_env _check_setup dict-update  ## Запустить (ai_proxy + app +
 	@printf "\033[0m\n"
 
 up-worktree: _check_env _check_setup dict-update  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий)
+	$(call install_frontend_deps)
 	@echo "Building frontend..."
 	@cd frontends/web && VITE_INSTANCE_ENV_NAME=worktree npm run build
 	$(call kill_on_port,$(WORKTREE_AI_PROXY_PORT),ai_proxy)

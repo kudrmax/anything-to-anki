@@ -6,6 +6,7 @@ from backend.domain.exceptions import CandidateNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
+    from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.known_word_repository import KnownWordRepository
 
@@ -17,9 +18,11 @@ class MarkCandidateUseCase:
         self,
         candidate_repo: CandidateRepository,
         known_word_repo: KnownWordRepository,
+        review_status: ReviewStatusUpdater,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._known_word_repo = known_word_repo
+        self._review_status = review_status
 
     def execute(self, candidate_id: int, status: CandidateStatus) -> None:
         candidate = self._candidate_repo.get_by_id(candidate_id)
@@ -28,3 +31,4 @@ class MarkCandidateUseCase:
         self._candidate_repo.update_status(candidate_id, status)
         if status == CandidateStatus.KNOWN:
             self._known_word_repo.add(candidate.lemma, candidate.pos)
+        self._review_status.refresh(candidate.source_id)

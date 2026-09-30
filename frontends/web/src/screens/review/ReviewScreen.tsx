@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import type { CandidateStatus } from '@/api/types'
+import { decisionChange, type Decision } from '@/lib/decision'
 import { reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import type { SortOrder } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
@@ -16,7 +16,7 @@ const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
   { value: 'relevance', label: 'Relevance' },
   { value: 'chronological', label: 'Text order' },
 ]
-const DECISION: Partial<Record<ReviewAction, CandidateStatus>> = { learn: 'learn', known: 'known', skip: 'skip' }
+const DECISION: Partial<Record<ReviewAction, Decision>> = { learn: 'learn', known: 'known', skip: 'skip' }
 const SOURCES_PATH = '/'
 
 export function ReviewScreen() {
@@ -54,7 +54,8 @@ export function ReviewScreen() {
         return
       }
       const status = DECISION[action]
-      if (status) void mark(current.id, current.status === status ? 'pending' : status)
+      const change = status ? decisionChange(current.status, status) : null
+      if (change) void mark(current.id, change)
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -129,8 +130,8 @@ export function ReviewScreen() {
           phrase={selection.phrase}
           point={selection.point}
           editing={editing}
-          onSetBoundary={async phrase => { await review.setBoundary(phrase); setSelection(null) }}
-          onAddWord={async (target, context) => { await review.addWord(target, context); setSelection(null) }}
+          onSetBoundary={async phrase => { if (await review.setBoundary(phrase)) setSelection(null) }}
+          onAddWord={async (target, context) => { if (await review.addWord(target, context)) setSelection(null) }}
           onCancel={closeSelection}
         />
       )}

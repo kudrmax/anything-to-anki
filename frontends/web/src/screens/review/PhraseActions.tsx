@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Image, Pencil, Sparkles, Speech, X } from 'lucide-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
+import { decisionChange, type Decision } from '@/lib/decision'
 import { parseExamples } from '@/lib/text/meaning'
 import { Button, Field, IconButton, Menu, type MenuItem } from '@/ui'
 import type { Review } from './useReview'
@@ -13,7 +14,7 @@ const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string }[] = [
   { action: 'how_to_say', label: 'How to say it' },
 ]
 
-const DECISIONS: { status: CandidateStatus; label: string; kbd: string }[] = [
+const DECISIONS: { status: Decision; label: string; kbd: string }[] = [
   { status: 'learn', label: 'Learn', kbd: '1' },
   { status: 'known', label: 'Know', kbd: '2' },
   { status: 'skip', label: 'Skip', kbd: '3' },
@@ -26,8 +27,10 @@ export function PhraseActions({ candidate, review }: { candidate: StoredCandidat
   const isVideo = review.source?.content_type === 'video'
   const isEditing = review.editing?.candidateId === id
 
-  // Повторное нажатие на активную оценку возвращает фразу в неоценённые.
-  const decide = (status: CandidateStatus) => void review.mark(id, candidate.status === status ? 'pending' : status)
+  const decide = (status: Decision) => {
+    const change = decisionChange(candidate.status, status)
+    if (change) void review.mark(id, change)
+  }
   const isPrimary = (status: CandidateStatus) => (isRated ? candidate.status === status : status === 'learn')
 
   const followUpItems: MenuItem[] = [
