@@ -2,3 +2,5 @@
 .chip:hover, .on { background: var(--soft); color: var(--tx); }
 .on { font-weight: var(--fw-m); }
 .outlined { box-shadow: inset 0 0 0 var(--bw) var(--line); }
+.small { height: var(--h-s); padding: 0 var(--s3); border-radius: var(--r-s); gap: var(--s2); background: var(--soft); font-size: var(--fs-xs); font-weight: var(--fw-m); }
+.small.on { color: var(--ac); }
