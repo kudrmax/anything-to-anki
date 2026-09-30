@@ -10,3 +10,4 @@
 .danger { color: var(--err); }
 .empty { padding: var(--s3) var(--s4); font-size: var(--fs-s); color: var(--tx3); }
 .footer { padding: var(--s2); }
+.up { top: auto; bottom: calc(100% + var(--s2)); }

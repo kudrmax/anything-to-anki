@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useEffect } from 'react'
 import type { StoredCandidate } from '@/api/types'
 import { buildSegments, fragmentBounds } from '@/lib/text/segments'
+import { findMark } from './findMark'
 import css from './review.module.css'
 
 export interface SelectionPoint {
@@ -32,9 +33,11 @@ export function SourceText({ text, candidates, focusId, onWordClick, onTextSelec
   // Держим слово текущей фразы в видимой части колонки.
   useEffect(() => {
     const container = containerRef.current
-    const mark = container?.querySelector<HTMLElement>(`[data-mark-id="${focusId}"]`)
+    const fragment = candidates.find(c => c.id === focusId)?.context_fragment ?? ''
+    const mark = container && focusId !== null ? findMark(container, focusId, fragment) : null
     if (!container || !mark) return
     container.scrollTo({ top: mark.offsetTop - container.clientHeight / 2, behavior: 'smooth' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- прокручиваем при смене фразы, а не при каждом обновлении списка
   }, [focusId])
 
   const onMouseUp = () => {

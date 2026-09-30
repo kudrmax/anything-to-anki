@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import { api } from '@/api/client'
 import type { CandidateStatus, CardPreview, FollowUpAction, QueueStatus, QueueSummary, SourceDetail, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
+import { candidateAudioUrl } from '@/lib/candidateAudio'
 import { mediaUrl } from '@/lib/text/meaning'
 import { useToast } from '@/ui'
 import { useAudioPlayer } from '@/lib/useAudioPlayer'
@@ -26,10 +27,7 @@ const isVpnError = (e: unknown): boolean => e instanceof Error && e.message.incl
 const hasCandidateVpnErrors = (candidates: StoredCandidate[]): boolean =>
   candidates.some(c => c.meaning?.status === 'failed' && c.meaning.error?.includes(VPN_ERROR_MARKER))
 
-/** Аудио контекста из видео, иначе произношение US. */
-export function audioUrlForCandidate(candidate: StoredCandidate, sourceId: number): string | null {
-  return mediaUrl(sourceId, candidate.media?.audio_path) ?? mediaUrl(sourceId, candidate.pronunciation?.us_audio_path)
-}
+export const audioUrlForCandidate = candidateAudioUrl
 
 const inflight = (status: QueueStatus | undefined): number => (status?.queued ?? 0) + (status?.running ?? 0)
 
@@ -123,7 +121,12 @@ export function useReview(sourceId: number) {
     const nextPending = idx >= 0 && idx + 1 < pending.length ? pending[idx + 1] : null
     const nextUrl = nextPending && autoPlayAudioPref.read() ? audioUrlForCandidate(nextPending, sourceId) : null
 
-    await api.markCandidate(candidateId, status)
+    try {
+      await api.markCandidate(candidateId, status)
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to save the decision')
+      return
+    }
     setCandidates(prev => prev.map(c => (c.id === candidateId ? { ...c, status } : c)))
 
     if (status !== 'pending') {
@@ -131,7 +134,7 @@ export function useReview(sourceId: number) {
       if (focus) setCurrentId(focus.id)
     }
     if (nextUrl) play(nextUrl)
-  }, [sourceId, play, stop])
+  }, [sourceId, play, stop, showToast])
 
   const withBusy = async (setIds: Dispatch<SetStateAction<Set<number>>>, id: number, run: () => Promise<void>) => {
     setIds(prev => new Set(prev).add(id))
@@ -263,37 +266,33 @@ export function useReview(sourceId: number) {
     window.getSelection()?.removeAllRanges()
   }, [])
 
-  const setBoundary = async (phrase: string) => {
-    if (!editing) return
-    await api.updateCandidateFragment(editing.candidateId, phrase)
+  /** true — граница сохранена; при ошибке показывает её и оставляет попап открытым. */
+  const setBoundary = async (phrase: string): Promise<boolean> => {
+    if (!editing) return false
+    try {
+      await api.updateCandidateFragment(editing.candidateId, phrase)
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to save the boundary')
+      return false
+    }
     setCandidates(prev => prev.map(c => (c.id === editing.candidateId ? { ...c, context_fragment: phrase } : c)))
     cancelEditing()
+    return true
   }
 
-  const addWord = async (target: string, context: string) => {
-    const result = await api.addManualCandidate(sourceId, target, context)
-    window.getSelection()?.removeAllRanges()
-    await loadCandidates()
-    setCurrentId(result.id)
-  }
-
-  // Auto-save source status only when the derived status actually changes,
-  // not on every candidates re-fetch (which happens during polling).
-  const autoSaveRef = useRef(false)
-  const lastSavedStatusRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (loading) return
-    const anyPending = candidates.some(c => c.status === 'pending')
-    const newStatus = anyPending ? 'partially_reviewed' : 'reviewed'
-    if (!autoSaveRef.current) {
-      autoSaveRef.current = true
-      lastSavedStatusRef.current = newStatus
-      return
+  /** true — слово добавлено; при ошибке показывает её и оставляет попап открытым. */
+  const addWord = async (target: string, context: string): Promise<boolean> => {
+    try {
+      const result = await api.addManualCandidate(sourceId, target, context)
+      window.getSelection()?.removeAllRanges()
+      await loadCandidates()
+      setCurrentId(result.id)
+      return true
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to add the word')
+      return false
     }
-    if (lastSavedStatusRef.current === newStatus) return
-    lastSavedStatusRef.current = newStatus
-    void api.updateSourceStatus(sourceId, newStatus)
-  }, [candidates, loading, sourceId])
+  }
 
   const mediaFor = (candidate: StoredCandidate): MediaRefs => ({
     screenshotUrl: mediaUrl(sourceId, candidate.media?.screenshot_path) ?? mediaMap[candidate.id]?.screenshotUrl ?? null,

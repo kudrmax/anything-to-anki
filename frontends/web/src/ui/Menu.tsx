@@ -25,6 +25,14 @@ export function Menu({ trigger, items, footer, emptyText, align = 'end', openOn 
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLSpanElement>(null)
 
+  // Не удлиняем страницу: если снизу не хватает места, а сверху хватает — открываемся вверх.
+  const placeMenu = (menu: HTMLDivElement | null) => {
+    if (!menu || !rootRef.current) return
+    const trigger = rootRef.current.getBoundingClientRect()
+    const height = menu.getBoundingClientRect().height
+    menu.classList.toggle(css.up, trigger.bottom + height > window.innerHeight && trigger.top > height)
+  }
+
   useEffect(() => {
     if (!open) return
     const onPointerDown = (e: PointerEvent) => {
@@ -48,7 +56,7 @@ export function Menu({ trigger, items, footer, emptyText, align = 'end', openOn 
     <span className={css.root} ref={rootRef}>
       <span className={css.trigger} {...triggerProps}>{trigger}</span>
       {open && (
-        <div className={`${css.menu} ${css[align]}`} role="menu" onClick={e => e.stopPropagation()}>
+        <div ref={placeMenu} className={`${css.menu} ${css[align]}`} role="menu" onClick={e => e.stopPropagation()}>
           {items.length === 0 && emptyText && <div className={css.empty}>{emptyText}</div>}
           {items.map((item, index) => (
             <button
