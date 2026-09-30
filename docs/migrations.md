@@ -1,6 +1,6 @@
 # Миграции БД
 
-Единственный способ менять схему БД — **Alembic**. Никаких inline-`ALTER TABLE` / `CREATE TABLE` в Python-коде. Миграции живут в `backend/src/backend/alembic/versions/` и применяются автоматически при старте контейнера через `run_alembic_migrations()` в lifespan-хуке FastAPI.
+Единственный способ менять схему БД — **Alembic**. Никаких inline-`ALTER TABLE` / `CREATE TABLE` в Python-коде. Миграции живут в `backend/src/backend/alembic/versions/` и применяются автоматически при старте приложения через `run_alembic_migrations()` в lifespan-хуке FastAPI.
 
 ## Как добавить миграцию
 
@@ -29,4 +29,4 @@ alembic -c alembic.ini upgrade head
 - **Одна логическая миграция — одна ревизия.** Не миксовать несвязанные изменения
 - **Данные мигрировать тоже через Alembic** — отдельной data-миграцией (см. `0004_migrate_candidate_enrichments_data.py` как пример)
 - **Не переименовывать существующие ревизии** — линия истории важна, `alembic_version` в БД ссылается на конкретные id
-- При старте контейнера `run_alembic_migrations()` автоматически дотягивает БД до `head` — никаких ручных `alembic upgrade` на prod не нужно
+- При старте приложения `run_alembic_migrations()` автоматически дотягивает БД до `head` — никаких ручных `alembic upgrade` на prod не нужно

@@ -4,16 +4,16 @@
 anything-to-anki/
 ├── backend/                              # Python backend, Clean Architecture
 ├── frontends/web/                        # React 19 + Vite + TailwindCSS
-├── ai_proxy.py                           # FastAPI-обёртка над claude-agent-sdk, на хосте
-├── config/                               # Конфигурация (prompts.yaml и др.), read-only в контейнере
-├── data/                                 # Docker volume (в .gitignore), своя в каждой рабочей копии
-│   ├── app.db                            # SQLite (своя в dev- и в prod-копии)
+├── ai_proxy.py                           # FastAPI-обёртка над claude-agent-sdk, отдельный процесс
+├── config/                               # Конфигурация (prompts.yaml и др.)
+├── data/                                 # Данные этой рабочей копии (в .gitignore)
+│   ├── app.db                            # SQLite: данные приложения и очередь job'ов
 │   ├── media/                            # Скриншоты и аудио из видео
-│   └── redis/                            # Redis persistence
+│   └── videos/                           # Скачанные видео
+├── .venv/                                # Python-окружение копии (в .gitignore), создаёт make setup
+├── .logs/ и .pids/                       # Логи и PID-файлы запущенных процессов (в .gitignore)
 ├── anki-templates/                       # Шаблоны карточек Anki
 ├── docs/                                 # Спецификации, планы, справочная документация
-├── Dockerfile / Dockerfile.worker        # app-образ и worker-образ
-├── docker-compose.yml                    # Единый compose-конфиг для обеих копий
 ├── .env.example                          # Шаблон локального .env для рабочей копии
 └── Makefile                              # Все команды запуска и проверок
 ```
@@ -22,14 +22,17 @@ anything-to-anki/
 
 - **backend/** — вся бизнес-логика, трёхслойная Clean Architecture. Единственное место, где живут домен и use cases. Детали — `docs/architecture.md`.
 - **frontends/web/** — чисто презентационный слой. Не содержит бизнес-логики (см. красный блок в CLAUDE.md).
-- **ai_proxy.py** — отдельный процесс, запускается на хосте, не в Docker. Причины и устройство — `docs/ai-integration.md`.
-- **config/** — конфигурация приложения (промпты для AI и прочее), монтируется в контейнер read-only.
-- **data/** — единственное место, где живут пользовательские данные: БД обоих окружений, медиа, redis. Монтируется как volume в контейнер. На момент написания dev и prod **шерят** эту директорию (разные БД, общий `media/`) — архитектурный долг, запланирован фикс.
+- **ai_proxy.py** — отдельный процесс рядом с app и worker. Причины и устройство — `docs/ai-integration.md`.
+- **config/** — конфигурация приложения (промпты для AI и прочее). Приложение её только читает.
+- **data/** — единственное место, где живут пользовательские данные этой копии: БД, медиа, видео. У dev- и prod-копии она своя, общего состояния между копиями нет.
+- **Словари** лежат вне репозитория: путь к ним задаётся `DICTIONARIES_DIR` в `.env`, кэш собирается в `$DICTIONARIES_DIR/.cache/dict.db` командой `make dict-update`.
+
+Все процессы (app, worker, ai_proxy) запускаются нативно из `.venv` через `make up` — Docker в проекте не используется.
 
 **Структура backend** (`backend/src/backend/`):
 
 - `domain/` — entities, value_objects, ports, services, exceptions
 - `application/` — use_cases, dto
-- `infrastructure/` — adapters, api, persistence, workers, container
+- `infrastructure/` — adapters, api, persistence, queue, services, config, container
 
 Подробная таблица слоёв — `docs/architecture.md`.
