@@ -33,7 +33,7 @@ class MarkCandidateRequest(BaseModel):
     @classmethod
     def validate_status(cls, v: str) -> str:
         normalized = v.strip().lower()
-        valid = {s.value for s in CandidateStatus} - {CandidateStatus.PENDING.value}
+        valid = {s.value for s in CandidateStatus}
         if normalized not in valid:
             msg = f"Invalid status: {v}. Must be one of: {', '.join(sorted(valid))}"
             raise ValueError(msg)

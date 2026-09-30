@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class MarkCandidateUseCase:
-    """Marks a candidate status and optionally adds to known words."""
+    """Marks a candidate status (or undoes it back to pending) and keeps known words in sync."""
 
     def __init__(
         self,
@@ -31,4 +31,6 @@ class MarkCandidateUseCase:
         self._candidate_repo.update_status(candidate_id, status)
         if status == CandidateStatus.KNOWN:
             self._known_word_repo.add(candidate.lemma, candidate.pos)
+        elif candidate.status == CandidateStatus.KNOWN:
+            self._known_word_repo.remove_by_lemma(candidate.lemma, candidate.pos)
         self._review_status.refresh(candidate.source_id)

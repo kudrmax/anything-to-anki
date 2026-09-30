@@ -80,6 +80,21 @@ class TestCandidatesAPI:
         client.patch("/candidates/1", json={"status": "learn"})
         assert client.get("/sources/1").json()["status"] == "reviewed"
 
+    def test_undo_returns_the_candidate_and_the_source_to_review(
+        self, client: TestClient,
+    ) -> None:
+        client.patch("/candidates/1", json={"status": "learn"})
+        response = client.patch("/candidates/1", json={"status": "pending"})
+        assert response.status_code == 200
+        assert client.get("/sources/1").json()["status"] == "partially_reviewed"
+
+    def test_undoing_known_removes_the_word_from_known_words(
+        self, client: TestClient,
+    ) -> None:
+        client.patch("/candidates/1", json={"status": "known"})
+        client.patch("/candidates/1", json={"status": "pending"})
+        assert all(w["lemma"] != "pursuit" for w in client.get("/known-words").json())
+
     def test_mark_candidate_not_found(self, client: TestClient) -> None:
         response = client.patch("/candidates/999", json={"status": "learn"})
         assert response.status_code == 404
