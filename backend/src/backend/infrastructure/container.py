@@ -35,6 +35,7 @@ from backend.application.use_cases.reprocess_source import ReprocessSourceUseCas
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
+from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.domain.ports.cefr_source import (
     CEFRSource,  # noqa: TC001 — used at runtime in list[CEFRSource]
 )
@@ -259,6 +260,7 @@ class Container:
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
+            review_status=self._review_status_updater(session),
         )
 
     def analyze_text_use_case(self) -> AnalyzeTextUseCase:
@@ -379,10 +381,18 @@ class Container:
         return MarkCandidateUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             known_word_repo=SqlaKnownWordRepository(session),
+            review_status=self._review_status_updater(session),
         )
 
     def replace_with_example_use_case(self, session: Session) -> ReplaceWithExampleUseCase:
         return ReplaceWithExampleUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            review_status=self._review_status_updater(session),
+        )
+
+    def _review_status_updater(self, session: Session) -> ReviewStatusUpdater:
+        return ReviewStatusUpdater(
+            source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
         )
 

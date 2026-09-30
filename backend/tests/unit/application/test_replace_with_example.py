@@ -78,9 +78,11 @@ def _mock_repo(candidate: StoredCandidate | None = None) -> MagicMock:
 
 def _make_use_case(
     candidate_repo: MagicMock | None = None,
+    review_status: MagicMock | None = None,
 ) -> ReplaceWithExampleUseCase:
     return ReplaceWithExampleUseCase(
         candidate_repo=candidate_repo or MagicMock(),
+        review_status=review_status or MagicMock(),
     )
 
 
@@ -111,6 +113,16 @@ class TestReplaceWithExampleGuards:
 
 @pytest.mark.unit
 class TestReplaceWithExampleHappyPath:
+    def test_refreshes_the_source_review_status(self) -> None:
+        review_status = MagicMock()
+        use_case = _make_use_case(
+            candidate_repo=_mock_repo(_candidate()), review_status=review_status,
+        )
+
+        use_case.execute(candidate_id=1, example_text="She runs every morning.")
+
+        review_status.refresh.assert_called_once_with(10)
+
     def test_skips_old_candidate(self) -> None:
         original = _candidate()
         repo = _mock_repo(original)

@@ -73,6 +73,13 @@ class TestCandidatesAPI:
         kw_response = client.get("/known-words")
         assert any(w["lemma"] == "pursuit" for w in kw_response.json())
 
+    def test_marking_the_last_pending_candidate_marks_the_source_reviewed(
+        self, client: TestClient,
+    ) -> None:
+        assert client.get("/sources/1").json()["status"] == "done"
+        client.patch("/candidates/1", json={"status": "learn"})
+        assert client.get("/sources/1").json()["status"] == "reviewed"
+
     def test_mark_candidate_not_found(self, client: TestClient) -> None:
         response = client.patch("/candidates/999", json={"status": "learn"})
         assert response.status_code == 404

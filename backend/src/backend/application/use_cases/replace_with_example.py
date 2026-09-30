@@ -10,6 +10,7 @@ from backend.domain.exceptions import CandidateNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
+    from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.ports.candidate_repository import CandidateRepository
 
 
@@ -21,8 +22,11 @@ def _strip_bold(text: str) -> str:
 class ReplaceWithExampleUseCase:
     """Skip the current candidate and create a new one with a user-chosen example phrase."""
 
-    def __init__(self, candidate_repo: CandidateRepository) -> None:
+    def __init__(
+        self, candidate_repo: CandidateRepository, review_status: ReviewStatusUpdater,
+    ) -> None:
         self._candidate_repo = candidate_repo
+        self._review_status = review_status
 
     def execute(self, candidate_id: int, example_text: str) -> StoredCandidateDTO:
         stripped = example_text.strip()
@@ -55,4 +59,5 @@ class ReplaceWithExampleUseCase:
             usage_distribution=original.usage_distribution,
         )
         saved = self._candidate_repo.create_batch([new_candidate])[0]
+        self._review_status.refresh(original.source_id)
         return stored_candidate_to_dto(saved)
