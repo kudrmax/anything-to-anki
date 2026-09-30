@@ -29,10 +29,10 @@ class TestVotingCEFRClassifierIntegration:
         level = self.classifier.classify("wow", "UH")
         assert level != CEFRLevel.C2
 
-    def test_nope_not_c2(self) -> None:
-        """nope should be UNKNOWN (most sources don't know it), not C2."""
+    def test_nope_takes_level_of_the_only_source_that_knows_it(self) -> None:
+        """Sources that don't know a word abstain, so CEFRpy alone decides."""
         level = self.classifier.classify("nope", "NN")
-        assert level != CEFRLevel.C2
+        assert level == CEFRLevel.C2
 
 
 @pytest.mark.integration
