@@ -1,6 +1,6 @@
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
-body { margin: 0; background: var(--bg); -webkit-font-smoothing: antialiased; }
+body { margin: 0; background: var(--bg); color: var(--tx); font: var(--fw) var(--fs-m)/var(--lh) var(--ui); -webkit-font-smoothing: antialiased; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 input, textarea, select { font: inherit; color: inherit; }
 h1, h2, h3, p, ul { margin: 0; padding: 0; }
