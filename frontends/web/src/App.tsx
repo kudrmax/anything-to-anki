@@ -5,7 +5,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { SourcesScreen } from '@/screens/sources/SourcesScreen'
 import { ReviewScreen } from '@/screens/review/ReviewScreen'
 import { ExportScreen } from '@/screens/export/ExportScreen'
-import { QueuePage } from '@/pages/QueuePage'
+import { QueueScreen } from '@/screens/queue/QueueScreen'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { CalibratePage } from '@/pages/CalibratePage'
 
@@ -14,13 +14,13 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppShell />}>
+          <Route path="/queue" element={<ErrorBoundary><QueueScreen /></ErrorBoundary>} />
           <Route path="/sources/:id/export" element={<ErrorBoundary><ExportScreen /></ErrorBoundary>} />
           <Route path="/export" element={<ErrorBoundary><ExportScreen /></ErrorBoundary>} />
           <Route path="/sources/:id/review" element={<ErrorBoundary><ReviewScreen /></ErrorBoundary>} />
           <Route path="/" element={<ErrorBoundary><SourcesScreen /></ErrorBoundary>} />
         </Route>
         <Route element={<AppLayout />}>
-          <Route path="/queue" element={<ErrorBoundary><QueuePage /></ErrorBoundary>} />
           <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
           <Route path="/calibrate" element={<ErrorBoundary><CalibratePage /></ErrorBoundary>} />
         </Route>

@@ -18,10 +18,11 @@ export function PageHeader({ title, back, meta, children }: PageHeaderProps) {
   const goBack = () => (typeof back === 'string' ? navigate(back) : back?.())
   return (
     <div className={css.header}>
-      {back !== undefined && <IconButton icon={ArrowLeft} label="Back" className={css.back} onClick={goBack} />}
-      <h1 className={css.title}>{title}</h1>
-      {meta && <div className={css.meta}>{meta}</div>}
-      <span className={css.spacer} />
+      <div className={css.lead}>
+        {back !== undefined && <IconButton icon={ArrowLeft} label="Back" className={css.back} onClick={goBack} />}
+        <h1 className={css.title}>{title}</h1>
+        {meta && <div className={css.meta}>{meta}</div>}
+      </div>
       {children}
     </div>
   )
