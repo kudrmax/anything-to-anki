@@ -185,8 +185,9 @@ dict-update: _check_setup _check_dictionaries_dir  ## Обновить слов�
 
 # Зависимости фронтенда ставятся заново, если package-lock.json новее установленных
 # (например, после git pull) — иначе сборка падает на новых пакетах.
+# npm ci ставит ровно то, что в lock-файле, и не переписывает его: рабочая копия остаётся чистой.
 define install_frontend_deps
-	@cd frontends/web && ( [ node_modules/.package-lock.json -nt package-lock.json ] || { echo "Installing frontend dependencies..."; npm install --no-audit --no-fund; } )
+	@cd frontends/web && ( [ node_modules/.package-lock.json -nt package-lock.json ] || { echo "Installing frontend dependencies..."; npm ci --no-audit --no-fund; } )
 endef
 
 ##@ Запуск (читает .env)
