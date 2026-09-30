@@ -1,0 +1,3 @@
+.tabs { display: flex; gap: var(--s6); border-bottom: var(--bw) solid var(--line); margin-bottom: var(--gap); }
+.tab { height: var(--h); color: var(--tx3); font-size: var(--fs-c); font-weight: var(--fw-m); }
+.on { color: var(--tx); box-shadow: inset 0 calc(var(--underline) * -1) 0 var(--ac); }

@@ -50,6 +50,12 @@
   --thumb-h: 72px;
   --field-area: 128px;
   --prog: 3px;
+  --icon-stroke: 1.75;
+  --dot-bw: 1.5px;
+  --switch-w: 38px;
+  --switch-h: 22px;
+  --h-row: 56px;
+  --h-row-s: 44px;
 
   /* сетка */
   --rail: 60px;
@@ -67,6 +73,7 @@
   --px: 18px;         /* горизонтальный отступ строки */
   --py: 14px;         /* вертикальный отступ строки */
   --off: calc(var(--px) + var(--dot) + var(--gap));   /* левый край текста строки */
+  --toast-edge: 24px;
 
   /* типографика */
   --ui: 'Geist Variable', system-ui, sans-serif;
@@ -76,6 +83,11 @@
   --lh: 1.5; --lh-read: 1.62; --lh-focus: 1.42; --lh-label: 26px;
   --fw: 400; --fw-m: 500; --fw-b: 600;
   --ls-tight: -.02em; --ls-focus: -.012em;
+
+  /* слои и прозрачность */
+  --z-menu: 20; --z-modal: 30; --z-toast: 40;
+  --o-disabled: .5; --o-off: .45; --o-kbd: .6;
+  --shadow-pop: 0 14px 36px -12px color-mix(in srgb, black 60%, transparent);
 
   /* движение */
   --t: 150ms;

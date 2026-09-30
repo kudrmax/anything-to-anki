@@ -1,0 +1,1 @@
+.spinner { display: inline-block; flex: none; width: var(--icon-s); height: var(--icon-s); border: var(--underline) solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin var(--spin) linear infinite; }

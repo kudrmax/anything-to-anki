@@ -1,0 +1,7 @@
+.dot { display: inline-block; width: var(--dot); height: var(--dot); flex: none; border-radius: 50%; border: var(--dot-bw) solid var(--tx3); }
+.ok { background: var(--ok); border-color: var(--ok); }
+.accent { background: var(--ac); border-color: var(--ac); }
+.warn { background: var(--warn); border-color: var(--warn); }
+.err { background: var(--err); border-color: var(--err); }
+.off { background: var(--tx3); opacity: var(--o-off); }
+.run { border-color: var(--ac); border-top-color: transparent; animation: spin var(--spin) linear infinite; }

@@ -1,0 +1,14 @@
+.row { display: flex; align-items: center; gap: var(--gap); padding: var(--py) var(--px); border-radius: var(--r); transition: background var(--t); }
+.clickable { cursor: pointer; }
+.row:hover { background: var(--hover); }
+.current, .current:hover { background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); padding-top: var(--s6); padding-bottom: var(--s6); margin: var(--s3) 0; }
+.dot { display: flex; align-self: flex-start; height: calc(var(--fs-t) * var(--lh)); align-items: center; }
+.current > .dot { height: calc(var(--fs-focus) * var(--lh-focus)); }
+.body { flex: 1; min-width: 0; }
+.title { font-size: var(--fs-t); line-height: var(--lh); overflow-wrap: anywhere; }
+.current .title { font-size: var(--fs-focus); line-height: var(--lh-focus); letter-spacing: var(--ls-focus); }
+.dim .title { color: var(--tx3); }
+.meta { font-size: var(--fs-s); color: var(--tx3); margin-top: var(--s1); overflow-wrap: anywhere; }
+.trailing { display: flex; align-items: center; gap: var(--gap); flex: none; font-size: var(--fs-s); color: var(--tx3); white-space: nowrap; }
+.actions { display: flex; flex: none; opacity: 0; transition: opacity var(--t); }
+.row:hover .actions, .actions:focus-within { opacity: 1; }

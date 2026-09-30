@@ -10,6 +10,8 @@ const PREFIX = 'anything-to-anki:'
 
 interface PrefSpec<T> {
   key: string
+  /** Ключ хранится без общего префикса — для настроек, записанных до появления реестра. */
+  raw?: boolean
   default: T
   parse: (raw: string) => T
 }
@@ -18,7 +20,7 @@ function makePref<T>(spec: PrefSpec<T>): {
   read: () => T
   write: (value: T) => void
 } {
-  const fullKey = PREFIX + spec.key
+  const fullKey = spec.raw ? spec.key : PREFIX + spec.key
   return {
     read: () => {
       if (typeof window === 'undefined') return spec.default
@@ -56,4 +58,21 @@ export const autoPlayAudioPref = makePref<boolean>({
   key: 'review.autoPlayAudio',
   default: true,
   parse: (raw) => raw === 'true',
+})
+
+export type ThemePref = 'light' | 'dark' | 'system'
+
+export const themeModePref = makePref<ThemePref>({
+  key: 'ui.themeMode',
+  default: 'dark',
+  parse: (raw) => (raw === 'light' || raw === 'system' ? raw : 'dark'),
+})
+
+export type SortOrder = 'relevance' | 'chronological'
+
+export const sortOrderPref = makePref<SortOrder>({
+  key: 'reviewPage.sortOrder',
+  raw: true,
+  default: 'relevance',
+  parse: (raw) => (raw === 'chronological' ? raw : 'relevance'),
 })

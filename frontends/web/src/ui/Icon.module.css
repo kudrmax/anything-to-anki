@@ -1,0 +1,3 @@
+.icon, .small { flex: none; stroke-width: var(--icon-stroke); }
+.icon { width: var(--icon); height: var(--icon); }
+.small { width: var(--icon-s); height: var(--icon-s); }

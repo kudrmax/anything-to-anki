@@ -1,0 +1,4 @@
+.chip { display: inline-flex; align-items: center; gap: var(--s3); height: var(--h); padding: 0 var(--gap); border-radius: var(--rc); color: var(--tx2); font-size: var(--fs-c); flex: none; white-space: nowrap; transition: background var(--t), color var(--t); }
+.chip:hover, .on { background: var(--soft); color: var(--tx); }
+.on { font-weight: var(--fw-m); }
+.outlined { box-shadow: inset 0 0 0 var(--bw) var(--line); }

@@ -1,0 +1,3 @@
+.iconButton { position: relative; width: var(--h); height: var(--h); flex: none; display: grid; place-items: center; border-radius: var(--rc); color: var(--tx3); transition: background var(--t), color var(--t); }
+.iconButton:hover:not(:disabled), .active { background: var(--soft); color: var(--tx); }
+.iconButton:disabled { opacity: var(--o-disabled); cursor: default; }

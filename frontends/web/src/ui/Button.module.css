@@ -1,0 +1,10 @@
+.button { display: inline-flex; align-items: center; gap: var(--s3); flex: none; white-space: nowrap; font-size: var(--fs-c); transition: opacity var(--t), color var(--t); }
+.button:disabled { opacity: var(--o-disabled); cursor: default; }
+.soft, .fill { height: var(--h); padding: 0 var(--s5); border-radius: var(--rc); font-weight: var(--fw-m); }
+.soft { background: var(--soft); }
+.fill { background: var(--fill); color: var(--on-ac); box-shadow: var(--fill-shadow); }
+.link { color: var(--tx2); }
+.link:hover:not(:disabled) { color: var(--tx); }
+.accent-link { color: var(--ac); }
+.danger-link { color: var(--err); }
+.wide { width: 100%; justify-content: center; }

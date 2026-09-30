@@ -1,0 +1,7 @@
+.row { display: flex; align-items: center; gap: var(--gap); min-height: var(--h-row); padding: var(--s4) 0; border-bottom: var(--bw) solid var(--line); }
+.compact { min-height: var(--h-row-s); padding: var(--s2) 0; }
+.last { border-bottom: 0; }
+.text { flex: 1; min-width: 0; }
+.hint { font-size: var(--fs-s); color: var(--tx3); }
+.group { font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); padding: var(--py) var(--px) 0 var(--off); }
+.flush { padding-left: 0; padding-right: 0; }
