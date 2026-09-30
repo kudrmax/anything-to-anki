@@ -7,35 +7,28 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-logger = logging.getLogger(__name__)
-
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
-from backend.application.use_cases.assign_source_collection import AssignSourceToCollectionUseCase
-from backend.application.use_cases.create_collection import CreateCollectionUseCase
-from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
-from backend.application.use_cases.list_collections import ListCollectionsUseCase
-from backend.application.use_cases.rename_collection import RenameCollectionUseCase
-from backend.infrastructure.persistence.sqla_collection_repository import (
-    SqlaCollectionRepository,
-)
-from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
-from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
-from backend.infrastructure.adapters.dict_cache.word_corpus_provider import DictCacheWordCorpusProvider
-from backend.infrastructure.persistence.sqla_bootstrap_index_repository import SqlaBootstrapIndexRepository
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
+from backend.application.use_cases.assign_source_collection import AssignSourceToCollectionUseCase
+from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
+from backend.application.use_cases.create_collection import CreateCollectionUseCase
 from backend.application.use_cases.create_source import CreateSourceUseCase
+from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
+from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.use_cases.get_reprocess_stats import GetReprocessStatsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
+from backend.application.use_cases.list_collections import ListCollectionsUseCase
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
+from backend.application.use_cases.rename_collection import RenameCollectionUseCase
 from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
 from backend.application.use_cases.reprocess_source import ReprocessSourceUseCase
@@ -60,23 +53,29 @@ from backend.infrastructure.adapters.dict_cache.pronunciation_source import (
 )
 from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
 from backend.infrastructure.adapters.dict_cache.usage_source import DictCacheUsageSource
+from backend.infrastructure.adapters.dict_cache.word_corpus_provider import (
+    DictCacheWordCorpusProvider,
+)
 from backend.infrastructure.adapters.http_ai_service import HttpAIService
 from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
 )
 from backend.infrastructure.adapters.local_file_reader import LocalFileReader
-from backend.infrastructure.adapters.video_path_resolver import VideoPathResolverImpl
 from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
 from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.slang_normalizer import SlangNormalizer
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
+from backend.infrastructure.adapters.video_path_resolver import VideoPathResolverImpl
 from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
 )
 from backend.infrastructure.config.prompts_loader import PromptsLoader
 from backend.infrastructure.persistence.sqla_anki_sync_repository import (
     SqlaAnkiSyncRepository,
+)
+from backend.infrastructure.persistence.sqla_bootstrap_index_repository import (
+    SqlaBootstrapIndexRepository,
 )
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
@@ -87,11 +86,14 @@ from backend.infrastructure.persistence.sqla_candidate_media_repository import (
 from backend.infrastructure.persistence.sqla_candidate_pronunciation_repository import (
     SqlaCandidatePronunciationRepository,
 )
+from backend.infrastructure.persistence.sqla_candidate_repository import (
+    SqlaCandidateRepository,
+)
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
 )
-from backend.infrastructure.persistence.sqla_candidate_repository import (
-    SqlaCandidateRepository,
+from backend.infrastructure.persistence.sqla_collection_repository import (
+    SqlaCollectionRepository,
 )
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_known_word_repository import (
@@ -109,9 +111,6 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session, sessionmaker
 
     from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
-    from backend.application.use_cases.enqueue_tts_generation import EnqueueTTSGenerationUseCase
-    from backend.application.use_cases.generate_tts import GenerateTTSUseCase
-    from backend.infrastructure.adapters.kokoro_tts_generator import KokoroTTSGenerator
     from backend.application.use_cases.cleanup_youtube_video import CleanupYoutubeVideoUseCase
     from backend.application.use_cases.create_source_from_url import CreateSourceFromUrlUseCase
     from backend.application.use_cases.download_pronunciation import DownloadPronunciationUseCase
@@ -125,19 +124,29 @@ if TYPE_CHECKING:
     from backend.application.use_cases.enqueue_pronunciation_download import (
         EnqueuePronunciationDownloadUseCase,
     )
+    from backend.application.use_cases.enqueue_tts_generation import EnqueueTTSGenerationUseCase
+    from backend.application.use_cases.generate_tts import GenerateTTSUseCase
     from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
+    from backend.application.use_cases.get_queue_failed import GetQueueFailedUseCase
+    from backend.application.use_cases.get_queue_global_summary import (
+        GetQueueGlobalSummaryUseCase,
+    )
+    from backend.application.use_cases.get_queue_order import GetQueueOrderUseCase
     from backend.application.use_cases.regenerate_candidate_media import (
         RegenerateCandidateMediaUseCase,
     )
     from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
+    from backend.domain.ports.url_source_fetcher import UrlSourceFetcher
     from backend.domain.value_objects.prompts_config import PromptsConfig
+    from backend.infrastructure.adapters.kokoro_tts_generator import KokoroTTSGenerator
+
+logger = logging.getLogger(__name__)
 
 
 class Container:
     """Dependency injection container. Single point of assembly for all dependencies."""
 
     def __init__(self) -> None:
-        import os
 
         from backend.infrastructure.adapters.ffmpeg_media_extractor import FfmpegMediaExtractor
         from backend.infrastructure.adapters.ffmpeg_subtitle_extractor import (
@@ -193,7 +202,7 @@ class Container:
         from backend.infrastructure.adapters.ytdlp_subtitle_fetcher import YtDlpSubtitleFetcher
         from backend.infrastructure.adapters.ytdlp_video_downloader import YtDlpVideoDownloader
 
-        self._url_fetchers: list = [YtDlpSubtitleFetcher()]
+        self._url_fetchers: list[UrlSourceFetcher] = [YtDlpSubtitleFetcher()]
         self._video_downloader = YtDlpVideoDownloader()
         data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
         self._video_path_resolver = VideoPathResolverImpl(data_dir=data_dir)
@@ -311,7 +320,9 @@ class Container:
             collection_repo=SqlaCollectionRepository(session),
         )
 
-    def assign_source_collection_use_case(self, session: Session) -> AssignSourceToCollectionUseCase:
+    def assign_source_collection_use_case(
+        self, session: Session,
+    ) -> AssignSourceToCollectionUseCase:
         return AssignSourceToCollectionUseCase(
             source_repo=SqlaSourceRepository(session),
             collection_repo=SqlaCollectionRepository(session),
@@ -401,7 +412,6 @@ class Container:
         )
 
     def generate_meaning_use_case(self, session: Session) -> GenerateMeaningUseCase:
-        import os
 
         settings_repo = SqlaSettingsRepository(session)
         ai_model_key = settings_repo.get("ai_model", "sonnet") or "sonnet"
@@ -415,7 +425,6 @@ class Container:
         )
 
     def meaning_generation_use_case(self, session: Session) -> MeaningGenerationUseCase:
-        import os
 
         settings_repo = SqlaSettingsRepository(session)
         ai_model_key = settings_repo.get("ai_model", "sonnet") or "sonnet"
@@ -600,7 +609,9 @@ class Container:
         )
 
     def enqueue_tts_generation_use_case(self, session: Session) -> EnqueueTTSGenerationUseCase:
-        from backend.application.use_cases.enqueue_tts_generation import EnqueueTTSGenerationUseCase
+        from backend.application.use_cases.enqueue_tts_generation import (
+            EnqueueTTSGenerationUseCase,
+        )
         return EnqueueTTSGenerationUseCase(
             tts_repo=SqlaCandidateTTSRepository(session),
             candidate_repo=SqlaCandidateRepository(session),

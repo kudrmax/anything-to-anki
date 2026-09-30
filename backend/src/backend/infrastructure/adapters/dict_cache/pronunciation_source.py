@@ -1,8 +1,12 @@
 """PronunciationSource backed by the unified dictionary cache."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from backend.domain.ports.pronunciation_source import PronunciationSource
-from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
+
+if TYPE_CHECKING:
+    from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
 
 
 class DictCachePronunciationSource(PronunciationSource):

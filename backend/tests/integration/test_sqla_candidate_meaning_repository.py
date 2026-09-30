@@ -186,13 +186,13 @@ class TestSqlaCandidateMeaningRepository:
         with self._Session() as s:
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning="test", translation="тест", synonyms="check", examples=None,
-                ipa=None, generated_at=None,
+                candidate_id=1, meaning="test", translation="тест", synonyms="check",
+                examples=None, ipa=None, generated_at=None,
             ))
             s.commit()
             repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning="test", translation="обновлено", synonyms="updated", examples=None,
-                ipa=None, generated_at=None,
+                candidate_id=1, meaning="test", translation="обновлено", synonyms="updated",
+                examples=None, ipa=None, generated_at=None,
             ))
             s.commit()
 

@@ -40,7 +40,8 @@ class CreateSourceFromUrlUseCase:
         fetcher = self._resolve_fetcher(url)
         result = fetcher.fetch_subtitles(url)
 
-        title = (title_override.strip() if title_override and title_override.strip() else None) or result.title
+        stripped_override = title_override.strip() if title_override else None
+        title = stripped_override or result.title
         content_type = resolve_content_type(result.input_method)
 
         source = Source(

@@ -19,13 +19,14 @@ if TYPE_CHECKING:
 
 
 def _make_source(input_method: InputMethod, raw_text: str = "") -> Source:
+    is_video = input_method == InputMethod.VIDEO_FILE
     return Source(
         id=1,
         raw_text=raw_text,
         status=SourceStatus.PROCESSING,
         input_method=input_method,
-        content_type=ContentType.VIDEO if input_method == InputMethod.VIDEO_FILE else ContentType.TEXT,
-        video_path="/tmp/movie.mp4" if input_method == InputMethod.VIDEO_FILE else None,
+        content_type=ContentType.VIDEO if is_video else ContentType.TEXT,
+        video_path="/tmp/movie.mp4" if is_video else None,
     )
 
 

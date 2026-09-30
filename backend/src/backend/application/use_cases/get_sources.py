@@ -48,7 +48,7 @@ class GetSourcesUseCase:
         # Build collection name map
         collections = self._collection_repo.list_all()
         coll_names: dict[int, str] = {
-            c.id: c.name for c in collections if c.id is not None  # type: ignore[misc]
+            c.id: c.name for c in collections if c.id is not None
         }
 
         result: list[SourceDTO] = []

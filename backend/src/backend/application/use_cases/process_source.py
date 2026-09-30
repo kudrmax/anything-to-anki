@@ -12,7 +12,6 @@ from backend.domain.exceptions import SourceAlreadyProcessedError, SourceNotFoun
 from backend.domain.services.known_word_filter import KnownWordFilter
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
 
@@ -27,6 +26,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.source_parser import SourceParser
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.structured_srt_parser import StructuredSrtParser
+    from backend.domain.value_objects.input_method import InputMethod
     from backend.domain.value_objects.parsed_srt import ParsedSrt
 
 logger = logging.getLogger(__name__)

@@ -29,11 +29,6 @@ import pytest
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
-from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
-from backend.domain.ports.cefr_source import CEFRSource
-from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
-from backend.infrastructure.adapters.dict_cache.cefr_source import DictCacheCEFRSource
-from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
 from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
 )
@@ -44,37 +39,17 @@ from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
 )
 
+from tests.integration.dict_cache_support import make_voting_classifier
+
 FIXTURES = Path(__file__).parent / "fixtures"
 HPMOR = (FIXTURES / "hpmor_excerpt.txt").read_text()
 LYRICS = (FIXTURES / "evil_morty_lyrics.txt").read_text()
 USER_LEVEL = "A1"  # matches the level used when the source was originally analyzed
 
 
-DICT_CACHE_PATH = Path(__file__).resolve().parents[3] / "dictionaries" / ".cache" / "dict.db"
-
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.skipif(
-        not DICT_CACHE_PATH.exists(),
-        reason=f"dict.db not found at {DICT_CACHE_PATH}",
-    ),
-]
+pytestmark = pytest.mark.integration
 
 
-def _make_classifier() -> VotingCEFRClassifier:
-    reader = DictCacheReader(DICT_CACHE_PATH)
-
-    cefr_sources: list[CEFRSource] = []
-    priority_sources: list[CEFRSource] = []
-    for meta in reader.get_cefr_sources():
-        src = DictCacheCEFRSource(reader, meta["name"])
-        if meta["priority"] == "high":
-            priority_sources.append(src)
-        else:
-            cefr_sources.append(src)
-    cefr_sources.append(CefrpyCEFRSource())
-
-    return VotingCEFRClassifier(cefr_sources, priority_sources=priority_sources)
 
 
 @pytest.fixture(scope="module")
@@ -83,7 +58,7 @@ def use_case() -> AnalyzeTextUseCase:
         text_cleaner=RegexTextCleaner(),
         text_normalizer=SlangNormalizer(),
         text_analyzer=SpaCyTextAnalyzer(),
-        cefr_classifier=_make_classifier(),
+        cefr_classifier=make_voting_classifier(),
         frequency_provider=WordfreqFrequencyProvider(),
         phrasal_verb_detector=PhrasalVerbDetector(JsonPhrasalVerbDictionary()),
     )
@@ -206,9 +181,6 @@ WAVE_2_HPMOR_XFAIL: list[tuple[str, str, str, str]] = [
     ),
 ]
 
-WAVE_2_LYRICS_XFAIL: list[tuple[str, str, str, str]] = []
-
-
 @pytest.mark.integration
 class TestWave1BaselineHPMOR:
     """Wave 1 fixed these — they must keep working in all future waves."""
@@ -264,19 +236,4 @@ class TestWave2WishlistHPMOR:
         # The xfail expectation: today the value still equals the buggy one,
         # so we ASSERT IT'S DIFFERENT. When a wave fixes it, this assert
         # passes and the xfail strict mode flips to FAIL.
-        assert actual != current_buggy
-
-
-@pytest.mark.integration
-class TestWave2WishlistLyrics:
-    @pytest.mark.parametrize(
-        ("lemma", "current_buggy"),
-        [(lemma, buggy) for _, lemma, buggy, _ in WAVE_2_LYRICS_XFAIL],
-        ids=[tid for tid, _, _, _ in WAVE_2_LYRICS_XFAIL],
-    )
-    @pytest.mark.xfail(strict=True, reason="Wave 2 / Wave 3 — lyrics line break")
-    def test_fragment_should_be_fixed(
-        self, lyrics_fragments: dict[str, str], lemma: str, current_buggy: str
-    ) -> None:
-        actual = lyrics_fragments.get(lemma)
         assert actual != current_buggy

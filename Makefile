@@ -13,6 +13,8 @@ APP_PID := .pids/app.pid
 APP_LOG := .logs/app.log
 WRK_PID := .pids/worker.pid
 WRK_LOG := .logs/worker.log
+SPACY_MODEL     := en_core_web_sm
+SPACY_MODEL_URL := https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
 
 # Цвет баннера: зелёный для prod, жёлтый для всего остального (dev и т.п.).
 # Чисто визуальная разметка — совпадает с цветом бейджа в UI.
@@ -136,8 +138,11 @@ setup-media:  ## Проверить/установить ffmpeg
 	fi
 
 # venv не пересоздаётся: он весит больше гигабайта (torch, spacy, kokoro) и
-# качается из сети, включая en_core_web_sm с GitHub. Обрыв связи на этом шаге
-# оставил бы копию вообще без окружения.
+# качается из сети. Обрыв связи на этом шаге оставил бы копию вообще без окружения.
+#
+# Модель spaCy ставится отдельно и в обход кэша pip: GitHub отдаёт её через
+# редирект на подписанный URL, и кэш pip на повторном запросе получает 304
+# с пустым телом — установка падает с «Wheel is invalid».
 setup-python:  ## Создать venv (если его нет) и поставить Python-зависимости
 	@echo "\n=== Installing Python dependencies ==="
 	@if [ ! -d .venv ]; then \
@@ -146,6 +151,11 @@ setup-python:  ## Создать venv (если его нет) и постави
 	fi
 	@.venv/bin/pip install -e "backend/[dev,tts]"
 	@.venv/bin/pip install -e ".[ai-proxy]"
+	@if .venv/bin/python -c "import $(SPACY_MODEL)" 2>/dev/null; then \
+	    echo "$(SPACY_MODEL): already installed"; \
+	else \
+	    .venv/bin/pip install --no-cache-dir "$(SPACY_MODEL_URL)"; \
+	fi
 
 setup-frontend:  ## Поставить зависимости фронтенда (npm install)
 	@echo "\n=== Installing frontend dependencies ==="
@@ -229,10 +239,10 @@ logs-worktree:  ## Логи worktree (app + worker + ai_proxy)
 	wait
 
 ##@ Разработка
-test: _check_setup  ## Запустить тесты
+test: _check_setup dict-update  ## Запустить тесты
 	.venv/bin/python -m pytest
 
-coverage: _check_setup  ## Тесты с отчётом покрытия
+coverage: _check_setup dict-update  ## Тесты с отчётом покрытия
 	.venv/bin/python -m pytest --cov --cov-report=term
 
 test-ai: _check_setup  ## Интеграционные тесты AI (реальный ai_proxy + Claude API)

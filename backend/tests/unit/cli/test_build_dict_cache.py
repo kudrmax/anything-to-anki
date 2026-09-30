@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
-
 from backend.cli.build_dict_cache import build_cache, is_cache_current
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture()
@@ -105,7 +107,9 @@ class TestBuildCache:
     def test_usage_entries(self, dictionaries_dir: Path) -> None:
         db_path = build_cache(dictionaries_dir)
         conn = sqlite3.connect(db_path)
-        row = conn.execute("SELECT labels FROM usage WHERE lemma='gonna' AND pos='verb'").fetchone()
+        row = conn.execute(
+            "SELECT labels FROM usage WHERE lemma='gonna' AND pos='verb'"
+        ).fetchone()
         assert json.loads(row[0]) == ["informal"]
         conn.close()
 

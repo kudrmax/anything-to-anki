@@ -37,8 +37,8 @@ def test_edge_tts(text: str, out_path: Path) -> None:
     """edge-tts: Microsoft Edge neural voices (Azure)."""
     try:
         import edge_tts
-    except ImportError:
-        raise ImportError("pip install edge-tts")
+    except ImportError as err:
+        raise ImportError("pip install edge-tts") from err
 
     async def _generate() -> None:
         communicate = edge_tts.Communicate(text, voice="en-US-AriaNeural")
@@ -51,12 +51,12 @@ def test_kokoro(text: str, out_path: Path) -> None:
     """Kokoro 82M: lightweight neural TTS."""
     try:
         import kokoro
-    except ImportError:
-        raise ImportError("pip install kokoro soundfile (requires Python <3.13)")
+    except ImportError as err:
+        raise ImportError("pip install kokoro soundfile (requires Python <3.13)") from err
 
     pipeline = kokoro.KPipeline(lang_code="a")
     generator = pipeline(text, voice="af_heart")
-    for i, (gs, ps, audio) in enumerate(generator):
+    for i, (_gs, _ps, audio) in enumerate(generator):
         if i == 0:
             import soundfile as sf
 
@@ -67,11 +67,11 @@ def test_kokoro(text: str, out_path: Path) -> None:
 def test_coqui(text: str, out_path: Path) -> None:
     """Coqui XTTS v2: deep learning TTS toolkit."""
     try:
-        from TTS.api import TTS as CoquiTTS
-    except ImportError:
-        raise ImportError("pip install coqui-tts")
+        from TTS import api as coqui_api
+    except ImportError as err:
+        raise ImportError("pip install coqui-tts") from err
 
-    tts = CoquiTTS(model_name="tts_models/en/ljspeech/tacotron2-DDC")
+    tts = coqui_api.TTS(model_name="tts_models/en/ljspeech/tacotron2-DDC")
     tts.tts_to_file(text=text, file_path=str(out_path))
 
 
@@ -79,8 +79,8 @@ def test_piper(text: str, out_path: Path) -> None:
     """Piper: fast local neural TTS (VITS + ONNX)."""
     try:
         from piper import PiperVoice  # noqa: F401 — import check only
-    except ImportError:
-        raise ImportError("pip install piper-tts")
+    except ImportError as err:
+        raise ImportError("pip install piper-tts") from err
 
     model_dir = Path.home() / ".local" / "share" / "piper-tts"
     model_path = model_dir / "en_US-lessac-medium.onnx"
@@ -111,8 +111,8 @@ def test_gtts(text: str, out_path: Path) -> None:
     """gTTS: Google Translate text-to-speech."""
     try:
         from gtts import gTTS
-    except ImportError:
-        raise ImportError("pip install gTTS")
+    except ImportError as err:
+        raise ImportError("pip install gTTS") from err
 
     tts = gTTS(text=text, lang="en", tld="com")
     tts.save(str(out_path))

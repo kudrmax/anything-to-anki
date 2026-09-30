@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import pytest
 from backend.infrastructure.api.app import app
@@ -11,6 +10,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 # ── fixtures ────────────────────────────────────────────────────────────────
 
@@ -64,7 +65,8 @@ def client(_db_engine: object) -> Generator[TestClient, None, None]:
 def _insert_source(session: Session, source_id: int, title: str | None = None) -> None:
     session.execute(
         text(
-            "INSERT INTO sources (id, raw_text, title, status, input_method, content_type, created_at) "
+            "INSERT INTO sources "
+            "(id, raw_text, title, status, input_method, content_type, created_at) "
             "VALUES (:id, 'text', :title, 'new', 'text_pasted', 'text', '2026-01-01 00:00:00')"
         ),
         {"id": source_id, "title": title},
@@ -98,7 +100,8 @@ def _insert_job(
 ) -> None:
     session.execute(
         text(
-            "INSERT INTO jobs (id, job_type, candidate_id, source_id, status, error, created_at, started_at) "
+            "INSERT INTO jobs "
+            "(id, job_type, candidate_id, source_id, status, error, created_at, started_at) "
             "VALUES (:id, :jt, :cid, :sid, :status, :error, :created_at, :started_at)"
         ),
         {
@@ -136,7 +139,10 @@ class TestGlobalSummary:
         _insert_candidate(db_session, 3, 1)
         _insert_job(db_session, 1, 1, 1, job_type="meaning", status="queued")
         _insert_job(db_session, 2, 2, 1, job_type="meaning", status="failed", error="oops")
-        _insert_job(db_session, 3, 3, 1, job_type="media", status="running", started_at="2026-01-01 01:00:00")
+        _insert_job(
+            db_session, 3, 3, 1,
+            job_type="media", status="running", started_at="2026-01-01 01:00:00",
+        )
         db_session.commit()
 
         response = client.get("/api/queue/global-summary")
@@ -193,7 +199,9 @@ class TestQueueOrder:
         assert data["running"][0]["source_title"] == "My Source"
         assert data["queued"][0]["position"] == 1
 
-    def test_queued_positions_are_sequential(self, client: TestClient, db_session: Session) -> None:
+    def test_queued_positions_are_sequential(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
         _insert_source(db_session, 1)
         _insert_candidate(db_session, 1, 1)
         _insert_candidate(db_session, 2, 1)
@@ -403,7 +411,9 @@ class TestCancelQueue:
         assert response.status_code == 200
         assert response.json() == {"cancelled": 0}
 
-    def test_cancel_running_jobs_also_cancelled(self, client: TestClient, db_session: Session) -> None:
+    def test_cancel_running_jobs_also_cancelled(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
         _insert_source(db_session, 1)
         _insert_candidate(db_session, 1, 1)
         _insert_job(db_session, 1, 1, 1, status="running", started_at="2026-01-01 01:00:00")
@@ -454,7 +464,9 @@ class TestRetryQueue:
         _insert_candidate(db_session, 1, 1)
         _insert_candidate(db_session, 2, 2)
         _insert_job(db_session, 1, 1, 1, job_type="meaning", status="failed", error="timeout")
-        _insert_job(db_session, 2, 2, 2, job_type="meaning", status="failed", error="connection refused")
+        _insert_job(
+            db_session, 2, 2, 2, job_type="meaning", status="failed", error="connection refused",
+        )
         db_session.commit()
 
         response = client.post(

@@ -1,10 +1,14 @@
 """CEFRSource backed by the unified dictionary cache."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from backend.domain.ports.cefr_source import CEFRSource
 from backend.domain.services.pos_mapping import map_pos_tag
 from backend.domain.value_objects.cefr_level import CEFRLevel
-from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
+
+if TYPE_CHECKING:
+    from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
 
 
 class DictCacheCEFRSource(CEFRSource):

@@ -6,11 +6,12 @@ from unittest.mock import MagicMock, patch
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
+
 import pytest
 from backend.application.use_cases.download_pronunciation import (
     DownloadPronunciationUseCase,
 )
-from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 

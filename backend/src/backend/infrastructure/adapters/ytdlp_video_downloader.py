@@ -13,7 +13,7 @@ class YtDlpVideoDownloader(VideoDownloader):
     def download(self, url: str, output_path: str) -> None:
         import yt_dlp
 
-        opts: dict = {
+        opts: dict[str, object] = {
             "format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
             "outtmpl": output_path,
             "quiet": True,

@@ -1,21 +1,22 @@
 """Tests for JobWorker — SQLite-backed async job worker."""
 from __future__ import annotations
 
-import asyncio
 from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import Any, Generator
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from backend.domain.entities.job import Job
 from backend.domain.exceptions import CancelledByUserError, PermanentAIError, PermanentMediaError
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.queue.job_worker import JobWorker
 
-NOW = datetime(2025, 1, 1, tzinfo=timezone.utc)
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+NOW = datetime(2025, 1, 1, tzinfo=UTC)
 
 
 def _make_job(
@@ -115,7 +116,7 @@ class TestProcessOneJob:
         worker = JobWorker(container)
 
         # Mock _handle_media to avoid real execution
-        async def noop_media(*args: Any) -> None:
+        async def noop_media(*args: object) -> None:
             pass
 
         worker._handle_media = noop_media  # type: ignore[assignment]
@@ -138,7 +139,7 @@ class TestProcessOneJob:
         container = _make_container()
         worker = JobWorker(container)
 
-        async def raise_cancelled(*args: Any) -> None:
+        async def raise_cancelled(*args: object) -> None:
             raise CancelledByUserError("cancelled")
 
         worker._handle_media = raise_cancelled  # type: ignore[assignment]
@@ -163,7 +164,7 @@ class TestProcessOneJob:
         container = _make_container()
         worker = JobWorker(container)
 
-        async def raise_permanent(*args: Any) -> None:
+        async def raise_permanent(*args: object) -> None:
             raise PermanentMediaError("file corrupt")
 
         worker._handle_media = raise_permanent  # type: ignore[assignment]
@@ -187,7 +188,7 @@ class TestProcessOneJob:
         container = _make_container()
         worker = JobWorker(container)
 
-        async def raise_generic(*args: Any) -> None:
+        async def raise_generic(*args: object) -> None:
             raise RuntimeError("something broke")
 
         worker._handle_media = raise_generic  # type: ignore[assignment]
@@ -211,7 +212,7 @@ class TestProcessOneJob:
         container = _make_container()
         worker = JobWorker(container)
 
-        async def noop_pron(*args: Any) -> None:
+        async def noop_pron(*args: object) -> None:
             pass
 
         worker._handle_pronunciation = noop_pron  # type: ignore[assignment]
@@ -233,7 +234,7 @@ class TestProcessOneJob:
         container = _make_container()
         worker = JobWorker(container)
 
-        async def noop_video(*args: Any) -> None:
+        async def noop_video(*args: object) -> None:
             pass
 
         worker._handle_video_download = noop_video  # type: ignore[assignment]
@@ -285,7 +286,7 @@ class TestHandleMeaning:
         container = _make_container()
         worker = JobWorker(container)
 
-        def raise_error(*args: Any) -> None:
+        def raise_error(*args: object) -> None:
             raise RuntimeError("batch failed")
 
         worker._run_meaning_batch = raise_error  # type: ignore[assignment]
@@ -357,7 +358,7 @@ class TestHandleMeaning:
         container = _make_container()
         worker = JobWorker(container)
 
-        def raise_perm(*args: Any) -> None:
+        def raise_perm(*args: object) -> None:
             raise PermanentAIError("model unavailable")
 
         worker._run_meaning_batch = raise_perm  # type: ignore[assignment]
@@ -378,7 +379,6 @@ class TestHelpers:
         self, mock_repo_cls: MagicMock,
     ) -> None:
         job_with_id = _make_job(job_id=1)
-        job_without_id = _make_job()
         # Simulate id=None by creating a new Job
         job_no_id = Job(
             id=None, job_type=JobType.MEDIA, candidate_id=1,
@@ -688,15 +688,15 @@ class TestRunLoop:
         worker = JobWorker(container)
 
         # Shutdown after first poll
-        original_sleep = asyncio.sleep
-
         async def shutdown_on_sleep(delay: float) -> None:
             worker._shutdown = True
 
-        with patch("backend.infrastructure.queue.job_worker.asyncio.sleep", shutdown_on_sleep):
-            with patch("backend.infrastructure.queue.job_worker.asyncio.get_running_loop") as mock_loop:
-                mock_loop.return_value = MagicMock()
-                await worker.run()
+        with (
+            patch("backend.infrastructure.queue.job_worker.asyncio.sleep", shutdown_on_sleep),
+            patch("backend.infrastructure.queue.job_worker.asyncio.get_running_loop") as mock_loop,
+        ):
+            mock_loop.return_value = MagicMock()
+            await worker.run()
 
         repo_instance.fail_all_running.assert_called_once()
         repo_instance.dequeue_next.assert_called_once()

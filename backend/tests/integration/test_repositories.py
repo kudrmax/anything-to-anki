@@ -50,8 +50,10 @@ class TestSourceRepository:
 
     def test_update_status(self, db_session: Session) -> None:
         repo = SqlaSourceRepository(db_session)
-        source = repo.create(Source(raw_text="Test", status=SourceStatus.NEW,
-                                     input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT))
+        source = repo.create(Source(
+            raw_text="Test", status=SourceStatus.NEW,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
+        ))
         assert source.id is not None
         repo.update_status(source.id, SourceStatus.DONE, cleaned_text="Cleaned test")
         updated = repo.get_by_id(source.id)
@@ -61,8 +63,10 @@ class TestSourceRepository:
 
     def test_update_status_error(self, db_session: Session) -> None:
         repo = SqlaSourceRepository(db_session)
-        source = repo.create(Source(raw_text="Test", status=SourceStatus.NEW,
-                                     input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT))
+        source = repo.create(Source(
+            raw_text="Test", status=SourceStatus.NEW,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
+        ))
         assert source.id is not None
         repo.update_status(source.id, SourceStatus.ERROR, error_message="Something broke")
         updated = repo.get_by_id(source.id)
@@ -79,8 +83,10 @@ class TestSourceRepository:
 class TestCandidateRepository:
     def _create_source(self, db_session: Session) -> int:
         repo = SqlaSourceRepository(db_session)
-        source = repo.create(Source(raw_text="Test", status=SourceStatus.DONE,
-                                     input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT))
+        source = repo.create(Source(
+            raw_text="Test", status=SourceStatus.DONE,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
+        ))
         assert source.id is not None
         return source.id
 

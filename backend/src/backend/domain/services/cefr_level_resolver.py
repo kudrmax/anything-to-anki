@@ -6,9 +6,12 @@ min(priority_votes) → whichever is available → weighted voting among regular
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.cefr_breakdown import SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
+
+if TYPE_CHECKING:
+    from backend.domain.value_objects.cefr_breakdown import SourceVote
 
 
 def resolve_cefr_level(

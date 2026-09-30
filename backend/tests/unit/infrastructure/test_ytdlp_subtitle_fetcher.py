@@ -95,6 +95,8 @@ class TestYtDlpSubtitleFetcherFetch:
         mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
         mock_ydl.__exit__ = MagicMock(return_value=False)
 
-        with patch("yt_dlp.YoutubeDL", return_value=mock_ydl):
-            with pytest.raises(SubtitlesNotAvailableError):
-                self.fetcher.fetch_subtitles("https://youtube.com/watch?v=abc")
+        with (
+            patch("yt_dlp.YoutubeDL", return_value=mock_ydl),
+            pytest.raises(SubtitlesNotAvailableError),
+        ):
+            self.fetcher.fetch_subtitles("https://youtube.com/watch?v=abc")

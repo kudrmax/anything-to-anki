@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
-
 from backend.cli.build_dict_cache import build_cache
 from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture()

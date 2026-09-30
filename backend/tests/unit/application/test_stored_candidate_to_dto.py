@@ -1,10 +1,9 @@
 """Tests for stored_candidate_to_dto and status derivation functions."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-
 from backend.application.dto.source_dtos import stored_candidate_to_dto
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
@@ -15,7 +14,7 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 
-NOW = datetime(2025, 1, 1, tzinfo=timezone.utc)
+NOW = datetime(2025, 1, 1, tzinfo=UTC)
 
 
 def _make_candidate(

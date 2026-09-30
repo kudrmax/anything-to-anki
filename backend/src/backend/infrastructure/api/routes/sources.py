@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.candidate_dtos import AddManualCandidateRequest  # noqa: TC001
+from backend.application.dto.collection_dtos import AssignCollectionRequest  # noqa: TC001
 from backend.application.dto.file_source_dtos import FileSourceRequest  # noqa: TC001
 from backend.application.dto.source_dtos import (  # noqa: TC001
     CreateSourceRequest,
@@ -15,7 +16,6 @@ from backend.application.dto.source_dtos import (  # noqa: TC001
     StoredCandidateDTO,
     UpdateTitleRequest,
 )
-from backend.application.dto.collection_dtos import AssignCollectionRequest  # noqa: TC001
 from backend.domain.exceptions import (
     CollectionNotFoundError,
     SourceAlreadyProcessedError,

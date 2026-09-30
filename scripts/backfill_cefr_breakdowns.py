@@ -46,7 +46,9 @@ def _level_to_str(level: CEFRLevel) -> str | None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Backfill missing cefr_breakdowns rows")
-    parser.add_argument("--dry-run", action="store_true", help="Print what would be done, don't write")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print what would be done, don't write",
+    )
     args = parser.parse_args()
 
     # In Docker: DATA_DIR=/data, dictionaries at /app/dictionaries
@@ -61,7 +63,7 @@ def main() -> None:
     if not dictionaries_dir.exists():
         dictionaries_dir = Path("dictionaries")
     if not dictionaries_dir.exists():
-        print(f"Dictionaries not found", file=sys.stderr)
+        print("Dictionaries not found", file=sys.stderr)
         sys.exit(1)
 
     print(f"DB: {db_path}")
@@ -131,7 +133,8 @@ def main() -> None:
         conn.execute(
             """
             INSERT INTO cefr_breakdowns
-                (candidate_id, decision_method, cambridge, cefrpy, efllex_distribution, oxford, kelly)
+                (candidate_id, decision_method, cambridge, cefrpy,
+                 efllex_distribution, oxford, kelly)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (cid, bd.decision_method, cambridge, cefrpy, efllex_distribution, oxford, kelly),

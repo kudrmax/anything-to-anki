@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator  # noqa: TC003
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,6 +12,9 @@ from backend.infrastructure.persistence.database import Base
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture()
@@ -44,7 +47,7 @@ def client(templates_dir: Path) -> Generator[TestClient, None, None]:
     def override_session_factory() -> object:
         return test_session_factory
 
-    def override_container():
+    def override_container() -> MagicMock:
         mock_container = MagicMock()
         mock_renderer = AnkiTemplateRenderer(templates_dir)
         mock_container.anki_template_renderer.return_value = mock_renderer

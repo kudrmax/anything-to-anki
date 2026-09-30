@@ -28,9 +28,19 @@ def _make_breakdown() -> CEFRBreakdown:
             ),
         ],
         votes=[
-            SourceVote(source_name="CEFRpy", distribution={CEFRLevel.B1: 1.0}, top_level=CEFRLevel.B1),
-            SourceVote(source_name="EFLLex", distribution={CEFRLevel.A2: 0.6, CEFRLevel.B1: 0.4}, top_level=CEFRLevel.A2),
-            SourceVote(source_name="Kelly List", distribution={CEFRLevel.UNKNOWN: 1.0}, top_level=CEFRLevel.UNKNOWN),
+            SourceVote(
+                source_name="CEFRpy", distribution={CEFRLevel.B1: 1.0}, top_level=CEFRLevel.B1,
+            ),
+            SourceVote(
+                source_name="EFLLex",
+                distribution={CEFRLevel.A2: 0.6, CEFRLevel.B1: 0.4},
+                top_level=CEFRLevel.A2,
+            ),
+            SourceVote(
+                source_name="Kelly List",
+                distribution={CEFRLevel.UNKNOWN: 1.0},
+                top_level=CEFRLevel.UNKNOWN,
+            ),
         ],
     )
 
@@ -118,8 +128,11 @@ class TestProcessSourceBreakdownPropagation:
 
     def test_dto_to_breakdown_uses_runtime_resolver(self) -> None:
         """dto_to_breakdown must compute level via resolve_cefr_level, not trust DTO fields."""
-        from backend.application.dto.cefr_dtos import dto_to_breakdown
-        from backend.application.dto.cefr_dtos import CEFRBreakdownDTO, SourceVoteDTO
+        from backend.application.dto.cefr_dtos import (
+            CEFRBreakdownDTO,
+            SourceVoteDTO,
+            dto_to_breakdown,
+        )
 
         # DTO says "voting" but Oxford knows the word → resolver should say "priority"
         dto = CEFRBreakdownDTO(

@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
-
 from backend.cli.build_dict_cache import build_cache
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.infrastructure.adapters.dict_cache.cefr_source import DictCacheCEFRSource
-from backend.infrastructure.adapters.dict_cache.pronunciation_source import DictCachePronunciationSource
+from backend.infrastructure.adapters.dict_cache.pronunciation_source import (
+    DictCachePronunciationSource,
+)
 from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
 from backend.infrastructure.adapters.dict_cache.usage_source import DictCacheUsageSource
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture()

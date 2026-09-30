@@ -15,17 +15,18 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import median, quantiles
+from typing import TYPE_CHECKING
 
-from dotenv import load_dotenv
-
-from backend.domain.ports.cefr_source import CEFRSource
 from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
-from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
 from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
 from backend.infrastructure.adapters.dict_cache.cefr_source import DictCacheCEFRSource
 from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
 from backend.infrastructure.adapters.wordfreq_frequency_provider import WordfreqFrequencyProvider
+from dotenv import load_dotenv
+
+if TYPE_CHECKING:
+    from backend.domain.ports.cefr_source import CEFRSource
 
 # --- config ---
 
@@ -185,7 +186,11 @@ def report_cefr_distribution(words: list[WordInfo]) -> None:
             _print_bar(level, c, max_count)
 
     print(f"\n  User level: {USER_CEFR_LEVEL}")
-    below = sum(counts.get(l, 0) for l in CEFR_ORDER if l <= USER_CEFR_LEVEL and l != "UNKNOWN")
+    below = sum(
+        counts.get(lvl, 0)
+        for lvl in CEFR_ORDER
+        if lvl <= USER_CEFR_LEVEL and lvl != "UNKNOWN"
+    )
     if below:
         print(f"  ⚠ Words at or below user level ({USER_CEFR_LEVEL}): {below}")
 
@@ -253,11 +258,11 @@ def report_boundary_estimation(words: list[WordInfo]) -> None:
             pct = in_upper / len(zipfs) * 100
             print(f"  In upper half of range ({midpoint:.1f}+): {in_upper} ({pct:.0f}%)")
             if pct > 65:
-                print(f"  → Signal: STRONG concentration in upper Zipf")
+                print("  → Signal: STRONG concentration in upper Zipf")
             elif pct > 55:
-                print(f"  → Signal: moderate concentration in upper Zipf")
+                print("  → Signal: moderate concentration in upper Zipf")
             else:
-                print(f"  → Signal: no clear concentration")
+                print("  → Signal: no clear concentration")
 
 
 def report_anomalies(words: list[WordInfo]) -> None:
@@ -272,7 +277,7 @@ def report_anomalies(words: list[WordInfo]) -> None:
         for w in low_zipf:
             print(f"      {w.lemma:<25s} CEFR={w.cefr}  Zipf={w.zipf:.2f}  ({w.decision_method})")
     else:
-        print(f"      (none)")
+        print("      (none)")
 
     unknown = sorted([w for w in words if w.cefr == "UNKNOWN"], key=lambda w: w.lemma)
     print(f"\n  5b. Learned words without CEFR level ({len(unknown)}):")
@@ -281,7 +286,7 @@ def report_anomalies(words: list[WordInfo]) -> None:
             zipf_note = f"Zipf={w.zipf:.2f}" if w.zipf > 0 else "not in wordfreq"
             print(f"      {w.lemma:<25s} {zipf_note}")
     else:
-        print(f"      (none)")
+        print("      (none)")
 
     user_levels = {"A1", "A2", USER_CEFR_LEVEL}
     below_level = sorted(
@@ -293,7 +298,7 @@ def report_anomalies(words: list[WordInfo]) -> None:
         for w in below_level:
             print(f"      {w.lemma:<25s} CEFR={w.cefr}  Zipf={w.zipf:.2f}  ({w.decision_method})")
     else:
-        print(f"      (none)")
+        print("      (none)")
 
 
 def report_verdict(words: list[WordInfo]) -> None:
@@ -320,7 +325,10 @@ def report_verdict(words: list[WordInfo]) -> None:
         print(f"  {s}")
 
     if signals:
-        pcts = [float(s.split(":")[1].strip().rstrip("% in upper Zipf half")) for s in signals]
+        pcts = [
+            float(s.split(":")[1].strip().removesuffix("% in upper Zipf half"))
+            for s in signals
+        ]
         avg_pct = sum(pcts) / len(pcts)
         print()
         if avg_pct > 65:

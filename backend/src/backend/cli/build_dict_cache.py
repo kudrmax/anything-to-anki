@@ -11,7 +11,7 @@ import json
 import logging
 import sqlite3
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -90,8 +90,9 @@ def _load_cefr(conn: sqlite3.Connection, dictionaries_dir: Path) -> int:
             for pos, dist_raw in pos_dict.items():
                 dist_normalized = _normalize_distribution(dist_raw)
                 conn.execute(
-                    "INSERT OR REPLACE INTO cefr (lemma, pos, distribution, source_name, priority) "
-                    "VALUES (?, ?, ?, ?, ?)",
+                    "INSERT OR REPLACE INTO cefr"
+                    " (lemma, pos, distribution, source_name, priority)"
+                    " VALUES (?, ?, ?, ?, ?)",
                     (lemma.lower(), pos, json.dumps(dist_normalized), source_name, priority),
                 )
                 count += 1
@@ -168,7 +169,7 @@ def build_cache(dictionaries_dir: Path) -> Path:
     )
     conn.execute(
         "INSERT INTO build_meta (key, value) VALUES (?, ?)",
-        ("built_at", datetime.now(timezone.utc).isoformat()),
+        ("built_at", datetime.now(UTC).isoformat()),
     )
     conn.commit()
     conn.close()
@@ -195,7 +196,8 @@ def is_cache_current(dictionaries_dir: Path) -> bool:
         if row is None:
             return False
         current_hash = _compute_sources_hash(dictionaries_dir)
-        return row[0] == current_hash
+        stored_hash: str = row[0]
+        return stored_hash == current_hash
     except sqlite3.Error:
         return False
 

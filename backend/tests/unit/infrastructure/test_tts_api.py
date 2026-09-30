@@ -1,17 +1,23 @@
 from __future__ import annotations
 
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
-from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.api.app import app
-from backend.infrastructure.api.dependencies import get_container, get_db_session, get_session_factory
+from backend.infrastructure.api.dependencies import (
+    get_container,
+    get_db_session,
+    get_session_factory,
+)
 from backend.infrastructure.persistence.database import Base
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 @pytest.fixture()

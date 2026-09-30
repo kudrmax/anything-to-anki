@@ -36,7 +36,9 @@ class TestCreateSourceFromUrl:
         assert source.status == SourceStatus.NEW
 
     def test_title_override(self) -> None:
-        source = self.use_case.execute("https://youtube.com/watch?v=abc", title_override="My Title")
+        source = self.use_case.execute(
+            "https://youtube.com/watch?v=abc", title_override="My Title",
+        )
         assert source.title == "My Title"
 
     def test_unsupported_url_raises(self) -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -32,7 +33,9 @@ from backend.infrastructure.persistence.sqla_job_repository import (
 from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
 )
-from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 def _create_processed_source(db_session: Session) -> int:

@@ -456,7 +456,7 @@ class TestPhrasalVerbPath:
         # The verb token tag ("VBP") must have been passed to the classifier.
         cefr_classifier.classify.assert_called_once_with("give up", "VBP")
 
-    def test_match_falls_back_to_VB_tag_when_verb_token_missing(self) -> None:
+    def test_match_falls_back_to_vb_tag_when_verb_token_missing(self) -> None:
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = _source(raw="x")
         candidate_repo = _mock_repo_save()

@@ -52,7 +52,10 @@ def upgrade() -> None:
     # 4. Backfill content_type based on input_method
     for im_val, ct_val in _INPUT_METHOD_TO_CONTENT_TYPE.items():
         conn.execute(
-            text("UPDATE sources SET content_type = :ct WHERE input_method = :im AND content_type IS NULL"),
+            text(
+                "UPDATE sources SET content_type = :ct "
+                "WHERE input_method = :im AND content_type IS NULL"
+            ),
             {"ct": ct_val, "im": im_val},
         )
 

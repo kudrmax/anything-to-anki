@@ -101,6 +101,7 @@ def test_enqueue_jobs_have_correct_candidate_ids() -> None:
     jobs = job_repo.create_bulk.call_args[0][0]
     job_candidate_ids = {j.candidate_id for j in jobs}
     assert job_candidate_ids == {5, 10, 15}
+    assert set(result) == {5, 10, 15}
     assert all(j.source_id == 7 for j in jobs)
 
 
