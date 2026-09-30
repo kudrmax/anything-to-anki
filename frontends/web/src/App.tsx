@@ -2,7 +2,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '@/layouts/AppLayout'
 import { AppShell } from '@/shell'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { InboxPage } from '@/pages/InboxPage'
+import { SourcesScreen } from '@/screens/sources/SourcesScreen'
 import { ReviewPage } from '@/pages/ReviewPage'
 import { ExportPage } from '@/pages/ExportPage'
 import { GlobalExportPage } from '@/pages/GlobalExportPage'
@@ -15,9 +15,9 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppShell />}>
+          <Route path="/" element={<ErrorBoundary><SourcesScreen /></ErrorBoundary>} />
         </Route>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<ErrorBoundary><InboxPage /></ErrorBoundary>} />
           <Route path="/sources/:id/review" element={<ErrorBoundary><ReviewPage /></ErrorBoundary>} />
           <Route path="/sources/:id/export" element={<ErrorBoundary><ExportPage /></ErrorBoundary>} />
           <Route path="/export" element={<ErrorBoundary><GlobalExportPage /></ErrorBoundary>} />

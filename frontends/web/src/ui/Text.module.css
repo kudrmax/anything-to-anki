@@ -1,0 +1,13 @@
+.default { color: var(--tx); }
+.soft { color: var(--tx2); }
+.muted { color: var(--tx3); }
+.accent { color: var(--ac); }
+.ok { color: var(--ok); }
+.warn { color: var(--warn); }
+.err { color: var(--err); }
+.s { font-size: var(--fs-s); }
+.m { font-size: var(--fs-m); }
+.mono { font-family: var(--mono); }
+.block { display: block; }
+.label { font-size: var(--fs-s); color: var(--tx3); padding: var(--s5) 0 var(--s3); }
+.flush { padding-top: 0; }
