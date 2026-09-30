@@ -19,8 +19,10 @@ export function PageHeader({ title, back, meta, children }: PageHeaderProps) {
   return (
     <div className={css.header}>
       <div className={css.lead}>
-        {back !== undefined && <IconButton icon={ArrowLeft} label="Back" className={css.back} onClick={goBack} />}
-        <h1 className={css.title}>{title}</h1>
+        <div className={css.heading}>
+          {back !== undefined && <IconButton icon={ArrowLeft} label="Back" className={css.back} onClick={goBack} />}
+          <h1 className={css.title}>{title}</h1>
+        </div>
         {meta && <div className={css.meta}>{meta}</div>}
       </div>
       {children}
