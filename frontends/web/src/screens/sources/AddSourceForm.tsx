@@ -3,6 +3,7 @@ import { api } from '@/api/client'
 import type { AudioTrack, SourceSummary, SourceType, SubtitleTrack } from '@/api/types'
 import { detectedFileType, detectedUrlType, isVideoPath } from '@/lib/text/sourceInput'
 import { Button, Field, Label, Segmented, Stack, Tabs, Text, TextArea } from '@/ui'
+import { PathField } from './PathField'
 import { TrackSelectionModal } from './TrackSelectionModal'
 
 type Tab = 'text' | 'url' | 'file'
@@ -23,6 +24,7 @@ const TEXT_PLACEHOLDER: Record<TextType, string> = {
   lyrics_pasted: 'Paste song lyrics here…',
   subtitles_file: 'Paste .srt subtitle content here…',
 }
+const SUBTITLE_EXTENSIONS = ['srt']
 const NO_SUBTITLES_ERROR = 'subtitles_not_available'
 const PREVIEW_LENGTH = 100
 
@@ -171,9 +173,9 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
           )}
           {tab === 'file' && (
             <>
-              <Field value={filePath} placeholder="/path/to/movie.mkv" onChange={e => setFilePath(e.target.value)} />
+              <PathField value={filePath} placeholder="/path/to/movie.mkv" onChange={setFilePath} onError={setError} />
               {isVideoPath(filePath) && (
-                <Field value={srtPath} placeholder="/path/to/subtitles.srt (optional)" onChange={e => setSrtPath(e.target.value)} />
+                <PathField value={srtPath} placeholder="/path/to/subtitles.srt (optional)" extensions={SUBTITLE_EXTENSIONS} onChange={setSrtPath} onError={setError} />
               )}
               {filePath.trim() && <Text tone="muted" size="s">{detectedFileType(filePath)}</Text>}
             </>

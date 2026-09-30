@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string></string>
+    <key>CFBundleDisplayName</key>
+    <string></string>
+    <key>CFBundleIdentifier</key>
+    <string></string>
+    <key>CFBundleExecutable</key>
+    <string></string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string></string>
+    <key>CFBundleVersion</key>
+    <string></string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.education</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>Sources you pick in Downloads are read in place, without copying.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>Sources you pick on the Desktop are read in place, without copying.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Sources you pick in Documents are read in place, without copying.</string>
+    <key>A2AProjectDir</key>
+    <string></string>
+    <key>A2APort</key>
+    <string></string>
+</dict>
+</plist>
