@@ -54,8 +54,7 @@ export function ReviewScreen() {
         return
       }
       const status = DECISION[action]
-      const change = status ? decisionChange(current.status, status) : null
-      if (change) void mark(current.id, change)
+      if (status) void mark(current.id, decisionChange(current.status, status))
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
