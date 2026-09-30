@@ -47,7 +47,7 @@ class GetQueueFailedUseCase:
                     FailedSourceDTO(
                         source_id=sid,
                         source_title=title_map.get(sid, ""),
-                        count=0,
+                        count=g["source_counts"][sid],
                     )
                     for sid in g["source_ids"]
                 ],

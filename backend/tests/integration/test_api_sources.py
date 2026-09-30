@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Generator  # noqa: TC003
+from datetime import UTC, datetime, timedelta
 from pathlib import Path  # noqa: TC003
 
 import pytest
@@ -76,6 +77,16 @@ class TestSourcesAPI:
         response = client.get("/sources")
         assert response.status_code == 200
         assert len(response.json()) == 2
+
+    def test_created_at_is_returned_with_utc_offset(self, client: TestClient) -> None:
+        """Clients render times in the viewer's zone; they need the offset to do so."""
+        before = datetime.now(tz=UTC)
+        client.post("/sources", json={"raw_text": "Hello"})
+
+        created_at = datetime.fromisoformat(client.get("/sources").json()[0]["created_at"])
+
+        assert created_at.utcoffset() == timedelta(0)
+        assert abs(created_at - before) < timedelta(minutes=1)
 
     def test_get_source(self, client: TestClient) -> None:
         create = client.post("/sources", json={"raw_text": "Hello"})

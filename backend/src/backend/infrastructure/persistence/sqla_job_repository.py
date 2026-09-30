@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -329,13 +330,15 @@ class SqlaJobRepository(JobRepository):
         for row in rows:
             source_ids_raw = str(row.source_ids_csv or "")
             candidate_ids_raw = str(row.candidate_ids_csv or "")
-            source_ids = sorted({int(s) for s in source_ids_raw.split(",") if s})
+            source_counts = Counter(int(s) for s in source_ids_raw.split(",") if s)
+            source_ids = sorted(source_counts)
             candidate_ids = [int(c) for c in candidate_ids_raw.split(",") if c]
             result.append({
                 "job_type": row.job_type,
                 "error": row.error or "Unknown error",
                 "count": row.count,
                 "source_ids": source_ids,
+                "source_counts": dict(source_counts),
                 "candidate_ids": candidate_ids,
             })
         return result

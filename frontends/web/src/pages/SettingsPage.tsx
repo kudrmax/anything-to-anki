@@ -465,7 +465,7 @@ export function SettingsPage() {
               ))}
             </select>
             <p className="text-xs" style={{ color: 'var(--td)' }}>
-              Words at or above this level will be suggested as candidates.
+              Words above this level will be suggested as candidates.
             </p>
           </div>
 

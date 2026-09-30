@@ -53,6 +53,11 @@ def _make_breakdown() -> CEFRBreakdown:
     )
 
 
+@pytest.fixture(autouse=True)
+def _existing_source(source_id: int) -> int:
+    return source_id
+
+
 @pytest.mark.integration
 class TestCEFRBreakdownDBRoundtrip:
     def test_breakdown_saved_and_loaded(self, db_session: Session) -> None:

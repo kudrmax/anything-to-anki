@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.domain.entities.bootstrap_index_meta import BootstrapIndexMeta
@@ -26,6 +26,7 @@ from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.utc_datetime import UTCDateTime
 
 if TYPE_CHECKING:
     from backend.domain.entities.job import Job
@@ -39,7 +40,7 @@ class CollectionModel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
+        UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
 
     def to_entity(self) -> Collection:
@@ -78,7 +79,7 @@ class SourceModel(Base):
         Integer, ForeignKey("collections.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
+        UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
 
     def to_entity(self) -> Source:
@@ -233,9 +234,14 @@ class StoredCandidateModel(Base):
     """
 
     __tablename__ = "candidates"
+    # Media files and enrichment are keyed by candidate id — an id must never
+    # be handed out twice, which plain SQLite rowids do after deletions.
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    source_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    source_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sources.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     lemma: Mapped[str] = mapped_column(String(100), nullable=False)
     pos: Mapped[str] = mapped_column(String(10), nullable=False)
     zipf_frequency: Mapped[float] = mapped_column(Float, nullable=False)
@@ -323,7 +329,7 @@ class KnownWordModel(Base):
     lemma: Mapped[str] = mapped_column(String(100), nullable=False)
     pos: Mapped[str | None] = mapped_column(String(10), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
+        UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
 
     __table_args__ = (UniqueConstraint("lemma", "pos", name="uq_known_word_lemma_pos"),)
@@ -352,7 +358,9 @@ class AnkiSyncedCardModel(Base):
     __tablename__ = "anki_synced_cards"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    candidate_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    candidate_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
     anki_note_id: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
@@ -363,6 +371,7 @@ class CandidateMeaningModel(Base):
 
     candidate_id: Mapped[int] = mapped_column(
         Integer,
+        ForeignKey("candidates.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
@@ -371,7 +380,7 @@ class CandidateMeaningModel(Base):
     synonyms: Mapped[str | None] = mapped_column(Text, nullable=True)
     examples: Mapped[str | None] = mapped_column(Text, nullable=True)
     ipa: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     def to_entity(self) -> CandidateMeaning:
         return CandidateMeaning(
@@ -404,6 +413,7 @@ class CandidateMediaModel(Base):
 
     candidate_id: Mapped[int] = mapped_column(
         Integer,
+        ForeignKey("candidates.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
@@ -411,7 +421,7 @@ class CandidateMediaModel(Base):
     audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     start_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     end_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     def to_entity(self) -> CandidateMedia:
         return CandidateMedia(
@@ -442,12 +452,13 @@ class CandidatePronunciationModel(Base):
 
     candidate_id: Mapped[int] = mapped_column(
         Integer,
+        ForeignKey("candidates.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
     us_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     uk_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     def to_entity(self) -> CandidatePronunciation:
         return CandidatePronunciation(
@@ -474,11 +485,12 @@ class CandidateTTSModel(Base):
 
     candidate_id: Mapped[int] = mapped_column(
         Integer,
+        ForeignKey("candidates.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
     audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     def to_entity(self) -> CandidateTTS:
         return CandidateTTS(
@@ -511,20 +523,20 @@ class EnrichmentCacheModel(Base):
     synonyms: Mapped[str | None] = mapped_column(Text, nullable=True)
     examples: Mapped[str | None] = mapped_column(Text, nullable=True)
     ipa: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    meaning_generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    meaning_generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     # media
     screenshot_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     start_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     end_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    media_generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    media_generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     # pronunciation
     us_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     uk_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    pronunciation_generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    pronunciation_generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     # tts
     tts_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    tts_generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    tts_generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
 
 class JobModel(Base):
@@ -550,8 +562,8 @@ class JobModel(Base):
         String(20), nullable=False, default="queued", index=True,
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     def to_entity(self) -> Job:
         from backend.domain.entities.job import Job
@@ -591,7 +603,7 @@ class BootstrapIndexMetaModel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="none")
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    built_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    built_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     word_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     def to_entity(self) -> BootstrapIndexMeta:
