@@ -1,0 +1,77 @@
+import AppKit
+import LauncherCore
+
+final class MainWindowController: NSWindowController {
+    private static let frameName = "MainWindow"
+    private static let defaultSize = NSSize(width: 1440, height: 900)
+    private static let minimumSize = NSSize(width: 900, height: 600)
+
+    var onRetry: (() -> Void)?
+
+    private let webController: WebViewController
+    private let statusController = StatusViewController()
+    private let backgroundStore = PageBackgroundStore()
+    private var backgroundObservation: NSKeyValueObservation?
+
+    init(config: AppConfig) {
+        webController = WebViewController(config: config)
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: Self.defaultSize),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = ProcessInfo.processInfo.processName
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isReleasedWhenClosed = false
+        window.minSize = Self.minimumSize
+        window.center()
+        window.setFrameAutosaveName(Self.frameName)
+        super.init(window: window)
+
+        statusController.onRetry = { [weak self] in self?.onRetry?() }
+        webController.onLoadFailed = { [weak self] message in
+            self?.showStatus(.failed(message: "The page could not be loaded", details: message))
+        }
+        // The title bar takes the page's own background, so it follows the in-app theme.
+        if let color = backgroundStore.load() { Self.apply(background: color, to: window) }
+        backgroundObservation = webController.observeBackground { [weak window, backgroundStore] color in
+            guard let window else { return }
+            Self.apply(background: color, to: window)
+            backgroundStore.save(color)
+        }
+    }
+
+    /// Window chrome and native status text follow the page's light or dark background.
+    private static func apply(background color: NSColor, to window: NSWindow) {
+        window.backgroundColor = color
+        let brightness = color.usingColorSpace(.sRGB)?.brightnessComponent ?? 0
+        window.appearance = NSAppearance(named: brightness < 0.5 ? .darkAqua : .aqua)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    func showStatus(_ status: LaunchStatus) {
+        statusController.show(status)
+        setContent(statusController)
+    }
+
+    func showApp() {
+        webController.loadApp()
+        setContent(webController)
+    }
+
+    func reload() {
+        guard window?.contentViewController === webController else { return onRetry?() ?? () }
+        webController.reload()
+    }
+
+    private func setContent(_ controller: NSViewController) {
+        guard let window, window.contentViewController !== controller else { return }
+        let frame = window.frame
+        window.contentViewController = controller
+        window.setFrame(frame, display: true)
+    }
+}

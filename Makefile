@@ -1,4 +1,4 @@
-.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths _check_env _check_setup
+.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths app test-macos _check_env _check_setup
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # -include не падает если файла нет; если .env создаётся правилом ниже,
@@ -270,6 +270,13 @@ lint: _check_setup  ## Линтинг (ruff)
 
 typecheck: _check_setup  ## Проверка типов (mypy)
 	.venv/bin/mypy backend/src
+
+##@ macOS-приложение
+app: _check_env  ## Собрать .app для этой копии и положить в ~/Applications
+	@frontends/macos/scripts/build-app.sh "$(CURDIR)" "$(PORT)" "$(INSTANCE_ENV_NAME)"
+
+test-macos:  ## Тесты macOS-оболочки
+	swift test --package-path frontends/macos
 
 ##@ Миграция
 migrate-paths: _check_setup  ## Перевести пути к медиа в БД на эту копию (dry-run, APPLY=1 для применения)
