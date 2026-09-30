@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-import gc
 import subprocess
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
 from backend.infrastructure.adapters.kokoro_tts_generator import (
-    KokoroTTSGenerator,
     _AUDIO_BITRATE,
     _AUDIO_CHANNELS,
+    KokoroTTSGenerator,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.mark.unit
@@ -138,10 +140,7 @@ class TestEnsureLoaded:
         gen._pipeline = MagicMock()
         gen._current_lang = "a"
 
-        with (
-            patch.object(gen, "unload") as mock_unload,
-            patch("backend.infrastructure.adapters.kokoro_tts_generator.KPipeline", create=True) as mock_kpipeline_cls,
-        ):
+        with patch.object(gen, "unload") as mock_unload:
             # Patch the import inside _ensure_loaded
             mock_new_pipeline = MagicMock()
 

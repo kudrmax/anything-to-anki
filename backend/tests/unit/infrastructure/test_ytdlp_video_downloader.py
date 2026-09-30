@@ -36,8 +36,10 @@ class TestYtDlpVideoDownloader:
         mock_ydl.__exit__ = MagicMock(return_value=False)
         mock_ydl.download.side_effect = Exception("network error")
 
-        with patch("yt_dlp.YoutubeDL", return_value=mock_ydl):
-            with pytest.raises(Exception, match="network error"):
-                self.downloader.download(
-                    "https://youtube.com/watch?v=abc", "/tmp/out.mp4"
-                )
+        with (
+            patch("yt_dlp.YoutubeDL", return_value=mock_ydl),
+            pytest.raises(Exception, match="network error"),
+        ):
+            self.downloader.download(
+                "https://youtube.com/watch?v=abc", "/tmp/out.mp4"
+            )

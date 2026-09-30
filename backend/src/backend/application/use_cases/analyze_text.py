@@ -29,13 +29,13 @@ if TYPE_CHECKING:
     from backend.domain.ports.text_analyzer import TextAnalyzer
     from backend.domain.ports.text_cleaner import TextCleaner
     from backend.domain.ports.text_normalizer import TextNormalizer
+    from backend.domain.ports.usage_source import UsageSource
     from backend.domain.services.fragment_selection.scoring.scorer import (
         UnknownCounter,
     )
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.usage_distribution import UsageDistribution
-    from backend.domain.ports.usage_source import UsageSource
 
 DIRTY_THRESHOLD: int = 2
 

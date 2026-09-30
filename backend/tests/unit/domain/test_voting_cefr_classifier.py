@@ -192,7 +192,8 @@ class TestClassifyDetailed:
         ]
         classifier = VotingCEFRClassifier(sources, priority_sources=[oxford])
 
-        assert classifier.classify("word", "NN") == classifier.classify_detailed("word", "NN").final_level
+        detailed = classifier.classify_detailed("word", "NN")
+        assert classifier.classify("word", "NN") == detailed.final_level
 
     def test_source_names_in_votes(self) -> None:
         sources = [

@@ -19,7 +19,9 @@ class TestVideoPathResolverImpl:
         assert result == "/Users/maxos/Downloads/movie.mkv"
 
     def test_resolve_local_with_subdir(self) -> None:
-        result = self.resolver.resolve("/Users/maxos/Downloads/series/ep01.mkv", InputMethod.VIDEO_FILE)
+        result = self.resolver.resolve(
+            "/Users/maxos/Downloads/series/ep01.mkv", InputMethod.VIDEO_FILE,
+        )
         assert result == "/Users/maxos/Downloads/series/ep01.mkv"
 
     # --- to_storage_path ---

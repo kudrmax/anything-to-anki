@@ -5,6 +5,7 @@ import traceback
 from collections.abc import AsyncGenerator  # noqa: TC003
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import structlog
 from fastapi import FastAPI, Request
@@ -12,7 +13,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.responses import Response
 
 from backend.infrastructure.api.dependencies import get_session_factory
 from backend.infrastructure.api.routes import (
@@ -28,8 +28,8 @@ from backend.infrastructure.api.routes import (
     stats,
 )
 from backend.infrastructure.api.routes.media import router as media_router
-from backend.infrastructure.api.routes.queue import router as queue_router
 from backend.infrastructure.api.routes.pronunciation import router as pronunciation_router
+from backend.infrastructure.api.routes.queue import router as queue_router
 from backend.infrastructure.api.routes.tts import router as tts_router
 from backend.infrastructure.logging_setup import configure_logging
 from backend.infrastructure.persistence.database import (
@@ -38,6 +38,9 @@ from backend.infrastructure.persistence.database import (
     reset_stuck_processing,
     run_alembic_migrations,
 )
+
+if TYPE_CHECKING:
+    from starlette.responses import Response
 
 configure_logging("app")
 

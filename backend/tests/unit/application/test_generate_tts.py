@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path  # noqa: TC003
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.generate_tts import ALL_VOICES, GenerateTTSUseCase

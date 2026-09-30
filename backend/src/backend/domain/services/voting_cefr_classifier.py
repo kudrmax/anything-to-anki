@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING
 from backend.domain.ports.cefr_classifier import CEFRClassifier
 from backend.domain.services.cefr_level_resolver import resolve_cefr_level
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
-from backend.domain.value_objects.cefr_level import CEFRLevel
 
 if TYPE_CHECKING:
     from backend.domain.ports.cefr_source import CEFRSource
+    from backend.domain.value_objects.cefr_level import CEFRLevel
 
 
 class VotingCEFRClassifier(CEFRClassifier):

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import base64
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, call, patch
 
 import httpx
 import pytest
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _HTTPX_POST = "backend.infrastructure.adapters.anki_connect_connector.httpx.post"
 

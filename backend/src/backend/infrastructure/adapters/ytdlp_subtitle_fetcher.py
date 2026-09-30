@@ -30,7 +30,7 @@ class YtDlpSubtitleFetcher(UrlSourceFetcher):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             outtmpl = str(Path(tmpdir) / "sub")
-            opts: dict = {
+            opts: dict[str, object] = {
                 "writesubtitles": True,
                 "writeautomaticsub": True,
                 "subtitleslangs": [language],

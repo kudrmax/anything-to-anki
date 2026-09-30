@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
 import pytest
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
@@ -13,7 +14,9 @@ from backend.infrastructure.persistence.models import StoredCandidateModel
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
 )
-from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 @pytest.mark.integration

@@ -1,10 +1,14 @@
 """UsageSource backed by the unified dictionary cache."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from backend.domain.ports.usage_source import UsageSource
 from backend.domain.services.pos_mapping import map_pos_tag
 from backend.domain.value_objects.usage_distribution import UsageDistribution
-from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
+
+if TYPE_CHECKING:
+    from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
 
 
 class DictCacheUsageSource(UsageSource):

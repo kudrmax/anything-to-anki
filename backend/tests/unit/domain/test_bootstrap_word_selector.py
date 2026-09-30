@@ -1,5 +1,4 @@
 import pytest
-
 from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
 from backend.domain.services.bootstrap_word_selector import BootstrapWordSelector
 from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -21,7 +20,9 @@ class TestBootstrapWordSelector:
             _entry("ubiquitous", CEFRLevel.C2, 3.1),
         ]
         grid_levels = {CEFRLevel.B2, CEFRLevel.C1, CEFRLevel.C2}
-        result = self.selector.select_words(entries, grid_levels, known_lemmas=set(), excluded_lemmas=set())
+        result = self.selector.select_words(
+            entries, grid_levels, known_lemmas=set(), excluded_lemmas=set(),
+        )
         lemmas = {w.lemma for w in result}
         assert lemmas == {"elaborate", "nuance", "ubiquitous"}
 
@@ -31,7 +32,9 @@ class TestBootstrapWordSelector:
             _entry("nuance", CEFRLevel.C1, 4.2),
         ]
         grid_levels = {CEFRLevel.B2, CEFRLevel.C1}
-        result = self.selector.select_words(entries, grid_levels, known_lemmas={"elaborate"}, excluded_lemmas=set())
+        result = self.selector.select_words(
+            entries, grid_levels, known_lemmas={"elaborate"}, excluded_lemmas=set(),
+        )
         lemmas = {w.lemma for w in result}
         assert lemmas == {"nuance"}
 
@@ -41,7 +44,9 @@ class TestBootstrapWordSelector:
             _entry("nuance", CEFRLevel.C1, 4.2),
         ]
         grid_levels = {CEFRLevel.B2, CEFRLevel.C1}
-        result = self.selector.select_words(entries, grid_levels, known_lemmas=set(), excluded_lemmas={"elaborate"})
+        result = self.selector.select_words(
+            entries, grid_levels, known_lemmas=set(), excluded_lemmas={"elaborate"},
+        )
         lemmas = {w.lemma for w in result}
         assert lemmas == {"nuance"}
 
@@ -52,7 +57,9 @@ class TestBootstrapWordSelector:
             _entry("elaborate", CEFRLevel.B2, 3.8),
         ]
         grid_levels = {CEFRLevel.B2, CEFRLevel.C1, CEFRLevel.C2}
-        result = self.selector.select_words(entries, grid_levels, known_lemmas=set(), excluded_lemmas=set())
+        result = self.selector.select_words(
+            entries, grid_levels, known_lemmas=set(), excluded_lemmas=set(),
+        )
         lemmas = {w.lemma for w in result}
         assert lemmas == {"elaborate"}
 
@@ -63,7 +70,9 @@ class TestBootstrapWordSelector:
             _entry("elaborate", CEFRLevel.C1, 3.8),
         ]
         grid_levels = {CEFRLevel.B2, CEFRLevel.C1, CEFRLevel.C2}
-        result = self.selector.select_words(entries, grid_levels, known_lemmas=set(), excluded_lemmas=set())
+        result = self.selector.select_words(
+            entries, grid_levels, known_lemmas=set(), excluded_lemmas=set(),
+        )
         assert len(result) == 1
         assert result[0].lemma == "elaborate"
         assert result[0].cefr_level == CEFRLevel.B2
@@ -75,7 +84,9 @@ class TestBootstrapWordSelector:
             _entry("scrutinize", CEFRLevel.B2, 3.7),
         ]
         grid_levels = {CEFRLevel.B2}
-        result = self.selector.select_words(entries, grid_levels, known_lemmas=set(), excluded_lemmas=set())
+        result = self.selector.select_words(
+            entries, grid_levels, known_lemmas=set(), excluded_lemmas=set(),
+        )
         assert len(result) == 1
         assert result[0].lemma in {"elaborate", "scrutinize"}
 
@@ -89,13 +100,17 @@ class TestBootstrapWordSelector:
             _entry("word_e", CEFRLevel.B2, 5.2),  # band [5.0, 5.5]
         ]
         grid_levels = {CEFRLevel.B2}
-        result = self.selector.select_words(entries, grid_levels, known_lemmas=set(), excluded_lemmas=set())
+        result = self.selector.select_words(
+            entries, grid_levels, known_lemmas=set(), excluded_lemmas=set(),
+        )
         assert len(result) == 5
         lemmas = {w.lemma for w in result}
         assert lemmas == {"word_a", "word_b", "word_c", "word_d", "word_e"}
 
     def test_empty_entries_returns_empty(self) -> None:
-        result = self.selector.select_words([], {CEFRLevel.B2}, known_lemmas=set(), excluded_lemmas=set())
+        result = self.selector.select_words(
+            [], {CEFRLevel.B2}, known_lemmas=set(), excluded_lemmas=set(),
+        )
         assert result == []
 
     def test_max_15_words(self) -> None:
@@ -105,5 +120,7 @@ class TestBootstrapWordSelector:
             for i, zipf in enumerate([3.2, 3.7, 4.2, 4.7, 5.2]):
                 entries.append(_entry(f"word_{cefr.name}_{i}", cefr, zipf))
         grid_levels = {CEFRLevel.B2, CEFRLevel.C1, CEFRLevel.C2}
-        result = self.selector.select_words(entries, grid_levels, known_lemmas=set(), excluded_lemmas=set())
+        result = self.selector.select_words(
+            entries, grid_levels, known_lemmas=set(), excluded_lemmas=set(),
+        )
         assert len(result) == 15

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pydantic import BaseModel, field_validator
 
 from backend.application.dto.cefr_dtos import CEFRBreakdownDTO
 from backend.domain.value_objects.cefr_level import CEFRLevel
+
+if TYPE_CHECKING:
+    from backend.domain.value_objects.usage_distribution import UsageDistribution
 
 
 class AnalyzeTextRequest(BaseModel):

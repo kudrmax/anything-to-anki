@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -114,7 +114,7 @@ class TestGetCandidatesUseCase:
 
     def test_dto_has_queued_status_when_job_exists(self) -> None:
         """Candidate with a QUEUED meaning job gets status='queued' in DTO."""
-        now = datetime(2025, 1, 1, tzinfo=timezone.utc)
+        now = datetime(2025, 1, 1, tzinfo=UTC)
         candidate = StoredCandidate(
             id=1, source_id=1, lemma="test", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,
@@ -140,7 +140,7 @@ class TestGetCandidatesUseCase:
 
     def test_dto_has_done_status_when_no_job(self) -> None:
         """Candidate with meaning data and no job gets status='done'."""
-        now = datetime(2025, 1, 1, tzinfo=timezone.utc)
+        now = datetime(2025, 1, 1, tzinfo=UTC)
         meaning = CandidateMeaning(
             candidate_id=1, meaning="a test", translation="тест",
             synonyms=None, examples=None, ipa=None, generated_at=now,

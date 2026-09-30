@@ -29,7 +29,7 @@ disallow_any_generics = true
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = ["cefrpy.*", "wordfreq.*", "claude_agent_sdk.*"]
+module = ["cefrpy.*", "wordfreq.*", "claude_agent_sdk.*", "yt_dlp.*", "kokoro.*", "soundfile.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -65,3 +65,6 @@ line-length = 99
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "ANN", "B", "A", "SIM", "TCH"]
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]

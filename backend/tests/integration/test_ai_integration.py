@@ -41,13 +41,16 @@ import socket
 import subprocess
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 import httpx
 import pytest
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
 from backend.domain.value_objects.generation_result import GenerationResult
 from backend.infrastructure.adapters.http_ai_service import HttpAIService
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 # ai_proxy.py lives at repo root
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -117,7 +120,7 @@ def _env_without_proxy() -> dict[str, str]:
 
 
 @pytest.fixture(scope="module", autouse=True)
-def _clear_proxy_for_tests() -> Any:
+def _clear_proxy_for_tests() -> Generator[None, None, None]:
     """Temporarily unset proxy env vars so httpx (inside HttpAIService)
     doesn't try to route localhost traffic through a corporate SOCKS proxy."""
     saved: dict[str, str | None] = {}
@@ -212,7 +215,10 @@ def test_single_meaning_full_roundtrip(ai_service: HttpAIService) -> None:
         "Explain the word briefly. Translate to Russian. "
         "Give 2 synonyms. Give IPA transcription."
     )
-    user_prompt = 'Word: "procrastinate" (VERB)\nContext: "I tend to procrastinate on important tasks."'
+    user_prompt = (
+        'Word: "procrastinate" (VERB)\n'
+        'Context: "I tend to procrastinate on important tasks."'
+    )
 
     result = ai_service.generate_meaning(system_prompt, user_prompt)
 

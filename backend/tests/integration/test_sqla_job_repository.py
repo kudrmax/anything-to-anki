@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.job import Job
@@ -8,7 +9,9 @@ from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 def _insert_source(session: Session, source_id: int) -> None:

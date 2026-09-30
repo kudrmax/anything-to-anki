@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 
 from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
@@ -75,4 +74,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    sys.exit(main() or 0)
+    main()

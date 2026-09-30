@@ -4,10 +4,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
-
 if TYPE_CHECKING:
+    from backend.domain.value_objects.content_type import ContentType
+    from backend.domain.value_objects.input_method import InputMethod
     from backend.domain.value_objects.processing_stage import ProcessingStage
     from backend.domain.value_objects.source_status import SourceStatus
 

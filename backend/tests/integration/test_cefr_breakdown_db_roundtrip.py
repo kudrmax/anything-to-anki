@@ -4,6 +4,8 @@ StoredCandidate with breakdown → StoredCandidateModel (DB) → StoredCandidate
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -12,7 +14,9 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
-from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 def _make_breakdown() -> CEFRBreakdown:
@@ -32,13 +36,19 @@ def _make_breakdown() -> CEFRBreakdown:
             ),
         ],
         votes=[
-            SourceVote(source_name="CEFRpy", distribution={CEFRLevel.B1: 1.0}, top_level=CEFRLevel.B1),
+            SourceVote(
+                source_name="CEFRpy", distribution={CEFRLevel.B1: 1.0}, top_level=CEFRLevel.B1,
+            ),
             SourceVote(
                 source_name="EFLLex",
                 distribution={CEFRLevel.A2: 0.6, CEFRLevel.B1: 0.3, CEFRLevel.B2: 0.1},
                 top_level=CEFRLevel.A2,
             ),
-            SourceVote(source_name="Kelly List", distribution={CEFRLevel.UNKNOWN: 1.0}, top_level=CEFRLevel.UNKNOWN),
+            SourceVote(
+                source_name="Kelly List",
+                distribution={CEFRLevel.UNKNOWN: 1.0},
+                top_level=CEFRLevel.UNKNOWN,
+            ),
         ],
     )
 
@@ -189,7 +199,8 @@ class TestCEFRBreakdownDBRoundtrip:
         cid = created[0].id
 
         # Verify breakdown exists
-        assert db_session.query(CEFRBreakdownModel).filter_by(candidate_id=cid).one_or_none() is not None
+        breakdown = db_session.query(CEFRBreakdownModel).filter_by(candidate_id=cid).one_or_none()
+        assert breakdown is not None
 
         # Delete candidate directly
         model = db_session.get(StoredCandidateModel, cid)
@@ -197,7 +208,8 @@ class TestCEFRBreakdownDBRoundtrip:
         db_session.flush()
 
         # Breakdown should be gone too
-        assert db_session.query(CEFRBreakdownModel).filter_by(candidate_id=cid).one_or_none() is None
+        breakdown = db_session.query(CEFRBreakdownModel).filter_by(candidate_id=cid).one_or_none()
+        assert breakdown is None
 
     def test_runtime_level_ignores_stored_cefr_level(self, db_session: Session) -> None:
         """cefr_level on loaded entity comes from runtime resolution, not DB column.

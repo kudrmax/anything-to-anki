@@ -11,17 +11,19 @@ from __future__ import annotations
 import os
 import sqlite3
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from dotenv import load_dotenv
-
-from backend.domain.ports.cefr_source import CEFRSource
 from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
 from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
 from backend.infrastructure.adapters.dict_cache.cefr_source import DictCacheCEFRSource
 from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
 from backend.infrastructure.adapters.wordfreq_frequency_provider import WordfreqFrequencyProvider
+from dotenv import load_dotenv
+
+if TYPE_CHECKING:
+    from backend.domain.ports.cefr_source import CEFRSource
 
 # --- config ---
 
@@ -169,7 +171,7 @@ def report_grid(entries: list[DictEntry]) -> None:
         if b:
             grid[e.cefr][b] += 1
 
-    bin_labels = [_bin_label(l, h) for l, h in ZIPF_BINS]
+    bin_labels = [_bin_label(lo, hi) for lo, hi in ZIPF_BINS]
     header = f"{'':>8s}" + "".join(f" │ {b:>8s}" for b in bin_labels) + " │   TOTAL"
     sep = "─" * len(header)
 
@@ -210,7 +212,7 @@ def report_anomalies(entries: list[DictEntry]) -> None:
         if b:
             grid[e.cefr][b] += 1
 
-    bin_labels = [_bin_label(l, h) for l, h in ZIPF_BINS]
+    bin_labels = [_bin_label(lo, hi) for lo, hi in ZIPF_BINS]
 
     print("\n  2. ANOMALIES")
     print("─" * 50)
@@ -257,8 +259,9 @@ def report_sanity(stats: FilterStats) -> None:
     print(f"  Excluded — phrasal verb:               {stats.excluded_phrasal_verb}")
     print(f"  Excluded — CEFR ≤ B1:                  {stats.excluded_cefr_below_b2}")
     print(f"  Excluded — CEFR UNKNOWN:               {stats.excluded_cefr_unknown}")
-    print(f"  Excluded — Zipf outside [{ZIPF_MIN}, {ZIPF_MAX}]:    {stats.excluded_zipf_out_of_range}")
-    print(f"  ─────────────────────────────────────")
+    zipf_range = f"[{ZIPF_MIN}, {ZIPF_MAX}]"
+    print(f"  Excluded — Zipf outside {zipf_range}:    {stats.excluded_zipf_out_of_range}")
+    print("  ─────────────────────────────────────")
     print(f"  Passed all filters:                    {stats.passed}")
 
 

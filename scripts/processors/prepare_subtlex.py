@@ -36,7 +36,7 @@ def main() -> None:
     skipped = 0
 
     with open(input_path, encoding="utf-8", errors="replace") as f:
-        header = f.readline()  # skip header
+        f.readline()  # skip header
         for line in f:
             parts = line.strip().split("\t")
             if not parts:

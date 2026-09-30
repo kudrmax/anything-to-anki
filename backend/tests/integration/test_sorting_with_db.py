@@ -1,12 +1,16 @@
 """Integration test: DB roundtrip + domain sorting."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.candidate_sorting import sort_by_relevance, sort_chronologically
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
-from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 def _make_candidate(

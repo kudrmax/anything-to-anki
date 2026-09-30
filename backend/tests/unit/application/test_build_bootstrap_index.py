@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock, call
 
 import pytest
-
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
 from backend.domain.value_objects.bootstrap_index_status import BootstrapIndexStatus
 from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -75,7 +74,10 @@ class TestBuildBootstrapIndexUseCase:
             ("give in", "verb"),
             ("turn down", "phrasal verb"),
         ]
-        self.phrasal_verb_dictionary.contains_phrase.side_effect = lambda phrase: phrase in {"give in", "turn down"}
+        phrasal_verbs = {"give in", "turn down"}
+        self.phrasal_verb_dictionary.contains_phrase.side_effect = (
+            lambda phrase: phrase in phrasal_verbs
+        )
         self.cefr_classifier.classify.return_value = CEFRLevel.B2
         self.frequency_provider.get_zipf_value.return_value = 4.0
 

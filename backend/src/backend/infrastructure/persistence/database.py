@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import TYPE_CHECKING
 
 from sqlalchemy import create_engine, event, update
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from backend.domain.value_objects.source_status import SourceStatus
+
+if TYPE_CHECKING:
+    import sqlite3
 
 logger = logging.getLogger(__name__)
 
@@ -59,12 +63,14 @@ def run_alembic_migrations(db_url: str) -> None:
     command.upgrade(cfg, "head")
 
 
-def _enable_sqlite_foreign_keys(dbapi_conn: object, _connection_record: object) -> None:
+def _enable_sqlite_foreign_keys(
+    dbapi_conn: sqlite3.Connection, _connection_record: object,
+) -> None:
     """Enable FK enforcement for every SQLite connection.
 
     SQLite disables foreign keys by default. Without this, ondelete="CASCADE"
     on ForeignKey columns is silently ignored."""
-    cursor = dbapi_conn.cursor()  # type: ignore[union-attr]
+    cursor = dbapi_conn.cursor()
     cursor.execute("PRAGMA foreign_keys = ON")
     cursor.close()
 

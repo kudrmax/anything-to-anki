@@ -13,7 +13,12 @@ down_revision = "0011"
 def upgrade() -> None:
     op.add_column(
         "candidates",
-        sa.Column("has_custom_context_fragment", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column(
+            "has_custom_context_fragment",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("0"),
+        ),
     )
 
 

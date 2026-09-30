@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
 from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
 from backend.domain.value_objects.cefr_level import CEFRLevel
