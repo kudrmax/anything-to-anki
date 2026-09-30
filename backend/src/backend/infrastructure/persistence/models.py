@@ -233,9 +233,14 @@ class StoredCandidateModel(Base):
     """
 
     __tablename__ = "candidates"
+    # Media files and enrichment are keyed by candidate id — an id must never
+    # be handed out twice, which plain SQLite rowids do after deletions.
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    source_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    source_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sources.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     lemma: Mapped[str] = mapped_column(String(100), nullable=False)
     pos: Mapped[str] = mapped_column(String(10), nullable=False)
     zipf_frequency: Mapped[float] = mapped_column(Float, nullable=False)
@@ -352,7 +357,9 @@ class AnkiSyncedCardModel(Base):
     __tablename__ = "anki_synced_cards"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    candidate_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    candidate_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
     anki_note_id: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
@@ -363,6 +370,7 @@ class CandidateMeaningModel(Base):
 
     candidate_id: Mapped[int] = mapped_column(
         Integer,
+        ForeignKey("candidates.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
@@ -404,6 +412,7 @@ class CandidateMediaModel(Base):
 
     candidate_id: Mapped[int] = mapped_column(
         Integer,
+        ForeignKey("candidates.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
@@ -442,6 +451,7 @@ class CandidatePronunciationModel(Base):
 
     candidate_id: Mapped[int] = mapped_column(
         Integer,
+        ForeignKey("candidates.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
@@ -474,6 +484,7 @@ class CandidateTTSModel(Base):
 
     candidate_id: Mapped[int] = mapped_column(
         Integer,
+        ForeignKey("candidates.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )

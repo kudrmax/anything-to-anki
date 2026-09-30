@@ -37,6 +37,11 @@ def _make_candidate(
     )
 
 
+@pytest.fixture(autouse=True)
+def _existing_source(source_id: int) -> int:
+    return source_id
+
+
 @pytest.mark.integration
 class TestSortingWithDb:
     """Verify that candidates survive DB roundtrip and sort correctly."""

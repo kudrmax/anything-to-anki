@@ -21,7 +21,6 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-SOURCE_ID = 1
 USAGE_GROUPS = {"informal": 1.0}
 
 
@@ -40,11 +39,11 @@ def _breakdown() -> CEFRBreakdown:
 
 
 @pytest.mark.integration
-def test_replacement_keeps_cefr_level_after_reload(db_session: Session) -> None:
+def test_replacement_keeps_cefr_level_after_reload(db_session: Session, source_id: int) -> None:
     repo = SqlaCandidateRepository(db_session)
     original = repo.create_batch([
         StoredCandidate(
-            source_id=SOURCE_ID,
+            source_id=source_id,
             lemma="advance",
             pos="NOUN",
             cefr_level="B1",
