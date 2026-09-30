@@ -1,6 +1,6 @@
 /* раскрытая фраза */
 .details { cursor: default; }
-.meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s3); min-height: var(--h-s); margin: var(--s3) 0 var(--s6); font-size: var(--fs-s); color: var(--tx3); }
+.meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s3); min-height: var(--h-s); margin: var(--s3) 0 var(--s5h); font-size: var(--fs-s); color: var(--tx3); }
 .meta > span + span::before { content: '·'; margin-right: var(--s3); }
 .cefr { display: inline-flex; align-items: center; gap: var(--s2); }
 .status { display: inline-flex; align-items: center; gap: var(--s2); }
@@ -10,7 +10,7 @@
 .spacer { flex: 1; }
 
 /* текст источника */
-.source { position: relative; max-height: var(--source-max); overflow: auto; font-size: var(--fs-m); line-height: var(--lh-loose); color: var(--tx3); white-space: pre-wrap; }
+.source { position: relative; max-height: var(--source-max); overflow: auto; font-size: var(--fs-m); line-height: var(--lh-loose); color: var(--tx3); white-space: pre-line; }
 .fragment { color: var(--tx2); }
 .mark { background: none; color: inherit; cursor: pointer; }
 .markPending { color: var(--tx2); text-decoration: underline; text-decoration-color: var(--ac-underline); text-underline-offset: var(--s2); }

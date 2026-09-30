@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from 'react'
-import { Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import { RefreshCw, Trash2 } from 'lucide-react'
 import type { Collection, ContentType, ProcessingStage, SourceStatus, SourceSummary } from '@/api/types'
 import { formatDate } from '@/lib/text/format'
 import { Button, Field, IconButton, Menu, Row, Text, type MenuItem, type Tone } from '@/ui'
@@ -84,11 +84,10 @@ export function SourceRow({ source, collections, onProcess, onReview, onExport, 
 
   const title = editing
     ? <Field autoFocus value={draft} onChange={e => setDraft(e.target.value)} onBlur={save} onKeyDown={onKeyDown} onClick={e => e.stopPropagation()} />
-    : source.title
+    : <span onDoubleClick={e => { e.stopPropagation(); startEditing() }} title="Double-click to rename">{source.title}</span>
 
-  const meta = (
+  const collectionMenu = (
     <>
-      {[TYPE_LABEL[source.content_type], ...details].join(' · ')}
       {' · '}
       <Menu
         align="start"
@@ -97,6 +96,7 @@ export function SourceRow({ source, collections, onProcess, onReview, onExport, 
       />
     </>
   )
+  const summary = [TYPE_LABEL[source.content_type], ...details].join(' · ')
 
   const action = {
     new: <Button onClick={() => onProcess(source.id)}>Process</Button>,
@@ -114,11 +114,11 @@ export function SourceRow({ source, collections, onProcess, onReview, onExport, 
       tone={STATUS_TONE[source.status]}
       dim={source.status === 'reviewed'}
       title={title}
-      meta={meta}
+      meta={source.collection_name ? <>{summary}{collectionMenu}</> : summary}
+      hoverMeta={source.collection_name ? undefined : collectionMenu}
       onClick={isReviewable && !editing ? () => onReview(source.id) : undefined}
       actions={!isProcessing && (
         <>
-          <IconButton icon={Pencil} label="Rename" onClick={startEditing} />
           {source.status !== 'new' && <IconButton icon={RefreshCw} label="Reprocess" onClick={() => onReprocess(source.id)} />}
           <IconButton icon={Trash2} label="Delete" onClick={() => onDelete(source.id)} />
         </>

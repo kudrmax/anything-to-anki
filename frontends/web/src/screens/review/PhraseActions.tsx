@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AudioLines, Film, Pencil, RefreshCw, Sparkles, X } from 'lucide-react'
+import { Image, Pencil, Sparkles, Speech, X } from 'lucide-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { parseExamples } from '@/lib/text/meaning'
 import { Button, Field, IconButton, Menu, type MenuItem } from '@/ui'
@@ -33,11 +33,11 @@ export function PhraseActions({ candidate, review }: { candidate: StoredCandidat
   const followUpItems: MenuItem[] = [
     { label: 'Regenerate all', onSelect: () => void review.generate(id) },
     ...(isRated ? [] : FOLLOW_UP_PRESETS.map(preset => ({ label: preset.label, onSelect: () => void review.generate(id, preset.action) }))),
+    ...parseExamples(candidate.meaning?.examples).map(example => ({
+      label: `Replace phrase with: ${example}`,
+      onSelect: () => void review.replaceWithExample(id, example),
+    })),
   ]
-  const exampleItems: MenuItem[] = parseExamples(candidate.meaning?.examples).map(example => ({
-    label: example,
-    onSelect: () => void review.replaceWithExample(id, example),
-  }))
 
   return (
     <div className={css.actions}>
@@ -66,16 +66,11 @@ export function PhraseActions({ candidate, review }: { candidate: StoredCandidat
           )}
         />
       )}
-      {isVideo && <IconButton icon={Film} label="Regenerate media" busy={review.busy.media.has(id)} onClick={() => void review.regenerateMedia(id)} />}
-      <IconButton icon={AudioLines} label="Generate TTS audio" busy={review.busy.tts.has(id)} onClick={() => void review.generateTTS(id)} />
+      {isVideo && <IconButton icon={Image} label="Regenerate media" busy={review.busy.media.has(id)} onClick={() => void review.regenerateMedia(id)} />}
+      <IconButton icon={Speech} label="Generate TTS audio" busy={review.busy.tts.has(id)} onClick={() => void review.generateTTS(id)} />
       {isEditing
         ? <IconButton icon={X} label="Cancel editing" active onClick={review.cancelEditing} />
         : <IconButton icon={Pencil} label="Edit context fragment" onClick={() => review.startEditing(id)} />}
-      <Menu
-        trigger={<IconButton icon={RefreshCw} label="Replace phrase from example" />}
-        items={exampleItems}
-        emptyText="No examples available"
-      />
     </div>
   )
 }

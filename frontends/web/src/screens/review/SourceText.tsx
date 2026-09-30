@@ -19,6 +19,10 @@ interface SourceTextProps {
   onTextSelected: (phrase: string, point: SelectionPoint) => void
 }
 
+const SINGLE_BREAK = /(?<!\n)\n(?!\n)/g
+/** Одиночный перенос строки — часть того же абзаца, пустая строка — новый абзац. */
+const flow = (text: string): string => text.replace(SINGLE_BREAK, ' ')
+
 export function SourceText({ text, candidates, focusId, onWordClick, onTextSelected }: SourceTextProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const segments = useMemo(() => buildSegments(text, candidates), [text, candidates])
@@ -49,14 +53,14 @@ export function SourceText({ text, candidates, focusId, onWordClick, onTextSelec
       {segments.map((segment, i) => {
         const end = segment.start + segment.content.length
         if (segment.type === 'text') {
-          if (!bounds || !inFragment(segment.start, end)) return <span key={i}>{segment.content}</span>
+          if (!bounds || !inFragment(segment.start, end)) return <span key={i}>{flow(segment.content)}</span>
           const from = Math.max(segment.start, bounds.start) - segment.start
           const to = Math.min(end, bounds.end) - segment.start
           return (
             <span key={i}>
-              {segment.content.slice(0, from)}
-              <span className={css.fragment}>{segment.content.slice(from, to)}</span>
-              {segment.content.slice(to)}
+              {flow(segment.content.slice(0, from))}
+              <span className={css.fragment}>{flow(segment.content.slice(from, to))}</span>
+              {flow(segment.content.slice(to))}
             </span>
           )
         }

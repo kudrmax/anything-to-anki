@@ -4,7 +4,7 @@ import { api } from '@/api/client'
 import type { FailedGroup, QueueGlobalSummary, QueueJob, SourceSummary } from '@/api/types'
 import { useQueuePolling } from '@/hooks/useQueuePolling'
 import { Aside, Page, PageHeader } from '@/shell'
-import { Button, DividerRow, Empty, GroupLabel, IconButton, Row, Select, Spinner, Text } from '@/ui'
+import { Button, DividerRow, Empty, IconButton, Row, Select, Spinner, Stack, Text } from '@/ui'
 
 const JOB_TYPES: (keyof QueueGlobalSummary)[] = ['meaning', 'media', 'pronunciation', 'video_download']
 const JOB_LABEL: Record<string, string> = {
@@ -42,7 +42,12 @@ function JobRow({ job, onDone }: { job: QueueJob; onDone: () => void }) {
       tone={job.status === 'running' ? 'run' : 'idle'}
       title={job.source_title}
       meta={details}
-      trailing={<IconButton icon={X} label="Cancel" busy={cancelling} onClick={() => void cancel()} />}
+      trailing={
+        <>
+          {job.status === 'running' ? 'Running' : 'Queued'}
+          <IconButton icon={X} label="Cancel" busy={cancelling} onClick={() => void cancel()} />
+        </>
+      }
     />
   )
 }
@@ -65,9 +70,14 @@ function FailedRow({ group, jobType, sourceId, onDone }: { group: FailedGroup; j
   return (
     <Row
       tone="err"
-      title={<Text tone="err">{group.error_text}</Text>}
-      meta={`${group.count} failed${sourceNames && !sourceId ? ` · ${sourceNames}` : ''}`}
-      trailing={<IconButton icon={RefreshCw} label={`Retry ${group.count}`} busy={retrying} onClick={() => void retry()} />}
+      title={sourceNames && !sourceId ? sourceNames : jobLabel(jobType)}
+      meta={<Text tone="err">{jobLabel(jobType)} · {group.count} failed · {group.error_text}</Text>}
+      trailing={
+        <>
+          Failed
+          <IconButton icon={RefreshCw} label={`Retry ${group.count}`} busy={retrying} onClick={() => void retry()} />
+        </>
+      }
     />
   )
 }
@@ -139,9 +149,19 @@ export function QueueScreen() {
           counts.failed > 0 ? `${counts.failed} failed` : null,
         ].filter(Boolean).join(' · ')
         return (
-          <DividerRow key={jobType} compact last={i === activeTypes.length - 1} label={jobLabel(jobType)} hint={parts}>
-            {counts.failed > 0 && <Button variant="link" onClick={() => void act(() => api.retryQueue(jobType, sourceId))}>Retry {counts.failed}</Button>}
-            {counts.queued > 0 && <Button variant="danger-link" onClick={() => void act(() => api.cancelQueue(jobType, sourceId))}>Cancel {counts.queued}</Button>}
+          <DividerRow
+            key={jobType}
+            compact
+            last={i === activeTypes.length - 1}
+            label={jobLabel(jobType)}
+            hint={(counts.failed > 0 || counts.queued > 0) && (
+              <Stack row gap="m">
+                {counts.failed > 0 && <Button variant="link" onClick={() => void act(() => api.retryQueue(jobType, sourceId))}>Retry {counts.failed}</Button>}
+                {counts.queued > 0 && <Button variant="danger-link" onClick={() => void act(() => api.cancelQueue(jobType, sourceId))}>Cancel {counts.queued}</Button>}
+              </Stack>
+            )}
+          >
+            <Text tone="muted" size="s">{parts}</Text>
           </DividerRow>
         )
       })}
@@ -152,27 +172,12 @@ export function QueueScreen() {
     <Page header={header} aside={aside || undefined}>
       {loading && <Empty><Spinner /></Empty>}
       {isEmpty && <Empty>{sourceId ? 'This source has no queue activity.' : 'The queue is empty.'}</Empty>}
-      {totalRunning > 0 && (
-        <>
-          <GroupLabel>Running ({totalRunning})</GroupLabel>
-          {order?.running.map(job => <JobRow key={job.job_id} job={job} onDone={refetch} />)}
-        </>
-      )}
-      {totalQueued > 0 && (
-        <>
-          <GroupLabel>Queued ({totalQueued})</GroupLabel>
-          {visibleQueued.map(job => <JobRow key={job.job_id} job={job} onDone={refetch} />)}
-          {hiddenCount > 0 && <Empty><Button variant="link" onClick={() => setShowAllQueued(true)}>Show {hiddenCount} more</Button></Empty>}
-        </>
-      )}
-      {failedTypes.map(type => (
-        <div key={type.job_type}>
-          <GroupLabel>{jobLabel(type.job_type)} · {type.total_failed} failed</GroupLabel>
-          {type.groups.map((group, i) => (
-            <FailedRow key={i} group={group} jobType={type.job_type} sourceId={sourceId} onDone={refetch} />
-          ))}
-        </div>
-      ))}
+      {order?.running.map(job => <JobRow key={job.job_id} job={job} onDone={refetch} />)}
+      {visibleQueued.map(job => <JobRow key={job.job_id} job={job} onDone={refetch} />)}
+      {hiddenCount > 0 && <Empty><Button variant="link" onClick={() => setShowAllQueued(true)}>Show {hiddenCount} more</Button></Empty>}
+      {failedTypes.flatMap(type => type.groups.map((group, i) => (
+        <FailedRow key={`${type.job_type}-${i}`} group={group} jobType={type.job_type} sourceId={sourceId} onDone={refetch} />
+      )))}
     </Page>
   )
 }

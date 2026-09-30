@@ -22,7 +22,7 @@ export function MediaThumb({ screenshotUrl, audioUrl, status, error, playing, on
       {screenshotUrl && <img className={css.thumbImage} src={screenshotUrl} alt="" onError={e => { e.currentTarget.hidden = true }} />}
       {audioUrl ? (
         <button type="button" className={css.play} aria-label={playing ? 'Stop' : 'Play'} onClick={() => onToggle(audioUrl)}>
-          <Icon as={playing ? CircleStop : CirclePlay} />
+          <Icon as={playing ? CircleStop : CirclePlay} size="l" />
         </button>
       ) : !screenshotUrl && placeholder}
     </div>

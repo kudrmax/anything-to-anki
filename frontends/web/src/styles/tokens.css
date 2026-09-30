@@ -13,7 +13,8 @@
   --ok: #a9cf9a;
   --warn: #e6bd74;
   --err: #f09a8e;
-  --media: #4f5c6e;
+  --media-a: #6f7f96;
+  --media-b: #2f3946;
   --on-media: #ffffff;
   --glow-strength: 16%;
 
@@ -29,6 +30,7 @@
   --glow-b: color-mix(in srgb, var(--ac-deep) calc(var(--glow-strength) * .45), transparent);
   --page-bg: radial-gradient(900px 420px at 18% -10%, var(--glow-a), transparent 60%),
              radial-gradient(700px 380px at 95% 105%, var(--glow-b), transparent 60%), var(--bg);
+  --media-grad: linear-gradient(135deg, var(--media-a), var(--media-b));
   --overlay: color-mix(in srgb, var(--bg) 70%, transparent);
   --warn-tint: color-mix(in srgb, var(--warn) 14%, transparent);
   --err-tint: color-mix(in srgb, var(--err) 14%, transparent);
@@ -49,6 +51,7 @@
   --h-word: 44px;
   --icon: 20px;
   --icon-s: 15px;
+  --icon-l: 26px;
   --dot: 9px;
   --thumb-w: 128px;
   --thumb-h: 72px;
@@ -77,13 +80,16 @@
   --col-gap: 80px;
   --page-x: 44px;
   --page-top: 28px;
+  --sheet-pad: 8px;   /* поле вокруг колонки контента */
+  --name-w: 120px;    /* колонка названия в однострочных списках */
   --page-cols: minmax(0, var(--col)) var(--aside);
   --aside-position: sticky;
   --modal: 480px;
   --menu: 240px;
 
   /* отступы */
-  --s1: 2px; --s2: 4px; --s3: 8px; --s4: 12px; --s5: 16px; --s6: 24px; --s7: 32px; --s8: 40px;
+  --s1: 2px; --s2: 4px; --s3: 8px; --s4: 12px; --s5: 16px; --s5h: 20px; --s6: 24px; --s7: 32px; --s8: 40px;
+  --rail-gap: 6px;
   --gap: 14px;        /* между элементами строки и заголовка */
   --px: 18px;         /* горизонтальный отступ строки */
   --py: 14px;         /* вертикальный отступ строки */
@@ -93,7 +99,7 @@
   /* типографика */
   --ui: 'Geist Variable', system-ui, sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, monospace;
-  --fs-xs: 12px; --fs-s: 13px; --fs-m: 14px; --fs-c: 13.5px; --fs-b: 15.5px; --fs-l: 16.5px;
+  --fs-2xs: 9px; --fs-xs: 12px; --fs-s: 13px; --fs-m: 14px; --fs-c: 13.5px; --fs-b: 15.5px; --fs-l: 16.5px;
   --fs-t: 17.5px; --fs-h2: 16px; --fs-h1: 22px; --fs-focus: 25px;
   --lh: 1.5; --lh-tight: 1.2; --lh-loose: 1.9; --lh-read: 1.62; --lh-focus: 1.42; --lh-label: 26px;
   --fw: 400; --fw-m: 500; --fw-b: 600;

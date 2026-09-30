@@ -1,6 +1,6 @@
 .page { max-width: calc(var(--col) + var(--col-gap) + var(--aside)); margin: 0 auto; display: grid; grid-template-columns: var(--page-cols); gap: 0 var(--col-gap); justify-content: center; align-items: start; }
 .full { grid-column: 1 / -1; }
 .banner { margin-bottom: var(--s3); }
-.content { min-width: 0; }
-.aside { position: var(--aside-position); top: var(--page-top); display: flex; flex-direction: column; gap: var(--s7); padding-top: var(--py); }
+.content { min-width: 0; padding: var(--sheet-pad); }
+.aside { position: var(--aside-position); top: var(--page-top); display: flex; flex-direction: column; gap: var(--s7); padding-top: calc(var(--py) + var(--sheet-pad)); }
 .asideTitle { font-size: var(--fs-s); font-weight: var(--fw); color: var(--tx3); line-height: var(--lh-label); margin-bottom: var(--s3); }

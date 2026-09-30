@@ -149,7 +149,6 @@ export function Vocabulary({ store, form }: SectionProps) {
         <Segmented value={form.cefr_level} options={CEFR_LEVELS} onChange={level => store.setField('cefr_level', level)} />
       </DividerRow>
       <DividerRow
-        last
         label="Vocabulary calibration"
         hint={
           bootstrap?.status === 'ready' ? `Ready — ${bootstrap.word_count} words, built ${bootstrap.built_at ? new Date(bootstrap.built_at).toLocaleDateString() : '—'}`
@@ -164,15 +163,16 @@ export function Vocabulary({ store, form }: SectionProps) {
         {bootstrap?.status === 'ready' && (
           <>
             <Button variant="link" onClick={() => void store.buildBootstrap()}>Rebuild</Button>
-            <Button onClick={() => navigate('/calibrate')}>Calibrate vocabulary</Button>
+            <Button onClick={() => navigate('/calibrate')}>Calibrate</Button>
           </>
         )}
       </DividerRow>
+      <UsagePriority store={store} form={form} />
     </>
   )
 }
 
-export function UsagePriority({ store, form }: SectionProps) {
+function UsagePriority({ store, form }: SectionProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const dragCounter = useRef(0)
@@ -188,15 +188,19 @@ export function UsagePriority({ store, form }: SectionProps) {
 
   return (
     <>
-      <Label flush>Drag to reorder. Words from higher-priority groups appear first among candidates.</Label>
+      <Label>Usage priority — drag to reorder</Label>
       {order.map((group, index) => (
         <DividerRow
           key={group}
           compact
           last={index === order.length - 1}
           lead={<Icon as={GripVertical} size="s" />}
-          label={group}
-          hint={USAGE_GROUP_LABELS[group]}
+          label={
+            <span className={css.named}>
+              <span className={css.name}>{group}</span>
+              <Text tone="muted" size="s">{USAGE_GROUP_LABELS[group]}</Text>
+            </span>
+          }
           state={dragIndex === index ? 'dragging' : dropIndex === index ? 'target' : undefined}
           draggable
           onDragStart={e => { setDragIndex(index); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(index)) }}
@@ -210,9 +214,7 @@ export function UsagePriority({ store, form }: SectionProps) {
             setDropIndex(null)
             drop(parseInt(e.dataTransfer.getData('text/plain'), 10), index)
           }}
-        >
-          <Text tone="muted" size="s">{index + 1}</Text>
-        </DividerRow>
+        />
       ))}
     </>
   )
@@ -236,7 +238,10 @@ export function AiModel({ store, form }: SectionProps) {
   )
 }
 
+const VOICES_PREVIEW = 7
+
 export function Tts({ store, form }: SectionProps) {
+  const [showAllVoices, setShowAllVoices] = useState(false)
   const speed = form.tts_speed ?? TTS_SPEED.fallback
   const enabled = form.tts_enabled_voices ?? TTS_VOICES.map(voice => voice.id)
   const toggle = (id: string) => store.setField('tts_enabled_voices', enabled.includes(id) ? enabled.filter(v => v !== id) : [...enabled, id])
@@ -246,13 +251,16 @@ export function Tts({ store, form }: SectionProps) {
         <Text tone="muted" size="s">{speed.toFixed(1)}×</Text>
         <Range min={TTS_SPEED.min} max={TTS_SPEED.max} step={TTS_SPEED.step} value={speed} onChange={e => store.setField('tts_speed', parseFloat(e.target.value))} />
       </DividerRow>
-      <Label>Enabled voices (random selection from checked)</Label>
+      <Label>Enabled voices — random selection from checked</Label>
       <Stack row wrap>
-        {TTS_VOICES.map(voice => (
+        {(showAllVoices ? TTS_VOICES : TTS_VOICES.slice(0, VOICES_PREVIEW)).map(voice => (
           <Chip key={voice.id} outlined on={enabled.includes(voice.id)} onClick={() => toggle(voice.id)}>
             {voice.label} · {voice.accent} {voice.gender}
           </Chip>
         ))}
+        {!showAllVoices && (
+          <Button variant="link" onClick={() => setShowAllVoices(true)}>+ {TTS_VOICES.length - VOICES_PREVIEW} more</Button>
+        )}
       </Stack>
     </>
   )
@@ -261,7 +269,6 @@ export function Tts({ store, form }: SectionProps) {
 export function KnownWords({ store }: { store: SettingsStore }) {
   return (
     <>
-      <Label flush>Known words won't be suggested when processing new sources.</Label>
       {store.knownWords.length === 0 ? <Empty>No known words yet.</Empty> : (
         <Stack row wrap>
           {store.knownWords.map(word => (
@@ -272,6 +279,7 @@ export function KnownWords({ store }: { store: SettingsStore }) {
           ))}
         </Stack>
       )}
+      <Label>Known words won't be suggested when processing new sources.</Label>
     </>
   )
 }
@@ -293,13 +301,15 @@ export function MediaStorage({ store }: { store: SettingsStore }) {
   return (
     <>
       {mediaStats.map(source => (
-        <DividerRow key={source.source_id} label={source.source_title} hint={sizes(source.screenshot_bytes, source.screenshot_count, source.audio_bytes, source.audio_count)}>
+        <DividerRow key={source.source_id} label={source.source_title}>
+          <Text tone="muted" size="s">{sizes(source.screenshot_bytes, source.screenshot_count, source.audio_bytes, source.audio_count)}</Text>
           {source.screenshot_bytes > 0 && <Button variant="danger-link" onClick={() => void store.cleanupMedia(source.source_id, 'images')}>Del images</Button>}
           {source.audio_bytes > 0 && <Button variant="danger-link" onClick={() => void store.cleanupMedia(source.source_id, 'audio')}>Del audio</Button>}
           {source.screenshot_bytes + source.audio_bytes > 0 && <Button variant="danger-link" onClick={() => void store.cleanupMedia(source.source_id, 'all')}>Del all</Button>}
         </DividerRow>
       ))}
-      <DividerRow last label={<b>Total</b>} hint={sizes(totalImages, null, totalAudio, null)}>
+      <DividerRow last label={<b>Total</b>}>
+        <Text tone="muted" size="s">{sizes(totalImages, null, totalAudio, null)}</Text>
         <Button variant="link" busy={store.mediaStatsLoading} onClick={() => void store.loadMediaStats()}>Refresh</Button>
       </DividerRow>
     </>

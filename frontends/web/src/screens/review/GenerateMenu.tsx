@@ -33,7 +33,7 @@ export function GenerateMenu({ review }: { review: Review }) {
     <Menu
       items={items}
       trigger={
-        <Button variant="link">
+        <Button variant="link" title="Meanings · Media · Pronunciation">
           {queue.anyInflight || review.downloadingVideo ? <Spinner /> : <Icon as={Sparkles} size="s" />}
           Generate
           <Icon as={ChevronDown} size="s" />

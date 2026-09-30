@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Aside, Page, PageHeader } from '@/shell'
 import { Button, Empty, Spinner, Text } from '@/ui'
-import { AiModel, Anki, Appearance, KnownWords, MediaStorage, ReviewPrefs, Tts, UsagePriority, Vocabulary } from './SettingsSections'
+import { AiModel, Anki, Appearance, KnownWords, MediaStorage, ReviewPrefs, Tts, Vocabulary } from './SettingsSections'
 import { useSettings } from './useSettings'
 import css from './settings.module.css'
 
@@ -37,11 +37,10 @@ export function SettingsScreen() {
     { id: 'appearance', title: 'Appearance', content: <Appearance /> },
     { id: 'anki', title: 'Anki', content: <Anki store={store} form={form} /> },
     { id: 'vocabulary', title: 'Vocabulary', content: <Vocabulary store={store} form={form} /> },
-    { id: 'usage-priority', title: 'Usage priority', content: <UsagePriority store={store} form={form} /> },
     { id: 'review', title: 'Review', content: <ReviewPrefs /> },
     { id: 'ai-model', title: 'AI model', content: <AiModel store={store} form={form} /> },
     { id: 'tts', title: 'Text-to-speech', content: <Tts store={store} form={form} /> },
-    { id: 'known-words', title: `Known words (${store.knownWords.length})`, content: <KnownWords store={store} /> },
+    { id: 'known-words', title: 'Known words', content: <KnownWords store={store} /> },
     { id: 'media-storage', title: 'Media storage', content: <MediaStorage store={store} /> },
   ]
 

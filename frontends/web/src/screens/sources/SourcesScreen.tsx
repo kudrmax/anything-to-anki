@@ -36,7 +36,7 @@ export function SourcesScreen() {
   }
 
   const header = (
-    <PageHeader title="Sources" meta={stats && `${stats.learn_count} to learn · ${stats.known_word_count} known`}>
+    <PageHeader title="Sources">
       <CollectionFilter
         collections={collections}
         activeId={activeCollectionId}
@@ -60,7 +60,8 @@ export function SourcesScreen() {
         <DividerRow compact label="To learn"><b>{learnTotal}</b></DividerRow>
         <DividerRow compact label="Candidates"><b>{candidateTotal}</b></DividerRow>
         <DividerRow compact label="Sources"><b>{sources.length}</b></DividerRow>
-        <DividerRow compact last label={`${cefrLevel} progress`}><b>{Math.round(progress * 100)}%</b></DividerRow>
+        <DividerRow compact label="Known words"><b>{stats?.known_word_count ?? 0}</b></DividerRow>
+        <DividerRow compact last label={`${cefrLevel} vocabulary`}><b>{Math.round(progress * 100)}%</b></DividerRow>
         <Progress value={progress} />
       </Aside>
     </>

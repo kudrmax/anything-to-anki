@@ -48,8 +48,8 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
   const hasPronunciationAudio = Boolean(usUrl || ukUrl)
 
   const usage = primaryUsageGroup(candidate.usage_distribution)
-  const frequency = candidate.frequency_band ? FREQ_BAND_LABEL[candidate.frequency_band] : null
-  const facts = [usage, frequency].filter((fact): fact is string => Boolean(fact))
+  const frequency = candidate.frequency_band ? FREQ_BAND_LABEL[candidate.frequency_band]?.toLowerCase() : null
+  const facts = [frequency, usage].filter((fact): fact is string => Boolean(fact))
 
   const audioChip = (label: string, url: string | null, title: string) => url && (
     <Chip small on={player.playingUrl === url} title={title} onClick={() => player.toggle(url)}>
@@ -67,8 +67,7 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
     <div className={css.details}>
       {hasMeta && (
         <div className={css.meta}>
-          {facts.map(fact => <span key={fact}>{fact}</span>)}
-          {candidate.is_phrasal_verb ? <span>phrasal</span> : candidate.cefr_level && (
+          {candidate.is_phrasal_verb ? <span>phrasal verb</span> : candidate.cefr_level && (
             <span
               className={css.cefr}
               onMouseEnter={e => candidate.cefr_breakdown && setCefrAnchor(e.currentTarget)}
@@ -78,6 +77,7 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
               {candidate.cefr_level}
             </span>
           )}
+          {facts.map(fact => <span key={fact}>{fact}</span>)}
           {meaning?.ipa && <Text mono>{meaning.ipa}</Text>}
           {audioChip('US', usUrl, 'Play US pronunciation')}
           {audioChip('UK', ukUrl, 'Play UK pronunciation')}
@@ -108,7 +108,9 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
           )}
           {(meaning?.translation || meaning?.synonyms) && (
             <p className={phrase.translation}>
-              {[meaning.translation, meaning.synonyms].filter(Boolean).join(' · ')}
+              {meaning.translation}
+              {meaning.translation && meaning.synonyms && <span className={phrase.separator}>·</span>}
+              {meaning.synonyms}
             </p>
           )}
           {examples.length > 0 && (

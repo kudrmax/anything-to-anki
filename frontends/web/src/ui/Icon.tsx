@@ -3,9 +3,9 @@ import css from './Icon.module.css'
 
 interface IconProps {
   as: LucideIcon
-  size?: 'm' | 's'
+  size?: 'm' | 's' | 'l'
 }
 
 export function Icon({ as: Glyph, size = 'm' }: IconProps) {
-  return <Glyph className={size === 's' ? css.small : css.icon} aria-hidden />
+  return <Glyph className={size === 's' ? css.small : size === 'l' ? css.large : css.icon} aria-hidden />
 }

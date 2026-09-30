@@ -1,3 +1,3 @@
-.thumb { position: relative; width: var(--thumb-w); height: var(--thumb-h); flex: none; overflow: hidden; display: grid; place-items: center; border-radius: var(--rc); background: var(--media); color: var(--on-media); font-size: var(--fs-s); }
+.thumb { position: relative; width: var(--thumb-w); height: var(--thumb-h); flex: none; overflow: hidden; display: grid; place-items: center; border-radius: var(--rc); background: var(--media-grad); color: var(--on-media); font-size: var(--fs-s); }
 .thumbImage { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .play { position: absolute; inset: 0; display: grid; place-items: center; color: var(--on-media); background: var(--media-veil); }
