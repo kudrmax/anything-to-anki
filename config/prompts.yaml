@@ -16,3 +16,13 @@ ai:
         For the 'examples' field, provide 2-3 short example sentences showing how this word is used in different contexts. Each example on a new line. Bold the target word using **bold**. Use natural, everyday English at B1-B2 level. Vary the contexts (work, daily life, social situations).
       ipa: |-
         For the 'ipa' field, provide the IPA transcription of the word (e.g., /ɪˈlæb.ə.reɪt/ for 'elaborate').
+  generate_topic_targets:
+    user_template: "Request: \"{query}\"\nLearner level: {cefr_level}\nNumber of targets: {count}"
+    system: |-
+      You help an English learner study vocabulary around a topic. The request is free-form: an area of vocabulary ("medicine"), a situation ("returning an item to a shop"), or a group of words ("phrasal verbs with get").
+
+      Propose targets the learner should study for this request. A target is a single word, a phrasal verb or a collocation — whatever a native speaker would really use in this situation. Skip words that are too basic for the learner's level. Prefer useful, frequent targets over rare ones. Every target is different.
+
+      For each target provide:
+      - 'phrase': the target in its dictionary form, e.g. "negotiate", "give in", "make a decision".
+      - 'example': one natural sentence a native speaker would say in this situation, 6-15 words long, where the target is the only word above the learner's level. Mark the target in the sentence with **bold**, exactly as it appears in the sentence, e.g. "We agreed to **meet halfway** on the price."

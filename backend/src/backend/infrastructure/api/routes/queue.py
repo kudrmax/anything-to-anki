@@ -33,7 +33,10 @@ _JOB_TYPE_MAP: dict[str, JobType] = {
     "media": JobType.MEDIA,
     "pronunciation": JobType.PRONUNCIATION,
     "video_download": JobType.VIDEO_DOWNLOAD,
+    "topic_targets": JobType.TOPIC_TARGETS,
 }
+# Failed jobs without an error message are grouped under this label.
+_UNKNOWN_ERROR = "Unknown error"
 
 
 # ── READ endpoints ──────────────────────────────────────────────────
@@ -125,16 +128,15 @@ def retry_failed(
         source_id=body.source_id, job_type=job_type,
     )
 
-    # Filter by error_text if specified
-    candidate_ids_set: set[int] = set()
+    # Filter by error_text if specified. Source-level jobs (video download,
+    # topic targets) have no candidate, so selection goes by source.
     source_ids_to_retry: set[int] = set()
     for group in failed_groups:
         if body.error_text is not None and group["error"] != body.error_text:
             continue
-        candidate_ids_set.update(group["candidate_ids"])
         source_ids_to_retry.update(group["source_ids"])
 
-    if not candidate_ids_set:
+    if not source_ids_to_retry:
         return {"retried": 0}
 
     # Delete failed jobs and re-create matching ones as QUEUED.
@@ -145,7 +147,7 @@ def retry_failed(
     for sid in source_ids_to_retry:
         deleted = job_repo.delete_failed_by_source_and_type(sid, job_type)
         for j in deleted:
-            if body.error_text is not None and j.candidate_id not in candidate_ids_set:
+            if body.error_text is not None and (j.error or _UNKNOWN_ERROR) != body.error_text:
                 to_preserve.append(j)
             else:
                 to_retry.append(j)

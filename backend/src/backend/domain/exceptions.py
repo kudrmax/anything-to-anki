@@ -178,3 +178,24 @@ class CollectionNameExistsError(DomainError):
     def __init__(self, name: str) -> None:
         super().__init__(f"Collection name already exists: {name}")
         self.name = name
+
+
+class SourceNotTopicError(DomainError):
+    """Raised when a topic-only operation is requested for a regular source."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Source is not a topic: {source_id}")
+
+
+class TopicTargetsAlreadyGeneratedError(DomainError):
+    """Raised when targets are requested for a topic that already has them."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Topic targets already generated: {source_id}")
+
+
+class TopicTargetsMissingError(DomainError):
+    """Raised when a topic is processed before its targets are generated."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Generate topic targets before processing: {source_id}")

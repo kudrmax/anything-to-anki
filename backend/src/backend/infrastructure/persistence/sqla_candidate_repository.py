@@ -86,6 +86,14 @@ class SqlaCandidateRepository(CandidateRepository):
         entities = [m.to_entity() for m in models]
         return self._bulk_attach(entities)
 
+    def get_by_lemma(self, lemma: str) -> list[StoredCandidate]:
+        models = (
+            self._session.query(StoredCandidateModel)
+            .filter(func.lower(StoredCandidateModel.lemma) == lemma.lower())
+            .all()
+        )
+        return [m.to_entity() for m in models]
+
     def get_all_by_status(self, status: CandidateStatus) -> list[StoredCandidate]:
         models = (
             self._session.query(StoredCandidateModel)

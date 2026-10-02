@@ -8,7 +8,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from backend.domain.entities.job import Job
-from backend.domain.exceptions import CancelledByUserError, PermanentAIError, PermanentMediaError
+from backend.domain.exceptions import (
+    AIServiceError,
+    CancelledByUserError,
+    PermanentAIError,
+    PermanentMediaError,
+)
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.queue.job_worker import JobWorker
@@ -242,6 +247,47 @@ class TestProcessOneJob:
         result = await worker._process_one_job()
         assert result is True
         repo_instance.delete_bulk.assert_called_once_with([job.id])
+
+
+@pytest.mark.unit
+class TestHandleTopicTargets:
+    @pytest.mark.asyncio
+    @patch("backend.infrastructure.queue.job_worker.SqlaJobRepository")
+    async def test_runs_topic_generation_and_deletes_job(
+        self, mock_repo_cls: MagicMock,
+    ) -> None:
+        job = _make_job(job_type=JobType.TOPIC_TARGETS, candidate_id=None)
+        repo_instance = MagicMock()
+        repo_instance.dequeue_next.return_value = job
+        mock_repo_cls.return_value = repo_instance
+        container = _make_container()
+        worker = JobWorker(container)
+
+        result = await worker._process_one_job()
+
+        assert result is True
+        use_case = container.generate_topic_targets_use_case.return_value
+        use_case.execute.assert_called_once_with(job.source_id)
+        repo_instance.delete_bulk.assert_called_once_with([job.id])
+
+    @pytest.mark.asyncio
+    @patch("backend.infrastructure.queue.job_worker.SqlaJobRepository")
+    async def test_ai_failure_marks_job_failed(self, mock_repo_cls: MagicMock) -> None:
+        job = _make_job(job_type=JobType.TOPIC_TARGETS, candidate_id=None)
+        repo_instance = MagicMock()
+        repo_instance.dequeue_next.return_value = job
+        mock_repo_cls.return_value = repo_instance
+        container = _make_container()
+        container.generate_topic_targets_use_case.return_value.execute.side_effect = (
+            AIServiceError("Blocked country: RU. Turn on VPN.")
+        )
+        worker = JobWorker(container)
+
+        await worker._process_one_job()
+
+        (job_ids, error), _ = repo_instance.mark_failed_bulk.call_args
+        assert job_ids == [job.id]
+        assert "Blocked country" in error
 
 
 @pytest.mark.unit

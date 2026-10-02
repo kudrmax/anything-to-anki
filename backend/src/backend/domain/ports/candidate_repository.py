@@ -40,3 +40,7 @@ class CandidateRepository(ABC):
     @abstractmethod
     def get_all_by_status(self, status: CandidateStatus) -> list[StoredCandidate]:
         """Return all candidates with the given status, across all sources."""
+
+    @abstractmethod
+    def get_by_lemma(self, lemma: str) -> list[StoredCandidate]:
+        """Return candidates with the given lemma across all sources."""

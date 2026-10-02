@@ -33,4 +33,5 @@ class GetQueueGlobalSummaryUseCase:
             media=_summary("media"),
             pronunciation=_summary("pronunciation"),
             video_download=_summary("video_download"),
+            topic_targets=_summary("topic_targets"),
         )

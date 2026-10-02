@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.candidate_status import CandidateStatus
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.frequency_band import FrequencyBand
+    from backend.domain.value_objects.phrase_origin import PhraseOrigin
     from backend.domain.value_objects.usage_distribution import UsageDistribution
 
 
@@ -22,6 +23,9 @@ class StoredCandidate:
     if no generation/extraction has been attempted yet. They live in their own
     tables (`candidate_meanings`, `candidate_media`) but are loaded together
     with the candidate by the repository.
+
+    `origin` is set only when the phrase was borrowed from another source or
+    generated — candidates of a topic source.
     """
 
     source_id: int
@@ -43,6 +47,7 @@ class StoredCandidate:
     id: int | None = None
     cefr_breakdown: CEFRBreakdown | None = None
     usage_distribution: UsageDistribution | None = None
+    origin: PhraseOrigin | None = None
 
     @property
     def frequency_band(self) -> FrequencyBand:

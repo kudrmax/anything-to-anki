@@ -23,6 +23,7 @@ from backend.domain.exceptions import (
     SourceIsProcessingError,
     SourceNotFoundError,
     SourceNotReprocessableError,
+    TopicTargetsMissingError,
 )
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.dependencies import (
@@ -164,7 +165,7 @@ async def process_source(
         session.commit()
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except SourceAlreadyProcessedError as e:
+    except (SourceAlreadyProcessedError, TopicTargetsMissingError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
     asyncio.create_task(_process_background(source_id, container, session_factory))
@@ -425,7 +426,7 @@ async def reprocess_source(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except SourceNotReprocessableError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except SourceHasActiveJobsError as e:
+    except (SourceHasActiveJobsError, TopicTargetsMissingError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
     asyncio.create_task(_process_background(source_id, container, session_factory))

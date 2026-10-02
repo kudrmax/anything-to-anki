@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
     from backend.domain.value_objects.generation_result import GenerationResult
+    from backend.domain.value_objects.topic_target_draft import TopicTargetDraft
 
 
 class AIService(ABC):
@@ -20,3 +21,9 @@ class AIService(ABC):
         self, system_prompt: str, user_prompt: str
     ) -> list[BatchMeaningResult]:
         """Batch generation with structured output. Returns meaning+IPA for multiple candidates."""
+
+    @abstractmethod
+    def generate_topic_targets(
+        self, system_prompt: str, user_prompt: str
+    ) -> list[TopicTargetDraft]:
+        """Propose targets worth learning for a free-form topic request."""

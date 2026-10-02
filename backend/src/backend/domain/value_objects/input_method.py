@@ -9,3 +9,4 @@ class InputMethod(StrEnum):
     SUBTITLES_FILE = "subtitles_file"
     VIDEO_FILE = "video_file"
     YOUTUBE_URL = "youtube_url"
+    TOPIC_QUERY = "topic_query"

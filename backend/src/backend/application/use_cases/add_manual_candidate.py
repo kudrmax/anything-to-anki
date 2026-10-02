@@ -3,10 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
-from backend.domain.entities.stored_candidate import StoredCandidate
+from backend.application.utils.candidate_factory import CandidateFactory
 from backend.domain.exceptions import SourceNotFoundError
-from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.cefr_level import CEFRLevel
 
 if TYPE_CHECKING:
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
@@ -37,10 +35,12 @@ class AddManualCandidateUseCase:
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
-        self._text_analyzer = text_analyzer
-        self._cefr_classifier = cefr_classifier
-        self._frequency_provider = frequency_provider
-        self._phrasal_verb_detector = phrasal_verb_detector
+        self._candidate_factory = CandidateFactory(
+            text_analyzer=text_analyzer,
+            cefr_classifier=cefr_classifier,
+            frequency_provider=frequency_provider,
+            phrasal_verb_detector=phrasal_verb_detector,
+        )
         self._review_status = review_status
 
     def execute(
@@ -53,64 +53,14 @@ class AddManualCandidateUseCase:
         if source is None:
             raise SourceNotFoundError(source_id)
 
-        tokens = self._text_analyzer.analyze(context_fragment)
-        pv_matches = self._phrasal_verb_detector.detect(tokens)
-
-        surface_lower = surface_form.lower()
-        pv_match = next(
-            (m for m in pv_matches if m.surface_form.lower() == surface_lower),
-            None,
-        )
-
-        if pv_match:
-            lemma = pv_match.lemma
-            pos = "VERB"
-            is_phrasal_verb = True
-            token_map = {t.index: t for t in tokens}
-            verb_token = token_map.get(pv_match.verb_index)
-            tag = verb_token.tag if verb_token else "VB"
-        else:
-            matching_token = next(
-                (
-                    t for t in tokens
-                    if t.text.lower() == surface_lower and t.is_alpha and not t.is_punct
-                ),
-                None,
-            )
-            if matching_token is None:
-                # Fallback: analyse surface_form directly
-                sf_tokens = self._text_analyzer.analyze(surface_form)
-                matching_token = next(
-                    (t for t in sf_tokens if t.is_alpha and not t.is_punct),
-                    None,
-                )
-            lemma = matching_token.lemma.lower() if matching_token else surface_lower
-            pos = matching_token.pos if matching_token else "X"
-            tag = matching_token.tag if matching_token else "NN"
-            is_phrasal_verb = False
-
-        breakdown = self._cefr_classifier.classify_detailed(lemma, tag)
-        cefr = breakdown.final_level
-        cefr_level_str: str | None = cefr.name if cefr != CEFRLevel.UNKNOWN else None
-
-        zipf_value = self._frequency_provider.get_zipf_value(lemma)
-
         source_text = source.cleaned_text or source.raw_text
-        occurrences = max(source_text.lower().count(surface_lower), 1)
+        occurrences = max(source_text.lower().count(surface_form.lower()), 1)
 
-        candidate = StoredCandidate(
+        candidate = self._candidate_factory.build(
             source_id=source_id,
-            lemma=lemma,
-            pos=pos,
-            cefr_level=cefr_level_str,
-            zipf_frequency=zipf_value,
-            context_fragment=context_fragment,
-            fragment_purity="clean",
-            occurrences=occurrences,
             surface_form=surface_form,
-            is_phrasal_verb=is_phrasal_verb,
-            status=CandidateStatus.PENDING,
-            cefr_breakdown=breakdown,
+            context_fragment=context_fragment,
+            occurrences=occurrences,
         )
         saved = self._candidate_repo.create_batch([candidate])[0]
         self._review_status.refresh(source_id)

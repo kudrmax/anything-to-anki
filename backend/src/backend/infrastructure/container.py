@@ -35,7 +35,9 @@ from backend.application.use_cases.reprocess_source import ReprocessSourceUseCas
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
+from backend.application.utils.candidate_factory import CandidateFactory
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
+from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
 from backend.domain.ports.cefr_source import (
     CEFRSource,  # noqa: TC001 — used at runtime in list[CEFRSource]
 )
@@ -109,6 +111,9 @@ from backend.infrastructure.persistence.sqla_settings_repository import (
 from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
 )
+from backend.infrastructure.persistence.sqla_topic_target_repository import (
+    SqlaTopicTargetRepository,
+)
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 
 if TYPE_CHECKING:
@@ -128,7 +133,11 @@ if TYPE_CHECKING:
     from backend.application.use_cases.enqueue_pronunciation_download import (
         EnqueuePronunciationDownloadUseCase,
     )
+    from backend.application.use_cases.enqueue_topic_generation import (
+        EnqueueTopicGenerationUseCase,
+    )
     from backend.application.use_cases.enqueue_tts_generation import EnqueueTTSGenerationUseCase
+    from backend.application.use_cases.generate_topic_targets import GenerateTopicTargetsUseCase
     from backend.application.use_cases.generate_tts import GenerateTTSUseCase
     from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
     from backend.application.use_cases.get_queue_failed import GetQueueFailedUseCase
@@ -303,6 +312,7 @@ class Container:
             settings_repo=SqlaSettingsRepository(session),
             job_repo=SqlaJobRepository(session),
             collection_repo=SqlaCollectionRepository(session),
+            topic_target_repo=SqlaTopicTargetRepository(session),
         )
 
     def create_collection_use_case(self, session: Session) -> CreateCollectionUseCase:
@@ -347,7 +357,54 @@ class Container:
             },
             structured_srt_parser=self._srt_parser,
             media_repo=SqlaCandidateMediaRepository(session),
+            topic_phrase_collector=self._topic_phrase_collector(session),
         )
+
+    def _candidate_factory(self) -> CandidateFactory:
+        return CandidateFactory(
+            text_analyzer=self._text_analyzer,
+            cefr_classifier=self._cefr_classifier,
+            frequency_provider=self._frequency_provider,
+            phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
+        )
+
+    def _topic_phrase_collector(self, session: Session) -> TopicPhraseCollector:
+        return TopicPhraseCollector(
+            topic_target_repo=SqlaTopicTargetRepository(session),
+            source_repo=SqlaSourceRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
+            known_word_repo=SqlaKnownWordRepository(session),
+            candidate_factory=self._candidate_factory(),
+        )
+
+    def enqueue_topic_generation_use_case(
+        self, session: Session,
+    ) -> EnqueueTopicGenerationUseCase:
+        from backend.application.use_cases.enqueue_topic_generation import (
+            EnqueueTopicGenerationUseCase,
+        )
+        return EnqueueTopicGenerationUseCase(
+            source_repo=SqlaSourceRepository(session),
+            topic_target_repo=SqlaTopicTargetRepository(session),
+            job_repo=SqlaJobRepository(session),
+        )
+
+    def generate_topic_targets_use_case(self, session: Session) -> GenerateTopicTargetsUseCase:
+        from backend.application.use_cases.generate_topic_targets import (
+            GenerateTopicTargetsUseCase,
+        )
+        settings_repo = SqlaSettingsRepository(session)
+        return GenerateTopicTargetsUseCase(
+            source_repo=SqlaSourceRepository(session),
+            topic_target_repo=SqlaTopicTargetRepository(session),
+            settings_repo=settings_repo,
+            ai_service=self._ai_service(settings_repo),
+            prompts_config=self._prompts_config,
+        )
+
+    def _ai_service(self, settings_repo: SqlaSettingsRepository) -> HttpAIService:
+        ai_model_key = settings_repo.get("ai_model", "sonnet") or "sonnet"
+        return HttpAIService(url=os.environ["AI_PROXY_URL"], model=model_id_for(ai_model_key))
 
     def reprocess_source_use_case(self, session: Session) -> ReprocessSourceUseCase:
         from backend.infrastructure.persistence.sqla_enrichment_cache_repository import (
@@ -426,28 +483,18 @@ class Container:
         )
 
     def generate_meaning_use_case(self, session: Session) -> GenerateMeaningUseCase:
-
-        settings_repo = SqlaSettingsRepository(session)
-        ai_model_key = settings_repo.get("ai_model", "sonnet") or "sonnet"
-        ai_proxy_url = os.environ["AI_PROXY_URL"]
-        ai_service = HttpAIService(url=ai_proxy_url, model=model_id_for(ai_model_key))
         return GenerateMeaningUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             meaning_repo=SqlaCandidateMeaningRepository(session),
-            ai_service=ai_service,
+            ai_service=self._ai_service(SqlaSettingsRepository(session)),
             prompts_config=self._prompts_config,
         )
 
     def meaning_generation_use_case(self, session: Session) -> MeaningGenerationUseCase:
-
-        settings_repo = SqlaSettingsRepository(session)
-        ai_model_key = settings_repo.get("ai_model", "sonnet") or "sonnet"
-        ai_proxy_url = os.environ["AI_PROXY_URL"]
-        ai_service = HttpAIService(url=ai_proxy_url, model=model_id_for(ai_model_key))
         return MeaningGenerationUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             meaning_repo=SqlaCandidateMeaningRepository(session),
-            ai_service=ai_service,
+            ai_service=self._ai_service(SqlaSettingsRepository(session)),
             prompts_config=self._prompts_config,
         )
 
