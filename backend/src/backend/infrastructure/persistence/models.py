@@ -434,6 +434,8 @@ class CardReportModel(Base):
     fragment_unknown_count: Mapped[int] = mapped_column(Integer, nullable=False)
     is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False)
     comment: Mapped[str] = mapped_column(Text, nullable=False)
+    text_before: Mapped[str | None] = mapped_column(Text, nullable=True)
+    text_after: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
@@ -452,6 +454,8 @@ class CardReportModel(Base):
             fragment_unknown_count=self.fragment_unknown_count,
             is_phrasal_verb=self.is_phrasal_verb,
             comment=self.comment,
+            text_before=self.text_before,
+            text_after=self.text_after,
             created_at=self.created_at,
         )
 

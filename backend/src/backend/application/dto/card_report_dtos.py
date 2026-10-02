@@ -28,4 +28,6 @@ class CardReportDTO(BaseModel):
     fragment_unknown_count: int
     is_phrasal_verb: bool
     comment: str
+    text_before: str | None
+    text_after: str | None
     created_at: datetime

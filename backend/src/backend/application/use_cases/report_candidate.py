@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from backend.application.dto.card_report_dtos import CardReportDTO
 from backend.domain.entities.card_report import CardReport
 from backend.domain.exceptions import CandidateNotFoundError, EmptyReportCommentError
+from backend.domain.value_objects.fragment_surroundings import FragmentSurroundings
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
@@ -36,13 +37,15 @@ class ReportCandidateUseCase:
         self._report_repo = report_repo
 
     def execute(self, candidate_id: int, comment: str) -> CardReportDTO:
-        text = comment.strip()
-        if not text:
+        comment_text = comment.strip()
+        if not comment_text:
             raise EmptyReportCommentError()
         candidate = self._candidate_repo.get_by_id(candidate_id)
         if candidate is None or candidate.id is None:
             raise CandidateNotFoundError(candidate_id)
         source = self._source_repo.get_by_id(candidate.source_id)
+        text = source.searchable_text if source else None
+        around = FragmentSurroundings.find(text, candidate.context_fragment) if text else None
         saved = self._report_repo.add(CardReport(
             source_id=candidate.source_id,
             source_title=(source.title or "") if source else "",
@@ -54,7 +57,9 @@ class ReportCandidateUseCase:
             cefr_level=candidate.cefr_level,
             fragment_unknown_count=candidate.fragment_unknown_count,
             is_phrasal_verb=candidate.is_phrasal_verb,
-            comment=text,
+            comment=comment_text,
+            text_before=around.before if around else None,
+            text_after=around.after if around else None,
         ))
         return to_dto(saved)
 
@@ -81,5 +86,7 @@ def to_dto(report: CardReport) -> CardReportDTO:
         fragment_unknown_count=report.fragment_unknown_count,
         is_phrasal_verb=report.is_phrasal_verb,
         comment=report.comment,
+        text_before=report.text_before,
+        text_after=report.text_after,
         created_at=report.created_at,
     )
