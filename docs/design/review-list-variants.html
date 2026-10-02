@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Список фраз — варианты</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #100f0e; --card: #181716; --soft: #222120; --line: #2c2b2a;
+  --tx: #e9e8e7; --tx2: #bbbab9; --tx3: #8c8c8a; --ac: #eda57c;
+  --ac-under: color-mix(in srgb, var(--ac) 50%, transparent);
+  --ac-faint: color-mix(in srgb, var(--ac) 28%, transparent);
+  --glow: radial-gradient(900px 420px at 18% -10%, color-mix(in srgb, #e89a78 16%, transparent), transparent 60%), var(--bg);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #0a0909; color: var(--tx); font: 400 15px/1.5 'Geist', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+p { margin: 0; }
+.doc { max-width: 1320px; margin: 0 auto; padding: 48px 20px 96px; }
+h1 { font-size: 28px; font-weight: 600; letter-spacing: -.02em; margin: 0 0 8px; }
+.lead { color: var(--tx3); margin-bottom: 40px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+.v h2 { font-size: 19px; font-weight: 600; margin: 0 0 4px; }
+.v h2 em { font-style: normal; color: var(--ac); margin-right: 8px; }
+.v .idea { color: var(--tx3); font-size: 14px; margin-bottom: 14px; min-height: 42px; }
+.frame { background: var(--glow); border: 1px solid var(--line); border-radius: 16px; padding: 28px; height: 620px; overflow: hidden; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; margin-bottom: 14px; }
+.card .ph { font-size: 24px; letter-spacing: -.012em; }
+.card .tr { font-size: 18px; font-weight: 500; margin-top: 10px; color: var(--tx2); }
+.t { font-weight: 600; text-decoration: underline; text-decoration-color: var(--ac); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.cur { color: var(--ac); }
+
+/* 0 — как сейчас */
+.l0 .r { font-size: 19px; color: var(--tx2); padding: 12px 18px; }
+.l0 .r b { font-weight: 600; color: var(--tx); text-decoration: underline; text-decoration-color: var(--ac); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+
+/* 1 — затухание */
+.l1 .r { font-size: 19px; padding: 10px 18px; color: var(--tx2); }
+.l1 .r b { font-weight: 500; color: var(--tx); text-decoration: underline; text-decoration-color: var(--ac-under); text-decoration-thickness: 1.5px; text-underline-offset: 5px; }
+.l1 .r:nth-child(2) { opacity: .85; } .l1 .r:nth-child(3) { opacity: .68; } .l1 .r:nth-child(4) { opacity: .52; }
+.l1 .r:nth-child(5) { opacity: .4; } .l1 .r:nth-child(6) { opacity: .3; } .l1 .r:nth-child(n+7) { opacity: .22; }
+
+/* 2 — плитки */
+.l2 .r { font-size: 18px; color: var(--tx2); padding: 14px 20px; margin-bottom: 8px; background: color-mix(in srgb, var(--card) 55%, transparent); border-radius: 14px; }
+.l2 .r b { font-weight: 500; color: var(--tx); }
+.l2 .r .w { float: right; font-size: 13px; color: var(--ac); opacity: .8; margin-left: 12px; line-height: 27px; }
+
+/* 3 — слово-первым */
+.l3 .r { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: baseline; gap: 16px; padding: 12px 18px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.l3 .r .w { font-size: 18px; font-weight: 500; color: var(--tx); }
+.l3 .r .c { font-size: 16px; color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.l3 .r .c b { font-weight: 400; color: var(--tx2); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Список фраз — варианты</h1>
+  <p class="lead">Над каждым списком текущая карточка (упрощённо). Вариант 0 — то, что в приложении сейчас, для сравнения.</p>
+  <div class="grid">
+
+    <section class="v">
+      <h2><em>0</em>Как сейчас</h2>
+      <p class="idea">Все строки одинаково яркие, у каждого слова толстое оранжевое подчёркивание.</p>
+      <div class="frame l0">
+        <div class="card"><p class="ph">chairs <span class="t cur">screeching</span> on cheap tile</p><p class="tr">скрипеть, скрежетать</p></div>
+        <p class="r">I didn't deck myself out in bright colors like a bird showing off its <b>plumage</b>.</p>
+        <p class="r">I <b>nervously</b> watched the door of the bathroom</p>
+        <p class="r">No, I just felt less <b>uneasy</b>.</p>
+        <p class="r">I didn't want to <b>rustle</b> the bag</p>
+        <p class="r">Empty plastic bottles with labels for grape and <b>cranberry</b> juice fell to the ground around me.</p>
+        <p class="r">I was wearing a brown <b>hooded</b> sweatshirt over a green t-shirt</p>
+      </div>
+    </section>
+
+    <section class="v">
+      <h2><em>1</em>Затухание</h2>
+      <p class="idea">Ближайшие фразы ярче, дальние постепенно гаснут. Получается глубина: видно, что будет следующим, а хвост не отвлекает. Подчёркивание тоньше и прозрачнее.</p>
+      <div class="frame l1">
+        <div class="card"><p class="ph">chairs <span class="t cur">screeching</span> on cheap tile</p><p class="tr">скрипеть, скрежетать</p></div>
+        <div>
+          <p class="r">I didn't deck myself out in bright colors like a bird showing off its <b>plumage</b>.</p>
+          <p class="r">I <b>nervously</b> watched the door of the bathroom</p>
+          <p class="r">No, I just felt less <b>uneasy</b>.</p>
+          <p class="r">I didn't want to <b>rustle</b> the bag</p>
+          <p class="r">Empty plastic bottles with labels for grape and <b>cranberry</b> juice fell to the ground around me.</p>
+          <p class="r">I was wearing a brown <b>hooded</b> sweatshirt over a green t-shirt</p>
+          <p class="r">wasn't enough, I pulled off my backpack and used a two-handed grip to <b>hurl</b> it.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="v">
+      <h2><em>2</em>Стопка карточек</h2>
+      <p class="idea">Каждая фраза лежит на едва заметной плитке, как следующие карточки в стопке. Без подчёркиваний: слово белое, а справа повторено мелким акцентом.</p>
+      <div class="frame l2">
+        <div class="card"><p class="ph">chairs <span class="t cur">screeching</span> on cheap tile</p><p class="tr">скрипеть, скрежетать</p></div>
+        <p class="r"><span class="w">plumage</span>I didn't deck myself out in bright colors like a bird showing off its <b>plumage</b>.</p>
+        <p class="r"><span class="w">nervously</span>I <b>nervously</b> watched the door of the bathroom</p>
+        <p class="r"><span class="w">uneasy</span>No, I just felt less <b>uneasy</b>.</p>
+        <p class="r"><span class="w">rustle</span>I didn't want to <b>rustle</b> the bag</p>
+        <p class="r"><span class="w">hooded</span>I was wearing a brown <b>hooded</b> sweatshirt over a green t-shirt</p>
+      </div>
+    </section>
+
+    <section class="v">
+      <h2><em>3</em>Слово первым</h2>
+      <p class="idea">Слева само слово, справа фраза одной тихой строкой. Список читается как словарь того, что впереди, и сразу видно, какие слова идут дальше.</p>
+      <div class="frame l3">
+        <div class="card"><p class="ph">chairs <span class="t cur">screeching</span> on cheap tile</p><p class="tr">скрипеть, скрежетать</p></div>
+        <div class="r"><span class="w">plumage</span><span class="c">I didn't deck myself out in bright colors like a bird showing off its <b>plumage</b>.</span></div>
+        <div class="r"><span class="w">nervously</span><span class="c">I <b>nervously</b> watched the door of the bathroom</span></div>
+        <div class="r"><span class="w">uneasy</span><span class="c">No, I just felt less <b>uneasy</b>.</span></div>
+        <div class="r"><span class="w">rustle</span><span class="c">I didn't want to <b>rustle</b> the bag</span></div>
+        <div class="r"><span class="w">cranberry</span><span class="c">Empty plastic bottles with labels for grape and <b>cranberry</b> juice fell to the ground</span></div>
+        <div class="r"><span class="w">hooded</span><span class="c">I was wearing a brown <b>hooded</b> sweatshirt over a green t-shirt</span></div>
+        <div class="r"><span class="w">hurl</span><span class="c">wasn't enough, I pulled off my backpack and used a two-handed grip to <b>hurl</b> it.</span></div>
+      </div>
+    </section>
+
+  </div>
+</div>
+</body>
+</html>
