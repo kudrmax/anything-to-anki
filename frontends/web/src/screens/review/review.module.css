@@ -6,15 +6,17 @@
 .cefr { display: inline-flex; align-items: center; gap: var(--s2); }
 .status { display: inline-flex; align-items: center; gap: var(--s2); }
 .body { display: flex; gap: var(--s6); }
-.text { flex: 1; min-width: 0; max-width: var(--measure); display: flex; flex-direction: column; gap: var(--s5); }
+.text { flex: 1; min-width: 0; max-width: var(--measure); display: flex; flex-direction: column; gap: var(--s6); }
+.answer { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s2) var(--s4); }
+.translation { font-size: var(--fs-h1); font-weight: var(--fw-m); line-height: var(--lh-tight); letter-spacing: var(--ls-focus); color: var(--tx); }
+.synonyms { font-size: var(--fs-m); color: var(--tx3); }
+.facts { display: grid; grid-template-columns: var(--fact-label-w) minmax(0, 1fr); align-items: baseline; gap: var(--s5h) var(--s5); margin: 0; }
+.facts dt { font-size: var(--fs-xs); font-weight: var(--fw-m); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--tx3); }
+.facts dd { margin: 0; }
 .definition { font-size: var(--fs-l); line-height: var(--lh-read); color: var(--tx); }
-.translation { font-size: var(--fs-b); line-height: var(--lh-read); color: var(--tx3); }
-.translationWord { color: var(--tx); font-weight: var(--fw-m); }
-.context { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
-.examples { list-style: none; display: flex; flex-direction: column; gap: var(--s3); margin-top: var(--s2); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
-.examples li { padding-left: var(--s5); border-left: var(--underline) solid var(--line); }
+.context { display: flex; flex-direction: column; gap: var(--s3); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx2); }
+.examples { list-style: none; display: flex; flex-direction: column; gap: var(--s3); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx2); }
 .definition b, .context b, .examples b { font-weight: var(--fw-m); color: var(--tx); }
-.context b, .examples b { color: var(--tx2); }
 .actions { display: flex; align-items: center; gap: var(--s3); margin-top: var(--s6); padding-top: var(--s5); border-top: var(--bw) solid var(--line); }
 .spacer { flex: 1; }
 

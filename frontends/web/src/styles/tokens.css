@@ -61,6 +61,7 @@
   --field-area: 128px;
   --prog: 3px;
   --measure: 64ch;
+  --fact-label-w: 84px;
   --progress-inline-w: calc(var(--h) * 3);
   --range-w: calc(var(--h) * 5);
   --control-w: calc(var(--h) * 7);
@@ -88,6 +89,9 @@
   --name-w: 120px;    /* колонка названия в однострочных списках */
   --page-cols: minmax(0, var(--col)) var(--aside);
   --page-cols-solo: minmax(0, var(--col));
+  --page-cols-collapsed: minmax(0, var(--col)) 0px;
+  --aside-inner-w: var(--aside);
+  --aside-hidden-h: none;
   --aside-position: sticky;
   --modal: 480px;
   --menu: 240px;
@@ -108,7 +112,7 @@
   --fs-t: 19px; --fs-h2: 17px; --fs-h1: 24px; --fs-focus: 28px; --fs-source: 16px;
   --lh: 1.5; --lh-tight: 1.2; --lh-loose: 1.9; --lh-read: 1.62; --lh-focus: 1.42; --lh-label: 26px;
   --fw: 400; --fw-m: 500; --fw-b: 600;
-  --ls-tight: -.02em; --ls-focus: -.012em;
+  --ls-tight: -.02em; --ls-caps: .07em; --ls-focus: -.012em;
 
   /* слои и прозрачность */
   --z-menu: 20; --z-modal: 30; --z-toast: 40;
@@ -117,6 +121,7 @@
 
   /* движение */
   --t: 150ms;
+  --t-slow: 280ms cubic-bezier(.2, .7, .2, 1);
   --spin: 1s;
   --turn: 360deg;
 }
@@ -145,6 +150,9 @@
     --page-x: 22px;
     --page-cols: minmax(0, 1fr);
     --page-cols-solo: minmax(0, 1fr);
+    --page-cols-collapsed: minmax(0, 1fr);
+    --aside-inner-w: auto;
+    --aside-hidden-h: 0;
     --aside-position: static;
   }
 }

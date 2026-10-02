@@ -101,7 +101,12 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
 
       <div className={css.body}>
         <div className={css.text}>
-          {definition && <p className={css.definition}><RichText text={definition} candidate={candidate} /></p>}
+          {(meaning?.translation || meaning?.synonyms) && (
+            <p className={css.answer}>
+              {meaning.translation && <span className={css.translation}>{meaning.translation}</span>}
+              {meaning.synonyms && <span className={css.synonyms}>{meaning.synonyms}</span>}
+            </p>
+          )}
           {paragraphs.length === 0 && (
             <div className={css.status}>
               <StatusText status={meaning?.status} error={meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
@@ -112,20 +117,35 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
               )}
             </div>
           )}
-          {(meaning?.translation || meaning?.synonyms) && (
-            <p className={css.translation}>
-              {meaning.translation && <span className={css.translationWord}>{meaning.translation}</span>}
-              {meaning.translation && meaning.synonyms && <span className={phrase.separator}>·</span>}
-              {meaning.synonyms}
-            </p>
-          )}
-          {context.map((paragraph, i) => isDivider(paragraph)
-            ? <hr key={i} className={phrase.divider} />
-            : <p key={i} className={css.context}><RichText text={paragraph} candidate={candidate} /></p>)}
-          {examples.length > 0 && (
-            <ul className={css.examples}>
-              {examples.map((line, i) => <li key={i}><RichText text={line} candidate={candidate} /></li>)}
-            </ul>
+          {(definition || examples.length > 0) && (
+            <dl className={css.facts}>
+              {definition && (
+                <>
+                  <dt>Meaning</dt>
+                  <dd className={css.definition}><RichText text={definition} candidate={candidate} /></dd>
+                </>
+              )}
+              {context.length > 0 && (
+                <>
+                  <dt>Here</dt>
+                  <dd className={css.context}>
+                    {context.map((paragraph, i) => isDivider(paragraph)
+                      ? <hr key={i} className={phrase.divider} />
+                      : <p key={i}><RichText text={paragraph} candidate={candidate} /></p>)}
+                  </dd>
+                </>
+              )}
+              {examples.length > 0 && (
+                <>
+                  <dt>Examples</dt>
+                  <dd>
+                    <ul className={css.examples}>
+                      {examples.map((line, i) => <li key={i}><RichText text={line} candidate={candidate} /></li>)}
+                    </ul>
+                  </dd>
+                </>
+              )}
+            </dl>
           )}
         </div>
         <MediaThumb

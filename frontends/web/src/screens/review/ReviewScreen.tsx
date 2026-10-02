@@ -4,8 +4,8 @@ import { decisionChange, type Decision } from '@/lib/decision'
 import { reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
-import { PanelRightClose, PanelRightOpen } from 'lucide-react'
-import { Banner, Button, Empty, IconButton, Progress, Spinner, Toast } from '@/ui'
+import { PanelRightClose, PanelRightOpen, Upload } from 'lucide-react'
+import { Banner, Button, Empty, Icon, IconButton, Progress, Spinner, Toast } from '@/ui'
 import { GenerateMenu } from './GenerateMenu'
 import { PhraseRow } from './PhraseRow'
 import { SelectionPopover } from './SelectionPopover'
@@ -111,7 +111,9 @@ export function ReviewScreen() {
           />
         )}
       </div>
-      <Button variant="fill" onClick={() => navigate(`/sources/${sourceId}/export`)}>Export · {counts.learn}</Button>
+      <Button variant="fill" title="Export cards to Anki" onClick={() => navigate(`/sources/${sourceId}/export`)}>
+        <Icon as={Upload} size="s" />{counts.learn}
+      </Button>
     </PageHeader>
   )
 
@@ -122,7 +124,7 @@ export function ReviewScreen() {
     </>
   )
 
-  const aside = hasSourceText && sourceTextShown && (
+  const aside = hasSourceText && (
     <Aside title="Source text">
       <SourceText
         text={source.cleaned_text ?? source.raw_text}
@@ -135,7 +137,7 @@ export function ReviewScreen() {
   )
 
   return (
-    <Page header={header} aside={aside || undefined} banner={(review.vpnBlocked || editing) ? banner : undefined}>
+    <Page header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={(review.vpnBlocked || editing) ? banner : undefined}>
       <div ref={listRef}>
         {candidates.length === 0 && <Empty>No candidates found for this source.</Empty>}
         {list.shown.map(candidate => (

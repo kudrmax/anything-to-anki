@@ -5,16 +5,19 @@ interface PageProps {
   header: ReactNode
   aside?: ReactNode
   banner?: ReactNode
+  /** Боковая колонка свёрнута: контент плавно встаёт по центру. */
+  asideHidden?: boolean
   children: ReactNode
 }
 
-export function Page({ header, aside, banner, children }: PageProps) {
+export function Page({ header, aside, banner, asideHidden = false, children }: PageProps) {
+  const classes = [css.page, !aside && css.solo, aside && asideHidden && css.asideHidden].filter(Boolean).join(' ')
   return (
-    <div className={aside ? css.page : `${css.page} ${css.solo}`}>
+    <div className={classes}>
       <div className={css.full}>{header}</div>
       {banner && <div className={`${css.full} ${css.banner}`}>{banner}</div>}
       <div className={css.content}>{children}</div>
-      {aside && <aside className={css.aside}>{aside}</aside>}
+      {aside && <aside className={css.aside} aria-hidden={asideHidden}><div className={css.asideInner}>{aside}</div></aside>}
     </div>
   )
 }
