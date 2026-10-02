@@ -3,12 +3,14 @@ from __future__ import annotations
 from pydantic import BaseModel, field_validator, model_validator
 
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
 
 
 class SettingsDTO(BaseModel):
     """Application settings."""
 
     cefr_level: str
+    frequent_word_threshold: str
     anki_deck_name: str
     ai_provider: str
     ai_model: str
@@ -35,6 +37,7 @@ class UpdateSettingsRequest(BaseModel):
     """Input for updating settings. At least one field must be provided."""
 
     cefr_level: str | None = None
+    frequent_word_threshold: str | None = None
     anki_deck_name: str | None = None
     ai_provider: str | None = None
     ai_model: str | None = None
@@ -64,9 +67,23 @@ class UpdateSettingsRequest(BaseModel):
             return v.strip().upper()
         return v
 
+    @field_validator("frequent_word_threshold")
+    @classmethod
+    def validate_frequent_word_threshold(cls, v: str | None) -> str | None:
+        if v is not None:
+            FrequentWordThreshold.from_key(v)
+        return v
+
     @model_validator(mode="after")
     def at_least_one_field(self) -> UpdateSettingsRequest:
         values = [getattr(self, f) for f in type(self).model_fields]
         if all(v is None for v in values):
             raise ValueError("At least one field must be provided")
         return self
+
+
+class FrequentWordThresholdDTO(BaseModel):
+    """One option of the frequent word threshold setting."""
+
+    value: str
+    examples: list[str]

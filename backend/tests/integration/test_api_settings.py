@@ -116,3 +116,26 @@ class TestSettingsAPI:
     def test_update_no_fields_returns_422(self, client: TestClient) -> None:
         response = client.patch("/api/settings", json={})
         assert response.status_code == 422
+
+
+@pytest.mark.integration
+class TestFrequentWordThresholdSetting:
+    def test_default_is_four_and_a_half(self, client: TestClient) -> None:
+        assert client.get("/api/settings").json()["frequent_word_threshold"] == "4.5"
+
+    def test_update(self, client: TestClient) -> None:
+        response = client.patch("/api/settings", json={"frequent_word_threshold": "off"})
+        assert response.status_code == 200
+        assert client.get("/api/settings").json()["frequent_word_threshold"] == "off"
+
+    def test_unknown_value_is_rejected(self, client: TestClient) -> None:
+        response = client.patch("/api/settings", json={"frequent_word_threshold": "3.0"})
+        assert response.status_code == 422
+
+    def test_options_list_examples_of_words_going_down(self, client: TestClient) -> None:
+        response = client.get("/api/settings/frequent-word-thresholds")
+        assert response.status_code == 200
+        options = response.json()
+        assert [o["value"] for o in options] == ["4.0", "4.5", "5.0", "5.5", "off"]
+        assert "concept" in options[1]["examples"]
+        assert options[-1]["examples"] == []

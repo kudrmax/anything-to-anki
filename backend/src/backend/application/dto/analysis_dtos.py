@@ -6,6 +6,10 @@ from pydantic import BaseModel, field_validator
 
 from backend.application.dto.cefr_dtos import CEFRBreakdownDTO
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.frequent_word_threshold import (
+    DEFAULT_FREQUENT_WORD_THRESHOLD,
+    FrequentWordThreshold,
+)
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.usage_distribution import UsageDistribution
@@ -16,12 +20,20 @@ class AnalyzeTextRequest(BaseModel):
 
     raw_text: str
     user_level: str
+    known_lemmas: frozenset[str] = frozenset()
+    frequent_word_threshold: str = DEFAULT_FREQUENT_WORD_THRESHOLD.key
 
     @field_validator("user_level")
     @classmethod
     def validate_user_level(cls, v: str) -> str:
         CEFRLevel.from_str(v)
         return v.strip().upper()
+
+    @field_validator("frequent_word_threshold")
+    @classmethod
+    def validate_frequent_word_threshold(cls, v: str) -> str:
+        FrequentWordThreshold.from_key(v)
+        return v
 
 
 class WordCandidateDTO(BaseModel):
@@ -35,6 +47,7 @@ class WordCandidateDTO(BaseModel):
     context_fragment: str
     fragment_purity: str  # "clean" | "dirty"
     occurrences: int
+    fragment_unknown_count: int = 0
     is_phrasal_verb: bool = False
     surface_form: str | None = None
     cefr_breakdown: CEFRBreakdownDTO | None = None

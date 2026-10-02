@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest, dto_to_usage_distribution
 from backend.application.dto.cefr_dtos import dto_to_breakdown
+from backend.application.utils.relevance_sorter import read_frequent_word_threshold
 from backend.application.utils.timecode_mapping import find_timecodes
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -128,14 +129,15 @@ class ProcessSourceUseCase:
 
         # Stage 2: text analysis (cleaning + tokenization + filtering)
         self._notify_stage(source_id, ProcessingStage.ANALYZING_TEXT, on_stage_commit)
+        known_filter = KnownWordFilter(self._known_word_repo.get_all_pairs())
         request = AnalyzeTextRequest(
             raw_text=raw_text,
             user_level=cefr_level,
+            known_lemmas=known_filter.known_lemmas,
+            frequent_word_threshold=read_frequent_word_threshold(self._settings_repo).key,
         )
         result = self._analyze_text.execute(request)
-
-        known_filter = KnownWordFilter(self._known_word_repo.get_all_pairs())
-        filtered = [c for c in result.candidates if not known_filter.is_known(c.lemma, c.pos)]
+        filtered = result.candidates
 
         if parsed_srt is not None:
             self._notify_stage(source_id, ProcessingStage.MAPPING_TIMECODES, on_stage_commit)
@@ -160,6 +162,7 @@ class ProcessSourceUseCase:
                 zipf_frequency=c.zipf_frequency,
                 context_fragment=c.context_fragment,
                 fragment_purity=c.fragment_purity,
+                fragment_unknown_count=c.fragment_unknown_count,
                 occurrences=c.occurrences,
                 surface_form=c.surface_form,
                 is_phrasal_verb=c.is_phrasal_verb,

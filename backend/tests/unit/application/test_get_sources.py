@@ -115,6 +115,25 @@ class TestGetSourcesUseCase:
         result = self.use_case.get_by_id(1)
         assert result.id == 1
 
+    def test_get_by_id_shows_first_fifteen_candidates_by_relevance(self) -> None:
+        self.source_repo.get_by_id.return_value = Source(
+            id=1, raw_text="Hello", status=SourceStatus.DONE,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
+        )
+        self.candidate_repo.get_by_source.return_value = []
+        assert self.use_case.get_by_id(1).initially_shown_candidates == 15
+
+    def test_get_by_id_shows_all_candidates_in_text_order(self) -> None:
+        from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+
+        self.source_repo.get_by_id.return_value = Source(
+            id=1, raw_text="Hello", status=SourceStatus.DONE,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
+        )
+        self.candidate_repo.get_by_source.return_value = []
+        result = self.use_case.get_by_id(1, sort_order=CandidateSortOrder.CHRONOLOGICAL)
+        assert result.initially_shown_candidates is None
+
     def test_get_by_id_not_found(self) -> None:
         self.source_repo.get_by_id.return_value = None
         with pytest.raises(SourceNotFoundError):

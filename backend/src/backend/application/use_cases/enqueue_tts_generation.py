@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
+from backend.application.utils.relevance_sorter import RelevanceSorter
 from backend.domain.entities.job import Job
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
@@ -35,16 +34,12 @@ class EnqueueTTSGenerationUseCase:
         self._job_repo = job_repo
 
     def execute(self, source_id: int) -> list[int]:
-        from backend.domain.services.candidate_sorting import sort_by_relevance
-
         unsorted_ids = self._tts_repo.get_eligible_candidate_ids(source_id)
         if not unsorted_ids:
             return []
 
         candidates = self._candidate_repo.get_by_ids(unsorted_ids)
-        raw = self._settings_repo.get("usage_group_order")
-        usage_order: list[str] = json.loads(raw) if raw else DEFAULT_USAGE_GROUP_ORDER
-        sorted_candidates = sort_by_relevance(candidates, usage_order=usage_order)
+        sorted_candidates = RelevanceSorter(self._settings_repo).sort(candidates)
 
         eligible_ids = [c.id for c in sorted_candidates if c.id is not None]
         if not eligible_ids:

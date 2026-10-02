@@ -79,15 +79,14 @@ class TopicPhraseCollector:
         }
 
         candidates: list[StoredCandidate] = []
-        seen: set[tuple[str, str]] = set()
+        seen: set[str] = set()
         for target in targets:
             generated = self._generated_candidate(source_id, target)
             if generated is None:
                 continue
-            key = (generated.lemma, generated.pos)
-            if key in seen or known.is_known(*key):
+            if generated.lemma in seen or known.is_known(generated.lemma):
                 continue
-            seen.add(key)
+            seen.add(generated.lemma)
             phrase = self._real_phrase(generated, target, library)
             candidates.append(
                 generated if phrase is None else self._candidate_factory.build(

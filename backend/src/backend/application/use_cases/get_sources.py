@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
+from backend.application.constants import INITIALLY_SHOWN_CANDIDATES
 from backend.application.dto.source_dtos import (
     SourceDetailDTO,
     SourceDTO,
     stored_candidate_to_dto,
 )
+from backend.application.utils.relevance_sorter import RelevanceSorter
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
@@ -126,7 +126,6 @@ class GetSourcesUseCase:
         sort_order: CandidateSortOrder | None = None,
     ) -> SourceDetailDTO:
         from backend.domain.services.candidate_sorting import (
-            sort_by_relevance,
             sort_chronologically,
         )
         from backend.domain.value_objects.candidate_sort_order import (
@@ -137,15 +136,13 @@ class GetSourcesUseCase:
             raise SourceNotFoundError(source_id)
         assert source.id is not None
         candidates = self._candidate_repo.get_by_source(source.id)
+        initially_shown: int | None = None
         if sort_order == SortEnum.CHRONOLOGICAL:
             text = source.cleaned_text or source.raw_text
             candidates = sort_chronologically(candidates, source_text=text)
         else:
-            raw = self._settings_repo.get("usage_group_order")
-            usage_order: list[str] = (
-                json.loads(raw) if raw else DEFAULT_USAGE_GROUP_ORDER
-            )
-            candidates = sort_by_relevance(candidates, usage_order=usage_order)
+            candidates = RelevanceSorter(self._settings_repo).sort(candidates)
+            initially_shown = INITIALLY_SHOWN_CANDIDATES
         candidate_ids = [c.id for c in candidates if c.id is not None]
         jobs_by_candidate = self._job_repo.get_jobs_for_candidates(candidate_ids)
         return SourceDetailDTO(
@@ -165,4 +162,5 @@ class GetSourcesUseCase:
                 stored_candidate_to_dto(c, jobs_by_candidate)
                 for c in candidates
             ],
+            initially_shown_candidates=initially_shown,
         )

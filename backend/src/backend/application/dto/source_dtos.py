@@ -144,6 +144,8 @@ class SourceDetailDTO(BaseModel):
     processing_stage: str | None = None
     created_at: datetime
     candidates: list[StoredCandidateDTO]
+    # How many candidates to show before "show more"; None — show all.
+    initially_shown_candidates: int | None = None
 
 
 SourceDetailDTO.model_rebuild()

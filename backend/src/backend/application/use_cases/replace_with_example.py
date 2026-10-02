@@ -50,6 +50,7 @@ class ReplaceWithExampleUseCase:
             zipf_frequency=original.zipf_frequency,
             context_fragment=_strip_bold(stripped),
             fragment_purity=original.fragment_purity,
+            fragment_unknown_count=original.fragment_unknown_count,
             occurrences=1,
             status=CandidateStatus.PENDING,
             surface_form=None,

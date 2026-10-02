@@ -3,9 +3,20 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
-from backend.application.dto.settings_dtos import SettingsDTO, UpdateSettingsRequest
+from backend.application.constants import (
+    DEFAULT_USAGE_GROUP_ORDER,
+    FREQUENT_WORD_THRESHOLD_SETTING,
+)
+from backend.application.dto.settings_dtos import (
+    FrequentWordThresholdDTO,
+    SettingsDTO,
+    UpdateSettingsRequest,
+)
 from backend.application.use_cases.generate_tts import ALL_VOICES
+from backend.domain.value_objects.frequent_word_threshold import (
+    DEFAULT_FREQUENT_WORD_THRESHOLD,
+    FREQUENT_WORD_THRESHOLDS,
+)
 
 if TYPE_CHECKING:
     from backend.domain.ports.settings_repository import SettingsRepository
@@ -30,6 +41,7 @@ _DEFAULT_ENABLE_DEFINITIONS: str = "true"
 
 _SETTING_KEYS: dict[str, str] = {
     "cefr_level": _DEFAULT_CEFR_LEVEL,
+    FREQUENT_WORD_THRESHOLD_SETTING: DEFAULT_FREQUENT_WORD_THRESHOLD.key,
     "anki_deck_name": _DEFAULT_DECK_NAME,
     "ai_provider": _DEFAULT_AI_PROVIDER,
     "ai_model": _DEFAULT_AI_MODEL,
@@ -94,6 +106,12 @@ class ManageSettingsUseCase:
                     str_value = str(value)
                 self._settings_repo.set(key, str_value)
         return self.get_settings()
+
+    def frequent_word_threshold_options(self) -> list[FrequentWordThresholdDTO]:
+        return [
+            FrequentWordThresholdDTO(value=t.key, examples=list(t.examples))
+            for t in FREQUENT_WORD_THRESHOLDS
+        ]
 
     # kept for backward-compatibility with existing routes
     def update_cefr_level(self, level: str) -> None:

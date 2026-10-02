@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.application.dto.analysis_dtos import (
@@ -8,6 +9,7 @@ from backend.application.dto.analysis_dtos import (
     AnalyzeTextResponse,
     WordCandidateDTO,
 )
+from backend.application.utils.word_knowledge import WordKnowledge
 from backend.domain.entities.word_candidate import WordCandidate
 from backend.domain.exceptions import TextTooShortError
 from backend.domain.services.candidate_filter import CandidateFilter
@@ -17,6 +19,8 @@ from backend.domain.services.fragment_selection import (
 )
 from backend.domain.services.fragment_selection.rendering import render_fragment
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.frequency_band import FrequencyBand
+from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
 
 logger = logging.getLogger(__name__)
 
@@ -30,18 +34,38 @@ if TYPE_CHECKING:
     from backend.domain.ports.text_cleaner import TextCleaner
     from backend.domain.ports.text_normalizer import TextNormalizer
     from backend.domain.ports.usage_source import UsageSource
+    from backend.domain.services.fragment_selection import SelectedFragment
     from backend.domain.services.fragment_selection.scoring.scorer import (
         UnknownCounter,
     )
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
-    from backend.domain.value_objects.usage_distribution import UsageDistribution
 
-DIRTY_THRESHOLD: int = 2
+CLEAN_PURITY = "clean"
+DIRTY_PURITY = "dirty"
+PHRASAL_VERB_POS = "VERB"
+# Each occurrence costs a fragment selection; a few are enough to find a good phrase.
+MAX_OCCURRENCES_COMPARED: int = 10
+
+
+@dataclass(frozen=True)
+class _Occurrence:
+    """One place in the text where a target occurs."""
+
+    target_index: int
+    protected_indices: frozenset[int]
+    pos: str
+    tag: str
+    surface_form: str
+    cefr_breakdown: CEFRBreakdown | None
 
 
 class AnalyzeTextUseCase:
-    """Orchestrates the full text analysis pipeline (layers 2-3)."""
+    """Orchestrates the full text analysis pipeline (layers 2-3).
+
+    One candidate per word: its phrase is the best one among the places
+    where the word occurs. Words the user already knows are not candidates.
+    """
 
     def __init__(
         self,
@@ -70,8 +94,10 @@ class AnalyzeTextUseCase:
     def execute(self, request: AnalyzeTextRequest) -> AnalyzeTextResponse:
         user_level = CEFRLevel.from_str(request.user_level)
         logger.info(
-            "analyze_text: start (raw_text_len=%d, user_level=%s)",
-            len(request.raw_text or ""), user_level.name,
+            "analyze_text: start (raw_text_len=%d, user_level=%s, known_words=%d, "
+            "frequent_word_threshold=%s)",
+            len(request.raw_text or ""), user_level.name, len(request.known_lemmas),
+            request.frequent_word_threshold,
         )
 
         # Layer 2: clean text
@@ -100,53 +126,23 @@ class AnalyzeTextUseCase:
                 unique_lemmas=0,
             )
 
-        # Collect single-word candidates: group by (lemma, pos)
-        candidate_map: dict[tuple[str, str], _CandidateAccumulator] = {}
+        knowledge = WordKnowledge(
+            cefr_classifier=self._cefr_classifier,
+            frequency_provider=self._frequency_provider,
+            user_level=user_level,
+            known_lemmas=request.known_lemmas,
+            frequent_threshold=FrequentWordThreshold.from_key(request.frequent_word_threshold),
+        )
+        words = self._collect_words(tokens, knowledge, user_level)
+        phrasal_verbs = self._collect_phrasal_verbs(tokens, knowledge)
 
-        for token in tokens:
-            if not self._candidate_filter.is_relevant_token(token):
-                continue
-
-            breakdown = self._cefr_classifier.classify_detailed(token.lemma, token.tag)
-            cefr = breakdown.final_level
-            if not self._candidate_filter.is_above_user_level(cefr, user_level):
-                continue
-
-            key = (token.lemma.lower(), token.pos)
-            if key not in candidate_map:
-                lemma_lower = token.lemma.lower()
-                zipf = self._frequency_provider.get_zipf_value(lemma_lower)
-                fragment_indices = self._selector.select(
-                    tokens=tokens,
-                    target_index=token.index,
-                    protected_indices=frozenset({token.index}),
-                    unknown_counter=self._make_unknown_counter(user_level),
-                )
-                fragment = render_fragment(tokens, fragment_indices)
-                unknown_count = self._count_unknowns_in_fragment(
-                    fragment_indices, tokens, user_level
-                )
-                usage_dist = None
-                if self._usage_lookup is not None:
-                    usage_dist = self._usage_lookup.get_distribution(lemma_lower, token.tag)
-                candidate_map[key] = _CandidateAccumulator(
-                    cefr=cefr,
-                    cefr_breakdown=breakdown,
-                    freq_zipf=zipf,
-                    fragment=fragment,
-                    unknown_count=unknown_count,
-                    pos_tag=token.tag,
-                    is_phrasal_verb=False,
-                    surface_form=token.text,
-                    usage_distribution=usage_dist,
-                )
-            candidate_map[key].occurrences += 1
-
-        # Collect phrasal verb candidates
-        self._collect_phrasal_verbs(tokens, candidate_map, user_level)
-
-        # Build candidate list
-        candidates = self._build_candidates(candidate_map)
+        candidates = [
+            self._build_candidate(lemma, occurrences, tokens, knowledge, is_phrasal_verb=False)
+            for lemma, occurrences in words.items()
+        ] + [
+            self._build_candidate(lemma, occurrences, tokens, knowledge, is_phrasal_verb=True)
+            for lemma, occurrences in phrasal_verbs.items()
+        ]
 
         unique_lemmas = len({t.lemma.lower() for t in tokens if t.is_alpha})
 
@@ -161,110 +157,119 @@ class AnalyzeTextUseCase:
             unique_lemmas=unique_lemmas,
         )
 
+    def _collect_words(
+        self,
+        tokens: list[TokenData],
+        knowledge: WordKnowledge,
+        user_level: CEFRLevel,
+    ) -> dict[str, list[_Occurrence]]:
+        words: dict[str, list[_Occurrence]] = {}
+        for token in tokens:
+            if not self._candidate_filter.is_relevant_token(token):
+                continue
+            lemma = knowledge.lemma_of(token)
+            if knowledge.is_known(lemma):
+                continue
+            breakdown = self._cefr_classifier.classify_detailed(lemma, token.tag)
+            if not self._candidate_filter.is_above_user_level(
+                breakdown.final_level, user_level,
+            ):
+                continue
+            words.setdefault(lemma, []).append(_Occurrence(
+                target_index=token.index,
+                protected_indices=frozenset({token.index}),
+                pos=token.pos,
+                tag=token.tag,
+                surface_form=token.text,
+                cefr_breakdown=breakdown,
+            ))
+        return words
+
     def _collect_phrasal_verbs(
         self,
         tokens: list[TokenData],
-        candidate_map: dict[tuple[str, str], _CandidateAccumulator],
-        user_level: CEFRLevel,
-    ) -> None:
-        """Detect phrasal verbs and add them to candidate_map."""
-        token_map = {t.index: t for t in tokens}
-        matches = self._phrasal_verb_detector.detect(tokens)
-
-        for match in matches:
-            key = (match.lemma, "VERB")
-            verb_token = token_map[match.verb_index]
-
-            if key not in candidate_map:
-                zipf = self._frequency_provider.get_zipf_value(match.lemma)
-                fragment_indices = self._selector.select(
-                    tokens=tokens,
-                    target_index=match.verb_index,
-                    protected_indices=frozenset(
-                        {match.verb_index, *match.component_indices}
-                    ),
-                    unknown_counter=self._make_unknown_counter(user_level),
-                )
-                fragment = render_fragment(tokens, fragment_indices)
-                unknown_count = self._count_unknowns_in_fragment(
-                    fragment_indices, tokens, user_level
-                )
-                usage_dist = None
-                if self._usage_lookup is not None:
-                    usage_dist = self._usage_lookup.get_distribution(match.lemma, verb_token.tag)
-                candidate_map[key] = _CandidateAccumulator(
-                    cefr=None,
-                    freq_zipf=zipf,
-                    fragment=fragment,
-                    unknown_count=unknown_count,
-                    pos_tag=verb_token.tag,
-                    is_phrasal_verb=True,
-                    surface_form=match.surface_form,
-                    usage_distribution=usage_dist,
-                )
-            candidate_map[key].occurrences += 1
-
-    def _count_unknowns_in_fragment(
-        self,
-        fragment_indices: list[int],
-        tokens: list[TokenData],
-        user_level: CEFRLevel,
-    ) -> int:
-        """Count words in the fragment that are above user level (excluding target)."""
-        count = 0
-        for idx in fragment_indices:
-            token = tokens[idx]
-            if not self._candidate_filter.is_relevant_token(token):
+        knowledge: WordKnowledge,
+    ) -> dict[str, list[_Occurrence]]:
+        phrasal_verbs: dict[str, list[_Occurrence]] = {}
+        for match in self._phrasal_verb_detector.detect(tokens):
+            if knowledge.is_known(match.lemma):
                 continue
-            cefr = self._cefr_classifier.classify(token.lemma, token.tag)
-            if self._candidate_filter.is_above_user_level(cefr, user_level):
-                count += 1
-        return count
+            verb_token = tokens[match.verb_index]
+            phrasal_verbs.setdefault(match.lemma, []).append(_Occurrence(
+                target_index=match.verb_index,
+                protected_indices=frozenset({match.verb_index, *match.component_indices}),
+                pos=PHRASAL_VERB_POS,
+                tag=verb_token.tag,
+                surface_form=match.surface_form,
+                cefr_breakdown=None,
+            ))
+        return phrasal_verbs
 
-    def _make_unknown_counter(self, user_level: CEFRLevel) -> UnknownCounter:
-        """Build an UnknownCounter closure for FragmentSelector."""
+    def _build_candidate(
+        self,
+        lemma: str,
+        occurrences: list[_Occurrence],
+        tokens: list[TokenData],
+        knowledge: WordKnowledge,
+        *,
+        is_phrasal_verb: bool,
+    ) -> WordCandidate:
+        fragment, occurrence = self._best_fragment(occurrences, tokens, knowledge)
+        zipf = knowledge.zipf(lemma)
+        breakdown = occurrence.cefr_breakdown
+        return WordCandidate(
+            lemma=lemma,
+            pos=occurrence.pos,
+            cefr_level=breakdown.final_level if breakdown else None,
+            frequency_band=FrequencyBand.from_zipf(zipf),
+            zipf_frequency=zipf,
+            context_fragment=render_fragment(tokens, fragment.indices),
+            fragment_unknown_count=knowledge.count_unknowns(
+                fragment.indices, tokens, occurrence.protected_indices,
+            ),
+            occurrences=len(occurrences),
+            is_phrasal_verb=is_phrasal_verb,
+            surface_form=occurrence.surface_form,
+            cefr_breakdown=breakdown,
+            usage_distribution=(
+                self._usage_lookup.get_distribution(lemma, occurrence.tag)
+                if self._usage_lookup is not None
+                else None
+            ),
+        )
 
-        def count(
-            indices: Sequence[int], tokens: list[TokenData]
-        ) -> int:
-            return self._count_unknowns_in_fragment(
-                list(indices), tokens, user_level
+    def _best_fragment(
+        self,
+        occurrences: list[_Occurrence],
+        tokens: list[TokenData],
+        knowledge: WordKnowledge,
+    ) -> tuple[SelectedFragment, _Occurrence]:
+        """The best phrase among the first occurrences; ties go to the earliest."""
+        best: tuple[SelectedFragment, _Occurrence] | None = None
+        for occurrence in occurrences[:MAX_OCCURRENCES_COMPARED]:
+            selected = self._selector.select_scored(
+                tokens=tokens,
+                target_index=occurrence.target_index,
+                protected_indices=occurrence.protected_indices,
+                unknown_counter=self._unknown_counter(knowledge, occurrence.protected_indices),
             )
+            if best is None or selected.score < best[0].score:
+                best = (selected, occurrence)
+        assert best is not None
+        return best
+
+    @staticmethod
+    def _unknown_counter(
+        knowledge: WordKnowledge, target_indices: frozenset[int],
+    ) -> UnknownCounter:
+        def count(indices: Sequence[int], tokens: list[TokenData]) -> int:
+            return knowledge.count_unknowns(indices, tokens, target_indices)
 
         return count
-
-    def _build_candidates(
-        self, candidate_map: dict[tuple[str, str], _CandidateAccumulator]
-    ) -> list[WordCandidate]:
-        """Build candidate list from accumulated data."""
-        from backend.domain.value_objects.frequency_band import FrequencyBand
-
-        candidates: list[WordCandidate] = []
-        for (lemma, pos), acc in candidate_map.items():
-            candidates.append(
-                WordCandidate(
-                    lemma=lemma,
-                    pos=pos,
-                    cefr_level=acc.cefr,
-                    frequency_band=FrequencyBand.from_zipf(acc.freq_zipf),
-                    zipf_frequency=acc.freq_zipf,
-                    context_fragment=acc.fragment,
-                    fragment_unknown_count=acc.unknown_count,
-                    occurrences=acc.occurrences,
-                    is_phrasal_verb=acc.is_phrasal_verb,
-                    surface_form=acc.surface_form,
-                    cefr_breakdown=acc.cefr_breakdown,
-                    usage_distribution=acc.usage_distribution,
-                )
-            )
-        return candidates
 
     def _to_dto(self, candidate: WordCandidate) -> WordCandidateDTO:
         from backend.application.dto.cefr_dtos import breakdown_to_dto
 
-        purity = (
-            "clean" if candidate.fragment_unknown_count < DIRTY_THRESHOLD else "dirty"
-        )
         bd_dto = breakdown_to_dto(candidate.cefr_breakdown) if candidate.cefr_breakdown else None
         return WordCandidateDTO(
             lemma=candidate.lemma,
@@ -273,7 +278,10 @@ class AnalyzeTextUseCase:
             zipf_frequency=candidate.zipf_frequency,
             is_sweet_spot=candidate.frequency_band.is_sweet_spot,
             context_fragment=candidate.context_fragment,
-            fragment_purity=purity,
+            fragment_purity=(
+                CLEAN_PURITY if candidate.fragment_unknown_count == 0 else DIRTY_PURITY
+            ),
+            fragment_unknown_count=candidate.fragment_unknown_count,
             occurrences=candidate.occurrences,
             is_phrasal_verb=candidate.is_phrasal_verb,
             surface_form=candidate.surface_form,
@@ -284,43 +292,3 @@ class AnalyzeTextUseCase:
                 else None
             ),
         )
-
-
-class _CandidateAccumulator:
-    """Mutable accumulator used during candidate collection."""
-
-    __slots__ = (
-        "cefr",
-        "cefr_breakdown",
-        "freq_zipf",
-        "fragment",
-        "unknown_count",
-        "pos_tag",
-        "occurrences",
-        "is_phrasal_verb",
-        "surface_form",
-        "usage_distribution",
-    )
-
-    def __init__(
-        self,
-        cefr: CEFRLevel | None,
-        freq_zipf: float,
-        fragment: str,
-        unknown_count: int,
-        pos_tag: str,
-        is_phrasal_verb: bool,
-        surface_form: str | None = None,
-        cefr_breakdown: CEFRBreakdown | None = None,
-        usage_distribution: UsageDistribution | None = None,
-    ) -> None:
-        self.cefr = cefr
-        self.cefr_breakdown = cefr_breakdown
-        self.freq_zipf = freq_zipf
-        self.fragment = fragment
-        self.unknown_count = unknown_count
-        self.pos_tag = pos_tag
-        self.is_phrasal_verb = is_phrasal_verb
-        self.surface_form = surface_form
-        self.usage_distribution = usage_distribution
-        self.occurrences = 0

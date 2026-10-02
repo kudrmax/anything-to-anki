@@ -58,6 +58,7 @@ def test_all_default_strip_rules_are_named() -> None:
 def test_candidate_sources_defaults() -> None:
     assert CandidateSourcesConfig().enabled_sources == (
         "verb_subtree",
+        "clause_core",
         "ancestor_chain",
         "sentence",
         "legacy_extractor",

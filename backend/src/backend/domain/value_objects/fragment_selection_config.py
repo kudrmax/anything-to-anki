@@ -7,6 +7,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+CLAUSE_HEAD_POS: frozenset[str] = frozenset({"VERB", "AUX"})
+# Clauses attached to a clause; cutting them off leaves a whole phrase.
+DETACHABLE_CLAUSE_DEPS: frozenset[str] = frozenset({"conj", "cc", "advcl", "parataxis"})
+
 
 @dataclass(frozen=True)
 class ScoringConfig:
@@ -14,12 +18,18 @@ class ScoringConfig:
 
     length_hard_cap_content_words: int = 25
     weight_unknown: int = 1
+    weight_incomplete: int = 1
     weight_boundary_penalty: int = 1
     weight_length_penalty: int = 1
     weight_content_count: int = 1
     critical_deps: frozenset[str] = frozenset(
         {"pobj", "dobj", "attr", "xcomp", "acomp", "oprd", "prt"}
     )
+    clause_head_pos: frozenset[str] = CLAUSE_HEAD_POS
+    clause_subject_deps: frozenset[str] = frozenset(
+        {"nsubj", "nsubjpass", "csubj", "csubjpass", "expl"}
+    )
+    detachable_clause_deps: frozenset[str] = DETACHABLE_CLAUSE_DEPS
 
 
 @dataclass(frozen=True)
@@ -59,6 +69,7 @@ class CandidateSourcesConfig:
 
     enabled_sources: tuple[str, ...] = (
         "verb_subtree",
+        "clause_core",
         "ancestor_chain",
         "sentence",
         "legacy_extractor",

@@ -9,6 +9,7 @@ import type {
   Collection,
   CreateNoteTypeResponse,
   FollowUpAction,
+  FrequentWordThresholdOption,
   GenerateMeaningResult,
   GlobalExport,
   KnownWord,
@@ -104,6 +105,9 @@ export const api = {
 
   updateSettings: (patch: Partial<Settings>) =>
     req<Settings>('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
+
+  getFrequentWordThresholds: () =>
+    req<FrequentWordThresholdOption[]>('/api/settings/frequent-word-thresholds'),
 
   getKnownWords: () => req<KnownWord[]>('/known-words'),
 

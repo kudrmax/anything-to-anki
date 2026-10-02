@@ -250,6 +250,9 @@ class StoredCandidateModel(Base):
     is_sweet_spot: Mapped[bool] = mapped_column(nullable=False)
     context_fragment: Mapped[str] = mapped_column(Text, nullable=False)
     fragment_purity: Mapped[str] = mapped_column(String(10), nullable=False)
+    fragment_unknown_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     surface_form: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -289,6 +292,7 @@ class StoredCandidateModel(Base):
             zipf_frequency=self.zipf_frequency,
             context_fragment=self.context_fragment,
             fragment_purity=self.fragment_purity,
+            fragment_unknown_count=self.fragment_unknown_count,
             occurrences=self.occurrences,
             surface_form=self.surface_form,
             is_phrasal_verb=self.is_phrasal_verb,
@@ -318,6 +322,7 @@ class StoredCandidateModel(Base):
             is_sweet_spot=candidate.is_sweet_spot,
             context_fragment=candidate.context_fragment,
             fragment_purity=candidate.fragment_purity,
+            fragment_unknown_count=candidate.fragment_unknown_count,
             occurrences=candidate.occurrences,
             surface_form=candidate.surface_form,
             is_phrasal_verb=candidate.is_phrasal_verb,

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
+from backend.application.utils.relevance_sorter import RelevanceSorter
 from backend.domain.entities.job import Job
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
@@ -44,7 +43,6 @@ class EnqueueMediaGenerationUseCase:
         sort_order: CandidateSortOrder | None = None,
     ) -> list[int]:
         from backend.domain.services.candidate_sorting import (
-            sort_by_relevance,
             sort_chronologically,
         )
         from backend.domain.value_objects.candidate_sort_order import (
@@ -61,11 +59,7 @@ class EnqueueMediaGenerationUseCase:
             text = source.cleaned_text or source.raw_text
             candidates = sort_chronologically(candidates, source_text=text)
         else:
-            raw = self._settings_repo.get("usage_group_order")
-            usage_order: list[str] = (
-                json.loads(raw) if raw else DEFAULT_USAGE_GROUP_ORDER
-            )
-            candidates = sort_by_relevance(candidates, usage_order=usage_order)
+            candidates = RelevanceSorter(self._settings_repo).sort(candidates)
         eligible_ids = [c.id for c in candidates if c.id is not None]
         if not eligible_ids:
             logger.info(

@@ -12,3 +12,9 @@ DEFAULT_USAGE_GROUP_ORDER: list[str] = [
     "offensive",
     "other",
 ]
+
+FREQUENT_WORD_THRESHOLD_SETTING: str = "frequent_word_threshold"
+USAGE_GROUP_ORDER_SETTING: str = "usage_group_order"
+
+# The best cards come first; the user decides on a short list, the rest waits behind "show more".
+INITIALLY_SHOWN_CANDIDATES: int = 15
