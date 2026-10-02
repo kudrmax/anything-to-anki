@@ -84,7 +84,6 @@
   --col-wide: 900px;
   --col-gap-wide: 64px;
   --card-cols: minmax(0, 1fr) minmax(0, 1.25fr);
-  --queue-cols: repeat(2, minmax(0, 1fr));
   --aside: 380px;
   --col-gap: 80px;
   --page-x: 44px;

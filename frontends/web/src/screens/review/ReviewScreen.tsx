@@ -141,11 +141,10 @@ export function ReviewScreen() {
     <Page wide header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={(review.vpnBlocked || editing) ? banner : undefined}>
       <div ref={listRef}>
         {candidates.length === 0 && <Empty>No candidates found for this source.</Empty>}
-        {current && <PhraseCard key={current.id} candidate={current} review={review} />}
         <div className={css.queue}>
-          {list.shown.filter(candidate => candidate.id !== currentId).map(candidate => (
-            <PhraseRow key={candidate.id} candidate={candidate} onSelect={setCurrentId} />
-          ))}
+          {list.shown.map(candidate => candidate.id === currentId
+            ? <PhraseCard key={candidate.id} candidate={candidate} review={review} />
+            : <PhraseRow key={candidate.id} candidate={candidate} onSelect={setCurrentId} />)}
         </div>
         {list.hiddenCount > 0 && (
           <div className={css.showMore}>

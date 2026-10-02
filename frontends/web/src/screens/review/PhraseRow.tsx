@@ -11,7 +11,7 @@ interface PhraseRowProps {
   onSelect: (id: number) => void
 }
 
-/** Фраза в очереди: одна строка, полный текст — в подсказке. */
+/** Свёрнутая фраза в очереди. */
 export function PhraseRow({ candidate, onSelect }: PhraseRowProps) {
   const rated = candidate.status !== 'pending'
   const classes = [css.queueItem, rated && css.queueItemRated].filter(Boolean).join(' ')

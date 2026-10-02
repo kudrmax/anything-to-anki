@@ -17,12 +17,13 @@
 .tools { display: flex; justify-content: flex-end; gap: var(--s1); margin-top: auto; }
 
 /* очередь */
-.queue { display: grid; grid-template-columns: var(--queue-cols); gap: 0 var(--s7); margin-top: var(--s6); }
-.queueItem { display: flex; align-items: center; gap: var(--s3); min-width: 0; padding: var(--s3) var(--s3); margin: 0 calc(var(--s3) * -1); border-radius: var(--rc); text-align: left; font-size: var(--fs-b); color: var(--tx3); transition: background var(--t), color var(--t); }
+.queue { display: flex; flex-direction: column; }
+.queue > .card { margin: var(--s4) 0; }
+.queueItem { display: flex; align-items: baseline; gap: var(--s3); min-width: 0; padding: var(--s4) var(--s5); border-radius: var(--rc); text-align: left; font-size: var(--fs-t); color: var(--tx3); transition: background var(--t), color var(--t); }
 .queueItem:hover { background: var(--hover); color: var(--tx2); }
 .queueItem .queueText b { color: var(--tx2); }
 .queueItemRated { opacity: var(--o-off); }
-.queueText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queueText { min-width: 0; overflow-wrap: anywhere; }
 
 /* текст источника */
 .source { position: relative; max-height: var(--source-max); overflow: auto; font-size: var(--fs-source); line-height: var(--lh-loose); color: var(--tx3); white-space: pre-line; }
