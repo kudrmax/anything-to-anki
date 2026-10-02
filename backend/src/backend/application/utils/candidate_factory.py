@@ -24,6 +24,7 @@ PHRASAL_VERB_TAG = "VB"
 COLLOCATION_POS = "X"
 COLLOCATION_TAG = "NN"
 CLEAN_PURITY = "clean"
+VERB_POS_TAGS = frozenset({"VERB", "AUX"})
 
 
 @dataclass(frozen=True)
@@ -120,8 +121,18 @@ class CandidateFactory:
 
 
 def _collocation(tokens: list[TokenData]) -> _Lexeme:
-    """Several words learned together ("make a decision", "counter-offer")."""
-    lemma = "".join(t.lemma.lower() + t.whitespace_after for t in tokens).strip()
+    """Several words learned together ("make a decision", "starting salary").
+
+    Only a leading verb goes to its dictionary form ("came to an agreement" →
+    "come to an agreement"); the rest stays as written, because lemmatising
+    every word breaks noun phrases ("starting salary" → "start salary").
+    """
+    first, rest = tokens[0], tokens[1:]
+    head = first.lemma if first.pos in VERB_POS_TAGS else first.text
+    lemma = (
+        head.lower() + first.whitespace_after
+        + "".join(t.text.lower() + t.whitespace_after for t in rest)
+    ).strip()
     return _Lexeme(lemma=lemma, pos=COLLOCATION_POS, tag=COLLOCATION_TAG, is_phrasal_verb=False)
 
 

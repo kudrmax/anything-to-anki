@@ -13,9 +13,11 @@ from backend.domain.value_objects.phrase_origin import PhraseOrigin
 pytestmark = pytest.mark.unit
 
 
-def _token(index: int, text: str, lemma: str, *, punct: bool = False, ws: str = " ") -> TokenData:
+def _token(
+    index: int, text: str, lemma: str, *, pos: str = "NOUN", punct: bool = False, ws: str = " ",
+) -> TokenData:
     return TokenData(
-        index=index, text=text, lemma=lemma, pos="PUNCT" if punct else "NOUN", tag="NN",
+        index=index, text=text, lemma=lemma, pos="PUNCT" if punct else pos, tag="NN",
         head_index=0, children_indices=(), is_punct=punct, is_stop=False,
         is_alpha=not punct, is_propn=False, sent_index=0, whitespace_after=ws,
     )
@@ -36,10 +38,11 @@ def _factory(analyses: list[list[TokenData]]) -> CandidateFactory:
 
 
 def test_collocation_lemma_is_lemmatised_phrase() -> None:
-    context = [_token(0, "We", "we"), _token(1, "made", "make"), _token(2, "a", "a"),
+    context = [_token(0, "We", "we"), _token(1, "made", "make", pos="VERB"), _token(2, "a", "a"),
                _token(3, "decision", "decision", ws="")]
     surface = [
-        _token(0, "made", "make"), _token(1, "a", "a"), _token(2, "decision", "decision", ws=""),
+        _token(0, "made", "make", pos="VERB"), _token(1, "a", "a"),
+        _token(2, "decision", "decision", ws=""),
     ]
     candidate = _factory([context, surface]).build(
         source_id=1, surface_form="made a decision", context_fragment="We made a decision",
@@ -50,6 +53,18 @@ def test_collocation_lemma_is_lemmatised_phrase() -> None:
     assert candidate.is_phrasal_verb is False
     assert candidate.cefr_level is None
     assert candidate.origin == PhraseOrigin.generated()
+
+
+def test_noun_phrase_keeps_its_words() -> None:
+    surface = [
+        _token(0, "starting", "start", pos="ADJ"),
+        _token(1, "salaries", "salary", ws=""),
+    ]
+    candidate = _factory([surface, surface]).build(
+        source_id=1, surface_form="starting salaries", context_fragment="starting salaries",
+        occurrences=1,
+    )
+    assert candidate.lemma == "starting salaries"
 
 
 def test_hyphenated_word_is_one_target() -> None:
