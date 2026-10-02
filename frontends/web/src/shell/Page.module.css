@@ -10,8 +10,8 @@
 .asideTitle { font-size: var(--fs-s); font-weight: var(--fw); color: var(--tx3); line-height: var(--lh-label); margin-bottom: var(--s3); }
 /* Широкая страница: шаг --page-x по горизонтали; шапка компактная, от неё до карточки столько же, сколько над ней. */
 .wide { max-width: 100%; grid-template-columns: var(--page-cols-wide); column-gap: var(--page-x); transition: grid-template-columns var(--t-slow), column-gap var(--t-slow), max-width var(--t-slow); }
-.wide > .full:first-child > * { padding-inline: 0; margin-top: var(--s5h); margin-bottom: calc(var(--s5h) - var(--wide-lead)); }
+.wide > .full:first-child > * { padding-inline: 0; margin-top: var(--s5h); margin-bottom: var(--s5h); }
 .wide > .content { padding: 0; }
-.wide > .aside { padding-top: var(--wide-lead); }
+.wide > .aside { padding-top: 0; }
 .wide.solo { grid-template-columns: minmax(0, var(--col-wide)); }
 .wide.asideHidden { max-width: var(--col-wide); grid-template-columns: var(--page-cols-wide-collapsed); column-gap: 0; }

@@ -73,6 +73,7 @@ class GetSourcesUseCase:
             assert source.id is not None
             candidates = self._candidate_repo.get_by_source(source.id)
             learn_count = sum(1 for c in candidates if c.status == CandidateStatus.LEARN)
+            decided_count = sum(1 for c in candidates if c.status != CandidateStatus.PENDING)
             generation = self._generation_of(source)
             result.append(
                 SourceDTO(
@@ -87,6 +88,7 @@ class GetSourcesUseCase:
                     created_at=source.created_at,
                     candidate_count=len(candidates),
                     learn_count=learn_count,
+                    decided_count=decided_count,
                     processing_stage=(
                         source.processing_stage.value if source.processing_stage else None
                     ),

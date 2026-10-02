@@ -43,6 +43,7 @@ class SourceDTO(BaseModel):
     created_at: datetime
     candidate_count: int
     learn_count: int
+    decided_count: int = 0
     processing_stage: str | None = None
     collection_id: int | None = None
     collection_name: str | None = None

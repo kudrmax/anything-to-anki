@@ -35,6 +35,8 @@ export interface SourceSummary {
   created_at: string
   candidate_count: number
   learn_count: number
+  /** Сколько фраз уже получили решение: learn, known или skip. */
+  decided_count: number
   processing_stage: ProcessingStage | null
   collection_id: number | null
   collection_name: string | null
