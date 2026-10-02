@@ -136,7 +136,9 @@ export function useReview(sourceId: number) {
       if (focus) setCurrentId(focus.id)
     }
     if (nextUrl) play(nextUrl)
-  }, [sourceId, play, stop, showToast])
+    // Порядок задаёт backend: решённые фразы уходят вниз.
+    void loadCandidates()
+  }, [sourceId, play, stop, showToast, loadCandidates])
 
   const withBusy = async (setIds: Dispatch<SetStateAction<Set<number>>>, id: number, run: () => Promise<void>) => {
     setIds(prev => new Set(prev).add(id))

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from backend.domain.value_objects.candidate_status import CandidateStatus
+
 if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
@@ -94,3 +96,11 @@ def sort_chronologically(
         return (pos, c.id or 0)
 
     return sorted(candidates, key=_position_key)
+
+
+def decided_last(candidates: list[StoredCandidate]) -> list[StoredCandidate]:
+    """Move decided candidates below pending ones, keeping the order inside each group.
+
+    The phrase waiting for a decision stays where the user looks, decided ones sink.
+    """
+    return sorted(candidates, key=lambda c: c.status != CandidateStatus.PENDING)

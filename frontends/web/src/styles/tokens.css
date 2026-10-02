@@ -27,7 +27,9 @@
   --fill-shadow: 0 10px 28px -14px var(--ac-deep);
   --ac-underline: color-mix(in srgb, var(--ac) 50%, transparent);
   --ac-tint: color-mix(in srgb, var(--ac) 22%, transparent);
+  --ac-wash: color-mix(in srgb, var(--ac) 13%, transparent);
   --hover: color-mix(in srgb, var(--soft) 55%, transparent);
+  --line-soft: color-mix(in srgb, var(--line) 60%, transparent);
   --glow-a: color-mix(in srgb, var(--ac-deep) var(--glow-strength), transparent);
   --glow-b: color-mix(in srgb, var(--ac-deep) calc(var(--glow-strength) * .45), transparent);
   --page-bg: radial-gradient(900px 420px at 18% -10%, var(--glow-a), transparent 60%),
@@ -38,6 +40,7 @@
   --err-tint: color-mix(in srgb, var(--err) 14%, transparent);
   --media-veil: color-mix(in srgb, var(--bg) 25%, transparent);
   --fade-bottom: linear-gradient(transparent, var(--bg) 40%);
+  --source-mask: linear-gradient(transparent, black calc(var(--source-leading-trim) * -1), black calc(100% - var(--s7)), transparent);
 
   /* форма */
   --r: 16px;          /* строки, поверхности, окна */
@@ -59,6 +62,12 @@
   --thumb-h: 72px;
   --field-area: 128px;
   --prog: 3px;
+  --measure: 64ch;
+  --fact-label-w: 84px;
+  --focus-leading-trim: calc((1 - var(--lh-focus)) * var(--fs-focus) / 2);
+  --source-leading-trim: calc((1 - var(--lh-loose)) * var(--fs-source) / 2);
+  --icon-inset-trim: calc((var(--icon) - var(--h)) / 2);
+  --back-trim: calc((var(--icon) - var(--h)) / 2 - var(--icon) * 5 / 24);   /* у стрелки lucide рисунок занимает 5..19 из 24 */
   --progress-inline-w: calc(var(--h) * 3);
   --range-w: calc(var(--h) * 5);
   --control-w: calc(var(--h) * 7);
@@ -77,14 +86,23 @@
 
   /* сетка */
   --rail: 60px;
-  --col: 720px;
-  --aside: 310px;
+  --col: 760px;
+  --col-wide: 1000px;
+  --wide-lead: calc(var(--page-x) - var(--s4));   /* отступ карточки: вместе с полем строки даёт --page-x */
+  --card-cols: minmax(min-content, 1fr) minmax(0, 1.7fr);
+  --aside: 380px;
   --col-gap: 80px;
   --page-x: 44px;
   --page-top: 28px;
   --sheet-pad: 8px;   /* поле вокруг колонки контента */
   --name-w: 120px;    /* колонка названия в однострочных списках */
   --page-cols: minmax(0, var(--col)) var(--aside);
+  --page-cols-solo: minmax(0, var(--col));
+  --page-cols-collapsed: minmax(0, var(--col)) 0px;
+  --page-cols-wide: minmax(0, 1fr) var(--aside);
+  --page-cols-wide-collapsed: minmax(0, 1fr) 0px;
+  --aside-inner-w: var(--aside);
+  --aside-hidden-h: none;
   --aside-position: sticky;
   --modal: 480px;
   --menu: 240px;
@@ -101,11 +119,11 @@
   /* типографика */
   --ui: 'Geist Variable', system-ui, sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, monospace;
-  --fs-2xs: 9px; --fs-xs: 12px; --fs-s: 13px; --fs-m: 14px; --fs-c: 13.5px; --fs-b: 15.5px; --fs-l: 16.5px;
-  --fs-t: 17.5px; --fs-h2: 16px; --fs-h1: 22px; --fs-focus: 25px;
+  --fs-2xs: 9px; --fs-xs: 12px; --fs-s: 14px; --fs-m: 15px; --fs-c: 14.5px; --fs-b: 17px; --fs-l: 18.5px;
+  --fs-t: 19px; --fs-h2: 17px; --fs-h1: 24px; --fs-focus: 28px; --fs-source: 16px;
   --lh: 1.5; --lh-tight: 1.2; --lh-loose: 1.9; --lh-read: 1.62; --lh-focus: 1.42; --lh-label: 26px;
   --fw: 400; --fw-m: 500; --fw-b: 600;
-  --ls-tight: -.02em; --ls-focus: -.012em;
+  --ls-tight: -.02em; --ls-caps: .07em; --ls-focus: -.012em;
 
   /* слои и прозрачность */
   --z-menu: 20; --z-modal: 30; --z-toast: 40;
@@ -114,6 +132,7 @@
 
   /* движение */
   --t: 150ms;
+  --t-slow: 280ms cubic-bezier(.2, .7, .2, 1);
   --spin: 1s;
   --turn: 360deg;
 }
@@ -141,6 +160,12 @@
   :root {
     --page-x: 22px;
     --page-cols: minmax(0, 1fr);
+    --page-cols-solo: minmax(0, 1fr);
+    --page-cols-collapsed: minmax(0, 1fr);
+    --page-cols-wide: minmax(0, 1fr);
+    --page-cols-wide-collapsed: minmax(0, 1fr);
+    --aside-inner-w: auto;
+    --aside-hidden-h: 0;
     --aside-position: static;
   }
 }

@@ -65,3 +65,9 @@ export const sortOrderPref = makePref<SortOrder>({
   default: 'relevance',
   parse: (raw) => (raw === 'chronological' ? raw : 'relevance'),
 })
+
+export const sourceTextShownPref = makePref<boolean>({
+  key: 'review.sourceTextShown',
+  default: true,
+  parse: (raw) => raw !== 'false',
+})

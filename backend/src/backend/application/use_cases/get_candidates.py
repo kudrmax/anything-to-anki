@@ -34,6 +34,7 @@ class GetCandidatesUseCase:
         sort_order: CandidateSortOrder | None = None,
     ) -> list[StoredCandidateDTO]:
         from backend.domain.services.candidate_sorting import (
+            decided_last,
             sort_chronologically,
         )
         from backend.domain.value_objects.candidate_sort_order import (
@@ -49,6 +50,7 @@ class GetCandidatesUseCase:
             candidates = sort_chronologically(candidates, source_text=text)
         else:
             candidates = self._relevance_sorter.sort(candidates)
+        candidates = decided_last(candidates)
         candidate_ids = [c.id for c in candidates if c.id is not None]
         jobs_by_candidate = self._job_repo.get_jobs_for_candidates(candidate_ids)
         return [stored_candidate_to_dto(c, jobs_by_candidate) for c in candidates]

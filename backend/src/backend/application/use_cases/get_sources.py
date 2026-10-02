@@ -125,6 +125,7 @@ class GetSourcesUseCase:
         sort_order: CandidateSortOrder | None = None,
     ) -> SourceDetailDTO:
         from backend.domain.services.candidate_sorting import (
+            decided_last,
             sort_chronologically,
         )
         from backend.domain.value_objects.candidate_sort_order import (
@@ -142,6 +143,7 @@ class GetSourcesUseCase:
         else:
             candidates = self._relevance_sorter.sort(candidates)
             initially_shown = INITIALLY_SHOWN_CANDIDATES
+        candidates = decided_last(candidates)
         candidate_ids = [c.id for c in candidates if c.id is not None]
         jobs_by_candidate = self._job_repo.get_jobs_for_candidates(candidate_ids)
         return SourceDetailDTO(

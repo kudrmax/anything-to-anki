@@ -1,6 +1,7 @@
-import { ChevronDown, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import { Button, Icon, Menu, Spinner, type MenuItem } from '@/ui'
 import type { Review } from './useReview'
+import css from './review.module.css'
 
 interface QueueState {
   inflight: number
@@ -33,10 +34,8 @@ export function GenerateMenu({ review }: { review: Review }) {
     <Menu
       items={items}
       trigger={
-        <Button variant="link" title="Meanings · Media · Pronunciation">
-          {queue.anyInflight || review.downloadingVideo ? <Spinner /> : <Icon as={Sparkles} size="s" />}
-          Generate
-          <Icon as={ChevronDown} size="s" />
+        <Button variant="link" className={css.iconTrigger} title="Generate meanings · media · pronunciation" aria-label="Generate">
+          {queue.anyInflight || review.downloadingVideo ? <Spinner /> : <Icon as={Sparkles} />}
         </Button>
       }
     />

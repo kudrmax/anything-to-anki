@@ -75,6 +75,10 @@ final class MainWindowController: NSWindowController {
         }
     }
 
+    func zoom(_ step: PageZoom.Step) {
+        webController.zoom(step)
+    }
+
     private func setContent(_ controller: NSViewController) {
         guard let window, window.contentViewController !== controller else { return }
         let frame = window.frame
