@@ -131,4 +131,4 @@ weasel==1.0.0
 websockets==16.1.1
 wordfreq==3.1.1
 wrapt==2.3.0
-yt-dlp==2026.7.4
+yt-dlp==2026.8.19
