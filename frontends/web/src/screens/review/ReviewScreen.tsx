@@ -100,7 +100,9 @@ export function ReviewScreen() {
     </>
   )
 
-  const aside = (
+  // У темы нет своего текста: её фразы собраны из других источников.
+  const hasSourceText = source.content_type !== 'topic'
+  const aside = hasSourceText && (
     <Aside title="Source text">
       <SourceText
         text={source.cleaned_text ?? source.raw_text}
