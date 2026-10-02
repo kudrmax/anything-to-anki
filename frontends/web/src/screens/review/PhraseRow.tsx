@@ -1,7 +1,6 @@
 import type { CandidateStatus, StoredCandidate } from '@/api/types'
 import { highlightParts } from '@/lib/text/meaning'
 import { StatusDot, type Tone } from '@/ui'
-import phrase from '@/ui/phrase.module.css'
 import css from './review.module.css'
 
 const TONE: Record<CandidateStatus, Tone> = { pending: 'idle', learn: 'ok', known: 'off', skip: 'off' }
@@ -11,7 +10,7 @@ interface PhraseRowProps {
   onSelect: (id: number) => void
 }
 
-/** Свёрнутая фраза в очереди. */
+/** Свёрнутая фраза в очереди: одна строка, полный текст — в подсказке. */
 export function PhraseRow({ candidate, onSelect }: PhraseRowProps) {
   const rated = candidate.status !== 'pending'
   const classes = [css.queueItem, rated && css.queueItemRated].filter(Boolean).join(' ')
@@ -20,7 +19,7 @@ export function PhraseRow({ candidate, onSelect }: PhraseRowProps) {
       {rated && <StatusDot tone={TONE[candidate.status]} />}
       <span className={css.queueText}>
         {highlightParts(candidate.context_fragment, candidate.lemma, candidate.surface_form).map((part, i) =>
-          part.target ? <b key={i} className={rated ? `${phrase.target} ${phrase.targetRated}` : phrase.target}>{part.text}</b> : part.text,
+          part.target ? <span key={i} className={css.queueTarget}>{part.text}</span> : part.text,
         )}
       </span>
     </button>

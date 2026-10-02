@@ -29,6 +29,7 @@
   --ac-tint: color-mix(in srgb, var(--ac) 22%, transparent);
   --ac-wash: color-mix(in srgb, var(--ac) 13%, transparent);
   --hover: color-mix(in srgb, var(--soft) 55%, transparent);
+  --line-soft: color-mix(in srgb, var(--line) 60%, transparent);
   --glow-a: color-mix(in srgb, var(--ac-deep) var(--glow-strength), transparent);
   --glow-b: color-mix(in srgb, var(--ac-deep) calc(var(--glow-strength) * .45), transparent);
   --page-bg: radial-gradient(900px 420px at 18% -10%, var(--glow-a), transparent 60%),
