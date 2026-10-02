@@ -21,6 +21,8 @@ from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.relevance_support import relevance_sorter
+
 
 def _make_source(
     *,
@@ -66,7 +68,7 @@ def _make_use_case(
         meaning_repo=meaning_repo,
         candidate_repo=candidate_repo or MagicMock(),
         source_repo=source_repo or MagicMock(),
-        settings_repo=settings_repo,
+        relevance_sorter=relevance_sorter(settings_repo),
         job_repo=MagicMock(),
     )
 

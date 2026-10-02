@@ -20,7 +20,6 @@ from backend.domain.services.fragment_selection import (
 from backend.domain.services.fragment_selection.rendering import render_fragment
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.frequency_band import FrequencyBand
-from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
 
 logger = logging.getLogger(__name__)
 
@@ -95,9 +94,9 @@ class AnalyzeTextUseCase:
         user_level = CEFRLevel.from_str(request.user_level)
         logger.info(
             "analyze_text: start (raw_text_len=%d, user_level=%s, known_words=%d, "
-            "frequent_word_threshold=%s)",
+            "frequent_word_zipf=%s)",
             len(request.raw_text or ""), user_level.name, len(request.known_lemmas),
-            request.frequent_word_threshold,
+            request.frequent_word_zipf,
         )
 
         # Layer 2: clean text
@@ -131,7 +130,7 @@ class AnalyzeTextUseCase:
             frequency_provider=self._frequency_provider,
             user_level=user_level,
             known_lemmas=request.known_lemmas,
-            frequent_threshold=FrequentWordThreshold.from_key(request.frequent_word_threshold),
+            frequent_zipf=request.frequent_word_zipf,
         )
         words = self._collect_words(tokens, knowledge, user_level)
         phrasal_verbs = self._collect_phrasal_verbs(tokens, knowledge)

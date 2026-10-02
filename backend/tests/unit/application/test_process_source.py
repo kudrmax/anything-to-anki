@@ -12,6 +12,8 @@ from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.relevance_support import threshold_resolver
+
 
 def _make_use_case() -> tuple[ProcessSourceUseCase, dict[str, MagicMock]]:
     mocks = {
@@ -26,6 +28,7 @@ def _make_use_case() -> tuple[ProcessSourceUseCase, dict[str, MagicMock]]:
         candidate_repo=mocks["candidate_repo"],
         known_word_repo=mocks["known_word_repo"],
         settings_repo=mocks["settings_repo"],
+        threshold_resolver=threshold_resolver(mocks["settings_repo"]),
         analyze_text_use_case=mocks["analyze_text"],
     )
     return uc, mocks
@@ -146,7 +149,7 @@ class TestProcessSourceExecute:
         uc.execute(1)
         request = mocks["analyze_text"].execute.call_args[0][0]
         assert request.known_lemmas == frozenset({"pursuit", "divorce"})
-        assert request.frequent_word_threshold == "5.0"
+        assert request.frequent_word_zipf == 5.0
 
     def test_execute_saves_fragment_unknown_count(self) -> None:
         uc, mocks = _make_use_case()
@@ -206,6 +209,7 @@ def _make_use_case_with_parsers() -> tuple[ProcessSourceUseCase, dict[str, Magic
         candidate_repo=mocks["candidate_repo"],
         known_word_repo=mocks["known_word_repo"],
         settings_repo=mocks["settings_repo"],
+        threshold_resolver=threshold_resolver(mocks["settings_repo"]),
         analyze_text_use_case=mocks["analyze_text"],
         source_parsers={
             InputMethod.LYRICS_PASTED: lyrics_parser,

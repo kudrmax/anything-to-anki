@@ -19,6 +19,9 @@ from backend.domain.value_objects.frequent_word_threshold import (
 )
 
 if TYPE_CHECKING:
+    from backend.application.utils.frequent_word_threshold_resolver import (
+        FrequentWordThresholdResolver,
+    )
     from backend.domain.ports.settings_repository import SettingsRepository
 
 _DEFAULT_CEFR_LEVEL: str = "B1"
@@ -72,8 +75,13 @@ _FLOAT_KEYS: frozenset[str] = frozenset({"tts_speed"})
 class ManageSettingsUseCase:
     """Gets and updates application settings."""
 
-    def __init__(self, settings_repo: SettingsRepository) -> None:
+    def __init__(
+        self,
+        settings_repo: SettingsRepository,
+        threshold_resolver: FrequentWordThresholdResolver,
+    ) -> None:
         self._settings_repo = settings_repo
+        self._threshold_resolver = threshold_resolver
 
     def get_settings(self) -> SettingsDTO:
         raw: dict[str, str] = {
@@ -108,8 +116,13 @@ class ManageSettingsUseCase:
         return self.get_settings()
 
     def frequent_word_threshold_options(self) -> list[FrequentWordThresholdDTO]:
+        auto_zipf = self._threshold_resolver.auto_zipf()
         return [
-            FrequentWordThresholdDTO(value=t.key, examples=list(t.examples))
+            FrequentWordThresholdDTO(
+                value=t.key,
+                zipf=auto_zipf if t.is_auto else t.zipf,
+                examples=list(t.examples),
+            )
             for t in FREQUENT_WORD_THRESHOLDS
         ]
 

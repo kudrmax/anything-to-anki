@@ -15,8 +15,11 @@ const THEMES: { value: ThemePref; label: string }[] = [
   { value: 'system', label: 'System' },
 ]
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(level => ({ value: level, label: level }))
-const frequentWordThresholdLabel = ({ value, examples }: FrequentWordThresholdOption) =>
-  examples.length > 0 ? `${value} — ${examples.join(', ')}` : 'Off'
+const AUTO_THRESHOLD = 'auto'
+const frequentWordThresholdLabel = ({ value, zipf, examples }: FrequentWordThresholdOption) => {
+  if (value === AUTO_THRESHOLD) return `Auto — now ${zipf?.toFixed(1)}`
+  return examples.length > 0 ? `${value} — ${examples.join(', ')}` : 'Off'
+}
 const AI_MODELS = [
   { value: 'haiku', label: 'Haiku' },
   { value: 'sonnet', label: 'Sonnet' },
@@ -152,7 +155,7 @@ export function Vocabulary({ store, form }: SectionProps) {
       </DividerRow>
       <DividerRow
         label="Frequent words"
-        hint="Words at least this frequent go to the bottom of the list as probably known. Each option shows examples of words that go down. Lower value — more words go down."
+        hint="Words at least this frequent go to the bottom of the list as probably known. Auto learns the value from your Know / Learn marks. Other options show examples of words that go down; lower value — more words go down."
       >
         <Select value={form.frequent_word_threshold} onChange={e => store.setField('frequent_word_threshold', e.target.value)}>
           {store.frequentWordThresholds.map(option => (

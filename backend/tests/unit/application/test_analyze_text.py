@@ -206,7 +206,7 @@ def _run(
     cefr_map: dict[str, CEFRLevel],
     freq_map: dict[str, float] | None = None,
     known: frozenset[str] = frozenset(),
-    threshold: str = "4.5",
+    frequent_zipf: float | None = 4.5,
 ) -> list[WordCandidateDTO]:
     use_case = _create_use_case(
         cleaned_text=" ".join(t.text for t in tokens),
@@ -216,7 +216,7 @@ def _run(
     )
     request = AnalyzeTextRequest(
         raw_text="text", user_level="B1", known_lemmas=known,
-        frequent_word_threshold=threshold,
+        frequent_word_zipf=frequent_zipf,
     )
     return use_case.execute(request).candidates
 
@@ -314,7 +314,7 @@ class TestAnalyzeTextPhraseChoice:
         tokens = _sentence(0, 0, ["one", "concept", "two", "three", "feast"])
         candidates = _run(
             tokens, {"feast": CEFRLevel.C1, "concept": CEFRLevel.B2},
-            {**EASY, "feast": 3.9, "concept": 4.77}, threshold="off",
+            {**EASY, "feast": 3.9, "concept": 4.77}, frequent_zipf=None,
         )
         feast = next(c for c in candidates if c.lemma == "feast")
         assert feast.fragment_unknown_count == 1
@@ -350,3 +350,41 @@ class TestAnalyzeTextSlangNormalization:
 
         text_normalizer.normalize.assert_called_once_with("I wanna go")
         text_analyzer.analyze.assert_called_once_with("I want to go")
+
+
+@pytest.mark.unit
+class TestAnalyzeTextLemmaFixes:
+    def test_lost_silent_e_is_restored(self) -> None:
+        tokens = [_make_token(0, "hoping", "hop", pos="VERB", tag="VBG")]
+        candidates = _run(
+            tokens, {"hope": CEFRLevel.B2}, {"hop": 4.4, "hope": 5.44, "hoping": 4.67},
+            frequent_zipf=None,
+        )
+        assert [c.lemma for c in candidates] == ["hope"]
+
+    def test_doubled_consonant_keeps_the_short_stem(self) -> None:
+        tokens = [_make_token(0, "hopping", "hop", pos="VERB", tag="VBG")]
+        candidates = _run(
+            tokens, {"hop": CEFRLevel.B2}, {"hop": 4.4, "hope": 5.44, "hopping": 3.43},
+            frequent_zipf=None,
+        )
+        assert [c.lemma for c in candidates] == ["hop"]
+
+    def test_stem_without_silent_e_spelling_is_kept(self) -> None:
+        """'visiting' — 'visite' is only a rare typo."""
+        tokens = [_make_token(0, "visiting", "visit", pos="VERB", tag="VBG")]
+        candidates = _run(
+            tokens, {"visit": CEFRLevel.B2}, {"visit": 5.0, "visite": 2.06, "visiting": 4.5},
+            frequent_zipf=None,
+        )
+        assert [c.lemma for c in candidates] == ["visit"]
+
+    def test_plural_only_noun_keeps_its_s(self) -> None:
+        tokens = [_make_token(0, "pants", "pant", tag="NNS")]
+        candidates = _run(tokens, {"pants": CEFRLevel.B2}, {"pant": 3.18, "pants": 4.48})
+        assert [c.lemma for c in candidates] == ["pants"]
+
+    def test_regular_plural_goes_to_singular(self) -> None:
+        tokens = [_make_token(0, "glasses", "glass", tag="NNS")]
+        candidates = _run(tokens, {"glass": CEFRLevel.B2}, {"glass": 4.85, "glasses": 4.34})
+        assert [c.lemma for c in candidates] == ["glass"]

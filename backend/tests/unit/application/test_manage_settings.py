@@ -4,12 +4,17 @@ import pytest
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 
+from tests.relevance_support import threshold_resolver
+
 
 @pytest.mark.unit
 class TestManageSettingsUseCase:
     def setup_method(self) -> None:
         self.settings_repo = MagicMock()
-        self.use_case = ManageSettingsUseCase(settings_repo=self.settings_repo)
+        self.use_case = ManageSettingsUseCase(
+            settings_repo=self.settings_repo,
+            threshold_resolver=threshold_resolver(self.settings_repo),
+        )
 
     def test_get_settings(self) -> None:
         self.settings_repo.get.side_effect = lambda key, default: {

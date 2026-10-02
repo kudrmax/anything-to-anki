@@ -9,7 +9,6 @@ from backend.application.dto.source_dtos import (
     SourceDTO,
     stored_candidate_to_dto,
 )
-from backend.application.utils.relevance_sorter import RelevanceSorter
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
@@ -17,11 +16,11 @@ from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
+    from backend.application.utils.relevance_sorter import RelevanceSorter
     from backend.domain.entities.source import Source
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.collection_repository import CollectionRepository
     from backend.domain.ports.job_repository import JobRepository
-    from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.topic_target_repository import TopicTargetRepository
     from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
@@ -46,14 +45,14 @@ class GetSourcesUseCase:
         self,
         source_repo: SourceRepository,
         candidate_repo: CandidateRepository,
-        settings_repo: SettingsRepository,
+        relevance_sorter: RelevanceSorter,
         job_repo: JobRepository,
         collection_repo: CollectionRepository,
         topic_target_repo: TopicTargetRepository,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
-        self._settings_repo = settings_repo
+        self._relevance_sorter = relevance_sorter
         self._job_repo = job_repo
         self._collection_repo = collection_repo
         self._topic_target_repo = topic_target_repo
@@ -141,7 +140,7 @@ class GetSourcesUseCase:
             text = source.cleaned_text or source.raw_text
             candidates = sort_chronologically(candidates, source_text=text)
         else:
-            candidates = RelevanceSorter(self._settings_repo).sort(candidates)
+            candidates = self._relevance_sorter.sort(candidates)
             initially_shown = INITIALLY_SHOWN_CANDIDATES
         candidate_ids = [c.id for c in candidates if c.id is not None]
         jobs_by_candidate = self._job_repo.get_jobs_for_candidates(candidate_ids)

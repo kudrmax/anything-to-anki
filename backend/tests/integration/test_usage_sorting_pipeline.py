@@ -15,6 +15,8 @@ from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
 )
 
+from tests.relevance_support import threshold_resolver
+
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
@@ -24,7 +26,7 @@ class TestUsageSortingPipeline:
     def test_usage_distribution_stored_and_sorted(self, db_session: Session) -> None:
         """Settings roundtrip for usage_group_order."""
         settings_repo = SqlaSettingsRepository(db_session)
-        settings_uc = ManageSettingsUseCase(settings_repo)
+        settings_uc = ManageSettingsUseCase(settings_repo, threshold_resolver(settings_repo))
         custom_order = [
             "informal",
             "neutral",

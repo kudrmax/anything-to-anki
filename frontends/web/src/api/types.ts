@@ -211,6 +211,8 @@ export interface Settings {
 
 export interface FrequentWordThresholdOption {
   value: string
+  /** The threshold itself; for Auto — its current value calibrated on your marks. */
+  zipf: number | null
   /** Words that go down to the bottom of the list at this threshold. */
   examples: string[]
 }

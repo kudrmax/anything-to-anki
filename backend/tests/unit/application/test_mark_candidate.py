@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
 from backend.domain.entities.stored_candidate import StoredCandidate
+from backend.domain.entities.word_decision import WordDecision
 from backend.domain.exceptions import CandidateNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
@@ -13,9 +14,11 @@ class TestMarkCandidateUseCase:
         self.candidate_repo = MagicMock()
         self.known_word_repo = MagicMock()
         self.review_status = MagicMock()
+        self.decision_repo = MagicMock()
         self.use_case = MarkCandidateUseCase(
             candidate_repo=self.candidate_repo,
             known_word_repo=self.known_word_repo,
+            decision_repo=self.decision_repo,
             review_status=self.review_status,
         )
 
@@ -79,3 +82,58 @@ class TestMarkCandidateUseCase:
         self.candidate_repo.get_by_id.return_value = None
         with pytest.raises(CandidateNotFoundError):
             self.use_case.execute(999, CandidateStatus.LEARN)
+
+
+def _candidate(
+    status: CandidateStatus, lemma: str = "lizard", *, phrasal: bool = False,
+) -> StoredCandidate:
+    return StoredCandidate(
+        id=1, source_id=1, lemma=lemma, pos="NOUN", cefr_level="C1", zipf_frequency=3.63,
+        context_fragment="big lizards", fragment_purity="clean", occurrences=1,
+        status=status, is_phrasal_verb=phrasal,
+    )
+
+
+@pytest.mark.unit
+class TestMarkCandidateRemembersDecisions:
+    def setup_method(self) -> None:
+        self.candidate_repo = MagicMock()
+        self.decision_repo = MagicMock()
+        self.use_case = MarkCandidateUseCase(
+            candidate_repo=self.candidate_repo,
+            known_word_repo=MagicMock(),
+            decision_repo=self.decision_repo,
+            review_status=MagicMock(),
+        )
+
+    def test_learn_is_remembered_as_unknown(self) -> None:
+        self.candidate_repo.get_by_id.return_value = _candidate(CandidateStatus.PENDING)
+        self.use_case.execute(1, CandidateStatus.LEARN)
+        self.decision_repo.record.assert_called_once_with(
+            WordDecision("lizard", 3.63, is_known=False),
+        )
+
+    def test_known_is_remembered_as_known(self) -> None:
+        self.candidate_repo.get_by_id.return_value = _candidate(CandidateStatus.PENDING)
+        self.use_case.execute(1, CandidateStatus.KNOWN)
+        self.decision_repo.record.assert_called_once_with(
+            WordDecision("lizard", 3.63, is_known=True),
+        )
+
+    def test_undo_forgets_the_decision(self) -> None:
+        self.candidate_repo.get_by_id.return_value = _candidate(CandidateStatus.LEARN)
+        self.use_case.execute(1, CandidateStatus.PENDING)
+        self.decision_repo.forget.assert_called_once_with("lizard")
+
+    def test_skip_is_not_a_decision_about_knowing(self) -> None:
+        self.candidate_repo.get_by_id.return_value = _candidate(CandidateStatus.PENDING)
+        self.use_case.execute(1, CandidateStatus.SKIP)
+        self.decision_repo.record.assert_not_called()
+        self.decision_repo.forget.assert_not_called()
+
+    def test_phrasal_verb_is_not_remembered(self) -> None:
+        self.candidate_repo.get_by_id.return_value = _candidate(
+            CandidateStatus.PENDING, "freak out", phrasal=True,
+        )
+        self.use_case.execute(1, CandidateStatus.KNOWN)
+        self.decision_repo.record.assert_not_called()

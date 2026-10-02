@@ -9,6 +9,8 @@ from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.relevance_support import relevance_sorter
+
 
 @pytest.mark.unit
 class TestGetSourcesUseCase:
@@ -26,7 +28,7 @@ class TestGetSourcesUseCase:
         self.use_case = GetSourcesUseCase(
             source_repo=self.source_repo,
             candidate_repo=self.candidate_repo,
-            settings_repo=self.settings_repo,
+            relevance_sorter=relevance_sorter(self.settings_repo),
             job_repo=self.job_repo,
             collection_repo=self.collection_repo,
             topic_target_repo=self.topic_target_repo,

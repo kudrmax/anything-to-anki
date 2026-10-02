@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest, dto_to_usage_distribution
 from backend.application.dto.cefr_dtos import dto_to_breakdown
-from backend.application.utils.relevance_sorter import read_frequent_word_threshold
 from backend.application.utils.timecode_mapping import find_timecodes
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -24,6 +23,9 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
+    from backend.application.utils.frequent_word_threshold_resolver import (
+        FrequentWordThresholdResolver,
+    )
     from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
     from backend.domain.entities.source import Source
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
@@ -50,6 +52,7 @@ class ProcessSourceUseCase:
         candidate_repo: CandidateRepository,
         known_word_repo: KnownWordRepository,
         settings_repo: SettingsRepository,
+        threshold_resolver: FrequentWordThresholdResolver,
         analyze_text_use_case: AnalyzeTextUseCase,
         source_parsers: dict[InputMethod, SourceParser] | None = None,
         structured_srt_parser: StructuredSrtParser | None = None,
@@ -60,6 +63,7 @@ class ProcessSourceUseCase:
         self._candidate_repo = candidate_repo
         self._known_word_repo = known_word_repo
         self._settings_repo = settings_repo
+        self._threshold_resolver = threshold_resolver
         self._analyze_text = analyze_text_use_case
         self._source_parsers: dict[InputMethod, SourceParser] = source_parsers or {}
         self._structured_srt_parser = structured_srt_parser
@@ -134,7 +138,7 @@ class ProcessSourceUseCase:
             raw_text=raw_text,
             user_level=cefr_level,
             known_lemmas=known_filter.known_lemmas,
-            frequent_word_threshold=read_frequent_word_threshold(self._settings_repo).key,
+            frequent_word_zipf=self._threshold_resolver.resolve().zipf,
         )
         result = self._analyze_text.execute(request)
         filtered = result.candidates
