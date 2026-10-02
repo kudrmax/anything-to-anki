@@ -30,6 +30,8 @@ class SqlaCardReportRepository(CardReportRepository):
             fragment_unknown_count=report.fragment_unknown_count,
             is_phrasal_verb=report.is_phrasal_verb,
             comment=report.comment,
+            text_before=report.text_before,
+            text_after=report.text_after,
         )
         self._session.add(model)
         self._session.flush()

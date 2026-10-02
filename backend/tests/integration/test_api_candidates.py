@@ -27,7 +27,10 @@ def client() -> Generator[TestClient, None, None]:
 
     # Seed test data
     session = test_session_factory()
-    source = SourceModel(raw_text="Test", status="done")
+    source = SourceModel(
+        raw_text="Test", status="done",
+        cleaned_text="It was always the pursuit of happiness, he said.",
+    )
     session.add(source)
     session.flush()
     repo = SqlaCandidateRepository(session)
@@ -113,6 +116,8 @@ class TestCardReportsAPI:
         assert report["comment"] == "Phrase too long"
         assert report["lemma"] == "pursuit"
         assert report["context_fragment"] == "the pursuit of"
+        assert report["text_before"] == "It was always "
+        assert report["text_after"] == " happiness, he said."
 
     def test_reports_are_listed_newest_first(self, client: TestClient) -> None:
         client.post("/candidates/1/report", json={"comment": "first"})

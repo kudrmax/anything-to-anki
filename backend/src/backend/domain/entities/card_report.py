@@ -26,5 +26,8 @@ class CardReport:
     fragment_unknown_count: int
     is_phrasal_verb: bool
     comment: str
+    # Source text around the phrase; None when the phrase is not in the source.
+    text_before: str | None = None
+    text_after: str | None = None
     id: int | None = None
     created_at: datetime | None = None
