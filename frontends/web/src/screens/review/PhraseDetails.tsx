@@ -68,6 +68,7 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
     || isActive(candidate.pronunciation?.status) || isActive(candidate.tts?.status)
   const paragraphs = meaning?.meaning ? nonEmptyLines(meaning.meaning) : []
   const examples = meaning?.examples ? nonEmptyLines(meaning.examples) : []
+  const [definition, ...context] = paragraphs
 
   return (
     <div className={css.details}>
@@ -100,9 +101,7 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
 
       <div className={css.body}>
         <div className={css.text}>
-          {paragraphs.map((paragraph, i) => isDivider(paragraph)
-            ? <hr key={i} className={phrase.divider} />
-            : <p key={i} className={i === 0 ? phrase.definition : phrase.context}><RichText text={paragraph} candidate={candidate} /></p>)}
+          {definition && <p className={css.definition}><RichText text={definition} candidate={candidate} /></p>}
           {paragraphs.length === 0 && (
             <div className={css.status}>
               <StatusText status={meaning?.status} error={meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
@@ -114,14 +113,17 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
             </div>
           )}
           {(meaning?.translation || meaning?.synonyms) && (
-            <p className={phrase.translation}>
-              {meaning.translation}
+            <p className={css.translation}>
+              {meaning.translation && <span className={css.translationWord}>{meaning.translation}</span>}
               {meaning.translation && meaning.synonyms && <span className={phrase.separator}>·</span>}
               {meaning.synonyms}
             </p>
           )}
+          {context.map((paragraph, i) => isDivider(paragraph)
+            ? <hr key={i} className={phrase.divider} />
+            : <p key={i} className={css.context}><RichText text={paragraph} candidate={candidate} /></p>)}
           {examples.length > 0 && (
-            <ul className={phrase.examples}>
+            <ul className={css.examples}>
               {examples.map((line, i) => <li key={i}><RichText text={line} candidate={candidate} /></li>)}
             </ul>
           )}

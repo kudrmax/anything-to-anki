@@ -2,21 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { decisionChange, type Decision } from '@/lib/decision'
 import { reviewAction, type ReviewAction } from '@/lib/hotkeys'
-import type { SortOrder } from '@/lib/preferences'
+import { sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
-import { Banner, Button, Empty, Progress, Segmented, Spinner, Toast } from '@/ui'
+import { PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { Banner, Button, Empty, IconButton, Progress, Spinner, Toast } from '@/ui'
 import { GenerateMenu } from './GenerateMenu'
 import { PhraseRow } from './PhraseRow'
 import { SelectionPopover } from './SelectionPopover'
+import { SortMenu } from './SortMenu'
 import { SourceText, type SelectionPoint } from './SourceText'
 import { audioUrlForCandidate, useReview } from './useReview'
 import { useShownCandidates } from './useShownCandidates'
 import css from './review.module.css'
 
-const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
-  { value: 'relevance', label: 'Relevance' },
-  { value: 'chronological', label: 'Text order' },
-]
 const DECISION: Partial<Record<ReviewAction, Decision>> = { learn: 'learn', known: 'known', skip: 'skip' }
 const SOURCES_PATH = '/'
 
@@ -26,6 +24,11 @@ export function ReviewScreen() {
   const review = useReview(Number(id))
   const listRef = useRef<HTMLDivElement>(null)
   const [selection, setSelection] = useState<{ phrase: string; point: SelectionPoint } | null>(null)
+  const [sourceTextShown, setSourceTextShown] = useState(() => sourceTextShownPref.read())
+  const toggleSourceText = () => {
+    sourceTextShownPref.write(!sourceTextShown)
+    setSourceTextShown(!sourceTextShown)
+  }
 
   const { source, candidates, currentId, counts, editing } = review
   const current = candidates.find(c => c.id === currentId) ?? null
@@ -79,23 +82,35 @@ export function ReviewScreen() {
     window.getSelection()?.removeAllRanges()
   }
 
+  // У темы нет своего текста: её фразы собраны из других источников.
+  const hasSourceText = source.content_type !== 'topic'
+
   const header = (
     <PageHeader
       title={source.title}
       back={SOURCES_PATH}
       meta={candidates.length > 0 && (
         <>
-          {counts.marked} of {counts.total} · {counts.learn} to learn
           <Progress inline value={counts.progress} />
+          {counts.marked} / {counts.total}
         </>
       )}
     >
-      {candidates.length > 0 && (
-        <>
-          <Segmented value={review.sortOrder} options={SORT_OPTIONS} onChange={review.setSortOrder} />
-          <GenerateMenu review={review} />
-        </>
-      )}
+      <div className={css.headerTools}>
+        {candidates.length > 0 && (
+          <>
+            <SortMenu value={review.sortOrder} onChange={review.setSortOrder} />
+            <GenerateMenu review={review} />
+          </>
+        )}
+        {hasSourceText && (
+          <IconButton
+            icon={sourceTextShown ? PanelRightClose : PanelRightOpen}
+            label={sourceTextShown ? 'Hide source text' : 'Show source text'}
+            onClick={toggleSourceText}
+          />
+        )}
+      </div>
       <Button variant="fill" onClick={() => navigate(`/sources/${sourceId}/export`)}>Export · {counts.learn}</Button>
     </PageHeader>
   )
@@ -107,9 +122,7 @@ export function ReviewScreen() {
     </>
   )
 
-  // У темы нет своего текста: её фразы собраны из других источников.
-  const hasSourceText = source.content_type !== 'topic'
-  const aside = hasSourceText && (
+  const aside = hasSourceText && sourceTextShown && (
     <Aside title="Source text">
       <SourceText
         text={source.cleaned_text ?? source.raw_text}
@@ -122,7 +135,7 @@ export function ReviewScreen() {
   )
 
   return (
-    <Page header={header} aside={aside} banner={(review.vpnBlocked || editing) ? banner : undefined}>
+    <Page header={header} aside={aside || undefined} banner={(review.vpnBlocked || editing) ? banner : undefined}>
       <div ref={listRef}>
         {candidates.length === 0 && <Empty>No candidates found for this source.</Empty>}
         {list.shown.map(candidate => (

@@ -55,6 +55,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController?.reload()
     }
 
+    @objc func zoomIn(_ sender: Any?) {
+        windowController?.zoom(.zoomIn)
+    }
+
+    @objc func zoomOut(_ sender: Any?) {
+        windowController?.zoom(.zoomOut)
+    }
+
+    @objc func resetZoom(_ sender: Any?) {
+        windowController?.zoom(.reset)
+    }
+
     private func launch() {
         guard let launcher, let windowController, !isTerminating else { return }
         windowController.showStatus(.starting)

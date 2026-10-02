@@ -10,6 +10,7 @@ final class WebViewController: NSViewController {
         frame.isMainFrame && frame.request.url.map(config.isAppURL) == true
     })
     private lazy var webView: WKWebView = makeWebView()
+    private let pageZoom = PageZoom()
 
     init(config: AppConfig) {
         self.config = config
@@ -42,6 +43,10 @@ final class WebViewController: NSViewController {
         webView.reload()
     }
 
+    func zoom(_ step: PageZoom.Step) {
+        webView.pageZoom = pageZoom.apply(step)
+    }
+
     func observeBackground(_ apply: @escaping (NSColor) -> Void) -> NSKeyValueObservation {
         loadViewIfNeeded()
         return webView.observe(\.underPageBackgroundColor, options: [.new]) { webView, _ in
@@ -60,6 +65,7 @@ final class WebViewController: NSViewController {
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
         webView.isInspectable = true
+        webView.pageZoom = pageZoom.current
         return webView
     }
 

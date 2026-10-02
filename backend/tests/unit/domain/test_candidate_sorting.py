@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.candidate_sorting import (
+    decided_last,
     sort_by_relevance,
     sort_chronologically,
 )
@@ -307,3 +308,18 @@ class TestSortByRelevanceGroups:
         collocation = _make("starting salary", 0.0)
         frequent = _make("concept", 4.77)
         assert self._lemmas([frequent, collocation]) == ["starting salary", "concept"]
+
+
+@pytest.mark.unit
+class TestDecidedLast:
+    def test_decided_go_below_pending_keeping_order(self) -> None:
+        candidates = [_make(name, 4.0) for name in ("a", "b", "c", "d", "e")]
+        decided = {
+            "a": CandidateStatus.SKIP,
+            "c": CandidateStatus.LEARN,
+            "d": CandidateStatus.KNOWN,
+        }
+        for candidate in candidates:
+            candidate.status = decided.get(candidate.lemma, CandidateStatus.PENDING)
+        result = decided_last(candidates)
+        assert [c.lemma for c in result] == ["b", "e", "a", "c", "d"]

@@ -24,6 +24,10 @@ enum MainMenu {
         menu.addItem(submenu("View", [
             item("Reload", #selector(AppDelegate.reloadPage(_:)), "r"),
             .separator(),
+            item("Actual Size", #selector(AppDelegate.resetZoom(_:)), "0"),
+            item("Zoom In", #selector(AppDelegate.zoomIn(_:)), "="),
+            item("Zoom Out", #selector(AppDelegate.zoomOut(_:)), "-"),
+            .separator(),
             item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]),
         ]))
         let window = submenu("Window", [
