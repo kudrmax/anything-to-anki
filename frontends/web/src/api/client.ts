@@ -50,10 +50,10 @@ async function reqVoid(path: string, init?: RequestInit): Promise<void> {
 }
 
 export const api = {
-  createSource: (raw_text: string, source_type: SourceType, title?: string) =>
+  createSource: (raw_text: string, input_method: SourceType, title?: string) =>
     req<{ id: number; status: string }>('/sources', {
       method: 'POST',
-      body: JSON.stringify({ raw_text, source_type, ...(title ? { title } : {}) }),
+      body: JSON.stringify({ raw_text, input_method, ...(title ? { title } : {}) }),
     }),
 
   createUrlSource: (url: string, title?: string) =>
