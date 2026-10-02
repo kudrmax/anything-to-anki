@@ -6,11 +6,11 @@ export type SourceStatus =
   | 'partially_reviewed'
   | 'reviewed'
 
-export type InputMethod = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file' | 'video_file' | 'youtube_url'
-export type ContentType = 'text' | 'lyrics' | 'video'
+export type InputMethod = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file' | 'video_file' | 'youtube_url' | 'topic_query'
+export type ContentType = 'text' | 'lyrics' | 'video' | 'topic'
 export type SourceType = InputMethod
 
-export type ProcessingStage = 'cleaning_source' | 'analyzing_text'
+export type ProcessingStage = 'cleaning_source' | 'analyzing_text' | 'mapping_timecodes' | 'collecting_phrases'
 
 export type CandidateStatus = 'pending' | 'learn' | 'known' | 'skip'
 
@@ -38,6 +38,19 @@ export interface SourceSummary {
   processing_stage: ProcessingStage | null
   collection_id: number | null
   collection_name: string | null
+  /** Тема ещё ждёт AI-шага: запрос не превращён в target'ы. */
+  awaiting_generation: boolean
+  generation_status: GenerationStatus | null
+  generation_error: string | null
+}
+
+export type GenerationStatus = 'queued' | 'running' | 'failed'
+
+export type PhraseOriginKind = 'source' | 'generated'
+
+export interface PhraseOrigin {
+  kind: PhraseOriginKind
+  source_title: string | null
 }
 
 export type EnrichmentStatus = 'queued' | 'running' | 'done' | 'failed' | 'idle'
@@ -111,6 +124,7 @@ export interface StoredCandidate {
   cefr_breakdown?: CEFRBreakdown | null
   frequency_band: string | null
   usage_distribution: Record<string, number> | null
+  origin: PhraseOrigin | null
 }
 
 export interface SourceDetail {
@@ -295,6 +309,7 @@ export interface QueueGlobalSummary {
   media: JobTypeSummary
   pronunciation: JobTypeSummary
   video_download: JobTypeSummary
+  topic_targets: JobTypeSummary
 }
 
 export interface QueueJob {

@@ -177,6 +177,9 @@ export const api = {
   generateCandidateTTS: (candidateId: number) =>
     req<{ status: string }>(`/candidates/${candidateId}/generate-tts`, { method: 'POST' }),
 
+  enqueueTopicGeneration: (sourceId: number) =>
+    req<{ status: string }>(`/sources/${sourceId}/topic-targets/generate`, { method: 'POST' }),
+
   getQueueSummary: (sourceId: number) =>
     req<QueueSummary>(`/sources/${sourceId}/queue-summary`),
 

@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
 import type { Collection, SourceSummary, Stats } from '@/api/types'
+import { isVpnErrorText } from '@/lib/aiErrors'
 
 const POLL_INTERVAL_MS = 2000
 const DEFAULT_CEFR_LEVEL = 'B2'
+const TOPIC_JOB_TYPE = 'topic_targets'
+
+/** Источник, который можно обработать: тему сначала нужно сгенерировать. */
+const isPending = (s: SourceSummary): boolean => (s.status === 'new' || s.status === 'error') && !s.awaiting_generation
 
 interface Loaded {
   sources: SourceSummary[]
@@ -40,13 +45,13 @@ export function useSources() {
     api.getSettings().then(s => setCefrLevel(s.cefr_level)).catch(() => {})
   }, [reload])
 
-  // Один опрос всего списка, пока хоть один источник обрабатывается.
-  const anyProcessing = sources.some(s => s.status === 'processing')
+  // Один опрос всего списка, пока хоть один источник обрабатывается или ждёт AI.
+  const anyBusy = sources.some(s => s.status === 'processing' || s.generation_status === 'queued' || s.generation_status === 'running')
   useEffect(() => {
-    if (!anyProcessing) return
+    if (!anyBusy) return
     const timer = setInterval(() => void reload(), POLL_INTERVAL_MS)
     return () => clearInterval(timer)
-  }, [anyProcessing, reload])
+  }, [anyBusy, reload])
 
   const markProcessing = (id: number) =>
     setSources(prev => prev.map(s => (s.id === id ? { ...s, status: 'processing' as const } : s)))
@@ -60,8 +65,21 @@ export function useSources() {
     }
   }
 
+  const runGeneration = async (call: () => Promise<unknown>, fallback: string) => {
+    try {
+      await call()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : fallback)
+    }
+    await reload()
+  }
+
+  const generate = (id: number) => runGeneration(() => api.enqueueTopicGeneration(id), 'Failed to queue generation')
+  const cancelGeneration = (id: number) => runGeneration(() => api.cancelQueue(TOPIC_JOB_TYPE, id), 'Failed to cancel generation')
+  const retryGeneration = (id: number) => runGeneration(() => api.retryQueue(TOPIC_JOB_TYPE, id), 'Failed to retry generation')
+
   const processAll = async () => {
-    const pending = sources.filter(s => s.status === 'new' || s.status === 'error')
+    const pending = sources.filter(isPending)
     if (pending.length === 0) return
     setProcessingAll(true)
     try {
@@ -143,11 +161,12 @@ export function useSources() {
   }
 
   const prepend = (source: SourceSummary) => setSources(prev => [source, ...prev])
-  const pendingCount = sources.filter(s => s.status === 'new' || s.status === 'error').length
+  const pendingCount = sources.filter(isPending).length
+  const vpnBlocked = sources.some(s => s.generation_status === 'failed' && isVpnErrorText(s.generation_error))
 
   return {
-    sources, stats, collections, cefrLevel, error, clearError: () => setError(null), pendingCount, processingAll,
-    reload, prepend, process, processAll, remove, rename, assignCollection, reprocess,
+    sources, stats, collections, cefrLevel, error, clearError: () => setError(null), pendingCount, processingAll, vpnBlocked,
+    reload, prepend, process, processAll, generate, cancelGeneration, retryGeneration, remove, rename, assignCollection, reprocess,
     createCollection, renameCollection, deleteCollection,
   }
 }

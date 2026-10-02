@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent } from 'react'
 import { RefreshCw, Trash2 } from 'lucide-react'
-import type { Collection, ContentType, ProcessingStage, SourceStatus, SourceSummary } from '@/api/types'
+import type { Collection, ContentType, GenerationStatus, ProcessingStage, SourceStatus, SourceSummary } from '@/api/types'
 import { formatDate } from '@/lib/text/format'
 import { Button, Field, IconButton, Menu, Row, Text, type MenuItem, type Tone } from '@/ui'
 
@@ -8,6 +8,9 @@ interface SourceRowProps {
   source: SourceSummary
   collections: Collection[]
   onProcess: (id: number) => void
+  onGenerate: (id: number) => void
+  onCancelGeneration: (id: number) => void
+  onRetryGeneration: (id: number) => void
   onReview: (id: number) => void
   onExport: (id: number) => void
   onDelete: (id: number) => void
@@ -34,13 +37,31 @@ const STATUS_TONE: Record<SourceStatus, Tone> = {
   reviewed: 'off',
 }
 
-const TYPE_LABEL: Record<ContentType, string> = { text: 'Text', lyrics: 'Lyrics', video: 'Video' }
+const TYPE_LABEL: Record<ContentType, string> = { text: 'Text', lyrics: 'Lyrics', video: 'Video', topic: 'Topic' }
 
 const STAGE_LABEL: Record<ProcessingStage, string> = {
   cleaning_source: 'Cleaning source format…',
   analyzing_text: 'Analyzing text…',
+  mapping_timecodes: 'Mapping timecodes…',
+  collecting_phrases: 'Collecting phrases…',
 }
 const STAGE_DEFAULT = 'Starting…'
+
+type GenerationState = GenerationStatus | 'idle'
+
+const GENERATION_LABEL: Record<GenerationState, string> = {
+  idle: 'New',
+  queued: 'Queued',
+  running: 'Generating…',
+  failed: 'Generation failed',
+}
+
+const GENERATION_TONE: Record<GenerationState, Tone> = {
+  idle: 'idle',
+  queued: 'idle',
+  running: 'run',
+  failed: 'err',
+}
 
 function countText(source: SourceSummary): string | null {
   if (source.status === 'done' && source.candidate_count === 0) return 'Nothing to learn'
@@ -51,7 +72,7 @@ function countText(source: SourceSummary): string | null {
   return null
 }
 
-export function SourceRow({ source, collections, onProcess, onReview, onExport, onDelete, onRename, onReprocess, onAssignCollection }: SourceRowProps) {
+export function SourceRow({ source, collections, onProcess, onGenerate, onCancelGeneration, onRetryGeneration, onReview, onExport, onDelete, onRename, onReprocess, onAssignCollection }: SourceRowProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(source.title)
 
@@ -109,9 +130,20 @@ export function SourceRow({ source, collections, onProcess, onReview, onExport, 
 
   const canExport = source.status === 'partially_reviewed' || source.status === 'reviewed'
 
+  const generation: GenerationState | null = source.awaiting_generation ? source.generation_status ?? 'idle' : null
+  const generationAction = generation && {
+    idle: <Button onClick={() => onGenerate(source.id)}>Generate</Button>,
+    queued: <Button variant="danger-link" onClick={() => onCancelGeneration(source.id)}>Cancel</Button>,
+    running: <Button variant="danger-link" onClick={() => onCancelGeneration(source.id)}>Cancel</Button>,
+    failed: <Button onClick={() => onRetryGeneration(source.id)}>Retry</Button>,
+  }[generation]
+  const statusLabel = generation
+    ? <span title={source.generation_error ?? undefined}><Text tone={generation === 'failed' ? 'err' : 'muted'}>{GENERATION_LABEL[generation]}</Text></span>
+    : <Text tone={source.status === 'error' ? 'err' : 'muted'}>{STATUS_LABEL[source.status]}</Text>
+
   return (
     <Row
-      tone={STATUS_TONE[source.status]}
+      tone={generation ? GENERATION_TONE[generation] : STATUS_TONE[source.status]}
       dim={source.status === 'reviewed'}
       title={title}
       meta={source.collection_name ? <>{summary}{collectionMenu}</> : summary}
@@ -125,9 +157,9 @@ export function SourceRow({ source, collections, onProcess, onReview, onExport, 
       )}
       trailing={
         <>
-          <Text tone={source.status === 'error' ? 'err' : 'muted'}>{STATUS_LABEL[source.status]}</Text>
+          {statusLabel}
           {canExport && <Button variant="link" onClick={() => onExport(source.id)}>Export</Button>}
-          {action}
+          {generationAction ?? action}
         </>
       }
     />

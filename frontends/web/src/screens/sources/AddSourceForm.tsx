@@ -6,13 +6,14 @@ import { Button, Field, Label, Segmented, Stack, Tabs, Text, TextArea } from '@/
 import { PathField } from './PathField'
 import { TrackSelectionModal } from './TrackSelectionModal'
 
-type Tab = 'text' | 'url' | 'file'
+type Tab = 'text' | 'url' | 'file' | 'topic'
 type TextType = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file'
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'text', label: 'Text' },
   { value: 'url', label: 'URL' },
   { value: 'file', label: 'File' },
+  { value: 'topic', label: 'Topic' },
 ]
 const TEXT_TYPES: { value: TextType; label: string }[] = [
   { value: 'text_pasted', label: 'Text' },
@@ -24,6 +25,8 @@ const TEXT_PLACEHOLDER: Record<TextType, string> = {
   lyrics_pasted: 'Paste song lyrics here…',
   subtitles_file: 'Paste .srt subtitle content here…',
 }
+const TOPIC_PLACEHOLDER = 'Negotiating a salary, phrasal verbs with get…'
+const TOPIC_HINT = 'Targets come from AI, phrases from your sources'
 const SUBTITLE_EXTENSIONS = ['srt']
 const NO_SUBTITLES_ERROR = 'subtitles_not_available'
 const PREVIEW_LENGTH = 100
@@ -51,6 +54,7 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
   const [url, setUrl] = useState('')
   const [filePath, setFilePath] = useState('')
   const [srtPath, setSrtPath] = useState('')
+  const [topic, setTopic] = useState('')
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingTracks, setPendingTracks] = useState<PendingTracks | null>(null)
@@ -138,6 +142,9 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
         processing_stage: null,
         collection_id: null,
         collection_name: null,
+        awaiting_generation: false,
+        generation_status: null,
+        generation_error: null,
       })
       setText('')
       setTextType(null)
@@ -149,10 +156,26 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
     }
   }
 
+  const addTopic = async () => {
+    if (!topic.trim()) { setError('Describe what you want to learn'); return }
+    setAdding(true)
+    try {
+      await api.createSource(topic.trim(), 'topic_query', title.trim() || undefined)
+      await onReload()
+      setTopic('')
+      setTitle('')
+    } catch (e) {
+      setError(messageOf(e))
+    } finally {
+      setAdding(false)
+    }
+  }
+
   const add = () => {
     setError(null)
     if (tab === 'url') void addUrl()
     else if (tab === 'file') void addFile()
+    else if (tab === 'topic') void addTopic()
     else void addText()
   }
 
@@ -178,6 +201,12 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
                 <PathField value={srtPath} placeholder="/path/to/subtitles.srt (optional)" extensions={SUBTITLE_EXTENSIONS} onChange={setSrtPath} onError={setError} />
               )}
               {filePath.trim() && <Text tone="muted" size="s">{detectedFileType(filePath)}</Text>}
+            </>
+          )}
+          {tab === 'topic' && (
+            <>
+              <Field value={topic} placeholder={TOPIC_PLACEHOLDER} onChange={e => setTopic(e.target.value)} />
+              <Text tone="muted" size="s">{TOPIC_HINT}</Text>
             </>
           )}
         </Stack>

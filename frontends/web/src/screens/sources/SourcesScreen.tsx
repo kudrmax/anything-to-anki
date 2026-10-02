@@ -67,8 +67,15 @@ export function SourcesScreen() {
     </>
   )
 
+  const banner = (store.error || store.vpnBlocked) && (
+    <>
+      {store.vpnBlocked && <Banner tone="warn">AI unavailable — turn on VPN</Banner>}
+      {store.error && <Banner tone="err" onDismiss={store.clearError}>{store.error}</Banner>}
+    </>
+  )
+
   return (
-    <Page header={header} aside={aside} banner={store.error && <Banner tone="err" onDismiss={store.clearError}>{store.error}</Banner>}>
+    <Page header={header} aside={aside} banner={banner}>
       {filtered.length === 0 && (
         <Empty>{sources.length === 0 ? 'No sources yet. Add one to get started.' : 'No sources in this collection.'}</Empty>
       )}
@@ -78,6 +85,9 @@ export function SourcesScreen() {
           source={source}
           collections={collections}
           onProcess={id => void store.process(id)}
+          onGenerate={id => void store.generate(id)}
+          onCancelGeneration={id => void store.cancelGeneration(id)}
+          onRetryGeneration={id => void store.retryGeneration(id)}
           onReview={review}
           onExport={exportSource}
           onDelete={id => void store.remove(id)}

@@ -6,13 +6,14 @@ import { useQueuePolling } from '@/hooks/useQueuePolling'
 import { Aside, Page, PageHeader } from '@/shell'
 import { Button, DividerRow, Empty, IconButton, Row, Select, Spinner, Stack, Text } from '@/ui'
 
-const JOB_TYPES: (keyof QueueGlobalSummary)[] = ['meaning', 'media', 'pronunciation', 'video_download']
+const JOB_TYPES: (keyof QueueGlobalSummary)[] = ['meaning', 'media', 'pronunciation', 'video_download', 'topic_targets']
 const JOB_LABEL: Record<string, string> = {
   meaning: 'Meaning',
   media: 'Media',
   pronunciation: 'Pronunciation',
   video_download: 'Video download',
   tts: 'TTS',
+  topic_targets: 'Topic targets',
 }
 const QUEUE_PREVIEW = 20
 
