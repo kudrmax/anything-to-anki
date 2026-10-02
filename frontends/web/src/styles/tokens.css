@@ -63,6 +63,8 @@
   --prog: 3px;
   --measure: 64ch;
   --fact-label-w: 84px;
+  --focus-leading-trim: calc((1 - var(--lh-focus)) * var(--fs-focus) / 2);
+  --icon-inset-trim: calc((var(--icon) - var(--h)) / 2);
   --progress-inline-w: calc(var(--h) * 3);
   --range-w: calc(var(--h) * 5);
   --control-w: calc(var(--h) * 7);

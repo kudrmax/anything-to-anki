@@ -3,7 +3,7 @@
 .cardHead { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--s4); padding: var(--s7) var(--s7) var(--s6); }
 .cardLeft { display: flex; flex-direction: column; gap: var(--s3); padding: 0 var(--s7) var(--s7); }
 .cardRight { display: flex; flex-direction: column; gap: var(--s4); padding: 0 var(--s7) var(--s7); border-left: var(--bw) solid var(--line); }
-.phrase { font-size: var(--fs-focus); line-height: var(--lh-focus); letter-spacing: var(--ls-focus); overflow-wrap: anywhere; }
+.phrase { margin-top: var(--focus-leading-trim); font-size: var(--fs-focus); line-height: var(--lh-focus); letter-spacing: var(--ls-focus); overflow-wrap: anywhere; }
 .meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s3); font-size: var(--fs-s); color: var(--tx3); }
 .cefr { display: inline-flex; align-items: center; gap: var(--s2); }
 .status { display: inline-flex; align-items: center; gap: var(--s2); }
@@ -17,12 +17,12 @@
 .cardFoot { display: flex; align-items: center; gap: var(--s4); margin-top: auto; padding-top: var(--s3); }
 .facts { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); font-size: var(--fs-s); color: var(--tx3); }
 .facts > * + *::before { content: '·'; margin-right: var(--s3); }
-.tools { display: flex; gap: var(--s1); }
+.tools { display: flex; gap: var(--s1); margin-right: var(--icon-inset-trim); }
 
 /* очередь */
 .queue { display: flex; flex-direction: column; }
 .queue > .card { margin: var(--s4) 0; }
-.queueItem { display: flex; align-items: center; gap: var(--s3); min-width: 0; padding: var(--s4) var(--s5); text-align: left; font-size: var(--fs-b); color: var(--tx3); transition: background var(--t), color var(--t); }
+.queueItem { display: flex; align-items: center; gap: var(--s3); min-width: 0; padding: var(--s4) var(--s7); text-align: left; font-size: var(--fs-b); color: var(--tx3); transition: background var(--t), color var(--t); }
 .queueItem + .queueItem { border-top: var(--bw) solid var(--line-soft); }
 .queueItem:hover { background: var(--hover); color: var(--tx2); }
 .queueTarget { color: var(--tx2); }
