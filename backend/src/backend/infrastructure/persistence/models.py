@@ -17,11 +17,13 @@ from backend.domain.entities.collection import Collection
 from backend.domain.entities.known_word import KnownWord
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
+from backend.domain.entities.topic_target import TopicTarget
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.usage_distribution import UsageDistribution
@@ -256,6 +258,8 @@ class StoredCandidateModel(Base):
     usage_distribution_json: Mapped[str | None] = mapped_column(
         "usage_distribution", Text, nullable=True
     )
+    origin_kind: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    origin_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     cefr_breakdown: Mapped[CEFRBreakdownModel | None] = relationship(
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
@@ -294,6 +298,14 @@ class StoredCandidateModel(Base):
             media=None,
             cefr_breakdown=bd,
             usage_distribution=ud,
+            origin=self._origin(),
+        )
+
+    def _origin(self) -> PhraseOrigin | None:
+        if self.origin_kind is None:
+            return None
+        return PhraseOrigin(
+            kind=PhraseOriginKind(self.origin_kind), source_title=self.origin_title,
         )
 
     @staticmethod
@@ -311,6 +323,8 @@ class StoredCandidateModel(Base):
             is_phrasal_verb=candidate.is_phrasal_verb,
             has_custom_context_fragment=candidate.has_custom_context_fragment,
             status=candidate.status.value,
+            origin_kind=candidate.origin.kind.value if candidate.origin else None,
+            origin_title=candidate.origin.source_title if candidate.origin else None,
         )
         if candidate.cefr_breakdown is not None:
             model.cefr_breakdown = _breakdown_to_model(candidate.cefr_breakdown)
@@ -318,6 +332,38 @@ class StoredCandidateModel(Base):
             dist = candidate.usage_distribution.to_dict()
             model.usage_distribution_json = json.dumps(dist) if dist else None
         return model
+
+
+class TopicTargetModel(Base):
+    """SQLAlchemy model for targets generated for a topic source."""
+
+    __tablename__ = "topic_targets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sources.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    phrase: Mapped[str] = mapped_column(String(100), nullable=False)
+    example: Mapped[str] = mapped_column(Text, nullable=False)
+
+    def to_entity(self) -> TopicTarget:
+        return TopicTarget(
+            id=self.id,
+            source_id=self.source_id,
+            position=self.position,
+            phrase=self.phrase,
+            example=self.example,
+        )
+
+    @staticmethod
+    def from_entity(target: TopicTarget) -> TopicTargetModel:
+        return TopicTargetModel(
+            source_id=target.source_id,
+            position=target.position,
+            phrase=target.phrase,
+            example=target.example,
+        )
 
 
 class KnownWordModel(Base):

@@ -13,6 +13,8 @@ from backend.domain.value_objects.prompts_config import PromptsConfig
 _CONFIG = PromptsConfig(
     generate_meaning_user_template='Word: "{lemma}" ({pos})\nContext: "{context}"',
     generate_meaning_system="SYSTEM PROMPT",
+    generate_topic_targets_user_template="Request: {query}",
+    generate_topic_targets_system="TOPIC SYSTEM PROMPT",
 )
 
 

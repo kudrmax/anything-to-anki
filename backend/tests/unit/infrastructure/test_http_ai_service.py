@@ -227,3 +227,44 @@ class TestGenerateMeaningsBatch:
         ) as exc:
             svc.generate_meanings_batch("s", "u")
         assert "missing" in str(exc.value)
+
+
+# --- generate_topic_targets --------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGenerateTopicTargets:
+    def test_happy_path_parses_targets(self) -> None:
+        svc = HttpAIService(url="http://proxy:8766", model="m")
+        payload = {
+            "targets": [
+                {"phrase": "negotiate", "example": "We **negotiate** the offer."},
+                {"phrase": "meet halfway", "example": "Let's **meet halfway**."},
+            ],
+            "tokens_used": 120,
+        }
+        with patch(_MODULE, return_value=_ok_response(payload)) as post:
+            result = svc.generate_topic_targets("system", "user")
+
+        assert [(t.phrase, t.example) for t in result] == [
+            ("negotiate", "We **negotiate** the offer."),
+            ("meet halfway", "Let's **meet halfway**."),
+        ]
+        assert post.call_args.args[0] == "http://proxy:8766/generate-topic-targets"
+        assert post.call_args.kwargs["timeout"] == 540.0
+
+    def test_malformed_response_is_wrapped(self) -> None:
+        svc = HttpAIService(url="http://proxy", model="m")
+        with patch(_MODULE, return_value=_ok_response({"results": []})), pytest.raises(
+            AIServiceError
+        ):
+            svc.generate_topic_targets("s", "u")
+
+    def test_blocked_country_detail_is_kept(self) -> None:
+        svc = HttpAIService(url="http://proxy", model="m")
+        error = _http_status_error(503, '{"detail":"Blocked country: RU. Turn on VPN."}')
+        with patch(_MODULE, return_value=_err_raising_response(error)), pytest.raises(
+            AIServiceError
+        ) as exc:
+            svc.generate_topic_targets("s", "u")
+        assert "Blocked country" in str(exc.value)

@@ -46,6 +46,16 @@ class SourceDTO(BaseModel):
     processing_stage: str | None = None
     collection_id: int | None = None
     collection_name: str | None = None
+    awaiting_generation: bool = False
+    generation_status: str | None = None  # 'queued' | 'running' | 'failed'
+    generation_error: str | None = None
+
+
+class PhraseOriginDTO(BaseModel):
+    """Where a borrowed or generated phrase came from."""
+
+    kind: str  # 'source' | 'generated'
+    source_title: str | None = None
 
 
 class CandidateMeaningDTO(BaseModel):
@@ -115,6 +125,7 @@ class StoredCandidateDTO(BaseModel):
     cefr_breakdown: CEFRBreakdownDTO | None = None
     usage_distribution: dict[str, float] | None = None
     frequency_band: str | None = None
+    origin: PhraseOriginDTO | None = None
 
 
 class SourceDetailDTO(BaseModel):
@@ -343,4 +354,9 @@ def stored_candidate_to_dto(
         cefr_breakdown=breakdown_dto,
         usage_distribution=c.usage_distribution.to_dict() if c.usage_distribution else None,
         frequency_band=c.frequency_band.name,
+        origin=(
+            PhraseOriginDTO(kind=c.origin.kind.value, source_title=c.origin.source_title)
+            if c.origin is not None
+            else None
+        ),
     )

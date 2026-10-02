@@ -30,6 +30,24 @@ class Source:
     processing_stage: ProcessingStage | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
 
+    @property
+    def searchable_text(self) -> str | None:
+        """Plain text other sources may borrow phrases from, if there is any yet.
+
+        Raw subtitles and lyrics carry markup, so they count only once cleaned.
+        Topics have no text of their own.
+        """
+        from backend.domain.value_objects.content_type import ContentType
+        from backend.domain.value_objects.input_method import InputMethod
+
+        if self.content_type == ContentType.TOPIC:
+            return None
+        if self.cleaned_text:
+            return self.cleaned_text
+        if self.input_method == InputMethod.TEXT_PASTED:
+            return self.raw_text
+        return None
+
     def reset_to_initial_state(self) -> Source:
         from backend.domain.value_objects.source_status import SourceStatus
 

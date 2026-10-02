@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Target, Volume2 } from 'lucide-react'
-import type { EnrichmentStatus, StoredCandidate } from '@/api/types'
+import type { EnrichmentStatus, PhraseOrigin, StoredCandidate } from '@/api/types'
 import { FREQ_BAND_LABEL, isDivider, meaningAction, meaningParts, mediaUrl, nonEmptyLines, primaryUsageGroup } from '@/lib/text/meaning'
 import { Button, Chip, Icon, MediaThumb, Spinner, Text } from '@/ui'
 import { CefrTooltip } from './CefrTooltip'
@@ -13,6 +13,12 @@ interface PhraseDetailsProps {
   candidate: StoredCandidate
   review: Review
 }
+
+const GENERATED_PHRASE = 'generated phrase'
+
+/** Откуда фраза кандидата темы: из другого источника или сгенерирована. */
+const originLabel = (origin: PhraseOrigin): string =>
+  origin.kind === 'source' && origin.source_title ? `from ${origin.source_title}` : GENERATED_PHRASE
 
 const isActive = (status: EnrichmentStatus | undefined): boolean => status === 'queued' || status === 'running' || status === 'failed'
 
@@ -58,7 +64,7 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
   )
 
   const action = meaningAction(meaning)
-  const hasMeta = facts.length > 0 || candidate.is_phrasal_verb || Boolean(candidate.cefr_level || meaning?.ipa || usUrl || ukUrl || ttsUrl)
+  const hasMeta = facts.length > 0 || candidate.is_phrasal_verb || Boolean(candidate.origin) || Boolean(candidate.cefr_level || meaning?.ipa || usUrl || ukUrl || ttsUrl)
     || isActive(candidate.pronunciation?.status) || isActive(candidate.tts?.status)
   const paragraphs = meaning?.meaning ? nonEmptyLines(meaning.meaning) : []
   const examples = meaning?.examples ? nonEmptyLines(meaning.examples) : []
@@ -78,6 +84,7 @@ export function PhraseDetails({ candidate, review }: PhraseDetailsProps) {
             </span>
           )}
           {facts.map(fact => <span key={fact}>{fact}</span>)}
+          {candidate.origin && <span>{originLabel(candidate.origin)}</span>}
           {meaning?.ipa && <Text mono>{meaning.ipa}</Text>}
           {audioChip('US', usUrl, 'Play US pronunciation')}
           {audioChip('UK', ukUrl, 'Play UK pronunciation')}

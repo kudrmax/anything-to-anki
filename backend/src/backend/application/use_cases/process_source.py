@@ -8,7 +8,11 @@ from backend.application.dto.cefr_dtos import dto_to_breakdown
 from backend.application.utils.timecode_mapping import find_timecodes
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.exceptions import SourceAlreadyProcessedError, SourceNotFoundError
+from backend.domain.exceptions import (
+    SourceAlreadyProcessedError,
+    SourceNotFoundError,
+    TopicTargetsMissingError,
+)
 from backend.domain.services.known_word_filter import KnownWordFilter
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
@@ -19,6 +23,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
+    from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
+    from backend.domain.entities.source import Source
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.known_word_repository import KnownWordRepository
@@ -47,6 +53,7 @@ class ProcessSourceUseCase:
         source_parsers: dict[InputMethod, SourceParser] | None = None,
         structured_srt_parser: StructuredSrtParser | None = None,
         media_repo: CandidateMediaRepository | None = None,
+        topic_phrase_collector: TopicPhraseCollector | None = None,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
@@ -56,6 +63,7 @@ class ProcessSourceUseCase:
         self._source_parsers: dict[InputMethod, SourceParser] = source_parsers or {}
         self._structured_srt_parser = structured_srt_parser
         self._media_repo = media_repo
+        self._topic_phrase_collector = topic_phrase_collector
 
     def start(self, source_id: int) -> None:
         """Validate source and mark as PROCESSING. Call before launching background task."""
@@ -64,7 +72,15 @@ class ProcessSourceUseCase:
             raise SourceNotFoundError(source_id)
         if source.status not in _ALLOWED_START_STATUSES:
             raise SourceAlreadyProcessedError(source_id)
+        if source.content_type == ContentType.TOPIC and not self._topic_ready(source_id):
+            raise TopicTargetsMissingError(source_id)
         self._source_repo.update_status(source_id, SourceStatus.PROCESSING)
+
+    def _topic_ready(self, source_id: int) -> bool:
+        return (
+            self._topic_phrase_collector is not None
+            and self._topic_phrase_collector.has_targets(source_id)
+        )
 
     def _notify_stage(
         self,
@@ -93,6 +109,9 @@ class ProcessSourceUseCase:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
+        if source.content_type == ContentType.TOPIC:
+            self._process_topic(source, on_stage_commit)
+            return
 
         # Stage 1: source-specific cleaning (subtitles/lyrics parsing)
         self._notify_stage(source_id, ProcessingStage.CLEANING_SOURCE, on_stage_commit)
@@ -170,4 +189,22 @@ class ProcessSourceUseCase:
             "process_source: done (source_id=%d, candidates_created=%d, "
             "with_timecodes=%d)",
             source_id, len(created), len(timecode_map),
+        )
+
+    def _process_topic(
+        self,
+        source: Source,
+        on_stage_commit: Callable[[], None] | None,
+    ) -> None:
+        """Topics have no text to analyse: their phrases come from other sources."""
+        assert source.id is not None
+        if self._topic_phrase_collector is None:
+            raise TopicTargetsMissingError(source.id)
+        self._notify_stage(source.id, ProcessingStage.COLLECTING_PHRASES, on_stage_commit)
+        collected = self._topic_phrase_collector.collect(source.id)
+        created = self._candidate_repo.create_batch(collected.candidates)
+        self._source_repo.update_status(source.id, SourceStatus.DONE, cleaned_text=collected.text)
+        logger.info(
+            "process_source: topic done (source_id=%d, candidates_created=%d)",
+            source.id, len(created),
         )

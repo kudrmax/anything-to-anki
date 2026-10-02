@@ -1,4 +1,4 @@
-"""AI Proxy — separate process that serves meaning generation to the backend.
+"""AI Proxy — separate process that serves AI generation to the backend.
 
 Usage:
     python ai_proxy.py                  # default port 8766
@@ -78,6 +78,24 @@ _BATCH_SCHEMA: dict[str, Any] = {
         }
     },
     "required": ["results"],
+}
+
+_TOPIC_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "targets": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "phrase": {"type": "string"},
+                    "example": {"type": "string"},
+                },
+                "required": ["phrase", "example"],
+            },
+        }
+    },
+    "required": ["targets"],
 }
 
 
@@ -261,6 +279,43 @@ async def generate_meanings_batch(req: GenerateRequest) -> BatchGenerateResponse
     logger.info(
         "generate-meanings-batch OK, results=%d, tokens=%d",
         len(resp.results), tokens_used,
+    )
+    return resp
+
+
+class TopicTargetItem(BaseModel):
+    phrase: str
+    example: str
+
+
+class TopicTargetsResponse(BaseModel):
+    targets: list[TopicTargetItem]
+    tokens_used: int
+
+
+@app.post("/generate-topic-targets")
+async def generate_topic_targets(req: GenerateRequest) -> TopicTargetsResponse:
+    try:
+        data, tokens_used = await _generate_structured(
+            req.system_prompt, req.user_prompt, req.model, _TOPIC_SCHEMA
+        )
+    except Exception as e:
+        logger.exception("generate-topic-targets: AI call failed")
+        raise HTTPException(status_code=502, detail=f"AI call failed: {e}") from e
+    if not isinstance(data, dict) or "targets" not in data:
+        logger.error("generate-topic-targets: unexpected response: %r", data)
+        raise HTTPException(status_code=502, detail="Unexpected AI response format")
+    try:
+        resp = TopicTargetsResponse(targets=data["targets"], tokens_used=tokens_used)
+    except ValidationError as e:
+        logger.error("generate-topic-targets response schema mismatch: %s\nraw=%r", e, data)
+        raise HTTPException(
+            status_code=502,
+            detail=f"AI response schema mismatch (ai_proxy<->backend drift): {e}",
+        ) from e
+    logger.info(
+        "generate-topic-targets OK, targets=%d, tokens=%d",
+        len(resp.targets), tokens_used,
     )
     return resp
 

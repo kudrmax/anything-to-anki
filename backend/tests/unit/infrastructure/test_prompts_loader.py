@@ -27,6 +27,10 @@ ai:
         For the 'examples' field, provide 2-3 example sentences.
       ipa: |
         For the 'ipa' field, provide the IPA transcription.
+  generate_topic_targets:
+    user_template: "Request: \\"{query}\\""
+    system: |
+      You help an English learner study a topic.
 """
 
 
@@ -148,3 +152,31 @@ def test_load_missing_synonyms_section_raises(tmp_path: Path) -> None:
     with pytest.raises(ConfigError) as exc_info:
         PromptsLoader().load(path)
     assert "synonyms" in str(exc_info.value)
+
+
+@pytest.mark.unit
+def test_load_parses_topic_targets_prompts(valid_config_file: Path) -> None:
+    cfg = PromptsLoader().load(valid_config_file)
+    assert cfg.generate_topic_targets_user_template == 'Request: "{query}"'
+    assert cfg.generate_topic_targets_system == "You help an English learner study a topic.\n"
+
+
+@pytest.mark.unit
+def test_load_missing_topic_targets_section_raises(tmp_path: Path) -> None:
+    path = tmp_path / "prompts.yaml"
+    path.write_text(VALID_YAML.split("  generate_topic_targets:")[0])
+    with pytest.raises(ConfigError) as exc_info:
+        PromptsLoader().load(path)
+    assert "generate_topic_targets" in str(exc_info.value)
+
+
+@pytest.mark.unit
+def test_project_prompts_file_loads() -> None:
+    from pathlib import Path as RealPath
+
+    project_prompts = RealPath(__file__).resolve().parents[4] / "config" / "prompts.yaml"
+    cfg = PromptsLoader().load(project_prompts)
+    rendered = cfg.generate_topic_targets_user_template.format(
+        query="salary", cefr_level="B2", count=20,
+    )
+    assert "salary" in rendered

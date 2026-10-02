@@ -9,6 +9,7 @@ class ContentType(StrEnum):
     TEXT = "text"
     LYRICS = "lyrics"
     VIDEO = "video"
+    TOPIC = "topic"
 
 
 _MAPPING: dict[InputMethod, ContentType] = {
@@ -17,6 +18,7 @@ _MAPPING: dict[InputMethod, ContentType] = {
     InputMethod.SUBTITLES_FILE: ContentType.TEXT,
     InputMethod.VIDEO_FILE: ContentType.VIDEO,
     InputMethod.YOUTUBE_URL: ContentType.VIDEO,
+    InputMethod.TOPIC_QUERY: ContentType.TOPIC,
 }
 
 

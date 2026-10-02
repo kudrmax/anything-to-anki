@@ -9,3 +9,5 @@ class PromptsConfig:
 
     generate_meaning_user_template: str
     generate_meaning_system: str
+    generate_topic_targets_user_template: str
+    generate_topic_targets_system: str

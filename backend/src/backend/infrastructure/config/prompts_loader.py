@@ -60,10 +60,23 @@ class PromptsLoader:
 
         system_prompt = "\n\n".join(sections)
 
+        topic_section = "generate_topic_targets"
+        topic = self._get_nested(raw, ["ai", topic_section], path)
+        topic_user_template = self._get_string(topic, "user_template", topic_section, path)
+        topic_system = self._get_string(topic, "system", topic_section, path)
+
         return PromptsConfig(
             generate_meaning_user_template=user_template,
             generate_meaning_system=system_prompt,
+            generate_topic_targets_user_template=topic_user_template,
+            generate_topic_targets_system=topic_system,
         )
+
+    def _get_string(self, section: dict[str, Any], key: str, section_name: str, path: Path) -> str:
+        value = section.get(key)
+        if not isinstance(value, str):
+            raise ConfigError(f"Missing or invalid 'ai.{section_name}.{key}' in {path}")
+        return value
 
     def _get_nested(self, raw: dict[str, Any], keys: list[str], path: Path) -> dict[str, Any]:
         current: Any = raw

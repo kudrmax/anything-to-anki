@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
@@ -11,16 +12,31 @@ from backend.application.dto.source_dtos import (
 )
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.job_status import JobStatus
+from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
+    from backend.domain.entities.source import Source
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.collection_repository import CollectionRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.topic_target_repository import TopicTargetRepository
     from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
 _PREVIEW_LENGTH: int = 100
+_PENDING_JOB_STATUSES = [JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.FAILED]
+
+
+@dataclass(frozen=True)
+class _TopicGeneration:
+    """AI step of a topic source: whether it is still needed and how its job is doing."""
+
+    awaiting: bool = False
+    status: str | None = None
+    error: str | None = None
 
 
 class GetSourcesUseCase:
@@ -33,12 +49,14 @@ class GetSourcesUseCase:
         settings_repo: SettingsRepository,
         job_repo: JobRepository,
         collection_repo: CollectionRepository,
+        topic_target_repo: TopicTargetRepository,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
         self._settings_repo = settings_repo
         self._job_repo = job_repo
         self._collection_repo = collection_repo
+        self._topic_target_repo = topic_target_repo
 
     def list_all(self, *, collection_id: int | None = None) -> list[SourceDTO]:
         sources = self._source_repo.list_all()
@@ -56,6 +74,7 @@ class GetSourcesUseCase:
             assert source.id is not None
             candidates = self._candidate_repo.get_by_source(source.id)
             learn_count = sum(1 for c in candidates if c.status == CandidateStatus.LEARN)
+            generation = self._generation_of(source)
             result.append(
                 SourceDTO(
                     id=source.id,
@@ -78,9 +97,28 @@ class GetSourcesUseCase:
                         if source.collection_id
                         else None
                     ),
+                    awaiting_generation=generation.awaiting,
+                    generation_status=generation.status,
+                    generation_error=generation.error,
                 )
             )
         return result
+
+    def _generation_of(self, source: Source) -> _TopicGeneration:
+        assert source.id is not None
+        if source.content_type != ContentType.TOPIC or self._topic_target_repo.has_targets(
+            source.id,
+        ):
+            return _TopicGeneration()
+        jobs = self._job_repo.get_jobs_by_status(
+            _PENDING_JOB_STATUSES, source_id=source.id, job_type=JobType.TOPIC_TARGETS,
+        )
+        job = jobs[0] if jobs else None
+        return _TopicGeneration(
+            awaiting=True,
+            status=job.status.value if job else None,
+            error=job.error if job else None,
+        )
 
     def get_by_id(
         self,

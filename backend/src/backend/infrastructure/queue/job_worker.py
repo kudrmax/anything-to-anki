@@ -91,6 +91,8 @@ class JobWorker:
                     await self._handle_pronunciation(job)
                 case JobType.VIDEO_DOWNLOAD:
                     await self._handle_video_download(job)
+                case JobType.TOPIC_TARGETS:
+                    await self._handle_topic_targets(job)
                 case JobType.TTS:
                     # TTS handler manages its own lifecycle via subprocess
                     await self._handle_tts(job)
@@ -220,6 +222,19 @@ class JobWorker:
         with self._container.session_scope() as session:
             use_case = self._container.download_pronunciation_use_case(session)
             use_case.execute_one(job.candidate_id)
+
+    async def _handle_topic_targets(self, job: Job) -> None:
+        """AI step of a topic source. Processing stays a separate, offline step."""
+        await asyncio.wait_for(
+            asyncio.to_thread(self._run_topic_targets, job),
+            timeout=JOB_TIMEOUT,
+        )
+
+    def _run_topic_targets(self, job: Job) -> None:
+        """Sync topic target generation — runs in a thread."""
+        with self._container.session_scope() as session:
+            use_case = self._container.generate_topic_targets_use_case(session)
+            use_case.execute(job.source_id)
 
     async def _handle_tts(self, job: Job) -> None:
         """Spawn TTS subprocess to handle all TTS jobs.

@@ -2,12 +2,12 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import { api } from '@/api/client'
 import type { CandidateStatus, CardPreview, FollowUpAction, QueueStatus, QueueSummary, SourceDetail, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
+import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
 import { mediaUrl } from '@/lib/text/meaning'
 import { useToast } from '@/ui'
 import { useAudioPlayer } from '@/lib/useAudioPlayer'
 
-const VPN_ERROR_MARKER = 'Blocked country'
 const POLL_INTERVAL_MS = 3000
 
 interface MediaRefs {
@@ -22,10 +22,8 @@ export interface Editing {
   originalFragment: string
 }
 
-const isVpnError = (e: unknown): boolean => e instanceof Error && e.message.includes(VPN_ERROR_MARKER)
-
 const hasCandidateVpnErrors = (candidates: StoredCandidate[]): boolean =>
-  candidates.some(c => c.meaning?.status === 'failed' && c.meaning.error?.includes(VPN_ERROR_MARKER))
+  candidates.some(c => c.meaning?.status === 'failed' && isVpnErrorText(c.meaning.error))
 
 export const audioUrlForCandidate = candidateAudioUrl
 
