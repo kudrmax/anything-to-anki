@@ -84,8 +84,8 @@
   /* сетка */
   --rail: 60px;
   --col: 760px;
-  --col-wide: 900px;
-  --col-gap-wide: 64px;
+  --col-wide: 1000px;
+  --wide-lead: calc(var(--page-x) - var(--s4));   /* отступ карточки: вместе с полем строки даёт --page-x */
   --card-cols: minmax(min-content, 1fr) minmax(0, 1.7fr);
   --aside: 380px;
   --col-gap: 80px;
@@ -96,8 +96,8 @@
   --page-cols: minmax(0, var(--col)) var(--aside);
   --page-cols-solo: minmax(0, var(--col));
   --page-cols-collapsed: minmax(0, var(--col)) 0px;
-  --page-cols-wide: minmax(0, var(--col-wide)) var(--aside);
-  --page-cols-wide-collapsed: minmax(0, var(--col-wide)) 0px;
+  --page-cols-wide: minmax(0, 1fr) var(--aside);
+  --page-cols-wide-collapsed: minmax(0, 1fr) 0px;
   --aside-inner-w: var(--aside);
   --aside-hidden-h: none;
   --aside-position: sticky;

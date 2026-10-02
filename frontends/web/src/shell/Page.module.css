@@ -8,6 +8,10 @@
 .asideHidden { grid-template-columns: var(--page-cols-collapsed); column-gap: 0; }
 .asideHidden > .aside { opacity: 0; transform: translateX(var(--s7)); pointer-events: none; max-height: var(--aside-hidden-h); }
 .asideTitle { font-size: var(--fs-s); font-weight: var(--fw); color: var(--tx3); line-height: var(--lh-label); margin-bottom: var(--s3); }
-.wide { max-width: calc(var(--col-wide) + var(--col-gap-wide) + var(--aside)); grid-template-columns: var(--page-cols-wide); column-gap: var(--col-gap-wide); }
+/* Широкая страница: один шаг --page-x вокруг контента и колонки, по горизонтали и вертикали. */
+.wide { max-width: 100%; grid-template-columns: var(--page-cols-wide); column-gap: var(--page-x); transition: grid-template-columns var(--t-slow), column-gap var(--t-slow), max-width var(--t-slow); }
+.wide > .full:first-child > * { padding-inline: 0; margin-bottom: calc(var(--page-x) - var(--wide-lead)); }
+.wide > .content { padding: 0; }
+.wide > .aside { padding-top: var(--wide-lead); }
 .wide.solo { grid-template-columns: minmax(0, var(--col-wide)); }
-.wide.asideHidden { grid-template-columns: var(--page-cols-wide-collapsed); column-gap: 0; }
+.wide.asideHidden { max-width: var(--col-wide); grid-template-columns: var(--page-cols-wide-collapsed); column-gap: 0; }
