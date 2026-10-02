@@ -20,11 +20,12 @@
 .tools { display: flex; gap: var(--s1); }
 
 /* очередь */
-.queue { display: flex; flex-direction: column; }
+.queue { display: flex; flex-direction: column; gap: var(--s1); }
 .queue > .card { margin: var(--s4) 0; }
-.queueItem { display: flex; align-items: baseline; gap: var(--s3); min-width: 0; padding: var(--s4) var(--s5); border-radius: var(--rc); text-align: left; font-size: var(--fs-t); color: var(--tx3); transition: background var(--t), color var(--t); }
+.queueItem { display: grid; grid-template-columns: var(--queue-mark-w) minmax(0, 1fr); align-items: baseline; gap: var(--s4); padding: var(--s3) var(--s5); border-radius: var(--rc); text-align: left; font-size: var(--fs-t); line-height: var(--lh-focus); color: var(--tx3); transition: background var(--t), color var(--t); }
 .queueItem:hover { background: var(--hover); color: var(--tx2); }
-.queueItem .queueText b { color: var(--tx2); }
+.queueMark { display: flex; justify-content: flex-end; font: var(--fw) var(--fs-s)/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--tx3); opacity: var(--o-kbd); }
+.queueTarget { font-weight: var(--fw-m); color: var(--tx); }
 .queueItemRated { opacity: var(--o-off); }
 .queueText { min-width: 0; overflow-wrap: anywhere; }
 

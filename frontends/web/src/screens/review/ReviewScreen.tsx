@@ -142,9 +142,9 @@ export function ReviewScreen() {
       <div ref={listRef}>
         {candidates.length === 0 && <Empty>No candidates found for this source.</Empty>}
         <div className={css.queue}>
-          {list.shown.map(candidate => candidate.id === currentId
+          {list.shown.map((candidate, index) => candidate.id === currentId
             ? <PhraseCard key={candidate.id} candidate={candidate} review={review} />
-            : <PhraseRow key={candidate.id} candidate={candidate} onSelect={setCurrentId} />)}
+            : <PhraseRow key={candidate.id} candidate={candidate} position={index + 1} onSelect={setCurrentId} />)}
         </div>
         {list.hiddenCount > 0 && (
           <div className={css.showMore}>
