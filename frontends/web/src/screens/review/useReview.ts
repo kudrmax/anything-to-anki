@@ -56,6 +56,10 @@ export function useReview(sourceId: number) {
   const [sortOrder, setSortOrderState] = useState<SortOrder>(() => sortOrderPref.read())
   const [editing, setEditing] = useState<Editing | null>(null)
   const [toast, showToast] = useToast()
+  const [reportReasons, setReportReasons] = useState<string[]>([])
+  useEffect(() => {
+    api.getReportReasons().then(setReportReasons).catch(() => {})
+  }, [])
   const player = useAudioPlayer()
 
   const setSortOrder = (order: SortOrder) => { sortOrderPref.write(order); setSortOrderState(order) }
@@ -292,6 +296,17 @@ export function useReview(sourceId: number) {
     }
   }
 
+  const report = async (candidateId: number, comment: string): Promise<boolean> => {
+    try {
+      await api.reportCandidate(candidateId, comment)
+      showToast('Report saved')
+      return true
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to save the report')
+      return false
+    }
+  }
+
   const mediaFor = (candidate: StoredCandidate): MediaRefs => ({
     screenshotUrl: mediaUrl(sourceId, candidate.media?.screenshot_path) ?? mediaMap[candidate.id]?.screenshotUrl ?? null,
     audioUrl: mediaUrl(sourceId, candidate.media?.audio_path) ?? mediaMap[candidate.id]?.audioUrl ?? null,
@@ -316,6 +331,7 @@ export function useReview(sourceId: number) {
     vpnBlocked, dismissVpn: () => setVpnBlocked(false),
     editing, startEditing, cancelEditing, setBoundary, addWord,
     mediaFor, player, toast,
+    reportReasons, report,
   }
 }
 

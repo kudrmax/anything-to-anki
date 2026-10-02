@@ -47,6 +47,7 @@
 - **[docs/migrations.md](docs/migrations.md)** — как добавить Alembic-миграцию
 - **[docs/testing.md](docs/testing.md)** — структура тестов и запуск
 - **[docs/verify-before-done.md](docs/verify-before-done.md)** — чек-лист перед завершением задачи
+- **[docs/card-reports.md](docs/card-reports.md)** — жалобы пользователя на карточки и как их разбирать
 
 ---
 

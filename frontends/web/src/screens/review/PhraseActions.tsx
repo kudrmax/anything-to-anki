@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Image, Pencil, Sparkles, Speech, X } from 'lucide-react'
+import { Flag, Image, Pencil, Sparkles, Speech, X } from 'lucide-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { decisionChange, type Decision } from '@/lib/decision'
 import { parseExamples } from '@/lib/text/meaning'
@@ -22,6 +22,7 @@ const DECISIONS: { status: Decision; label: string; kbd: string }[] = [
 
 export function PhraseActions({ candidate, review }: { candidate: StoredCandidate; review: Review }) {
   const [question, setQuestion] = useState('')
+  const [complaint, setComplaint] = useState('')
   const id = candidate.id
   const isRated = candidate.status !== 'pending'
   const isVideo = review.source?.content_type === 'video'
@@ -38,6 +39,11 @@ export function PhraseActions({ candidate, review }: { candidate: StoredCandidat
       onSelect: () => void review.replaceWithExample(id, example),
     })),
   ]
+
+  const reportItems: MenuItem[] = review.reportReasons.map(reason => ({
+    label: reason,
+    onSelect: () => void review.report(id, reason),
+  }))
 
   return (
     <div className={css.actions}>
@@ -68,6 +74,22 @@ export function PhraseActions({ candidate, review }: { candidate: StoredCandidat
       )}
       {isVideo && <IconButton icon={Image} label="Regenerate media" busy={review.busy.media.has(id)} onClick={() => void review.regenerateMedia(id)} />}
       <IconButton icon={Speech} label="Generate TTS audio" busy={review.busy.tts.has(id)} onClick={() => void review.generateTTS(id)} />
+      <Menu
+        trigger={<IconButton icon={Flag} label="Report a problem with this card" />}
+        items={reportItems}
+        footer={close => (
+          <Field
+            value={complaint}
+            placeholder="Describe the problem…"
+            onChange={e => setComplaint(e.target.value)}
+            onKeyDown={e => {
+              if (e.key !== 'Enter' || !complaint.trim()) return
+              void review.report(id, complaint.trim()).then(saved => { if (saved) setComplaint('') })
+              close()
+            }}
+          />
+        )}
+      />
       {isEditing
         ? <IconButton icon={X} label="Cancel editing" active onClick={review.cancelEditing} />
         : <IconButton icon={Pencil} label="Edit context fragment" onClick={() => review.startEditing(id)} />}

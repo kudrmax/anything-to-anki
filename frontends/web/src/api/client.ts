@@ -213,6 +213,14 @@ export const api = {
       body: JSON.stringify({ context_fragment: contextFragment }),
     }),
 
+  reportCandidate: (candidateId: number, comment: string) =>
+    req<unknown>(`/candidates/${candidateId}/report`, {
+      method: 'POST',
+      body: JSON.stringify({ comment }),
+    }),
+
+  getReportReasons: () => req<string[]>('/api/card-reports/reasons'),
+
   replaceWithExample: (candidateId: number, exampleText: string) =>
     req<StoredCandidate>(`/candidates/${candidateId}/replace-with-example`, {
       method: 'POST',

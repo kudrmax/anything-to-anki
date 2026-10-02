@@ -31,6 +31,7 @@ from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.rename_collection import RenameCollectionUseCase
 from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
+from backend.application.use_cases.report_candidate import ReportCandidateUseCase
 from backend.application.use_cases.reprocess_source import ReprocessSourceUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
@@ -101,6 +102,9 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
 )
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
+)
+from backend.infrastructure.persistence.sqla_card_report_repository import (
+    SqlaCardReportRepository,
 )
 from backend.infrastructure.persistence.sqla_collection_repository import (
     SqlaCollectionRepository,
@@ -440,6 +444,13 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             relevance_sorter=self._relevance_sorter(session),
             job_repo=SqlaJobRepository(session),
+        )
+
+    def report_candidate_use_case(self, session: Session) -> ReportCandidateUseCase:
+        return ReportCandidateUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            source_repo=SqlaSourceRepository(session),
+            report_repo=SqlaCardReportRepository(session),
         )
 
     def mark_candidate_use_case(self, session: Session) -> MarkCandidateUseCase:
