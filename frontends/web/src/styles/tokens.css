@@ -62,7 +62,6 @@
   --prog: 3px;
   --measure: 64ch;
   --fact-label-w: 84px;
-  --queue-mark-w: 28px;
   --progress-inline-w: calc(var(--h) * 3);
   --range-w: calc(var(--h) * 5);
   --control-w: calc(var(--h) * 7);
