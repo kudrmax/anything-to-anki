@@ -1,15 +1,16 @@
 /* текущая фраза: слева запоминаешь, справа объясняет */
 .card { display: grid; grid-template-columns: var(--card-cols); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); border-radius: var(--r); cursor: default; }
-.cardLeft { display: flex; flex-direction: column; gap: var(--s4); padding: var(--s7); border-right: var(--bw) solid var(--line); }
-.cardRight { display: flex; flex-direction: column; gap: var(--s5); padding: var(--s7); }
+.cardHead { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--s4); padding: var(--s7) var(--s7) var(--s6); }
+.cardLeft { display: flex; flex-direction: column; gap: var(--s3); padding: 0 var(--s7) var(--s7); }
+.cardRight { display: flex; flex-direction: column; gap: var(--s4); padding: 0 var(--s7) var(--s7); border-left: var(--bw) solid var(--line); }
 .phrase { font-size: var(--fs-focus); line-height: var(--lh-focus); letter-spacing: var(--ls-focus); overflow-wrap: anywhere; }
 .meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s3); font-size: var(--fs-s); color: var(--tx3); }
 .fact { color: var(--tx3); }
 .cefr { display: inline-flex; }
 .status { display: inline-flex; align-items: center; gap: var(--s2); }
-.translation { margin-top: var(--s5); font-size: var(--fs-h1); font-weight: var(--fw-m); line-height: var(--lh-tight); letter-spacing: var(--ls-focus); }
+.translation { font-size: var(--fs-h1); font-weight: var(--fw-m); line-height: var(--lh-tight); letter-spacing: var(--ls-focus); }
 .synonyms { font-size: var(--fs-m); color: var(--tx3); }
-.decisions { display: flex; flex-wrap: wrap; gap: var(--s3); margin-top: auto; padding-top: var(--s6); }
+.decisions { display: flex; flex-wrap: nowrap; gap: var(--s3); margin-top: auto; padding-top: var(--s5); }
 .definition { font-size: var(--fs-l); line-height: var(--lh-read); }
 .context { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
 .examples { list-style: none; display: flex; flex-direction: column; gap: var(--s2); padding-left: var(--s5); border-left: var(--underline) solid var(--line); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }

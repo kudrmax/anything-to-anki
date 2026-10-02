@@ -73,7 +73,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
 
   return (
     <article className={css.card} data-candidate-id={candidate.id}>
-      <div className={css.cardLeft}>
+      <header className={css.cardHead}>
         <p className={css.phrase}>
           {highlightParts(candidate.context_fragment, candidate.lemma, candidate.surface_form).map((part, i) =>
             part.target ? <b key={i} className={`${phrase.target} ${phrase.targetCurrent}`}>{part.text}</b> : part.text,
@@ -107,6 +107,9 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             {candidate.origin && <span className={css.fact}>{originLabel(candidate.origin)}</span>}
           </div>
         )}
+      </header>
+
+      <div className={css.cardLeft}>
         {meaning?.translation && <p className={css.translation}>{meaning.translation}</p>}
         {meaning?.synonyms && <p className={css.synonyms}>{meaning.synonyms}</p>}
         <MediaThumb
