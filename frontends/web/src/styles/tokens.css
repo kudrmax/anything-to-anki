@@ -114,7 +114,7 @@
   --ui: 'Geist Variable', system-ui, sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, monospace;
   --fs-2xs: 9px; --fs-xs: 12px; --fs-s: 14px; --fs-m: 15px; --fs-c: 14.5px; --fs-b: 17px; --fs-l: 18.5px;
-  --fs-t: 19px; --fs-h2: 17px; --fs-h1: 24px; --fs-focus: 28px; --fs-source: 22px; --fs-read: 22px; --fs-aux: 16px;
+  --fs-t: 19px; --fs-h2: 17px; --fs-h1: 24px; --fs-focus: 28px; --fs-source: 16px;
   --lh: 1.5; --lh-tight: 1.2; --lh-loose: 1.9; --lh-read: 1.62; --lh-focus: 1.42; --lh-label: 26px;
   --fw: 400; --fw-m: 500; --fw-b: 600;
   --ls-tight: -.02em; --ls-caps: .07em; --ls-focus: -.012em;
