@@ -7,6 +7,7 @@ import { Aside, Page, PageHeader } from '@/shell'
 import { PanelRightClose, PanelRightOpen, Upload } from 'lucide-react'
 import { Banner, Button, Empty, Icon, IconButton, Progress, Spinner, Toast } from '@/ui'
 import { GenerateMenu } from './GenerateMenu'
+import { PhraseCard } from './PhraseCard'
 import { PhraseRow } from './PhraseRow'
 import { SelectionPopover } from './SelectionPopover'
 import { SortMenu } from './SortMenu'
@@ -137,12 +138,15 @@ export function ReviewScreen() {
   )
 
   return (
-    <Page header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={(review.vpnBlocked || editing) ? banner : undefined}>
+    <Page wide header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={(review.vpnBlocked || editing) ? banner : undefined}>
       <div ref={listRef}>
         {candidates.length === 0 && <Empty>No candidates found for this source.</Empty>}
-        {list.shown.map(candidate => (
-          <PhraseRow key={candidate.id} candidate={candidate} current={candidate.id === currentId} review={review} />
-        ))}
+        {current && <PhraseCard key={current.id} candidate={current} review={review} />}
+        <div className={css.queue}>
+          {list.shown.filter(candidate => candidate.id !== currentId).map(candidate => (
+            <PhraseRow key={candidate.id} candidate={candidate} onSelect={setCurrentId} />
+          ))}
+        </div>
         {list.hiddenCount > 0 && (
           <div className={css.showMore}>
             <Button variant="link" onClick={list.showMore}>

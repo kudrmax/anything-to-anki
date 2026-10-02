@@ -7,11 +7,13 @@ interface PageProps {
   banner?: ReactNode
   /** Боковая колонка свёрнута: контент плавно встаёт по центру. */
   asideHidden?: boolean
+  /** Широкая основная колонка. */
+  wide?: boolean
   children: ReactNode
 }
 
-export function Page({ header, aside, banner, asideHidden = false, children }: PageProps) {
-  const classes = [css.page, !aside && css.solo, aside && asideHidden && css.asideHidden].filter(Boolean).join(' ')
+export function Page({ header, aside, banner, asideHidden = false, wide = false, children }: PageProps) {
+  const classes = [css.page, !aside && css.solo, aside && asideHidden && css.asideHidden, wide && css.wide].filter(Boolean).join(' ')
   return (
     <div className={classes}>
       <div className={css.full}>{header}</div>

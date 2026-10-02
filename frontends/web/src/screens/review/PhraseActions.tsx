@@ -20,16 +20,33 @@ const DECISIONS: { status: Decision; label: string; kbd: string }[] = [
   { status: 'skip', label: 'Skip', kbd: '3' },
 ]
 
-export function PhraseActions({ candidate, review }: { candidate: StoredCandidate; review: Review }) {
+interface PhraseActionsProps {
+  candidate: StoredCandidate
+  review: Review
+}
+
+export function DecisionButtons({ candidate, review }: PhraseActionsProps) {
+  const isRated = candidate.status !== 'pending'
+  const decide = (status: Decision) => void review.mark(candidate.id, decisionChange(candidate.status, status))
+  const isPrimary = (status: CandidateStatus) => (isRated ? candidate.status === status : status === 'learn')
+  return (
+    <div className={css.decisions}>
+      {DECISIONS.map(decision => (
+        <Button key={decision.status} variant={isPrimary(decision.status) ? 'fill' : 'soft'} kbd={decision.kbd} onClick={() => decide(decision.status)}>
+          {decision.label}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
+export function PhraseTools({ candidate, review }: PhraseActionsProps) {
   const [question, setQuestion] = useState('')
   const [complaint, setComplaint] = useState('')
   const id = candidate.id
   const isRated = candidate.status !== 'pending'
   const isVideo = review.source?.content_type === 'video'
   const isEditing = review.editing?.candidateId === id
-
-  const decide = (status: Decision) => void review.mark(id, decisionChange(candidate.status, status))
-  const isPrimary = (status: CandidateStatus) => (isRated ? candidate.status === status : status === 'learn')
 
   const followUpItems: MenuItem[] = [
     { label: 'Regenerate all', onSelect: () => void review.generate(id) },
@@ -46,13 +63,7 @@ export function PhraseActions({ candidate, review }: { candidate: StoredCandidat
   }))
 
   return (
-    <div className={css.actions}>
-      {DECISIONS.map(decision => (
-        <Button key={decision.status} variant={isPrimary(decision.status) ? 'fill' : 'soft'} kbd={decision.kbd} onClick={() => decide(decision.status)}>
-          {decision.label}
-        </Button>
-      ))}
-      <span className={css.spacer} />
+    <div className={css.tools}>
       {candidate.meaning?.meaning && (
         <Menu
           trigger={<IconButton icon={Sparkles} label="Regenerate or ask" busy={review.busy.generating.has(id)} />}

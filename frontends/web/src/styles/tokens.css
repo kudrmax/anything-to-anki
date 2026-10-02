@@ -81,6 +81,10 @@
   /* сетка */
   --rail: 60px;
   --col: 760px;
+  --col-wide: 900px;
+  --col-gap-wide: 64px;
+  --card-cols: minmax(0, 1fr) minmax(0, 1.25fr);
+  --queue-cols: repeat(2, minmax(0, 1fr));
   --aside: 380px;
   --col-gap: 80px;
   --page-x: 44px;
@@ -90,6 +94,8 @@
   --page-cols: minmax(0, var(--col)) var(--aside);
   --page-cols-solo: minmax(0, var(--col));
   --page-cols-collapsed: minmax(0, var(--col)) 0px;
+  --page-cols-wide: minmax(0, var(--col-wide)) var(--aside);
+  --page-cols-wide-collapsed: minmax(0, var(--col-wide)) 0px;
   --aside-inner-w: var(--aside);
   --aside-hidden-h: none;
   --aside-position: sticky;
@@ -151,6 +157,8 @@
     --page-cols: minmax(0, 1fr);
     --page-cols-solo: minmax(0, 1fr);
     --page-cols-collapsed: minmax(0, 1fr);
+    --page-cols-wide: minmax(0, 1fr);
+    --page-cols-wide-collapsed: minmax(0, 1fr);
     --aside-inner-w: auto;
     --aside-hidden-h: 0;
     --aside-position: static;
