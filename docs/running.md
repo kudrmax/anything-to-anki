@@ -8,7 +8,9 @@
 make setup    # Ставит brew-зависимости, Python venv, Node modules
 ```
 
-Запускается один раз после клонирования. Ставит: python@3.12, node, ffmpeg, espeak-ng, создаёт `.venv`, устанавливает Python и Node зависимости.
+Запускается один раз после клонирования. Ставит: uv, node, ffmpeg, espeak-ng, создаёт `.venv` на Python 3.12 от uv, устанавливает Python и Node зависимости.
+
+Python берётся из uv, а не из Homebrew: `brew upgrade` удаляет папку старой версии Python, и уже запущенные процессы падают на первом ленивом импорте стандартного модуля. Если `make setup` предупреждает, что `.venv` собран не на Python от uv, пересоздать его: `make down && trash .venv && make setup && make up`.
 
 Версии Python-пакетов зафиксированы в `requirements.lock`, поэтому dev и prod получают одинаковое окружение. Чтобы обновить зависимости: в dev-копии поставить новые версии в `.venv`, прогнать проверки, выполнить `make lock` и закоммитить `requirements.lock`; в prod после `git pull` выполнить `make setup`.
 

@@ -13,6 +13,7 @@ APP_PID := .pids/app.pid
 APP_LOG := .logs/app.log
 WRK_PID := .pids/worker.pid
 WRK_LOG := .logs/worker.log
+PYTHON_VERSION  := 3.12
 LOCK_FILE       := requirements.lock
 SPACY_MODEL     := en_core_web_sm
 SPACY_MODEL_URL := https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
@@ -114,10 +115,10 @@ _check_setup:
 setup: down setup-brew setup-media setup-python setup-frontend  ## Одноразовая установка зависимостей (brew, ffmpeg, Python, Node)
 	@echo "\n=== Setup complete. Run 'make up' to start. ==="
 
-setup-brew:  ## Установить brew-пакеты (python@3.12, node, espeak)
+setup-brew:  ## Установить brew-пакеты (uv, node, espeak)
 	@echo "=== Checking brew dependencies ==="
 	@command -v brew >/dev/null || (echo "ERROR: Homebrew not installed. Install from https://brew.sh" && exit 1)
-	@for pkg in python@3.12 node espeak; do \
+	@for pkg in uv node espeak; do \
 	    if ! brew list $$pkg >/dev/null 2>&1; then \
 	        echo "Installing $$pkg..."; \
 	        HOMEBREW_BOTTLE_DOMAIN="" HOMEBREW_CORE_GIT_REMOTE="" HOMEBREW_BREW_GIT_REMOTE="" brew install $$pkg; \
@@ -141,6 +142,10 @@ setup-media:  ## Проверить/установить ffmpeg
 # venv не пересоздаётся: он весит больше гигабайта (torch, spacy, kokoro) и
 # качается из сети. Обрыв связи на этом шаге оставил бы копию вообще без окружения.
 #
+# Python берётся из uv, а не из Homebrew: brew upgrade удаляет папку старой версии
+# вместе со стандартной библиотекой, и уже запущенные процессы падают на первом
+# ленивом импорте. Версии uv обновляются только вручную.
+#
 # Модель spaCy ставится отдельно и в обход кэша pip: GitHub отдаёт её через
 # редирект на подписанный URL, и кэш pip на повторном запросе получает 304
 # с пустым телом — установка падает с «Wheel is invalid».
@@ -148,7 +153,9 @@ setup-python:  ## Создать venv (если его нет) и постави
 	@echo "\n=== Installing Python dependencies ==="
 	@if [ ! -d .venv ]; then \
 	    echo "Creating venv..."; \
-	    python3.12 -m venv .venv; \
+	    uv venv --seed --managed-python --python $(PYTHON_VERSION) .venv; \
+	elif ! grep -q "^home = $$(uv python dir)" .venv/pyvenv.cfg; then \
+	    echo "WARNING: .venv is not built on uv-managed Python. Recreate it: trash .venv && make setup"; \
 	fi
 	@.venv/bin/pip install -c $(LOCK_FILE) -e "backend/[dev,tts]"
 	@.venv/bin/pip install -c $(LOCK_FILE) -e ".[ai-proxy]"
