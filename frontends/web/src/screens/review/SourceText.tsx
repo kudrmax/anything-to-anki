@@ -68,8 +68,9 @@ export function SourceText({ text, candidates, focusId, onWordClick, onTextSelec
           )
         }
         const state = segment.candidateId === focusId ? css.markCurrent : ratedIds.has(segment.candidateId) ? css.markRated : css.markPending
+        const classes = [css.mark, state, inFragment(segment.start, end) && css.fragment].filter(Boolean).join(' ')
         return (
-          <mark key={i} data-mark-id={segment.candidateId} className={`${css.mark} ${state}`} onClick={() => onWordClick(segment.candidateId)}>
+          <mark key={i} data-mark-id={segment.candidateId} className={classes} onClick={() => onWordClick(segment.candidateId)}>
             {segment.content.replace(/\s+/g, ' ')}
           </mark>
         )

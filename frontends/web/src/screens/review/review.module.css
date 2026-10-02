@@ -30,11 +30,13 @@
 
 /* текст источника */
 .source { position: relative; max-height: var(--source-max); overflow: auto; font-size: var(--fs-source); line-height: var(--lh-loose); color: var(--tx3); white-space: pre-line; }
-.fragment { color: var(--tx); background: var(--ac-wash); border-radius: var(--r-xs); padding: var(--s1) 0; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.fragment { color: var(--tx); background: var(--ac-tint); padding: var(--s1) 0; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .mark { background: none; color: inherit; cursor: pointer; }
 .markPending { color: var(--tx2); text-decoration: underline; text-decoration-color: var(--ac-underline); text-underline-offset: var(--s2); }
 .markCurrent { color: var(--ac); font-weight: var(--fw-m); }
 .markRated { color: inherit; }
+.mark.fragment { background: var(--ac-tint); }
+.markPending.fragment, .markRated.fragment { color: var(--tx); }
 .hint { font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); padding-top: var(--py); }
 .showMore { padding-top: var(--py); }
 
