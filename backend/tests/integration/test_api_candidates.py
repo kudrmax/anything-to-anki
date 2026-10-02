@@ -102,3 +102,35 @@ class TestCandidatesAPI:
     def test_mark_candidate_invalid_status(self, client: TestClient) -> None:
         response = client.patch("/candidates/1", json={"status": "invalid"})
         assert response.status_code == 422
+
+
+@pytest.mark.integration
+class TestCardReportsAPI:
+    def test_report_keeps_a_snapshot_of_the_card(self, client: TestClient) -> None:
+        response = client.post("/candidates/1/report", json={"comment": " Phrase too long "})
+        assert response.status_code == 201
+        report = response.json()
+        assert report["comment"] == "Phrase too long"
+        assert report["lemma"] == "pursuit"
+        assert report["context_fragment"] == "the pursuit of"
+
+    def test_reports_are_listed_newest_first(self, client: TestClient) -> None:
+        client.post("/candidates/1/report", json={"comment": "first"})
+        client.post("/candidates/1/report", json={"comment": "second"})
+        comments = [r["comment"] for r in client.get("/api/card-reports").json()]
+        assert comments == ["second", "first"]
+
+    def test_report_outlives_the_source(self, client: TestClient) -> None:
+        client.post("/candidates/1/report", json={"comment": "Wrong phrase boundary"})
+        client.delete("/sources/1")
+        assert len(client.get("/api/card-reports").json()) == 1
+
+    def test_blank_comment_is_rejected(self, client: TestClient) -> None:
+        assert client.post("/candidates/1/report", json={"comment": "   "}).status_code == 422
+
+    def test_unknown_candidate(self, client: TestClient) -> None:
+        assert client.post("/candidates/999/report", json={"comment": "x"}).status_code == 404
+
+    def test_reasons(self, client: TestClient) -> None:
+        reasons = client.get("/api/card-reports/reasons").json()
+        assert "Wrong phrase boundary" in reasons

@@ -26,6 +26,13 @@ class CandidateNotFoundError(DomainError):
         self.candidate_id = candidate_id
 
 
+class EmptyReportCommentError(DomainError):
+    """Raised when a complaint about a card says nothing."""
+
+    def __init__(self) -> None:
+        super().__init__("Report comment is empty")
+
+
 class KnownWordNotFoundError(DomainError):
     """Raised when a known word entry is not found by ID."""
 

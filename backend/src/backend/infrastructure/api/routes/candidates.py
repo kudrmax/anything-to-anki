@@ -11,9 +11,17 @@ from backend.application.dto.candidate_dtos import (  # noqa: TC001
     ReplaceWithExampleRequest,
     UpdateContextFragmentRequest,
 )
+from backend.application.dto.card_report_dtos import (  # noqa: TC001
+    CardReportDTO,
+    ReportCandidateRequest,
+)
 from backend.application.dto.follow_up_dtos import FollowUpRequest  # noqa: TC001
 from backend.application.dto.source_dtos import StoredCandidateDTO  # noqa: TC001
-from backend.domain.exceptions import AIServiceError, CandidateNotFoundError
+from backend.domain.exceptions import (
+    AIServiceError,
+    CandidateNotFoundError,
+    EmptyReportCommentError,
+)
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
@@ -40,6 +48,25 @@ def mark_candidate(
         return {"id": candidate_id, "status": request.status}
     except CandidateNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.post("/{candidate_id}/report", status_code=201)
+def report_candidate(
+    candidate_id: int,
+    request: ReportCandidateRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> CardReportDTO:
+    try:
+        report = container.report_candidate_use_case(session).execute(
+            candidate_id, request.comment,
+        )
+        session.commit()
+        return report
+    except CandidateNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except EmptyReportCommentError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
 
 @router.patch("/{candidate_id}/context-fragment")

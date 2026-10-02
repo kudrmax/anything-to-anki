@@ -19,6 +19,7 @@ from backend.infrastructure.api.routes import (
     anki,
     bootstrap,
     candidates,
+    card_reports,
     collections,
     export,
     generation,
@@ -101,6 +102,7 @@ app.add_middleware(
 app.include_router(sources.router)
 app.include_router(media_router)
 app.include_router(candidates.router)
+app.include_router(card_reports.router)
 app.include_router(known_words.router)
 app.include_router(settings.router)
 app.include_router(anki.router)
