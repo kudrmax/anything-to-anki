@@ -2,26 +2,34 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from backend.domain.entities.word_decision import WordDecision
 from backend.domain.exceptions import CandidateNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
+    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.known_word_repository import KnownWordRepository
+    from backend.domain.ports.word_decision_repository import WordDecisionRepository
+
+DECISION_STATUSES = frozenset({CandidateStatus.KNOWN, CandidateStatus.LEARN})
 
 
 class MarkCandidateUseCase:
-    """Marks a candidate status (or undoes it back to pending) and keeps known words in sync."""
+    """Marks a candidate status (or undoes it back to pending), keeps known
+    words in sync and remembers known/learn verdicts for calibration."""
 
     def __init__(
         self,
         candidate_repo: CandidateRepository,
         known_word_repo: KnownWordRepository,
+        decision_repo: WordDecisionRepository,
         review_status: ReviewStatusUpdater,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._known_word_repo = known_word_repo
+        self._decision_repo = decision_repo
         self._review_status = review_status
 
     def execute(self, candidate_id: int, status: CandidateStatus) -> None:
@@ -33,4 +41,18 @@ class MarkCandidateUseCase:
             self._known_word_repo.add(candidate.lemma, candidate.pos)
         elif candidate.status == CandidateStatus.KNOWN:
             self._known_word_repo.remove_by_lemma(candidate.lemma, candidate.pos)
+        self._remember_decision(candidate, status)
         self._review_status.refresh(candidate.source_id)
+
+    def _remember_decision(self, candidate: StoredCandidate, status: CandidateStatus) -> None:
+        """Only single words: a phrase's frequency is not comparable with a word's."""
+        if candidate.is_phrasal_verb or " " in candidate.lemma:
+            return
+        if status in DECISION_STATUSES:
+            self._decision_repo.record(WordDecision(
+                lemma=candidate.lemma,
+                zipf_frequency=candidate.zipf_frequency,
+                is_known=status == CandidateStatus.KNOWN,
+            ))
+        elif candidate.status in DECISION_STATUSES:
+            self._decision_repo.forget(candidate.lemma)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { BootstrapStatus, CleanupMediaKind, CreateNoteTypeResponse, KnownWord, Settings, SourceMediaStats, VerifyNoteTypeResponse } from '@/api/types'
+import type { BootstrapStatus, CleanupMediaKind, CreateNoteTypeResponse, FrequentWordThresholdOption, KnownWord, Settings, SourceMediaStats, VerifyNoteTypeResponse } from '@/api/types'
 
 const BOOTSTRAP_POLL_MS = 2000
 const FLASH_MS = 2000
@@ -25,6 +25,7 @@ export function useSettings() {
   const [mediaStats, setMediaStats] = useState<SourceMediaStats[]>([])
   const [mediaStatsLoading, setMediaStatsLoading] = useState(false)
   const [copiedTemplate, setCopiedTemplate] = useState<TemplatePart | null>(null)
+  const [frequentWordThresholds, setFrequentWordThresholds] = useState<FrequentWordThresholdOption[]>([])
 
   const loadMediaStats = useCallback(async () => {
     setMediaStatsLoading(true)
@@ -77,9 +78,12 @@ export function useSettings() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [settings, words] = await Promise.all([api.getSettings(), api.getKnownWords()])
+        const [settings, words, thresholds] = await Promise.all([
+          api.getSettings(), api.getKnownWords(), api.getFrequentWordThresholds(),
+        ])
         setForm(settings)
         setKnownWords(words)
+        setFrequentWordThresholds(thresholds)
       } catch (e) {
         setSaveError(e instanceof Error ? e.message : 'Failed to load settings')
       } finally {
@@ -195,6 +199,7 @@ export function useSettings() {
     bootstrapStatus, buildBootstrap,
     mediaStats, mediaStatsLoading, loadMediaStats, cleanupMedia,
     reorderUsageGroups,
+    frequentWordThresholds,
   }
 }
 

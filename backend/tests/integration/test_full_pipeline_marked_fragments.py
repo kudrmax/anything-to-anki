@@ -5,17 +5,11 @@ Runs the full real ``AnalyzeTextUseCase`` pipeline (real spaCy, real
 ``BoundaryCleaner``) over the original full source texts and asserts the
 fragment for each marked target lemma.
 
-Two kinds of cases:
-
-1. **Wave 1 baseline (assert ==).** Frozen as of the Wave 1 verification run.
-   Expected values are exactly what the pipeline produces today. Any future
-   wave that *changes* one of these values must update the expected text —
-   that's the regression signal.
-
-2. **Wave 2 wishlist (xfail strict).** Cases that Wave 1 cannot fully fix
-   (need extension, not trim). Marked ``xfail(strict=True)``: when a future
-   wave fixes them, the test will go XPASS → FAIL, forcing us to update the
-   fixture and lock the new behavior.
+Baseline (assert ==): expected values are exactly what the pipeline produces
+today. Any change that *changes* one of these values must update the expected
+text — that's the regression signal. The former "wave 2 wishlist" cases
+(conclusion, need) were fixed by preferring whole clauses over cut pieces and
+now live in the baseline.
 
 Source texts live in ``backend/tests/integration/fixtures/`` and are
 self-contained — no DB dependency.
@@ -85,12 +79,11 @@ def lyrics_fragments(use_case: AnalyzeTextUseCase) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 WAVE_1_HPMOR: list[tuple[str, str, str]] = [
-    ("45_look_at", "look at", "two of them stopped and looked at Harry"),
+    ("45_look_at", "look at", "you just have to look at the world"),
     (
         "86_disclaimer",
         "disclaimer",
-        "Disclaimer: J. K. Rowling owns Harry Potter, "
-        "and no one owns the methods of rationality.",
+        "Disclaimer: J. K. Rowling owns Harry Potter",
     ),
     (
         "138_individually",
@@ -105,7 +98,7 @@ WAVE_1_HPMOR: list[tuple[str, str, str]] = [
     (
         "288_arbiter",
         "arbiter",
-        "science is that the final arbiter is observation",
+        "the final arbiter is observation - that you just have to look at the world",
     ),
     (
         "305_plot",
@@ -115,47 +108,62 @@ WAVE_1_HPMOR: list[tuple[str, str, str]] = [
     (
         "318_argument",
         "argument",
-        "know I can't win arguments with you",
+        "I can't win arguments with you",
     ),
     (
         "348_require",
         "require",
-        "any chapter, no login required, and there's",
+        "philosophers say a great deal about what science absolutely requires",
     ),
     # "correct" removed: Oxford 5000 classifies it as A1 (below B1 user level),
     # so it no longer passes the candidate filter.
     (
         "456_single",
         "single",
-        "This is not a strict single-point",
+        "This is not a strict single-point-of-departure fic",
     ),
     (
         "474_own",
         "own",
-        "Disclaimer: J. K. Rowling owns Harry Potter",
+        "no one owns the methods of rationality.",
     ),
     (
         "289_fic",
         "fic",
-        "This fic is widely considered",
+        "I've heard for this fic",
     ),
     (
         "394_consider",
         "consider",
-        "This fic is widely considered to have really hit",
+        "The Professor considers shouting to be uncivilised.",
+    ),
+    (
+        "235_conclusion",
+        "conclusion",
+        "with an overall arc building to a final conclusion.",
+    ),
+    (
+        "477_need",
+        "need",
+        "there's no need to finish reading it all",
     ),
 ]
 
 WAVE_1_LYRICS: list[tuple[str, str, str]] = [
     ("485_answer_to", "answer to", "I answer to nobody, Rick"),
-    ("509_dimension", "dimension", "ending Ricks of all dimensions"),
-    ("521_genius", "genius", "forming me\nInto a genius"),
+    ("509_dimension", "dimension", "Did I mention ending Ricks of all dimensions"),
+    ("521_genius", "genius", "that prick had tried forming me\nInto a genius"),
     (
         "486_believe_in",
         "believe in",
-        "believe in this Citadel to the Ricks and Mortys",
+        "believe in this Citadel to the Ricks",
     ),
-    ("525_defame", "defame", "Defamed by the fake news"),
+    (
+        "525_defame",
+        "defame",
+        "Defamed by the fake news as a joke\nJuggling Rick don\u2019t know I\u2019ma go\n"
+        "For their throats",
+    ),
     (
         "554_cause",
         "cause",
@@ -163,23 +171,6 @@ WAVE_1_LYRICS: list[tuple[str, str, str]] = [
     ),
 ]
 
-
-# Wave 2 wishlist — these still produce the *original* (unfixed) fragment.
-# Each entry is (test_id, lemma, current_buggy_fragment, reason).
-WAVE_2_HPMOR_XFAIL: list[tuple[str, str, str, str]] = [
-    (
-        "235_conclusion",
-        "conclusion",
-        "arc building to a final conclusion.",
-        "needs LEFT extension 'with an overall'",
-    ),
-    (
-        "477_need",
-        "need",
-        "no need to finish reading it all",
-        "needs LEFT extension 'there's'",
-    ),
-]
 
 @pytest.mark.integration
 class TestWave1BaselineHPMOR:
@@ -215,25 +206,3 @@ class TestWave1BaselineLyrics:
             f"lemma {lemma!r} disappeared from candidates — pipeline regression"
         )
         assert actual == expected
-
-
-@pytest.mark.integration
-class TestWave2WishlistHPMOR:
-    """Wave 2 should fix these. xfail(strict=True) → if a future wave makes
-    them pass, the test will FAIL with 'unexpectedly passing' and force
-    updating the fixture."""
-
-    @pytest.mark.parametrize(
-        ("lemma", "current_buggy"),
-        [(lemma, buggy) for _, lemma, buggy, _ in WAVE_2_HPMOR_XFAIL],
-        ids=[tid for tid, _, _, _ in WAVE_2_HPMOR_XFAIL],
-    )
-    @pytest.mark.xfail(strict=True, reason="Wave 2 — needs extension, not trim")
-    def test_fragment_should_be_fixed(
-        self, hpmor_fragments: dict[str, str], lemma: str, current_buggy: str
-    ) -> None:
-        actual = hpmor_fragments.get(lemma)
-        # The xfail expectation: today the value still equals the buggy one,
-        # so we ASSERT IT'S DIFFERENT. When a wave fixes it, this assert
-        # passes and the xfail strict mode flips to FAIL.
-        assert actual != current_buggy

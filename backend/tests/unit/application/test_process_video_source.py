@@ -14,6 +14,8 @@ from backend.domain.value_objects.parsed_srt import ParsedSrt
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.subtitle_block import SubtitleBlock
 
+from tests.relevance_support import threshold_resolver
+
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
 
@@ -84,6 +86,7 @@ class TestProcessVideoSource:
             candidate_repo=candidate_repo,
             known_word_repo=known_word_repo,
             settings_repo=settings_repo,
+            threshold_resolver=threshold_resolver(settings_repo),
             analyze_text_use_case=analyze_text,
             structured_srt_parser=structured_parser,
             media_repo=self._media_repo,

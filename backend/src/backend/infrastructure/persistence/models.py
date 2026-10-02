@@ -18,6 +18,7 @@ from backend.domain.entities.known_word import KnownWord
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.topic_target import TopicTarget
+from backend.domain.entities.word_decision import WordDecision
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -250,6 +251,9 @@ class StoredCandidateModel(Base):
     is_sweet_spot: Mapped[bool] = mapped_column(nullable=False)
     context_fragment: Mapped[str] = mapped_column(Text, nullable=False)
     fragment_purity: Mapped[str] = mapped_column(String(10), nullable=False)
+    fragment_unknown_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     surface_form: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -289,6 +293,7 @@ class StoredCandidateModel(Base):
             zipf_frequency=self.zipf_frequency,
             context_fragment=self.context_fragment,
             fragment_purity=self.fragment_purity,
+            fragment_unknown_count=self.fragment_unknown_count,
             occurrences=self.occurrences,
             surface_form=self.surface_form,
             is_phrasal_verb=self.is_phrasal_verb,
@@ -318,6 +323,7 @@ class StoredCandidateModel(Base):
             is_sweet_spot=candidate.is_sweet_spot,
             context_fragment=candidate.context_fragment,
             fragment_purity=candidate.fragment_purity,
+            fragment_unknown_count=candidate.fragment_unknown_count,
             occurrences=candidate.occurrences,
             surface_form=candidate.surface_form,
             is_phrasal_verb=candidate.is_phrasal_verb,
@@ -386,6 +392,24 @@ class KnownWordModel(Base):
             lemma=self.lemma,
             pos=self.pos,
             created_at=self.created_at,
+        )
+
+
+class WordDecisionModel(Base):
+    """SQLAlchemy model for the user's verdicts on words."""
+
+    __tablename__ = "word_decisions"
+
+    lemma: Mapped[str] = mapped_column(String(100), primary_key=True)
+    zipf_frequency: Mapped[float] = mapped_column(Float, nullable=False)
+    is_known: Mapped[bool] = mapped_column(nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(
+        UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
+    )
+
+    def to_entity(self) -> WordDecision:
+        return WordDecision(
+            lemma=self.lemma, zipf_frequency=self.zipf_frequency, is_known=self.is_known,
         )
 
 

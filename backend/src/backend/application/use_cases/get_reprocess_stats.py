@@ -51,10 +51,10 @@ class GetReprocessStatsUseCase:
 
         for c in candidates:
             if c.status == CandidateStatus.LEARN:
-                if not known_filter.is_known(c.lemma, c.pos):
+                if not known_filter.is_known(c.lemma):
                     learn_lost_count += 1
             elif c.status == CandidateStatus.KNOWN:
-                if not known_filter.is_known(c.lemma, c.pos):
+                if not known_filter.is_known(c.lemma):
                     known_lost_count += 1
             elif c.status == CandidateStatus.SKIP:
                 skip_count += 1

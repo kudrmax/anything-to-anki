@@ -209,10 +209,6 @@ class TestBoundaryCleanerRealCases:
         assert "but please" not in cleaned
         assert "win arguments" in cleaned
 
-    @pytest.mark.xfail(
-        reason="Wave 2: cascade trim is risky here, leaves an awkward edge",
-        strict=False,
-    )
     def test_348_require(self) -> None:
         _, cleaned = self._run(S_REVIEWS, "required")
         assert "no login required" in cleaned

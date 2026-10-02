@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GripVertical } from 'lucide-react'
-import type { Settings } from '@/api/types'
+import type { FrequentWordThresholdOption, Settings } from '@/api/types'
 import { autoPlayAudioPref, type ThemePref } from '@/lib/preferences'
 import { formatBytes } from '@/lib/text/format'
 import { useTheme } from '@/lib/theme'
-import { Button, Chip, DividerRow, Empty, Field, Icon, Label, Range, RemovableChip, Segmented, Spinner, Stack, Switch, Text } from '@/ui'
+import { Button, Chip, DividerRow, Empty, Field, Icon, Label, Range, RemovableChip, Segmented, Select, Spinner, Stack, Switch, Text } from '@/ui'
 import type { SettingsStore, TemplatePart } from './useSettings'
 import css from './settings.module.css'
 
@@ -15,6 +15,11 @@ const THEMES: { value: ThemePref; label: string }[] = [
   { value: 'system', label: 'System' },
 ]
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(level => ({ value: level, label: level }))
+const AUTO_THRESHOLD = 'auto'
+const frequentWordThresholdLabel = ({ value, zipf, examples }: FrequentWordThresholdOption) => {
+  if (value === AUTO_THRESHOLD) return `Auto — now ${zipf?.toFixed(1)}`
+  return examples.length > 0 ? `${value} — ${examples.join(', ')}` : 'Off'
+}
 const AI_MODELS = [
   { value: 'haiku', label: 'Haiku' },
   { value: 'sonnet', label: 'Sonnet' },
@@ -147,6 +152,16 @@ export function Vocabulary({ store, form }: SectionProps) {
     <>
       <DividerRow label="Target CEFR level" hint="Words above this level will be suggested as candidates.">
         <Segmented value={form.cefr_level} options={CEFR_LEVELS} onChange={level => store.setField('cefr_level', level)} />
+      </DividerRow>
+      <DividerRow
+        label="Frequent words"
+        hint="Words at least this frequent go to the bottom of the list as probably known. Auto learns the value from your Know / Learn marks. Other options show examples of words that go down; lower value — more words go down."
+      >
+        <Select value={form.frequent_word_threshold} onChange={e => store.setField('frequent_word_threshold', e.target.value)}>
+          {store.frequentWordThresholds.map(option => (
+            <option key={option.value} value={option.value}>{frequentWordThresholdLabel(option)}</option>
+          ))}
+        </Select>
       </DividerRow>
       <DividerRow
         label="Vocabulary calibration"

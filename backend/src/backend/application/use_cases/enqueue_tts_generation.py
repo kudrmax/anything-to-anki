@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import json
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
 from backend.domain.entities.job import Job
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
@@ -13,10 +11,10 @@ from backend.domain.value_objects.job_type import JobType
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from backend.application.utils.relevance_sorter import RelevanceSorter
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.candidate_tts_repository import CandidateTTSRepository
     from backend.domain.ports.job_repository import JobRepository
-    from backend.domain.ports.settings_repository import SettingsRepository
 
 
 class EnqueueTTSGenerationUseCase:
@@ -26,25 +24,21 @@ class EnqueueTTSGenerationUseCase:
         self,
         tts_repo: CandidateTTSRepository,
         candidate_repo: CandidateRepository,
-        settings_repo: SettingsRepository,
+        relevance_sorter: RelevanceSorter,
         job_repo: JobRepository,
     ) -> None:
         self._tts_repo = tts_repo
         self._candidate_repo = candidate_repo
-        self._settings_repo = settings_repo
+        self._relevance_sorter = relevance_sorter
         self._job_repo = job_repo
 
     def execute(self, source_id: int) -> list[int]:
-        from backend.domain.services.candidate_sorting import sort_by_relevance
-
         unsorted_ids = self._tts_repo.get_eligible_candidate_ids(source_id)
         if not unsorted_ids:
             return []
 
         candidates = self._candidate_repo.get_by_ids(unsorted_ids)
-        raw = self._settings_repo.get("usage_group_order")
-        usage_order: list[str] = json.loads(raw) if raw else DEFAULT_USAGE_GROUP_ORDER
-        sorted_candidates = sort_by_relevance(candidates, usage_order=usage_order)
+        sorted_candidates = self._relevance_sorter.sort(candidates)
 
         eligible_ids = [c.id for c in sorted_candidates if c.id is not None]
         if not eligible_ids:

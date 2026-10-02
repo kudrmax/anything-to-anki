@@ -10,6 +10,7 @@ import { PhraseRow } from './PhraseRow'
 import { SelectionPopover } from './SelectionPopover'
 import { SourceText, type SelectionPoint } from './SourceText'
 import { audioUrlForCandidate, useReview } from './useReview'
+import { useShownCandidates } from './useShownCandidates'
 import css from './review.module.css'
 
 const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
@@ -28,6 +29,12 @@ export function ReviewScreen() {
 
   const { source, candidates, currentId, counts, editing } = review
   const current = candidates.find(c => c.id === currentId) ?? null
+  const list = useShownCandidates(
+    candidates,
+    source?.initially_shown_candidates ?? null,
+    currentId,
+    `${id}:${review.sortOrder}`,
+  )
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-candidate-id="${currentId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
@@ -118,9 +125,16 @@ export function ReviewScreen() {
     <Page header={header} aside={aside} banner={(review.vpnBlocked || editing) ? banner : undefined}>
       <div ref={listRef}>
         {candidates.length === 0 && <Empty>No candidates found for this source.</Empty>}
-        {candidates.map(candidate => (
+        {list.shown.map(candidate => (
           <PhraseRow key={candidate.id} candidate={candidate} current={candidate.id === currentId} review={review} />
         ))}
+        {list.hiddenCount > 0 && (
+          <div className={css.showMore}>
+            <Button variant="link" onClick={list.showMore}>
+              Show {list.nextPageCount} more · {list.hiddenCount} left
+            </Button>
+          </div>
+        )}
         {candidates.length > 0 && counts.marked === counts.total && <Empty>All candidates reviewed.</Empty>}
         {candidates.length > 0 && (
           <div className={css.hint}>↑ ↓ — next phrase · 1 Learn · 2 Know · 3 Skip · Space — play audio</div>

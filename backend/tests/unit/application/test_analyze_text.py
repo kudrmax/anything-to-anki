@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from unittest.mock import MagicMock
 
 import pytest
-from backend.application.dto.analysis_dtos import AnalyzeTextRequest
+from backend.application.dto.analysis_dtos import AnalyzeTextRequest, WordCandidateDTO
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.domain.entities.token_data import TokenData
 from backend.domain.exceptions import TextTooShortError
+from backend.domain.services.phrasal_verb_detector import PhrasalVerbMatch
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.frequency_band import FrequencyBand
@@ -192,6 +194,132 @@ class TestAnalyzeTextUseCase:
         assert response.candidates[0].fragment_purity in ("clean", "dirty")
 
 
+def _sentence(start: int, sent_index: int, lemmas: list[str]) -> list[TokenData]:
+    return [
+        replace(_make_token(start + i, lemma, lemma, sent_index=sent_index), whitespace_after=" ")
+        for i, lemma in enumerate(lemmas)
+    ]
+
+
+def _run(
+    tokens: list[TokenData],
+    cefr_map: dict[str, CEFRLevel],
+    freq_map: dict[str, float] | None = None,
+    known: frozenset[str] = frozenset(),
+    frequent_zipf: float | None = 4.5,
+) -> list[WordCandidateDTO]:
+    use_case = _create_use_case(
+        cleaned_text=" ".join(t.text for t in tokens),
+        tokens=tokens,
+        cefr_map=cefr_map,
+        freq_map=freq_map or {},
+    )
+    request = AnalyzeTextRequest(
+        raw_text="text", user_level="B1", known_lemmas=known,
+        frequent_word_zipf=frequent_zipf,
+    )
+    return use_case.execute(request).candidates
+
+
+EASY = {"one": 3.0, "two": 3.0, "three": 3.0, "four": 3.0, "five": 3.0, "six": 3.0}
+
+
+@pytest.mark.unit
+class TestAnalyzeTextKnownWords:
+    def test_known_word_is_not_a_candidate(self) -> None:
+        tokens = [_make_token(0, "divorced", "divorce", pos="VERB", tag="VBN")]
+        candidates = _run(tokens, {"divorce": CEFRLevel.B2}, known=frozenset({"divorce"}))
+        assert candidates == []
+
+    def test_known_phrasal_verb_is_not_a_candidate(self) -> None:
+        tokens = [
+            _make_token(0, "made", "make", pos="VERB", tag="VBD"),
+            _make_token(1, "up", "up", pos="ADP", tag="RP"),
+        ]
+        use_case = _create_use_case(cleaned_text="made up", tokens=tokens)
+        use_case._phrasal_verb_detector.detect.return_value = [  # type: ignore[attr-defined]
+            PhrasalVerbMatch(
+                verb_index=0, component_indices=(1,), lemma="make up", surface_form="made up",
+            ),
+        ]
+        request = AnalyzeTextRequest(
+            raw_text="made up", user_level="B1", known_lemmas=frozenset({"make up"}),
+        )
+        assert use_case.execute(request).candidates == []
+
+
+@pytest.mark.unit
+class TestAnalyzeTextOneCardPerWord:
+    def test_same_word_as_different_parts_of_speech_is_one_candidate(self) -> None:
+        tokens = [
+            _make_token(0, "premium", "premium", pos="ADJ", tag="JJ"),
+            _make_token(1, "premium", "premium", pos="NOUN", tag="NN"),
+        ]
+        candidates = _run(tokens, {"premium": CEFRLevel.B2}, {"premium": 4.3})
+        assert len(candidates) == 1
+        assert candidates[0].occurrences == 2
+
+    def test_lemmatizer_non_word_falls_back_to_word_as_written(self) -> None:
+        tokens = [_make_token(0, "syphilis", "syphili")]
+        candidates = _run(
+            tokens, {"syphilis": CEFRLevel.C2}, {"syphili": 0.0, "syphilis": 3.1},
+        )
+        assert [c.lemma for c in candidates] == ["syphilis"]
+
+
+@pytest.mark.unit
+class TestAnalyzeTextPhraseChoice:
+    def test_phrase_where_target_is_the_only_unknown_word_wins(self) -> None:
+        first = _sentence(0, 0, ["one", "rival", "two", "three", "feast"])
+        second = _sentence(5, 1, ["four", "five", "six", "one", "feast"])
+        candidates = _run(
+            first + second,
+            {"feast": CEFRLevel.C1, "rival": CEFRLevel.C1},
+            {**EASY, "feast": 3.9, "rival": 3.9},
+        )
+        feast = next(c for c in candidates if c.lemma == "feast")
+        assert feast.context_fragment == "four five six one feast"
+        assert feast.fragment_unknown_count == 0
+        assert feast.fragment_purity == "clean"
+
+    def test_other_unknown_word_makes_phrase_dirty(self) -> None:
+        tokens = _sentence(0, 0, ["one", "rival", "two", "three", "feast"])
+        candidates = _run(
+            tokens, {"feast": CEFRLevel.C1, "rival": CEFRLevel.C1},
+            {**EASY, "feast": 3.9, "rival": 3.9},
+        )
+        feast = next(c for c in candidates if c.lemma == "feast")
+        assert feast.fragment_unknown_count == 1
+        assert feast.fragment_purity == "dirty"
+
+    def test_known_neighbour_is_not_counted_as_unknown(self) -> None:
+        tokens = _sentence(0, 0, ["one", "rival", "two", "three", "feast"])
+        candidates = _run(
+            tokens, {"feast": CEFRLevel.C1, "rival": CEFRLevel.C1},
+            {**EASY, "feast": 3.9, "rival": 3.9}, known=frozenset({"rival"}),
+        )
+        assert candidates[0].lemma == "feast"
+        assert candidates[0].fragment_unknown_count == 0
+
+    def test_frequent_neighbour_is_not_counted_as_unknown(self) -> None:
+        tokens = _sentence(0, 0, ["one", "concept", "two", "three", "feast"])
+        candidates = _run(
+            tokens, {"feast": CEFRLevel.C1, "concept": CEFRLevel.B2},
+            {**EASY, "feast": 3.9, "concept": 4.77},
+        )
+        feast = next(c for c in candidates if c.lemma == "feast")
+        assert feast.fragment_unknown_count == 0
+
+    def test_frequent_neighbour_counts_when_threshold_is_off(self) -> None:
+        tokens = _sentence(0, 0, ["one", "concept", "two", "three", "feast"])
+        candidates = _run(
+            tokens, {"feast": CEFRLevel.C1, "concept": CEFRLevel.B2},
+            {**EASY, "feast": 3.9, "concept": 4.77}, frequent_zipf=None,
+        )
+        feast = next(c for c in candidates if c.lemma == "feast")
+        assert feast.fragment_unknown_count == 1
+
+
 @pytest.mark.unit
 class TestAnalyzeTextSlangNormalization:
     def test_normalizer_called_with_cleaned_text(self) -> None:
@@ -222,3 +350,41 @@ class TestAnalyzeTextSlangNormalization:
 
         text_normalizer.normalize.assert_called_once_with("I wanna go")
         text_analyzer.analyze.assert_called_once_with("I want to go")
+
+
+@pytest.mark.unit
+class TestAnalyzeTextLemmaFixes:
+    def test_lost_silent_e_is_restored(self) -> None:
+        tokens = [_make_token(0, "hoping", "hop", pos="VERB", tag="VBG")]
+        candidates = _run(
+            tokens, {"hope": CEFRLevel.B2}, {"hop": 4.4, "hope": 5.44, "hoping": 4.67},
+            frequent_zipf=None,
+        )
+        assert [c.lemma for c in candidates] == ["hope"]
+
+    def test_doubled_consonant_keeps_the_short_stem(self) -> None:
+        tokens = [_make_token(0, "hopping", "hop", pos="VERB", tag="VBG")]
+        candidates = _run(
+            tokens, {"hop": CEFRLevel.B2}, {"hop": 4.4, "hope": 5.44, "hopping": 3.43},
+            frequent_zipf=None,
+        )
+        assert [c.lemma for c in candidates] == ["hop"]
+
+    def test_stem_without_silent_e_spelling_is_kept(self) -> None:
+        """'visiting' — 'visite' is only a rare typo."""
+        tokens = [_make_token(0, "visiting", "visit", pos="VERB", tag="VBG")]
+        candidates = _run(
+            tokens, {"visit": CEFRLevel.B2}, {"visit": 5.0, "visite": 2.06, "visiting": 4.5},
+            frequent_zipf=None,
+        )
+        assert [c.lemma for c in candidates] == ["visit"]
+
+    def test_plural_only_noun_keeps_its_s(self) -> None:
+        tokens = [_make_token(0, "pants", "pant", tag="NNS")]
+        candidates = _run(tokens, {"pants": CEFRLevel.B2}, {"pant": 3.18, "pants": 4.48})
+        assert [c.lemma for c in candidates] == ["pants"]
+
+    def test_regular_plural_goes_to_singular(self) -> None:
+        tokens = [_make_token(0, "glasses", "glass", tag="NNS")]
+        candidates = _run(tokens, {"glass": CEFRLevel.B2}, {"glass": 4.85, "glasses": 4.34})
+        assert [c.lemma for c in candidates] == ["glass"]

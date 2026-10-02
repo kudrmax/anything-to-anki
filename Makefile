@@ -52,6 +52,35 @@ define kill_on_port
 	if [ -n "$$pids" ]; then sleep 0.5; fi
 endef
 
+# Воркер не слушает порт, и после перезаписи pid-файла его не найти:
+# ищем воркеры, запущенные из этой рабочей копии.
+define kill_workers_of_this_copy
+	@for pid in $$(pgrep -f 'backend.infrastructure.queue' 2>/dev/null); do \
+	    if [ "$$(lsof -a -p $$pid -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" = "$(CURDIR)" ]; then \
+	        kill $$pid 2>/dev/null && echo "Stopped worker (PID $$pid)"; \
+	    fi; \
+	done
+endef
+
+define wait_port_free
+	@for i in $$(seq 1 40); do \
+	    lsof -ti :$(1) -sTCP:LISTEN >/dev/null 2>&1 || break; \
+	    sleep 0.25; \
+	done
+endef
+
+# Порты worktree общие для всех worktree: сносим и чужой запущенный worktree.
+define stop_worktree
+	$(call kill_by_pid,.pids/app_wt.pid,worktree app)
+	$(call kill_by_pid,.pids/worker_wt.pid,worktree worker)
+	$(call kill_by_pid,.pids/ai_proxy_wt.pid,worktree ai_proxy)
+	$(call kill_workers_of_this_copy)
+	$(call kill_on_port,$(WORKTREE_PORT),uvicorn)
+	$(call kill_on_port,$(WORKTREE_AI_PROXY_PORT),ai_proxy)
+	$(call wait_port_free,$(WORKTREE_PORT))
+	$(call wait_port_free,$(WORKTREE_AI_PROXY_PORT))
+endef
+
 define start_ai_proxy
 	@mkdir -p .pids .logs
 	$(call kill_on_port,$(AI_PROXY_PORT),ai_proxy)
@@ -216,7 +245,7 @@ up-worktree: _check_env _check_setup dict-update  ## Запустить worktree
 	$(call install_frontend_deps)
 	@echo "Building frontend..."
 	@cd frontends/web && VITE_INSTANCE_ENV_NAME=worktree npm run build
-	$(call kill_on_port,$(WORKTREE_AI_PROXY_PORT),ai_proxy)
+	$(call stop_worktree)
 	@mkdir -p .pids .logs
 	@.venv/bin/python ai_proxy.py --port $(WORKTREE_AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > .pids/ai_proxy_wt.pid; \
 	    echo "ai_proxy started on port $(WORKTREE_AI_PROXY_PORT)"
@@ -244,9 +273,7 @@ down:  ## Остановить
 	$(call stop_ai_proxy)
 
 down-worktree:  ## Остановить worktree
-	$(call kill_by_pid,.pids/app_wt.pid,worktree app)
-	$(call kill_by_pid,.pids/worker_wt.pid,worktree worker)
-	$(call kill_by_pid,.pids/ai_proxy_wt.pid,worktree ai_proxy)
+	$(call stop_worktree)
 
 logs:  ## Логи app + worker + ai_proxy одним потоком
 	@trap 'kill 0' INT TERM; \

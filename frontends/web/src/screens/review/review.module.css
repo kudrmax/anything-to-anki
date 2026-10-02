@@ -17,6 +17,7 @@
 .markCurrent { color: var(--ac); font-weight: var(--fw-m); }
 .markRated { color: inherit; }
 .hint { font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); padding: var(--py) var(--px) 0 var(--off); }
+.showMore { padding: var(--py) var(--px) 0 var(--off); }
 
 /* попап выделения */
 .popover { display: flex; flex-direction: column; gap: var(--s3); min-width: var(--menu); font-size: var(--fs-m); }

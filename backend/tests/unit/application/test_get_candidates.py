@@ -14,6 +14,8 @@ from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.usage_distribution import UsageDistribution
 
+from tests.relevance_support import relevance_sorter
+
 
 @pytest.mark.unit
 class TestGetCandidatesUseCase:
@@ -27,7 +29,7 @@ class TestGetCandidatesUseCase:
         self.use_case = GetCandidatesUseCase(
             source_repo=self.source_repo,
             candidate_repo=self.candidate_repo,
-            settings_repo=self.settings_repo,
+            relevance_sorter=relevance_sorter(self.settings_repo),
             job_repo=self.job_repo,
         )
 

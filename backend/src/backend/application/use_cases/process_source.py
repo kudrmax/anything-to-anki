@@ -23,6 +23,9 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
+    from backend.application.utils.frequent_word_threshold_resolver import (
+        FrequentWordThresholdResolver,
+    )
     from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
     from backend.domain.entities.source import Source
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
@@ -49,6 +52,7 @@ class ProcessSourceUseCase:
         candidate_repo: CandidateRepository,
         known_word_repo: KnownWordRepository,
         settings_repo: SettingsRepository,
+        threshold_resolver: FrequentWordThresholdResolver,
         analyze_text_use_case: AnalyzeTextUseCase,
         source_parsers: dict[InputMethod, SourceParser] | None = None,
         structured_srt_parser: StructuredSrtParser | None = None,
@@ -59,6 +63,7 @@ class ProcessSourceUseCase:
         self._candidate_repo = candidate_repo
         self._known_word_repo = known_word_repo
         self._settings_repo = settings_repo
+        self._threshold_resolver = threshold_resolver
         self._analyze_text = analyze_text_use_case
         self._source_parsers: dict[InputMethod, SourceParser] = source_parsers or {}
         self._structured_srt_parser = structured_srt_parser
@@ -128,14 +133,15 @@ class ProcessSourceUseCase:
 
         # Stage 2: text analysis (cleaning + tokenization + filtering)
         self._notify_stage(source_id, ProcessingStage.ANALYZING_TEXT, on_stage_commit)
+        known_filter = KnownWordFilter(self._known_word_repo.get_all_pairs())
         request = AnalyzeTextRequest(
             raw_text=raw_text,
             user_level=cefr_level,
+            known_lemmas=known_filter.known_lemmas,
+            frequent_word_zipf=self._threshold_resolver.resolve().zipf,
         )
         result = self._analyze_text.execute(request)
-
-        known_filter = KnownWordFilter(self._known_word_repo.get_all_pairs())
-        filtered = [c for c in result.candidates if not known_filter.is_known(c.lemma, c.pos)]
+        filtered = result.candidates
 
         if parsed_srt is not None:
             self._notify_stage(source_id, ProcessingStage.MAPPING_TIMECODES, on_stage_commit)
@@ -160,6 +166,7 @@ class ProcessSourceUseCase:
                 zipf_frequency=c.zipf_frequency,
                 context_fragment=c.context_fragment,
                 fragment_purity=c.fragment_purity,
+                fragment_unknown_count=c.fragment_unknown_count,
                 occurrences=c.occurrences,
                 surface_form=c.surface_form,
                 is_phrasal_verb=c.is_phrasal_verb,

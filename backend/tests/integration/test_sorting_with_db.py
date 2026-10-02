@@ -22,6 +22,7 @@ def _make_candidate(
     occurrences: int = 1,
     is_phrasal_verb: bool = False,
     context_fragment: str = "",
+    unknowns: int = 0,
 ) -> StoredCandidate:
     return StoredCandidate(
         source_id=source_id,
@@ -30,7 +31,8 @@ def _make_candidate(
         cefr_level=cefr,
         zipf_frequency=zipf,
         context_fragment=context_fragment or f"context for {lemma}",
-        fragment_purity="clean",
+        fragment_purity="clean" if unknowns == 0 else "dirty",
+        fragment_unknown_count=unknowns,
         occurrences=occurrences,
         status=CandidateStatus.PENDING,
         is_phrasal_verb=is_phrasal_verb,
@@ -49,6 +51,7 @@ class TestSortingWithDb:
     def test_relevance_sort_after_db_roundtrip(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
         repo.create_batch([
+            _make_candidate(1, "dirty_word", 4.0, unknowns=2),
             _make_candidate(1, "rare_word", 2.0, cefr="C1"),
             _make_candidate(1, "common_word", 5.0, cefr="A2"),
             _make_candidate(1, "mid_phrasal", 4.0, is_phrasal_verb=True),
@@ -56,12 +59,10 @@ class TestSortingWithDb:
         ])
         loaded = repo.get_by_source(1)
         sorted_candidates = sort_by_relevance(loaded)
-        lemmas = [c.lemma for c in sorted_candidates]
-        # COMMON(5.0) > MID (phrasal interleaved, not grouped) > RARE
-        assert lemmas.index("common_word") == 0
-        assert lemmas.index("rare_word") == len(lemmas) - 1
-        assert "mid_phrasal" in lemmas
-        assert "mid_regular" in lemmas
+        assert [c.lemma for c in sorted_candidates] == [
+            "common_word", "mid_regular", "rare_word", "mid_phrasal", "dirty_word",
+        ]
+        assert sorted_candidates[-1].fragment_unknown_count == 2
 
     def test_chronological_sort_after_db_roundtrip(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)

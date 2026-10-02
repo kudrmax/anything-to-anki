@@ -87,7 +87,7 @@ class TestBoundaryPenaltyLeftEdge:
         scorer = DefaultScorer(config=ScoringConfig(), unknown_counter=_zero_counter)
         score = scorer.score([0, 1, 2], tokens)
         # boundary_penalty is the second element (index 1)
-        assert score[1] == 0
+        assert score.boundary_penalty == 0
 
     def test_attr_head_outside_left_incurs_penalty(self) -> None:
         """'no need ...' where need.dep=attr, head 'is' is outside."""
@@ -153,7 +153,7 @@ class TestBoundaryPenaltyRightEdge:
         ]
         scorer = DefaultScorer(config=ScoringConfig(), unknown_counter=_zero_counter)
         score = scorer.score([0, 1, 2], tokens)
-        assert score[1] == 0
+        assert score.boundary_penalty == 0
 
 
 class TestBoundaryPenaltyNonCriticalDeps:
@@ -169,7 +169,7 @@ class TestBoundaryPenaltyNonCriticalDeps:
         scorer = DefaultScorer(config=ScoringConfig(), unknown_counter=_zero_counter)
         # Fragment [1, 2] --- "a" is outside but dep=det -> not critical
         score = scorer.score([1, 2], tokens)
-        assert score[1] == 0
+        assert score.boundary_penalty == 0
 
     def test_advmod_child_outside_no_penalty(self) -> None:
         """Adverb child outside is not a critical cut."""
@@ -181,4 +181,4 @@ class TestBoundaryPenaltyNonCriticalDeps:
         scorer = DefaultScorer(config=ScoringConfig(), unknown_counter=_zero_counter)
         # Fragment [0, 1] --- "quickly" is child outside but dep=advmod -> not critical
         score = scorer.score([0, 1], tokens)
-        assert score[1] == 0
+        assert score.boundary_penalty == 0

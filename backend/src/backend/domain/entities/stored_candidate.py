@@ -26,6 +26,9 @@ class StoredCandidate:
 
     `origin` is set only when the phrase was borrowed from another source or
     generated — candidates of a topic source.
+
+    `fragment_unknown_count` is how many words of the phrase besides the
+    target the user probably does not know.
     """
 
     source_id: int
@@ -48,6 +51,7 @@ class StoredCandidate:
     cefr_breakdown: CEFRBreakdown | None = None
     usage_distribution: UsageDistribution | None = None
     origin: PhraseOrigin | None = None
+    fragment_unknown_count: int = 0
 
     @property
     def frequency_band(self) -> FrequencyBand:

@@ -10,6 +10,8 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.job_type import JobType
 
+from tests.relevance_support import relevance_sorter
+
 
 def _make_candidate(candidate_id: int, source_id: int = 10) -> StoredCandidate:
     return StoredCandidate(
@@ -44,7 +46,7 @@ def test_enqueue_creates_tts_jobs() -> None:
     use_case = EnqueueTTSGenerationUseCase(
         tts_repo=tts_repo,
         candidate_repo=candidate_repo,
-        settings_repo=settings_repo,
+        relevance_sorter=relevance_sorter(settings_repo),
         job_repo=job_repo,
     )
     result = use_case.execute(source_id=10)
@@ -64,7 +66,7 @@ def test_enqueue_returns_empty_when_no_eligible() -> None:
     use_case = EnqueueTTSGenerationUseCase(
         tts_repo=tts_repo,
         candidate_repo=MagicMock(),
-        settings_repo=MagicMock(),
+        relevance_sorter=relevance_sorter(MagicMock()),
         job_repo=MagicMock(),
     )
     result = use_case.execute(source_id=10)
@@ -93,7 +95,7 @@ def test_enqueue_jobs_have_correct_candidate_ids() -> None:
     use_case = EnqueueTTSGenerationUseCase(
         tts_repo=tts_repo,
         candidate_repo=candidate_repo,
-        settings_repo=settings_repo,
+        relevance_sorter=relevance_sorter(settings_repo),
         job_repo=job_repo,
     )
     result = use_case.execute(source_id=7)
@@ -123,7 +125,7 @@ def test_enqueue_calls_sort_by_relevance() -> None:
     use_case = EnqueueTTSGenerationUseCase(
         tts_repo=tts_repo,
         candidate_repo=candidate_repo,
-        settings_repo=settings_repo,
+        relevance_sorter=relevance_sorter(settings_repo),
         job_repo=job_repo,
     )
 
@@ -159,7 +161,7 @@ def test_enqueue_respects_usage_group_order_from_settings() -> None:
     use_case = EnqueueTTSGenerationUseCase(
         tts_repo=tts_repo,
         candidate_repo=candidate_repo,
-        settings_repo=settings_repo,
+        relevance_sorter=relevance_sorter(settings_repo),
         job_repo=job_repo,
     )
 

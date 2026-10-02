@@ -141,6 +141,8 @@ export interface SourceDetail {
   processing_stage: ProcessingStage | null
   created_at: string
   candidates: StoredCandidate[]
+  /** How many candidates to show before "Show more"; null — show all. */
+  initially_shown_candidates: number | null
 }
 
 export interface AnkiStatus {
@@ -185,6 +187,7 @@ export interface SyncResult {
 
 export interface Settings {
   cefr_level: string
+  frequent_word_threshold: string
   anki_deck_name: string
   ai_provider: string
   ai_model: string
@@ -204,6 +207,14 @@ export interface Settings {
   tts_enabled_voices: string[]
   tts_speed: number
   anki_field_audio_tts: string
+}
+
+export interface FrequentWordThresholdOption {
+  value: string
+  /** The threshold itself; for Auto — its current value calibrated on your marks. */
+  zipf: number | null
+  /** Words that go down to the bottom of the list at this threshold. */
+  examples: string[]
 }
 
 export interface KnownWord {

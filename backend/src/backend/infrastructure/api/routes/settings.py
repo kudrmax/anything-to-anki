@@ -5,7 +5,11 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.media_dtos import CleanupMediaKind
-from backend.application.dto.settings_dtos import SettingsDTO, UpdateSettingsRequest  # noqa: TC001
+from backend.application.dto.settings_dtos import (  # noqa: TC001
+    FrequentWordThresholdDTO,
+    SettingsDTO,
+    UpdateSettingsRequest,
+)
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
 if TYPE_CHECKING:
@@ -40,6 +44,14 @@ def update_settings(
     result = use_case.update_settings(request)
     session.commit()
     return result
+
+
+@router.get("/frequent-word-thresholds")
+def get_frequent_word_thresholds(
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> list[FrequentWordThresholdDTO]:
+    return container.manage_settings_use_case(session).frequent_word_threshold_options()
 
 
 @router.get("/media-stats")

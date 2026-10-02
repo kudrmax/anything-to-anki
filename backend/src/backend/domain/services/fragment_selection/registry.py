@@ -17,6 +17,9 @@ from backend.domain.services.fragment_selection.cleanup.rules import (
 from backend.domain.services.fragment_selection.sources.ancestor_chain import (
     AncestorChainSource,
 )
+from backend.domain.services.fragment_selection.sources.clause_core import (
+    ClauseCoreSource,
+)
 from backend.domain.services.fragment_selection.sources.legacy_extractor import (
     LegacyExtractorSource,
 )
@@ -70,6 +73,7 @@ def build_strip_rules(config: CleanupConfig) -> list[StripRule]:
 
 CandidateSourceFactory = type[
     VerbSubtreeSource
+    | ClauseCoreSource
     | AncestorChainSource
     | SentenceSource
     | LegacyExtractorSource
@@ -77,6 +81,7 @@ CandidateSourceFactory = type[
 
 CANDIDATE_SOURCES: dict[str, CandidateSourceFactory] = {
     "verb_subtree": VerbSubtreeSource,
+    "clause_core": ClauseCoreSource,
     "ancestor_chain": AncestorChainSource,
     "sentence": SentenceSource,
     "legacy_extractor": LegacyExtractorSource,
