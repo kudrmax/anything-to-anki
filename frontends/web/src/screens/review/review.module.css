@@ -10,7 +10,7 @@
 .translation { font-size: var(--fs-h1); font-weight: var(--fw-m); line-height: var(--lh-tight); letter-spacing: var(--ls-focus); }
 .synonyms { font-size: var(--fs-m); color: var(--tx3); }
 .decisions { display: flex; flex-wrap: nowrap; gap: var(--s3); margin-top: auto; padding-top: var(--s5); }
-.definition { font-size: var(--fs-l); line-height: var(--lh-read); }
+.definition { font-size: var(--fs-h1); line-height: var(--lh); }
 .context { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
 .examples { list-style: none; display: flex; flex-direction: column; gap: var(--s2); padding-left: var(--s5); border-left: var(--underline) solid var(--line); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
 .definition b, .context b, .examples b { font-weight: var(--fw-m); color: var(--tx); }
