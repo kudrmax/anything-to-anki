@@ -24,10 +24,10 @@ export function Page({ header, aside, banner, asideHidden = false, wide = false,
   )
 }
 
-export function Aside({ title, children }: { title: string; children: ReactNode }) {
+export function Aside({ title, children }: { title?: string; children: ReactNode }) {
   return (
     <section>
-      <h3 className={css.asideTitle}>{title}</h3>
+      {title && <h3 className={css.asideTitle}>{title}</h3>}
       {children}
     </section>
   )

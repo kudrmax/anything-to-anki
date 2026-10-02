@@ -30,7 +30,7 @@
 .queueText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* текст источника */
-.source { position: relative; max-height: var(--source-max); overflow: auto; font-size: var(--fs-source); line-height: var(--lh-loose); color: var(--tx3); white-space: pre-line; }
+.source { position: relative; margin-top: var(--source-leading-trim); max-height: var(--source-max); overflow: auto; font-size: var(--fs-source); line-height: var(--lh-loose); color: var(--tx3); white-space: pre-line; }
 .fragment { color: var(--tx); background: var(--ac-tint); padding: var(--s1) 0; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .mark { background: none; color: inherit; cursor: pointer; }
 .markPending { color: var(--tx2); text-decoration: underline; text-decoration-color: var(--ac-underline); text-underline-offset: var(--s2); }

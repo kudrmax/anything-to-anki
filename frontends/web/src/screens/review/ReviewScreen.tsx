@@ -106,7 +106,7 @@ export function ReviewScreen() {
         )}
         {hasSourceText && (
           <IconButton
-            icon={sourceTextShown ? PanelRightClose : PanelRightOpen}
+            icon={sourceTextShown ? PanelRightOpen : PanelRightClose}
             label={sourceTextShown ? 'Hide source text' : 'Show source text'}
             onClick={toggleSourceText}
           />
@@ -126,7 +126,7 @@ export function ReviewScreen() {
   )
 
   const aside = hasSourceText && (
-    <Aside title="Source text">
+    <Aside>
       <SourceText
         text={source.cleaned_text ?? source.raw_text}
         candidates={candidates}
