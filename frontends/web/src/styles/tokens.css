@@ -65,6 +65,7 @@
   --fact-label-w: 84px;
   --focus-leading-trim: calc((1 - var(--lh-focus)) * var(--fs-focus) / 2);
   --icon-inset-trim: calc((var(--icon) - var(--h)) / 2);
+  --back-trim: calc((var(--icon) - var(--h)) / 2 - var(--icon) * 5 / 24);   /* у стрелки lucide рисунок занимает 5..19 из 24 */
   --progress-inline-w: calc(var(--h) * 3);
   --range-w: calc(var(--h) * 5);
   --control-w: calc(var(--h) * 7);

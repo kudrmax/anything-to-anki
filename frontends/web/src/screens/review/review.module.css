@@ -7,7 +7,7 @@
 .meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s3); font-size: var(--fs-s); color: var(--tx3); }
 .cefr { display: inline-flex; align-items: center; gap: var(--s2); }
 .status { display: inline-flex; align-items: center; gap: var(--s2); }
-.translation { font-size: var(--fs-h1); font-weight: var(--fw-m); line-height: var(--lh-tight); letter-spacing: var(--ls-focus); }
+.translation { font-size: var(--fs-h1); font-weight: var(--fw-m); line-height: var(--lh); letter-spacing: var(--ls-focus); }
 .synonyms { font-size: var(--fs-m); color: var(--tx3); }
 .decisions { display: flex; flex-wrap: nowrap; gap: var(--s3); margin-top: auto; padding-top: var(--s5); }
 .definition { font-size: var(--fs-h1); line-height: var(--lh); }
@@ -38,8 +38,8 @@
 .markRated { color: inherit; }
 .mark.fragment { background: var(--ac-tint); }
 .markPending.fragment, .markRated.fragment { color: var(--tx); }
-.hint { font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); padding-top: var(--py); }
-.showMore { padding-top: var(--py); }
+.hint { font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); padding: var(--py) var(--s7) 0; }
+.showMore { padding: var(--py) var(--s7) 0; }
 
 /* попап выделения */
 .popover { display: flex; flex-direction: column; gap: var(--s3); min-width: var(--menu); font-size: var(--fs-m); }
