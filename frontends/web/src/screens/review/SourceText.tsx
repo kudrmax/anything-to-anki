@@ -36,7 +36,10 @@ export function SourceText({ text, candidates, focusId, onWordClick, onTextSelec
     const fragment = candidates.find(c => c.id === focusId)?.context_fragment ?? ''
     const mark = container && focusId !== null ? findMark(container, focusId, fragment) : null
     if (!container || !mark) return
-    container.scrollTo({ top: mark.offsetTop - container.clientHeight / 2, behavior: 'smooth' })
+    // Останавливаемся на границе строки, чтобы верхняя видимая строка была целой.
+    const lineHeight = parseFloat(getComputedStyle(container).lineHeight)
+    const top = Math.round((mark.offsetTop - container.clientHeight / 2) / lineHeight) * lineHeight
+    container.scrollTo({ top, behavior: 'smooth' })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- прокручиваем при смене фразы, а не при каждом обновлении списка
   }, [focusId])
 

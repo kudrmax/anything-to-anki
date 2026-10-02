@@ -40,6 +40,7 @@
   --err-tint: color-mix(in srgb, var(--err) 14%, transparent);
   --media-veil: color-mix(in srgb, var(--bg) 25%, transparent);
   --fade-bottom: linear-gradient(transparent, var(--bg) 40%);
+  --source-mask: linear-gradient(transparent, black calc(var(--source-leading-trim) * -1), black calc(100% - var(--s7)), transparent);
 
   /* форма */
   --r: 16px;          /* строки, поверхности, окна */
