@@ -65,7 +65,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   )
 
   const action = meaningAction(meaning)
-  const hasMeta = facts.length > 0 || candidate.is_phrasal_verb || Boolean(candidate.origin) || Boolean(candidate.cefr_level || meaning?.ipa || usUrl || ukUrl || ttsUrl)
+  const hasMeta = Boolean(meaning?.ipa || usUrl || ukUrl || ttsUrl)
     || isActive(candidate.pronunciation?.status) || isActive(candidate.tts?.status)
   const paragraphs = meaning?.meaning ? nonEmptyLines(meaning.meaning) : []
   const examples = meaning?.examples ? nonEmptyLines(meaning.examples) : []
@@ -91,20 +91,6 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             {!ttsUrl && (
               <StatusText status={candidate.tts?.status} error={candidate.tts?.error} labels={{ running: 'TTS...', queued: 'TTS queued', failed: 'TTS failed' }} />
             )}
-            {candidate.is_phrasal_verb ? <Chip small>phrasal verb</Chip> : candidate.cefr_level && (
-              <span
-                className={css.cefr}
-                onMouseEnter={e => candidate.cefr_breakdown && setCefrAnchor(e.currentTarget)}
-                onMouseLeave={() => setCefrAnchor(null)}
-              >
-                <Chip small>
-                  {candidate.is_sweet_spot && <Icon as={Target} size="s" />}
-                  {candidate.cefr_level}
-                </Chip>
-              </span>
-            )}
-            {facts.map(fact => <span key={fact} className={css.fact}>{fact}</span>)}
-            {candidate.origin && <span className={css.fact}>{originLabel(candidate.origin)}</span>}
           </div>
         )}
       </header>
@@ -143,7 +129,23 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             {examples.map((line, i) => <li key={i}><RichText text={line} candidate={candidate} /></li>)}
           </ul>
         )}
-        <PhraseTools candidate={candidate} review={review} />
+        <div className={css.cardFoot}>
+          <div className={css.facts}>
+            {candidate.is_phrasal_verb ? <span>phrasal verb</span> : candidate.cefr_level && (
+              <span
+                className={css.cefr}
+                onMouseEnter={e => candidate.cefr_breakdown && setCefrAnchor(e.currentTarget)}
+                onMouseLeave={() => setCefrAnchor(null)}
+              >
+                {candidate.is_sweet_spot && <Icon as={Target} size="s" />}
+                {candidate.cefr_level}
+              </span>
+            )}
+            {facts.map(fact => <span key={fact}>{fact}</span>)}
+            {candidate.origin && <span>{originLabel(candidate.origin)}</span>}
+          </div>
+          <PhraseTools candidate={candidate} review={review} />
+        </div>
       </div>
 
       {cefrAnchor && candidate.cefr_breakdown && candidate.cefr_level && (
