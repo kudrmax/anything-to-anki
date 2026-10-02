@@ -22,7 +22,8 @@
 /* очередь */
 .queue { display: flex; flex-direction: column; }
 .queue > .card { margin: var(--s4) 0; }
-.queueItem { display: flex; align-items: center; gap: var(--s3); min-width: 0; padding: var(--s4) var(--s5); border-bottom: var(--bw) solid var(--line-soft); text-align: left; font-size: var(--fs-b); color: var(--tx3); transition: background var(--t), color var(--t); }
+.queueItem { display: flex; align-items: center; gap: var(--s3); min-width: 0; padding: var(--s4) var(--s5); text-align: left; font-size: var(--fs-b); color: var(--tx3); transition: background var(--t), color var(--t); }
+.queueItem + .queueItem { border-top: var(--bw) solid var(--line-soft); }
 .queueItem:hover { background: var(--hover); color: var(--tx2); }
 .queueTarget { color: var(--tx2); }
 .queueItemRated { opacity: var(--o-off); }
