@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sources — варианты</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #100f0e; --card: #181716; --soft: #222120; --line: #2c2b2a;
+  --line-soft: color-mix(in srgb, var(--line) 60%, transparent);
+  --tx: #e9e8e7; --tx2: #bbbab9; --tx3: #8c8c8a; --ac: #eda57c; --on-ac: #24120a; --ok: #a9cf9a; --err: #f09a8e;
+  --ac-deep: color-mix(in srgb, var(--ac) 88%, var(--err));
+  --fill: linear-gradient(120deg, var(--ac-deep), color-mix(in srgb, var(--ac) 88%, var(--tx)));
+  --ac-wash: color-mix(in srgb, var(--ac) 13%, transparent);
+  --glow: radial-gradient(900px 420px at 18% -10%, color-mix(in srgb, var(--ac-deep) 16%, transparent), transparent 60%), var(--bg);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #0a0909; color: var(--tx); font: 400 15px/1.5 'Geist', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+p, h1, h2, h3 { margin: 0; }
+.doc { max-width: 1320px; margin: 0 auto; padding: 48px 20px 96px; }
+.doc > h1 { font-size: 30px; font-weight: 600; letter-spacing: -.02em; margin-bottom: 8px; }
+.lead { color: var(--tx3); margin-bottom: 32px; max-width: 900px; }
+.issues { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 64px; }
+.issue { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+.issue b { display: block; font-weight: 500; margin-bottom: 4px; }
+.issue span { color: var(--tx3); font-size: 14px; }
+.variant { margin-bottom: 72px; }
+.variant h2 { font-size: 22px; font-weight: 600; }
+.variant h2 em { font-style: normal; color: var(--ac); margin-right: 10px; }
+.idea { color: var(--tx2); margin: 6px 0 4px; max-width: 920px; }
+.pros { display: flex; gap: 28px; flex-wrap: wrap; font-size: 14px; color: var(--tx3); margin-bottom: 18px; }
+.pros i { font-style: normal; color: var(--tx2); }
+
+.frame { height: 820px; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: var(--glow); display: grid; grid-template-columns: 60px 1fr; }
+.rail { border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; align-items: center; gap: 14px; padding-top: 18px; }
+.rail .logo { width: 36px; height: 36px; border-radius: 10px; background: var(--fill); color: var(--on-ac); font-weight: 600; display: grid; place-items: center; font-size: 14px; }
+.rail .ri { width: 20px; height: 20px; border-radius: 6px; border: 1.6px solid var(--tx3); opacity: .7; }
+.main { overflow: hidden; position: relative; padding: 0 44px; }
+svg.i { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.ib { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; color: var(--tx3); }
+.btn { height: 36px; padding: 0 16px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 14.5px; font-weight: 500; background: var(--soft); white-space: nowrap; }
+.btn.fill { background: var(--fill); color: var(--on-ac); box-shadow: 0 10px 28px -14px var(--ac-deep); }
+.btn.ghost { background: none; color: var(--tx2); }
+.muted { color: var(--tx3); }
+.head { display: flex; align-items: center; gap: 14px; padding: 30px 0 30px; }
+.head h1 { font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
+.chip { height: 32px; padding: 0 12px; border-radius: 10px; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--tx3); }
+.chip.on { background: var(--soft); color: var(--tx); }
+.chip b { font-weight: 500; color: var(--tx3); font-size: 12.5px; }
+.cap { font-size: 12px; font-weight: 500; letter-spacing: .07em; text-transform: uppercase; color: var(--tx3); }
+.type { width: 40px; height: 40px; border-radius: 12px; background: var(--soft); color: var(--tx2); display: grid; place-items: center; flex: none; }
+.bar { height: 4px; border-radius: 4px; background: var(--soft); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--fill); border-radius: 4px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* A — по стадиям */
+.a-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 44px; }
+.a-group { margin-bottom: 30px; }
+.a-group .cap { margin-bottom: 8px; display: flex; gap: 8px; }
+.a-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) 180px auto; align-items: center; gap: 16px; padding: 12px 14px; margin: 0 -14px; border-radius: 14px; }
+.a-row:hover, .a-row.h { background: color-mix(in srgb, var(--soft) 55%, transparent); }
+.a-row .t { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.a-row .p { display: flex; flex-direction: column; gap: 6px; }
+.a-row .p span { font-size: 13px; color: var(--tx3); }
+.a-done .t { color: var(--tx3); }
+.side { display: flex; flex-direction: column; gap: 22px; }
+.drop { border: 1.5px dashed var(--line); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 12px; }
+.drop .inp { height: 120px; border-radius: 12px; background: var(--card); padding: 14px 16px; color: var(--tx3); }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.stat b { display: block; font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
+.stat span { font-size: 13px; color: var(--tx3); }
+
+/* B — полка */
+.b-top { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 30px; }
+.b-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.b-tile { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; height: 190px; display: flex; flex-direction: column; gap: 10px; }
+.b-tile .t { font-size: 17px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.b-tile .foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; }
+.b-tile.add { border-style: dashed; background: none; align-items: center; justify-content: center; color: var(--tx3); font-size: 16px; }
+.b-tile.add .plus { width: 48px; height: 48px; border-radius: 14px; background: var(--soft); display: grid; place-items: center; font-size: 26px; color: var(--tx2); }
+.ring { width: 44px; height: 44px; }
+.status { font-size: 13px; color: var(--tx3); }
+.status.ok { color: var(--ok); } .status.ac { color: var(--ac); }
+
+/* C — колонки */
+.c-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 44px; }
+.c-th, .c-tr { display: grid; grid-template-columns: minmax(0, 1fr) 210px 120px 110px; align-items: center; gap: 20px; padding: 0 16px; }
+.c-th { height: 36px; font-size: 12.5px; color: var(--tx3); border-bottom: 1px solid var(--line-soft); }
+.c-tr { height: 64px; border-bottom: 1px solid var(--line-soft); }
+.c-tr .name { display: flex; align-items: center; gap: 12px; min-width: 0; font-size: 17px; }
+.c-tr .name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-tr .name svg { color: var(--tx3); }
+.c-prog { display: flex; align-items: center; gap: 12px; }
+.c-prog .bar { flex: 1; }
+.c-prog span { font-size: 13px; color: var(--tx3); min-width: 56px; text-align: right; }
+.c-tr .when { font-size: 13.5px; color: var(--tx3); }
+.c-tr .act { display: flex; justify-content: flex-end; }
+.tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--line); font-size: 14.5px; color: var(--tx3); }
+.tabs span { padding: 0 0 10px; }
+.tabs .on { color: var(--tx); box-shadow: inset 0 -2px 0 var(--ac); }
+.inpt { border-radius: 12px; background: var(--card); padding: 12px 14px; color: var(--tx3); }
+
+/* D — продолжить */
+.d-hero { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 28px 30px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; margin-bottom: 30px; }
+.d-hero h3 { font-size: 30px; font-weight: 500; letter-spacing: -.015em; margin: 6px 0 14px; }
+.d-hero .bar { height: 6px; max-width: 520px; }
+.d-hero .sub { margin-top: 10px; color: var(--tx3); font-size: 14px; }
+.d-hero .btn { height: 48px; padding: 0 26px; font-size: 16px; }
+.d-add { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 10px 10px 10px 18px; margin-bottom: 34px; }
+.d-add .ph { flex: 1; color: var(--tx3); font-size: 16px; }
+.d-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
+.d-col .cap { margin-bottom: 10px; }
+.d-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.d-item .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 16px; }
+.d-item svg { color: var(--tx3); }
+.d-stats { display: flex; gap: 36px; padding: 24px 0 0; color: var(--tx3); font-size: 14px; }
+.d-stats b { color: var(--tx); font-size: 18px; font-weight: 600; margin-right: 6px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="text" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8"/></symbol>
+  <symbol id="video" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m10 9 5 3-5 3z"/></symbol>
+  <symbol id="topic" viewBox="0 0 24 24"><path d="M9.9 15.5A2 2 0 0 0 8.5 14l-6.1-1.6a.5.5 0 0 1 0-1L8.5 9.9A2 2 0 0 0 9.9 8.5l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1a2 2 0 0 0 1.4 1.4l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0z"/></symbol>
+  <symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="up" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5M5 21h14"/></symbol>
+  <symbol id="clip" viewBox="0 0 24 24"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></symbol>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+</svg>
+
+<div class="doc">
+  <h1>Sources — минусы и варианты</h1>
+  <p class="lead">Функции те же: добавить источник, обработать, разобрать, экспортировать, коллекции, переименовать, переобработать, удалить, общий прогресс. Меняется только то, как это показано.</p>
+
+  <div class="issues">
+    <div class="issue"><b>1. Строка-предложение из разных фактов</b><span>«Video · 4 / 111 to learn · 4h ago · + collection» — тип, прогресс, дата и коллекция подряд одним шрифтом. Ничего не считывается с первого взгляда.</span></div>
+    <div class="issue"><b>2. Статус повторён трижды</b><span>Цвет точки, слово «In review» и подпись кнопки «Continue» говорят одно и то же.</span></div>
+    <div class="issue"><b>3. Разные кнопки в одной колонке</b><span>Continue / Review / Open и то есть Export, то нет. Правый край прыгает, глазу не за что зацепиться.</span></div>
+    <div class="issue"><b>4. Прогресс — текст, а не шкала</b><span>«0 / 252 to learn» нужно прочитать и посчитать в голове. Сколько осталось, не видно.</span></div>
+    <div class="issue"><b>5. Справа два несвязанных блока</b><span>Форма добавления и таблица статистики стоят в одной колонке и спорят за внимание. Статистика оформлена как список настроек.</span></div>
+    <div class="issue"><b>6. Нет порядка</b><span>Начатые, новые и законченные источники перемешаны. То, что сейчас в работе, теряется среди остального.</span></div>
+  </div>
+
+  <!-- A -->
+  <section class="variant">
+    <h2><em>A</em>По стадиям</h2>
+    <p class="idea">Список разбит на группы: «В работе», «Готово к разбору», «Разобрано». Статус задаёт группа, в строке его больше нет. Каждый факт стоит в своей колонке: тип — иконка слева, прогресс — шкала, действие — одна кнопка справа. Дата, коллекция, удаление и переобработка уходят в меню «⋯». Справа — зона добавления и статистика плитками.</p>
+    <div class="pros"><span><i>+</i> сразу видно, что продолжить</span><span><i>+</i> строки ровные, правый край не прыгает</span><span><i>−</i> дата не видна без наведения</span></div>
+    <div class="frame">
+      <div class="rail"><div class="logo">Aa</div><div class="ri"></div><div class="ri"></div><div class="ri"></div></div>
+      <div class="main">
+        <div class="head"><h1>Sources</h1><span style="flex:1"></span><span class="chip on">All <b>8</b></span><span class="chip">Hospital <b>1</b></span><span class="chip"><svg class="i" style="width:15px"><use href="#plus"/></svg>Collection</span></div>
+        <div class="a-grid">
+          <div>
+            <div class="a-group">
+              <div class="cap">В работе <span>2</span></div>
+              <div class="a-row h"><span class="type"><svg class="i"><use href="#video"/></svg></span><span class="t">s01e01 - The Pilot.mkv</span><div class="p"><div class="bar"><i style="width:4%"></i></div><span class="num">4 of 111 decided</span></div><span class="btn fill">Continue</span></div>
+              <div class="a-row"><span class="type"><svg class="i"><use href="#text"/></svg></span><span class="t">WORM</span><div class="p"><div class="bar"><i style="width:2%"></i></div><span class="num">4 of 252 decided</span></div><span class="btn">Continue</span></div>
+            </div>
+            <div class="a-group">
+              <div class="cap">Готово к разбору <span>5</span></div>
+              <div class="a-row"><span class="type"><svg class="i"><use href="#topic"/></svg></span><span class="t">Слова чтобы общаться в больнице</span><span class="muted num">20 phrases</span><span class="btn">Review</span></div>
+              <div class="a-row"><span class="type"><svg class="i"><use href="#topic"/></svg></span><span class="t">negotiating a salary with an employer</span><span class="muted num">20 phrases</span><span class="btn">Review</span></div>
+              <div class="a-row"><span class="type"><svg class="i"><use href="#video"/></svg></span><span class="t">Large Language Models explained briefly</span><span class="muted num">34 phrases</span><span class="btn">Review</span></div>
+              <div class="a-row"><span class="type"><svg class="i"><use href="#video"/></svg></span><span class="t">QA: video source</span><span class="muted num">7 phrases</span><span class="btn">Review</span></div>
+            </div>
+            <div class="a-group a-done">
+              <div class="cap">Разобрано <span>1</span></div>
+              <div class="a-row"><span class="type"><svg class="i"><use href="#text"/></svg></span><span class="t">UI redesign check: a deliberately long source title…</span><span class="muted num">5 cards</span><span class="btn ghost">Open</span></div>
+            </div>
+          </div>
+          <div class="side">
+            <div class="drop">
+              <div class="tabs"><span class="on">Text</span><span>URL</span><span>File</span><span>Topic</span></div>
+              <div class="inp">Paste text here…</div>
+              <span class="btn fill" style="width:100%">Add source</span>
+            </div>
+            <div class="stats">
+              <div class="stat"><b>7</b><span>to learn</span></div>
+              <div class="stat"><b>586</b><span>known words</span></div>
+              <div class="stat"><b>455</b><span>candidates</span></div>
+              <div class="stat"><b>2%</b><span>B1 vocabulary</span><div class="bar" style="margin-top:8px"><i style="width:2%"></i></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="variant">
+    <h2><em>B</em>Полка</h2>
+    <p class="idea">Источники — плитки на полке, как книги. Плитка: тип, название в две строки, кольцо прогресса и одно действие. Добавление — первая плитка «+», форма открывается поверх. Статистика — полоса из четырёх чисел наверху.</p>
+    <div class="pros"><span><i>+</i> визуально, как библиотека</span><span><i>+</i> правая колонка свободна, больше места</span><span><i>−</i> длинные названия режутся, меньше видно сразу</span></div>
+    <div class="frame">
+      <div class="rail"><div class="logo">Aa</div><div class="ri"></div><div class="ri"></div><div class="ri"></div></div>
+      <div class="main">
+        <div class="head"><h1>Sources</h1><span style="flex:1"></span><span class="chip on">All <b>8</b></span><span class="chip">Hospital <b>1</b></span><span class="chip"><svg class="i" style="width:15px"><use href="#plus"/></svg>Collection</span></div>
+        <div class="b-top">
+          <div class="stat"><b>7</b><span>to learn</span></div>
+          <div class="stat"><b>586</b><span>known words</span></div>
+          <div class="stat"><b>455</b><span>candidates</span></div>
+          <div class="stat"><b>2%</b><span>B1 vocabulary</span></div>
+        </div>
+        <div class="b-grid">
+          <div class="b-tile add"><span class="plus">+</span>Add source</div>
+          <div class="b-tile"><span class="type"><svg class="i"><use href="#video"/></svg></span><p class="t">s01e01 - The Pilot.mkv</p><div class="foot"><span class="status ac">4 / 111</span><span class="btn fill">Continue</span></div></div>
+          <div class="b-tile"><span class="type"><svg class="i"><use href="#text"/></svg></span><p class="t">WORM</p><div class="foot"><span class="status ac">4 / 252</span><span class="btn">Continue</span></div></div>
+          <div class="b-tile"><span class="type"><svg class="i"><use href="#topic"/></svg></span><p class="t">Слова чтобы общаться в больнице</p><div class="foot"><span class="status ok">20 new</span><span class="btn">Review</span></div></div>
+          <div class="b-tile"><span class="type"><svg class="i"><use href="#topic"/></svg></span><p class="t">negotiating a salary with an employer</p><div class="foot"><span class="status ok">20 new</span><span class="btn">Review</span></div></div>
+          <div class="b-tile" style="opacity:.55"><span class="type"><svg class="i"><use href="#text"/></svg></span><p class="t">UI redesign check: a deliberately long source title that should wrap</p><div class="foot"><span class="status">5 cards</span><span class="btn ghost">Open</span></div></div>
+          <div class="b-tile"><span class="type"><svg class="i"><use href="#video"/></svg></span><p class="t">Large Language Models explained briefly</p><div class="foot"><span class="status ok">34 new</span><span class="btn">Review</span></div></div>
+          <div class="b-tile"><span class="type"><svg class="i"><use href="#video"/></svg></span><p class="t">QA: video source</p><div class="foot"><span class="status ok">7 new</span><span class="btn">Review</span></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- C -->
+  <section class="variant">
+    <h2><em>C</em>Таблица</h2>
+    <p class="idea">Классическая таблица с заголовками колонок: название с иконкой типа, прогресс шкалой с числом, когда добавлен, действие. Каждый факт в своей колонке, поэтому глаз идёт вниз по колонке и сравнивает. Справа форма добавления, статистика — строкой под ней.</p>
+    <div class="pros"><span><i>+</i> максимум данных, легко сравнивать</span><span><i>+</i> привычно и ровно</span><span><i>−</i> строже, «рабочий» вид</span></div>
+    <div class="frame">
+      <div class="rail"><div class="logo">Aa</div><div class="ri"></div><div class="ri"></div><div class="ri"></div></div>
+      <div class="main">
+        <div class="head"><h1>Sources</h1><span style="flex:1"></span><span class="chip on">All <b>8</b></span><span class="chip">Hospital <b>1</b></span><span class="chip"><svg class="i" style="width:15px"><use href="#plus"/></svg>Collection</span></div>
+        <div class="c-grid">
+          <div>
+            <div class="c-th"><span>Source</span><span>Progress</span><span>Added</span><span></span></div>
+            <div class="c-tr"><div class="name"><svg class="i"><use href="#video"/></svg><span>s01e01 - The Pilot.mkv</span></div><div class="c-prog"><div class="bar"><i style="width:4%"></i></div><span class="num">4 / 111</span></div><span class="when">4h ago</span><div class="act"><span class="btn fill">Continue</span></div></div>
+            <div class="c-tr"><div class="name"><svg class="i"><use href="#text"/></svg><span>WORM</span></div><div class="c-prog"><div class="bar"><i style="width:2%"></i></div><span class="num">4 / 252</span></div><span class="when">4h ago</span><div class="act"><span class="btn">Continue</span></div></div>
+            <div class="c-tr"><div class="name"><svg class="i"><use href="#topic"/></svg><span>Слова чтобы общаться в больнице</span></div><div class="c-prog"><div class="bar"></div><span class="num">0 / 20</span></div><span class="when">6h ago</span><div class="act"><span class="btn">Review</span></div></div>
+            <div class="c-tr"><div class="name"><svg class="i"><use href="#topic"/></svg><span>negotiating a salary with an employer</span></div><div class="c-prog"><div class="bar"></div><span class="num">0 / 20</span></div><span class="when">6h ago</span><div class="act"><span class="btn">Review</span></div></div>
+            <div class="c-tr" style="color:var(--tx3)"><div class="name"><svg class="i"><use href="#text"/></svg><span>UI redesign check: a deliberately long source title</span></div><div class="c-prog"><div class="bar"><i style="width:100%;opacity:.4"></i></div><span class="num">5 cards</span></div><span class="when">30 Sep</span><div class="act"><span class="btn ghost">Open</span></div></div>
+            <div class="c-tr"><div class="name"><svg class="i"><use href="#video"/></svg><span>Large Language Models explained briefly</span></div><div class="c-prog"><div class="bar"></div><span class="num">0 / 34</span></div><span class="when">30 Sep</span><div class="act"><span class="btn">Review</span></div></div>
+            <div class="c-tr"><div class="name"><svg class="i"><use href="#video"/></svg><span>QA: video source</span></div><div class="c-prog"><div class="bar"></div><span class="num">0 / 7</span></div><span class="when">30 Sep</span><div class="act"><span class="btn">Review</span></div></div>
+          </div>
+          <div class="side">
+            <div class="tabs"><span class="on">Text</span><span>URL</span><span>File</span><span>Topic</span></div>
+            <div class="inpt">Title (optional)</div>
+            <div class="inpt" style="height:150px">Paste text here…</div>
+            <span class="btn fill" style="width:100%">Add source</span>
+            <div style="display:flex;justify-content:space-between;color:var(--tx3);font-size:13.5px;padding-top:8px;border-top:1px solid var(--line-soft)"><span><b style="color:var(--tx)">7</b> to learn</span><span><b style="color:var(--tx)">586</b> known</span><span><b style="color:var(--tx)">2%</b> of B1</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- D -->
+  <section class="variant">
+    <h2><em>D</em>Продолжить</h2>
+    <p class="idea">Экран отвечает на главный вопрос «что делать сейчас». Сверху крупная карточка последнего начатого источника с прогрессом и одной кнопкой. Под ней одна строка добавления: вставить текст, ссылку или перетащить файл, тип определяется сам (вкладки остаются внутри, если нужно уточнить). Ниже остальное в трёх колонках по стадиям.</p>
+    <div class="pros"><span><i>+</i> один клик до продолжения</span><span><i>+</i> добавление не занимает полэкрана</span><span><i>−</i> сильнее всего меняет привычный вид</span></div>
+    <div class="frame">
+      <div class="rail"><div class="logo">Aa</div><div class="ri"></div><div class="ri"></div><div class="ri"></div></div>
+      <div class="main">
+        <div class="head"><h1>Sources</h1><span style="flex:1"></span><span class="chip on">All <b>8</b></span><span class="chip">Hospital <b>1</b></span><span class="chip"><svg class="i" style="width:15px"><use href="#plus"/></svg>Collection</span></div>
+        <div class="d-hero">
+          <div>
+            <span class="cap">Продолжить</span>
+            <h3>s01e01 - The Pilot.mkv</h3>
+            <div class="bar"><i style="width:4%"></i></div>
+            <p class="sub num">4 of 111 phrases decided · 2 to learn</p>
+          </div>
+          <span class="btn fill">Continue<svg class="i"><use href="#arrow"/></svg></span>
+        </div>
+        <div class="d-add"><svg class="i muted"><use href="#plus"/></svg><span class="ph">Paste text or a link, drop a file, or describe a topic…</span><span class="ib"><svg class="i"><use href="#clip"/></svg></span><span class="btn">Add</span></div>
+        <div class="d-cols">
+          <div class="d-col"><div class="cap">В работе</div>
+            <div class="d-item"><svg class="i"><use href="#text"/></svg><span class="t">WORM</span><span class="muted num">4/252</span></div>
+          </div>
+          <div class="d-col"><div class="cap">Готово к разбору</div>
+            <div class="d-item"><svg class="i"><use href="#topic"/></svg><span class="t">Слова чтобы общаться в больнице</span><span class="muted num">20</span></div>
+            <div class="d-item"><svg class="i"><use href="#topic"/></svg><span class="t">negotiating a salary</span><span class="muted num">20</span></div>
+            <div class="d-item"><svg class="i"><use href="#video"/></svg><span class="t">Large Language Models explained</span><span class="muted num">34</span></div>
+            <div class="d-item"><svg class="i"><use href="#video"/></svg><span class="t">QA: video source</span><span class="muted num">7</span></div>
+            <div class="d-item"><svg class="i"><use href="#text"/></svg><span class="t">QA: text source</span><span class="muted num">6</span></div>
+          </div>
+          <div class="d-col"><div class="cap">Разобрано</div>
+            <div class="d-item muted"><svg class="i"><use href="#text"/></svg><span class="t">UI redesign check</span><span class="num">5 cards</span></div>
+          </div>
+        </div>
+        <div class="d-stats"><span><b>7</b>to learn</span><span><b>586</b>known words</span><span><b>455</b>candidates</span><span><b>2%</b>of B1 vocabulary</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

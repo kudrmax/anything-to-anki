@@ -139,6 +139,7 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
         created_at: new Date().toISOString(),
         candidate_count: 0,
         learn_count: 0,
+        decided_count: 0,
         processing_stage: null,
         collection_id: null,
         collection_name: null,

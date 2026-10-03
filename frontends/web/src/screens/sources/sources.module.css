@@ -1,0 +1,24 @@
+/* группы */
+.group + .group { margin-top: var(--s7); }
+.groupTitle { display: flex; gap: var(--s3); margin-bottom: var(--s3); font-size: var(--fs-xs); font-weight: var(--fw-m); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--tx3); }
+
+/* строка источника: тип | название | прогресс | действие | меню */
+.row { display: grid; grid-template-columns: var(--h-word) minmax(0, 1fr) var(--source-progress-w) var(--source-action-w) var(--h); align-items: center; gap: var(--s5); padding: var(--s4); margin: 0 calc(var(--s4) * -1); border-radius: var(--r); transition: background var(--t); }
+.row:hover { background: var(--hover); }
+.clickable { cursor: pointer; }
+.type { width: var(--h-word); height: var(--h-word); display: grid; place-items: center; border-radius: var(--rc); background: var(--soft); color: var(--tx2); }
+.name { min-width: 0; }
+.title { display: block; font-size: var(--fs-t); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.done .title, .done .type { color: var(--tx3); }
+.progress { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
+.caption { display: inline-flex; align-items: center; gap: var(--s2); }
+.action { display: flex; justify-content: flex-end; }
+.more { opacity: 0; transition: opacity var(--t); }
+.row:hover .more, .more:focus-within, .more:has([role="menu"]) { opacity: 1; }
+
+/* правая колонка */
+.add { padding: var(--s6); border: var(--dash-bw) dashed var(--line); border-radius: var(--r); }
+.stats { display: grid; grid-template-columns: var(--stats-cols); gap: var(--s4); }
+.stat { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s4) var(--s5); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); border-radius: var(--r); }
+.stat b { font-size: var(--fs-h1); font-weight: var(--fw-b); letter-spacing: var(--ls-tight); line-height: var(--lh-tight); font-variant-numeric: tabular-nums; }
+.stat span { font-size: var(--fs-s); color: var(--tx3); }

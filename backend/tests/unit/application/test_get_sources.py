@@ -107,6 +107,7 @@ class TestGetSourcesUseCase:
         result = self.use_case.list_all()
         assert result[0].candidate_count == 4
         assert result[0].learn_count == 2
+        assert result[0].decided_count == 3
 
     def test_get_by_id_found(self) -> None:
         self.source_repo.get_by_id.return_value = Source(

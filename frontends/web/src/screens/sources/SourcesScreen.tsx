@@ -1,12 +1,32 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Aside, Page, PageHeader } from '@/shell'
-import { Banner, Button, DividerRow, Empty, Progress, Toast, useToast } from '@/ui'
+import { Page, PageHeader } from '@/shell'
+import type { SourceSummary } from '@/api/types'
+import { Banner, Button, Empty, Progress, Toast, useToast } from '@/ui'
 import { AddSourceForm } from './AddSourceForm'
 import { CollectionFilter } from './CollectionFilter'
 import { ReprocessModal } from './ReprocessModal'
 import { SourceRow } from './SourceRow'
 import { useSources } from './useSources'
+import css from './sources.module.css'
+
+type Stage = 'progress' | 'preparing' | 'ready' | 'reviewed'
+
+const STAGES: { stage: Stage; label: string }[] = [
+  { stage: 'progress', label: 'In progress' },
+  { stage: 'preparing', label: 'Preparing' },
+  { stage: 'ready', label: 'Ready to review' },
+  { stage: 'reviewed', label: 'Reviewed' },
+]
+
+/** Группа списка, в которой показан источник. */
+function stageOf(source: SourceSummary): Stage {
+  if (source.awaiting_generation) return 'preparing'
+  if (source.status === 'partially_reviewed') return 'progress'
+  if (source.status === 'done') return 'ready'
+  if (source.status === 'reviewed') return 'reviewed'
+  return 'preparing'
+}
 
 export function SourcesScreen() {
   const navigate = useNavigate()
@@ -53,17 +73,15 @@ export function SourcesScreen() {
 
   const aside = (
     <>
-      <Aside title="Add source">
+      <section className={css.add}>
         <AddSourceForm onCreated={store.prepend} onReload={store.reload} onToast={showToast} />
-      </Aside>
-      <Aside title="Progress">
-        <DividerRow compact label="To learn"><b>{learnTotal}</b></DividerRow>
-        <DividerRow compact label="Candidates"><b>{candidateTotal}</b></DividerRow>
-        <DividerRow compact label="Sources"><b>{sources.length}</b></DividerRow>
-        <DividerRow compact label="Known words"><b>{stats?.known_word_count ?? 0}</b></DividerRow>
-        <DividerRow compact last label={`${cefrLevel} vocabulary`}><b>{Math.round(progress * 100)}%</b></DividerRow>
-        <Progress value={progress} />
-      </Aside>
+      </section>
+      <section className={css.stats}>
+        <div className={css.stat}><b>{learnTotal}</b><span>to learn</span></div>
+        <div className={css.stat}><b>{stats?.known_word_count ?? 0}</b><span>known words</span></div>
+        <div className={css.stat}><b>{candidateTotal}</b><span>candidates</span></div>
+        <div className={css.stat}><b>{Math.round(progress * 100)}%</b><span>{cefrLevel} vocabulary</span><Progress value={progress} /></div>
+      </section>
     </>
   )
 
@@ -75,27 +93,37 @@ export function SourcesScreen() {
   )
 
   return (
-    <Page header={header} aside={aside} banner={banner}>
+    <Page wide header={header} aside={aside} banner={banner}>
       {filtered.length === 0 && (
         <Empty>{sources.length === 0 ? 'No sources yet. Add one to get started.' : 'No sources in this collection.'}</Empty>
       )}
-      {filtered.map(source => (
-        <SourceRow
-          key={source.id}
-          source={source}
-          collections={collections}
-          onProcess={id => void store.process(id)}
-          onGenerate={id => void store.generate(id)}
-          onCancelGeneration={id => void store.cancelGeneration(id)}
-          onRetryGeneration={id => void store.retryGeneration(id)}
-          onReview={review}
-          onExport={exportSource}
-          onDelete={id => void store.remove(id)}
-          onRename={(id, title) => void store.rename(id, title)}
-          onReprocess={reprocess}
-          onAssignCollection={(sourceId, collectionId) => void store.assignCollection(sourceId, collectionId)}
-        />
-      ))}
+      {STAGES.map(({ stage, label }) => {
+        const group = filtered.filter(source => stageOf(source) === stage)
+        if (group.length === 0) return null
+        return (
+          <section key={stage} className={css.group}>
+            <h2 className={css.groupTitle}>{label}<span>{group.length}</span></h2>
+            {group.map((source, index) => (
+              <SourceRow
+                key={source.id}
+                source={source}
+                collections={collections}
+                primary={stage === 'progress' && index === 0}
+                onProcess={id => void store.process(id)}
+                onGenerate={id => void store.generate(id)}
+                onCancelGeneration={id => void store.cancelGeneration(id)}
+                onRetryGeneration={id => void store.retryGeneration(id)}
+                onReview={review}
+                onExport={exportSource}
+                onDelete={id => void store.remove(id)}
+                onRename={(id, title) => void store.rename(id, title)}
+                onReprocess={reprocess}
+                onAssignCollection={(sourceId, collectionId) => void store.assignCollection(sourceId, collectionId)}
+              />
+            ))}
+          </section>
+        )
+      })}
       {reprocessSourceId !== null && (
         <ReprocessModal
           sourceId={reprocessSourceId}
