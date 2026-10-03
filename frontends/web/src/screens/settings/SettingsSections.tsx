@@ -281,22 +281,41 @@ export function Tts({ store, form }: SectionProps) {
   )
 }
 
+const KNOWN_WORDS_PREVIEW = 60
+
 export function KnownWords({ store }: { store: SettingsStore }) {
+  const [query, setQuery] = useState('')
+  const [showAll, setShowAll] = useState(false)
+  if (store.knownWords.length === 0) return <Empty>No known words yet. They won't be suggested when processing new sources.</Empty>
+
+  const needle = query.trim().toLowerCase()
+  const matches = needle ? store.knownWords.filter(word => word.lemma.toLowerCase().includes(needle)) : store.knownWords
+  const shown = showAll || needle ? matches : matches.slice(0, KNOWN_WORDS_PREVIEW)
+  const hidden = matches.length - shown.length
+
   return (
     <>
-      {store.knownWords.length === 0 ? <Empty>No known words yet.</Empty> : (
-        <Stack row wrap>
-          {store.knownWords.map(word => (
+      <p className={css.hint}>Known words won't be suggested when processing new sources.</p>
+      <div className={css.wordsBar}>
+        <Field value={query} placeholder={`Search ${store.knownWords.length} words…`} onChange={e => setQuery(e.target.value)} />
+      </div>
+      {matches.length === 0 ? <Empty>Nothing found.</Empty> : (
+        <div className={css.words}>
+          {shown.map(word => (
             <RemovableChip
               key={word.id}
-              label={`${word.lemma} · ${word.pos ?? 'any'}`}
+              label={word.pos ? `${word.lemma} · ${word.pos}` : word.lemma}
               disabled={store.deletingId === word.id}
               onRemove={() => void store.deleteWord(word.id)}
             />
           ))}
-        </Stack>
+        </div>
       )}
-      <Label>Known words won't be suggested when processing new sources.</Label>
+      {hidden > 0 && (
+        <div className={css.more}>
+          <Button variant="link" onClick={() => setShowAll(true)}>Show all {matches.length}</Button>
+        </div>
+      )}
     </>
   )
 }

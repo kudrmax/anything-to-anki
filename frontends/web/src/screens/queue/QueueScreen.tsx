@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { RefreshCw, X } from 'lucide-react'
 import { api } from '@/api/client'
 import type { FailedGroup, QueueGlobalSummary, QueueJob, SourceSummary } from '@/api/types'
 import { useQueuePolling } from '@/hooks/useQueuePolling'
-import { Aside, Page, PageHeader } from '@/shell'
-import { Button, DividerRow, Empty, IconButton, Row, Select, Spinner, Stack, Text } from '@/ui'
+import { Page, PageHeader } from '@/shell'
+import { Button, Empty, IconButton, Select, Spinner, Stat, StatGrid, Text } from '@/ui'
+import css from './queue.module.css'
 
 const JOB_TYPES: (keyof QueueGlobalSummary)[] = ['meaning', 'media', 'pronunciation', 'video_download', 'topic_targets']
 const JOB_LABEL: Record<string, string> = {
@@ -32,24 +33,18 @@ function JobRow({ job, onDone }: { job: QueueJob; onDone: () => void }) {
       setCancelling(false)
     }
   }
-  const details = [
-    jobLabel(job.job_type),
-    job.candidate_id != null ? `candidate #${job.candidate_id}` : null,
-    job.position !== null ? `position ${job.position}` : null,
-  ].filter(Boolean).join(' · ')
 
   return (
-    <Row
-      tone={job.status === 'running' ? 'run' : 'idle'}
-      title={job.source_title}
-      meta={details}
-      trailing={
-        <>
-          {job.status === 'running' ? 'Running' : 'Queued'}
-          <IconButton icon={X} label="Cancel" busy={cancelling} onClick={() => void cancel()} />
-        </>
-      }
-    />
+    <div className={css.row}>
+      <span className={css.type}>{jobLabel(job.job_type)}</span>
+      <span className={css.title} title={job.source_title}>{job.source_title}</span>
+      <span className={css.detail}>
+        {job.status === 'running'
+          ? <span className={css.running}><Spinner />Running</span>
+          : job.position !== null ? `#${job.position} in line` : 'Queued'}
+      </span>
+      <IconButton icon={X} label="Cancel" busy={cancelling} onClick={() => void cancel()} />
+    </div>
   )
 }
 
@@ -69,17 +64,15 @@ function FailedRow({ group, jobType, sourceId, onDone }: { group: FailedGroup; j
   const sourceNames = group.sources.map(s => `${s.source_title} (${s.count})`).join(', ')
 
   return (
-    <Row
-      tone="err"
-      title={sourceNames && !sourceId ? sourceNames : jobLabel(jobType)}
-      meta={<Text tone="err">{jobLabel(jobType)} · {group.count} failed · {group.error_text}</Text>}
-      trailing={
-        <>
-          Failed
-          <IconButton icon={RefreshCw} label={`Retry ${group.count}`} busy={retrying} onClick={() => void retry()} />
-        </>
-      }
-    />
+    <div className={css.row}>
+      <span className={css.type}>{jobLabel(jobType)}</span>
+      <span className={css.failed}>
+        <span className={css.title}>{sourceNames && !sourceId ? sourceNames : jobLabel(jobType)}</span>
+        <Text tone="err" size="s">{group.error_text}</Text>
+      </span>
+      <span className={css.detail}>{group.count} failed</span>
+      <IconButton icon={RefreshCw} label={`Retry ${group.count}`} busy={retrying} onClick={() => void retry()} />
+    </div>
   )
 }
 
@@ -141,44 +134,48 @@ export function QueueScreen() {
   )
 
   const aside = summary && activeTypes.length > 0 && (
-    <Aside title="By type">
-      {activeTypes.map((jobType, i) => {
+    <StatGrid>
+      {activeTypes.map(jobType => {
         const counts = summary[jobType]
-        const parts = [
-          counts.running > 0 ? `${counts.running} running` : null,
-          counts.queued > 0 ? `${counts.queued} queued` : null,
-          counts.failed > 0 ? `${counts.failed} failed` : null,
-        ].filter(Boolean).join(' · ')
         return (
-          <DividerRow
+          <Stat
             key={jobType}
-            compact
-            last={i === activeTypes.length - 1}
-            label={jobLabel(jobType)}
+            value={counts.running + counts.queued}
+            label={`${jobLabel(jobType)} in queue`}
             hint={(counts.failed > 0 || counts.queued > 0) && (
-              <Stack row gap="m">
-                {counts.failed > 0 && <Button variant="link" onClick={() => void act(() => api.retryQueue(jobType, sourceId))}>Retry {counts.failed}</Button>}
+              <span className={css.tileActions}>
+                {counts.failed > 0 && <Button variant="link" onClick={() => void act(() => api.retryQueue(jobType, sourceId))}>Retry {counts.failed} failed</Button>}
                 {counts.queued > 0 && <Button variant="danger-link" onClick={() => void act(() => api.cancelQueue(jobType, sourceId))}>Cancel {counts.queued}</Button>}
-              </Stack>
+              </span>
             )}
-          >
-            <Text tone="muted" size="s">{parts}</Text>
-          </DividerRow>
+          />
         )
       })}
-    </Aside>
+    </StatGrid>
   )
 
+  const failedRows = failedTypes.flatMap(type => type.groups.map((group, i) => (
+    <FailedRow key={`${type.job_type}-${i}`} group={group} jobType={type.job_type} sourceId={sourceId} onDone={refetch} />
+  )))
+  const groups: { id: string; label: string; count: number; rows: ReactNode }[] = [
+    { id: 'running', label: 'Running', count: totalRunning, rows: order?.running.map(job => <JobRow key={job.job_id} job={job} onDone={refetch} />) },
+    { id: 'queued', label: 'Queued', count: totalQueued, rows: visibleQueued.map(job => <JobRow key={job.job_id} job={job} onDone={refetch} />) },
+    { id: 'failed', label: 'Failed', count: totalFailed, rows: failedRows },
+  ]
+
   return (
-    <Page header={header} aside={aside || undefined}>
+    <Page wide header={header} aside={aside || undefined}>
       {loading && <Empty><Spinner /></Empty>}
       {isEmpty && <Empty>{sourceId ? 'This source has no queue activity.' : 'The queue is empty.'}</Empty>}
-      {order?.running.map(job => <JobRow key={job.job_id} job={job} onDone={refetch} />)}
-      {visibleQueued.map(job => <JobRow key={job.job_id} job={job} onDone={refetch} />)}
-      {hiddenCount > 0 && <Empty><Button variant="link" onClick={() => setShowAllQueued(true)}>Show {hiddenCount} more</Button></Empty>}
-      {failedTypes.flatMap(type => type.groups.map((group, i) => (
-        <FailedRow key={`${type.job_type}-${i}`} group={group} jobType={type.job_type} sourceId={sourceId} onDone={refetch} />
-      )))}
+      {groups.filter(group => group.count > 0).map(group => (
+        <section key={group.id} className={css.group}>
+          <h2 className={css.groupTitle}>{group.label}<span>{group.count}</span></h2>
+          {group.rows}
+          {group.id === 'queued' && hiddenCount > 0 && (
+            <div className={css.more}><Button variant="link" onClick={() => setShowAllQueued(true)}>Show {hiddenCount} more</Button></div>
+          )}
+        </section>
+      ))}
     </Page>
   )
 }
