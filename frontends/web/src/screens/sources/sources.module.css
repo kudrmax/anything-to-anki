@@ -18,7 +18,3 @@
 
 /* правая колонка */
 .add { padding: var(--s6); border: var(--dash-bw) dashed var(--line); border-radius: var(--r); }
-.stats { display: grid; grid-template-columns: var(--stats-cols); gap: var(--s4); }
-.stat { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s4) var(--s5); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); border-radius: var(--r); }
-.stat b { font-size: var(--fs-h1); font-weight: var(--fw-b); letter-spacing: var(--ls-tight); line-height: var(--lh-tight); font-variant-numeric: tabular-nums; }
-.stat span { font-size: var(--fs-s); color: var(--tx3); }

@@ -90,6 +90,7 @@
   --col-wide: 1000px;
   --source-progress-w: 200px;
   --source-action-w: 110px;
+  --export-translation-w: 200px;
   --stats-cols: repeat(2, minmax(0, 1fr));
   --dash-bw: 1.5px;
   --wide-lead: calc(var(--page-x) - var(--s4));   /* отступ карточки: вместе с полем строки даёт --page-x */

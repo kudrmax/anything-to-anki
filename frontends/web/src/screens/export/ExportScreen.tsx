@@ -1,10 +1,11 @@
 import { useParams } from 'react-router-dom'
 import { Sparkles } from 'lucide-react'
 import { useAudioPlayer } from '@/lib/useAudioPlayer'
-import { Aside, Page, PageHeader } from '@/shell'
-import { Banner, Button, DividerRow, Empty, GroupLabel, Icon, Spinner, StatusDot, Text, Toast } from '@/ui'
+import { Page, PageHeader } from '@/shell'
+import { Banner, Button, Empty, IconButton, Spinner, Stat, StatGrid, StatusDot, Text, Toast } from '@/ui'
 import { ExportCardRow } from './ExportCardRow'
 import { useExport } from './useExport'
+import css from './export.module.css'
 
 /** Общий экспорт и экспорт источника — разные экземпляры: состояние одного не переходит в другой. */
 export function ExportScreen() {
@@ -18,10 +19,12 @@ function ExportView({ sourceId }: { sourceId: number | undefined }) {
   const back = sourceId === undefined ? undefined : `/sources/${sourceId}/review`
 
   if (exporter.loading) {
-    return <Page header={<PageHeader title="Export" back={back} />}><Empty><Spinner /></Empty></Page>
+    return <Page wide header={<PageHeader title="Export" back={back} />}><Empty><Spinner /></Empty></Page>
   }
 
   const { ankiStatus, sections, settings, result, totalCards } = exporter
+  // Колонка превью нужна всем строкам, если видео есть хоть у одной: иначе колонки разъезжаются.
+  const withMedia = sections.some(section => section.cards.some(card => card.screenshot_url || card.audio_url))
   const ankiLabel = ankiStatus === null ? 'Checking…' : ankiStatus.available ? 'Anki connected' : 'Anki unavailable'
 
   const header = (
@@ -30,9 +33,7 @@ function ExportView({ sourceId }: { sourceId: number | undefined }) {
       back={back}
       meta={<><StatusDot tone={ankiStatus === null ? 'idle' : ankiStatus.available ? 'ok' : 'err'} />{ankiLabel}</>}
     >
-      <Button variant="link" busy={exporter.generatingAll} disabled={!exporter.canGenerateAll} onClick={() => void exporter.generateAll()}>
-        <Icon as={Sparkles} size="s" />Generate missing
-      </Button>
+      <IconButton icon={Sparkles} label="Generate missing meanings" busy={exporter.generatingAll} disabled={!exporter.canGenerateAll} onClick={() => void exporter.generateAll()} />
       <Button variant="fill" busy={exporter.syncing} disabled={!exporter.canSync} onClick={() => void exporter.sync()}>
         Add to Anki · {totalCards} {totalCards === 1 ? 'card' : 'cards'}
       </Button>
@@ -41,22 +42,19 @@ function ExportView({ sourceId }: { sourceId: number | undefined }) {
 
   const aside = (
     <>
-      <Aside title="Destination">
-        <DividerRow compact label="Deck"><b>{settings?.anki_deck_name ?? '—'}</b></DividerRow>
-        <DividerRow compact label="Note type"><b>{settings?.anki_note_type ?? '—'}</b></DividerRow>
-        <DividerRow compact label="Ready"><b>{exporter.readyCards} of {totalCards}</b></DividerRow>
-        <DividerRow compact last label="Sources"><b>{sections.length}</b></DividerRow>
-      </Aside>
+      <StatGrid>
+        <Stat value={`${exporter.readyCards} / ${totalCards}`} label="ready to export" progress={totalCards > 0 ? exporter.readyCards / totalCards : 0} wide />
+        <Stat small value={settings?.anki_deck_name ?? '—'} label="deck" />
+        <Stat small value={settings?.anki_note_type ?? '—'} label="note type" />
+      </StatGrid>
       {result && (
-        <Aside title="Last sync">
-          <DividerRow compact label="Added"><b>{result.added}</b></DividerRow>
-          <DividerRow compact label="Skipped" hint={result.skipped_lemmas.length > 0 && `Already in Anki: ${result.skipped_lemmas.join(', ')}`}>
-            <b>{result.skipped}</b>
-          </DividerRow>
-          <DividerRow compact last label="Errors" hint={result.error_lemmas.length > 0 && <Text tone="err">Failed: {result.error_lemmas.join(', ')}</Text>}>
-            <b>{result.errors}</b>
-          </DividerRow>
-        </Aside>
+        <StatGrid>
+          <Stat value={result.added} label="added" />
+          <Stat value={result.skipped} label="already in Anki" hint={result.skipped_lemmas.length > 0 && result.skipped_lemmas.join(', ')} />
+          {result.errors > 0 && (
+            <Stat value={result.errors} label="failed" hint={<Text tone="err">{result.error_lemmas.join(', ')}</Text>} wide />
+          )}
+        </StatGrid>
       )}
     </>
   )
@@ -69,23 +67,24 @@ function ExportView({ sourceId }: { sourceId: number | undefined }) {
   )
 
   return (
-    <Page header={header} aside={aside} banner={(exporter.error || ankiStatus?.available === false) ? banner : undefined}>
+    <Page wide header={header} aside={aside} banner={(exporter.error || ankiStatus?.available === false) ? banner : undefined}>
       {totalCards === 0 && <Empty>No words marked for learning. Go to the review page and mark words as “Learn”.</Empty>}
       {sections.map(section => (
-        <div key={section.source_id}>
+        <section key={section.source_id} className={css.group}>
           {sourceId === undefined && (
-            <GroupLabel>{section.source_title} · {section.cards.length} {section.cards.length === 1 ? 'card' : 'cards'}</GroupLabel>
+            <h2 className={css.groupTitle}>{section.source_title}<span>{section.cards.length}</span></h2>
           )}
           {section.cards.map(card => (
             <ExportCardRow
               key={card.candidate_id}
               card={card}
+              withMedia={withMedia}
               generating={exporter.generatingIds.has(card.candidate_id)}
               onGenerate={candidateId => void exporter.generate(candidateId)}
               player={player}
             />
           ))}
-        </div>
+          </section>
       ))}
       <Toast message={exporter.toast} />
     </Page>

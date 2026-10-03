@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page, PageHeader } from '@/shell'
 import type { SourceSummary } from '@/api/types'
-import { Banner, Button, Empty, Progress, Toast, useToast } from '@/ui'
+import { Banner, Button, Empty, Stat, StatGrid, Toast, useToast } from '@/ui'
 import { AddSourceForm } from './AddSourceForm'
 import { CollectionFilter } from './CollectionFilter'
 import { ReprocessModal } from './ReprocessModal'
@@ -76,12 +76,12 @@ export function SourcesScreen() {
       <section className={css.add}>
         <AddSourceForm onCreated={store.prepend} onReload={store.reload} onToast={showToast} />
       </section>
-      <section className={css.stats}>
-        <div className={css.stat}><b>{learnTotal}</b><span>to learn</span></div>
-        <div className={css.stat}><b>{stats?.known_word_count ?? 0}</b><span>known words</span></div>
-        <div className={css.stat}><b>{candidateTotal}</b><span>candidates</span></div>
-        <div className={css.stat}><b>{Math.round(progress * 100)}%</b><span>{cefrLevel} vocabulary</span><Progress value={progress} /></div>
-      </section>
+      <StatGrid>
+        <Stat value={learnTotal} label="to learn" />
+        <Stat value={stats?.known_word_count ?? 0} label="known words" />
+        <Stat value={candidateTotal} label="candidates" />
+        <Stat value={`${Math.round(progress * 100)}%`} label={`${cefrLevel} vocabulary`} progress={progress} />
+      </StatGrid>
     </>
   )
 

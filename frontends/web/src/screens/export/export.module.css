@@ -1,0 +1,18 @@
+/* группа: источник и его карточки */
+.group + .group { margin-top: var(--s7); }
+.groupTitle { margin-bottom: var(--s2); font-size: var(--fs-b); font-weight: var(--fw-m); color: var(--tx2); }
+.groupTitle span { margin-left: var(--s3); font-size: var(--fs-s); font-weight: var(--fw); color: var(--tx3); }
+
+/* карточка: фраза и определение | перевод | превью | действие */
+.row { display: grid; grid-template-columns: minmax(0, 1fr) var(--export-translation-w) var(--h); align-items: start; gap: var(--s5); padding: var(--s4) 0; cursor: pointer; }
+.withMedia { grid-template-columns: minmax(0, 1fr) var(--export-translation-w) var(--thumb-w) var(--h); }
+.row + .row { border-top: var(--bw) solid var(--line-soft); }
+.main { min-width: 0; display: flex; flex-direction: column; gap: var(--s2); }
+.sentence { font-size: var(--fs-t); line-height: var(--lh); }
+.definition { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
+.missing { font-size: var(--fs-m); color: var(--warn); }
+.details { display: flex; flex-direction: column; gap: var(--s3); margin-top: var(--s3); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
+.examples { list-style: none; display: flex; flex-direction: column; gap: var(--s2); padding-left: var(--s5); border-left: var(--underline) solid var(--line); }
+.translation { min-width: 0; font-size: var(--fs-b); font-weight: var(--fw-m); line-height: var(--lh); overflow-wrap: anywhere; padding-top: var(--s1); }
+.more { opacity: 0; transition: opacity var(--t); }
+.row:hover .more, .more:focus-within { opacity: 1; }
