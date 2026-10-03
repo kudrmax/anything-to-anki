@@ -94,6 +94,9 @@
   --source-progress-w: 200px;
   --source-action-w: 110px;
   --export-translation-w: 200px;
+  --settings-nav-w: 200px;
+  --settings-panel-w: 720px;
+  --section-leading-trim: calc((1 - var(--lh-tight)) * var(--fs-h1) / 2);
   --stats-cols: repeat(2, minmax(0, 1fr));
   --dash-bw: 1.5px;
   --wide-lead: calc(var(--page-x) - var(--s4));   /* отступ карточки: вместе с полем строки даёт --page-x */
