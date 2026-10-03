@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Target, Volume2 } from 'lucide-react'
 import type { EnrichmentStatus, PhraseOrigin, StoredCandidate } from '@/api/types'
-import { FREQ_BAND_LABEL, highlightParts, isDivider, meaningAction, meaningParts, mediaUrl, nonEmptyLines, primaryUsageGroup } from '@/lib/text/meaning'
+import { FREQ_BAND_LABEL, highlightParts, isDivider, meaningAction, meaningParts, mediaUrl, nonEmptyLines, parseExamples, primaryUsageGroup } from '@/lib/text/meaning'
 import { Button, Chip, Icon, MediaThumb, Spinner, Text } from '@/ui'
 import { CefrTooltip } from './CefrTooltip'
 import { DecisionButtons, PhraseTools } from './PhraseActions'
@@ -69,6 +69,8 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
     || isActive(candidate.pronunciation?.status) || isActive(candidate.tts?.status)
   const paragraphs = meaning?.meaning ? nonEmptyLines(meaning.meaning) : []
   const examples = meaning?.examples ? nonEmptyLines(meaning.examples) : []
+  // Те же строки без разметки: такой текст встаёт на место фразы.
+  const plainExamples = parseExamples(meaning?.examples)
   const [definition, ...context] = paragraphs
 
   return (
@@ -126,7 +128,16 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
           : <p key={i} className={css.context}><RichText text={paragraph} candidate={candidate} /></p>)}
         {examples.length > 0 && (
           <ul className={css.examples}>
-            {examples.map((line, i) => <li key={i}><RichText text={line} candidate={candidate} /></li>)}
+            {examples.map((line, i) => (
+              <li key={i} className={css.example}>
+                <span><RichText text={line} candidate={candidate} /></span>
+                {plainExamples[i] && (
+                  <button type="button" className={css.useExample} onClick={() => void review.replaceWithExample(candidate.id, plainExamples[i])}>
+                    Use as phrase
+                  </button>
+                )}
+              </li>
+            ))}
           </ul>
         )}
         <div className={css.cardFoot}>

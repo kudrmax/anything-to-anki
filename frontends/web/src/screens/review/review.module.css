@@ -61,3 +61,12 @@
 /* жалоба: поле и кнопка отправки под причинами */
 .reportFooter { display: flex; flex-direction: column; gap: var(--s3); }
 .reported, .reported:hover:not(:disabled) { color: var(--ac); }
+
+/* пример в карточке: при наведении его можно поставить вместо фразы */
+.example { display: flex; align-items: baseline; gap: var(--s3); }
+.example > span { flex: 1; min-width: 0; }
+.useExample { flex: none; padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--ac-wash); opacity: 0; transition: opacity var(--t); }
+.example:hover .useExample, .useExample:focus-visible { opacity: 1; }
+
+/* свой вопрос к AI */
+.ask { display: flex; align-items: center; gap: var(--s2); }

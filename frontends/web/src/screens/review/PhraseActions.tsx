@@ -1,17 +1,16 @@
 import { useState } from 'react'
-import { Flag, Image, Pencil, Sparkles, Speech, X } from 'lucide-react'
+import { ArrowRight, Feather, Flag, Image, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { decisionChange, type Decision } from '@/lib/decision'
-import { parseExamples } from '@/lib/text/meaning'
 import { Button, Field, IconButton, Menu, type MenuItem } from '@/ui'
 import type { Review } from './useReview'
 import css from './review.module.css'
 
-const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string }[] = [
-  { action: 'give_examples', label: 'Give examples' },
-  { action: 'explain_detail', label: 'Explain in detail' },
-  { action: 'explain_simpler', label: 'Explain simpler' },
-  { action: 'how_to_say', label: 'How to say it' },
+const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string; icon: LucideIcon }[] = [
+  { action: 'give_examples', label: 'Give examples', icon: List },
+  { action: 'explain_detail', label: 'Explain in detail', icon: ZoomIn },
+  { action: 'explain_simpler', label: 'Explain simpler', icon: Feather },
+  { action: 'how_to_say', label: 'How to say it', icon: MessageCircle },
 ]
 
 const DECISIONS: { status: Decision; label: string; kbd: string }[] = [
@@ -50,13 +49,19 @@ export function PhraseTools({ candidate, review }: PhraseActionsProps) {
   const isEditing = review.editing?.candidateId === id
 
   const followUpItems: MenuItem[] = [
-    { label: 'Regenerate all', onSelect: () => void review.generate(id) },
-    ...(isRated ? [] : FOLLOW_UP_PRESETS.map(preset => ({ label: preset.label, onSelect: () => void review.generate(id, preset.action) }))),
-    ...parseExamples(candidate.meaning?.examples).map(example => ({
-      label: `Replace phrase with: ${example}`,
-      onSelect: () => void review.replaceWithExample(id, example),
-    })),
+    { label: 'Regenerate all', icon: RefreshCw, onSelect: () => void review.generate(id) },
+    ...(isRated ? [] : [{
+      label: 'Ask AI',
+      icon: Sparkles,
+      items: FOLLOW_UP_PRESETS.map(preset => ({ label: preset.label, icon: preset.icon, onSelect: () => void review.generate(id, preset.action) })),
+    }]),
   ]
+  const askQuestion = (close: () => void) => {
+    if (!question.trim()) return
+    void review.generate(id, 'free_question', question.trim())
+    setQuestion('')
+    close()
+  }
 
   const toggleReason = (reason: string) =>
     setReasons(prev => (prev.includes(reason) ? prev.filter(r => r !== reason) : [...prev, reason]))
@@ -83,17 +88,15 @@ export function PhraseTools({ candidate, review }: PhraseActionsProps) {
           trigger={<IconButton icon={Sparkles} label="Regenerate or ask" busy={review.busy.generating.has(id)} />}
           items={followUpItems}
           footer={isRated ? undefined : close => (
-            <Field
-              value={question}
-              placeholder="Ask a question…"
-              onChange={e => setQuestion(e.target.value)}
-              onKeyDown={e => {
-                if (e.key !== 'Enter' || !question.trim()) return
-                void review.generate(id, 'free_question', question.trim())
-                setQuestion('')
-                close()
-              }}
-            />
+            <div className={css.ask}>
+              <Field
+                value={question}
+                placeholder="Ask your own question…"
+                onChange={e => setQuestion(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') askQuestion(close) }}
+              />
+              <IconButton icon={ArrowRight} label="Ask" disabled={!question.trim()} onClick={() => askQuestion(close)} />
+            </div>
           )}
         />
       )}
