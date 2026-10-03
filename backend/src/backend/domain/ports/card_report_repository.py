@@ -16,3 +16,7 @@ class CardReportRepository(ABC):
     @abstractmethod
     def list_all(self) -> list[CardReport]:
         """Newest first."""
+
+    @abstractmethod
+    def reported_candidate_ids(self, candidate_ids: list[int]) -> set[int]:
+        """Which of the given candidates have at least one report."""

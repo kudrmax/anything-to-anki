@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 
 from backend.domain.ports.card_report_repository import CardReportRepository
@@ -29,6 +30,7 @@ class SqlaCardReportRepository(CardReportRepository):
             cefr_level=report.cefr_level,
             fragment_unknown_count=report.fragment_unknown_count,
             is_phrasal_verb=report.is_phrasal_verb,
+            reasons=json.dumps(list(report.reasons)),
             comment=report.comment,
             text_before=report.text_before,
             text_after=report.text_after,
@@ -44,3 +46,14 @@ class SqlaCardReportRepository(CardReportRepository):
             .all()
         )
         return [m.to_entity() for m in models]
+
+    def reported_candidate_ids(self, candidate_ids: list[int]) -> set[int]:
+        if not candidate_ids:
+            return set()
+        rows = (
+            self._session.query(CardReportModel.candidate_id)
+            .filter(CardReportModel.candidate_id.in_(candidate_ids))
+            .distinct()
+            .all()
+        )
+        return {row[0] for row in rows}

@@ -433,6 +433,7 @@ class CardReportModel(Base):
     cefr_level: Mapped[str | None] = mapped_column(String(10), nullable=True)
     fragment_unknown_count: Mapped[int] = mapped_column(Integer, nullable=False)
     is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False)
+    reasons: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON list
     comment: Mapped[str] = mapped_column(Text, nullable=False)
     text_before: Mapped[str | None] = mapped_column(Text, nullable=True)
     text_after: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -453,6 +454,7 @@ class CardReportModel(Base):
             cefr_level=self.cefr_level,
             fragment_unknown_count=self.fragment_unknown_count,
             is_phrasal_verb=self.is_phrasal_verb,
+            reasons=tuple(json.loads(self.reasons)),
             comment=self.comment,
             text_before=self.text_before,
             text_after=self.text_after,

@@ -24,3 +24,4 @@
 .submenu::after { content: ''; position: absolute; top: 0; bottom: 0; width: var(--s4); }
 .left::after { left: 100%; }
 .right::after { right: 100%; }
+.check { display: inline-flex; color: var(--ac); }

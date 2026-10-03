@@ -213,10 +213,10 @@ export const api = {
       body: JSON.stringify({ context_fragment: contextFragment }),
     }),
 
-  reportCandidate: (candidateId: number, comment: string) =>
+  reportCandidate: (candidateId: number, reasons: string[], comment: string) =>
     req<unknown>(`/candidates/${candidateId}/report`, {
       method: 'POST',
-      body: JSON.stringify({ comment }),
+      body: JSON.stringify({ reasons, comment }),
     }),
 
   getReportReasons: () => req<string[]>('/api/card-reports/reasons'),

@@ -43,6 +43,7 @@ export function DecisionButtons({ candidate, review }: PhraseActionsProps) {
 export function PhraseTools({ candidate, review }: PhraseActionsProps) {
   const [question, setQuestion] = useState('')
   const [complaint, setComplaint] = useState('')
+  const [reasons, setReasons] = useState<string[]>([])
   const id = candidate.id
   const isRated = candidate.status !== 'pending'
   const isVideo = review.source?.content_type === 'video'
@@ -57,10 +58,23 @@ export function PhraseTools({ candidate, review }: PhraseActionsProps) {
     })),
   ]
 
+  const toggleReason = (reason: string) =>
+    setReasons(prev => (prev.includes(reason) ? prev.filter(r => r !== reason) : [...prev, reason]))
   const reportItems: MenuItem[] = review.reportReasons.map(reason => ({
     label: reason,
-    onSelect: () => void review.report(id, reason),
+    selected: reasons.includes(reason),
+    keepOpen: true,
+    onSelect: () => toggleReason(reason),
   }))
+  const canSend = reasons.length > 0 || complaint.trim().length > 0
+  const sendReport = async (close: () => void) => {
+    if (!canSend) return
+    if (await review.report(id, reasons, complaint.trim())) {
+      setReasons([])
+      setComplaint('')
+      close()
+    }
+  }
 
   return (
     <div className={css.tools}>
@@ -86,19 +100,20 @@ export function PhraseTools({ candidate, review }: PhraseActionsProps) {
       {isVideo && <IconButton icon={Image} label="Regenerate media" busy={review.busy.media.has(id)} onClick={() => void review.regenerateMedia(id)} />}
       <IconButton icon={Speech} label="Generate TTS audio" busy={review.busy.tts.has(id)} onClick={() => void review.generateTTS(id)} />
       <Menu
-        trigger={<IconButton icon={Flag} label="Report a problem with this card" />}
+        trigger={<IconButton icon={Flag} label={candidate.reported ? 'Reported — report another problem' : 'Report a problem with this card'} className={candidate.reported ? css.reported : undefined} />}
         items={reportItems}
         footer={close => (
-          <Field
-            value={complaint}
-            placeholder="Describe the problem…"
-            onChange={e => setComplaint(e.target.value)}
-            onKeyDown={e => {
-              if (e.key !== 'Enter' || !complaint.trim()) return
-              void review.report(id, complaint.trim()).then(saved => { if (saved) setComplaint('') })
-              close()
-            }}
-          />
+          <div className={css.reportFooter}>
+            <Field
+              value={complaint}
+              placeholder="Describe the problem…"
+              onChange={e => setComplaint(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') void sendReport(close) }}
+            />
+            <Button variant="fill" wide disabled={!canSend} onClick={() => void sendReport(close)}>
+              {reasons.length > 1 ? `Send ${reasons.length} reasons` : 'Send report'}
+            </Button>
+          </div>
         )}
       />
       {isEditing

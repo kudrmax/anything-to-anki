@@ -9,6 +9,7 @@ from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 if TYPE_CHECKING:
     from backend.application.utils.candidate_sorter import CandidateSorter
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.card_report_repository import CardReportRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_repository import SourceRepository
 
@@ -22,11 +23,13 @@ class GetCandidatesUseCase:
         candidate_repo: CandidateRepository,
         candidate_sorter: CandidateSorter,
         job_repo: JobRepository,
+        report_repo: CardReportRepository,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
         self._candidate_sorter = candidate_sorter
         self._job_repo = job_repo
+        self._report_repo = report_repo
 
     def execute(
         self,
@@ -43,4 +46,5 @@ class GetCandidatesUseCase:
         candidates = decided_last(candidates)
         candidate_ids = [c.id for c in candidates if c.id is not None]
         jobs_by_candidate = self._job_repo.get_jobs_for_candidates(candidate_ids)
-        return [stored_candidate_to_dto(c, jobs_by_candidate) for c in candidates]
+        reported_ids = self._report_repo.reported_candidate_ids(candidate_ids)
+        return [stored_candidate_to_dto(c, jobs_by_candidate, reported_ids) for c in candidates]

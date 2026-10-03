@@ -26,11 +26,14 @@ class TestGetCandidatesUseCase:
         self.settings_repo.get.return_value = None
         self.job_repo = MagicMock()
         self.job_repo.get_jobs_for_candidates.return_value = {}
+        self.report_repo = MagicMock()
+        self.report_repo.reported_candidate_ids.return_value = set()
         self.use_case = GetCandidatesUseCase(
             source_repo=self.source_repo,
             candidate_repo=self.candidate_repo,
             candidate_sorter=candidate_sorter(self.settings_repo),
             job_repo=self.job_repo,
+            report_repo=self.report_repo,
         )
 
     def test_returns_candidates_for_source(self) -> None:

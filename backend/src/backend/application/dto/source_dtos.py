@@ -112,6 +112,8 @@ class StoredCandidateDTO(BaseModel):
     cefr_level: str | None
     zipf_frequency: float
     is_sweet_spot: bool
+    # The user has complained about this card at least once.
+    reported: bool = False
     context_fragment: str
     fragment_purity: str
     occurrences: int
@@ -220,6 +222,7 @@ def _derive_tts_status(
 def stored_candidate_to_dto(
     c: StoredCandidate,
     jobs_by_candidate: dict[int, dict[str, Job]] | None = None,
+    reported_ids: set[int] | None = None,
 ) -> StoredCandidateDTO:
     """Canonical converter: StoredCandidate entity → StoredCandidateDTO.
 
@@ -343,6 +346,7 @@ def stored_candidate_to_dto(
         cefr_level=c.cefr_level,
         zipf_frequency=c.zipf_frequency,
         is_sweet_spot=c.is_sweet_spot,
+        reported=reported_ids is not None and c.id in reported_ids,
         context_fragment=c.context_fragment,
         fragment_purity=c.fragment_purity,
         occurrences=c.occurrences,

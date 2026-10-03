@@ -57,3 +57,7 @@
 .iconTrigger { width: var(--h); height: var(--h); justify-content: center; border-radius: var(--rc); color: var(--tx3); }
 .iconTrigger:hover:not(:disabled) { background: var(--soft); }
 .headerTools { display: flex; align-items: center; gap: var(--s2); }
+
+/* жалоба: поле и кнопка отправки под причинами */
+.reportFooter { display: flex; flex-direction: column; gap: var(--s3); }
+.reported, .reported:hover:not(:disabled) { color: var(--ac); }

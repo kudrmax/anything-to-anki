@@ -324,6 +324,7 @@ class Container:
             job_repo=SqlaJobRepository(session),
             collection_repo=SqlaCollectionRepository(session),
             topic_target_repo=SqlaTopicTargetRepository(session),
+            report_repo=SqlaCardReportRepository(session),
         )
 
     def create_collection_use_case(self, session: Session) -> CreateCollectionUseCase:
@@ -444,6 +445,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
+            report_repo=SqlaCardReportRepository(session),
         )
 
     def report_candidate_use_case(self, session: Session) -> ReportCandidateUseCase:
