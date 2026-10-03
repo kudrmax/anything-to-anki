@@ -4,7 +4,6 @@ import type { Collection, SourceSummary, Stats } from '@/api/types'
 import { isVpnErrorText } from '@/lib/aiErrors'
 
 const POLL_INTERVAL_MS = 2000
-const DEFAULT_CEFR_LEVEL = 'B2'
 const TOPIC_JOB_TYPE = 'topic_targets'
 
 /** Источник, который можно обработать: тему сначала нужно сгенерировать. */
@@ -25,7 +24,6 @@ export function useSources() {
   const [sources, setSources] = useState<SourceSummary[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [collections, setCollections] = useState<Collection[]>([])
-  const [cefrLevel, setCefrLevel] = useState(DEFAULT_CEFR_LEVEL)
   const [processingAll, setProcessingAll] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -42,7 +40,6 @@ export function useSources() {
 
   useEffect(() => {
     void reload()
-    api.getSettings().then(s => setCefrLevel(s.cefr_level)).catch(() => {})
   }, [reload])
 
   // Один опрос всего списка, пока хоть один источник обрабатывается или ждёт AI.
@@ -165,7 +162,7 @@ export function useSources() {
   const vpnBlocked = sources.some(s => s.generation_status === 'failed' && isVpnErrorText(s.generation_error))
 
   return {
-    sources, stats, collections, cefrLevel, error, clearError: () => setError(null), pendingCount, processingAll, vpnBlocked,
+    sources, stats, collections, error, clearError: () => setError(null), pendingCount, processingAll, vpnBlocked,
     reload, prepend, process, processAll, generate, cancelGeneration, retryGeneration, remove, rename, assignCollection, reprocess,
     createCollection, renameCollection, deleteCollection,
   }

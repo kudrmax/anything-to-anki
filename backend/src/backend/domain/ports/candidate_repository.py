@@ -28,6 +28,9 @@ class CandidateRepository(ABC):
     def count_by_status(self, status: CandidateStatus) -> int: ...
 
     @abstractmethod
+    def count_all(self) -> int: ...
+
+    @abstractmethod
     def update_context_fragment(self, candidate_id: int, context_fragment: str) -> None: ...
 
     @abstractmethod

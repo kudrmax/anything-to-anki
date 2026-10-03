@@ -67,6 +67,10 @@ class SqlaCandidateRepository(CandidateRepository):
         )
         return result or 0
 
+    def count_all(self) -> int:
+        result = self._session.query(func.count(StoredCandidateModel.id)).scalar()
+        return result or 0
+
     def update_context_fragment(self, candidate_id: int, context_fragment: str) -> None:
         model = self._session.get(StoredCandidateModel, candidate_id)
         if model is not None:

@@ -163,6 +163,14 @@ class TestCandidateRepository:
         repo = SqlaCandidateRepository(db_session)
         assert repo.get_by_id(999) is None
 
+    def test_count_all_counts_every_status(self, db_session: Session) -> None:
+        source_id = self._create_source(db_session)
+        repo = SqlaCandidateRepository(db_session)
+        self._create_candidate(repo, source_id, "one", CandidateStatus.PENDING)
+        self._create_candidate(repo, source_id, "two", CandidateStatus.LEARN)
+        self._create_candidate(repo, source_id, "three", CandidateStatus.SKIP)
+        assert repo.count_all() == 3
+
 
 @pytest.mark.integration
 class TestKnownWordRepository:
