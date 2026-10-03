@@ -25,6 +25,7 @@ from backend.domain.exceptions import (
     SourceNotReprocessableError,
     TopicTargetsMissingError,
 )
+from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.dependencies import (
     get_container,
@@ -97,21 +98,13 @@ def list_sources(
 @router.get("/{source_id}")
 def get_source(
     source_id: int,
-    sort: str = "relevance",
+    sort: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> SourceDetailDTO:
-    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
-    try:
-        sort_order = CandidateSortOrder(sort)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid sort: {sort}. Use 'relevance' or 'chronological'.",
-        ) from e
     try:
         use_case = container.get_sources_use_case(session)
-        return use_case.get_by_id(source_id, sort_order=sort_order)
+        return use_case.get_by_id(source_id, sort_order=sort)
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
@@ -403,21 +396,13 @@ async def reprocess_source(
 @router.get("/{source_id}/candidates")
 def get_candidates(
     source_id: int,
-    sort: str = "relevance",
+    sort: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> list[dict[str, Any]]:
-    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
-    try:
-        sort_order = CandidateSortOrder(sort)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid sort: {sort}. Use 'relevance' or 'chronological'.",
-        ) from e
     try:
         use_case = container.get_candidates_use_case(session)
-        candidates = use_case.execute(source_id, sort_order=sort_order)
+        candidates = use_case.execute(source_id, sort_order=sort)
         return [c.model_dump() for c in candidates]
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

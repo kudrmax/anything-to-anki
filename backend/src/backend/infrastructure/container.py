@@ -37,10 +37,10 @@ from backend.application.use_cases.run_generation_job import MeaningGenerationUs
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.application.utils.candidate_factory import CandidateFactory
+from backend.application.utils.candidate_sorter import CandidateSorter
 from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
-from backend.application.utils.relevance_sorter import RelevanceSorter
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
 from backend.domain.ports.cefr_source import (
@@ -320,7 +320,7 @@ class Container:
         return GetSourcesUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
-            relevance_sorter=self._relevance_sorter(session),
+            candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
             collection_repo=SqlaCollectionRepository(session),
             topic_target_repo=SqlaTopicTargetRepository(session),
@@ -442,7 +442,7 @@ class Container:
         return GetCandidatesUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
-            relevance_sorter=self._relevance_sorter(session),
+            candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
         )
 
@@ -473,8 +473,8 @@ class Container:
             decision_repo=SqlaWordDecisionRepository(session),
         )
 
-    def _relevance_sorter(self, session: Session) -> RelevanceSorter:
-        return RelevanceSorter(
+    def _candidate_sorter(self, session: Session) -> CandidateSorter:
+        return CandidateSorter(
             settings_repo=SqlaSettingsRepository(session),
             threshold_resolver=self._threshold_resolver(session),
         )
@@ -689,7 +689,7 @@ class Container:
         return EnqueuePronunciationDownloadUseCase(
             pronunciation_repo=SqlaCandidatePronunciationRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
-            relevance_sorter=self._relevance_sorter(session),
+            candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
         )
 
@@ -710,7 +710,7 @@ class Container:
         return EnqueueTTSGenerationUseCase(
             tts_repo=SqlaCandidateTTSRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
-            relevance_sorter=self._relevance_sorter(session),
+            candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
         )
 
@@ -724,7 +724,7 @@ class Container:
             media_repo=SqlaCandidateMediaRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
-            relevance_sorter=self._relevance_sorter(session),
+            candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
         )
 
@@ -738,7 +738,7 @@ class Container:
             meaning_repo=SqlaCandidateMeaningRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
-            relevance_sorter=self._relevance_sorter(session),
+            candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
         )
 

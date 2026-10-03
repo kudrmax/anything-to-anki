@@ -10,7 +10,7 @@ from backend.application.use_cases.enqueue_pronunciation_download import (
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
-from tests.relevance_support import relevance_sorter
+from tests.candidate_sorter_support import candidate_sorter
 
 
 def _make_candidate(*, id_: int) -> StoredCandidate:
@@ -39,7 +39,7 @@ def _make_use_case(
     return EnqueuePronunciationDownloadUseCase(
         pronunciation_repo=pronunciation_repo,
         candidate_repo=candidate_repo or MagicMock(),
-        relevance_sorter=relevance_sorter(settings_repo),
+        candidate_sorter=candidate_sorter(settings_repo),
         job_repo=MagicMock(),
     )
 

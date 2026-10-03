@@ -10,20 +10,20 @@ from backend.application.dto.source_dtos import (
     stored_candidate_to_dto,
 )
 from backend.domain.exceptions import SourceNotFoundError
+from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
-    from backend.application.utils.relevance_sorter import RelevanceSorter
+    from backend.application.utils.candidate_sorter import CandidateSorter
     from backend.domain.entities.source import Source
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.collection_repository import CollectionRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.topic_target_repository import TopicTargetRepository
-    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
 _PREVIEW_LENGTH: int = 100
 _PENDING_JOB_STATUSES = [JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.FAILED]
@@ -45,14 +45,14 @@ class GetSourcesUseCase:
         self,
         source_repo: SourceRepository,
         candidate_repo: CandidateRepository,
-        relevance_sorter: RelevanceSorter,
+        candidate_sorter: CandidateSorter,
         job_repo: JobRepository,
         collection_repo: CollectionRepository,
         topic_target_repo: TopicTargetRepository,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
-        self._relevance_sorter = relevance_sorter
+        self._candidate_sorter = candidate_sorter
         self._job_repo = job_repo
         self._collection_repo = collection_repo
         self._topic_target_repo = topic_target_repo
@@ -124,27 +124,20 @@ class GetSourcesUseCase:
     def get_by_id(
         self,
         source_id: int,
-        sort_order: CandidateSortOrder | None = None,
+        sort_order: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
     ) -> SourceDetailDTO:
-        from backend.domain.services.candidate_sorting import (
-            decided_last,
-            sort_chronologically,
-        )
-        from backend.domain.value_objects.candidate_sort_order import (
-            CandidateSortOrder as SortEnum,
-        )
+        from backend.domain.services.candidate_sorting import decided_last
+
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
         assert source.id is not None
         candidates = self._candidate_repo.get_by_source(source.id)
-        initially_shown: int | None = None
-        if sort_order == SortEnum.CHRONOLOGICAL:
-            text = source.cleaned_text or source.raw_text
-            candidates = sort_chronologically(candidates, source_text=text)
-        else:
-            candidates = self._relevance_sorter.sort(candidates)
-            initially_shown = INITIALLY_SHOWN_CANDIDATES
+        candidates = self._candidate_sorter.sort(candidates, source, sort_order)
+        initially_shown = (
+            None if sort_order == CandidateSortOrder.CHRONOLOGICAL
+            else INITIALLY_SHOWN_CANDIDATES
+        )
         candidates = decided_last(candidates)
         candidate_ids = [c.id for c in candidates if c.id is not None]
         jobs_by_candidate = self._job_repo.get_jobs_for_candidates(candidate_ids)

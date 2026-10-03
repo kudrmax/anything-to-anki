@@ -12,7 +12,7 @@ from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 
-from tests.relevance_support import threshold_resolver
+from tests.candidate_sorter_support import threshold_resolver
 
 
 def _make_use_case() -> tuple[ProcessSourceUseCase, dict[str, MagicMock]]:

@@ -15,7 +15,7 @@ from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
 )
 
-from tests.relevance_support import threshold_resolver
+from tests.candidate_sorter_support import threshold_resolver
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session

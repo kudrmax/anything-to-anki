@@ -57,13 +57,13 @@ export const themeModePref = makePref<ThemePref>({
   parse: (raw) => (raw === 'light' || raw === 'system' ? raw : 'dark'),
 })
 
-export type SortOrder = 'relevance' | 'chronological'
+export type SortOrder = 'relevance' | 'chronological' | 'key_words'
 
 export const sortOrderPref = makePref<SortOrder>({
   key: 'reviewPage.sortOrder',
   raw: true,
   default: 'relevance',
-  parse: (raw) => (raw === 'chronological' ? raw : 'relevance'),
+  parse: (raw) => (raw === 'chronological' || raw === 'key_words' ? raw : 'relevance'),
 })
 
 export const sourceTextShownPref = makePref<boolean>({

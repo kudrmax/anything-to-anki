@@ -20,7 +20,7 @@ from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 
-from tests.relevance_support import relevance_sorter
+from tests.candidate_sorter_support import candidate_sorter
 
 
 def _make_source(
@@ -60,7 +60,7 @@ def _make_use_case(
         media_repo=media_repo,
         candidate_repo=candidate_repo or MagicMock(),
         source_repo=source_repo or MagicMock(),
-        relevance_sorter=relevance_sorter(settings_repo),
+        candidate_sorter=candidate_sorter(settings_repo),
         job_repo=MagicMock(),
     )
 
