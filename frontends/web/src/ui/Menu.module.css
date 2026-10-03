@@ -11,3 +11,16 @@
 .empty { padding: var(--s3) var(--s4); font-size: var(--fs-s); color: var(--tx3); }
 .footer { padding: var(--s2); }
 .up { top: auto; bottom: calc(100% + var(--s2)); }
+.entry { position: relative; }
+.active { background: var(--hover); }
+.value { font-size: var(--fs-s); color: var(--tx3); }
+.item > svg { color: var(--tx3); }
+.danger > svg { color: var(--err); }
+.separator { height: var(--bw); margin: var(--s2) var(--s3); background: var(--line); }
+.submenu { top: calc(var(--s2) * -1); }
+/* подменю стоит снаружи родительского меню; невидимый мостик держит наведение на зазоре */
+.left { right: calc(100% + var(--s3)); }
+.right { left: calc(100% + var(--s3)); }
+.submenu::after { content: ''; position: absolute; top: 0; bottom: 0; width: var(--s4); }
+.left::after { left: 100%; }
+.right::after { right: 100%; }

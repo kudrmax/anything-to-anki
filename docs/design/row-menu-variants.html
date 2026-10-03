@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Меню источника — варианты</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #100f0e; --card: #181716; --soft: #222120; --line: #2c2b2a;
+  --line-soft: color-mix(in srgb, var(--line) 60%, transparent);
+  --tx: #e9e8e7; --tx2: #bbbab9; --tx3: #8c8c8a; --ac: #eda57c; --on-ac: #24120a; --err: #f09a8e;
+  --ac-deep: color-mix(in srgb, var(--ac) 88%, var(--err));
+  --fill: linear-gradient(120deg, var(--ac-deep), color-mix(in srgb, var(--ac) 88%, var(--tx)));
+  --glow: radial-gradient(700px 360px at 18% -10%, color-mix(in srgb, var(--ac-deep) 14%, transparent), transparent 60%), var(--bg);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #0a0909; color: var(--tx); font: 400 15px/1.5 'Geist', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+p, h1, h2 { margin: 0; }
+.doc { max-width: 1320px; margin: 0 auto; padding: 48px 20px 96px; }
+.doc > h1 { font-size: 30px; font-weight: 600; letter-spacing: -.02em; margin-bottom: 8px; }
+.lead { color: var(--tx3); margin-bottom: 40px; max-width: 900px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+.v h2 { font-size: 19px; font-weight: 600; }
+.v h2 em { font-style: normal; color: var(--ac); margin-right: 8px; }
+.v .idea { color: var(--tx3); font-size: 14px; margin: 4px 0 14px; min-height: 63px; }
+.frame { position: relative; height: 470px; border: 1px solid var(--line); border-radius: 16px; background: var(--glow); padding: 28px; overflow: hidden; }
+svg.i { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+.row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto 36px; align-items: center; gap: 14px; padding: 10px 12px; margin: 0 -12px; border-radius: 16px; background: color-mix(in srgb, var(--soft) 55%, transparent); }
+.type { width: 40px; height: 40px; border-radius: 12px; background: var(--soft); }
+.t { font-size: 17px; }
+.btn { height: 36px; padding: 0 16px; border-radius: 12px; display: inline-flex; align-items: center; font-size: 14.5px; font-weight: 500; background: var(--fill); color: var(--on-ac); }
+.dots { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; color: var(--tx); background: var(--soft); }
+
+.menu { position: absolute; top: 88px; right: 28px; width: 270px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 6px; box-shadow: 0 14px 36px -12px #000; }
+.item { height: 36px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 9px; font-size: 14.5px; color: var(--tx); }
+.item svg { color: var(--tx3); }
+.item.hover { background: var(--soft); }
+.item.danger, .item.danger svg { color: var(--err); }
+.item .right { margin-left: auto; color: var(--tx3); font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
+.sep { height: 1px; background: var(--line); margin: 6px 4px; }
+.label { padding: 8px 10px 4px; font-size: 11.5px; font-weight: 500; letter-spacing: .07em; text-transform: uppercase; color: var(--tx3); }
+.check { margin-left: auto; color: var(--ac); }
+.sub { position: absolute; top: 132px; right: 306px; width: 200px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 6px 8px; }
+.chip { height: 30px; padding: 0 11px; border-radius: 9px; display: inline-flex; align-items: center; font-size: 13.5px; color: var(--tx2); background: var(--soft); }
+.chip.on { background: color-mix(in srgb, var(--ac) 18%, transparent); color: var(--tx); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 45%, transparent); }
+.tag { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; margin-left: 10px; border-radius: 8px; font-size: 12.5px; color: var(--tx2); background: var(--soft); vertical-align: middle; }
+.tag svg { width: 13px; height: 13px; color: var(--tx3); }
+.pop { position: absolute; top: 88px; left: 150px; width: 220px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="up" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5M5 21h14"/></symbol>
+  <symbol id="pen" viewBox="0 0 24 24"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></symbol>
+  <symbol id="folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="re" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></symbol>
+  <symbol id="trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+</svg>
+<div class="doc">
+  <h1>Меню источника — варианты</h1>
+  <p class="lead">Действия те же: Export, Rename, коллекция, Reprocess, Delete. Сейчас всё это одним плоским списком, а коллекции размножают «Move to …» на каждую. Во всех вариантах действия сгруппированы, а Delete отделён и стоит последним.</p>
+  <div class="grid">
+
+    <section class="v">
+      <h2><em>1</em>Группы с подписями</h2>
+      <p class="idea">Один уровень, но разбит на блоки: действия с иконками, затем блок «Collection» со списком коллекций как выбором одного варианта (без «Move to»), затем отдельно Delete. Всё видно сразу.</p>
+      <div class="frame">
+        <div class="row"><span class="type"></span><span class="t">WORM</span><span class="btn">Continue</span><span class="dots"><svg class="i"><use href="#dots"/></svg></span></div>
+        <div class="menu">
+          <div class="item"><svg class="i"><use href="#up"/></svg>Export</div>
+          <div class="item"><svg class="i"><use href="#pen"/></svg>Rename</div>
+          <div class="item"><svg class="i"><use href="#re"/></svg>Reprocess</div>
+          <div class="sep"></div>
+          <div class="label">Collection</div>
+          <div class="item">None</div>
+          <div class="item">Friends</div>
+          <div class="item">Twig</div>
+          <div class="item hover">Worm<svg class="i check"><use href="#chev" style="display:none"/><path d="M20 6 9 17l-5-5"/></svg></div>
+          <div class="sep"></div>
+          <div class="item danger"><svg class="i"><use href="#trash"/></svg>Delete</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="v">
+      <h2><em>2</em>Подменю коллекции</h2>
+      <p class="idea">Главное меню короткое: одна строка «Collection» с текущим значением справа. Наведение открывает рядом второе меню со списком коллекций. Меню не растёт, сколько бы коллекций ни было.</p>
+      <div class="frame">
+        <div class="row"><span class="type"></span><span class="t">WORM</span><span class="btn">Continue</span><span class="dots"><svg class="i"><use href="#dots"/></svg></span></div>
+        <div class="menu">
+          <div class="item"><svg class="i"><use href="#up"/></svg>Export</div>
+          <div class="item"><svg class="i"><use href="#pen"/></svg>Rename</div>
+          <div class="item hover"><svg class="i"><use href="#folder"/></svg>Collection<span class="right">Worm<svg class="i"><use href="#chev"/></svg></span></div>
+          <div class="item"><svg class="i"><use href="#re"/></svg>Reprocess</div>
+          <div class="sep"></div>
+          <div class="item danger"><svg class="i"><use href="#trash"/></svg>Delete</div>
+        </div>
+        <div class="menu sub">
+          <div class="item">None</div>
+          <div class="item">Friends</div>
+          <div class="item">Twig</div>
+          <div class="item hover">Worm<svg class="i check"><path d="M20 6 9 17l-5-5"/></svg></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="v">
+      <h2><em>3</em>Коллекции фишками</h2>
+      <p class="idea">Блок коллекций сверху — фишки в одну-две строки, текущая подсвечена. Выбор в один клик и занимает мало высоты. Ниже действия с иконками, Delete отдельно.</p>
+      <div class="frame">
+        <div class="row"><span class="type"></span><span class="t">WORM</span><span class="btn">Continue</span><span class="dots"><svg class="i"><use href="#dots"/></svg></span></div>
+        <div class="menu">
+          <div class="label">Collection</div>
+          <div class="chips"><span class="chip">None</span><span class="chip">Friends</span><span class="chip">Twig</span><span class="chip on">Worm</span></div>
+          <div class="sep"></div>
+          <div class="item"><svg class="i"><use href="#up"/></svg>Export</div>
+          <div class="item"><svg class="i"><use href="#pen"/></svg>Rename</div>
+          <div class="item"><svg class="i"><use href="#re"/></svg>Reprocess</div>
+          <div class="sep"></div>
+          <div class="item danger"><svg class="i"><use href="#trash"/></svg>Delete</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="v">
+      <h2><em>4</em>Коллекция в строке</h2>
+      <p class="idea">Коллекция уходит из меню совсем: её метка стоит рядом с названием источника и сама открывает выбор. В меню остаются только действия. Заодно коллекция видна прямо в списке, без наведения.</p>
+      <div class="frame">
+        <div class="row"><span class="type"></span><span class="t">WORM<span class="tag"><svg class="i"><use href="#folder"/></svg>Worm<svg class="i"><use href="#down"/></svg></span></span><span class="btn">Continue</span><span class="dots"><svg class="i"><use href="#dots"/></svg></span></div>
+        <div class="menu pop">
+          <div class="item">None</div>
+          <div class="item">Friends</div>
+          <div class="item">Twig</div>
+          <div class="item hover">Worm<svg class="i check"><path d="M20 6 9 17l-5-5"/></svg></div>
+        </div>
+        <div class="menu" style="top:270px">
+          <div class="item"><svg class="i"><use href="#up"/></svg>Export</div>
+          <div class="item"><svg class="i"><use href="#pen"/></svg>Rename</div>
+          <div class="item"><svg class="i"><use href="#re"/></svg>Reprocess</div>
+          <div class="sep"></div>
+          <div class="item danger"><svg class="i"><use href="#trash"/></svg>Delete</div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+</body>
+</html>

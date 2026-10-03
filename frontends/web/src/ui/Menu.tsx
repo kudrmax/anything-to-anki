@@ -1,14 +1,22 @@
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
-import { Check } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react'
 import { Icon } from './Icon'
 import css from './Menu.module.css'
 
 export interface MenuItem {
   label: string
-  onSelect: () => void
+  /** Не нужен пункту с подменю. */
+  onSelect?: () => void
   danger?: boolean
   selected?: boolean
   disabled?: boolean
+  icon?: LucideIcon
+  /** Текущее значение справа, например выбранная коллекция. */
+  value?: string
+  /** Подменю: открывается сбоку при наведении. */
+  items?: MenuItem[]
+  /** Линия над пунктом: начало новой группы. */
+  separated?: boolean
 }
 
 interface MenuProps {
@@ -59,21 +67,46 @@ export function Menu({ trigger, items, footer, emptyText, align = 'end', openOn 
         <div ref={placeMenu} className={`${css.menu} ${css[align]}`} role="menu" onClick={e => e.stopPropagation()}>
           {items.length === 0 && emptyText && <div className={css.empty}>{emptyText}</div>}
           {items.map((item, index) => (
-            <button
-              key={index}
-              type="button"
-              role="menuitem"
-              disabled={item.disabled}
-              className={item.danger ? `${css.item} ${css.danger}` : css.item}
-              onClick={() => { close(); item.onSelect() }}
-            >
-              <span className={css.label}>{item.label}</span>
-              {item.selected && <Icon as={Check} size="s" />}
-            </button>
+            <MenuEntry key={index} item={item} side={align === 'end' ? 'left' : 'right'} onDone={close} />
           ))}
           {footer && <div className={css.footer}>{footer(close)}</div>}
         </div>
       )}
     </span>
+  )
+}
+
+function MenuEntry({ item, side, onDone }: { item: MenuItem; side: 'left' | 'right'; onDone: () => void }) {
+  const [subOpen, setSubOpen] = useState(false)
+  const classes = [css.item, item.danger && css.danger, item.items && subOpen && css.active].filter(Boolean).join(' ')
+  const select = () => {
+    if (item.items) { setSubOpen(open => !open); return }
+    onDone()
+    item.onSelect?.()
+  }
+  return (
+    <div className={css.entry} onMouseEnter={() => item.items && setSubOpen(true)} onMouseLeave={() => setSubOpen(false)}>
+      {item.separated && <div className={css.separator} />}
+      <button
+        type="button"
+        role="menuitem"
+        aria-haspopup={item.items ? 'menu' : undefined}
+        aria-expanded={item.items ? subOpen : undefined}
+        disabled={item.disabled}
+        className={classes}
+        onClick={select}
+      >
+        {item.icon && <Icon as={item.icon} size="s" />}
+        <span className={css.label}>{item.label}</span>
+        {item.value && <span className={css.value}>{item.value}</span>}
+        {item.selected && <Icon as={Check} size="s" />}
+        {item.items && <Icon as={side === 'left' ? ChevronLeft : ChevronRight} size="s" />}
+      </button>
+      {item.items && subOpen && (
+        <div className={`${css.menu} ${css.submenu} ${css[side]}`} role="menu">
+          {item.items.map((child, index) => <MenuEntry key={index} item={child} side={side} onDone={onDone} />)}
+        </div>
+      )}
+    </div>
   )
 }
