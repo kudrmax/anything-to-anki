@@ -1,4 +1,4 @@
-.page { max-width: calc(var(--col) + var(--col-gap) + var(--aside)); margin: 0 auto; display: grid; grid-template-columns: var(--page-cols); gap: 0 var(--col-gap); transition: grid-template-columns var(--t-slow), column-gap var(--t-slow); justify-content: center; align-items: start; }
+.page { max-width: calc(var(--col) + var(--col-gap) + var(--aside)); display: grid; grid-template-columns: var(--page-cols); gap: 0 var(--col-gap); transition: grid-template-columns var(--t-slow), column-gap var(--t-slow); justify-content: start; align-items: start; }
 .solo { grid-template-columns: var(--page-cols-solo); }
 .full { grid-column: 1 / -1; }
 .banner { margin-bottom: var(--s3); }
@@ -9,7 +9,7 @@
 .asideHidden > .aside { opacity: 0; transform: translateX(var(--s7)); pointer-events: none; max-height: var(--aside-hidden-h); }
 .asideTitle { font-size: var(--fs-s); font-weight: var(--fw); color: var(--tx3); line-height: var(--lh-label); margin-bottom: var(--s3); }
 /* Широкая страница: шаг --page-x по горизонтали; шапка компактная, от неё до карточки столько же, сколько над ней. */
-.wide { max-width: 100%; grid-template-columns: var(--page-cols-wide); column-gap: var(--page-x); transition: grid-template-columns var(--t-slow), column-gap var(--t-slow), max-width var(--t-slow); }
+.wide { margin: 0 auto; max-width: 100%; grid-template-columns: var(--page-cols-wide); column-gap: var(--page-x); transition: grid-template-columns var(--t-slow), column-gap var(--t-slow), max-width var(--t-slow); }
 .wide > .full:first-child > * { padding-inline: 0; margin-top: var(--s5h); margin-bottom: var(--s5h); }
 .wide > .content { padding: 0; }
 .wide > .banner { margin-bottom: var(--s5h); }

@@ -37,6 +37,8 @@
   --media-grad: linear-gradient(135deg, var(--media-a), var(--media-b));
   --overlay: color-mix(in srgb, var(--bg) 70%, transparent);
   --warn-tint: color-mix(in srgb, var(--warn) 14%, transparent);
+  --warn-line: color-mix(in srgb, var(--warn) 40%, transparent);
+  --ok-line: color-mix(in srgb, var(--ok) 40%, transparent);
   --err-tint: color-mix(in srgb, var(--err) 14%, transparent);
   --media-veil: color-mix(in srgb, var(--bg) 25%, transparent);
   --fade-bottom: linear-gradient(transparent, var(--bg) 40%);
@@ -85,7 +87,8 @@
   --h-row-s: 44px;
 
   /* сетка */
-  --rail: 60px;
+  --nav-h: 52px;
+  --badge-h: 18px;
   --col: 760px;
   --col-wide: 1000px;
   --source-progress-w: 200px;
@@ -114,7 +117,6 @@
 
   /* отступы */
   --s1: 2px; --s2: 4px; --s3: 8px; --s4: 12px; --s5: 16px; --s5h: 20px; --s6: 24px; --s7: 32px; --s8: 40px;
-  --rail-gap: 6px;
   --gap: 14px;        /* между элементами строки и заголовка */
   --px: 18px;         /* горизонтальный отступ строки */
   --py: 14px;         /* вертикальный отступ строки */

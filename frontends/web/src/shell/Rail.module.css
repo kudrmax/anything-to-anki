@@ -1,7 +1,0 @@
-.rail { width: var(--rail); flex: none; display: flex; flex-direction: column; align-items: center; gap: var(--rail-gap); padding: var(--gap) 0; border-right: var(--bw) solid var(--line); }
-.logo { width: var(--h); height: var(--h); border-radius: var(--rc); background: var(--fill); color: var(--on-ac); display: grid; place-items: center; font-weight: var(--fw-b); font-size: var(--fs-s); }
-.env { font: var(--fw-m) var(--fs-2xs) var(--mono); text-transform: uppercase; color: var(--warn); margin-bottom: var(--s3); }
-.prod { color: var(--ok); }
-.item { position: relative; display: inline-flex; }
-.badge { position: absolute; top: 0; right: calc(var(--s1) * -1); min-width: var(--icon-s); height: var(--icon-s); padding: 0 var(--s1); border-radius: var(--icon-s); background: var(--ac); color: var(--on-ac); font: var(--fw-b) var(--fs-xs)/var(--icon-s) var(--ui); text-align: center; pointer-events: none; }
-.spacer { flex: 1; }
