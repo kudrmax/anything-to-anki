@@ -27,10 +27,17 @@ class CandidateNotFoundError(DomainError):
 
 
 class EmptyReportCommentError(DomainError):
-    """Raised when a complaint about a card says nothing."""
+    """Raised when a complaint about a card has neither a reason nor a comment."""
 
     def __init__(self) -> None:
-        super().__init__("Report comment is empty")
+        super().__init__("Report has no reason and no comment")
+
+
+class UnknownReportReasonError(DomainError):
+    """Raised when a complaint names a quick reason that is not offered."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(f"Unknown report reason: {reason}")
 
 
 class KnownWordNotFoundError(DomainError):

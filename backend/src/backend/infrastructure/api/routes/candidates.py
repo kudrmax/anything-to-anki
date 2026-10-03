@@ -21,6 +21,7 @@ from backend.domain.exceptions import (
     AIServiceError,
     CandidateNotFoundError,
     EmptyReportCommentError,
+    UnknownReportReasonError,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.api.dependencies import get_container, get_db_session
@@ -59,13 +60,13 @@ def report_candidate(
 ) -> CardReportDTO:
     try:
         report = container.report_candidate_use_case(session).execute(
-            candidate_id, request.comment,
+            candidate_id, request.reasons, request.comment,
         )
         session.commit()
         return report
     except CandidateNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except EmptyReportCommentError as e:
+    except (EmptyReportCommentError, UnknownReportReasonError) as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
 
 

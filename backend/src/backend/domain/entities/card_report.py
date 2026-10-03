@@ -25,6 +25,8 @@ class CardReport:
     cefr_level: str | None
     fragment_unknown_count: int
     is_phrasal_verb: bool
+    # Quick reasons the user ticked; the comment holds their own words, may be empty.
+    reasons: tuple[str, ...]
     comment: str
     # Source text around the phrase; None when the phrase is not in the source.
     text_before: str | None = None

@@ -110,14 +110,25 @@ class TestCandidatesAPI:
 @pytest.mark.integration
 class TestCardReportsAPI:
     def test_report_keeps_a_snapshot_of_the_card(self, client: TestClient) -> None:
-        response = client.post("/candidates/1/report", json={"comment": " Phrase too long "})
+        response = client.post(
+            "/candidates/1/report",
+            json={"reasons": ["Phrase too long"], "comment": " odd split "},
+        )
         assert response.status_code == 201
         report = response.json()
-        assert report["comment"] == "Phrase too long"
+        assert report["reasons"] == ["Phrase too long"]
+        assert report["comment"] == "odd split"
         assert report["lemma"] == "pursuit"
         assert report["context_fragment"] == "the pursuit of"
         assert report["text_before"] == "It was always "
         assert report["text_after"] == " happiness, he said."
+
+    def test_report_keeps_several_reasons(self, client: TestClient) -> None:
+        reasons = ["Phrase too long", "Wrong word form"]
+        response = client.post("/candidates/1/report", json={"reasons": reasons})
+        assert response.status_code == 201
+        assert response.json()["reasons"] == reasons
+        assert response.json()["comment"] == ""
 
     def test_reports_are_listed_newest_first(self, client: TestClient) -> None:
         client.post("/candidates/1/report", json={"comment": "first"})
@@ -126,15 +137,29 @@ class TestCardReportsAPI:
         assert comments == ["second", "first"]
 
     def test_report_outlives_the_source(self, client: TestClient) -> None:
-        client.post("/candidates/1/report", json={"comment": "Wrong phrase boundary"})
+        client.post("/candidates/1/report", json={"reasons": ["Wrong phrase boundary"]})
         client.delete("/sources/1")
         assert len(client.get("/api/card-reports").json()) == 1
 
-    def test_blank_comment_is_rejected(self, client: TestClient) -> None:
-        assert client.post("/candidates/1/report", json={"comment": "   "}).status_code == 422
+    def test_report_without_reasons_or_comment_is_rejected(self, client: TestClient) -> None:
+        response = client.post("/candidates/1/report", json={"reasons": [], "comment": "   "})
+        assert response.status_code == 422
+
+    def test_unknown_reason_is_rejected(self, client: TestClient) -> None:
+        response = client.post("/candidates/1/report", json={"reasons": ["Made up"]})
+        assert response.status_code == 422
 
     def test_unknown_candidate(self, client: TestClient) -> None:
         assert client.post("/candidates/999/report", json={"comment": "x"}).status_code == 404
+
+    def test_reported_candidate_is_marked(self, client: TestClient) -> None:
+        def reported() -> bool:
+            candidates = client.get("/sources/1/candidates").json()
+            return next(c for c in candidates if c["id"] == 1)["reported"]
+
+        assert reported() is False
+        client.post("/candidates/1/report", json={"comment": "x"})
+        assert reported() is True
 
     def test_reasons(self, client: TestClient) -> None:
         reasons = client.get("/api/card-reports/reasons").json()

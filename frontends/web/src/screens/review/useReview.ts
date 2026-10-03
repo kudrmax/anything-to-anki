@@ -298,9 +298,10 @@ export function useReview(sourceId: number) {
     }
   }
 
-  const report = async (candidateId: number, comment: string): Promise<boolean> => {
+  const report = async (candidateId: number, reasons: string[], comment: string): Promise<boolean> => {
     try {
-      await api.reportCandidate(candidateId, comment)
+      await api.reportCandidate(candidateId, reasons, comment)
+      setCandidates(prev => prev.map(c => (c.id === candidateId ? { ...c, reported: true } : c)))
       showToast('Report saved')
       return true
     } catch (e) {

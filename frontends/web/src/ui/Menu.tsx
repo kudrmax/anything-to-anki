@@ -17,6 +17,8 @@ export interface MenuItem {
   items?: MenuItem[]
   /** Линия над пунктом: начало новой группы. */
   separated?: boolean
+  /** Выбор не закрывает меню: для пунктов-переключателей. */
+  keepOpen?: boolean
 }
 
 interface MenuProps {
@@ -81,7 +83,7 @@ function MenuEntry({ item, side, onDone }: { item: MenuItem; side: 'left' | 'rig
   const classes = [css.item, item.danger && css.danger, item.items && subOpen && css.active].filter(Boolean).join(' ')
   const select = () => {
     if (item.items) { setSubOpen(open => !open); return }
-    onDone()
+    if (!item.keepOpen) onDone()
     item.onSelect?.()
   }
   return (
@@ -99,7 +101,7 @@ function MenuEntry({ item, side, onDone }: { item: MenuItem; side: 'left' | 'rig
         {item.icon && <Icon as={item.icon} size="s" />}
         <span className={css.label}>{item.label}</span>
         {item.value && <span className={css.value}>{item.value}</span>}
-        {item.selected && <Icon as={Check} size="s" />}
+        {item.selected && <span className={css.check}><Icon as={Check} size="s" /></span>}
         {item.items && <Icon as={side === 'left' ? ChevronLeft : ChevronRight} size="s" />}
       </button>
       {item.items && subOpen && (

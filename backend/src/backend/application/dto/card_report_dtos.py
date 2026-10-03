@@ -8,9 +8,10 @@ MAX_COMMENT_LENGTH = 1000
 
 
 class ReportCandidateRequest(BaseModel):
-    """Input for complaining about a card."""
+    """Input for complaining about a card: quick reasons, own words, or both."""
 
-    comment: str = Field(min_length=1, max_length=MAX_COMMENT_LENGTH)
+    reasons: list[str] = Field(default_factory=list)
+    comment: str = Field(default="", max_length=MAX_COMMENT_LENGTH)
 
 
 class CardReportDTO(BaseModel):
@@ -27,6 +28,7 @@ class CardReportDTO(BaseModel):
     cefr_level: str | None
     fragment_unknown_count: int
     is_phrasal_verb: bool
+    reasons: list[str]
     comment: str
     text_before: str | None
     text_after: str | None

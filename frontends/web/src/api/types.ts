@@ -112,6 +112,8 @@ export interface StoredCandidate {
   cefr_level: string | null
   zipf_frequency: number
   is_sweet_spot: boolean
+  /** На карточку уже жаловались. */
+  reported: boolean
   context_fragment: string
   fragment_purity: string
   occurrences: number

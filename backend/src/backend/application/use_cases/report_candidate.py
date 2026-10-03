@@ -4,7 +4,11 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.card_report_dtos import CardReportDTO
 from backend.domain.entities.card_report import CardReport
-from backend.domain.exceptions import CandidateNotFoundError, EmptyReportCommentError
+from backend.domain.exceptions import (
+    CandidateNotFoundError,
+    EmptyReportCommentError,
+    UnknownReportReasonError,
+)
 from backend.domain.value_objects.fragment_surroundings import FragmentSurroundings
 
 if TYPE_CHECKING:
@@ -36,9 +40,13 @@ class ReportCandidateUseCase:
         self._source_repo = source_repo
         self._report_repo = report_repo
 
-    def execute(self, candidate_id: int, comment: str) -> CardReportDTO:
+    def execute(self, candidate_id: int, reasons: list[str], comment: str) -> CardReportDTO:
         comment_text = comment.strip()
-        if not comment_text:
+        chosen = tuple(dict.fromkeys(reasons))
+        for reason in chosen:
+            if reason not in REPORT_REASONS:
+                raise UnknownReportReasonError(reason)
+        if not chosen and not comment_text:
             raise EmptyReportCommentError()
         candidate = self._candidate_repo.get_by_id(candidate_id)
         if candidate is None or candidate.id is None:
@@ -57,6 +65,7 @@ class ReportCandidateUseCase:
             cefr_level=candidate.cefr_level,
             fragment_unknown_count=candidate.fragment_unknown_count,
             is_phrasal_verb=candidate.is_phrasal_verb,
+            reasons=chosen,
             comment=comment_text,
             text_before=around.before if around else None,
             text_after=around.after if around else None,
@@ -85,6 +94,7 @@ def to_dto(report: CardReport) -> CardReportDTO:
         cefr_level=report.cefr_level,
         fragment_unknown_count=report.fragment_unknown_count,
         is_phrasal_verb=report.is_phrasal_verb,
+        reasons=list(report.reasons),
         comment=report.comment,
         text_before=report.text_before,
         text_after=report.text_after,

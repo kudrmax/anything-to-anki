@@ -21,6 +21,8 @@ class TestGetSourcesUseCase:
         self.settings_repo.get.return_value = None
         self.job_repo = MagicMock()
         self.job_repo.get_jobs_for_candidates.return_value = {}
+        self.report_repo = MagicMock()
+        self.report_repo.reported_candidate_ids.return_value = set()
         self.collection_repo = MagicMock()
         self.collection_repo.list_all.return_value = []
         self.topic_target_repo = MagicMock()
@@ -32,6 +34,7 @@ class TestGetSourcesUseCase:
             job_repo=self.job_repo,
             collection_repo=self.collection_repo,
             topic_target_repo=self.topic_target_repo,
+            report_repo=self.report_repo,
         )
 
     def test_list_all(self) -> None:
