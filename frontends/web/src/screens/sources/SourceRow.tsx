@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { Clapperboard, FileText, Ellipsis, Music, Sparkles, type LucideIcon } from 'lucide-react'
+import { Clapperboard, Ellipsis, FileText, Folder, Music, Pencil, RefreshCw, Sparkles, Trash2, Upload, type LucideIcon } from 'lucide-react'
 import type { Collection, ContentType, GenerationStatus, ProcessingStage, SourceSummary } from '@/api/types'
 import { formatDate } from '@/lib/text/format'
 import { Button, Field, Icon, IconButton, Menu, Progress, Spinner, Text, type MenuItem } from '@/ui'
@@ -72,13 +72,21 @@ export function SourceRow({ source, collections, primary, onProcess, onGenerate,
     if (e.key === 'Escape') setEditing(false)
   }
 
+  const collectionName = collections.find(c => c.id === source.collection_id)?.name ?? 'None'
   const menuItems: MenuItem[] = [
-    ...(canExport ? [{ label: 'Export', onSelect: () => onExport(source.id) }] : []),
-    { label: 'Rename', onSelect: startEditing },
-    { label: 'No collection', selected: source.collection_id === null, onSelect: () => onAssignCollection(source.id, null) },
-    ...collections.map(c => ({ label: `Move to ${c.name}`, selected: c.id === source.collection_id, onSelect: () => onAssignCollection(source.id, c.id) })),
-    ...(isProcessing || source.status === 'new' ? [] : [{ label: 'Reprocess', onSelect: () => onReprocess(source.id) }]),
-    ...(isProcessing ? [] : [{ label: 'Delete', danger: true, onSelect: () => onDelete(source.id) }]),
+    ...(canExport ? [{ label: 'Export', icon: Upload, onSelect: () => onExport(source.id) }] : []),
+    { label: 'Rename', icon: Pencil, onSelect: startEditing },
+    {
+      label: 'Collection',
+      icon: Folder,
+      value: collectionName,
+      items: [
+        { label: 'None', selected: source.collection_id === null, onSelect: () => onAssignCollection(source.id, null) },
+        ...collections.map(c => ({ label: c.name, selected: c.id === source.collection_id, onSelect: () => onAssignCollection(source.id, c.id) })),
+      ],
+    },
+    ...(isProcessing || source.status === 'new' ? [] : [{ label: 'Reprocess', icon: RefreshCw, onSelect: () => onReprocess(source.id) }]),
+    ...(isProcessing ? [] : [{ label: 'Delete', icon: Trash2, danger: true, separated: true, onSelect: () => onDelete(source.id) }]),
   ]
 
   const reviewVariant = primary ? 'fill' : 'soft'
