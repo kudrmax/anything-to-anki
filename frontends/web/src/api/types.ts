@@ -228,6 +228,7 @@ export interface KnownWord {
 
 export interface Stats {
   learn_count: number
+  candidate_count: number
   known_word_count: number
 }
 

@@ -17,16 +17,20 @@ class TestGetStatsUseCase:
 
     def test_returns_correct_counts(self) -> None:
         self.candidate_repo.count_by_status.return_value = 7
+        self.candidate_repo.count_all.return_value = 120
         self.known_word_repo.count.return_value = 43
         result = self.use_case.execute()
         assert result.learn_count == 7
+        assert result.candidate_count == 120
         assert result.known_word_count == 43
         self.candidate_repo.count_by_status.assert_called_once_with(CandidateStatus.LEARN)
         self.known_word_repo.count.assert_called_once()
 
     def test_returns_zeros_when_empty(self) -> None:
         self.candidate_repo.count_by_status.return_value = 0
+        self.candidate_repo.count_all.return_value = 0
         self.known_word_repo.count.return_value = 0
         result = self.use_case.execute()
         assert result.learn_count == 0
+        assert result.candidate_count == 0
         assert result.known_word_count == 0

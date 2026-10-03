@@ -35,11 +35,8 @@ export function SourcesScreen() {
   const [reprocessSourceId, setReprocessSourceId] = useState<number | null>(null)
   const [toast, showToast] = useToast()
 
-  const { sources, stats, collections, cefrLevel } = store
+  const { sources, stats, collections } = store
   const filtered = activeCollectionId === null ? sources : sources.filter(s => s.collection_id === activeCollectionId)
-  const learnTotal = sources.reduce((sum, s) => sum + s.learn_count, 0)
-  const candidateTotal = sources.reduce((sum, s) => sum + s.candidate_count, 0)
-  const progress = candidateTotal > 0 ? learnTotal / candidateTotal : 0
 
   const review = (id: number) => navigate(`/sources/${id}/review`)
   const exportSource = (id: number) => navigate(`/sources/${id}/export`)
@@ -77,10 +74,9 @@ export function SourcesScreen() {
         <AddSourceForm onCreated={store.prepend} onReload={store.reload} onToast={showToast} />
       </section>
       <StatGrid>
-        <Stat value={learnTotal} label="to learn" />
+        <Stat value={stats?.learn_count ?? 0} label="to learn" />
         <Stat value={stats?.known_word_count ?? 0} label="known words" />
-        <Stat value={candidateTotal} label="candidates" />
-        <Stat value={`${Math.round(progress * 100)}%`} label={`${cefrLevel} vocabulary`} progress={progress} />
+        <Stat value={stats?.candidate_count ?? 0} label="candidates" wide />
       </StatGrid>
     </>
   )

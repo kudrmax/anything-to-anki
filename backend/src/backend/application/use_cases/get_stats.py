@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 
 class GetStatsUseCase:
-    """Returns aggregate statistics: total LEARN candidates and known word count."""
+    """Returns aggregate statistics: LEARN candidates, all candidates and known words."""
 
     def __init__(
         self,
@@ -23,5 +23,10 @@ class GetStatsUseCase:
 
     def execute(self) -> StatsDTO:
         learn_count = self._candidate_repo.count_by_status(CandidateStatus.LEARN)
+        candidate_count = self._candidate_repo.count_all()
         known_word_count = self._known_word_repo.count()
-        return StatsDTO(learn_count=learn_count, known_word_count=known_word_count)
+        return StatsDTO(
+            learn_count=learn_count,
+            candidate_count=candidate_count,
+            known_word_count=known_word_count,
+        )
