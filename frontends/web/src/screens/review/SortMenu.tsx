@@ -1,10 +1,10 @@
-import { ArrowDownWideNarrow, ListOrdered, type LucideIcon } from 'lucide-react'
+import { ArrowDownWideNarrow, KeyRound, ListOrdered, type LucideIcon } from 'lucide-react'
 import type { SortOrder } from '@/lib/preferences'
 import { IconButton, Menu } from '@/ui'
 
-const SORT_LABEL: Record<SortOrder, string> = { relevance: 'Relevance', chronological: 'Text order' }
-const SORT_ICON: Record<SortOrder, LucideIcon> = { relevance: ArrowDownWideNarrow, chronological: ListOrdered }
-const SORT_ORDERS: SortOrder[] = ['relevance', 'chronological']
+const SORT_LABEL: Record<SortOrder, string> = { relevance: 'Relevance', key_words: 'Key words', chronological: 'Text order' }
+const SORT_ICON: Record<SortOrder, LucideIcon> = { relevance: ArrowDownWideNarrow, key_words: KeyRound, chronological: ListOrdered }
+const SORT_ORDERS: SortOrder[] = ['relevance', 'key_words', 'chronological']
 
 export function SortMenu({ value, onChange }: { value: SortOrder; onChange: (order: SortOrder) => void }) {
   return (

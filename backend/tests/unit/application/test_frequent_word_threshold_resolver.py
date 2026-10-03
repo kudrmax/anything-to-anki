@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from backend.domain.entities.word_decision import WordDecision
 
-from tests.relevance_support import threshold_resolver
+from tests.candidate_sorter_support import threshold_resolver
 
 
 def _settings(value: str | None) -> MagicMock:

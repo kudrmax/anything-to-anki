@@ -11,7 +11,7 @@ from backend.domain.value_objects.job_type import JobType
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from backend.application.utils.relevance_sorter import RelevanceSorter
+    from backend.application.utils.candidate_sorter import CandidateSorter
     from backend.domain.ports.candidate_pronunciation_repository import (
         CandidatePronunciationRepository,
     )
@@ -26,12 +26,12 @@ class EnqueuePronunciationDownloadUseCase:
         self,
         pronunciation_repo: CandidatePronunciationRepository,
         candidate_repo: CandidateRepository,
-        relevance_sorter: RelevanceSorter,
+        candidate_sorter: CandidateSorter,
         job_repo: JobRepository,
     ) -> None:
         self._pronunciation_repo = pronunciation_repo
         self._candidate_repo = candidate_repo
-        self._relevance_sorter = relevance_sorter
+        self._candidate_sorter = candidate_sorter
         self._job_repo = job_repo
 
     def execute(self, source_id: int) -> list[int]:
@@ -40,7 +40,7 @@ class EnqueuePronunciationDownloadUseCase:
             return []
 
         candidates = self._candidate_repo.get_by_ids(unsorted_ids)
-        sorted_candidates = self._relevance_sorter.sort(candidates)
+        sorted_candidates = self._candidate_sorter.sort_by_relevance(candidates)
 
         eligible_ids = [c.id for c in sorted_candidates if c.id is not None]
         if not eligible_ids:

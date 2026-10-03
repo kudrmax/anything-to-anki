@@ -4,7 +4,7 @@ import pytest
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 
-from tests.relevance_support import threshold_resolver
+from tests.candidate_sorter_support import threshold_resolver
 
 
 @pytest.mark.unit

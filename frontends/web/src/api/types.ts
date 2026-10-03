@@ -14,7 +14,7 @@ export type ProcessingStage = 'cleaning_source' | 'analyzing_text' | 'mapping_ti
 
 export type CandidateStatus = 'pending' | 'learn' | 'known' | 'skip'
 
-export type CandidateSortOrder = 'relevance' | 'chronological'
+export type CandidateSortOrder = 'relevance' | 'chronological' | 'key_words'
 
 export interface Collection {
   id: number

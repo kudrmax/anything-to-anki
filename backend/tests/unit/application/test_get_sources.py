@@ -9,7 +9,7 @@ from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 
-from tests.relevance_support import relevance_sorter
+from tests.candidate_sorter_support import candidate_sorter
 
 
 @pytest.mark.unit
@@ -28,7 +28,7 @@ class TestGetSourcesUseCase:
         self.use_case = GetSourcesUseCase(
             source_repo=self.source_repo,
             candidate_repo=self.candidate_repo,
-            relevance_sorter=relevance_sorter(self.settings_repo),
+            candidate_sorter=candidate_sorter(self.settings_repo),
             job_repo=self.job_repo,
             collection_repo=self.collection_repo,
             topic_target_repo=self.topic_target_repo,
@@ -136,6 +136,17 @@ class TestGetSourcesUseCase:
         self.candidate_repo.get_by_source.return_value = []
         result = self.use_case.get_by_id(1, sort_order=CandidateSortOrder.CHRONOLOGICAL)
         assert result.initially_shown_candidates is None
+
+    def test_get_by_id_shows_first_fifteen_candidates_by_key_words(self) -> None:
+        from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+
+        self.source_repo.get_by_id.return_value = Source(
+            id=1, raw_text="Hello", status=SourceStatus.DONE,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
+        )
+        self.candidate_repo.get_by_source.return_value = []
+        result = self.use_case.get_by_id(1, sort_order=CandidateSortOrder.KEY_WORDS)
+        assert result.initially_shown_candidates == 15
 
     def test_get_by_id_not_found(self) -> None:
         self.source_repo.get_by_id.return_value = None

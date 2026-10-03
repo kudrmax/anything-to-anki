@@ -4,6 +4,7 @@ import pytest
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.candidate_sorting import (
     decided_last,
+    sort_by_key_words,
     sort_by_relevance,
     sort_chronologically,
 )
@@ -308,6 +309,57 @@ class TestSortByRelevanceGroups:
         collocation = _make("starting salary", 0.0)
         frequent = _make("concept", 4.77)
         assert self._lemmas([frequent, collocation]) == ["starting salary", "concept"]
+
+
+@pytest.mark.unit
+class TestSortByKeyWords:
+    """Words the text leans on most come first; useless ones still go down."""
+
+    THRESHOLD = FrequentWordThreshold.from_key("4.5")
+
+    def _lemmas(self, candidates: list[StoredCandidate]) -> list[str]:
+        result = sort_by_key_words(candidates, frequent_threshold=self.THRESHOLD)
+        return [c.lemma for c in result]
+
+    def test_more_occurrences_go_first(self) -> None:
+        once = _make("feast", 3.95, occurrences=1)
+        often = _make("scythe", 2.6, occurrences=7)
+        assert self._lemmas([once, often]) == ["scythe", "feast"]
+
+    def test_occurrences_beat_frequency_in_language(self) -> None:
+        common_once = _make("dare", 4.3, occurrences=1)
+        rare_twice = _make("gallows", 2.4, occurrences=2)
+        assert self._lemmas([common_once, rare_twice]) == ["gallows", "dare"]
+
+    def test_rarer_word_goes_first_on_equal_occurrences(self) -> None:
+        common = _make("dare", 4.3, occurrences=3)
+        rare = _make("gallows", 2.4, occurrences=3)
+        assert self._lemmas([common, rare]) == ["gallows", "dare"]
+
+    def test_dirty_phrase_does_not_lower_a_key_word(self) -> None:
+        clean = _make("feast", 3.95, occurrences=1)
+        dirty = _make("scythe", 2.6, occurrences=5, unknowns=2)
+        assert self._lemmas([clean, dirty]) == ["scythe", "feast"]
+
+    def test_cleaner_phrase_goes_first_on_equal_word(self) -> None:
+        dirty = _make("scythe", 2.6, occurrences=5, unknowns=1)
+        clean = _make("scythe", 2.6, occurrences=5)
+        result = sort_by_key_words([dirty, clean], frequent_threshold=self.THRESHOLD)
+        assert [c.fragment_unknown_count for c in result] == [0, 1]
+
+    def test_too_frequent_word_goes_below_even_if_repeated(self) -> None:
+        frequent = _make("concept", 4.77, occurrences=9)
+        rare = _make("feast", 3.95, occurrences=1)
+        assert self._lemmas([frequent, rare]) == ["feast", "concept"]
+
+    def test_junk_goes_to_the_very_bottom(self) -> None:
+        junk = _make("turking", 0.0, occurrences=12)
+        interjection = _make("heh", 3.67, pos="INTJ", occurrences=12)
+        frequent = _make("concept", 4.77)
+        assert self._lemmas([junk, interjection, frequent]) == ["concept", "turking", "heh"]
+
+    def test_empty_list(self) -> None:
+        assert sort_by_key_words([]) == []
 
 
 @pytest.mark.unit

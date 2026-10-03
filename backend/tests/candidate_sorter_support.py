@@ -1,6 +1,6 @@
-"""Real relevance sorting over a mocked or fake settings repository.
+"""Real candidate sorting over a mocked or fake settings repository.
 
-Use cases take a ``RelevanceSorter``; tests keep configuring sorting through
+Use cases take a ``CandidateSorter``; tests keep configuring sorting through
 the settings repository, with no word decisions unless they pass some.
 """
 from __future__ import annotations
@@ -8,10 +8,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
+from backend.application.utils.candidate_sorter import CandidateSorter
 from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
-from backend.application.utils.relevance_sorter import RelevanceSorter
 
 if TYPE_CHECKING:
     from backend.domain.entities.word_decision import WordDecision
@@ -27,5 +27,5 @@ def threshold_resolver(
     return FrequentWordThresholdResolver(settings_repo, decision_repo)
 
 
-def relevance_sorter(settings_repo: SettingsRepository) -> RelevanceSorter:
-    return RelevanceSorter(settings_repo, threshold_resolver(settings_repo))
+def candidate_sorter(settings_repo: SettingsRepository) -> CandidateSorter:
+    return CandidateSorter(settings_repo, threshold_resolver(settings_repo))

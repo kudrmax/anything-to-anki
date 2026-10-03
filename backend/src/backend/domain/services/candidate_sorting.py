@@ -64,7 +64,7 @@ def sort_by_relevance(
         candidates,
         key=lambda c: (
             _is_junk(c),
-            frequent_threshold is not None and frequent_threshold.covers(c.zipf_frequency),
+            _is_probably_known(c, frequent_threshold),
             c.fragment_unknown_count,
             c.is_phrasal_verb,
             -c.frequency_band.value,
@@ -73,6 +73,40 @@ def sort_by_relevance(
             -c.occurrences,
         ),
     )
+
+
+def sort_by_key_words(
+    candidates: list[StoredCandidate],
+    frequent_threshold: FrequentWordThreshold | None = None,
+) -> list[StoredCandidate]:
+    """Sort candidates so the words this text leans on most come first.
+
+    Meant for preparing to read: the words that keep coming back in the
+    text and are rare in the language. Junk and probably known words go
+    down the same way as in ``sort_by_relevance``.
+
+    Inside a group:
+    1. occurrences DESC — more occurrences in source text first
+    2. zipf_frequency ASC — rarer in the language first
+    3. fragment_unknown_count ASC — cleaner phrase first
+    """
+    return sorted(
+        candidates,
+        key=lambda c: (
+            _is_junk(c),
+            _is_probably_known(c, frequent_threshold),
+            -c.occurrences,
+            c.zipf_frequency,
+            c.fragment_unknown_count,
+        ),
+    )
+
+
+def _is_probably_known(
+    candidate: StoredCandidate,
+    frequent_threshold: FrequentWordThreshold | None,
+) -> bool:
+    return frequent_threshold is not None and frequent_threshold.covers(candidate.zipf_frequency)
 
 
 def _is_junk(candidate: StoredCandidate) -> bool:

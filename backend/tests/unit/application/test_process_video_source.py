@@ -14,7 +14,7 @@ from backend.domain.value_objects.parsed_srt import ParsedSrt
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.subtitle_block import SubtitleBlock
 
-from tests.relevance_support import threshold_resolver
+from tests.candidate_sorter_support import threshold_resolver
 
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
