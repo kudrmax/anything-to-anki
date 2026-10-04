@@ -259,3 +259,23 @@ class GenerationBlockedError(DomainError):
         super().__init__(f"Generation for source {source_id} is blocked: {reason}")
         self.source_id = source_id
         self.reason = reason
+
+
+class TargetImageNotSupportedError(DomainError):
+    """Raised when a picture is asked for a target that can't be drawn (not a noun)."""
+
+    def __init__(self, candidate_id: int) -> None:
+        super().__init__(f"Pictures are offered only for nouns: candidate {candidate_id}")
+        self.candidate_id = candidate_id
+
+
+class ImageSearchError(DomainError):
+    """Raised when a picture source can't be reached or answers with garbage."""
+
+
+class UnknownImageUrlError(DomainError):
+    """Raised when asked to download a picture no picture source handed out."""
+
+    def __init__(self, url: str) -> None:
+        super().__init__(f"Picture URL doesn't come from a known source: {url}")
+        self.url = url

@@ -131,6 +131,8 @@ class StoredCandidateDTO(BaseModel):
     surface_form: str | None = None
     is_phrasal_verb: bool = False
     has_custom_context_fragment: bool = False
+    # A picture of the target can be searched for and put on the card.
+    can_have_target_image: bool = False
     meaning: CandidateMeaningDTO | None = None
     media: CandidateMediaDTO | None = None
     pronunciation: CandidatePronunciationDTO | None = None
@@ -380,6 +382,7 @@ def stored_candidate_to_dto(
         surface_form=c.surface_form,
         is_phrasal_verb=c.is_phrasal_verb,
         has_custom_context_fragment=c.has_custom_context_fragment,
+        can_have_target_image=c.can_have_target_image,
         meaning=meaning_dto,
         media=media_dto,
         pronunciation=pronunciation_dto,

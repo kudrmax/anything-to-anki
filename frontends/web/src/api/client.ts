@@ -16,6 +16,7 @@ import type {
   GenerationOverview,
   GenerationScope,
   GlobalExport,
+  ImageOption,
   KnownWord,
   QueueFailed,
   QueueGlobalSummary,
@@ -130,6 +131,12 @@ export const api = {
 
   regenerateCandidateMedia: (candidateId: number) =>
     req<{ status: string }>(`/candidates/${candidateId}/regenerate-media`, { method: 'POST' }),
+
+  searchTargetImages: (candidateId: number) =>
+    req<{ options: ImageOption[] }>(`/candidates/${candidateId}/image-options`),
+
+  applyTargetImage: (candidateId: number, url: string) =>
+    req<{ status: string }>(`/candidates/${candidateId}/image`, { method: 'PUT', body: JSON.stringify({ url }) }),
 
   downloadVideo: (sourceId: number) =>
     req<{ status: string }>(`/sources/${sourceId}/download-video`, { method: 'POST' }),

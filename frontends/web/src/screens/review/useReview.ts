@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { CandidateStatus, CardPreview, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, SourceDetail, StoredCandidate } from '@/api/types'
+import type { CandidateStatus, CardPreview, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageOption, SourceDetail, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
@@ -48,6 +48,7 @@ export function useReview(sourceId: number) {
   const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set())
   const [regeneratingMediaIds, setRegeneratingMediaIds] = useState<Set<number>>(new Set())
   const [generatingTTSIds, setGeneratingTTSIds] = useState<Set<number>>(new Set())
+  const [applyingImageIds, setApplyingImageIds] = useState<Set<number>>(new Set())
   const [generation, setGeneration] = useState<GenerationOverview | null>(null)
   const [vpnBlocked, setVpnBlocked] = useState(false)
   const [mediaMap, setMediaMap] = useState<Record<number, MediaRefs>>({})
@@ -234,6 +235,25 @@ export function useReview(sourceId: number) {
     }
   })
 
+  const findImages = async (candidateId: number): Promise<ImageOption[] | null> => {
+    try {
+      return (await api.searchTargetImages(candidateId)).options
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Picture search failed')
+      return null
+    }
+  }
+
+  const applyImage = (candidateId: number, url: string) => withBusy(setApplyingImageIds, candidateId, async () => {
+    try {
+      await api.applyTargetImage(candidateId, url)
+      await loadCandidates()
+      showToast('Picture added')
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to add the picture')
+    }
+  })
+
   const startEditing = (candidateId: number) => {
     const candidate = candidates.find(c => c.id === candidateId)
     if (!candidate) return
@@ -316,8 +336,8 @@ export function useReview(sourceId: number) {
     sourceId, source, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,
     counts: { marked: markedCount, total: candidates.length, learn: learnCount, progress: candidates.length > 0 ? markedCount / candidates.length : 0 },
     generation, generationActions,
-    mark, generate, replaceWithExample, generateTTS, regenerateMedia, polishAgain, setPolishReverted,
-    busy: { generating: generatingIds, media: regeneratingMediaIds, tts: generatingTTSIds },
+    mark, generate, replaceWithExample, generateTTS, regenerateMedia, findImages, applyImage, polishAgain, setPolishReverted,
+    busy: { generating: generatingIds, media: regeneratingMediaIds, tts: generatingTTSIds, image: applyingImageIds },
     vpnBlocked, dismissVpn: () => setVpnBlocked(false),
     editing, startEditing, cancelEditing, setBoundary, addWord,
     mediaFor, player, toast,

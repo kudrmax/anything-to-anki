@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.phrase_origin import PhraseOrigin
     from backend.domain.value_objects.usage_distribution import UsageDistribution
 
+NOUN_POS = "NOUN"
+
 
 @dataclass
 class StoredCandidate:
@@ -71,6 +73,11 @@ class StoredCandidate:
         if self.polished_fragment is not None and not self.polish_reverted:
             return self.polished_fragment
         return self.context_fragment
+
+    @property
+    def can_have_target_image(self) -> bool:
+        """Only nouns get a picture: other targets rarely have one that explains them."""
+        return self.pos == NOUN_POS and not self.is_phrasal_verb
 
     @property
     def frequency_band(self) -> FrequencyBand:

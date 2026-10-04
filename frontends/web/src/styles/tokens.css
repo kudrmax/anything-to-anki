@@ -68,6 +68,7 @@
   --dot: 9px;
   --thumb-w: 128px;
   --thumb-h: 72px;
+  --image-option-ratio: 4 / 3;
   --field-area: 128px;
   --prog: 3px;
   --measure: 64ch;
