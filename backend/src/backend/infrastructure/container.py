@@ -151,6 +151,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.enqueue_tts_generation import EnqueueTTSGenerationUseCase
     from backend.application.use_cases.generate_topic_targets import GenerateTopicTargetsUseCase
     from backend.application.use_cases.generate_tts import GenerateTTSUseCase
+    from backend.application.use_cases.get_ai_usage_stats import GetAIUsageStatsUseCase
     from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
     from backend.application.use_cases.get_queue_failed import GetQueueFailedUseCase
     from backend.application.use_cases.get_queue_global_summary import (
@@ -420,8 +421,22 @@ class Container:
         )
 
     def _ai_service(self, settings_repo: SqlaSettingsRepository) -> HttpAIService:
+        from backend.infrastructure.persistence.session_ai_usage_recorder import (
+            SessionAIUsageRecorder,
+        )
         ai_model_key = settings_repo.get("ai_model", "sonnet") or "sonnet"
-        return HttpAIService(url=os.environ["AI_PROXY_URL"], model=model_id_for(ai_model_key))
+        return HttpAIService(
+            url=os.environ["AI_PROXY_URL"],
+            model=model_id_for(ai_model_key),
+            usage_recorder=SessionAIUsageRecorder(self._get_session_factory()),
+        )
+
+    def get_ai_usage_stats_use_case(self, session: Session) -> GetAIUsageStatsUseCase:
+        from backend.application.use_cases.get_ai_usage_stats import GetAIUsageStatsUseCase
+        from backend.infrastructure.persistence.sqla_ai_usage_repository import (
+            SqlaAIUsageRepository,
+        )
+        return GetAIUsageStatsUseCase(usage_repo=SqlaAIUsageRepository(session))
 
     def reprocess_source_use_case(self, session: Session) -> ReprocessSourceUseCase:
         from backend.infrastructure.persistence.sqla_enrichment_cache_repository import (

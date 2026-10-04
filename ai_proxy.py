@@ -143,12 +143,37 @@ def _ensure_country_allowed(country: str | None) -> None:
         )
 
 
+class UsageInfo(BaseModel):
+    """Tokens one call consumed. input_tokens excludes the cached part of the prompt."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_creation_tokens: int = 0
+
+    @property
+    def total(self) -> int:
+        return (
+            self.input_tokens + self.output_tokens
+            + self.cache_read_tokens + self.cache_creation_tokens
+        )
+
+    @classmethod
+    def from_sdk(cls, usage: dict[str, Any]) -> UsageInfo:
+        return cls(
+            input_tokens=usage.get("input_tokens") or 0,
+            output_tokens=usage.get("output_tokens") or 0,
+            cache_read_tokens=usage.get("cache_read_input_tokens") or 0,
+            cache_creation_tokens=usage.get("cache_creation_input_tokens") or 0,
+        )
+
+
 async def _generate_structured(
     system_prompt: str,
     user_prompt: str,
     model: str,
     schema: dict[str, Any],
-) -> tuple[Any, int]:
+) -> tuple[Any, UsageInfo]:
     country = await _get_country()
     _ensure_country_allowed(country)
 
@@ -165,7 +190,7 @@ async def _generate_structured(
         cli_path=_SYSTEM_CLAUDE,
     )
     structured_output: Any = None
-    tokens_used = 0
+    usage = UsageInfo()
     result_subtype: str | None = None
     error_context: list[str] = []
     # What the CLI itself reported (e.g. an expired login). The SDK then raises
@@ -185,8 +210,7 @@ async def _generate_structured(
             elif isinstance(message, ResultMessage):
                 result_subtype = message.subtype
                 structured_output = message.structured_output
-                usage = message.usage or {}
-                tokens_used = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+                usage = UsageInfo.from_sdk(message.usage or {})
 
                 if message.is_error or message.errors:
                     logger.error(
@@ -209,7 +233,7 @@ async def _generate_structured(
         logger.error("No structured output received: %s", detail)
         raise RuntimeError(f"AI returned no structured output: {detail}")
 
-    return structured_output, tokens_used
+    return structured_output, usage
 
 
 class GenerateRequest(BaseModel):
@@ -224,7 +248,7 @@ class GenerateResponse(BaseModel):
     synonyms: str
     examples: str
     ipa: str | None = None
-    tokens_used: int
+    usage: UsageInfo
 
 
 class BatchItem(BaseModel):
@@ -238,13 +262,13 @@ class BatchItem(BaseModel):
 
 class BatchGenerateResponse(BaseModel):
     results: list[BatchItem]
-    tokens_used: int
+    usage: UsageInfo
 
 
 @app.post("/generate-meaning")
 async def generate_meaning(req: GenerateRequest) -> GenerateResponse:
     try:
-        data, tokens_used = await _generate_structured(
+        data, usage = await _generate_structured(
             req.system_prompt, req.user_prompt, req.model, _SINGLE_SCHEMA
         )
     except Exception as e:
@@ -260,7 +284,7 @@ async def generate_meaning(req: GenerateRequest) -> GenerateResponse:
             synonyms=data.get("synonyms", ""),
             examples=data.get("examples", ""),
             ipa=data.get("ipa") or None,
-            tokens_used=tokens_used,
+            usage=usage,
         )
     except ValidationError as e:
         logger.error("generate-meaning response schema mismatch: %s\nraw=%r", e, data)
@@ -268,14 +292,14 @@ async def generate_meaning(req: GenerateRequest) -> GenerateResponse:
             status_code=502,
             detail=f"AI response schema mismatch (ai_proxy<->backend drift): {e}",
         ) from e
-    logger.info("generate-meaning OK, tokens=%d", tokens_used)
+    logger.info("generate-meaning OK, tokens=%d", usage.total)
     return resp
 
 
 @app.post("/generate-meanings-batch")
 async def generate_meanings_batch(req: GenerateRequest) -> BatchGenerateResponse:
     try:
-        data, tokens_used = await _generate_structured(
+        data, usage = await _generate_structured(
             req.system_prompt, req.user_prompt, req.model, _BATCH_SCHEMA
         )
     except Exception as e:
@@ -286,7 +310,7 @@ async def generate_meanings_batch(req: GenerateRequest) -> BatchGenerateResponse
         raise HTTPException(status_code=502, detail="Unexpected AI response format")
     try:
         resp = BatchGenerateResponse(
-            results=data["results"], tokens_used=tokens_used,
+            results=data["results"], usage=usage,
         )
     except ValidationError as e:
         logger.error("generate-meanings-batch response schema mismatch: %s\nraw=%r", e, data)
@@ -296,7 +320,7 @@ async def generate_meanings_batch(req: GenerateRequest) -> BatchGenerateResponse
         ) from e
     logger.info(
         "generate-meanings-batch OK, results=%d, tokens=%d",
-        len(resp.results), tokens_used,
+        len(resp.results), usage.total,
     )
     return resp
 
@@ -308,13 +332,13 @@ class TopicTargetItem(BaseModel):
 
 class TopicTargetsResponse(BaseModel):
     targets: list[TopicTargetItem]
-    tokens_used: int
+    usage: UsageInfo
 
 
 @app.post("/generate-topic-targets")
 async def generate_topic_targets(req: GenerateRequest) -> TopicTargetsResponse:
     try:
-        data, tokens_used = await _generate_structured(
+        data, usage = await _generate_structured(
             req.system_prompt, req.user_prompt, req.model, _TOPIC_SCHEMA
         )
     except Exception as e:
@@ -324,7 +348,7 @@ async def generate_topic_targets(req: GenerateRequest) -> TopicTargetsResponse:
         logger.error("generate-topic-targets: unexpected response: %r", data)
         raise HTTPException(status_code=502, detail="Unexpected AI response format")
     try:
-        resp = TopicTargetsResponse(targets=data["targets"], tokens_used=tokens_used)
+        resp = TopicTargetsResponse(targets=data["targets"], usage=usage)
     except ValidationError as e:
         logger.error("generate-topic-targets response schema mismatch: %s\nraw=%r", e, data)
         raise HTTPException(
@@ -333,7 +357,7 @@ async def generate_topic_targets(req: GenerateRequest) -> TopicTargetsResponse:
         ) from e
     logger.info(
         "generate-topic-targets OK, targets=%d, tokens=%d",
-        len(resp.targets), tokens_used,
+        len(resp.targets), usage.total,
     )
     return resp
 
@@ -345,13 +369,13 @@ class PolishedPhraseItem(BaseModel):
 
 class PolishPhrasesResponse(BaseModel):
     results: list[PolishedPhraseItem]
-    tokens_used: int
+    usage: UsageInfo
 
 
 @app.post("/polish-phrases-batch")
 async def polish_phrases_batch(req: GenerateRequest) -> PolishPhrasesResponse:
     try:
-        data, tokens_used = await _generate_structured(
+        data, usage = await _generate_structured(
             req.system_prompt, req.user_prompt, req.model, _POLISH_SCHEMA
         )
     except Exception as e:
@@ -361,7 +385,7 @@ async def polish_phrases_batch(req: GenerateRequest) -> PolishPhrasesResponse:
         logger.error("polish-phrases-batch: unexpected response: %r", data)
         raise HTTPException(status_code=502, detail="Unexpected AI response format")
     try:
-        resp = PolishPhrasesResponse(results=data["results"], tokens_used=tokens_used)
+        resp = PolishPhrasesResponse(results=data["results"], usage=usage)
     except ValidationError as e:
         logger.error("polish-phrases-batch response schema mismatch: %s\nraw=%r", e, data)
         raise HTTPException(
@@ -370,7 +394,7 @@ async def polish_phrases_batch(req: GenerateRequest) -> PolishPhrasesResponse:
         ) from e
     logger.info(
         "polish-phrases-batch OK, results=%d, tokens=%d",
-        len(resp.results), tokens_used,
+        len(resp.results), usage.total,
     )
     return resp
 

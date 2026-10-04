@@ -27,6 +27,7 @@ from backend.infrastructure.api.routes import (
     settings,
     sources,
     stats,
+    usage,
 )
 from backend.infrastructure.api.routes.media import router as media_router
 from backend.infrastructure.api.routes.pronunciation import router as pronunciation_router
@@ -108,6 +109,7 @@ app.include_router(settings.router)
 app.include_router(anki.router)
 app.include_router(export.router)
 app.include_router(stats.router)
+app.include_router(usage.router)
 app.include_router(generation.router)
 app.include_router(pronunciation_router)
 app.include_router(tts_router)
