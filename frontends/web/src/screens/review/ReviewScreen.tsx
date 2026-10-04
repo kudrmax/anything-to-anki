@@ -40,9 +40,11 @@ export function ReviewScreen() {
     `${id}:${review.sortOrder}`,
   )
 
+  // Держим карточку в поле зрения и когда фоновое обновление переставило её в списке.
+  const currentIndex = candidates.findIndex(c => c.id === currentId)
   useEffect(() => {
     listRef.current?.querySelector(`[data-candidate-id="${currentId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-  }, [currentId])
+  }, [currentId, currentIndex])
 
   const { mark, setCurrentId, cancelEditing, sourceId } = review
   const toggleAudio = review.player.toggle
