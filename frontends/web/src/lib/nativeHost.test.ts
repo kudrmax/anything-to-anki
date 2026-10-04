@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { nativeHost, PICK_FILE_HANDLER } from './nativeHost'
+import { CLOSE_QUICK_ADD_HANDLER, nativeHost, PICK_FILE_HANDLER, quickAddPanel } from './nativeHost'
 
 const hostWindow = (reply: unknown) => {
   const postMessage = vi.fn().mockResolvedValue(reply)
@@ -24,5 +24,20 @@ describe('nativeHost', () => {
     const { win } = hostWindow(null)
 
     expect(await nativeHost(win)?.pickFile()).toBeNull()
+  })
+})
+
+describe('quickAddPanel', () => {
+  it('is absent outside the Quick Add panel', () => {
+    expect(quickAddPanel({} as Window)).toBeNull()
+  })
+
+  it('asks the macOS app to close the panel', () => {
+    const postMessage = vi.fn().mockResolvedValue(null)
+    const win = { webkit: { messageHandlers: { [CLOSE_QUICK_ADD_HANDLER]: { postMessage } } } } as unknown as Window
+
+    quickAddPanel(win)?.close()
+
+    expect(postMessage).toHaveBeenCalledWith(null)
   })
 })
