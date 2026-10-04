@@ -16,3 +16,6 @@
 .wide > .aside { padding-top: 0; }
 .wide.solo { grid-template-columns: minmax(0, var(--col-wide)); }
 .wide.asideHidden { max-width: var(--col-wide); grid-template-columns: var(--page-cols-wide-collapsed); column-gap: 0; }
+/* по высоте экрана (телефон): шапка и колонка сверху, контент — на остаток */
+.fit { display: var(--fit-display); flex-direction: column; height: var(--fit-h); }
+.fit > .content { flex: 1; min-height: 0; display: var(--fit-content-display); flex-direction: column; }

@@ -1,5 +1,5 @@
 /* текущая фраза: слева запоминаешь, справа объясняет */
-.card { display: var(--card-display); flex-direction: column; grid-template-columns: var(--card-cols); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); border-radius: var(--r); cursor: default; }
+.card { display: var(--card-display); flex-direction: column; flex: var(--card-flex); min-height: 0; overflow-y: var(--card-overflow); grid-template-columns: var(--card-cols); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); border-radius: var(--r); cursor: default; }
 .cardHead { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--s4); padding: var(--card-pad) var(--card-pad) var(--card-head-pb); }
 .cardLeft { display: var(--card-left-display); flex-direction: column; gap: var(--s3); padding: 0 var(--card-pad) var(--card-pad); }
 .cardLeft > * { margin-inline: var(--card-left-item-mx); }
@@ -11,7 +11,7 @@
 .status { display: inline-flex; align-items: center; gap: var(--s2); }
 .translation { font-size: var(--fs-h1); font-weight: var(--fw-m); line-height: var(--lh); letter-spacing: var(--ls-focus); }
 .synonyms { font-size: var(--fs-m); color: var(--tx3); }
-.decisions { order: var(--decisions-order); position: var(--decisions-position); inset-inline: var(--decisions-inset-x); bottom: 0; z-index: 1; display: flex; flex-wrap: nowrap; gap: var(--s3); margin: var(--decisions-mt) 0 0; padding: var(--decisions-pad); border-top: var(--decisions-bw) solid var(--line); border-radius: var(--decisions-radius); background: var(--decisions-bg); }
+.decisions { order: var(--decisions-order); position: var(--decisions-position); bottom: 0; z-index: 1; display: flex; flex-wrap: nowrap; gap: var(--s3); margin: var(--decisions-mt) 0 0; padding: var(--decisions-pad); border-top: var(--decisions-bw) solid var(--line); border-radius: var(--decisions-radius); background: var(--decisions-bg); box-shadow: var(--decisions-shadow); }
 .decisions > button { flex: var(--decision-flex); justify-content: center; height: var(--decision-h); }
 .definition { font-size: var(--fs-h1); line-height: var(--lh); }
 .context { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
@@ -23,7 +23,9 @@
 .tools { display: flex; gap: var(--s1); margin-right: var(--icon-inset-trim); }
 
 /* очередь */
-.queue { display: flex; flex-direction: column; padding-bottom: var(--queue-pb); }
+.body { display: var(--review-body-display); flex-direction: column; flex: 1; min-height: 0; }
+.queue { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.queue > .queueItem { display: var(--queue-row-display); }
 .queue > .card { order: var(--current-card-order); margin: var(--wide-lead) 0; }
 .queue > .card:first-child { margin-top: 0; }
 .queueItem { display: flex; align-items: center; gap: var(--s3); min-width: 0; padding: var(--s4) var(--card-pad); text-align: left; font-size: var(--fs-b); color: var(--tx3); transition: background var(--t), color var(--t); }
@@ -31,6 +33,8 @@
 .queueItem:hover { background: var(--hover); color: var(--tx2); }
 .queueTarget { color: var(--tx2); }
 .queueItemRated { opacity: var(--o-off); }
+.queueItemCurrent { color: var(--tx); background: var(--ac-wash); }
+.sheetList { display: flex; flex-direction: column; margin-inline: calc(var(--card-pad) * -1); }
 .queueText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* текст источника */
@@ -43,7 +47,7 @@
 .mark.fragment { background: var(--ac-tint); }
 .markPending.fragment, .markRated.fragment { color: var(--tx); }
 .hint { display: var(--hint-display); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); padding: var(--py) var(--card-pad) 0; }
-.showMore { padding: var(--py) var(--card-pad) 0; }
+.showMore { display: var(--show-more-display); padding: var(--py) var(--card-pad) 0; }
 
 /* попап выделения */
 .popover { display: flex; flex-direction: column; gap: var(--s3); min-width: var(--menu); font-size: var(--fs-m); }
@@ -60,6 +64,7 @@
 .iconTrigger { width: var(--h); height: var(--h); justify-content: center; border-radius: var(--rc); color: var(--tx3); }
 .iconTrigger:hover:not(:disabled) { background: var(--soft); }
 .headerTools { display: flex; align-items: center; gap: var(--s2); }
+.headerTools > .phoneOnly { display: var(--phone-display); }
 
 /* жалоба: поле и кнопка отправки под причинами */
 .reportFooter { display: flex; flex-direction: column; gap: var(--s3); }

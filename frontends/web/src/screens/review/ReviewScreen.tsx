@@ -4,8 +4,8 @@ import { decisionChange, type Decision } from '@/lib/decision'
 import { reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
-import { PanelRightClose, PanelRightOpen, Upload } from 'lucide-react'
-import { Banner, Button, Empty, Icon, IconButton, Progress, Spinner, Toast } from '@/ui'
+import { List, PanelRightClose, PanelRightOpen, Upload } from 'lucide-react'
+import { Banner, Button, Empty, Icon, IconButton, Modal, Progress, Spinner, Toast } from '@/ui'
 import { GenerateMenu } from './GenerateMenu'
 import { PhraseCard } from './PhraseCard'
 import { PhraseRow } from './PhraseRow'
@@ -32,6 +32,8 @@ export function ReviewScreen() {
   }
 
   const { source, candidates, currentId, counts, editing } = review
+  // Список фраз на телефоне: карточка занимает экран, остальные фразы — в окне.
+  const [listOpen, setListOpen] = useState(false)
   const current = candidates.find(c => c.id === currentId) ?? null
   const list = useShownCandidates(
     candidates,
@@ -102,6 +104,7 @@ export function ReviewScreen() {
       <div className={css.headerTools}>
         {candidates.length > 0 && (
           <>
+            <IconButton icon={List} label="All phrases" className={css.phoneOnly} onClick={() => setListOpen(true)} />
             <SortMenu value={review.sortOrder} onChange={review.setSortOrder} />
             <GenerateMenu review={review} />
           </>
@@ -140,8 +143,8 @@ export function ReviewScreen() {
   )
 
   return (
-    <Page wide header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={(review.vpnBlocked || editing) ? banner : undefined}>
-      <div ref={listRef}>
+    <Page fit wide header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={(review.vpnBlocked || editing) ? banner : undefined}>
+      <div ref={listRef} className={css.body}>
         {candidates.length === 0 && <Empty>No candidates found for this source.</Empty>}
         <div className={css.queue}>
           {list.shown.map(candidate => candidate.id === currentId
@@ -169,6 +172,29 @@ export function ReviewScreen() {
           onAddWord={async (target, context) => { if (await review.addWord(target, context)) setSelection(null) }}
           onCancel={closeSelection}
         />
+      )}
+      {listOpen && (
+        <Modal
+          title={`Phrases · ${counts.marked} / ${counts.total}`}
+          onClose={() => setListOpen(false)}
+          footer={(
+            <>
+              {list.hiddenCount > 0 && <Button variant="link" onClick={list.showMore}>Show {list.nextPageCount} more</Button>}
+              <Button onClick={() => setListOpen(false)}>Close</Button>
+            </>
+          )}
+        >
+          <div className={css.sheetList}>
+            {list.shown.map(candidate => (
+              <PhraseRow
+                key={candidate.id}
+                candidate={candidate}
+                current={candidate.id === currentId}
+                onSelect={id => { setCurrentId(id); setListOpen(false) }}
+              />
+            ))}
+          </div>
+        </Modal>
       )}
       <Toast message={review.toast} />
     </Page>
