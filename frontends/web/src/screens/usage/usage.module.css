@@ -1,0 +1,38 @@
+.section + .section { margin-top: var(--s7); }
+.sectionTitle { margin-bottom: var(--s4); font-size: var(--fs-xs); font-weight: var(--fw-m); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--tx3); }
+
+/* график: шкала | столбцы, под ними подписи */
+.chart { display: grid; grid-template-columns: var(--usage-axis-w) minmax(0, 1fr); row-gap: var(--s3); }
+.axis { display: flex; flex-direction: column; justify-content: space-between; height: calc(var(--usage-chart-h) + var(--fs-xs)); margin: var(--usage-axis-trim) 0; font: var(--fs-xs)/1 var(--mono); color: var(--tx3); font-variant-numeric: tabular-nums; }
+.plot { position: relative; display: flex; align-items: stretch; gap: var(--s1); height: var(--usage-chart-h); border-bottom: var(--bw) solid var(--line); }
+.gridTop, .gridMid { position: absolute; left: 0; right: 0; border-top: var(--bw) dashed var(--line-soft); pointer-events: none; }
+.gridTop { top: 0; }
+.gridMid { top: 50%; }
+.column { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column-reverse; border-radius: var(--r-xs) var(--r-xs) 0 0; outline: none; transition: background var(--t); }
+.columnOn { background: var(--hover); }
+.segment { flex: none; height: var(--segment-h); min-height: var(--s1); background: var(--segment-color); }
+.segment:last-child { border-radius: var(--r-xs) var(--r-xs) 0 0; }
+.ticks { grid-column-end: -1; display: flex; gap: var(--s1); font: var(--fs-xs)/var(--lh-tight) var(--ui); color: var(--tx3); }
+.ticks > span { flex: 1; min-width: 0; display: flex; justify-content: center; white-space: nowrap; }
+
+/* подсказка над столбцом */
+.pop { position: absolute; top: 0; left: var(--pop-x); z-index: var(--z-menu); width: var(--usage-pop-w); margin-left: var(--s3); padding: var(--s3) var(--s4); background: var(--card); border-radius: var(--rc); box-shadow: inset 0 0 0 var(--bw) var(--line), var(--shadow-pop); font-size: var(--fs-s); pointer-events: none; }
+.popLeft { left: auto; right: calc(100% - var(--pop-x)); margin-left: 0; margin-right: var(--s3); }
+.popHead { display: flex; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s2); color: var(--tx3); }
+.popHead b { color: var(--tx); font-weight: var(--fw-m); font-variant-numeric: tabular-nums; }
+.popRow { display: flex; align-items: center; gap: var(--s3); font-variant-numeric: tabular-nums; }
+.popName { flex: 1; min-width: 0; color: var(--tx2); }
+.dot { flex: none; width: var(--dot); height: var(--dot); border-radius: var(--r-xs); background: var(--segment-color); }
+
+/* таблица по функциям */
+.table { display: flex; flex-direction: column; }
+.tableRow { display: grid; grid-template-columns: var(--usage-table-cols); align-items: center; gap: var(--s4); padding: var(--s3) 0; font-size: var(--fs-s); font-variant-numeric: tabular-nums; }
+.tableRow > :not(:first-child) { text-align: right; }
+.tableRow + .tableRow { border-top: var(--bw) solid var(--line-soft); }
+.tableHead { font-size: var(--fs-xs); color: var(--tx3); }
+.featureName { display: flex; align-items: center; gap: var(--s3); min-width: 0; font-size: var(--fs-m); }
+.failed { color: var(--err); }
+.total { font-weight: var(--fw-m); }
+.share { display: flex; align-items: center; justify-content: flex-end; gap: var(--s3); }
+.shareTrack { flex: 1; height: var(--s2); border-radius: var(--s2); background: var(--soft); overflow: hidden; }
+.shareFill { display: block; width: var(--share); height: 100%; background: var(--segment-color); }

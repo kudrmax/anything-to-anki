@@ -42,6 +42,12 @@
   --err-tint: color-mix(in srgb, var(--err) 14%, transparent);
   --media-veil: color-mix(in srgb, var(--bg) 25%, transparent);
   --fade-bottom: linear-gradient(transparent, var(--bg) 40%);
+  /* функции AI на графике токенов */
+  --usage-1: var(--ac);
+  --usage-2: var(--media-a);
+  --usage-3: var(--ok);
+  --usage-4: var(--warn);
+  --usage-5: color-mix(in srgb, var(--tx3) 70%, transparent);
   --source-mask: linear-gradient(transparent, black calc(var(--source-leading-trim) * -1), black calc(100% - var(--s7)), transparent);
 
   /* форма */
@@ -97,6 +103,14 @@
   --settings-nav-w: 200px;
   --queue-type-w: 120px;
   --queue-detail-w: 120px;
+  --usage-chart-h: 220px;
+  --usage-axis-w: 44px;
+  --usage-feature-w: 170px;
+  --usage-num-w: 76px;
+  --usage-share-w: 110px;
+  --usage-pop-w: 220px;
+  --usage-axis-trim: calc(var(--fs-xs) / -2);   /* подпись шкалы встаёт серединой на линию */
+  --usage-table-cols: minmax(var(--usage-feature-w), 1fr) repeat(6, var(--usage-num-w)) var(--usage-share-w);
   --settings-panel-w: 720px;
   --section-leading-trim: calc((1 - var(--lh-tight)) * var(--fs-h1) / 2);
   --stats-cols: repeat(2, minmax(0, 1fr));

@@ -25,6 +25,10 @@ backend (app, worker)  ──HTTP──►  ai_proxy.py  ──SDK──►  cla
 
 **`http_ai_service.py`** — HTTP-клиент к `ai_proxy`, единственная реализация порта `domain/ports/ai_service.py`. Именно он регистрируется в `container.py`. Прямая работа с `claude-agent-sdk` живёт только в `ai_proxy.py`.
 
+## Учёт токенов
+
+`ai_proxy` возвращает в каждом ответе `usage`: input, output, cache read, cache write. Кэш считается отдельно от input, поэтому итог — сумма всех четырёх. `HttpAIService` записывает каждый вызов, включая упавшие, через порт `AIUsageRecorder` в таблицу `ai_usage`. Запись идёт в своей сессии, поэтому откат транзакции use case её не теряет. Функция вызова (`AIFeature`) определяется методом порта `AIService`; новый вид AI-вызова — это новый метод порта и новое значение `AIFeature`. Статистику отдаёт `GET /api/usage`, а показывает вкладка Usage.
+
 ## Промпты
 
 `config/prompts.yaml`. Все промпты в одном файле, путь по умолчанию можно переопределить через `PROMPTS_CONFIG_PATH`. Менять промпты — только в `prompts.yaml`, никаких f-строк с промптами в коде.

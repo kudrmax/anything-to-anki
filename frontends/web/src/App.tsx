@@ -4,6 +4,7 @@ import { SourcesScreen } from '@/screens/sources/SourcesScreen'
 import { ReviewScreen } from '@/screens/review/ReviewScreen'
 import { ExportScreen } from '@/screens/export/ExportScreen'
 import { QueueScreen } from '@/screens/queue/QueueScreen'
+import { UsageScreen } from '@/screens/usage/UsageScreen'
 import { SettingsScreen } from '@/screens/settings/SettingsScreen'
 import { CalibrateScreen } from '@/screens/calibrate/CalibrateScreen'
 
@@ -15,6 +16,7 @@ export function App() {
           <Route path="/settings" element={<ErrorBoundary><SettingsScreen /></ErrorBoundary>} />
           <Route path="/calibrate" element={<ErrorBoundary><CalibrateScreen /></ErrorBoundary>} />
           <Route path="/queue" element={<ErrorBoundary><QueueScreen /></ErrorBoundary>} />
+          <Route path="/usage" element={<ErrorBoundary><UsageScreen /></ErrorBoundary>} />
           <Route path="/sources/:id/export" element={<ErrorBoundary><ExportScreen /></ErrorBoundary>} />
           <Route path="/export" element={<ErrorBoundary><ExportScreen /></ErrorBoundary>} />
           <Route path="/sources/:id/review" element={<ErrorBoundary><ReviewScreen /></ErrorBoundary>} />
