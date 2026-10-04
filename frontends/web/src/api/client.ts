@@ -142,6 +142,27 @@ export const api = {
   retryFailedMeanings: (sourceId: number) =>
     req<{ enqueued: number }>(`/sources/${sourceId}/meanings/retry-failed`, { method: 'POST' }),
 
+  enqueuePhrasePolish: (sourceId: number, sort: CandidateSortOrder = 'relevance') =>
+    req<{ enqueued: number }>(
+      `/sources/${sourceId}/phrases/polish?sort=${sort}`,
+      { method: 'POST' },
+    ),
+
+  cancelPhrasePolishQueue: (sourceId: number) =>
+    req<{ cancelled: number }>(`/sources/${sourceId}/phrases/polish/cancel`, { method: 'POST' }),
+
+  retryFailedPhrasePolish: (sourceId: number) =>
+    req<{ enqueued: number }>(`/sources/${sourceId}/phrases/polish/retry-failed`, { method: 'POST' }),
+
+  polishPhraseAgain: (candidateId: number) =>
+    req<{ status: string }>(`/candidates/${candidateId}/polish`, { method: 'POST' }),
+
+  setPolishReverted: (candidateId: number, reverted: boolean) =>
+    req<{ id: number; reverted: boolean }>(`/candidates/${candidateId}/polish/reverted`, {
+      method: 'PUT',
+      body: JSON.stringify({ reverted }),
+    }),
+
   enqueueMediaGeneration: (sourceId: number, sort: CandidateSortOrder = 'relevance') =>
     req<{ enqueued: number }>(
       `/sources/${sourceId}/media/generate?sort=${sort}`,

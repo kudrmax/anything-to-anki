@@ -77,7 +77,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
     <article className={css.card} data-candidate-id={candidate.id}>
       <header className={css.cardHead}>
         <p className={css.phrase}>
-          {highlightParts(candidate.context_fragment, candidate.lemma, candidate.surface_form).map((part, i) =>
+          {highlightParts(candidate.phrase, candidate.lemma, candidate.surface_form).map((part, i) =>
             part.target ? <b key={i} className={`${phrase.target} ${phrase.targetCurrent}`}>{part.text}</b> : part.text,
           )}
         </p>

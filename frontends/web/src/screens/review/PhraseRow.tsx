@@ -15,10 +15,10 @@ export function PhraseRow({ candidate, onSelect }: PhraseRowProps) {
   const rated = candidate.status !== 'pending'
   const classes = [css.queueItem, rated && css.queueItemRated].filter(Boolean).join(' ')
   return (
-    <button type="button" className={classes} data-candidate-id={candidate.id} title={candidate.context_fragment} onClick={() => onSelect(candidate.id)}>
+    <button type="button" className={classes} data-candidate-id={candidate.id} title={candidate.phrase} onClick={() => onSelect(candidate.id)}>
       {rated && <StatusDot tone={TONE[candidate.status]} />}
       <span className={css.queueText}>
-        {highlightParts(candidate.context_fragment, candidate.lemma, candidate.surface_form).map((part, i) =>
+        {highlightParts(candidate.phrase, candidate.lemma, candidate.surface_form).map((part, i) =>
           part.target ? <span key={i} className={css.queueTarget}>{part.text}</span> : part.text,
         )}
       </span>

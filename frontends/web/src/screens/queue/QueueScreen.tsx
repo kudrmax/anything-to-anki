@@ -7,8 +7,9 @@ import { Page, PageHeader } from '@/shell'
 import { Button, Empty, IconButton, Select, Spinner, Stat, StatGrid, Text } from '@/ui'
 import css from './queue.module.css'
 
-const JOB_TYPES: (keyof QueueGlobalSummary)[] = ['meaning', 'media', 'pronunciation', 'video_download', 'topic_targets']
+const JOB_TYPES: (keyof QueueGlobalSummary)[] = ['polish', 'meaning', 'media', 'pronunciation', 'video_download', 'topic_targets']
 const JOB_LABEL: Record<string, string> = {
+  polish: 'Polish phrase',
   meaning: 'Meaning',
   media: 'Media',
   pronunciation: 'Pronunciation',

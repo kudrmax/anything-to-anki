@@ -70,3 +70,10 @@
 
 /* свой вопрос к AI */
 .ask { display: flex; align-items: center; gap: var(--s2); }
+
+/* фраза, упрощённая AI: оригинал из книги и правки под иконкой */
+.polish { width: var(--polish-pop); padding: var(--s3); }
+.polishLabel { margin: 0 0 var(--s2); font-size: var(--fs-s); color: var(--tx3); }
+.polishText { margin: 0 0 var(--s5); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx2); }
+.polishText b { font-weight: var(--fw-m); color: var(--ac); }
+.polishActions { display: flex; align-items: center; gap: var(--s3); }
