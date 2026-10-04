@@ -1,11 +1,11 @@
 import type { AIFeature, UsagePeriod } from '@/api/types'
 
 export const FEATURE_LABEL: Record<AIFeature, string> = {
-  meaning_batch: 'Meanings',
-  meaning_single: 'Single meaning',
-  meaning_follow_up: 'Meaning follow-up',
-  phrase_polish: 'Phrase polish',
-  topic_targets: 'Topic targets',
+  meaning_batch: 'Generate meanings',
+  meaning_single: 'Generate meaning (one card)',
+  meaning_follow_up: 'Explain / give examples',
+  phrase_polish: 'Polish phrases',
+  topic_targets: 'Topic: generate words',
 }
 
 export const FEATURE_COLOR: Record<AIFeature, string> = {
@@ -31,12 +31,14 @@ const PREVIOUS_PERIOD: Record<UsagePeriod, string> = {
 }
 
 const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
+const percent = new Intl.NumberFormat('en', { maximumFractionDigits: 0 })
 const whole = new Intl.NumberFormat('en')
 const dayFormat = new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short' })
 const hourFormat = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' })
 
 export const formatTokens = (tokens: number): string => compact.format(tokens)
 export const formatCount = (count: number): string => whole.format(count)
+export const formatPercent = (value: number): string => `${percent.format(value)}%`
 export const formatDay = (iso: string): string => dayFormat.format(new Date(iso))
 export const formatHour = (iso: string): string => hourFormat.format(new Date(iso))
 

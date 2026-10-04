@@ -12,6 +12,9 @@ class TestTokenUsage:
         )
         assert usage.total == 4321
 
+    def test_sent_is_the_whole_prompt_cached_or_not(self) -> None:
+        assert TokenUsage(1, 20, 300, 4000).sent == 4301
+
     def test_empty_usage_is_zero(self) -> None:
         assert TokenUsage().total == 0
 

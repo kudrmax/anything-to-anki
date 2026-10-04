@@ -21,13 +21,11 @@ class UsageBucketSize(StrEnum):
 
 
 class TokenCountsDTO(BaseModel):
-    """Tokens split by kind; total is their sum."""
+    """Tokens sent to the AI plus tokens of its answer make the total."""
 
     total: int
-    input: int
-    output: int
-    cache_read: int
-    cache_creation: int
+    sent: int
+    answer: int
 
 
 class AIUsageTotalsDTO(BaseModel):

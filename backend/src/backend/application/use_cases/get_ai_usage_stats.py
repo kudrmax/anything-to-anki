@@ -200,10 +200,8 @@ def _buckets(
 def _token_counts(usage: TokenUsage) -> TokenCountsDTO:
     return TokenCountsDTO(
         total=usage.total,
-        input=usage.input_tokens,
-        output=usage.output_tokens,
-        cache_read=usage.cache_read_tokens,
-        cache_creation=usage.cache_creation_tokens,
+        sent=usage.sent,
+        answer=usage.output_tokens,
     )
 
 

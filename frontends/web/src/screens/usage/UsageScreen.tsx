@@ -54,23 +54,23 @@ export function UsageScreen() {
       <Stat
         value={formatTokens(totals.tokens.total)}
         label="Tokens"
-        hint={totals.change_percent !== null && formatChange(totals.change_percent, stats.period)}
+        hint={(
+          <>
+            {formatTokens(totals.tokens.sent)} sent · {formatTokens(totals.tokens.answer)} answer
+            {totals.change_percent !== null && <><br />{formatChange(totals.change_percent, stats.period)}</>}
+          </>
+        )}
       />
       <Stat
         value={formatCount(totals.requests)}
-        label="AI requests"
+        label="AI runs"
         hint={totals.failed_requests > 0 && `${formatCount(totals.failed_requests)} failed`}
       />
       <Stat
         value={totals.tokens_per_meaning === null ? '—' : formatTokens(totals.tokens_per_meaning)}
         label="Tokens per meaning"
       />
-      <Stat
-        value={formatTokens(totals.tokens.output)}
-        label="Output tokens"
-        hint={`${formatTokens(totals.tokens.input)} input · ${formatTokens(totals.tokens.cache_read)} cached`}
-      />
-      <Stat small wide value={formatDay(stats.tracking_since)} label="Recorded since" />
+      <Stat small value={formatDay(stats.tracking_since)} label="Recorded since" />
     </StatGrid>
   )
 
@@ -81,7 +81,7 @@ export function UsageScreen() {
         <UsageChart buckets={stats.buckets} bucketSize={stats.bucket_size} />
       </section>
       <section className={css.section}>
-        <h2 className={css.sectionTitle}>By function</h2>
+        <h2 className={css.sectionTitle}>What AI did</h2>
         {stats.features.length > 0
           ? <FeatureTable features={stats.features} />
           : <Empty>No AI calls in this period.</Empty>}

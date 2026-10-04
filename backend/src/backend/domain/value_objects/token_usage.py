@@ -17,13 +17,13 @@ class TokenUsage:
     cache_creation_tokens: int = 0
 
     @property
+    def sent(self) -> int:
+        """Everything sent to the AI: the prompt, whether it was cached or not."""
+        return self.input_tokens + self.cache_read_tokens + self.cache_creation_tokens
+
+    @property
     def total(self) -> int:
-        return (
-            self.input_tokens
-            + self.output_tokens
-            + self.cache_read_tokens
-            + self.cache_creation_tokens
-        )
+        return self.sent + self.output_tokens
 
     def __add__(self, other: TokenUsage) -> TokenUsage:
         return TokenUsage(
