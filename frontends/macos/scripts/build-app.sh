@@ -42,6 +42,7 @@ done
 plutil -replace CFBundleIdentifier -string "$bundle_id" "$plist"
 plutil -replace CFBundleShortVersionString -string "$version" "$plist"
 plutil -replace CFBundleVersion -string "$version" "$plist"
+plutil -replace NSServices.0.NSMenuItem.default -string "Add to $app_name" "$plist"
 plutil -replace A2AProjectDir -string "$project_dir" "$plist"
 plutil -replace A2APort -string "$port" "$plist"
 plutil -lint -s "$plist"
@@ -59,4 +60,7 @@ codesign --force --sign - "$bundle"
 mkdir -p "$install_dir"
 [[ -e "$install_dir/$app_name.app" ]] && trash "$install_dir/$app_name.app"
 mv "$bundle" "$install_dir/"
+# Registers the app at once, so "Add to $app_name" shows up in Services without a re-login.
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$install_dir/$app_name.app"
+/System/Library/CoreServices/pbs -update
 echo "Installed $install_dir/$app_name.app"

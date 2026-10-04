@@ -36,19 +36,12 @@ final class MainWindowController: NSWindowController {
             self?.showStatus(.failed(message: "The page could not be loaded", details: message))
         }
         // The title bar takes the page's own background, so it follows the in-app theme.
-        if let color = backgroundStore.load() { Self.apply(background: color, to: window) }
+        if let color = backgroundStore.load() { window.applyPageBackground(color) }
         backgroundObservation = webController.observeBackground { [weak window, backgroundStore] color in
             guard let window else { return }
-            Self.apply(background: color, to: window)
+            window.applyPageBackground(color)
             backgroundStore.save(color)
         }
-    }
-
-    /// Window chrome and native status text follow the page's light or dark background.
-    private static func apply(background color: NSColor, to window: NSWindow) {
-        window.backgroundColor = color
-        let brightness = color.usingColorSpace(.sRGB)?.brightnessComponent ?? 0
-        window.appearance = NSAppearance(named: brightness < 0.5 ? .darkAqua : .aqua)
     }
 
     @available(*, unavailable)
