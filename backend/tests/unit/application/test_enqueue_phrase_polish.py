@@ -10,7 +10,6 @@ from backend.domain.exceptions import PhrasePolishNotSupportedError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
-from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -41,30 +40,11 @@ def _use_case(
         id=9, raw_text="t", status=SourceStatus.DONE,
         input_method=InputMethod.TEXT_PASTED, content_type=content_type,
     )
-    sorter = MagicMock()
-    sorter.sort.side_effect = lambda cs, _source, _order: cs
     job_repo = MagicMock()
     use_case = EnqueuePhrasePolishUseCase(
-        candidate_repo=candidate_repo, source_repo=source_repo,
-        candidate_sorter=sorter, job_repo=job_repo,
+        candidate_repo=candidate_repo, source_repo=source_repo, job_repo=job_repo,
     )
     return use_case, candidate_repo, job_repo
-
-
-@pytest.mark.unit
-def test_queues_active_cards_ai_has_not_seen() -> None:
-    use_case, _, job_repo = _use_case([
-        _candidate(1, CandidateStatus.PENDING),
-        _candidate(2, CandidateStatus.LEARN),
-        _candidate(3, CandidateStatus.KNOWN),
-        _candidate(4, CandidateStatus.PENDING, polished="The air was stale"),
-    ])
-
-    assert use_case.execute(9) == 2
-
-    jobs = job_repo.create_bulk.call_args.args[0]
-    assert [j.candidate_id for j in jobs] == [1, 2]
-    assert {j.job_type for j in jobs} == {JobType.POLISH}
 
 
 @pytest.mark.unit
@@ -72,7 +52,7 @@ def test_video_source_is_refused() -> None:
     use_case, _, job_repo = _use_case([_candidate(1, CandidateStatus.PENDING)], ContentType.VIDEO)
 
     with pytest.raises(PhrasePolishNotSupportedError):
-        use_case.execute(9)
+        use_case.execute_one(1)
     job_repo.create_bulk.assert_not_called()
 
 

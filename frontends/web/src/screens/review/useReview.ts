@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { CandidateStatus, CardPreview, FollowUpAction, QueueStatus, QueueSummary, SourceDetail, StoredCandidate } from '@/api/types'
+import type { CandidateStatus, CardPreview, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, SourceDetail, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
@@ -28,8 +28,6 @@ const hasCandidateVpnErrors = (candidates: StoredCandidate[]): boolean =>
 
 export const audioUrlForCandidate = candidateAudioUrl
 
-const inflight = (status: QueueStatus | undefined): number => (status?.queued ?? 0) + (status?.running ?? 0)
-
 const toMediaMap = (cards: CardPreview[]): Record<number, MediaRefs> => {
   const map: Record<number, MediaRefs> = {}
   for (const card of cards) map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }
@@ -50,9 +48,8 @@ export function useReview(sourceId: number) {
   const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set())
   const [regeneratingMediaIds, setRegeneratingMediaIds] = useState<Set<number>>(new Set())
   const [generatingTTSIds, setGeneratingTTSIds] = useState<Set<number>>(new Set())
-  const [queueSummary, setQueueSummary] = useState<QueueSummary | null>(null)
+  const [generation, setGeneration] = useState<GenerationOverview | null>(null)
   const [vpnBlocked, setVpnBlocked] = useState(false)
-  const [downloadingVideo, setDownloadingVideo] = useState(false)
   const [mediaMap, setMediaMap] = useState<Record<number, MediaRefs>>({})
   const [sortOrder, setSortOrderState] = useState<SortOrder>(() => sortOrderPref.read())
   const [editing, setEditing] = useState<Editing | null>(null)
@@ -80,11 +77,11 @@ export function useReview(sourceId: number) {
     applyCandidates(await fetchCandidates())
   }, [fetchCandidates, applyCandidates])
 
-  const loadQueueSummary = useCallback(async () => {
+  const loadGeneration = useCallback(async () => {
     try {
-      setQueueSummary(await api.getQueueSummary(sourceId))
+      setGeneration(await api.getGenerationStatus(sourceId))
     } catch {
-      // ignore — endpoint may not be available for all source types
+      // Панель генерации просто не покажет свежие числа до следующей попытки.
     }
   }, [sourceId])
 
@@ -95,7 +92,7 @@ export function useReview(sourceId: number) {
         setSource(src)
         setCandidates(src.candidates)
         setCurrentId(prev => prev ?? firstPendingId(src.candidates))
-        await Promise.all([fetchCards(sourceId).then(cards => setMediaMap(toMediaMap(cards))), loadQueueSummary()])
+        await Promise.all([fetchCards(sourceId).then(cards => setMediaMap(toMediaMap(cards))), loadGeneration()])
       } catch {
         setSource(null)
       } finally {
@@ -103,19 +100,17 @@ export function useReview(sourceId: number) {
       }
     }
     void load()
-  }, [sourceId, sortOrder, loadQueueSummary])
+  }, [sourceId, sortOrder, loadGeneration])
 
-  // Polling while there are inflight jobs
-  const anyInflight = inflight(queueSummary?.polish) + inflight(queueSummary?.meaning) + inflight(queueSummary?.media)
-    + inflight(queueSummary?.pronunciation) + inflight(queueSummary?.tts) > 0
+  const inProgress = generation?.in_progress ?? false
   useEffect(() => {
-    if (!anyInflight) return
+    if (!inProgress) return
     const interval = setInterval(() => {
       void loadCandidates()
-      void loadQueueSummary()
+      void loadGeneration()
     }, POLL_INTERVAL_MS)
     return () => clearInterval(interval)
-  }, [anyInflight, loadCandidates, loadQueueSummary])
+  }, [inProgress, loadCandidates, loadGeneration])
 
   // Свежий список для mark(), чтобы не пересоздавать обработчик на каждое изменение.
   const candidatesRef = useRef<StoredCandidate[]>(candidates)
@@ -202,59 +197,27 @@ export function useReview(sourceId: number) {
     try {
       await call()
       if (!options.skipCandidates) await loadCandidates()
-      await loadQueueSummary()
+      await loadGeneration()
     } catch (e) {
       if (options.vpnAware && isVpnError(e)) setVpnBlocked(true)
       else showToast(e instanceof Error ? e.message : fallback)
     }
   }
 
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
-
-  const downloadVideo = async () => {
-    setDownloadingVideo(true)
-    try {
-      await api.downloadVideo(sourceId)
-      pollRef.current = setInterval(() => {
-        void api.getSource(sourceId, sortOrder).then(updated => {
-          setSource(updated)
-          if (updated.video_downloaded) {
-            if (pollRef.current) clearInterval(pollRef.current)
-            pollRef.current = null
-            setDownloadingVideo(false)
-          }
-        }).catch(() => undefined)
-      }, POLL_INTERVAL_MS)
-    } catch {
-      setDownloadingVideo(false)
-    }
-  }
-
-  const batch = {
-    polishPhrases: () => runBatch(() => api.enqueuePhrasePolish(sourceId, sortOrder), 'Failed to enqueue phrase polishing', { vpnAware: true }),
-    cancelPolish: () => runBatch(() => api.cancelPhrasePolishQueue(sourceId), 'Failed to cancel'),
-    retryPolish: () => runBatch(() => api.retryFailedPhrasePolish(sourceId), 'Failed to retry', { vpnAware: true }),
-    generateMeanings: () => runBatch(() => api.enqueueMeaningGeneration(sourceId, sortOrder), 'Failed to enqueue meanings', { vpnAware: true }),
-    cancelMeanings: () => runBatch(() => api.cancelMeaningQueue(sourceId), 'Failed to cancel'),
-    retryMeanings: () => runBatch(() => api.retryFailedMeanings(sourceId), 'Failed to retry', { vpnAware: true }),
-    generateMedia: () => runBatch(() => api.enqueueMediaGeneration(sourceId, sortOrder), 'Failed to enqueue media'),
-    cancelMedia: () => runBatch(() => api.cancelMediaQueue(sourceId), 'Failed to cancel'),
-    retryMedia: () => runBatch(() => api.retryFailedMedia(sourceId), 'Failed to retry'),
-    downloadVideo,
-    downloadPronunciation: () => runBatch(() => api.enqueuePronunciationDownload(sourceId), 'Failed to enqueue pronunciation'),
-    cancelPronunciation: () => runBatch(() => api.cancelPronunciationQueue(sourceId), 'Cancel failed'),
-    retryPronunciation: () => runBatch(() => api.retryFailedPronunciation(sourceId), 'Retry failed'),
-    generateTTS: () => runBatch(() => api.enqueueTTSGeneration(sourceId), 'Failed to enqueue TTS'),
-    cancelTTS: () => runBatch(() => api.cancelTTSQueue(sourceId), 'Failed to cancel', { skipCandidates: true }),
-    retryTTS: () => runBatch(() => api.retryFailedTTS(sourceId), 'Failed to retry'),
+  const generationActions = {
+    run: (kind: GenerationKind, scope: GenerationScope) =>
+      runBatch(() => api.runGeneration(sourceId, kind, scope, sortOrder), 'Failed to start generation', { vpnAware: true }),
+    cancel: (kind: GenerationKind) =>
+      runBatch(() => api.cancelGeneration(sourceId, kind), 'Failed to cancel'),
+    downloadVideo: () =>
+      runBatch(() => api.downloadVideo(sourceId), 'Failed to download the video', { skipCandidates: true }),
   }
 
   const generateTTS = (candidateId: number) => withBusy(setGeneratingTTSIds, candidateId, async () => {
     try {
       await api.generateCandidateTTS(candidateId)
       await loadCandidates()
-      await loadQueueSummary()
+      await loadGeneration()
       showToast('TTS enqueued')
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'TTS failed')
@@ -314,7 +277,7 @@ export function useReview(sourceId: number) {
     try {
       await api.polishPhraseAgain(candidateId)
       await loadCandidates()
-      await loadQueueSummary()
+      await loadGeneration()
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to polish the phrase')
     }
@@ -352,15 +315,7 @@ export function useReview(sourceId: number) {
   return {
     sourceId, source, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,
     counts: { marked: markedCount, total: candidates.length, learn: learnCount, progress: candidates.length > 0 ? markedCount / candidates.length : 0 },
-    queue: {
-      polish: { inflight: inflight(queueSummary?.polish), failed: queueSummary?.polish?.failed ?? 0 },
-      meaning: { inflight: inflight(queueSummary?.meaning), failed: queueSummary?.meaning?.failed ?? 0 },
-      media: { inflight: inflight(queueSummary?.media), failed: queueSummary?.media?.failed ?? 0 },
-      pronunciation: { inflight: inflight(queueSummary?.pronunciation), failed: queueSummary?.pronunciation?.failed ?? 0 },
-      tts: { inflight: inflight(queueSummary?.tts), failed: queueSummary?.tts?.failed ?? 0 },
-      anyInflight,
-    },
-    batch, downloadingVideo,
+    generation, generationActions,
     mark, generate, replaceWithExample, generateTTS, regenerateMedia, polishAgain, setPolishReverted,
     busy: { generating: generatingIds, media: regeneratingMediaIds, tts: generatingTTSIds },
     vpnBlocked, dismissVpn: () => setVpnBlocked(false),

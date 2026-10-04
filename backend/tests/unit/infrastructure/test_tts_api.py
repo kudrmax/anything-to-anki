@@ -59,31 +59,6 @@ def _get_mock_container() -> MagicMock:
 
 
 @pytest.mark.unit
-class TestEnqueueTTSGeneration:
-    def test_returns_202_with_enqueued_count(self, client: TestClient) -> None:
-        mock_container = _get_mock_container()
-        mock_use_case = MagicMock()
-        mock_use_case.execute.return_value = [1, 2, 3]
-        mock_container.enqueue_tts_generation_use_case.return_value = mock_use_case
-
-        response = client.post("/sources/10/tts/generate")
-
-        assert response.status_code == 202
-        assert response.json() == {"enqueued": 3}
-
-    def test_returns_zero_when_no_eligible(self, client: TestClient) -> None:
-        mock_container = _get_mock_container()
-        mock_use_case = MagicMock()
-        mock_use_case.execute.return_value = []
-        mock_container.enqueue_tts_generation_use_case.return_value = mock_use_case
-
-        response = client.post("/sources/99/tts/generate")
-
-        assert response.status_code == 202
-        assert response.json() == {"enqueued": 0}
-
-
-@pytest.mark.unit
 class TestEnqueueCandidateTTS:
     def test_returns_202_for_valid_candidate(self, client: TestClient) -> None:
         mock_container = _get_mock_container()

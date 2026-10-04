@@ -359,18 +359,6 @@ def create_file_source(
     return {"id": source_id, "status": "new"}
 
 
-@router.get("/{source_id}/queue-summary")
-def get_queue_summary(
-    source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, dict[str, int]]:
-    """Aggregate counts of jobs by type and status.
-    Used by frontend to show 'Cancel queue' / 'Retry failed' button visibility."""
-    job_repo = container.job_repository(session)
-    return job_repo.get_queue_summary(source_id)
-
-
 @router.get("/{source_id}/reprocess-stats")
 def get_reprocess_stats(
     source_id: int,

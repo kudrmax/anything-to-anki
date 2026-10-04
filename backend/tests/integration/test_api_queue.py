@@ -131,6 +131,7 @@ class TestGlobalSummary:
         assert data["media"] == {"queued": 0, "running": 0, "failed": 0}
         assert data["pronunciation"] == {"queued": 0, "running": 0, "failed": 0}
         assert data["video_download"] == {"queued": 0, "running": 0, "failed": 0}
+        assert data["tts"] == {"queued": 0, "running": 0, "failed": 0}
 
     def test_returns_correct_counts(self, client: TestClient, db_session: Session) -> None:
         _insert_source(db_session, 1)
@@ -402,6 +403,16 @@ class TestCancelQueue:
 
         order = client.get("/api/queue/order").json()
         assert order["queued"] == []
+
+    def test_cancel_tts_jobs(self, client: TestClient, db_session: Session) -> None:
+        _insert_source(db_session, 1)
+        _insert_candidate(db_session, 1, 1)
+        _insert_job(db_session, 1, 1, 1, job_type="tts", status="queued")
+        db_session.commit()
+
+        response = client.post("/api/queue/cancel", json={"job_type": "tts"})
+
+        assert response.json() == {"cancelled": 1}
 
     def test_cancel_unknown_job_type_returns_zero(self, client: TestClient) -> None:
         response = client.post(

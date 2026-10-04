@@ -6,7 +6,9 @@
 .item { display: flex; align-items: center; gap: var(--s3); width: 100%; min-height: var(--h); padding: var(--s2) var(--s4); border-radius: var(--rc); font-size: var(--fs-c); color: var(--tx); text-align: left; }
 .item:hover:not(:disabled) { background: var(--hover); }
 .item:disabled { opacity: var(--o-disabled); cursor: default; }
-.label { flex: 1; }
+.label { flex: 1; display: flex; flex-direction: column; }
+.hint { font-size: var(--fs-xs); color: var(--tx3); }
+.lead { display: inline-flex; flex: none; align-items: center; justify-content: center; width: var(--icon-s); }
 .danger { color: var(--err); }
 .empty { padding: var(--s3) var(--s4); font-size: var(--fs-s); color: var(--tx3); }
 .footer { padding: var(--s2); }

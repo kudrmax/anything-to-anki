@@ -241,3 +241,21 @@ class PermanentSourceError(DomainError):
 
 class InvalidPhraseError(DomainError):
     """Raised when a phrase added by hand is empty or does not contain its target."""
+
+
+class GenerationNotSupportedError(DomainError):
+    """Raised when a source has no use for a kind of generation (e.g. TTS for a video)."""
+
+    def __init__(self, source_id: int, kind: str) -> None:
+        super().__init__(f"Source {source_id} doesn't support {kind} generation")
+        self.source_id = source_id
+        self.kind = kind
+
+
+class GenerationBlockedError(DomainError):
+    """Raised when a kind of generation needs something the source doesn't have yet."""
+
+    def __init__(self, source_id: int, reason: str) -> None:
+        super().__init__(f"Generation for source {source_id} is blocked: {reason}")
+        self.source_id = source_id
+        self.reason = reason

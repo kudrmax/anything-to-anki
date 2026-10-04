@@ -131,28 +131,20 @@ from backend.infrastructure.services.lazy_media_reconciler import LazyMediaRecon
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session, sessionmaker
 
+    from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
     from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
     from backend.application.use_cases.cleanup_youtube_video import CleanupYoutubeVideoUseCase
     from backend.application.use_cases.create_source_from_url import CreateSourceFromUrlUseCase
     from backend.application.use_cases.download_pronunciation import DownloadPronunciationUseCase
     from backend.application.use_cases.download_video import DownloadVideoUseCase
-    from backend.application.use_cases.enqueue_meaning_generation import (
-        EnqueueMeaningGenerationUseCase,
-    )
-    from backend.application.use_cases.enqueue_media_generation import (
-        EnqueueMediaGenerationUseCase,
-    )
     from backend.application.use_cases.enqueue_phrase_polish import EnqueuePhrasePolishUseCase
-    from backend.application.use_cases.enqueue_pronunciation_download import (
-        EnqueuePronunciationDownloadUseCase,
-    )
     from backend.application.use_cases.enqueue_topic_generation import (
         EnqueueTopicGenerationUseCase,
     )
-    from backend.application.use_cases.enqueue_tts_generation import EnqueueTTSGenerationUseCase
     from backend.application.use_cases.generate_topic_targets import GenerateTopicTargetsUseCase
     from backend.application.use_cases.generate_tts import GenerateTTSUseCase
     from backend.application.use_cases.get_ai_usage_stats import GetAIUsageStatsUseCase
+    from backend.application.use_cases.get_generation_status import GetGenerationStatusUseCase
     from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
     from backend.application.use_cases.get_queue_failed import GetQueueFailedUseCase
     from backend.application.use_cases.get_queue_global_summary import (
@@ -164,7 +156,9 @@ if TYPE_CHECKING:
         RegenerateCandidateMediaUseCase,
     )
     from backend.application.use_cases.revert_phrase_polish import RevertPhrasePolishUseCase
+    from backend.application.use_cases.run_generation import RunGenerationUseCase
     from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
+    from backend.application.utils.generation_targets import GenerationTarget
     from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
     from backend.domain.ports.url_source_fetcher import UrlSourceFetcher
     from backend.domain.value_objects.prompts_config import PromptsConfig
@@ -583,7 +577,6 @@ class Container:
         return EnqueuePhrasePolishUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
-            candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
         )
 
@@ -752,19 +745,6 @@ class Container:
             media_root=self._media_root,
         )
 
-    def enqueue_pronunciation_download_use_case(
-        self, session: Session,
-    ) -> EnqueuePronunciationDownloadUseCase:
-        from backend.application.use_cases.enqueue_pronunciation_download import (
-            EnqueuePronunciationDownloadUseCase,
-        )
-        return EnqueuePronunciationDownloadUseCase(
-            pronunciation_repo=SqlaCandidatePronunciationRepository(session),
-            candidate_repo=SqlaCandidateRepository(session),
-            candidate_sorter=self._candidate_sorter(session),
-            job_repo=SqlaJobRepository(session),
-        )
-
     def generate_tts_use_case(self, session: Session) -> GenerateTTSUseCase:
         from backend.application.use_cases.generate_tts import GenerateTTSUseCase
         return GenerateTTSUseCase(
@@ -775,44 +755,46 @@ class Container:
             media_root=self._media_root,
         )
 
-    def enqueue_tts_generation_use_case(self, session: Session) -> EnqueueTTSGenerationUseCase:
-        from backend.application.use_cases.enqueue_tts_generation import (
-            EnqueueTTSGenerationUseCase,
+    def _generation_targets(self, session: Session) -> list[GenerationTarget]:
+        from backend.application.utils.generation_targets import (
+            MeaningTarget,
+            MediaTarget,
+            PolishTarget,
+            PronunciationTarget,
+            TTSTarget,
         )
-        return EnqueueTTSGenerationUseCase(
-            tts_repo=SqlaCandidateTTSRepository(session),
+        return [
+            PolishTarget(SqlaCandidateRepository(session)),
+            MeaningTarget(SqlaCandidateMeaningRepository(session)),
+            MediaTarget(),
+            PronunciationTarget(),
+            TTSTarget(),
+        ]
+
+    def get_generation_status_use_case(self, session: Session) -> GetGenerationStatusUseCase:
+        from backend.application.use_cases.get_generation_status import (
+            GetGenerationStatusUseCase,
+        )
+        return GetGenerationStatusUseCase(
+            source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
-            candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
+            targets=self._generation_targets(session),
         )
 
-    def enqueue_media_generation_use_case(
-        self, session: Session
-    ) -> EnqueueMediaGenerationUseCase:
-        from backend.application.use_cases.enqueue_media_generation import (
-            EnqueueMediaGenerationUseCase,
-        )
-        return EnqueueMediaGenerationUseCase(
-            media_repo=SqlaCandidateMediaRepository(session),
-            candidate_repo=SqlaCandidateRepository(session),
+    def run_generation_use_case(self, session: Session) -> RunGenerationUseCase:
+        from backend.application.use_cases.run_generation import RunGenerationUseCase
+        return RunGenerationUseCase(
             source_repo=SqlaSourceRepository(session),
-            candidate_sorter=self._candidate_sorter(session),
+            candidate_repo=SqlaCandidateRepository(session),
             job_repo=SqlaJobRepository(session),
+            candidate_sorter=self._candidate_sorter(session),
+            targets=self._generation_targets(session),
         )
 
-    def enqueue_meaning_generation_use_case(
-        self, session: Session
-    ) -> EnqueueMeaningGenerationUseCase:
-        from backend.application.use_cases.enqueue_meaning_generation import (
-            EnqueueMeaningGenerationUseCase,
-        )
-        return EnqueueMeaningGenerationUseCase(
-            meaning_repo=SqlaCandidateMeaningRepository(session),
-            candidate_repo=SqlaCandidateRepository(session),
-            source_repo=SqlaSourceRepository(session),
-            candidate_sorter=self._candidate_sorter(session),
-            job_repo=SqlaJobRepository(session),
-        )
+    def cancel_generation_use_case(self, session: Session) -> CancelGenerationUseCase:
+        from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
+        return CancelGenerationUseCase(job_repo=SqlaJobRepository(session))
 
     def get_queue_global_summary_use_case(
         self, session: Session,

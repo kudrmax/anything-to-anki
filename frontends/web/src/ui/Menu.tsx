@@ -11,6 +11,10 @@ export interface MenuItem {
   selected?: boolean
   disabled?: boolean
   icon?: LucideIcon
+  /** Значок слева, когда нужен не просто icon: например, статус с анимацией. */
+  lead?: ReactNode
+  /** Пояснение мелким текстом под названием: что именно сделает пункт. */
+  hint?: string
   /** Текущее значение справа, например выбранная коллекция. */
   value?: string
   /** Подменю: открывается сбоку при наведении. */
@@ -111,8 +115,11 @@ function MenuEntry({ item, side, onDone }: { item: MenuItem; side: 'left' | 'rig
         className={classes}
         onClick={select}
       >
-        {item.icon && <Icon as={item.icon} size="s" />}
-        <span className={css.label}>{item.label}</span>
+        {item.lead ? <span className={css.lead}>{item.lead}</span> : item.icon && <Icon as={item.icon} size="s" />}
+        <span className={css.label}>
+          {item.label}
+          {item.hint && <span className={css.hint}>{item.hint}</span>}
+        </span>
         {item.value && <span className={css.value}>{item.value}</span>}
         {item.selected && <span className={css.check}><Icon as={Check} size="s" /></span>}
         {item.items && <Icon as={side === 'left' ? ChevronLeft : ChevronRight} size="s" />}
