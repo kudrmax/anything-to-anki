@@ -30,7 +30,6 @@ final class QuickAddPanelController: NSWindowController {
         )
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
-        panel.isMovableByWindowBackground = true
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         panel.level = .floating
@@ -38,7 +37,7 @@ final class QuickAddPanelController: NSWindowController {
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
         if let color = PageBackgroundStore().load() { panel.applyPageBackground(color) }
-        panel.contentView = webView
+        panel.contentView = Self.content(webView: webView, dragStripHeight: panel.frame.height - panel.contentLayoutRect.height)
         super.init(window: panel)
 
         closeHandler.onClose = { [weak self] in self?.close() }
@@ -52,6 +51,28 @@ final class QuickAddPanelController: NSWindowController {
         webView.load(URLRequest(url: url(for: text)))
         window.setFrameOrigin(Self.origin(for: window.frame.size))
         window.makeKeyAndOrderFront(nil)
+    }
+
+    /// The page sits under the transparent title bar and would swallow its clicks, so a native strip
+    /// on top of the page drags the panel. It works even while the app is inactive.
+    private static func content(webView: WKWebView, dragStripHeight: CGFloat) -> NSView {
+        let container = NSView()
+        let dragStrip = WindowDragView()
+        for view in [webView, dragStrip] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(view)
+        }
+        NSLayoutConstraint.activate([
+            webView.topAnchor.constraint(equalTo: container.topAnchor),
+            webView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            webView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            dragStrip.topAnchor.constraint(equalTo: container.topAnchor),
+            dragStrip.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            dragStrip.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            dragStrip.heightAnchor.constraint(equalToConstant: dragStripHeight),
+        ])
+        return container
     }
 
     private func url(for text: String) -> URL {
@@ -75,6 +96,14 @@ final class QuickAddPanelController: NSWindowController {
 /// A non-activating panel only takes keystrokes (Esc, Enter) when it may become key.
 private final class QuickAddPanel: NSPanel {
     override var canBecomeKey: Bool { true }
+}
+
+private final class WindowDragView: NSView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.performDrag(with: event)
+    }
 }
 
 /// Answers `window.webkit.messageHandlers.closeQuickAdd.postMessage(null)` from the page.
