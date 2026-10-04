@@ -37,7 +37,9 @@
 .queue.away { display: var(--away-display); }
 
 /* телефон: ряд переключения и панели на месте карточки */
-.phoneBar { display: var(--phone-flex); flex: none; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
+.phoneBar { display: var(--phone-flex); flex: none; align-items: center; gap: var(--s2); margin-bottom: var(--s4); }
+.phoneBar > :first-child { margin-left: var(--icon-inset-trim); }
+.phoneBar > :last-child { margin-right: var(--icon-inset-trim); }
 .phoneBarPosition { margin-left: auto; padding-inline: var(--s3); font-size: var(--fs-s); color: var(--tx3); font-variant-numeric: tabular-nums; }
 .textPanel { display: var(--phone-flex); flex-direction: column; flex: 1; min-height: 0; }
 .textPanel > .source { flex: 1; min-height: 0; max-height: none; }
@@ -72,6 +74,7 @@
 .iconTrigger:hover:not(:disabled) { background: var(--soft); }
 .headerTools { display: flex; align-items: center; gap: var(--s2); }
 .headerTools > .desktopOnly { display: var(--desktop-display); }
+.headerTools > :first-child { margin-left: var(--header-tools-trim); }
 
 /* жалоба: поле и кнопка отправки под причинами */
 .reportFooter { display: flex; flex-direction: column; gap: var(--s3); }

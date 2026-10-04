@@ -153,6 +153,10 @@
   --show-more-display: block;
   --phone-flex: none;
   --desktop-display: inline-flex;
+  --header-px: calc(var(--px) + var(--sheet-pad));
+  --header-meta-ml: 0px;
+  --header-tools-trim: 0px;
+  --wide-head-mb: var(--s5h);
   --away-display: flex;
   --fit-aside-display: block;
   --card-flex: 0 1 auto;
@@ -257,7 +261,7 @@
     --page-top: 16px;
     --sheet-pad: 0px;
     --px: 12px;
-    --header-lead-min: calc(var(--h) * 4);
+    --header-lead-min: 100%;
     --thumb-w: 112px;
     --thumb-h: 63px;
     --fs-h1: 21px;
@@ -298,6 +302,10 @@
     --show-more-display: none;
     --phone-flex: flex;
     --desktop-display: none;
+    --header-px: 0px;
+    --header-meta-ml: auto;
+    --header-tools-trim: var(--icon-inset-trim);
+    --wide-head-mb: var(--s4);
     --away-display: none;
     --fit-aside-display: none;
     --card-flex: 1;
