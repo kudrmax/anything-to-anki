@@ -98,6 +98,7 @@ export function ReviewScreen() {
     <PageHeader
       title={source.title}
       back={SOURCES_PATH}
+      metaWithActions
       meta={candidates.length > 0 && (
         <>
           <Progress inline value={counts.progress} />

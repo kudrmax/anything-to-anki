@@ -11,13 +11,15 @@ interface PageHeaderProps {
   meta?: ReactNode
   /** Действия справа. */
   children?: ReactNode
+  /** На узком экране мета уходит из строки заголовка в ряд с действиями. */
+  metaWithActions?: boolean
 }
 
-export function PageHeader({ title, back, meta, children }: PageHeaderProps) {
+export function PageHeader({ title, back, meta, children, metaWithActions = false }: PageHeaderProps) {
   const navigate = useNavigate()
   const goBack = () => (typeof back === 'string' ? navigate(back) : back?.())
   return (
-    <div className={css.header}>
+    <div className={metaWithActions ? `${css.header} ${css.metaWithActions}` : css.header}>
       <div className={css.lead}>
         <div className={css.heading}>
           {back !== undefined && <IconButton icon={ArrowLeft} label="Back" className={css.back} onClick={goBack} />}

@@ -155,6 +155,9 @@
   --desktop-display: inline-flex;
   --header-px: calc(var(--px) + var(--sheet-pad));
   --header-meta-ml: 0px;
+  --header-lead-display: flex;
+  --header-heading-basis: auto;
+  --header-meta-order: 0;
   --header-tools-trim: 0px;
   --wide-head-mb: var(--s5h);
   --away-display: flex;
@@ -261,7 +264,6 @@
     --page-top: 16px;
     --sheet-pad: 0px;
     --px: 12px;
-    --header-lead-min: 100%;
     --thumb-w: 112px;
     --thumb-h: 63px;
     --fs-h1: 21px;
@@ -304,6 +306,10 @@
     --desktop-display: none;
     --header-px: 0px;
     --header-meta-ml: auto;
+    --header-lead-display: contents;
+    --header-heading-basis: 100%;
+    --header-meta-order: 1;
+    --progress-inline-w: calc(var(--h) * 1.5);
     --header-tools-trim: var(--icon-inset-trim);
     --wide-head-mb: var(--s4);
     --away-display: none;
