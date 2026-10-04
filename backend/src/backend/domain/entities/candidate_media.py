@@ -13,6 +13,8 @@ class CandidateMedia:
 
     1:1 with StoredCandidate. None when no extraction has been attempted yet.
     Holds screenshot/audio paths AND the subtitle timecodes used to extract them.
+    `screenshot_path` is the card's picture: a video frame, or a picture of the
+    target the user picked instead.
     """
 
     candidate_id: int

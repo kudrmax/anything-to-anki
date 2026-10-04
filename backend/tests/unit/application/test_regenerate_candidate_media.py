@@ -7,12 +7,13 @@ import pytest
 from backend.application.use_cases.regenerate_candidate_media import (
     RegenerateCandidateMediaUseCase,
 )
+from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.parsed_srt import ParsedSrt
 from backend.domain.value_objects.subtitle_block import SubtitleBlock
 
 if TYPE_CHECKING:
-    from backend.domain.entities.candidate_media import CandidateMedia
+    from pathlib import Path
 
 
 def _make_parsed_srt() -> ParsedSrt:
@@ -32,6 +33,7 @@ class TestRegenerateCandidateMedia:
         candidate.id = 10
         candidate.source_id = 42
         candidate.context_fragment = "How are you?"
+        candidate.media = None
 
         source = MagicMock()
         source.id = 42
@@ -99,6 +101,7 @@ class TestRegenerateCandidateMedia:
         candidate.id = 10
         candidate.source_id = 42
         candidate.context_fragment = "How are you?"
+        candidate.media = None
 
         source = MagicMock()
         source.id = 42
@@ -137,6 +140,47 @@ class TestRegenerateCandidateMedia:
 
         audio_call = media_extractor.extract_audio.call_args
         assert audio_call.kwargs.get("audio_track_index") == 2
+
+    def test_new_frame_replaces_a_picked_picture_file(self, tmp_path: Path) -> None:
+        video = tmp_path / "movie.mkv"
+        video.write_bytes(b"video")
+        picked = tmp_path / "42" / "10_screenshot.abc123.jpg"
+        picked.parent.mkdir()
+        picked.write_bytes(b"picture")
+
+        candidate = MagicMock()
+        candidate.id = 10
+        candidate.source_id = 42
+        candidate.context_fragment = "How are you?"
+        candidate.media = CandidateMedia(
+            candidate_id=10, screenshot_path=str(picked), audio_path=None,
+            start_ms=None, end_ms=None, generated_at=None,
+        )
+        source = MagicMock()
+        source.id = 42
+        source.content_type = ContentType.VIDEO
+        source.video_path = str(video)
+        source.audio_track_index = None
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_id.return_value = candidate
+        source_repo = MagicMock()
+        source_repo.get_by_id.return_value = source
+        parser = MagicMock()
+        parser.parse_structured.return_value = _make_parsed_srt()
+        video_path_resolver = MagicMock()
+        video_path_resolver.resolve.side_effect = lambda path, _method: path
+
+        RegenerateCandidateMediaUseCase(
+            candidate_repo=candidate_repo,
+            media_repo=MagicMock(),
+            source_repo=source_repo,
+            structured_srt_parser=parser,
+            media_extractor=MagicMock(),
+            media_root=str(tmp_path),
+            video_path_resolver=video_path_resolver,
+        ).execute(candidate_id=10)
+
+        assert not picked.exists()
 
     def test_raises_if_candidate_not_found(self) -> None:
         candidate_repo = MagicMock()

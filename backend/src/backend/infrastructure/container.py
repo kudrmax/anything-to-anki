@@ -4,6 +4,7 @@ import logging
 import os
 from collections.abc import Iterator  # noqa: TC003 — used at runtime by @contextmanager
 from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -55,6 +56,7 @@ from backend.domain.value_objects.fragment_selection_config import (
 from backend.domain.value_objects.input_method import InputMethod
 from backend.infrastructure.adapters.ai_model_mapping import model_id_for
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
+from backend.infrastructure.adapters.bing_image_source import BingImageSource
 from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
 from backend.infrastructure.adapters.dict_cache.cefr_source import DictCacheCEFRSource
 from backend.infrastructure.adapters.dict_cache.pronunciation_source import (
@@ -66,6 +68,7 @@ from backend.infrastructure.adapters.dict_cache.word_corpus_provider import (
     DictCacheWordCorpusProvider,
 )
 from backend.infrastructure.adapters.http_ai_service import HttpAIService
+from backend.infrastructure.adapters.http_fetch import APP_USER_AGENT, http_get
 from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
 )
@@ -79,6 +82,7 @@ from backend.infrastructure.adapters.throttled_http_file_downloader import (
     ThrottledHttpFileDownloader,
 )
 from backend.infrastructure.adapters.video_path_resolver import VideoPathResolverImpl
+from backend.infrastructure.adapters.wiktionary_image_source import WiktionaryImageSource
 from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
 )
@@ -131,6 +135,7 @@ from backend.infrastructure.services.lazy_media_reconciler import LazyMediaRecon
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session, sessionmaker
 
+    from backend.application.use_cases.apply_target_image import ApplyTargetImageUseCase
     from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
     from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
     from backend.application.use_cases.cleanup_youtube_video import CleanupYoutubeVideoUseCase
@@ -158,8 +163,10 @@ if TYPE_CHECKING:
     from backend.application.use_cases.revert_phrase_polish import RevertPhrasePolishUseCase
     from backend.application.use_cases.run_generation import RunGenerationUseCase
     from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
+    from backend.application.use_cases.search_target_images import SearchTargetImagesUseCase
     from backend.application.utils.generation_targets import GenerationTarget
     from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
+    from backend.domain.ports.target_image_source import TargetImageSource
     from backend.domain.ports.url_source_fetcher import UrlSourceFetcher
     from backend.domain.value_objects.prompts_config import PromptsConfig
     from backend.infrastructure.adapters.kokoro_tts_generator import KokoroTTSGenerator
@@ -218,6 +225,17 @@ class Container:
         self._frequency_provider = WordfreqFrequencyProvider()
         self._anki_connector = AnkiConnectConnector()
         self._file_downloader = ThrottledHttpFileDownloader()
+        # Dictionary first: when it has a picture, that picture shows exactly the word.
+        self._target_image_sources: list[TargetImageSource] = [
+            WiktionaryImageSource(),
+            BingImageSource(),
+        ]
+        # Its own pacing: a picture the user picked must not queue behind bulk
+        # pronunciation downloads, nor wait minutes out on a rate limit.
+        self._image_downloader = ThrottledHttpFileDownloader(
+            retry_delays_s=(),
+            fetch=partial(http_get, user_agent=APP_USER_AGENT),
+        )
         self._phrasal_verb_dictionary = JsonPhrasalVerbDictionary()
         self._fragment_selection_config = FragmentSelectionConfig()
         self._subtitle_extractor = FfmpegSubtitleExtractor()
@@ -742,6 +760,25 @@ class Container:
             pronunciation_repo=SqlaCandidatePronunciationRepository(session),
             pronunciation_source=self._pronunciation_source,
             file_downloader=self._file_downloader,
+            media_root=self._media_root,
+        )
+
+    def search_target_images_use_case(self, session: Session) -> SearchTargetImagesUseCase:
+        from backend.application.use_cases.search_target_images import (
+            SearchTargetImagesUseCase,
+        )
+        return SearchTargetImagesUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            image_sources=self._target_image_sources,
+        )
+
+    def apply_target_image_use_case(self, session: Session) -> ApplyTargetImageUseCase:
+        from backend.application.use_cases.apply_target_image import ApplyTargetImageUseCase
+        return ApplyTargetImageUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            media_repo=SqlaCandidateMediaRepository(session),
+            image_sources=self._target_image_sources,
+            file_downloader=self._image_downloader,
             media_root=self._media_root,
         )
 

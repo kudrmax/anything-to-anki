@@ -18,12 +18,19 @@ from backend.application.dto.card_report_dtos import (  # noqa: TC001
 )
 from backend.application.dto.follow_up_dtos import FollowUpRequest  # noqa: TC001
 from backend.application.dto.source_dtos import StoredCandidateDTO  # noqa: TC001
+from backend.application.dto.target_image_dtos import (  # noqa: TC001
+    ApplyTargetImageRequest,
+    TargetImageOptionsDTO,
+)
 from backend.domain.exceptions import (
     AIServiceError,
     CandidateNotFoundError,
     CandidateNotPolishedError,
     EmptyReportCommentError,
+    ImageSearchError,
     PhrasePolishNotSupportedError,
+    TargetImageNotSupportedError,
+    UnknownImageUrlError,
     UnknownReportReasonError,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -156,6 +163,41 @@ def regenerate_candidate_media(
         return {"status": "regenerated"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/{candidate_id}/image-options")
+def search_target_images(
+    candidate_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> TargetImageOptionsDTO:
+    try:
+        return container.search_target_images_use_case(session).execute(candidate_id)
+    except CandidateNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except TargetImageNotSupportedError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except ImageSearchError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+@router.put("/{candidate_id}/image")
+def apply_target_image(
+    candidate_id: int,
+    request: ApplyTargetImageRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, str]:
+    try:
+        container.apply_target_image_use_case(session).execute(candidate_id, request.url)
+        session.commit()
+        return {"status": "applied"}
+    except CandidateNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except (TargetImageNotSupportedError, UnknownImageUrlError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except OSError as e:
+        raise HTTPException(status_code=502, detail=f"Failed to download the picture: {e}") from e
 
 
 @router.post("/{candidate_id}/generate-meaning")

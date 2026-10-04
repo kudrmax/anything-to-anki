@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { ArrowRight, Feather, Flag, Image, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, X, ZoomIn, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Feather, Flag, Image, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { decisionChange, type Decision } from '@/lib/decision'
 import { Button, Field, IconButton, Menu, type MenuItem } from '@/ui'
+import { ImagePicker } from './ImagePicker'
 import { PolishedPhrase } from './PolishedPhrase'
 import type { Review } from './useReview'
 import css from './review.module.css'
@@ -44,6 +45,7 @@ export function PhraseTools({ candidate, review }: PhraseActionsProps) {
   const [question, setQuestion] = useState('')
   const [complaint, setComplaint] = useState('')
   const [reasons, setReasons] = useState<string[]>([])
+  const [pickingImage, setPickingImage] = useState(false)
   const id = candidate.id
   const isRated = candidate.status !== 'pending'
   const isVideo = review.source?.content_type === 'video'
@@ -102,6 +104,10 @@ export function PhraseTools({ candidate, review }: PhraseActionsProps) {
         />
       )}
       {isVideo && <IconButton icon={Image} label="Regenerate media" busy={review.busy.media.has(id)} onClick={() => void review.regenerateMedia(id)} />}
+      {candidate.can_have_target_image && (
+        <IconButton icon={ImagePlus} label="Find a picture of the word" busy={review.busy.image.has(id)} onClick={() => setPickingImage(true)} />
+      )}
+      {pickingImage && <ImagePicker candidate={candidate} review={review} onClose={() => setPickingImage(false)} />}
       <IconButton icon={Speech} label="Generate TTS audio" busy={review.busy.tts.has(id)} onClick={() => void review.generateTTS(id)} />
       <PolishedPhrase candidate={candidate} review={review} />
       <Menu

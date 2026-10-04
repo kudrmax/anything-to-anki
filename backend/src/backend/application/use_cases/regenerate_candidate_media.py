@@ -81,6 +81,7 @@ class RegenerateCandidateMediaUseCase:
             audio_track_index=source.audio_track_index,
         )
 
+        _remove_picked_picture(candidate.media, screenshot_path)
         self._media_repo.upsert(CandidateMedia(
             candidate_id=candidate_id,
             screenshot_path=screenshot_path,
@@ -94,3 +95,10 @@ class RegenerateCandidateMediaUseCase:
             "Regenerated media for candidate %d: timecodes=(%d,%d) midpoint=%d",
             candidate_id, start_ms, end_ms, midpoint_ms,
         )
+
+
+def _remove_picked_picture(previous: CandidateMedia | None, frame_path: str) -> None:
+    """A picture the user picked lives in its own file; the new frame replaces it."""
+    old_path = previous.screenshot_path if previous else None
+    if old_path and old_path != frame_path and os.path.exists(old_path):
+        os.remove(old_path)

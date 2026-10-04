@@ -107,6 +107,14 @@ export interface CEFRBreakdown {
   votes: SourceVote[]
 }
 
+export type ImageProvider = 'wiktionary' | 'bing'
+
+/** Картинка, которую можно поставить на карточку вместо текущей. */
+export interface ImageOption {
+  url: string
+  provider: ImageProvider
+}
+
 export interface StoredCandidate {
   id: number
   lemma: string
@@ -131,6 +139,8 @@ export interface StoredCandidate {
   surface_form: string | null
   is_phrasal_verb: boolean
   has_custom_context_fragment: boolean
+  /** Для target'а можно найти картинку и поставить её на карточку. */
+  can_have_target_image: boolean
   meaning: CandidateMeaning | null
   media: CandidateMedia | null
   pronunciation: CandidatePronunciation | null
