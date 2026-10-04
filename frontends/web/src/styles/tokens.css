@@ -167,7 +167,9 @@
   --queue-row-display: flex;
   --show-more-display: block;
   --phone-flex: none;
-  --desktop-display: inline-flex;
+  --phone-display: none;
+  --desktop-display: grid;
+  --desktop-flex: flex;
   --header-px: calc(var(--px) + var(--sheet-pad));
   --header-meta-ml: 0px;
   --header-lead-display: flex;
@@ -318,7 +320,9 @@
     --queue-row-display: none;
     --show-more-display: none;
     --phone-flex: flex;
+    --phone-display: grid;
     --desktop-display: none;
+    --desktop-flex: none;
     --header-px: 0px;
     --header-meta-ml: auto;
     --header-lead-display: contents;

@@ -40,7 +40,11 @@
 .phoneBar { display: var(--phone-flex); flex: none; align-items: center; gap: var(--s2); margin-bottom: var(--s4); }
 .phoneBar > :first-child { margin-left: var(--icon-inset-trim); }
 .phoneBar > :last-child { margin-right: var(--icon-inset-trim); }
-.phoneBarPosition { margin-left: auto; padding-inline: var(--s3); font-size: var(--fs-s); color: var(--tx3); font-variant-numeric: tabular-nums; }
+/* десктоп без списка: только текущая карточка и стрелки */
+.focus .queue > .queueItem, .focus .showMore { display: none; }
+.phoneBar > .phoneOnly { display: var(--phone-display); }
+.headerStepper { display: var(--desktop-flex); align-items: center; gap: var(--s1); margin-right: var(--s3); }
+.position { margin-left: auto; padding-inline: var(--s3); font-size: var(--fs-s); color: var(--tx3); font-variant-numeric: tabular-nums; }
 .textPanel { display: var(--phone-flex); flex-direction: column; flex: 1; min-height: 0; }
 .textPanel > .source { flex: 1; min-height: 0; max-height: none; }
 .listPanel { display: var(--phone-flex); flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
