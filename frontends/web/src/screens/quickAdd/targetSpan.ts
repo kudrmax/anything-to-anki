@@ -23,3 +23,38 @@ export function snapToWords(text: string, start: number, end: number): Span | nu
 export function normalizePhrase(raw: string): string {
   return raw.replace(/\s+/g, ' ').trim()
 }
+
+const overlaps = (a: Span, b: Span) => a.start < b.end && b.start < a.end
+
+/**
+ * Target может состоять из кусков фразы: разорванный фразовый глагол «give it up» — это «give» и «up».
+ * Без добавления выделение заменяет target. С добавлением новый кусок встаёт к остальным,
+ * а повторное выделение уже выбранного снимает его.
+ */
+export function pickSpan(spans: readonly Span[], span: Span, additive: boolean): Span[] {
+  if (!additive) return [span]
+  const rest = spans.filter(existing => !overlaps(existing, span))
+  if (rest.length < spans.length) return rest
+  return [...rest, span].sort((a, b) => a.start - b.start)
+}
+
+export function targetText(text: string, spans: readonly Span[]): string {
+  return spans.map(span => text.slice(span.start, span.end)).join(' ')
+}
+
+export interface Segment {
+  text: string
+  picked: boolean
+}
+
+export function segments(text: string, spans: readonly Span[]): Segment[] {
+  const result: Segment[] = []
+  let cursor = 0
+  for (const span of spans) {
+    if (span.start > cursor) result.push({ text: text.slice(cursor, span.start), picked: false })
+    result.push({ text: text.slice(span.start, span.end), picked: true })
+    cursor = span.end
+  }
+  if (cursor < text.length) result.push({ text: text.slice(cursor), picked: false })
+  return result
+}

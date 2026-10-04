@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizePhrase, snapToWords } from './targetSpan'
+import { normalizePhrase, pickSpan, segments, snapToWords, targetText } from './targetSpan'
 
 const TEXT = "Now it's time to stop relying on those subtitles."
 
@@ -43,5 +43,41 @@ describe('snapToWords', () => {
 describe('normalizePhrase', () => {
   it('collapses line breaks and repeated spaces', () => {
     expect(normalizePhrase('  can follow\n  most  things \n')).toBe('can follow most things')
+  })
+})
+
+const PHRASAL = 'Never give it up now'
+const GIVE = { start: 6, end: 10 }
+const UP = { start: 14, end: 16 }
+
+describe('pickSpan', () => {
+  it('replaces the target without adding', () => {
+    expect(pickSpan([GIVE], UP, false)).toEqual([UP])
+  })
+
+  it('adds a separated part in phrase order', () => {
+    expect(pickSpan([UP], GIVE, true)).toEqual([GIVE, UP])
+  })
+
+  it('removes a part picked again', () => {
+    expect(pickSpan([GIVE, UP], { start: 7, end: 9 }, true)).toEqual([UP])
+  })
+})
+
+describe('targetText', () => {
+  it('joins the parts with spaces', () => {
+    expect(targetText(PHRASAL, [GIVE, UP])).toBe('give up')
+  })
+})
+
+describe('segments', () => {
+  it('marks picked parts and keeps the rest of the phrase', () => {
+    expect(segments(PHRASAL, [GIVE, UP])).toEqual([
+      { text: 'Never ', picked: false },
+      { text: 'give', picked: true },
+      { text: ' it ', picked: false },
+      { text: 'up', picked: true },
+      { text: ' now', picked: false },
+    ])
   })
 })
