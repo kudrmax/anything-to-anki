@@ -31,7 +31,7 @@ const TOPIC_PLACEHOLDER = 'Negotiating a salary, phrasal verbs with get…'
 const TOPIC_HINT = 'Targets come from AI, phrases from your sources'
 const PHRASE_PLACEHOLDER = 'Paste a phrase you came across…'
 const PHRASE_HINT = 'Tap words to select target'
-const PHRASE_SAVED = 'Saved to From everywhere'
+const PHRASE_SAVED = 'Phrase saved'
 const SUBTITLE_EXTENSIONS = ['srt']
 const NO_SUBTITLES_ERROR = 'subtitles_not_available'
 const PREVIEW_LENGTH = 100
@@ -193,7 +193,7 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
     if (!target) { setError('Select target words'); return }
     setAdding(true)
     try {
-      await api.addEverywherePhrase(phrase.trim(), target)
+      await api.addSavedPhrase(phrase.trim(), target)
       await onReload()
       editPhrase('')
       setPhraseSaved(true)

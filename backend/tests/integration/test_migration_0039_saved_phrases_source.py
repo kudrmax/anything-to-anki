@@ -1,4 +1,4 @@
-"""Migration 0039 creates the built-in "From everywhere" source exactly once."""
+"""Migration 0039 creates the built-in "Saved phrases" source exactly once."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -25,7 +25,7 @@ def _alembic_config(db_url: str) -> Config:
     return cfg
 
 
-def test_everywhere_source_is_created_once(tmp_path: Path) -> None:
+def test_saved_phrases_source_is_created_once(tmp_path: Path) -> None:
     db_url = f"sqlite:///{tmp_path / 'app.db'}"
     cfg = _alembic_config(db_url)
     command.upgrade(cfg, REVISION_UNDER_TEST)
@@ -41,6 +41,6 @@ def test_everywhere_source_is_created_once(tmp_path: Path) -> None:
     with Session(engine) as session:
         source = SqlaSourceRepository(session).get_first_by_content_type(ContentType.PHRASES)
     assert source is not None
-    assert source.title == "From everywhere"
+    assert source.title == "Saved phrases"
     assert source.is_permanent
     assert source.created_at.tzinfo is not None

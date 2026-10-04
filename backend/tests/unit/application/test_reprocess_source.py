@@ -132,11 +132,11 @@ class TestReprocessSourceUseCase:
         process_source_uc.start.assert_not_called()
 
 
-def test_everywhere_source_is_not_reprocessed() -> None:
+def test_saved_phrases_source_is_not_reprocessed() -> None:
     uc, source_repo, candidate_repo, _, _ = _make_use_case()
-    everywhere = Source.everywhere()
-    everywhere.id = 1
-    source_repo.get_by_id.return_value = everywhere
+    saved_source = Source.saved_phrases()
+    saved_source.id = 1
+    source_repo.get_by_id.return_value = saved_source
 
     with pytest.raises(PermanentSourceError):
         uc.execute(1)

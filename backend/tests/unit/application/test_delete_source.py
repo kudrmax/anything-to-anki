@@ -46,10 +46,10 @@ class TestDeleteSourceUseCase:
             call.delete(1),
         ]
 
-    def test_everywhere_source_is_not_deleted(self) -> None:
-        everywhere = Source.everywhere()
-        everywhere.id = 1
-        self.source_repo.get_by_id.return_value = everywhere
+    def test_saved_phrases_source_is_not_deleted(self) -> None:
+        saved_source = Source.saved_phrases()
+        saved_source.id = 1
+        self.source_repo.get_by_id.return_value = saved_source
 
         with pytest.raises(PermanentSourceError):
             self.use_case.execute(1)

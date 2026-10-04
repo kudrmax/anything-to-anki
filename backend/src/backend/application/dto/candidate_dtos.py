@@ -12,7 +12,7 @@ class AddManualCandidateRequest(BaseModel):
     context_fragment: str
 
 
-class AddEverywherePhraseRequest(BaseModel):
+class AddSavedPhraseRequest(BaseModel):
     """Input for saving a phrase met anywhere, with the target picked in it."""
 
     phrase: str

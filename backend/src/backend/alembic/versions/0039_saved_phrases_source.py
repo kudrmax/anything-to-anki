@@ -1,4 +1,4 @@
-"""Create the built-in "From everywhere" source.
+"""Create the built-in "Saved phrases" source.
 
 Revision ID: 0039
 Revises: 0038
@@ -17,14 +17,14 @@ down_revision = "0038"
 branch_labels = None
 depends_on = None
 
-EVERYWHERE_CONTENT_TYPE = "phrases"
+PHRASES_CONTENT_TYPE = "phrases"
 
 
 def upgrade() -> None:
     connection = op.get_bind()
     exists = connection.execute(
         sa.text("SELECT 1 FROM sources WHERE content_type = :content_type"),
-        {"content_type": EVERYWHERE_CONTENT_TYPE},
+        {"content_type": PHRASES_CONTENT_TYPE},
     ).first()
     if exists:
         return
@@ -39,10 +39,10 @@ def upgrade() -> None:
     )
     op.bulk_insert(sources, [{
         "raw_text": "",
-        "title": "From everywhere",
+        "title": "Saved phrases",
         "status": "done",
         "input_method": "phrase_added",
-        "content_type": EVERYWHERE_CONTENT_TYPE,
+        "content_type": PHRASES_CONTENT_TYPE,
         "created_at": datetime.now(tz=UTC).replace(tzinfo=None),
     }])
 
@@ -50,6 +50,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute(
         "DELETE FROM candidates WHERE source_id IN "
-        f"(SELECT id FROM sources WHERE content_type = '{EVERYWHERE_CONTENT_TYPE}')"
+        f"(SELECT id FROM sources WHERE content_type = '{PHRASES_CONTENT_TYPE}')"
     )
-    op.execute(f"DELETE FROM sources WHERE content_type = '{EVERYWHERE_CONTENT_TYPE}'")
+    op.execute(f"DELETE FROM sources WHERE content_type = '{PHRASES_CONTENT_TYPE}'")

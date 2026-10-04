@@ -43,8 +43,8 @@ def test_phrase_added_goes_to_phrases() -> None:
     assert resolve_content_type(InputMethod.PHRASE_ADDED) == ContentType.PHRASES
 
 
-def test_everywhere_source_has_no_text_and_is_permanent() -> None:
-    source = Source.everywhere()
+def test_saved_phrases_source_has_no_text_and_is_permanent() -> None:
+    source = Source.saved_phrases()
 
     assert source.content_type == ContentType.PHRASES
     assert source.status == SourceStatus.DONE

@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.source_status import SourceStatus
 
 
-EVERYWHERE_SOURCE_TITLE = "From everywhere"
+SAVED_PHRASES_TITLE = "Saved phrases"
 
 
 @dataclass
@@ -34,7 +34,7 @@ class Source:
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
 
     @classmethod
-    def everywhere(cls) -> Source:
+    def saved_phrases(cls) -> Source:
         """The built-in source of phrases met anywhere and added one by one by hand."""
         from backend.domain.value_objects.content_type import ContentType
         from backend.domain.value_objects.input_method import InputMethod
@@ -45,7 +45,7 @@ class Source:
             status=SourceStatus.DONE,
             input_method=InputMethod.PHRASE_ADDED,
             content_type=ContentType.PHRASES,
-            title=EVERYWHERE_SOURCE_TITLE,
+            title=SAVED_PHRASES_TITLE,
         )
 
     @property

@@ -253,8 +253,8 @@ export const api = {
       body: JSON.stringify({ example_text: exampleText }),
     }),
 
-  addEverywherePhrase: (phrase: string, target: string) =>
-    req<StoredCandidate>('/sources/everywhere/phrases', {
+  addSavedPhrase: (phrase: string, target: string) =>
+    req<StoredCandidate>('/sources/saved-phrases', {
       method: 'POST',
       body: JSON.stringify({ phrase, target }),
     }),

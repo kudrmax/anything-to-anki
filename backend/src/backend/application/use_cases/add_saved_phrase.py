@@ -23,10 +23,10 @@ if TYPE_CHECKING:
 SINGLE_OCCURRENCE = 1
 
 
-class AddEverywherePhraseUseCase:
+class AddSavedPhraseUseCase:
     """Saves a phrase met anywhere, with the target the user picked in it.
 
-    The phrase goes to the built-in "From everywhere" source as a candidate
+    The phrase goes to the built-in "Saved phrases" source as a candidate
     already marked to learn: the user chose it, there is nothing to review.
     """
 
@@ -58,7 +58,7 @@ class AddEverywherePhraseUseCase:
         if not phrase_contains_target(phrase, target):
             raise InvalidPhraseError("Pick the target among the words of the phrase")
 
-        source_id = self._everywhere_source_id()
+        source_id = self._saved_phrases_source_id()
         candidate = self._candidate_factory.build(
             source_id=source_id,
             surface_form=target,
@@ -70,9 +70,9 @@ class AddEverywherePhraseUseCase:
         self._review_status.refresh(source_id)
         return stored_candidate_to_dto(saved)
 
-    def _everywhere_source_id(self) -> int:
+    def _saved_phrases_source_id(self) -> int:
         source = self._source_repo.get_first_by_content_type(ContentType.PHRASES)
         if source is None:
-            source = self._source_repo.create(Source.everywhere())
+            source = self._source_repo.create(Source.saved_phrases())
         assert source.id is not None
         return source.id

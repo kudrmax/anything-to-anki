@@ -7,8 +7,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from backend.application.use_cases.add_everywhere_phrase import AddEverywherePhraseUseCase
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
+from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.assign_source_collection import AssignSourceToCollectionUseCase
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
@@ -289,8 +289,8 @@ class Container:
             review_status=self._review_status_updater(session),
         )
 
-    def add_everywhere_phrase_use_case(self, session: Session) -> AddEverywherePhraseUseCase:
-        return AddEverywherePhraseUseCase(
+    def add_saved_phrase_use_case(self, session: Session) -> AddSavedPhraseUseCase:
+        return AddSavedPhraseUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             text_analyzer=self._text_analyzer,

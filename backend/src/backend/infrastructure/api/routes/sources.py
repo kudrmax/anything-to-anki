@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.candidate_dtos import (  # noqa: TC001
-    AddEverywherePhraseRequest,
     AddManualCandidateRequest,
+    AddSavedPhraseRequest,
 )
 from backend.application.dto.collection_dtos import AssignCollectionRequest  # noqa: TC001
 from backend.application.dto.file_source_dtos import FileSourceRequest  # noqa: TC001
@@ -90,14 +90,14 @@ def create_url_source(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.post("/everywhere/phrases", status_code=201)
-def add_everywhere_phrase(
-    request: AddEverywherePhraseRequest,
+@router.post("/saved-phrases", status_code=201)
+def add_saved_phrase(
+    request: AddSavedPhraseRequest,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> StoredCandidateDTO:
     try:
-        use_case = container.add_everywhere_phrase_use_case(session)
+        use_case = container.add_saved_phrase_use_case(session)
         result = use_case.execute(request.phrase, request.target)
         session.commit()
         return result
