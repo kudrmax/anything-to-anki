@@ -351,6 +351,7 @@ export interface QueueGlobalSummary {
   video_download: JobTypeSummary
   topic_targets: JobTypeSummary
   polish: JobTypeSummary
+  tts: JobTypeSummary
 }
 
 export interface QueueJob {

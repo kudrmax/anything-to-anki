@@ -27,15 +27,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/queue", tags=["queue"])
 
-# Map frontend job_type strings to JobType enum
-_JOB_TYPE_MAP: dict[str, JobType] = {
-    "meaning": JobType.MEANING,
-    "media": JobType.MEDIA,
-    "pronunciation": JobType.PRONUNCIATION,
-    "video_download": JobType.VIDEO_DOWNLOAD,
-    "topic_targets": JobType.TOPIC_TARGETS,
-    "polish": JobType.POLISH,
-}
+_JOB_TYPE_MAP: dict[str, JobType] = {job_type.value: job_type for job_type in JobType}
 # Failed jobs without an error message are grouped under this label.
 _UNKNOWN_ERROR = "Unknown error"
 
