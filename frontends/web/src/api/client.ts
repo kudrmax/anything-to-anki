@@ -12,12 +12,14 @@ import type {
   FollowUpAction,
   FrequentWordThresholdOption,
   GenerateMeaningResult,
+  GenerationKind,
+  GenerationOverview,
+  GenerationScope,
   GlobalExport,
   KnownWord,
   QueueFailed,
   QueueGlobalSummary,
   QueueOrder,
-  QueueSummary,
   ReprocessStats,
   Settings,
   SourceDetail,
@@ -132,30 +134,6 @@ export const api = {
   downloadVideo: (sourceId: number) =>
     req<{ status: string }>(`/sources/${sourceId}/download-video`, { method: 'POST' }),
 
-  enqueueMeaningGeneration: (sourceId: number, sort: CandidateSortOrder = 'relevance') =>
-    req<{ enqueued: number; batches: number }>(
-      `/sources/${sourceId}/meanings/generate?sort=${sort}`,
-      { method: 'POST' },
-    ),
-
-  cancelMeaningQueue: (sourceId: number) =>
-    req<{ cancelled: number }>(`/sources/${sourceId}/meanings/cancel`, { method: 'POST' }),
-
-  retryFailedMeanings: (sourceId: number) =>
-    req<{ enqueued: number }>(`/sources/${sourceId}/meanings/retry-failed`, { method: 'POST' }),
-
-  enqueuePhrasePolish: (sourceId: number, sort: CandidateSortOrder = 'relevance') =>
-    req<{ enqueued: number }>(
-      `/sources/${sourceId}/phrases/polish?sort=${sort}`,
-      { method: 'POST' },
-    ),
-
-  cancelPhrasePolishQueue: (sourceId: number) =>
-    req<{ cancelled: number }>(`/sources/${sourceId}/phrases/polish/cancel`, { method: 'POST' }),
-
-  retryFailedPhrasePolish: (sourceId: number) =>
-    req<{ enqueued: number }>(`/sources/${sourceId}/phrases/polish/retry-failed`, { method: 'POST' }),
-
   polishPhraseAgain: (candidateId: number) =>
     req<{ status: string }>(`/candidates/${candidateId}/polish`, { method: 'POST' }),
 
@@ -165,50 +143,23 @@ export const api = {
       body: JSON.stringify({ reverted }),
     }),
 
-  enqueueMediaGeneration: (sourceId: number, sort: CandidateSortOrder = 'relevance') =>
-    req<{ enqueued: number }>(
-      `/sources/${sourceId}/media/generate?sort=${sort}`,
-      { method: 'POST' },
-    ),
-
-  cancelMediaQueue: (sourceId: number) =>
-    req<{ cancelled: number }>(`/sources/${sourceId}/media/cancel`, { method: 'POST' }),
-
-  retryFailedMedia: (sourceId: number) =>
-    req<{ enqueued: number }>(`/sources/${sourceId}/media/retry-failed`, { method: 'POST' }),
-
-  enqueuePronunciationDownload: (sourceId: number) =>
-    req<{ enqueued: number }>(
-      `/sources/${sourceId}/pronunciation/generate`,
-      { method: 'POST' },
-    ),
-
-  cancelPronunciationQueue: (sourceId: number) =>
-    req<{ cancelled: number }>(`/sources/${sourceId}/pronunciation/cancel`, { method: 'POST' }),
-
-  retryFailedPronunciation: (sourceId: number) =>
-    req<{ enqueued: number }>(`/sources/${sourceId}/pronunciation/retry-failed`, { method: 'POST' }),
-
-  enqueueTTSGeneration: (sourceId: number) =>
-    req<{ enqueued: number }>(
-      `/sources/${sourceId}/tts/generate`,
-      { method: 'POST' },
-    ),
-
-  cancelTTSQueue: (sourceId: number) =>
-    req<{ cancelled: number }>(`/sources/${sourceId}/tts/cancel`, { method: 'POST' }),
-
-  retryFailedTTS: (sourceId: number) =>
-    req<{ enqueued: number }>(`/sources/${sourceId}/tts/retry-failed`, { method: 'POST' }),
-
   generateCandidateTTS: (candidateId: number) =>
     req<{ status: string }>(`/candidates/${candidateId}/generate-tts`, { method: 'POST' }),
 
   enqueueTopicGeneration: (sourceId: number) =>
     req<{ status: string }>(`/sources/${sourceId}/topic-targets/generate`, { method: 'POST' }),
 
-  getQueueSummary: (sourceId: number) =>
-    req<QueueSummary>(`/sources/${sourceId}/queue-summary`),
+  getGenerationStatus: (sourceId: number) =>
+    req<GenerationOverview>(`/sources/${sourceId}/generation`),
+
+  runGeneration: (sourceId: number, kind: GenerationKind, scope: GenerationScope, sort: CandidateSortOrder = 'relevance') =>
+    req<{ enqueued: number }>(
+      `/sources/${sourceId}/generation/${kind}?scope=${scope}&sort=${sort}`,
+      { method: 'POST' },
+    ),
+
+  cancelGeneration: (sourceId: number, kind: GenerationKind) =>
+    req<{ cancelled: number }>(`/sources/${sourceId}/generation/${kind}/cancel`, { method: 'POST' }),
 
   getReprocessStats: (sourceId: number) =>
     req<ReprocessStats>(`/sources/${sourceId}/reprocess-stats`),

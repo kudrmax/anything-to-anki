@@ -267,18 +267,28 @@ export interface GenerateMeaningResult {
   tokens_used: number
 }
 
-export interface QueueStatus {
-  queued: number
+export type GenerationKind = 'polish' | 'meaning' | 'media' | 'pronunciation' | 'tts'
+
+/** missing — cards nothing was made for yet; failed — cards whose last attempt failed; all — every card, replacing results. */
+export type GenerationScope = 'missing' | 'failed' | 'all'
+
+export type GenerationBlocker = 'video_not_downloaded' | 'video_downloading'
+
+/** done + running + failed + missing === total */
+export interface GenerationKindStatus {
+  kind: GenerationKind
+  total: number
+  done: number
   running: number
   failed: number
+  missing: number
+  blocked_by: GenerationBlocker | null
 }
 
-export interface QueueSummary {
-  polish: QueueStatus
-  meaning: QueueStatus
-  media: QueueStatus
-  pronunciation: QueueStatus
-  tts: QueueStatus
+/** Фоновая генерация по карточкам источника. */
+export interface GenerationOverview {
+  kinds: GenerationKindStatus[]
+  in_progress: boolean
 }
 
 export interface ReprocessStats {

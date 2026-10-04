@@ -70,7 +70,7 @@ export function useExport(sourceId?: number) {
     setGeneratingAll(true)
     setError(null)
     try {
-      for (const section of sections) await api.enqueueMeaningGeneration(section.source_id)
+      for (const section of sections) await api.runGeneration(section.source_id, 'meaning', 'missing')
       const updated = await api.getExportCards(sourceId)
       setSections(updated.sections)
       showToast('Generation started in background')
