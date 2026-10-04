@@ -71,3 +71,10 @@ export const sourceTextShownPref = makePref<boolean>({
   default: true,
   parse: (raw) => raw !== 'false',
 })
+
+/** Список следующих фраз под карточкой; скрыт — видна только текущая и стрелки. */
+export const phraseListShownPref = makePref<boolean>({
+  key: 'review.phraseListShown',
+  default: true,
+  parse: (raw) => raw !== 'false',
+})

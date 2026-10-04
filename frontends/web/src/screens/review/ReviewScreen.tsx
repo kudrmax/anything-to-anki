@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { decisionChange, type Decision } from '@/lib/decision'
 import { reviewAction, type ReviewAction } from '@/lib/hotkeys'
-import { sourceTextShownPref } from '@/lib/preferences'
+import { phraseListShownPref, sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
 import { ChevronLeft, ChevronRight, FileText, List, PanelRightClose, PanelRightOpen, Upload } from 'lucide-react'
 import { Banner, Button, Empty, Icon, IconButton, Progress, Spinner, Toast } from '@/ui'
@@ -31,6 +31,11 @@ export function ReviewScreen() {
   const toggleSourceText = () => {
     sourceTextShownPref.write(!sourceTextShown)
     setSourceTextShown(!sourceTextShown)
+  }
+  const [phraseListShown, setPhraseListShown] = useState(() => phraseListShownPref.read())
+  const togglePhraseList = () => {
+    phraseListShownPref.write(!phraseListShown)
+    setPhraseListShown(!phraseListShown)
   }
 
   const { source, candidates, currentId, counts, editing } = review
@@ -112,6 +117,15 @@ export function ReviewScreen() {
             <GenerateMenu review={review} />
           </>
         )}
+        {candidates.length > 0 && (
+          <IconButton
+            className={css.desktopOnly}
+            icon={List}
+            active={phraseListShown}
+            label={phraseListShown ? 'Hide phrase list' : 'Show phrase list'}
+            onClick={togglePhraseList}
+          />
+        )}
         {hasSourceText && (
           <IconButton
             className={css.desktopOnly}
@@ -158,12 +172,12 @@ export function ReviewScreen() {
 
   return (
     <Page fit wide header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={(review.vpnBlocked || editing) ? banner : undefined}>
-      <div ref={listRef} className={css.body}>
+      <div ref={listRef} className={phraseListShown ? css.body : `${css.body} ${css.focus}`}>
         {candidates.length === 0 && <Empty>No candidates found for this source.</Empty>}
         {candidates.length > 0 && (
           <div className={css.phoneBar}>
-            {hasSourceText && <IconButton icon={FileText} label="Source text" active={view === 'text'} onClick={() => togglePhoneView('text')} />}
-            <IconButton icon={List} label="All phrases" active={view === 'list'} onClick={() => togglePhoneView('list')} />
+            {hasSourceText && <IconButton className={css.phoneOnly} icon={FileText} label="Source text" active={view === 'text'} onClick={() => togglePhoneView('text')} />}
+            <IconButton className={css.phoneOnly} icon={List} label="All phrases" active={view === 'list'} onClick={() => togglePhoneView('list')} />
             <span className={css.phoneBarPosition}>{currentIndex + 1} / {candidates.length}</span>
             <IconButton icon={ChevronLeft} label="Previous phrase" disabled={prevId === null} onClick={() => prevId !== null && showCard(prevId)} />
             <IconButton icon={ChevronRight} label="Next phrase" disabled={nextId === null} onClick={() => nextId !== null && showCard(nextId)} />

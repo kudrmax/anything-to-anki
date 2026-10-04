@@ -167,6 +167,7 @@
   --queue-row-display: flex;
   --show-more-display: block;
   --phone-flex: none;
+  --phone-inline: none;
   --desktop-display: inline-flex;
   --header-px: calc(var(--px) + var(--sheet-pad));
   --header-meta-ml: 0px;
@@ -318,6 +319,7 @@
     --queue-row-display: none;
     --show-more-display: none;
     --phone-flex: flex;
+    --phone-inline: inline-flex;
     --desktop-display: none;
     --header-px: 0px;
     --header-meta-ml: auto;
