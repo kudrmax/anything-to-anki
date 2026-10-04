@@ -7,6 +7,7 @@ import { CardPhrase } from './CardPhrase'
 import { CefrTooltip } from './CefrTooltip'
 import { DecisionButtons, PhraseTools } from './PhraseActions'
 import type { Review } from './useReview'
+import { usePhraseEditor } from './usePhraseEditor'
 import phrase from '@/ui/phrase.module.css'
 import css from './review.module.css'
 
@@ -49,6 +50,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   const { sourceId, player } = review
   const meaning = candidate.meaning
   const media = review.mediaFor(candidate)
+  const phraseEditor = usePhraseEditor(candidate, review)
 
   const usUrl = mediaUrl(sourceId, candidate.pronunciation?.us_audio_path)
   const ukUrl = mediaUrl(sourceId, candidate.pronunciation?.uk_audio_path)
@@ -77,7 +79,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   return (
     <article className={css.card} data-candidate-id={candidate.id}>
       <header className={css.cardHead}>
-        <CardPhrase candidate={candidate} review={review} />
+        <CardPhrase candidate={candidate} editor={phraseEditor} />
         {hasMeta && (
           <div className={css.meta}>
             {meaning?.ipa && <Text mono>{meaning.ipa}</Text>}
@@ -152,7 +154,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             {facts.map(fact => <span key={fact}>{fact}</span>)}
             {candidate.origin && <span>{originLabel(candidate.origin)}</span>}
           </div>
-          <PhraseTools candidate={candidate} review={review} />
+          <PhraseTools candidate={candidate} review={review} onEditPhrase={phraseEditor.editable ? phraseEditor.start : undefined} />
         </div>
       </div>
 

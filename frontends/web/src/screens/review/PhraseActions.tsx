@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, Feather, Flag, Image, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, X, ZoomIn, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Feather, Flag, Image, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { decisionChange, type Decision } from '@/lib/decision'
 import { Button, Field, IconButton, Menu, type MenuItem } from '@/ui'
@@ -41,7 +41,12 @@ export function DecisionButtons({ candidate, review }: PhraseActionsProps) {
   )
 }
 
-export function PhraseTools({ candidate, review }: PhraseActionsProps) {
+interface PhraseToolsProps extends PhraseActionsProps {
+  /** Нет — фразу этого источника править нельзя, карандаш сразу правит границы. */
+  onEditPhrase?: () => void
+}
+
+export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProps) {
   const [question, setQuestion] = useState('')
   const [complaint, setComplaint] = useState('')
   const [reasons, setReasons] = useState<string[]>([])
@@ -83,6 +88,11 @@ export function PhraseTools({ candidate, review }: PhraseActionsProps) {
       close()
     }
   }
+
+  const editItems: MenuItem[] = onEditPhrase ? [
+    { label: 'Edit phrase text', icon: TextCursorInput, onSelect: onEditPhrase },
+    { label: 'Edit boundary in source', icon: TextSelect, onSelect: () => review.startEditing(id) },
+  ] : []
 
   return (
     <div className={css.tools}>
@@ -129,7 +139,9 @@ export function PhraseTools({ candidate, review }: PhraseActionsProps) {
       />
       {isEditing
         ? <IconButton icon={X} label="Cancel editing" active onClick={review.cancelEditing} />
-        : <IconButton icon={Pencil} label="Edit context fragment" onClick={() => review.startEditing(id)} />}
+        : onEditPhrase
+          ? <Menu trigger={<IconButton icon={Pencil} label="Edit phrase" />} items={editItems} />
+          : <IconButton icon={Pencil} label="Edit context fragment" onClick={() => review.startEditing(id)} />}
     </div>
   )
 }
