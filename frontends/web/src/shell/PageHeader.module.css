@@ -1,6 +1,10 @@
-.header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3) var(--gap); min-height: var(--h); margin: var(--page-top) 0 var(--gap); padding: 0 calc(var(--px) + var(--sheet-pad)); font-size: var(--fs-s); color: var(--tx3); }
+.header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3) var(--gap); min-height: var(--h); margin: var(--page-top) 0 var(--gap); padding: 0 var(--header-px); font-size: var(--fs-s); color: var(--tx3); }
 .lead { flex: 1 1 var(--header-lead-min); min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--gap); }
 .heading { min-width: 0; display: flex; align-items: center; gap: var(--gap); }
 .back { margin-inline: var(--back-trim); }
 .title { min-width: 0; font: var(--fw-b) var(--fs-h1)/var(--lh-tight) var(--ui); letter-spacing: var(--ls-tight); color: var(--tx); overflow-wrap: break-word; }
-.meta { display: flex; align-items: center; gap: var(--gap); flex: none; }
+.meta { display: flex; align-items: center; gap: var(--gap); flex: none; margin-left: var(--header-meta-ml); }
+/* мета встаёт в ряд с действиями, когда шапка переносится (телефон) */
+.metaWithActions > .lead { display: var(--header-lead-display); }
+.metaWithActions .heading { flex: 0 1 var(--header-heading-basis); }
+.metaWithActions .meta { order: var(--header-meta-order); }

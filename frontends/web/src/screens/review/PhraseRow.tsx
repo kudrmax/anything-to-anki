@@ -8,12 +8,13 @@ const TONE: Record<CandidateStatus, Tone> = { pending: 'idle', learn: 'ok', know
 interface PhraseRowProps {
   candidate: StoredCandidate
   onSelect: (id: number) => void
+  current?: boolean
 }
 
 /** Свёрнутая фраза в очереди: одна строка, полный текст — в подсказке. */
-export function PhraseRow({ candidate, onSelect }: PhraseRowProps) {
+export function PhraseRow({ candidate, onSelect, current = false }: PhraseRowProps) {
   const rated = candidate.status !== 'pending'
-  const classes = [css.queueItem, rated && css.queueItemRated].filter(Boolean).join(' ')
+  const classes = [css.queueItem, rated && css.queueItemRated, current && css.queueItemCurrent].filter(Boolean).join(' ')
   return (
     <button type="button" className={classes} data-candidate-id={candidate.id} title={candidate.phrase} onClick={() => onSelect(candidate.id)}>
       {rated && <StatusDot tone={TONE[candidate.status]} />}

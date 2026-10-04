@@ -4,15 +4,16 @@
 .groupTitle span { margin-left: var(--s3); font-size: var(--fs-s); font-weight: var(--fw); color: var(--tx3); }
 
 /* карточка: фраза и определение | перевод | превью | действие */
-.row { display: grid; grid-template-columns: minmax(0, 1fr) var(--export-translation-w) var(--h); align-items: start; gap: var(--s5); padding: var(--s4) 0; cursor: pointer; }
-.withMedia { grid-template-columns: minmax(0, 1fr) var(--export-translation-w) var(--thumb-w) var(--h); }
+.row { display: grid; grid-template-columns: var(--export-row-cols); grid-template-areas: var(--export-row-areas); align-items: start; gap: var(--export-row-gap); padding: var(--s4) 0; cursor: pointer; }
+.withMedia { grid-template-columns: var(--export-media-cols); grid-template-areas: var(--export-media-areas); }
 .row + .row { border-top: var(--bw) solid var(--line-soft); }
-.main { min-width: 0; display: flex; flex-direction: column; gap: var(--s2); }
+.main { grid-area: main; min-width: 0; display: flex; flex-direction: column; gap: var(--s2); }
 .sentence { font-size: var(--fs-t); line-height: var(--lh); }
 .definition { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
 .missing { font-size: var(--fs-m); color: var(--warn); }
 .details { display: flex; flex-direction: column; gap: var(--s3); margin-top: var(--s3); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
 .examples { list-style: none; display: flex; flex-direction: column; gap: var(--s2); padding-left: var(--s5); border-left: var(--underline) solid var(--line); }
-.translation { min-width: 0; font-size: var(--fs-b); font-weight: var(--fw-m); line-height: var(--lh); overflow-wrap: anywhere; padding-top: var(--s1); }
-.more { opacity: 0; transition: opacity var(--t); }
+.translation { grid-area: translation; min-width: 0; font-size: var(--fs-b); font-weight: var(--fw-m); line-height: var(--lh); overflow-wrap: anywhere; padding-top: var(--s1); }
+.more { grid-area: more; opacity: var(--reveal); transition: opacity var(--t); }
 .row:hover .more, .more:focus-within { opacity: 1; }
+.media { grid-area: media; }

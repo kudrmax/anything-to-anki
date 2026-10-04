@@ -20,6 +20,9 @@ interface SourceTextProps {
   onTextSelected: (phrase: string, point: SelectionPoint) => void
 }
 
+const TOUCH_QUERY = '(hover: none)'
+const TOUCH_SELECTION_SETTLE_MS = 600
+
 const SINGLE_BREAK = /(?<!\n)\n(?!\n)/g
 /** Одиночный перенос строки — часть того же абзаца, пустая строка — новый абзац. */
 const flow = (text: string): string => text.replace(SINGLE_BREAK, ' ')
@@ -43,19 +46,35 @@ export function SourceText({ text, candidates, focusId, onWordClick, onTextSelec
     // eslint-disable-next-line react-hooks/exhaustive-deps -- прокручиваем при смене фразы, а не при каждом обновлении списка
   }, [focusId])
 
-  const onMouseUp = () => {
+  const reportSelection = () => {
     const selection = window.getSelection()
     if (!selection || selection.isCollapsed || !selection.rangeCount) return
+    if (!containerRef.current?.contains(selection.anchorNode)) return
     const phrase = selection.toString().trim()
     if (!phrase) return
     const rect = selection.getRangeAt(0).getBoundingClientRect()
     onTextSelected(phrase, { x: rect.left, top: rect.top, bottom: rect.bottom })
   }
 
+  // На касании mouseup после выделения не приходит: ждём, пока пользователь перестанет двигать границы.
+  useEffect(() => {
+    if (!window.matchMedia(TOUCH_QUERY).matches) return
+    let timer: number | undefined
+    const onSelectionChange = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(reportSelection, TOUCH_SELECTION_SETTLE_MS)
+    }
+    document.addEventListener('selectionchange', onSelectionChange)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('selectionchange', onSelectionChange)
+    }
+  })
+
   const inFragment = (start: number, end: number) => bounds !== null && start < bounds.end && end > bounds.start
 
   return (
-    <div ref={containerRef} className={css.source} onMouseUp={onMouseUp}>
+    <div ref={containerRef} className={css.source} onMouseUp={reportSelection}>
       {segments.map((segment, i) => {
         const end = segment.start + segment.content.length
         if (segment.type === 'text') {

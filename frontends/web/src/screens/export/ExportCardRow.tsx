@@ -58,7 +58,7 @@ export function ExportCardRow({ card, withMedia, generating, onGenerate, player 
           )}
       </div>
       {withMedia && (
-        <div onClick={stop}>
+        <div className={css.media} onClick={stop}>
           <MediaThumb
             screenshotUrl={card.screenshot_url}
             audioUrl={card.audio_url}

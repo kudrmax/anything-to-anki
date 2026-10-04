@@ -27,6 +27,12 @@ BANNER_COLOR := \033[1;33m
 endif
 
 # ── Вспомогательные макросы ────────────────────────────────────────
+# Адрес в локальной сети — для телефона в той же Wi-Fi. $(1) — порт.
+define print_lan_url
+	@ip=$$(ipconfig getifaddr en0 2>/dev/null); \
+	if [ -n "$$ip" ]; then printf "  📱 http://%s:%s\n" "$$ip" "$(1)"; fi
+endef
+
 # Убить процесс по PID-файлу. $(1) — путь к PID-файлу, $(2) — название для лога.
 define kill_by_pid
 	@if [ -f $(1) ]; then \
@@ -238,6 +244,7 @@ up: _check_env _check_setup dict-update  ## Запустить (ai_proxy + app +
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "  AnythingToAnki  [instance: %s]\n" "$(INSTANCE_ENV_NAME)"
 	@printf "  → http://localhost:%s\n" "$(PORT)"
+	$(call print_lan_url,$(PORT))
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "\033[0m\n"
 
@@ -263,6 +270,7 @@ up-worktree: _check_env _check_setup dict-update  ## Запустить worktree
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "  AnythingToAnki  [worktree]\n"
 	@printf "  → http://localhost:%s\n" "$(WORKTREE_PORT)"
+	$(call print_lan_url,$(WORKTREE_PORT))
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "\033[0m\n"
 

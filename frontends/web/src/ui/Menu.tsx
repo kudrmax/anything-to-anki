@@ -41,6 +41,15 @@ export function Menu({ trigger, items, footer, emptyText, align = 'end', openOn 
     const trigger = rootRef.current.getBoundingClientRect()
     const height = menu.getBoundingClientRect().height
     menu.classList.toggle(css.up, trigger.bottom + height > window.innerHeight && trigger.top > height)
+    // Не вылезаем за край окна: на узком экране меню у кнопки посередине строки иначе обрезается.
+    const style = getComputedStyle(menu)
+    const edge = parseFloat(style.getPropertyValue('--page-x'))
+    const applied = parseFloat(style.getPropertyValue('--menu-shift')) || 0
+    const box = menu.getBoundingClientRect()
+    const left = box.left - applied
+    const right = box.right - applied
+    const shift = Math.max(0, edge - left) - Math.max(0, right - (window.innerWidth - edge))
+    menu.style.setProperty('--menu-shift', `${shift}px`)
   }
 
   useEffect(() => {
@@ -87,7 +96,11 @@ function MenuEntry({ item, side, onDone }: { item: MenuItem; side: 'left' | 'rig
     item.onSelect?.()
   }
   return (
-    <div className={css.entry} onMouseEnter={() => item.items && setSubOpen(true)} onMouseLeave={() => setSubOpen(false)}>
+    <div
+      className={css.entry}
+      onPointerEnter={e => e.pointerType === 'mouse' && item.items && setSubOpen(true)}
+      onPointerLeave={e => e.pointerType === 'mouse' && setSubOpen(false)}
+    >
       {item.separated && <div className={css.separator} />}
       <button
         type="button"

@@ -3,18 +3,18 @@
 .groupTitle { display: flex; gap: var(--s3); margin-bottom: var(--s3); font-size: var(--fs-xs); font-weight: var(--fw-m); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--tx3); }
 
 /* строка источника: тип | название | прогресс | действие | меню */
-.row { display: grid; grid-template-columns: var(--h-word) minmax(0, 1fr) var(--source-progress-w) var(--source-action-w) var(--h); align-items: center; gap: var(--s5); padding: var(--s4); margin: 0 calc(var(--s4) * -1); border-radius: var(--r); transition: background var(--t); }
+.row { display: grid; grid-template-columns: var(--source-row-cols); grid-template-areas: var(--source-row-areas); align-items: center; gap: var(--source-row-gap); padding: var(--s4); margin: 0 calc(var(--s4) * -1); border-radius: var(--r); transition: background var(--t); }
 .row:hover { background: var(--hover); }
 .clickable { cursor: pointer; }
-.type { width: var(--h-word); height: var(--h-word); display: grid; place-items: center; border-radius: var(--rc); background: var(--soft); color: var(--tx2); }
-.name { min-width: 0; }
+.type { grid-area: type; width: var(--h-word); height: var(--h-word); display: grid; place-items: center; border-radius: var(--rc); background: var(--soft); color: var(--tx2); }
+.name { grid-area: name; min-width: 0; }
 .title { display: block; font-size: var(--fs-t); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .done .title, .done .type { color: var(--tx3); }
-.progress { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
+.progress { grid-area: progress; display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
 .caption { display: inline-flex; align-items: center; gap: var(--s2); }
-.action { display: flex; justify-content: flex-end; }
-.more { opacity: 0; transition: opacity var(--t); }
+.action { grid-area: action; display: flex; justify-content: flex-end; }
+.more { grid-area: more; opacity: var(--reveal); transition: opacity var(--t); }
 .row:hover .more, .more:focus-within, .more:has([role="menu"]) { opacity: 1; }
 
 /* правая колонка */
-.add { padding: var(--s6); border: var(--dash-bw) dashed var(--line); border-radius: var(--r); }
+.add { padding: var(--source-add-pad); border: var(--dash-bw) dashed var(--line); border-radius: var(--r); }

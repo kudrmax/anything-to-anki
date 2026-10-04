@@ -9,11 +9,13 @@ interface PageProps {
   asideHidden?: boolean
   /** Широкая основная колонка. */
   wide?: boolean
+  /** На телефоне страница занимает ровно экран: контент тянется на остаток высоты. */
+  fit?: boolean
   children: ReactNode
 }
 
-export function Page({ header, aside, banner, asideHidden = false, wide = false, children }: PageProps) {
-  const classes = [css.page, !aside && css.solo, aside && asideHidden && css.asideHidden, wide && css.wide].filter(Boolean).join(' ')
+export function Page({ header, aside, banner, asideHidden = false, wide = false, fit = false, children }: PageProps) {
+  const classes = [css.page, !aside && css.solo, aside && asideHidden && css.asideHidden, wide && css.wide, fit && css.fit].filter(Boolean).join(' ')
   return (
     <div className={classes}>
       <div className={css.full}>{header}</div>

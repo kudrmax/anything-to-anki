@@ -4,7 +4,7 @@ import { decisionChange, type Decision } from '@/lib/decision'
 import { reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
-import { PanelRightClose, PanelRightOpen, Upload } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileText, List, PanelRightClose, PanelRightOpen, Upload } from 'lucide-react'
 import { Banner, Button, Empty, Icon, IconButton, Progress, Spinner, Toast } from '@/ui'
 import { GenerateMenu } from './GenerateMenu'
 import { PhraseCard } from './PhraseCard'
@@ -17,6 +17,8 @@ import { useShownCandidates } from './useShownCandidates'
 import css from './review.module.css'
 
 const DECISION: Partial<Record<ReviewAction, Decision>> = { learn: 'learn', known: 'known', skip: 'skip' }
+type PhoneView = 'card' | 'text' | 'list'
+
 const SOURCES_PATH = '/'
 
 export function ReviewScreen() {
@@ -32,6 +34,9 @@ export function ReviewScreen() {
   }
 
   const { source, candidates, currentId, counts, editing } = review
+  // На телефоне карточка занимает экран, а текст источника и список открываются на её месте.
+  const [phoneView, setPhoneView] = useState<PhoneView>('card')
+  const togglePhoneView = (view: PhoneView) => setPhoneView(prev => (prev === view ? 'card' : view))
   const current = candidates.find(c => c.id === currentId) ?? null
   const list = useShownCandidates(
     candidates,
@@ -40,9 +45,13 @@ export function ReviewScreen() {
     `${id}:${review.sortOrder}`,
   )
 
+  // Держим карточку в поле зрения и когда фоновое обновление переставило её в списке.
+  const currentIndex = candidates.findIndex(c => c.id === currentId)
+  const prevId = candidates[currentIndex - 1]?.id ?? null
+  const nextId = currentIndex >= 0 ? candidates[currentIndex + 1]?.id ?? null : null
   useEffect(() => {
     listRef.current?.querySelector(`[data-candidate-id="${currentId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-  }, [currentId])
+  }, [currentId, currentIndex])
 
   const { mark, setCurrentId, cancelEditing, sourceId } = review
   const toggleAudio = review.player.toggle
@@ -52,10 +61,9 @@ export function ReviewScreen() {
       const action = reviewAction(e)
       if (!action) return
       e.preventDefault()
-      const index = candidates.findIndex(c => c.id === currentId)
       if (action === 'prev' || action === 'next') {
-        const next = candidates[index + (action === 'next' ? 1 : -1)]
-        if (next) setCurrentId(next.id)
+        const target = action === 'next' ? nextId : prevId
+        if (target !== null) setCurrentId(target)
         return
       }
       if (!current) return
@@ -69,7 +77,7 @@ export function ReviewScreen() {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [candidates, current, currentId, editing, selection, mark, setCurrentId, cancelEditing, toggleAudio, sourceId])
+  }, [current, prevId, nextId, editing, selection, mark, setCurrentId, cancelEditing, toggleAudio, sourceId])
 
   if (review.loading) {
     return <Page header={<PageHeader title="Review" back={SOURCES_PATH} />}><Empty><Spinner /></Empty></Page>
@@ -90,6 +98,7 @@ export function ReviewScreen() {
     <PageHeader
       title={source.title}
       back={SOURCES_PATH}
+      metaWithActions
       meta={candidates.length > 0 && (
         <>
           <Progress inline value={counts.progress} />
@@ -106,6 +115,7 @@ export function ReviewScreen() {
         )}
         {hasSourceText && (
           <IconButton
+            className={css.desktopOnly}
             icon={sourceTextShown ? PanelRightOpen : PanelRightClose}
             label={sourceTextShown ? 'Hide source text' : 'Show source text'}
             onClick={toggleSourceText}
@@ -125,23 +135,53 @@ export function ReviewScreen() {
     </>
   )
 
+  // Правка границ фразы идёт по тексту источника — на телефоне показываем его.
+  const view: PhoneView = editing ? 'text' : phoneView
+
+  const showCard = (id: number) => {
+    setCurrentId(id)
+    setPhoneView('card')
+  }
+
+  const sourceText = (onWordClick: (id: number) => void) => (
+    <SourceText
+      text={source.cleaned_text ?? source.raw_text}
+      candidates={candidates}
+      focusId={editing?.candidateId ?? currentId}
+      onWordClick={onWordClick}
+      onTextSelected={(phrase, point) => setSelection({ phrase, point })}
+    />
+  )
+
   const aside = hasSourceText && (
-    <Aside>
-      <SourceText
-        text={source.cleaned_text ?? source.raw_text}
-        candidates={candidates}
-        focusId={editing?.candidateId ?? currentId}
-        onWordClick={setCurrentId}
-        onTextSelected={(phrase, point) => setSelection({ phrase, point })}
-      />
-    </Aside>
+    <Aside>{sourceText(setCurrentId)}</Aside>
   )
 
   return (
-    <Page wide header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={(review.vpnBlocked || editing) ? banner : undefined}>
-      <div ref={listRef}>
+    <Page fit wide header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={(review.vpnBlocked || editing) ? banner : undefined}>
+      <div ref={listRef} className={css.body}>
         {candidates.length === 0 && <Empty>No candidates found for this source.</Empty>}
-        <div className={css.queue}>
+        {candidates.length > 0 && (
+          <div className={css.phoneBar}>
+            {hasSourceText && <IconButton icon={FileText} label="Source text" active={view === 'text'} onClick={() => togglePhoneView('text')} />}
+            <IconButton icon={List} label="All phrases" active={view === 'list'} onClick={() => togglePhoneView('list')} />
+            <span className={css.phoneBarPosition}>{currentIndex + 1} / {candidates.length}</span>
+            <IconButton icon={ChevronLeft} label="Previous phrase" disabled={prevId === null} onClick={() => prevId !== null && showCard(prevId)} />
+            <IconButton icon={ChevronRight} label="Next phrase" disabled={nextId === null} onClick={() => nextId !== null && showCard(nextId)} />
+          </div>
+        )}
+        {view === 'text' && hasSourceText && <div className={css.textPanel}>{sourceText(showCard)}</div>}
+        {view === 'list' && (
+          <div className={css.listPanel}>
+            {list.shown.map(candidate => (
+              <PhraseRow key={candidate.id} candidate={candidate} current={candidate.id === currentId} onSelect={showCard} />
+            ))}
+            {list.hiddenCount > 0 && (
+              <Button variant="link" onClick={list.showMore}>Show {list.nextPageCount} more · {list.hiddenCount} left</Button>
+            )}
+          </div>
+        )}
+        <div className={view === 'card' ? css.queue : `${css.queue} ${css.away}`}>
           {list.shown.map(candidate => candidate.id === currentId
             ? <PhraseCard key={candidate.id} candidate={candidate} review={review} />
             : <PhraseRow key={candidate.id} candidate={candidate} onSelect={setCurrentId} />)}

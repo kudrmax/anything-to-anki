@@ -1,6 +1,6 @@
 .root { position: relative; display: inline-flex; flex: none; }
 .trigger { display: inline-flex; }
-.menu { position: absolute; top: calc(100% + var(--s2)); z-index: var(--z-menu); min-width: var(--menu); padding: var(--s2); border-radius: var(--r); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line), var(--shadow-pop); }
+.menu { position: absolute; top: calc(100% + var(--s2)); translate: var(--menu-shift) 0; z-index: var(--z-menu); min-width: var(--menu); padding: var(--s2); border-radius: var(--r); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line), var(--shadow-pop); }
 .start { left: 0; }
 .end { right: 0; }
 .item { display: flex; align-items: center; gap: var(--s3); width: 100%; min-height: var(--h); padding: var(--s2) var(--s4); border-radius: var(--rc); font-size: var(--fs-c); color: var(--tx); text-align: left; }
@@ -17,11 +17,11 @@
 .item > svg { color: var(--tx3); }
 .danger > svg { color: var(--err); }
 .separator { height: var(--bw); margin: var(--s2) var(--s3); background: var(--line); }
-.submenu { top: calc(var(--s2) * -1); }
+.submenu { translate: none; position: var(--submenu-position); top: calc(var(--s2) * -1); min-width: var(--submenu-min-w); margin-left: calc(var(--submenu-indent) - var(--s2)); background: var(--submenu-bg); box-shadow: var(--submenu-shadow); }
 /* подменю стоит снаружи родительского меню; невидимый мостик держит наведение на зазоре */
 .left { right: calc(100% + var(--s3)); }
 .right { left: calc(100% + var(--s3)); }
-.submenu::after { content: ''; position: absolute; top: 0; bottom: 0; width: var(--s4); }
+.submenu::after { display: var(--submenu-bridge); content: ''; position: absolute; top: 0; bottom: 0; width: var(--s4); }
 .left::after { left: 100%; }
 .right::after { right: 100%; }
 .check { display: inline-flex; color: var(--ac); }

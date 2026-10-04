@@ -135,6 +135,80 @@
   --menu: 240px;
   --polish-pop: min(440px, calc(100vw - var(--s8)));
 
+  /* раскладка, которую перестраивают телефон и касание (значения — в медиа-блоках внизу) */
+  --menu-shift: 0px;                 /* сдвиг меню внутрь окна, задаёт Menu */
+  --aside-pb: 0px;
+  --page-content-order: 0;           /* 1 — боковая колонка встаёт над контентом */
+  --reveal: 0;                       /* элементы, видимые по наведению */
+  --kbd-display: inline;
+  --hint-display: block;
+  --input-fs: inherit;
+  --tab-px: var(--s4);
+  --env-display: inline;
+  --divider-row-wrap: nowrap;
+  --divider-text-basis: 0%;
+  --card-display: grid;
+  --card-pad: var(--s7);
+  --card-head-pb: var(--s6);
+  --card-left-display: flex;
+  --card-left-item-mx: 0;
+  --card-left-item-mt: 0;
+  --card-right-pt: 0;
+  --card-right-bw: var(--bw);
+  --card-right-order: 0;
+  --decisions-order: 0;
+  --decisions-position: static;
+  --current-card-order: 0;
+  --main-pb: var(--s8);
+  --fit-display: grid;
+  --fit-h: auto;
+  --fit-content-display: block;
+  --review-body-display: block;
+  --queue-row-display: flex;
+  --show-more-display: block;
+  --phone-flex: none;
+  --desktop-display: inline-flex;
+  --header-px: calc(var(--px) + var(--sheet-pad));
+  --header-meta-ml: 0px;
+  --header-lead-display: flex;
+  --header-heading-basis: auto;
+  --header-meta-order: 0;
+  --header-tools-trim: 0px;
+  --wide-head-mb: var(--s5h);
+  --away-display: flex;
+  --fit-aside-display: block;
+  --card-flex: 0 1 auto;
+  --card-overflow: visible;
+  --decisions-shadow: none;
+  --decisions-mt: auto;
+  --decisions-pad: var(--s5) 0 0;
+  --decisions-bw: 0;
+  --decisions-radius: 0;
+  --decisions-bg: none;
+  --decision-flex: none;
+  --decision-h: var(--h);
+  --source-row-cols: var(--h-word) minmax(0, 1fr) var(--source-progress-w) var(--source-action-w) var(--h);
+  --source-row-areas: "type name progress action more";
+  --source-row-gap: var(--s5);
+  --source-add-pad: var(--s6);
+  --export-row-cols: minmax(0, 1fr) var(--export-translation-w) var(--h);
+  --export-row-areas: "main translation more";
+  --export-media-cols: minmax(0, 1fr) var(--export-translation-w) var(--thumb-w) var(--h);
+  --export-media-areas: "main translation media more";
+  --export-row-gap: var(--s5);
+  --settings-cols: var(--settings-nav-w) minmax(0, var(--settings-panel-w));
+  --settings-nav-position: sticky;
+  --settings-nav-dir: column;
+  --settings-nav-trim: calc(var(--s4) * -1);
+  --settings-map-cols: 1fr 1fr;
+  --segmented-flex: none;
+  --submenu-position: absolute;
+  --submenu-min-w: var(--menu);
+  --submenu-indent: var(--s2);
+  --submenu-shadow: inset 0 0 0 var(--bw) var(--line), var(--shadow-pop);
+  --submenu-bg: var(--card);
+  --submenu-bridge: block;
+
   /* отступы */
   --s1: 2px; --s2: 4px; --s3: 8px; --s4: 12px; --s5: 16px; --s5h: 20px; --s6: 24px; --s7: 32px; --s8: 40px;
   --gap: 14px;        /* между элементами строки и заголовка */
@@ -182,7 +256,7 @@
   --fill-shadow: none;
 }
 
-/* узкое окно: одна колонка. Единственное место с брейкпоинтом. */
+/* узкое окно: одна колонка. */
 @media (max-width: 1100px) {
   :root {
     --page-x: 22px;
@@ -194,5 +268,104 @@
     --aside-inner-w: auto;
     --aside-hidden-h: 0;
     --aside-position: static;
+  }
+}
+
+/* телефон: одна колонка внутри карточек и строк, решения прилипают к низу экрана. */
+@media (max-width: 640px) {
+  :root {
+    --h: 40px;
+    --page-x: 16px;
+    --page-top: 16px;
+    --sheet-pad: 0px;
+    --px: 12px;
+    --thumb-w: 112px;
+    --thumb-h: 63px;
+    --fs-h1: 21px;
+    --fs-focus: 23px;
+    --modal: calc(100vw - var(--page-x) * 2);
+    --menu: min(240px, calc(100vw - var(--page-x) * 2));
+    --source-max: 35dvh;
+    --tab-px: var(--s3);
+    --page-content-order: 1;
+    --aside-pb: var(--s7);
+    --env-display: none;
+    --divider-row-wrap: wrap;
+    --divider-text-basis: 55%;
+
+    --card-display: flex;
+    --card-pad: var(--s5);
+    --card-head-pb: var(--s4);
+    --card-left-display: contents;
+    --card-left-item-mx: var(--card-pad);
+    --card-left-item-mt: var(--s3);
+    --card-right-pt: var(--card-pad);
+    --card-right-bw: 0px;
+    --card-right-order: 1;
+    --decisions-order: 2;
+    --decisions-position: sticky;
+    --decisions-mt: auto;
+    --decisions-pad: var(--s4) var(--card-pad);
+    --decisions-bw: var(--bw);
+    --decisions-radius: 0;
+    --decisions-shadow: inset var(--bw) 0 0 var(--line), inset calc(var(--bw) * -1) 0 0 var(--line), inset 0 calc(var(--bw) * -1) 0 var(--line);
+    --current-card-order: -1;
+    --main-pb: calc(var(--s5) + env(safe-area-inset-bottom));
+    --fit-display: flex;
+    --fit-h: 100%;
+    --fit-content-display: flex;
+    --review-body-display: flex;
+    --queue-row-display: none;
+    --show-more-display: none;
+    --phone-flex: flex;
+    --desktop-display: none;
+    --header-px: 0px;
+    --header-meta-ml: auto;
+    --header-lead-display: contents;
+    --header-heading-basis: 100%;
+    --header-meta-order: 1;
+    --progress-inline-w: calc(var(--h) * 1.5);
+    --header-tools-trim: var(--icon-inset-trim);
+    --wide-head-mb: var(--s4);
+    --away-display: none;
+    --fit-aside-display: none;
+    --card-flex: 1;
+    --card-overflow: auto;
+    --decisions-bg: var(--card);
+    --decision-flex: 1;
+    --decision-h: 44px;
+
+    --source-row-cols: var(--h-word) minmax(0, 1fr) auto var(--h);
+    --source-row-areas: "type name name more" "type progress action action";
+    --source-row-gap: var(--s3) var(--s4);
+    --source-add-pad: var(--s5);
+    --export-row-cols: minmax(0, 1fr) var(--h);
+    --export-row-areas: "main more" "translation translation";
+    --export-media-cols: minmax(0, 1fr) var(--h);
+    --export-media-areas: "main more" "translation translation" "media media";
+    --export-row-gap: var(--s3) var(--s4);
+    --settings-cols: minmax(0, 1fr);
+    --settings-nav-position: static;
+    --settings-nav-dir: row;
+    --settings-nav-trim: 0px;
+    --settings-map-cols: minmax(0, 1fr);
+    --control-w: 100%;
+    --segmented-flex: 0 1 auto;
+    --submenu-position: static;
+    --submenu-min-w: 0px;
+    --submenu-indent: var(--s4);
+    --submenu-shadow: none;
+    --submenu-bg: none;
+    --submenu-bridge: none;
+  }
+}
+
+/* касание: наведения нет, клавиатуры обычно тоже. iOS зумит страницу при фокусе на поле мельче 16px. */
+@media (hover: none) {
+  :root {
+    --reveal: 1;
+    --kbd-display: none;
+    --hint-display: none;
+    --input-fs: max(16px, 1em);
   }
 }

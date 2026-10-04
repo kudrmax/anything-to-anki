@@ -2,17 +2,21 @@
 .solo { grid-template-columns: var(--page-cols-solo); }
 .full { grid-column: 1 / -1; }
 .banner { margin-bottom: var(--s3); }
-.content { min-width: 0; padding: var(--sheet-pad); }
-.aside { position: var(--aside-position); top: var(--page-top); min-width: 0; overflow: hidden; padding-top: calc(var(--py) + var(--sheet-pad)); transition: opacity var(--t-slow), transform var(--t-slow); }
+.content { order: var(--page-content-order); min-width: 0; padding: var(--sheet-pad); }
+.aside { position: var(--aside-position); padding-bottom: var(--aside-pb); top: var(--page-top); min-width: 0; overflow: hidden; padding-top: calc(var(--py) + var(--sheet-pad)); transition: opacity var(--t-slow), transform var(--t-slow); }
 .asideInner { width: var(--aside-inner-w); display: flex; flex-direction: column; gap: var(--s7); }
 .asideHidden { grid-template-columns: var(--page-cols-collapsed); column-gap: 0; }
-.asideHidden > .aside { opacity: 0; transform: translateX(var(--s7)); pointer-events: none; max-height: var(--aside-hidden-h); }
+.asideHidden > .aside { opacity: 0; transform: translateX(var(--s7)); pointer-events: none; max-height: var(--aside-hidden-h); padding-bottom: 0; }
 .asideTitle { font-size: var(--fs-s); font-weight: var(--fw); color: var(--tx3); line-height: var(--lh-label); margin-bottom: var(--s3); }
 /* Широкая страница: шаг --page-x по горизонтали; шапка компактная, от неё до карточки столько же, сколько над ней. */
 .wide { margin: 0 auto; max-width: 100%; grid-template-columns: var(--page-cols-wide); column-gap: var(--page-x); transition: grid-template-columns var(--t-slow), column-gap var(--t-slow), max-width var(--t-slow); }
-.wide > .full:first-child > * { padding-inline: 0; margin-top: var(--s5h); margin-bottom: var(--s5h); }
+.wide > .full:first-child > * { padding-inline: 0; margin-top: var(--s5h); margin-bottom: var(--wide-head-mb); }
 .wide > .content { padding: 0; }
 .wide > .banner { margin-bottom: var(--s5h); }
 .wide > .aside { padding-top: 0; }
 .wide.solo { grid-template-columns: minmax(0, var(--col-wide)); }
 .wide.asideHidden { max-width: var(--col-wide); grid-template-columns: var(--page-cols-wide-collapsed); column-gap: 0; }
+/* по высоте экрана (телефон): шапка и колонка сверху, контент — на остаток */
+.fit { display: var(--fit-display); flex-direction: column; height: var(--fit-h); }
+.fit > .aside { display: var(--fit-aside-display); }
+.fit > .content { flex: 1; min-height: 0; display: var(--fit-content-display); flex-direction: column; }

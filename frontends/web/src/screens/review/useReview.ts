@@ -7,6 +7,7 @@ import { candidateAudioUrl } from '@/lib/candidateAudio'
 import { mediaUrl } from '@/lib/text/meaning'
 import { useToast } from '@/ui'
 import { useAudioPlayer } from '@/lib/useAudioPlayer'
+import { nextFocusId } from './nextFocus'
 
 const POLL_INTERVAL_MS = 3000
 
@@ -123,13 +124,7 @@ export function useReview(sourceId: number) {
   const { play, stop } = player
   const mark = useCallback(async (candidateId: number, status: CandidateStatus) => {
     stop()
-
-    // Capture the next pending candidate BEFORE marking — once we mark,
-    // this one is removed from the pending list and 'next' shifts.
-    const pending = candidatesRef.current.filter(c => c.status === 'pending')
-    const idx = pending.findIndex(c => c.id === candidateId)
-    const nextPending = idx >= 0 && idx + 1 < pending.length ? pending[idx + 1] : null
-    const nextUrl = nextPending && autoPlayAudioPref.read() ? audioUrlForCandidate(nextPending, sourceId) : null
+    const markedIndex = candidatesRef.current.findIndex(c => c.id === candidateId)
 
     try {
       await api.markCandidate(candidateId, status)
@@ -137,16 +132,20 @@ export function useReview(sourceId: number) {
       showToast(e instanceof Error ? e.message : 'Failed to save the decision')
       return
     }
-    // Порядок задаёт backend: решённые фразы уходят вниз. Новый порядок и смену
-    // фокуса применяем одним рендером, иначе карточка сначала сворачивается на месте.
+    // Порядок задаёт backend: решённые фразы уходят вниз, известные слова пересортировывают
+    // остальные. Новый порядок и смену фокуса применяем одним рендером, иначе карточка
+    // сначала сворачивается на месте; следующую фразу выбираем уже по новому порядку.
     const refreshed = await fetchCandidates().catch(() => null)
+    const fresh = refreshed?.[0] ?? candidatesRef.current.map(c => (c.id === candidateId ? { ...c, status } : c))
     if (refreshed) applyCandidates(refreshed)
-    else setCandidates(prev => prev.map(c => (c.id === candidateId ? { ...c, status } : c)))
+    else setCandidates(fresh)
 
-    if (status !== 'pending') {
-      const focus = nextPending ?? pending.find(c => c.id !== candidateId) ?? null
-      if (focus) setCurrentId(focus.id)
-    }
+    if (status === 'pending') return
+    const focusId = nextFocusId(fresh, candidateId, markedIndex)
+    if (focusId === null) return
+    setCurrentId(focusId)
+    const focus = fresh.find(c => c.id === focusId)
+    const nextUrl = focus && autoPlayAudioPref.read() ? audioUrlForCandidate(focus, sourceId) : null
     if (nextUrl) play(nextUrl)
   }, [sourceId, play, stop, showToast, fetchCandidates, applyCandidates])
 
