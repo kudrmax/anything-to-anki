@@ -34,7 +34,14 @@
 .queueTarget { color: var(--tx2); }
 .queueItemRated { opacity: var(--o-off); }
 .queueItemCurrent { color: var(--tx); background: var(--ac-wash); }
-.sheetList { display: flex; flex-direction: column; margin-inline: calc(var(--card-pad) * -1); }
+.queue.away { display: var(--away-display); }
+
+/* телефон: ряд переключения и панели на месте карточки */
+.phoneBar { display: var(--phone-flex); flex: none; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
+.phoneBarPosition { margin-left: auto; padding-inline: var(--s3); font-size: var(--fs-s); color: var(--tx3); font-variant-numeric: tabular-nums; }
+.textPanel { display: var(--phone-flex); flex-direction: column; flex: 1; min-height: 0; }
+.textPanel > .source { flex: 1; min-height: 0; max-height: none; }
+.listPanel { display: var(--phone-flex); flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
 .queueText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* текст источника */
@@ -64,7 +71,7 @@
 .iconTrigger { width: var(--h); height: var(--h); justify-content: center; border-radius: var(--rc); color: var(--tx3); }
 .iconTrigger:hover:not(:disabled) { background: var(--soft); }
 .headerTools { display: flex; align-items: center; gap: var(--s2); }
-.headerTools > .phoneOnly { display: var(--phone-display); }
+.headerTools > .desktopOnly { display: var(--desktop-display); }
 
 /* жалоба: поле и кнопка отправки под причинами */
 .reportFooter { display: flex; flex-direction: column; gap: var(--s3); }

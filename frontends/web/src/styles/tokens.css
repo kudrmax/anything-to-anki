@@ -151,7 +151,10 @@
   --review-body-display: block;
   --queue-row-display: flex;
   --show-more-display: block;
-  --phone-display: none;
+  --phone-flex: none;
+  --desktop-display: inline-flex;
+  --away-display: flex;
+  --fit-aside-display: block;
   --card-flex: 0 1 auto;
   --card-overflow: visible;
   --decisions-shadow: none;
@@ -254,7 +257,7 @@
     --page-top: 16px;
     --sheet-pad: 0px;
     --px: 12px;
-    --header-lead-min: 100%;
+    --header-lead-min: calc(var(--h) * 4);
     --thumb-w: 112px;
     --thumb-h: 63px;
     --fs-h1: 21px;
@@ -293,7 +296,10 @@
     --review-body-display: flex;
     --queue-row-display: none;
     --show-more-display: none;
-    --phone-display: inline-flex;
+    --phone-flex: flex;
+    --desktop-display: none;
+    --away-display: none;
+    --fit-aside-display: none;
     --card-flex: 1;
     --card-overflow: auto;
     --decisions-bg: var(--card);
