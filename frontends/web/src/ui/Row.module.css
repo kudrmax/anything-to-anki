@@ -10,7 +10,7 @@
 .dim .title { color: var(--tx3); }
 .meta { font-size: var(--fs-s); color: var(--tx3); margin-top: var(--s1); overflow-wrap: anywhere; }
 .trailing { display: flex; align-items: center; gap: var(--gap); flex: none; font-size: var(--fs-s); color: var(--tx3); white-space: nowrap; }
-.hoverOnly { opacity: 0; transition: opacity var(--t); }
+.hoverOnly { opacity: var(--reveal); transition: opacity var(--t); }
 .row:hover .hoverOnly, .hoverOnly:focus-within, .hoverOnly:has([role="menu"]) { opacity: 1; }
-.actions { display: flex; flex: none; opacity: 0; transition: opacity var(--t); }
+.actions { display: flex; flex: none; opacity: var(--reveal); transition: opacity var(--t); }
 .row:hover .actions, .actions:focus-within, .actions:has([role="menu"]) { opacity: 1; }

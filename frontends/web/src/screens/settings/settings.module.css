@@ -1,7 +1,7 @@
 /* разделы слева, выбранный раздел справа */
-.layout { display: grid; grid-template-columns: var(--settings-nav-w) minmax(0, var(--settings-panel-w)); gap: var(--page-x); align-items: start; }
-.nav { position: sticky; top: 0; display: flex; flex-direction: column; gap: var(--s1); }
-.navItem { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); height: var(--h); padding: 0 var(--s4); margin: 0 calc(var(--s4) * -1); border-radius: var(--rc); text-align: left; font-size: var(--fs-m); color: var(--tx3); transition: background var(--t), color var(--t); }
+.layout { display: grid; grid-template-columns: var(--settings-cols); gap: var(--page-x); align-items: start; }
+.nav { position: var(--settings-nav-position); top: 0; display: flex; flex-direction: var(--settings-nav-dir); overflow-x: auto; scrollbar-width: none; gap: var(--s1); }
+.navItem { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--s3); height: var(--h); padding: 0 var(--s4); margin: 0 var(--settings-nav-trim); border-radius: var(--rc); text-align: left; font-size: var(--fs-m); color: var(--tx3); transition: background var(--t), color var(--t); }
 .navItem:hover { color: var(--tx2); }
 .on, .on:hover { background: var(--soft); color: var(--tx); }
 .count { font-size: var(--fs-s); color: var(--tx3); font-variant-numeric: tabular-nums; }
@@ -11,10 +11,10 @@
 
 /* поля разделов */
 .control { flex: none; width: var(--control-w); }
-.map { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3) var(--s6); padding-bottom: var(--gap); border-bottom: var(--bw) solid var(--line); }
+.map { display: grid; grid-template-columns: var(--settings-map-cols); gap: var(--s3) var(--s6); padding-bottom: var(--gap); border-bottom: var(--bw) solid var(--line); }
 .map label { display: flex; align-items: center; gap: var(--s4); font-size: var(--fs-s); color: var(--tx3); }
 .map span { flex: none; width: var(--label-w); }
-.named { display: flex; align-items: center; gap: var(--gap); }
+.named { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap); }
 .name { flex: none; width: var(--name-w); }
 
 /* известные слова */
@@ -23,3 +23,4 @@
 .wordsBar > :first-child { flex: 1; }
 .words { display: flex; flex-wrap: wrap; gap: var(--s3); }
 .more { margin-top: var(--s5); }
+.nav::-webkit-scrollbar { display: none; }

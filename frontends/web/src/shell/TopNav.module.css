@@ -1,10 +1,11 @@
-.nav { flex: none; display: flex; align-items: stretch; gap: var(--s2); height: var(--nav-h); padding: 0 var(--page-x); border-bottom: var(--bw) solid var(--line-soft); }
-.tab { display: inline-flex; align-items: center; gap: var(--s3); padding: 0 var(--s4); font-size: var(--fs-m); color: var(--tx3); text-decoration: none; transition: color var(--t), box-shadow var(--t); }
-.tab:first-child { margin-left: calc(var(--s4) * -1); }
-.tab:last-child { margin-right: calc(var(--s4) * -1); }
+.nav { flex: none; display: flex; align-items: stretch; gap: var(--s2); overflow-x: auto; scrollbar-width: none; height: var(--nav-h); padding: 0 var(--page-x); border-bottom: var(--bw) solid var(--line-soft); }
+.tab { flex: none; display: inline-flex; align-items: center; gap: var(--s3); padding: 0 var(--tab-px); font-size: var(--fs-m); color: var(--tx3); text-decoration: none; transition: color var(--t), box-shadow var(--t); }
+.tab:first-child { margin-left: calc(var(--tab-px) * -1); }
+.tab:last-child { margin-right: calc(var(--tab-px) * -1); }
 .tab:hover { color: var(--tx2); }
 .on, .on:hover { color: var(--tx); box-shadow: inset 0 calc(var(--underline) * -1) 0 var(--ac); }
 .badge { min-width: var(--badge-h); height: var(--badge-h); padding: 0 var(--s2); border-radius: var(--badge-h); background: var(--fill); color: var(--on-ac); font: var(--fw-b) var(--fs-xs)/var(--badge-h) var(--ui); text-align: center; }
-.spacer { flex: 1; }
-.env { align-self: center; margin-right: var(--s3); padding: var(--s1) var(--s2); border: var(--bw) solid var(--warn-line); border-radius: var(--r-xs); font: var(--fw-m) var(--fs-2xs)/var(--lh-tight) var(--mono); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--warn); }
+.spacer { flex: 1; min-width: var(--s3); }
+.env { display: var(--env-display); flex: none; align-self: center; margin-right: var(--s3); padding: var(--s1) var(--s2); border: var(--bw) solid var(--warn-line); border-radius: var(--r-xs); font: var(--fw-m) var(--fs-2xs)/var(--lh-tight) var(--mono); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--warn); }
 .prod { color: var(--ok); border-color: var(--ok-line); }
+.nav::-webkit-scrollbar { display: none; }

@@ -1,15 +1,18 @@
 /* текущая фраза: слева запоминаешь, справа объясняет */
-.card { display: grid; grid-template-columns: var(--card-cols); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); border-radius: var(--r); cursor: default; }
-.cardHead { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--s4); padding: var(--s7) var(--s7) var(--s6); }
-.cardLeft { display: flex; flex-direction: column; gap: var(--s3); padding: 0 var(--s7) var(--s7); }
-.cardRight { display: flex; flex-direction: column; gap: var(--s4); padding: 0 var(--s7) var(--s7); border-left: var(--bw) solid var(--line); }
+.card { display: var(--card-display); flex-direction: column; grid-template-columns: var(--card-cols); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); border-radius: var(--r); cursor: default; }
+.cardHead { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--s4); padding: var(--card-pad) var(--card-pad) var(--card-head-pb); }
+.cardLeft { display: var(--card-left-display); flex-direction: column; gap: var(--s3); padding: 0 var(--card-pad) var(--card-pad); }
+.cardLeft > * { margin-inline: var(--card-left-item-mx); }
+.cardLeft > * + * { margin-top: var(--card-left-item-mt); }
+.cardRight { order: var(--card-right-order); display: flex; flex-direction: column; gap: var(--s4); padding: var(--card-right-pt) var(--card-pad) var(--card-pad); border-left: var(--card-right-bw) solid var(--line); }
 .phrase { margin-top: var(--focus-leading-trim); font-size: var(--fs-focus); line-height: var(--lh-focus); letter-spacing: var(--ls-focus); overflow-wrap: anywhere; }
 .meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s3); font-size: var(--fs-s); color: var(--tx3); }
 .cefr { display: inline-flex; align-items: center; gap: var(--s2); }
 .status { display: inline-flex; align-items: center; gap: var(--s2); }
 .translation { font-size: var(--fs-h1); font-weight: var(--fw-m); line-height: var(--lh); letter-spacing: var(--ls-focus); }
 .synonyms { font-size: var(--fs-m); color: var(--tx3); }
-.decisions { display: flex; flex-wrap: nowrap; gap: var(--s3); margin-top: auto; padding-top: var(--s5); }
+.decisions { order: var(--decisions-order); position: var(--decisions-position); bottom: calc(var(--main-pb) * -1); z-index: 1; display: flex; flex-wrap: nowrap; gap: var(--s3); margin: var(--decisions-mt) 0 0; padding: var(--decisions-pad); border-top: var(--decisions-bw) solid var(--line); border-radius: var(--decisions-radius); background: var(--decisions-bg); }
+.decisions > button { flex: var(--decision-flex); justify-content: center; height: var(--decision-h); }
 .definition { font-size: var(--fs-h1); line-height: var(--lh); }
 .context { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
 .examples { list-style: none; display: flex; flex-direction: column; gap: var(--s2); padding-left: var(--s5); border-left: var(--underline) solid var(--line); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
@@ -23,7 +26,7 @@
 .queue { display: flex; flex-direction: column; }
 .queue > .card { margin: var(--wide-lead) 0; }
 .queue > .card:first-child { margin-top: 0; }
-.queueItem { display: flex; align-items: center; gap: var(--s3); min-width: 0; padding: var(--s4) var(--s7); text-align: left; font-size: var(--fs-b); color: var(--tx3); transition: background var(--t), color var(--t); }
+.queueItem { display: flex; align-items: center; gap: var(--s3); min-width: 0; padding: var(--s4) var(--card-pad); text-align: left; font-size: var(--fs-b); color: var(--tx3); transition: background var(--t), color var(--t); }
 .queueItem + .queueItem { border-top: var(--bw) solid var(--line-soft); }
 .queueItem:hover { background: var(--hover); color: var(--tx2); }
 .queueTarget { color: var(--tx2); }
@@ -39,8 +42,8 @@
 .markRated { color: inherit; }
 .mark.fragment { background: var(--ac-tint); }
 .markPending.fragment, .markRated.fragment { color: var(--tx); }
-.hint { font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); padding: var(--py) var(--s7) 0; }
-.showMore { padding: var(--py) var(--s7) 0; }
+.hint { display: var(--hint-display); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); padding: var(--py) var(--card-pad) 0; }
+.showMore { padding: var(--py) var(--card-pad) 0; }
 
 /* попап выделения */
 .popover { display: flex; flex-direction: column; gap: var(--s3); min-width: var(--menu); font-size: var(--fs-m); }
@@ -65,7 +68,7 @@
 /* пример в карточке: при наведении его можно поставить вместо фразы */
 .example { display: flex; align-items: baseline; gap: var(--s3); }
 .example > span { flex: 1; min-width: 0; }
-.useExample { flex: none; padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--ac-wash); opacity: 0; transition: opacity var(--t); }
+.useExample { flex: none; padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--ac-wash); opacity: var(--reveal); transition: opacity var(--t); }
 .example:hover .useExample, .useExample:focus-visible { opacity: 1; }
 
 /* свой вопрос к AI */
