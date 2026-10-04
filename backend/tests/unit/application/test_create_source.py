@@ -31,6 +31,11 @@ class TestCreateSourceUseCase:
         with pytest.raises(ValueError, match="empty"):
             self.use_case.execute("")
 
+    def test_second_everywhere_source_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="built-in"):
+            self.use_case.execute("a phrase", InputMethod.PHRASE_ADDED)
+        self.source_repo.create.assert_not_called()
+
     def test_whitespace_only_raises(self) -> None:
         with pytest.raises(ValueError, match="empty"):
             self.use_case.execute("   \n  ")

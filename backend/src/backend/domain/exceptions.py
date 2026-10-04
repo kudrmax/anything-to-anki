@@ -229,3 +229,15 @@ class CandidateNotPolishedError(DomainError):
     def __init__(self, candidate_id: int) -> None:
         super().__init__(f"Phrase of candidate {candidate_id} is not polished")
         self.candidate_id = candidate_id
+
+
+class PermanentSourceError(DomainError):
+    """Raised when deleting or reprocessing a built-in source the app always keeps."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Built-in source can't be deleted or reprocessed: {source_id}")
+        self.source_id = source_id
+
+
+class InvalidPhraseError(DomainError):
+    """Raised when a phrase added by hand is empty or does not contain its target."""

@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from backend.application.use_cases.add_everywhere_phrase import AddEverywherePhraseUseCase
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.assign_source_collection import AssignSourceToCollectionUseCase
@@ -279,6 +280,17 @@ class Container:
 
     def add_manual_candidate_use_case(self, session: Session) -> AddManualCandidateUseCase:
         return AddManualCandidateUseCase(
+            source_repo=SqlaSourceRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
+            text_analyzer=self._text_analyzer,
+            cefr_classifier=self._cefr_classifier,
+            frequency_provider=self._frequency_provider,
+            phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
+            review_status=self._review_status_updater(session),
+        )
+
+    def add_everywhere_phrase_use_case(self, session: Session) -> AddEverywherePhraseUseCase:
+        return AddEverywherePhraseUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             text_analyzer=self._text_analyzer,

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.domain.entities.source import Source
+    from backend.domain.value_objects.content_type import ContentType
     from backend.domain.value_objects.processing_stage import ProcessingStage
     from backend.domain.value_objects.source_status import SourceStatus
 
@@ -20,6 +21,9 @@ class SourceRepository(ABC):
 
     @abstractmethod
     def list_all(self) -> list[Source]: ...
+
+    @abstractmethod
+    def get_first_by_content_type(self, content_type: ContentType) -> Source | None: ...
 
     @abstractmethod
     def update_status(

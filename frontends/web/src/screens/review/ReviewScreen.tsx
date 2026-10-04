@@ -91,8 +91,7 @@ export function ReviewScreen() {
     window.getSelection()?.removeAllRanges()
   }
 
-  // У темы нет своего текста: её фразы собраны из других источников.
-  const hasSourceText = source.content_type !== 'topic'
+  const hasSourceText = source.has_source_text
 
   const header = (
     <PageHeader

@@ -51,6 +51,8 @@ class SourceDTO(BaseModel):
     awaiting_generation: bool = False
     generation_status: str | None = None  # 'queued' | 'running' | 'failed'
     generation_error: str | None = None
+    # Built-in source: it can't be deleted or reprocessed.
+    is_permanent: bool = False
 
 
 class PhraseOriginDTO(BaseModel):
@@ -150,6 +152,7 @@ class SourceDetailDTO(BaseModel):
     source_type: str
     content_type: str
     can_polish_phrases: bool = False
+    has_source_text: bool = True
     source_url: str | None = None
     video_downloaded: bool = False
     error_message: str | None

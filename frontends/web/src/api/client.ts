@@ -253,6 +253,12 @@ export const api = {
       body: JSON.stringify({ example_text: exampleText }),
     }),
 
+  addEverywherePhrase: (phrase: string, target: string) =>
+    req<StoredCandidate>('/sources/everywhere/phrases', {
+      method: 'POST',
+      body: JSON.stringify({ phrase, target }),
+    }),
+
   addManualCandidate: (sourceId: number, surfaceForm: string, contextFragment: string) =>
     req<StoredCandidate>(`/sources/${sourceId}/candidates/manual`, {
       method: 'POST',

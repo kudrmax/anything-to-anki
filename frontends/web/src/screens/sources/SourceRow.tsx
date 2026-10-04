@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { Clapperboard, Ellipsis, FileText, Folder, Music, Pencil, RefreshCw, Sparkles, Trash2, Upload, type LucideIcon } from 'lucide-react'
+import { Clapperboard, Ellipsis, FileText, Folder, Globe, Music, Pencil, RefreshCw, Sparkles, Trash2, Upload, type LucideIcon } from 'lucide-react'
 import type { Collection, ContentType, GenerationStatus, ProcessingStage, SourceSummary } from '@/api/types'
 import { formatDate } from '@/lib/text/format'
 import { Button, Field, Icon, IconButton, Menu, Progress, Spinner, Text, type MenuItem } from '@/ui'
@@ -22,8 +22,8 @@ interface SourceRowProps {
   onAssignCollection: (sourceId: number, collectionId: number | null) => void
 }
 
-const TYPE_ICON: Record<ContentType, LucideIcon> = { text: FileText, lyrics: Music, video: Clapperboard, topic: Sparkles }
-const TYPE_LABEL: Record<ContentType, string> = { text: 'Text', lyrics: 'Lyrics', video: 'Video', topic: 'Topic' }
+const TYPE_ICON: Record<ContentType, LucideIcon> = { text: FileText, lyrics: Music, video: Clapperboard, topic: Sparkles, phrases: Globe }
+const TYPE_LABEL: Record<ContentType, string> = { text: 'Text', lyrics: 'Lyrics', video: 'Video', topic: 'Topic', phrases: 'Phrases' }
 
 const STAGE_LABEL: Record<ProcessingStage, string> = {
   cleaning_source: 'Cleaning source format…',
@@ -85,8 +85,8 @@ export function SourceRow({ source, collections, primary, onProcess, onGenerate,
         ...collections.map(c => ({ label: c.name, selected: c.id === source.collection_id, onSelect: () => onAssignCollection(source.id, c.id) })),
       ],
     },
-    ...(isProcessing || source.status === 'new' ? [] : [{ label: 'Reprocess', icon: RefreshCw, onSelect: () => onReprocess(source.id) }]),
-    ...(isProcessing ? [] : [{ label: 'Delete', icon: Trash2, danger: true, separated: true, onSelect: () => onDelete(source.id) }]),
+    ...(isProcessing || source.status === 'new' || source.is_permanent ? [] : [{ label: 'Reprocess', icon: RefreshCw, onSelect: () => onReprocess(source.id) }]),
+    ...(isProcessing || source.is_permanent ? [] : [{ label: 'Delete', icon: Trash2, danger: true, separated: true, onSelect: () => onDelete(source.id) }]),
   ]
 
   const reviewVariant = primary ? 'fill' : 'soft'

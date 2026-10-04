@@ -6,7 +6,10 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from backend.application.dto.candidate_dtos import AddManualCandidateRequest  # noqa: TC001
+from backend.application.dto.candidate_dtos import (  # noqa: TC001
+    AddEverywherePhraseRequest,
+    AddManualCandidateRequest,
+)
 from backend.application.dto.collection_dtos import AssignCollectionRequest  # noqa: TC001
 from backend.application.dto.file_source_dtos import FileSourceRequest  # noqa: TC001
 from backend.application.dto.source_dtos import (  # noqa: TC001
@@ -18,6 +21,8 @@ from backend.application.dto.source_dtos import (  # noqa: TC001
 )
 from backend.domain.exceptions import (
     CollectionNotFoundError,
+    InvalidPhraseError,
+    PermanentSourceError,
     SourceAlreadyProcessedError,
     SourceHasActiveJobsError,
     SourceIsProcessingError,
@@ -82,6 +87,21 @@ def create_url_source(
             detail={"error": "subtitles_not_available", "message": str(e)},
         ) from e
     except UnsupportedUrlError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/everywhere/phrases", status_code=201)
+def add_everywhere_phrase(
+    request: AddEverywherePhraseRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> StoredCandidateDTO:
+    try:
+        use_case = container.add_everywhere_phrase_use_case(session)
+        result = use_case.execute(request.phrase, request.target)
+        session.commit()
+        return result
+    except InvalidPhraseError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
@@ -252,7 +272,7 @@ def delete_source(
         session.commit()
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except SourceIsProcessingError as e:
+    except (SourceIsProcessingError, PermanentSourceError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
@@ -386,7 +406,7 @@ async def reprocess_source(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except SourceNotReprocessableError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except (SourceHasActiveJobsError, TopicTargetsMissingError) as e:
+    except (SourceHasActiveJobsError, TopicTargetsMissingError, PermanentSourceError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
     asyncio.create_task(_process_background(source_id, container, session_factory))
