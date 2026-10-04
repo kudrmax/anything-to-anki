@@ -144,7 +144,7 @@ def test_usage_endpoint_returns_stats(
     assert body["bucket_size"] == "day"
     assert len(body["buckets"]) == 7
     assert body["totals"]["tokens"] == {
-        "total": 20, "sent": 16, "sent_uncached": 2, "cache_write": 8, "cache_read": 6,
+        "total": 20, "sent_uncached": 2, "cache_write": 8, "cache_read": 6,
         "answer": 4,
     }
     assert body["totals"]["requests"] == 2

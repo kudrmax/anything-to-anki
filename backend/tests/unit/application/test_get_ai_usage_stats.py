@@ -116,7 +116,7 @@ class TestGetAIUsageStats:
         ]
         batch = stats.features[0]
         assert batch.tokens.total == 300
-        assert batch.tokens.sent == 300
+        assert batch.tokens.sent_uncached == 300
         assert batch.tokens.answer == 0
         assert batch.requests == 2
         assert batch.failed_requests == 1

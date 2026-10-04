@@ -402,7 +402,6 @@ export type AIFeature =
 
 export interface TokenCounts {
   total: number
-  sent: number
   sent_uncached: number
   cache_write: number
   cache_read: number
