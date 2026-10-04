@@ -1,0 +1,51 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from backend.domain.exceptions import (
+    CandidateNotFoundError,
+    InvalidPhraseError,
+    PhrasePolishNotSupportedError,
+    SourceNotFoundError,
+)
+
+if TYPE_CHECKING:
+    from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
+    from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.source_repository import SourceRepository
+
+
+class EditCardPhraseUseCase:
+    """Lets the user rewrite the card phrase by hand, in the slot AI polishing uses.
+
+    The source phrase stays untouched, so the user can still see it and revert.
+    """
+
+    def __init__(
+        self,
+        candidate_repo: CandidateRepository,
+        source_repo: SourceRepository,
+        enrichment_reset: PhraseEnrichmentReset,
+    ) -> None:
+        self._candidate_repo = candidate_repo
+        self._source_repo = source_repo
+        self._enrichment_reset = enrichment_reset
+
+    def execute(self, candidate_id: int, phrase: str) -> None:
+        candidate = self._candidate_repo.get_by_id(candidate_id)
+        if candidate is None or candidate.id is None:
+            raise CandidateNotFoundError(candidate_id)
+        source = self._source_repo.get_by_id(candidate.source_id)
+        if source is None:
+            raise SourceNotFoundError(candidate.source_id)
+        if not source.can_polish_phrases:
+            raise PhrasePolishNotSupportedError(candidate.source_id)
+        edited = phrase.strip()
+        if not edited:
+            raise InvalidPhraseError("Phrase cannot be empty")
+        if edited == candidate.card_phrase:
+            return
+        self._candidate_repo.set_polished_fragment(candidate.id, edited)
+        if candidate.polish_reverted:
+            self._candidate_repo.set_polish_reverted(candidate.id, False)
+        self._enrichment_reset.reset(candidate.id)

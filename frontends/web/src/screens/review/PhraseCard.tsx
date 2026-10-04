@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Target, Volume2 } from 'lucide-react'
 import type { EnrichmentStatus, PhraseOrigin, StoredCandidate } from '@/api/types'
-import { FREQ_BAND_LABEL, highlightParts, isDivider, meaningAction, meaningParts, mediaUrl, nonEmptyLines, parseExamples, primaryUsageGroup } from '@/lib/text/meaning'
+import { FREQ_BAND_LABEL, isDivider, meaningAction, meaningParts, mediaUrl, nonEmptyLines, parseExamples, primaryUsageGroup } from '@/lib/text/meaning'
 import { Button, Chip, Icon, MediaThumb, Spinner, Text } from '@/ui'
+import { CardPhrase } from './CardPhrase'
 import { CefrTooltip } from './CefrTooltip'
 import { DecisionButtons, PhraseTools } from './PhraseActions'
 import type { Review } from './useReview'
@@ -76,11 +77,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   return (
     <article className={css.card} data-candidate-id={candidate.id}>
       <header className={css.cardHead}>
-        <p className={css.phrase}>
-          {highlightParts(candidate.phrase, candidate.lemma, candidate.surface_form).map((part, i) =>
-            part.target ? <b key={i} className={`${phrase.target} ${phrase.targetCurrent}`}>{part.text}</b> : part.text,
-          )}
-        </p>
+        <CardPhrase candidate={candidate} review={review} />
         {hasMeta && (
           <div className={css.meta}>
             {meaning?.ipa && <Text mono>{meaning.ipa}</Text>}

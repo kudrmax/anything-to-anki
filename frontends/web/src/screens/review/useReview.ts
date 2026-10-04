@@ -312,6 +312,18 @@ export function useReview(sourceId: number) {
     }
   }
 
+  /** true — фраза сохранена; при ошибке показывает её и оставляет правку открытой. */
+  const editPhrase = async (candidateId: number, phrase: string): Promise<boolean> => {
+    try {
+      await api.editPhrase(candidateId, phrase)
+      await loadCandidates()
+      return true
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to save the phrase')
+      return false
+    }
+  }
+
   const report = async (candidateId: number, reasons: string[], comment: string): Promise<boolean> => {
     try {
       await api.reportCandidate(candidateId, reasons, comment)
@@ -336,7 +348,7 @@ export function useReview(sourceId: number) {
     sourceId, source, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,
     counts: { marked: markedCount, total: candidates.length, learn: learnCount, progress: candidates.length > 0 ? markedCount / candidates.length : 0 },
     generation, generationActions,
-    mark, generate, replaceWithExample, generateTTS, regenerateMedia, findImages, applyImage, polishAgain, setPolishReverted,
+    mark, generate, replaceWithExample, generateTTS, regenerateMedia, findImages, applyImage, polishAgain, setPolishReverted, editPhrase,
     busy: { generating: generatingIds, media: regeneratingMediaIds, tts: generatingTTSIds, image: applyingImageIds },
     vpnBlocked, dismissVpn: () => setVpnBlocked(false),
     editing, startEditing, cancelEditing, setBoundary, addWord,

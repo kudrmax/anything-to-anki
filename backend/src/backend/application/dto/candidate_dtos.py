@@ -37,6 +37,12 @@ class RevertPolishRequest(BaseModel):
     reverted: bool
 
 
+class EditPhraseRequest(BaseModel):
+    """Input for rewriting the card phrase by hand."""
+
+    phrase: str
+
+
 class MarkCandidateRequest(BaseModel):
     """Input for marking a candidate status."""
 

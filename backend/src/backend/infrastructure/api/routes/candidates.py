@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO  # noqa: TC001
 from backend.application.dto.candidate_dtos import (  # noqa: TC001
+    EditPhraseRequest,
     MarkCandidateRequest,
     ReplaceWithExampleRequest,
     RevertPolishRequest,
@@ -28,7 +29,9 @@ from backend.domain.exceptions import (
     CandidateNotPolishedError,
     EmptyReportCommentError,
     ImageSearchError,
+    InvalidPhraseError,
     PhrasePolishNotSupportedError,
+    SourceNotFoundError,
     TargetImageNotSupportedError,
     UnknownImageUrlError,
     UnknownReportReasonError,
@@ -130,6 +133,25 @@ def revert_phrase_polish(
     except CandidateNotPolishedError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return {"id": candidate_id, "reverted": request.reverted}
+
+
+@router.put("/{candidate_id}/phrase")
+def edit_card_phrase(
+    candidate_id: int,
+    request: EditPhraseRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, Any]:
+    try:
+        container.edit_card_phrase_use_case(session).execute(candidate_id, request.phrase)
+        session.commit()
+    except (CandidateNotFoundError, SourceNotFoundError) as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except PhrasePolishNotSupportedError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except InvalidPhraseError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return {"id": candidate_id}
 
 
 @router.post("/{candidate_id}/replace-with-example", status_code=201)

@@ -33,8 +33,8 @@ class StoredCandidate:
     target the user probably does not know.
 
     `context_fragment` is the phrase as it stands in the source. AI may polish
-    it into an easier `polished_fragment`; the card shows the polished one
-    unless the user reverted it.
+    it into an easier `polished_fragment`, or the user may rewrite it there by
+    hand; the card shows the polished one unless the user reverted it.
     """
 
     source_id: int
