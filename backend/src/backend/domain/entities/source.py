@@ -48,6 +48,13 @@ class Source:
             return self.raw_text
         return None
 
+    @property
+    def can_polish_phrases(self) -> bool:
+        """A video card cuts its clip by the source phrase, so its phrase must stay as is."""
+        from backend.domain.value_objects.content_type import ContentType
+
+        return self.content_type != ContentType.VIDEO
+
     def reset_to_initial_state(self) -> Source:
         from backend.domain.value_objects.source_status import SourceStatus
 

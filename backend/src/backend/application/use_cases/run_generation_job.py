@@ -58,7 +58,7 @@ class MeaningGenerationUseCase:
         user_template = self._prompts_config.generate_meaning_user_template
         parts: list[str] = [
             user_template.format(
-                lemma=c.lemma, pos=c.pos, context=c.context_fragment
+                lemma=c.lemma, pos=c.pos, context=c.card_phrase
             )
             for c in active
         ]

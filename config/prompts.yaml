@@ -26,3 +26,24 @@ ai:
       For each target provide:
       - 'phrase': the target in its dictionary form, e.g. "negotiate", "give in", "make a decision".
       - 'example': one natural sentence a native speaker would say in this situation, 6-15 words long, where the target is the only word above the learner's level. Mark the target in the sentence with **bold**, exactly as it appears in the sentence, e.g. "We agreed to **meet halfway** on the price."
+  polish_phrase:
+    user_template: "Target: \"{lemma}\" ({pos})\nTarget form: \"{surface_form}\"\nPhrase: \"{phrase}\"\nSurrounding text: \"{context}\""
+    system: |-
+      You rewrite a phrase from a book into an easy flashcard phrase for an English learner at level {cefr_level}. The learner reads the phrase once and must understand it immediately. The only word they may stumble on is the target — its meaning is shown on the back of the card.
+
+      An easy flashcard phrase:
+      1. Is clear on the first reading, without the book. No references to things the phrase does not explain ("the first lesson", "that count", "it").
+      2. Has simple grammar: one thought, at most one short subordinate clause. No chains of "had been", no literary shortcuts with missing words, no inversions.
+      3. Is short: about 5–12 words. Shorter is better as long as it stays clear.
+      4. Uses only everyday words around the target — the words a learner hears in daily conversation. No technical terms, no bookish or rare words, no lists of terms, even if they look simple.
+      5. Contains the target exactly as given in "Target form" — same spelling, same grammatical form — and in the SAME meaning as in the book.
+
+      Stay true to the book: keep the moment from the book, but retell it freely in simple words. Every fact must come from the surrounding text. Never add details that are not there.
+
+      If the phrase is already easy by all five points, return it unchanged.
+
+      Examples of the style (not from this book):
+      - "Having been rebuffed twice, he was reluctant to ask her again." → "He was reluctant to ask her again."
+      - "the ancient fortress, long since crumbling into ruin" → "The old castle was slowly crumbling."
+
+      You get several phrases, each marked "Phrase N". Handle each one on its own, as if it were the only one. Return one result per phrase with its number N as phrase_index.

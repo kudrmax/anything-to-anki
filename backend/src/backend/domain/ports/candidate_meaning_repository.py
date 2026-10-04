@@ -32,6 +32,9 @@ class CandidateMeaningRepository(ABC):
         """Insert or update the meaning row for the contained candidate_id."""
 
     @abstractmethod
+    def delete_by_candidate_id(self, candidate_id: int) -> None: ...
+
+    @abstractmethod
     def get_candidate_ids_without_meaning(
         self,
         source_id: int | None,

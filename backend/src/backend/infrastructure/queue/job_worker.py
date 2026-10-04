@@ -18,6 +18,10 @@ from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from sqlalchemy.orm import Session
+
     from backend.domain.entities.job import Job
     from backend.infrastructure.container import Container
 
@@ -25,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 POLL_DELAY: float = 0.1  # seconds between polls when queue is empty
 JOB_TIMEOUT: int = 600  # seconds per job (10 minutes)
-MEANING_BATCH_SIZE: int = 15
+AI_BATCH_SIZE: int = 15
 
 
 class JobWorker:
@@ -91,6 +95,10 @@ class JobWorker:
                     await self._handle_pronunciation(job)
                 case JobType.VIDEO_DOWNLOAD:
                     await self._handle_video_download(job)
+                case JobType.POLISH:
+                    # Polish handler manages its own batch success/failure
+                    await self._handle_polish(job)
+                    return True
                 case JobType.TOPIC_TARGETS:
                     await self._handle_topic_targets(job)
                 case JobType.TTS:
@@ -115,15 +123,24 @@ class JobWorker:
     # ------------------------------------------------------------------
 
     async def _handle_meaning(self, job: Job) -> None:
-        """Meaning generation with opportunistic batching.
+        await self._handle_ai_batch(job, self._run_meaning_batch)
 
-        Dequeues extra QUEUED meaning jobs for the same source,
-        processes them all in one batch. Manages its own success/failure
+    async def _handle_polish(self, job: Job) -> None:
+        await self._handle_ai_batch(job, self._run_polish_batch)
+
+    async def _handle_ai_batch(
+        self, job: Job, run: Callable[[list[int], Job], None],
+    ) -> None:
+        """AI generation with opportunistic batching.
+
+        Dequeues extra QUEUED jobs of the same type for the same source and
+        processes them all in one AI call. Manages its own success/failure
         because the outer handler only knows about the primary job.
         """
+        kind = job.job_type.value
         with self._container.session_scope() as session:
             extra_jobs = SqlaJobRepository(session).dequeue_batch(
-                JobType.MEANING, job.source_id, limit=MEANING_BATCH_SIZE - 1,
+                job.job_type, job.source_id, limit=AI_BATCH_SIZE - 1,
             )
         all_jobs = [job, *extra_jobs]
         candidate_ids = [j.candidate_id for j in all_jobs if j.candidate_id is not None]
@@ -134,11 +151,11 @@ class JobWorker:
 
         try:
             await asyncio.wait_for(
-                asyncio.to_thread(self._run_meaning_batch, candidate_ids, job),
+                asyncio.to_thread(run, candidate_ids, job),
                 timeout=JOB_TIMEOUT,
             )
         except TimeoutError:
-            logger.warning("Meaning batch timed out for source %d", job.source_id)
+            logger.warning("%s batch timed out for source %d", kind, job.source_id)
             self._mark_jobs_failed(all_jobs, "timeout")
             return
         except CancelledByUserError:
@@ -147,11 +164,11 @@ class JobWorker:
             # by reconciliation on next restart if not cleaned up.
             raise
         except (PermanentAIError, PermanentMediaError) as exc:
-            logger.warning("Meaning batch permanent error: %s", exc)
+            logger.warning("%s batch permanent error: %s", kind, exc)
             self._mark_jobs_failed(all_jobs, str(exc))
             return
         except Exception as exc:
-            logger.exception("Meaning batch unexpected error")
+            logger.exception("%s batch unexpected error", kind)
             self._mark_jobs_failed(all_jobs, f"{type(exc).__name__}: {exc}")
             return
 
@@ -159,17 +176,24 @@ class JobWorker:
 
     def _run_meaning_batch(self, candidate_ids: list[int], primary_job: Job) -> None:
         """Sync meaning generation — runs in a thread."""
-        assert primary_job.id is not None
         with self._container.session_scope() as session:
-            from backend.infrastructure.queue.cancellation_token import CancellationToken
-
-            token = CancellationToken(
-                job_id=primary_job.id,
-                job_repo=SqlaJobRepository(session),
-            )
-            token.check()
+            self._check_not_cancelled(primary_job, session)
             use_case = self._container.meaning_generation_use_case(session)
             use_case.execute_batch(candidate_ids)
+
+    def _run_polish_batch(self, candidate_ids: list[int], primary_job: Job) -> None:
+        """Sync phrase polishing — runs in a thread."""
+        with self._container.session_scope() as session:
+            self._check_not_cancelled(primary_job, session)
+            use_case = self._container.phrase_polish_use_case(session)
+            use_case.execute_batch(candidate_ids)
+
+    @staticmethod
+    def _check_not_cancelled(job: Job, session: Session) -> None:
+        from backend.infrastructure.queue.cancellation_token import CancellationToken
+
+        assert job.id is not None
+        CancellationToken(job_id=job.id, job_repo=SqlaJobRepository(session)).check()
 
     async def _handle_media(self, job: Job) -> None:
         """Single-candidate media extraction."""

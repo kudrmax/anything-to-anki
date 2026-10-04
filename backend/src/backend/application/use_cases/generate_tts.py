@@ -53,9 +53,9 @@ class GenerateTTSUseCase:
             logger.warning("generate_tts: candidate %d not found", candidate_id)
             return
 
-        text = " ".join(candidate.context_fragment.split())
+        text = " ".join(candidate.card_phrase.split())
         if not text:
-            logger.warning("generate_tts: candidate %d has no context_fragment", candidate_id)
+            logger.warning("generate_tts: candidate %d has no phrase", candidate_id)
             return
 
         voice = self._pick_voice()

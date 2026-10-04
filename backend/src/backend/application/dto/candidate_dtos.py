@@ -24,6 +24,12 @@ class ReplaceWithExampleRequest(BaseModel):
     example_text: str
 
 
+class RevertPolishRequest(BaseModel):
+    """Input for showing the source phrase (True) or AI's polished one (False)."""
+
+    reverted: bool
+
+
 class MarkCandidateRequest(BaseModel):
     """Input for marking a candidate status."""
 

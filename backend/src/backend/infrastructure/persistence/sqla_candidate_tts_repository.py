@@ -47,6 +47,12 @@ class SqlaCandidateTTSRepository(CandidateTTSRepository):
             existing.generated_at = tts.generated_at
         self._session.flush()
 
+    def delete_by_candidate_id(self, candidate_id: int) -> None:
+        model = self._session.get(CandidateTTSModel, candidate_id)
+        if model is not None:
+            self._session.delete(model)
+            self._session.flush()
+
     def get_eligible_candidate_ids(self, source_id: int) -> list[int]:
         has_tts = select(CandidateTTSModel.candidate_id).subquery()
         stmt = (
