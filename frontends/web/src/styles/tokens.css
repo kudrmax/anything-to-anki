@@ -121,7 +121,6 @@
   --menu: 240px;
 
   /* раскладка, которую перестраивают телефон и касание (значения — в медиа-блоках внизу) */
-  --main-pb: var(--s8);              /* нижнее поле прокрутки страницы */
   --menu-shift: 0px;                 /* сдвиг меню внутрь окна, задаёт Menu */
   --aside-pb: 0px;
   --page-content-order: 0;           /* 1 — боковая колонка встаёт над контентом */
@@ -144,6 +143,9 @@
   --card-right-order: 0;
   --decisions-order: 0;
   --decisions-position: static;
+  --decisions-inset-x: auto;
+  --current-card-order: 0;
+  --queue-pb: 0px;
   --decisions-mt: auto;
   --decisions-pad: var(--s5) 0 0;
   --decisions-bw: 0;
@@ -268,11 +270,14 @@
     --card-right-bw: 0px;
     --card-right-order: 1;
     --decisions-order: 2;
-    --decisions-position: sticky;
+    --decisions-position: fixed;
+    --decisions-inset-x: 0px;
     --decisions-mt: 0px;
-    --decisions-pad: var(--s4) var(--card-pad) calc(var(--s4) + env(safe-area-inset-bottom));
+    --decisions-pad: var(--s4) var(--page-x) calc(var(--s4) + env(safe-area-inset-bottom));
     --decisions-bw: var(--bw);
-    --decisions-radius: 0 0 var(--r) var(--r);
+    --decisions-radius: 0;
+    --current-card-order: -1;
+    --queue-pb: calc(var(--decision-h) + var(--s4) * 2 + env(safe-area-inset-bottom));
     --decisions-bg: var(--card);
     --decision-flex: 1;
     --decision-h: 44px;
