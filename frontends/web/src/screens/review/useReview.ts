@@ -64,12 +64,20 @@ export function useReview(sourceId: number) {
 
   const setSortOrder = (order: SortOrder) => { sortOrderPref.write(order); setSortOrderState(order) }
 
-  const loadCandidates = useCallback(async () => {
-    const [cands, cards] = await Promise.all([api.getCandidates(sourceId, sortOrder), fetchCards(sourceId)])
+  const fetchCandidates = useCallback(
+    () => Promise.all([api.getCandidates(sourceId, sortOrder), fetchCards(sourceId)]),
+    [sourceId, sortOrder],
+  )
+
+  const applyCandidates = useCallback(([cands, cards]: Awaited<ReturnType<typeof fetchCandidates>>) => {
     setCandidates(cands)
     if (hasCandidateVpnErrors(cands)) setVpnBlocked(true)
     setMediaMap(toMediaMap(cards))
-  }, [sourceId, sortOrder])
+  }, [])
+
+  const loadCandidates = useCallback(async () => {
+    applyCandidates(await fetchCandidates())
+  }, [fetchCandidates, applyCandidates])
 
   const loadQueueSummary = useCallback(async () => {
     try {
@@ -129,16 +137,18 @@ export function useReview(sourceId: number) {
       showToast(e instanceof Error ? e.message : 'Failed to save the decision')
       return
     }
-    setCandidates(prev => prev.map(c => (c.id === candidateId ? { ...c, status } : c)))
+    // Порядок задаёт backend: решённые фразы уходят вниз. Новый порядок и смену
+    // фокуса применяем одним рендером, иначе карточка сначала сворачивается на месте.
+    const refreshed = await fetchCandidates().catch(() => null)
+    if (refreshed) applyCandidates(refreshed)
+    else setCandidates(prev => prev.map(c => (c.id === candidateId ? { ...c, status } : c)))
 
     if (status !== 'pending') {
       const focus = nextPending ?? pending.find(c => c.id !== candidateId) ?? null
       if (focus) setCurrentId(focus.id)
     }
     if (nextUrl) play(nextUrl)
-    // Порядок задаёт backend: решённые фразы уходят вниз.
-    void loadCandidates()
-  }, [sourceId, play, stop, showToast, loadCandidates])
+  }, [sourceId, play, stop, showToast, fetchCandidates, applyCandidates])
 
   const withBusy = async (setIds: Dispatch<SetStateAction<Set<number>>>, id: number, run: () => Promise<void>) => {
     setIds(prev => new Set(prev).add(id))
