@@ -54,12 +54,7 @@ export function UsageScreen() {
       <Stat
         value={formatTokens(totals.tokens.total)}
         label="Tokens"
-        hint={(
-          <>
-            {formatTokens(totals.tokens.sent)} sent · {formatTokens(totals.tokens.answer)} answer
-            {totals.change_percent !== null && <><br />{formatChange(totals.change_percent, stats.period)}</>}
-          </>
-        )}
+        hint={totals.change_percent !== null && formatChange(totals.change_percent, stats.period)}
       />
       <Stat
         value={formatCount(totals.requests)}

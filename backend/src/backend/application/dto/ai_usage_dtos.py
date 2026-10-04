@@ -21,10 +21,17 @@ class UsageBucketSize(StrEnum):
 
 
 class TokenCountsDTO(BaseModel):
-    """Tokens sent to the AI plus tokens of its answer make the total."""
+    """Tokens sent to the AI plus tokens of its answer make the total.
+
+    Sent is split into the uncached part, the part written to the cache
+    and the part read from it.
+    """
 
     total: int
     sent: int
+    sent_uncached: int
+    cache_write: int
+    cache_read: int
     answer: int
 
 

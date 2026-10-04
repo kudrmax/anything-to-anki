@@ -9,9 +9,11 @@ export function FeatureTable({ features }: { features: AIUsageFeature[] }) {
       <div className={`${css.tableRow} ${css.tableHead}`} role="row">
         <span role="columnheader">What AI did</span>
         <span role="columnheader" title="How many times this was run">Runs</span>
-        <span role="columnheader" title="Instructions and text sent to the AI">Sent</span>
+        <span role="columnheader" title="Sent to the AI without the cache">Sent</span>
         <span role="columnheader" title="Text the AI wrote back">Answer</span>
-        <span role="columnheader" title="Sent + answer">Tokens</span>
+        <span role="columnheader" title="Sent to the AI and saved in its cache for 5 minutes">Cache write</span>
+        <span role="columnheader" title="Sent to the AI earlier and taken from its cache">Cache read</span>
+        <span role="columnheader" title="Sent + answer + cache write + cache read">Tokens</span>
         <span role="columnheader">Of all tokens</span>
       </div>
       {features.map(row => (
@@ -24,8 +26,10 @@ export function FeatureTable({ features }: { features: AIUsageFeature[] }) {
             {formatCount(row.requests)}
             {row.failed_requests > 0 && <span className={css.failed}> · {formatCount(row.failed_requests)} failed</span>}
           </span>
-          <span role="cell">{formatTokens(row.tokens.sent)}</span>
+          <span role="cell">{formatTokens(row.tokens.sent_uncached)}</span>
           <span role="cell">{formatTokens(row.tokens.answer)}</span>
+          <span role="cell">{formatTokens(row.tokens.cache_write)}</span>
+          <span role="cell">{formatTokens(row.tokens.cache_read)}</span>
           <span className={css.total} role="cell">{formatTokens(row.tokens.total)}</span>
           <span className={css.share} role="cell">
             <span className={css.shareTrack}>

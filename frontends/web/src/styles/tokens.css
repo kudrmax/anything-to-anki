@@ -110,7 +110,7 @@
   --usage-share-w: 110px;
   --usage-pop-w: 220px;
   --usage-axis-trim: calc(var(--fs-xs) / -2);   /* подпись шкалы встаёт серединой на линию */
-  --usage-table-cols: minmax(var(--usage-feature-w), 1fr) repeat(4, var(--usage-num-w)) var(--usage-share-w);
+  --usage-table-cols: minmax(var(--usage-feature-w), 1fr) repeat(6, var(--usage-num-w)) var(--usage-share-w);
   --settings-panel-w: 720px;
   --section-leading-trim: calc((1 - var(--lh-tight)) * var(--fs-h1) / 2);
   --stats-cols: repeat(2, minmax(0, 1fr));

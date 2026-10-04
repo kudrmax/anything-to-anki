@@ -143,7 +143,10 @@ def test_usage_endpoint_returns_stats(
     assert body["period"] == "7d"
     assert body["bucket_size"] == "day"
     assert len(body["buckets"]) == 7
-    assert body["totals"]["tokens"]["total"] == 20
+    assert body["totals"]["tokens"] == {
+        "total": 20, "sent": 16, "sent_uncached": 2, "cache_write": 8, "cache_read": 6,
+        "answer": 4,
+    }
     assert body["totals"]["requests"] == 2
     assert {f["feature"] for f in body["features"]} == {"meaning_batch", "phrase_polish"}
 
