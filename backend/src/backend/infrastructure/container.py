@@ -141,6 +141,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.enqueue_media_generation import (
         EnqueueMediaGenerationUseCase,
     )
+    from backend.application.use_cases.enqueue_phrase_polish import EnqueuePhrasePolishUseCase
     from backend.application.use_cases.enqueue_pronunciation_download import (
         EnqueuePronunciationDownloadUseCase,
     )
@@ -150,16 +151,20 @@ if TYPE_CHECKING:
     from backend.application.use_cases.enqueue_tts_generation import EnqueueTTSGenerationUseCase
     from backend.application.use_cases.generate_topic_targets import GenerateTopicTargetsUseCase
     from backend.application.use_cases.generate_tts import GenerateTTSUseCase
+    from backend.application.use_cases.get_ai_usage_stats import GetAIUsageStatsUseCase
     from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
     from backend.application.use_cases.get_queue_failed import GetQueueFailedUseCase
     from backend.application.use_cases.get_queue_global_summary import (
         GetQueueGlobalSummaryUseCase,
     )
     from backend.application.use_cases.get_queue_order import GetQueueOrderUseCase
+    from backend.application.use_cases.polish_phrases import PhrasePolishUseCase
     from backend.application.use_cases.regenerate_candidate_media import (
         RegenerateCandidateMediaUseCase,
     )
+    from backend.application.use_cases.revert_phrase_polish import RevertPhrasePolishUseCase
     from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
+    from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
     from backend.domain.ports.url_source_fetcher import UrlSourceFetcher
     from backend.domain.value_objects.prompts_config import PromptsConfig
     from backend.infrastructure.adapters.kokoro_tts_generator import KokoroTTSGenerator
@@ -416,8 +421,22 @@ class Container:
         )
 
     def _ai_service(self, settings_repo: SqlaSettingsRepository) -> HttpAIService:
+        from backend.infrastructure.persistence.session_ai_usage_recorder import (
+            SessionAIUsageRecorder,
+        )
         ai_model_key = settings_repo.get("ai_model", "sonnet") or "sonnet"
-        return HttpAIService(url=os.environ["AI_PROXY_URL"], model=model_id_for(ai_model_key))
+        return HttpAIService(
+            url=os.environ["AI_PROXY_URL"],
+            model=model_id_for(ai_model_key),
+            usage_recorder=SessionAIUsageRecorder(self._get_session_factory()),
+        )
+
+    def get_ai_usage_stats_use_case(self, session: Session) -> GetAIUsageStatsUseCase:
+        from backend.application.use_cases.get_ai_usage_stats import GetAIUsageStatsUseCase
+        from backend.infrastructure.persistence.sqla_ai_usage_repository import (
+            SqlaAIUsageRepository,
+        )
+        return GetAIUsageStatsUseCase(usage_repo=SqlaAIUsageRepository(session))
 
     def reprocess_source_use_case(self, session: Session) -> ReprocessSourceUseCase:
         from backend.infrastructure.persistence.sqla_enrichment_cache_repository import (
@@ -531,6 +550,45 @@ class Container:
             meaning_repo=SqlaCandidateMeaningRepository(session),
             ai_service=self._ai_service(SqlaSettingsRepository(session)),
             prompts_config=self._prompts_config,
+        )
+
+    def phrase_polish_use_case(self, session: Session) -> PhrasePolishUseCase:
+        from backend.application.use_cases.polish_phrases import PhrasePolishUseCase
+        settings_repo = SqlaSettingsRepository(session)
+        return PhrasePolishUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            source_repo=SqlaSourceRepository(session),
+            settings_repo=settings_repo,
+            enrichment_reset=self._phrase_enrichment_reset(session),
+            ai_service=self._ai_service(settings_repo),
+            prompts_config=self._prompts_config,
+        )
+
+    def enqueue_phrase_polish_use_case(self, session: Session) -> EnqueuePhrasePolishUseCase:
+        from backend.application.use_cases.enqueue_phrase_polish import (
+            EnqueuePhrasePolishUseCase,
+        )
+        return EnqueuePhrasePolishUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            source_repo=SqlaSourceRepository(session),
+            candidate_sorter=self._candidate_sorter(session),
+            job_repo=SqlaJobRepository(session),
+        )
+
+    def revert_phrase_polish_use_case(self, session: Session) -> RevertPhrasePolishUseCase:
+        from backend.application.use_cases.revert_phrase_polish import (
+            RevertPhrasePolishUseCase,
+        )
+        return RevertPhrasePolishUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            enrichment_reset=self._phrase_enrichment_reset(session),
+        )
+
+    def _phrase_enrichment_reset(self, session: Session) -> PhraseEnrichmentReset:
+        from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
+        return PhraseEnrichmentReset(
+            meaning_repo=SqlaCandidateMeaningRepository(session),
+            tts_repo=SqlaCandidateTTSRepository(session),
         )
 
     def get_stats_use_case(self, session: Session) -> GetStatsUseCase:

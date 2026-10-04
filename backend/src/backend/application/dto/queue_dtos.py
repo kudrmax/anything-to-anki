@@ -16,6 +16,7 @@ class QueueGlobalSummaryDTO(BaseModel):
     pronunciation: JobTypeSummaryDTO
     video_download: JobTypeSummaryDTO
     topic_targets: JobTypeSummaryDTO
+    polish: JobTypeSummaryDTO
 
 
 class QueueJobDTO(BaseModel):

@@ -23,6 +23,8 @@ _CONFIG = PromptsConfig(
     generate_meaning_system="MEANING SYSTEM",
     generate_topic_targets_user_template="Request: {query} | {cefr_level} | {count}",
     generate_topic_targets_system="TOPIC SYSTEM",
+    polish_phrase_user_template="Phrase: {phrase}",
+    polish_phrase_system="POLISH SYSTEM PROMPT for {cefr_level}",
 )
 
 

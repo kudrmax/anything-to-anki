@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
     from backend.domain.value_objects.generation_result import GenerationResult
+    from backend.domain.value_objects.polished_phrase import PolishedPhrase
     from backend.domain.value_objects.topic_target_draft import TopicTargetDraft
 
 
@@ -17,10 +18,20 @@ class AIService(ABC):
         """Call the AI with the given prompts and return the generated text and token usage."""
 
     @abstractmethod
+    def generate_follow_up(self, system_prompt: str, user_prompt: str) -> GenerationResult:
+        """Answer a follow-up request about an existing meaning, shaped like generate_meaning."""
+
+    @abstractmethod
     def generate_meanings_batch(
         self, system_prompt: str, user_prompt: str
     ) -> list[BatchMeaningResult]:
         """Batch generation with structured output. Returns meaning+IPA for multiple candidates."""
+
+    @abstractmethod
+    def polish_phrases_batch(
+        self, system_prompt: str, user_prompt: str
+    ) -> list[PolishedPhrase]:
+        """Rewrite several card phrases into easier ones."""
 
     @abstractmethod
     def generate_topic_targets(

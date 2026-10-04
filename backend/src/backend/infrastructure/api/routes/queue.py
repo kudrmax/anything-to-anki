@@ -34,6 +34,7 @@ _JOB_TYPE_MAP: dict[str, JobType] = {
     "pronunciation": JobType.PRONUNCIATION,
     "video_download": JobType.VIDEO_DOWNLOAD,
     "topic_targets": JobType.TOPIC_TARGETS,
+    "polish": JobType.POLISH,
 }
 # Failed jobs without an error message are grouped under this label.
 _UNKNOWN_ERROR = "Unknown error"

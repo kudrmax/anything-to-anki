@@ -17,6 +17,8 @@ _CONFIG = PromptsConfig(
     generate_meaning_system="SYSTEM PROMPT",
     generate_topic_targets_user_template="Request: {query}",
     generate_topic_targets_system="TOPIC SYSTEM PROMPT",
+    polish_phrase_user_template="Phrase: {phrase}",
+    polish_phrase_system="POLISH SYSTEM PROMPT for {cefr_level}",
 )
 
 
@@ -133,7 +135,7 @@ def test_follow_up_explain_detail_replaces_meaning() -> None:
 
     candidate_repo.get_by_id.return_value = _make_candidate()
     meaning_repo.get_by_candidate_id.return_value = _existing_meaning()
-    ai_service.generate_meaning.return_value = GenerationResult(
+    ai_service.generate_follow_up.return_value = GenerationResult(
         meaning="detailed explanation",
         translation="разъяснить",
         synonyms="explain, clarify",
@@ -145,6 +147,8 @@ def test_follow_up_explain_detail_replaces_meaning() -> None:
     use_case = _make_follow_up_use_case(candidate_repo, meaning_repo, ai_service)
     result = use_case.execute_follow_up(1, "explain_detail", None)
 
+    ai_service.generate_follow_up.assert_called_once()
+    ai_service.generate_meaning.assert_not_called()
     assert result.meaning == "detailed explanation"
     upserted = meaning_repo.upsert.call_args[0][0]
     assert upserted.meaning == "detailed explanation"
@@ -158,7 +162,7 @@ def test_follow_up_give_examples_appends_to_examples() -> None:
 
     candidate_repo.get_by_id.return_value = _make_candidate()
     meaning_repo.get_by_candidate_id.return_value = _existing_meaning()
-    ai_service.generate_meaning.return_value = GenerationResult(
+    ai_service.generate_follow_up.return_value = GenerationResult(
         meaning="New example sentence",
         translation="",
         synonyms="",
@@ -185,7 +189,7 @@ def test_follow_up_how_to_say_appends_to_meaning() -> None:
 
     candidate_repo.get_by_id.return_value = _make_candidate()
     meaning_repo.get_by_candidate_id.return_value = _existing_meaning()
-    ai_service.generate_meaning.return_value = GenerationResult(
+    ai_service.generate_follow_up.return_value = GenerationResult(
         meaning="You can say: Let me elaborate.",
         translation="",
         synonyms="",

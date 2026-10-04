@@ -153,6 +153,7 @@ class GetSourcesUseCase:
             status=source.status.value,
             source_type=source.input_method.value,
             content_type=source.content_type.value,
+            can_polish_phrases=source.can_polish_phrases,
             source_url=source.source_url,
             video_downloaded=source.video_path is not None,
             error_message=source.error_message,

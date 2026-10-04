@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from backend.domain.entities.ai_usage_record import AIUsageRecord
 from backend.domain.entities.bootstrap_index_meta import BootstrapIndexMeta
 from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
 from backend.domain.entities.candidate_meaning import CandidateMeaning
@@ -20,6 +21,7 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.topic_target import TopicTarget
 from backend.domain.entities.word_decision import WordDecision
+from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -28,6 +30,7 @@ from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.token_usage import TokenUsage
 from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.utc_datetime import UTCDateTime
@@ -265,6 +268,10 @@ class StoredCandidateModel(Base):
     )
     origin_kind: Mapped[str | None] = mapped_column(String(10), nullable=True)
     origin_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    polished_fragment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    polish_reverted: Mapped[bool] = mapped_column(
+        nullable=False, default=False, server_default="0"
+    )
 
     cefr_breakdown: Mapped[CEFRBreakdownModel | None] = relationship(
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
@@ -305,6 +312,8 @@ class StoredCandidateModel(Base):
             cefr_breakdown=bd,
             usage_distribution=ud,
             origin=self._origin(),
+            polished_fragment=self.polished_fragment,
+            polish_reverted=self.polish_reverted,
         )
 
     def _origin(self) -> PhraseOrigin | None:
@@ -332,6 +341,8 @@ class StoredCandidateModel(Base):
             status=candidate.status.value,
             origin_kind=candidate.origin.kind.value if candidate.origin else None,
             origin_title=candidate.origin.source_title if candidate.origin else None,
+            polished_fragment=candidate.polished_fragment,
+            polish_reverted=candidate.polish_reverted,
         )
         if candidate.cefr_breakdown is not None:
             model.cefr_breakdown = _breakdown_to_model(candidate.cefr_breakdown)
@@ -750,4 +761,54 @@ class BootstrapWordCellModel(Base):
             lemma=self.lemma,
             cefr_level=CEFRLevel.from_str(self.cefr_level),
             zipf_value=self.zipf_value,
+        )
+
+
+class AIUsageModel(Base):
+    """SQLAlchemy model for the history of AI calls and the tokens they consumed."""
+
+    __tablename__ = "ai_usage"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, index=True)
+    feature: Mapped[str] = mapped_column(String(50), nullable=False)
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    cache_read_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    cache_creation_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    succeeded: Mapped[bool] = mapped_column(nullable=False)
+
+    @classmethod
+    def from_entity(cls, record: AIUsageRecord) -> AIUsageModel:
+        return cls(
+            created_at=record.created_at,
+            feature=record.feature.value,
+            model=record.model,
+            input_tokens=record.usage.input_tokens,
+            output_tokens=record.usage.output_tokens,
+            cache_read_tokens=record.usage.cache_read_tokens,
+            cache_creation_tokens=record.usage.cache_creation_tokens,
+            item_count=record.item_count,
+            duration_ms=record.duration_ms,
+            succeeded=record.succeeded,
+        )
+
+    def to_entity(self) -> AIUsageRecord:
+        return AIUsageRecord(
+            id=self.id,
+            created_at=self.created_at,
+            feature=AIFeature(self.feature),
+            model=self.model,
+            usage=TokenUsage(
+                input_tokens=self.input_tokens,
+                output_tokens=self.output_tokens,
+                cache_read_tokens=self.cache_read_tokens,
+                cache_creation_tokens=self.cache_creation_tokens,
+            ),
+            item_count=self.item_count,
+            duration_ms=self.duration_ms,
+            succeeded=self.succeeded,
         )

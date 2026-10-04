@@ -31,6 +31,10 @@ ai:
     user_template: "Request: \\"{query}\\""
     system: |
       You help an English learner study a topic.
+  polish_phrase:
+    user_template: "Phrase: \\"{phrase}\\""
+    system: |
+      You make phrases easy for level {cefr_level}.
 """
 
 
@@ -159,6 +163,8 @@ def test_load_parses_topic_targets_prompts(valid_config_file: Path) -> None:
     cfg = PromptsLoader().load(valid_config_file)
     assert cfg.generate_topic_targets_user_template == 'Request: "{query}"'
     assert cfg.generate_topic_targets_system == "You help an English learner study a topic.\n"
+    assert cfg.polish_phrase_user_template == 'Phrase: "{phrase}"'
+    assert cfg.polish_phrase_system == "You make phrases easy for level {cefr_level}.\n"
 
 
 @pytest.mark.unit

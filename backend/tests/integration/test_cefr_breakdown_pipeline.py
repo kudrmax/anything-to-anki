@@ -88,6 +88,7 @@ class TestCEFRBreakdownPipeline:
             zipf_frequency=5.0,
             is_sweet_spot=True,
             context_fragment="I am happy",
+            phrase="I am happy",
             fragment_purity="clean",
             occurrences=1,
             status="pending",

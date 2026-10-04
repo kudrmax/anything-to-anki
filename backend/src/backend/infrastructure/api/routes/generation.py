@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.domain.entities.job import Job
 from backend.domain.exceptions import (
     GenerationAlreadyRunningError,
+    PhrasePolishNotSupportedError,
     SourceNotFoundError,
     SourceNotTopicError,
     TopicTargetsAlreadyGeneratedError,
@@ -120,3 +121,64 @@ def retry_failed_meanings(
         source_id, len(new_jobs), batches_count,
     )
     return {"enqueued": len(new_jobs), "batches": batches_count}
+
+
+@router.post("/sources/{source_id}/phrases/polish", status_code=202)
+def enqueue_phrase_polish(
+    source_id: int,
+    sort: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, int]:
+    """Queue AI polishing of every card phrase AI has not looked at yet."""
+    try:
+        enqueued = container.enqueue_phrase_polish_use_case(session).execute(
+            source_id, sort_order=sort,
+        )
+        session.commit()
+    except SourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except PhrasePolishNotSupportedError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"enqueued": enqueued}
+
+
+@router.post("/sources/{source_id}/phrases/polish/cancel")
+def cancel_phrase_polish(
+    source_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, int]:
+    """Cancel queued AND running phrase polishing jobs."""
+    cancelled = container.job_repository(session).delete_by_source_and_type(
+        source_id, JobType.POLISH,
+    )
+    session.commit()
+    return {"cancelled": cancelled}
+
+
+@router.post("/sources/{source_id}/phrases/polish/retry-failed", status_code=202)
+def retry_failed_phrase_polish(
+    source_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, int]:
+    """Re-enqueue failed phrase polishing jobs."""
+    job_repo = container.job_repository(session)
+    failed_jobs = job_repo.delete_failed_by_source_and_type(source_id, JobType.POLISH)
+    now = datetime.now(tz=UTC)
+    job_repo.create_bulk([
+        Job(
+            id=None,
+            job_type=JobType.POLISH,
+            candidate_id=j.candidate_id,
+            source_id=source_id,
+            status=JobStatus.QUEUED,
+            error=None,
+            created_at=now,
+            started_at=None,
+        )
+        for j in failed_jobs
+    ])
+    session.commit()
+    return {"enqueued": len(failed_jobs)}

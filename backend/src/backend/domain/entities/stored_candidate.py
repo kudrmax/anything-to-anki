@@ -29,6 +29,10 @@ class StoredCandidate:
 
     `fragment_unknown_count` is how many words of the phrase besides the
     target the user probably does not know.
+
+    `context_fragment` is the phrase as it stands in the source. AI may polish
+    it into an easier `polished_fragment`; the card shows the polished one
+    unless the user reverted it.
     """
 
     source_id: int
@@ -52,6 +56,21 @@ class StoredCandidate:
     usage_distribution: UsageDistribution | None = None
     origin: PhraseOrigin | None = None
     fragment_unknown_count: int = 0
+    polished_fragment: str | None = None
+    polish_reverted: bool = False
+
+    @property
+    def is_polished(self) -> bool:
+        """AI rewrote the phrase. A phrase AI left as is does not count."""
+        polished = self.polished_fragment
+        return polished is not None and polished != self.context_fragment
+
+    @property
+    def card_phrase(self) -> str:
+        """The phrase the card shows, speaks and exports."""
+        if self.polished_fragment is not None and not self.polish_reverted:
+            return self.polished_fragment
+        return self.context_fragment
 
     @property
     def frequency_band(self) -> FrequencyBand:
