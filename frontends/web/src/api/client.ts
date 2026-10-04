@@ -1,4 +1,5 @@
 import type {
+  AIUsageStats,
   AnkiStatus,
   AnkiTemplates,
   BootstrapStatus,
@@ -28,6 +29,7 @@ import type {
   SubtitleTrack,
   AudioTrack,
   SyncResult,
+  UsagePeriod,
   VerifyNoteTypeResponse,
 } from './types'
 
@@ -215,6 +217,9 @@ export const api = {
     req<{ status: string }>(`/sources/${sourceId}/reprocess`, { method: 'POST' }),
 
   getStats: () => req<Stats>('/stats'),
+
+  getUsage: (period: UsagePeriod, timezone: string) =>
+    req<AIUsageStats>(`/api/usage?period=${period}&tz=${encodeURIComponent(timezone)}`),
 
   verifyNoteType: (note_type: string, required_fields: string[]) =>
     req<VerifyNoteTypeResponse>('/anki/verify-note-type', {

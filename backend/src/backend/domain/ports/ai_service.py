@@ -18,6 +18,10 @@ class AIService(ABC):
         """Call the AI with the given prompts and return the generated text and token usage."""
 
     @abstractmethod
+    def generate_follow_up(self, system_prompt: str, user_prompt: str) -> GenerationResult:
+        """Answer a follow-up request about an existing meaning, shaped like generate_meaning."""
+
+    @abstractmethod
     def generate_meanings_batch(
         self, system_prompt: str, user_prompt: str
     ) -> list[BatchMeaningResult]:

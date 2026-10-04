@@ -133,7 +133,7 @@ class GenerateMeaningUseCase:
         )
         combined_prompt = f"{user_prompt}\n\n{follow_up_prompt}"
 
-        result = self._ai_service.generate_meaning(
+        result = self._ai_service.generate_follow_up(
             self._prompts_config.generate_meaning_system, combined_prompt
         )
 

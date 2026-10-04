@@ -390,3 +390,57 @@ export interface BootstrapWord {
   cefr_level: string
   zipf_value: number
 }
+
+export type UsagePeriod = 'today' | '7d' | '30d' | 'all'
+
+export type AIFeature =
+  | 'meaning_batch'
+  | 'meaning_single'
+  | 'meaning_follow_up'
+  | 'phrase_polish'
+  | 'topic_targets'
+
+export interface TokenCounts {
+  total: number
+  sent_uncached: number
+  cache_write: number
+  cache_read: number
+  answer: number
+}
+
+export interface AIUsageTotals {
+  tokens: TokenCounts
+  requests: number
+  failed_requests: number
+  change_percent: number | null
+  tokens_per_meaning: number | null
+}
+
+export interface FeatureTokens {
+  feature: AIFeature
+  tokens: number
+}
+
+export interface AIUsageBucket {
+  start: string
+  total_tokens: number
+  features: FeatureTokens[]
+}
+
+export interface AIUsageFeature {
+  feature: AIFeature
+  tokens: TokenCounts
+  requests: number
+  failed_requests: number
+  items: number
+  share_percent: number
+}
+
+export interface AIUsageStats {
+  period: UsagePeriod
+  bucket_size: 'hour' | 'day'
+  tracking_since: string | null
+  totals: AIUsageTotals
+  buckets: AIUsageBucket[]
+  features: AIUsageFeature[]
+}
