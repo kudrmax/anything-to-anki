@@ -98,6 +98,24 @@ _TOPIC_SCHEMA: dict[str, Any] = {
     "required": ["targets"],
 }
 
+_POLISH_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "results": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "phrase_index": {"type": "integer"},
+                    "phrase": {"type": "string"},
+                },
+                "required": ["phrase_index", "phrase"],
+            },
+        }
+    },
+    "required": ["results"],
+}
+
 
 BLOCKED_COUNTRIES: frozenset[str] = frozenset({"RU"})
 _COUNTRY_CHECK_TIMEOUT = 5
@@ -316,6 +334,43 @@ async def generate_topic_targets(req: GenerateRequest) -> TopicTargetsResponse:
     logger.info(
         "generate-topic-targets OK, targets=%d, tokens=%d",
         len(resp.targets), tokens_used,
+    )
+    return resp
+
+
+class PolishedPhraseItem(BaseModel):
+    phrase_index: int
+    phrase: str
+
+
+class PolishPhrasesResponse(BaseModel):
+    results: list[PolishedPhraseItem]
+    tokens_used: int
+
+
+@app.post("/polish-phrases-batch")
+async def polish_phrases_batch(req: GenerateRequest) -> PolishPhrasesResponse:
+    try:
+        data, tokens_used = await _generate_structured(
+            req.system_prompt, req.user_prompt, req.model, _POLISH_SCHEMA
+        )
+    except Exception as e:
+        logger.exception("polish-phrases-batch: AI call failed")
+        raise HTTPException(status_code=502, detail=f"AI call failed: {e}") from e
+    if not isinstance(data, dict) or "results" not in data:
+        logger.error("polish-phrases-batch: unexpected response: %r", data)
+        raise HTTPException(status_code=502, detail="Unexpected AI response format")
+    try:
+        resp = PolishPhrasesResponse(results=data["results"], tokens_used=tokens_used)
+    except ValidationError as e:
+        logger.error("polish-phrases-batch response schema mismatch: %s\nraw=%r", e, data)
+        raise HTTPException(
+            status_code=502,
+            detail=f"AI response schema mismatch (ai_proxy<->backend drift): {e}",
+        ) from e
+    logger.info(
+        "polish-phrases-batch OK, results=%d, tokens=%d",
+        len(resp.results), tokens_used,
     )
     return resp
 

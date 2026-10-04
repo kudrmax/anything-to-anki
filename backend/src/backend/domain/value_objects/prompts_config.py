@@ -11,3 +11,5 @@ class PromptsConfig:
     generate_meaning_system: str
     generate_topic_targets_user_template: str
     generate_topic_targets_system: str
+    polish_phrase_user_template: str
+    polish_phrase_system: str

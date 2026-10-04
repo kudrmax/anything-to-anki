@@ -213,3 +213,19 @@ class TopicTargetsMissingError(DomainError):
 
     def __init__(self, source_id: int) -> None:
         super().__init__(f"Generate topic targets before processing: {source_id}")
+
+
+class PhrasePolishNotSupportedError(DomainError):
+    """Raised when phrases of a source must stay as they are in the source (video)."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Phrases of this source can't be polished: {source_id}")
+        self.source_id = source_id
+
+
+class CandidateNotPolishedError(DomainError):
+    """Raised when reverting a polish of a phrase AI never changed."""
+
+    def __init__(self, candidate_id: int) -> None:
+        super().__init__(f"Phrase of candidate {candidate_id} is not polished")
+        self.candidate_id = candidate_id

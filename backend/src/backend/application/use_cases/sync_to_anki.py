@@ -178,7 +178,7 @@ class SyncToAnkiUseCase:
         for candidate in pending:
             try:
                 sentence = highlight_all_forms(
-                    candidate.context_fragment,
+                    candidate.card_phrase,
                     candidate.lemma,
                     candidate.surface_form,
                 )

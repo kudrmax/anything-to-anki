@@ -65,11 +65,18 @@ class PromptsLoader:
         topic_user_template = self._get_string(topic, "user_template", topic_section, path)
         topic_system = self._get_string(topic, "system", topic_section, path)
 
+        polish_section = "polish_phrase"
+        polish = self._get_nested(raw, ["ai", polish_section], path)
+        polish_user_template = self._get_string(polish, "user_template", polish_section, path)
+        polish_system = self._get_string(polish, "system", polish_section, path)
+
         return PromptsConfig(
             generate_meaning_user_template=user_template,
             generate_meaning_system=system_prompt,
             generate_topic_targets_user_template=topic_user_template,
             generate_topic_targets_system=topic_system,
+            polish_phrase_user_template=polish_user_template,
+            polish_phrase_system=polish_system,
         )
 
     def _get_string(self, section: dict[str, Any], key: str, section_name: str, path: Path) -> str:

@@ -75,6 +75,21 @@ class SqlaCandidateRepository(CandidateRepository):
         model = self._session.get(StoredCandidateModel, candidate_id)
         if model is not None:
             model.context_fragment = context_fragment
+            model.polished_fragment = None
+            model.polish_reverted = False
+            self._session.flush()
+
+    def set_polished_fragment(self, candidate_id: int, polished_fragment: str | None) -> None:
+        model = self._session.get(StoredCandidateModel, candidate_id)
+        if model is not None:
+            model.polished_fragment = polished_fragment
+            model.polish_reverted = False
+            self._session.flush()
+
+    def set_polish_reverted(self, candidate_id: int, reverted: bool) -> None:
+        model = self._session.get(StoredCandidateModel, candidate_id)
+        if model is not None:
+            model.polish_reverted = reverted
             self._session.flush()
 
     def get_by_ids(self, candidate_ids: list[int]) -> list[StoredCandidate]:

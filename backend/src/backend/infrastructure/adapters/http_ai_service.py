@@ -9,6 +9,7 @@ from backend.domain.exceptions import AIServiceError
 from backend.domain.ports.ai_service import AIService
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
 from backend.domain.value_objects.generation_result import GenerationResult
+from backend.domain.value_objects.polished_phrase import PolishedPhrase
 from backend.domain.value_objects.topic_target_draft import TopicTargetDraft
 
 if TYPE_CHECKING:
@@ -24,6 +25,7 @@ SINGLE_TIMEOUT_SECONDS = 60.0
 # under it so worker can catch and mark job as failed cleanly.
 BATCH_TIMEOUT_SECONDS = 540.0
 TOPIC_TIMEOUT_SECONDS = 540.0
+POLISH_TIMEOUT_SECONDS = 540.0
 
 
 class HttpAIService(AIService):
@@ -45,6 +47,14 @@ class HttpAIService(AIService):
         return self._post(
             "generate-meanings-batch", system_prompt, user_prompt, BATCH_TIMEOUT_SECONDS,
             self._parse_meanings_batch,
+        )
+
+    def polish_phrases_batch(
+        self, system_prompt: str, user_prompt: str
+    ) -> list[PolishedPhrase]:
+        return self._post(
+            "polish-phrases-batch", system_prompt, user_prompt, POLISH_TIMEOUT_SECONDS,
+            self._parse_polished_phrases,
         )
 
     def generate_topic_targets(
@@ -79,6 +89,13 @@ class HttpAIService(AIService):
                 examples=item.get("examples", ""),
                 ipa=item.get("ipa"),
             )
+            for item in data["results"]
+        ]
+
+    @staticmethod
+    def _parse_polished_phrases(data: dict[str, Any]) -> list[PolishedPhrase]:
+        return [
+            PolishedPhrase(phrase_index=item["phrase_index"], phrase=item["phrase"])
             for item in data["results"]
         ]
 

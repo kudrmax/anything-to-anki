@@ -17,9 +17,13 @@ function item(state: QueueState, name: string, generateLabel: string, generate: 
 export function GenerateMenu({ review }: { review: Review }) {
   const { queue, batch, source } = review
   const isVideo = source?.content_type === 'video'
-  const items: MenuItem[] = [
+  const items: MenuItem[] = []
+  if (source?.can_polish_phrases) {
+    items.push(item(queue.polish, 'polishing', 'Polish phrases', () => void batch.polishPhrases(), () => void batch.cancelPolish(), () => void batch.retryPolish()))
+  }
+  items.push(
     item(queue.meaning, 'meanings', 'Generate meanings', () => void batch.generateMeanings(), () => void batch.cancelMeanings(), () => void batch.retryMeanings(), review.busy.generating.size > 0),
-  ]
+  )
   if (isVideo) {
     if (review.downloadingVideo) items.push({ label: 'Downloading…', onSelect: () => {}, disabled: true })
     else if (queue.media.inflight === 0 && queue.media.failed === 0 && !source?.video_downloaded) items.push({ label: 'Download media', onSelect: () => void batch.downloadVideo() })
@@ -34,7 +38,7 @@ export function GenerateMenu({ review }: { review: Review }) {
     <Menu
       items={items}
       trigger={
-        <Button variant="link" className={css.iconTrigger} title="Generate meanings · media · pronunciation" aria-label="Generate">
+        <Button variant="link" className={css.iconTrigger} title="Polish phrases · meanings · media · pronunciation" aria-label="Generate">
           {queue.anyInflight || review.downloadingVideo ? <Spinner /> : <Icon as={Sparkles} />}
         </Button>
       }

@@ -31,7 +31,15 @@ class CandidateRepository(ABC):
     def count_all(self) -> int: ...
 
     @abstractmethod
-    def update_context_fragment(self, candidate_id: int, context_fragment: str) -> None: ...
+    def update_context_fragment(self, candidate_id: int, context_fragment: str) -> None:
+        """Set a new source phrase. Its polished version no longer applies and is dropped."""
+
+    @abstractmethod
+    def set_polished_fragment(self, candidate_id: int, polished_fragment: str | None) -> None:
+        """Store AI's easier version of the phrase; None drops it. Clears a revert."""
+
+    @abstractmethod
+    def set_polish_reverted(self, candidate_id: int, reverted: bool) -> None: ...
 
     @abstractmethod
     def get_by_ids(self, candidate_ids: list[int]) -> list[StoredCandidate]:

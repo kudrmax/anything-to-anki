@@ -265,6 +265,10 @@ class StoredCandidateModel(Base):
     )
     origin_kind: Mapped[str | None] = mapped_column(String(10), nullable=True)
     origin_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    polished_fragment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    polish_reverted: Mapped[bool] = mapped_column(
+        nullable=False, default=False, server_default="0"
+    )
 
     cefr_breakdown: Mapped[CEFRBreakdownModel | None] = relationship(
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
@@ -305,6 +309,8 @@ class StoredCandidateModel(Base):
             cefr_breakdown=bd,
             usage_distribution=ud,
             origin=self._origin(),
+            polished_fragment=self.polished_fragment,
+            polish_reverted=self.polish_reverted,
         )
 
     def _origin(self) -> PhraseOrigin | None:
@@ -332,6 +338,8 @@ class StoredCandidateModel(Base):
             status=candidate.status.value,
             origin_kind=candidate.origin.kind.value if candidate.origin else None,
             origin_title=candidate.origin.source_title if candidate.origin else None,
+            polished_fragment=candidate.polished_fragment,
+            polish_reverted=candidate.polish_reverted,
         )
         if candidate.cefr_breakdown is not None:
             model.cefr_breakdown = _breakdown_to_model(candidate.cefr_breakdown)

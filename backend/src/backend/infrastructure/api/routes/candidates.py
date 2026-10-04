@@ -9,6 +9,7 @@ from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO  # noqa: 
 from backend.application.dto.candidate_dtos import (  # noqa: TC001
     MarkCandidateRequest,
     ReplaceWithExampleRequest,
+    RevertPolishRequest,
     UpdateContextFragmentRequest,
 )
 from backend.application.dto.card_report_dtos import (  # noqa: TC001
@@ -20,7 +21,9 @@ from backend.application.dto.source_dtos import StoredCandidateDTO  # noqa: TC00
 from backend.domain.exceptions import (
     AIServiceError,
     CandidateNotFoundError,
+    CandidateNotPolishedError,
     EmptyReportCommentError,
+    PhrasePolishNotSupportedError,
     UnknownReportReasonError,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -87,6 +90,39 @@ def update_context_fragment(
     repo.update_context_fragment(candidate_id, request.context_fragment)
     session.commit()
     return {"id": candidate_id, "context_fragment": request.context_fragment}
+
+
+@router.post("/{candidate_id}/polish", status_code=202)
+def polish_phrase_again(
+    candidate_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, str]:
+    try:
+        container.enqueue_phrase_polish_use_case(session).execute_one(candidate_id)
+        session.commit()
+    except CandidateNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except PhrasePolishNotSupportedError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"status": "queued"}
+
+
+@router.put("/{candidate_id}/polish/reverted")
+def revert_phrase_polish(
+    candidate_id: int,
+    request: RevertPolishRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, Any]:
+    try:
+        container.revert_phrase_polish_use_case(session).execute(candidate_id, request.reverted)
+        session.commit()
+    except CandidateNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except CandidateNotPolishedError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    return {"id": candidate_id, "reverted": request.reverted}
 
 
 @router.post("/{candidate_id}/replace-with-example", status_code=201)

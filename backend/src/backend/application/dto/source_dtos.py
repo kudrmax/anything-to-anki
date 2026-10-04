@@ -9,6 +9,7 @@ from backend.application.dto.cefr_dtos import (
     CEFRBreakdownDTO,  # noqa: TC001 — Pydantic needs this at runtime
 )
 from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
     from backend.domain.entities.job import Job
@@ -114,7 +115,14 @@ class StoredCandidateDTO(BaseModel):
     is_sweet_spot: bool
     # The user has complained about this card at least once.
     reported: bool = False
+    # The phrase as it stands in the source.
     context_fragment: str
+    # The phrase the card shows: polished by AI unless reverted.
+    phrase: str
+    # AI's easier version, only when it differs from the source phrase.
+    polished_fragment: str | None = None
+    polish_reverted: bool = False
+    polish_status: str | None = None  # 'queued' | 'running' | 'failed' while AI works on it
     fragment_purity: str
     occurrences: int
     status: str
@@ -141,6 +149,7 @@ class SourceDetailDTO(BaseModel):
     status: str
     source_type: str
     content_type: str
+    can_polish_phrases: bool = False
     source_url: str | None = None
     video_downloaded: bool = False
     error_message: str | None
@@ -217,6 +226,16 @@ def _derive_tts_status(
     if c.tts is not None and c.tts.audio_path is not None:
         return "done", None
     return "done", None
+
+
+def _polish_status(
+    c: StoredCandidate,
+    jobs_by_candidate: dict[int, dict[str, Job]] | None,
+) -> str | None:
+    if not jobs_by_candidate or c.id is None:
+        return None
+    job = jobs_by_candidate.get(c.id, {}).get(JobType.POLISH.value)
+    return job.status.value if job is not None else None
 
 
 def stored_candidate_to_dto(
@@ -348,6 +367,10 @@ def stored_candidate_to_dto(
         is_sweet_spot=c.is_sweet_spot,
         reported=reported_ids is not None and c.id in reported_ids,
         context_fragment=c.context_fragment,
+        phrase=c.card_phrase,
+        polished_fragment=c.polished_fragment if c.is_polished else None,
+        polish_reverted=c.polish_reverted,
+        polish_status=_polish_status(c, jobs_by_candidate),
         fragment_purity=c.fragment_purity,
         occurrences=c.occurrences,
         status=c.status.value,

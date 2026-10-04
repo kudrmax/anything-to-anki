@@ -3,6 +3,7 @@ import { ArrowRight, Feather, Flag, Image, List, MessageCircle, Pencil, RefreshC
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { decisionChange, type Decision } from '@/lib/decision'
 import { Button, Field, IconButton, Menu, type MenuItem } from '@/ui'
+import { PolishedPhrase } from './PolishedPhrase'
 import type { Review } from './useReview'
 import css from './review.module.css'
 
@@ -102,6 +103,7 @@ export function PhraseTools({ candidate, review }: PhraseActionsProps) {
       )}
       {isVideo && <IconButton icon={Image} label="Regenerate media" busy={review.busy.media.has(id)} onClick={() => void review.regenerateMedia(id)} />}
       <IconButton icon={Speech} label="Generate TTS audio" busy={review.busy.tts.has(id)} onClick={() => void review.generateTTS(id)} />
+      <PolishedPhrase candidate={candidate} review={review} />
       <Menu
         trigger={<IconButton icon={Flag} label={candidate.reported ? 'Reported — report another problem' : 'Report a problem with this card'} className={candidate.reported ? css.reported : undefined} />}
         items={reportItems}

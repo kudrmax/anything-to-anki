@@ -97,7 +97,7 @@ export function useReview(sourceId: number) {
   }, [sourceId, sortOrder, loadQueueSummary])
 
   // Polling while there are inflight jobs
-  const anyInflight = inflight(queueSummary?.meaning) + inflight(queueSummary?.media)
+  const anyInflight = inflight(queueSummary?.polish) + inflight(queueSummary?.meaning) + inflight(queueSummary?.media)
     + inflight(queueSummary?.pronunciation) + inflight(queueSummary?.tts) > 0
   useEffect(() => {
     if (!anyInflight) return
@@ -223,6 +223,9 @@ export function useReview(sourceId: number) {
   }
 
   const batch = {
+    polishPhrases: () => runBatch(() => api.enqueuePhrasePolish(sourceId, sortOrder), 'Failed to enqueue phrase polishing', { vpnAware: true }),
+    cancelPolish: () => runBatch(() => api.cancelPhrasePolishQueue(sourceId), 'Failed to cancel'),
+    retryPolish: () => runBatch(() => api.retryFailedPhrasePolish(sourceId), 'Failed to retry', { vpnAware: true }),
     generateMeanings: () => runBatch(() => api.enqueueMeaningGeneration(sourceId, sortOrder), 'Failed to enqueue meanings', { vpnAware: true }),
     cancelMeanings: () => runBatch(() => api.cancelMeaningQueue(sourceId), 'Failed to cancel'),
     retryMeanings: () => runBatch(() => api.retryFailedMeanings(sourceId), 'Failed to retry', { vpnAware: true }),
@@ -279,8 +282,8 @@ export function useReview(sourceId: number) {
       showToast(e instanceof Error ? e.message : 'Failed to save the boundary')
       return false
     }
-    setCandidates(prev => prev.map(c => (c.id === editing.candidateId ? { ...c, context_fragment: phrase } : c)))
     cancelEditing()
+    await loadCandidates()
     return true
   }
 
@@ -295,6 +298,25 @@ export function useReview(sourceId: number) {
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to add the word')
       return false
+    }
+  }
+
+  const polishAgain = async (candidateId: number) => {
+    try {
+      await api.polishPhraseAgain(candidateId)
+      await loadCandidates()
+      await loadQueueSummary()
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to polish the phrase')
+    }
+  }
+
+  const setPolishReverted = async (candidateId: number, reverted: boolean) => {
+    try {
+      await api.setPolishReverted(candidateId, reverted)
+      await loadCandidates()
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to switch the phrase')
     }
   }
 
@@ -322,6 +344,7 @@ export function useReview(sourceId: number) {
     sourceId, source, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,
     counts: { marked: markedCount, total: candidates.length, learn: learnCount, progress: candidates.length > 0 ? markedCount / candidates.length : 0 },
     queue: {
+      polish: { inflight: inflight(queueSummary?.polish), failed: queueSummary?.polish?.failed ?? 0 },
       meaning: { inflight: inflight(queueSummary?.meaning), failed: queueSummary?.meaning?.failed ?? 0 },
       media: { inflight: inflight(queueSummary?.media), failed: queueSummary?.media?.failed ?? 0 },
       pronunciation: { inflight: inflight(queueSummary?.pronunciation), failed: queueSummary?.pronunciation?.failed ?? 0 },
@@ -329,7 +352,7 @@ export function useReview(sourceId: number) {
       anyInflight,
     },
     batch, downloadingVideo,
-    mark, generate, replaceWithExample, generateTTS, regenerateMedia,
+    mark, generate, replaceWithExample, generateTTS, regenerateMedia, polishAgain, setPolishReverted,
     busy: { generating: generatingIds, media: regeneratingMediaIds, tts: generatingTTSIds },
     vpnBlocked, dismissVpn: () => setVpnBlocked(false),
     editing, startEditing, cancelEditing, setBoundary, addWord,

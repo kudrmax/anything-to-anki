@@ -62,6 +62,12 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
             existing.generated_at = meaning.generated_at
         self._session.flush()
 
+    def delete_by_candidate_id(self, candidate_id: int) -> None:
+        model = self._session.get(CandidateMeaningModel, candidate_id)
+        if model is not None:
+            self._session.delete(model)
+            self._session.flush()
+
     def get_candidate_ids_without_meaning(
         self,
         source_id: int | None,

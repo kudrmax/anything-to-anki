@@ -22,6 +22,9 @@ class CandidateTTSRepository(ABC):
     def upsert(self, tts: CandidateTTS) -> None: ...
 
     @abstractmethod
+    def delete_by_candidate_id(self, candidate_id: int) -> None: ...
+
+    @abstractmethod
     def get_eligible_candidate_ids(self, source_id: int) -> list[int]:
         """Return ids of candidates that have status PENDING or LEARN
         and do NOT have an existing CandidateTTS row.

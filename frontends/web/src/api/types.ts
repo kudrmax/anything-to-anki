@@ -114,7 +114,15 @@ export interface StoredCandidate {
   is_sweet_spot: boolean
   /** На карточку уже жаловались. */
   reported: boolean
+  /** Фраза как в источнике. */
   context_fragment: string
+  /** Фраза карточки: упрощённая AI, если её не откатили. */
+  phrase: string
+  /** Упрощённая AI фраза — только если она отличается от фразы источника. */
+  polished_fragment: string | null
+  polish_reverted: boolean
+  /** AI ещё работает над фразой. */
+  polish_status: EnrichmentStatus | null
   fragment_purity: string
   occurrences: number
   status: CandidateStatus
@@ -139,6 +147,7 @@ export interface SourceDetail {
   status: SourceStatus
   source_type: SourceType
   content_type: ContentType
+  can_polish_phrases: boolean
   source_url: string | null
   video_downloaded: boolean
   error_message: string | null
@@ -261,6 +270,7 @@ export interface QueueStatus {
 }
 
 export interface QueueSummary {
+  polish: QueueStatus
   meaning: QueueStatus
   media: QueueStatus
   pronunciation: QueueStatus
@@ -326,6 +336,7 @@ export interface QueueGlobalSummary {
   pronunciation: JobTypeSummary
   video_download: JobTypeSummary
   topic_targets: JobTypeSummary
+  polish: JobTypeSummary
 }
 
 export interface QueueJob {
