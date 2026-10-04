@@ -6,7 +6,11 @@ from unittest.mock import MagicMock, call
 import pytest
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.domain.entities.source import Source
-from backend.domain.exceptions import SourceIsProcessingError, SourceNotFoundError
+from backend.domain.exceptions import (
+    PermanentSourceError,
+    SourceIsProcessingError,
+    SourceNotFoundError,
+)
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
@@ -41,6 +45,16 @@ class TestDeleteSourceUseCase:
             call.delete_by_source(1),
             call.delete(1),
         ]
+
+    def test_saved_phrases_source_is_not_deleted(self) -> None:
+        saved_source = Source.saved_phrases()
+        saved_source.id = 1
+        self.source_repo.get_by_id.return_value = saved_source
+
+        with pytest.raises(PermanentSourceError):
+            self.use_case.execute(1)
+
+        self.source_repo.delete.assert_not_called()
 
     def test_not_found_raises(self) -> None:
         self.source_repo.get_by_id.return_value = None

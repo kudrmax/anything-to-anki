@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.source import Source
+    from backend.domain.value_objects.content_type import ContentType
     from backend.domain.value_objects.processing_stage import ProcessingStage
     from backend.domain.value_objects.source_status import SourceStatus
 
@@ -32,6 +33,15 @@ class SqlaSourceRepository(SourceRepository):
     def list_all(self) -> list[Source]:
         models = self._session.query(SourceModel).order_by(SourceModel.created_at.desc()).all()
         return [m.to_entity() for m in models]
+
+    def get_first_by_content_type(self, content_type: ContentType) -> Source | None:
+        model = (
+            self._session.query(SourceModel)
+            .filter(SourceModel.content_type == content_type.value)
+            .order_by(SourceModel.id)
+            .first()
+        )
+        return model.to_entity() if model else None
 
     def update_source(self, source: Source) -> None:
         if source.id is None:

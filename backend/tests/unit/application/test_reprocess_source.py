@@ -6,6 +6,7 @@ import pytest
 from backend.application.use_cases.reprocess_source import ReprocessSourceUseCase
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import (
+    PermanentSourceError,
     SourceHasActiveJobsError,
     SourceNotFoundError,
     SourceNotReprocessableError,
@@ -129,3 +130,15 @@ class TestReprocessSourceUseCase:
 
         candidate_repo.delete_by_source.assert_not_called()
         process_source_uc.start.assert_not_called()
+
+
+def test_saved_phrases_source_is_not_reprocessed() -> None:
+    uc, source_repo, candidate_repo, _, _ = _make_use_case()
+    saved_source = Source.saved_phrases()
+    saved_source.id = 1
+    source_repo.get_by_id.return_value = saved_source
+
+    with pytest.raises(PermanentSourceError):
+        uc.execute(1)
+
+    candidate_repo.delete_by_source.assert_not_called()

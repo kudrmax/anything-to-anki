@@ -5,7 +5,11 @@ import os
 import shutil
 from typing import TYPE_CHECKING
 
-from backend.domain.exceptions import SourceIsProcessingError, SourceNotFoundError
+from backend.domain.exceptions import (
+    PermanentSourceError,
+    SourceIsProcessingError,
+    SourceNotFoundError,
+)
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
@@ -32,6 +36,8 @@ class DeleteSourceUseCase:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
+        if source.is_permanent:
+            raise PermanentSourceError(source_id)
         if source.status == SourceStatus.PROCESSING:
             raise SourceIsProcessingError(source_id)
 

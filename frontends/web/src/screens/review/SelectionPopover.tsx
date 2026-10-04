@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { computeDiff } from '@/lib/text/diff'
-import { Button, Chip, Text, Tooltip } from '@/ui'
+import { pickedWords, toggled } from '@/lib/text/words'
+import { Button, Text, Tooltip, WordPicker } from '@/ui'
 import type { SelectionPoint } from './SourceText'
 import type { Editing } from './useReview'
 import css from './review.module.css'
@@ -20,8 +21,7 @@ interface SelectionPopoverProps {
 export function SelectionPopover({ phrase, point, editing, onSetBoundary, onAddWord, onCancel }: SelectionPopoverProps) {
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
-  const words = phrase.split(/\s+/).filter(Boolean)
-  const target = words.filter((_, i) => selected.has(i)).join(' ')
+  const target = pickedWords(phrase, selected)
 
   const run = async (action: () => Promise<void>) => {
     if (loading) return
@@ -32,13 +32,6 @@ export function SelectionPopover({ phrase, point, editing, onSetBoundary, onAddW
       setLoading(false)
     }
   }
-
-  const toggleWord = (index: number) => setSelected(prev => {
-    const next = new Set(prev)
-    if (next.has(index)) next.delete(index)
-    else next.add(index)
-    return next
-  })
 
   return (
     <Tooltip anchor={null} point={point} role="dialog" onClose={onCancel}>
@@ -58,11 +51,7 @@ export function SelectionPopover({ phrase, point, editing, onSetBoundary, onAddW
         ) : (
           <>
             <Text tone="muted" size="s">Tap words to select target</Text>
-            <div className={css.words}>
-              {words.map((word, i) => (
-                <Chip key={i} small on={selected.has(i)} onClick={() => toggleWord(i)}>{word}</Chip>
-              ))}
-            </div>
+            <WordPicker phrase={phrase} selected={selected} onToggle={i => setSelected(prev => toggled(prev, i))} />
             {target && <Text tone="muted" size="s">Target: <Text tone="accent">{target}</Text></Text>}
           </>
         )}

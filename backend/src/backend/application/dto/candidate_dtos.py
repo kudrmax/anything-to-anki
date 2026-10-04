@@ -12,6 +12,13 @@ class AddManualCandidateRequest(BaseModel):
     context_fragment: str
 
 
+class AddSavedPhraseRequest(BaseModel):
+    """Input for saving a phrase met anywhere, with the target picked in it."""
+
+    phrase: str
+    target: str
+
+
 class UpdateContextFragmentRequest(BaseModel):
     """Input for updating context_fragment of a candidate."""
 

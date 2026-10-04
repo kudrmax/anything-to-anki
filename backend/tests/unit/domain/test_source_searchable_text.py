@@ -37,3 +37,22 @@ def test_unprocessed_subtitles_are_not_searchable() -> None:
 
 def test_topic_is_never_searchable() -> None:
     assert _source(InputMethod.TOPIC_QUERY, "phrases of the topic").searchable_text is None
+
+
+def test_phrase_added_goes_to_phrases() -> None:
+    assert resolve_content_type(InputMethod.PHRASE_ADDED) == ContentType.PHRASES
+
+
+def test_saved_phrases_source_has_no_text_and_is_permanent() -> None:
+    source = Source.saved_phrases()
+
+    assert source.content_type == ContentType.PHRASES
+    assert source.status == SourceStatus.DONE
+    assert source.searchable_text is None
+    assert not source.has_text
+    assert source.is_permanent
+    assert not source.can_polish_phrases
+
+
+def test_regular_source_is_not_permanent() -> None:
+    assert not _source(InputMethod.TEXT_PASTED).is_permanent

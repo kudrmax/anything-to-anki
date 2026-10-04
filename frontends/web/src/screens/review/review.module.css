@@ -61,7 +61,6 @@
 /* попап выделения */
 .popover { display: flex; flex-direction: column; gap: var(--s3); min-width: var(--menu); font-size: var(--fs-m); }
 .popoverFooter { display: flex; justify-content: flex-end; align-items: center; gap: var(--gap); margin-top: var(--s3); }
-.words { display: flex; flex-wrap: wrap; gap: var(--s2); }
 .added { color: var(--ok); }
 .removed { color: var(--err); text-decoration: line-through; }
 

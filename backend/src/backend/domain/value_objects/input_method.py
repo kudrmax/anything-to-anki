@@ -10,3 +10,4 @@ class InputMethod(StrEnum):
     VIDEO_FILE = "video_file"
     YOUTUBE_URL = "youtube_url"
     TOPIC_QUERY = "topic_query"
+    PHRASE_ADDED = "phrase_added"

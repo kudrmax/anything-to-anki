@@ -11,6 +11,9 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.source_status import SourceStatus
 
 
+SAVED_PHRASES_TITLE = "Saved phrases"
+
+
 @dataclass
 class Source:
     """A text source submitted for vocabulary analysis."""
@@ -30,17 +33,44 @@ class Source:
     processing_stage: ProcessingStage | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
 
+    @classmethod
+    def saved_phrases(cls) -> Source:
+        """The built-in source of phrases met anywhere and added one by one by hand."""
+        from backend.domain.value_objects.content_type import ContentType
+        from backend.domain.value_objects.input_method import InputMethod
+        from backend.domain.value_objects.source_status import SourceStatus
+
+        return cls(
+            raw_text="",
+            status=SourceStatus.DONE,
+            input_method=InputMethod.PHRASE_ADDED,
+            content_type=ContentType.PHRASES,
+            title=SAVED_PHRASES_TITLE,
+        )
+
+    @property
+    def is_permanent(self) -> bool:
+        """The app always keeps it: it can't be deleted, and there is nothing to reprocess."""
+        from backend.domain.value_objects.content_type import ContentType
+
+        return self.content_type == ContentType.PHRASES
+
+    @property
+    def has_text(self) -> bool:
+        """Topics and hand-added phrases have no text of their own to show."""
+        from backend.domain.value_objects.content_type import ContentType
+
+        return self.content_type not in (ContentType.TOPIC, ContentType.PHRASES)
+
     @property
     def searchable_text(self) -> str | None:
         """Plain text other sources may borrow phrases from, if there is any yet.
 
         Raw subtitles and lyrics carry markup, so they count only once cleaned.
-        Topics have no text of their own.
         """
-        from backend.domain.value_objects.content_type import ContentType
         from backend.domain.value_objects.input_method import InputMethod
 
-        if self.content_type == ContentType.TOPIC:
+        if not self.has_text:
             return None
         if self.cleaned_text:
             return self.cleaned_text
@@ -50,10 +80,13 @@ class Source:
 
     @property
     def can_polish_phrases(self) -> bool:
-        """A video card cuts its clip by the source phrase, so its phrase must stay as is."""
+        """A video card cuts its clip by the source phrase, so its phrase must stay as is.
+
+        A hand-added phrase is kept exactly as the user met it.
+        """
         from backend.domain.value_objects.content_type import ContentType
 
-        return self.content_type != ContentType.VIDEO
+        return self.content_type not in (ContentType.VIDEO, ContentType.PHRASES)
 
     def reset_to_initial_state(self) -> Source:
         from backend.domain.value_objects.source_status import SourceStatus

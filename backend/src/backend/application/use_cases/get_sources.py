@@ -104,6 +104,7 @@ class GetSourcesUseCase:
                     awaiting_generation=generation.awaiting,
                     generation_status=generation.status,
                     generation_error=generation.error,
+                    is_permanent=source.is_permanent,
                 )
             )
         return result
@@ -154,6 +155,7 @@ class GetSourcesUseCase:
             source_type=source.input_method.value,
             content_type=source.content_type.value,
             can_polish_phrases=source.can_polish_phrases,
+            has_source_text=source.has_text,
             source_url=source.source_url,
             video_downloaded=source.video_path is not None,
             error_message=source.error_message,

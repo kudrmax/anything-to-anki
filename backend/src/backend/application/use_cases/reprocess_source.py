@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import (
+    PermanentSourceError,
     SourceHasActiveJobsError,
     SourceNotFoundError,
     SourceNotReprocessableError,
@@ -46,6 +47,8 @@ class ReprocessSourceUseCase:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
+        if source.is_permanent:
+            raise PermanentSourceError(source_id)
         if source.status not in _REPROCESSABLE_STATUSES:
             raise SourceNotReprocessableError(source_id)
 

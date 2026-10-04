@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.utils.candidate_factory import CandidateFactory
 from backend.domain.entities.token_data import TokenData
+from backend.domain.services.phrasal_verb_detector import PhrasalVerbMatch
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_origin import PhraseOrigin
@@ -75,3 +76,19 @@ def test_hyphenated_word_is_one_target() -> None:
         occurrences=1,
     )
     assert candidate.lemma == "counter-offer"
+
+
+def test_separated_phrasal_verb_picked_by_its_parts() -> None:
+    context = [_token(0, "give", "give", pos="VERB"), _token(1, "it", "it"),
+               _token(2, "up", "up", ws="")]
+    factory = _factory([context])
+    factory._phrasal_verb_detector.detect.return_value = [  # type: ignore[attr-defined]
+        PhrasalVerbMatch(
+            verb_index=0, component_indices=(0, 2), lemma="give up", surface_form="give it up",
+        ),
+    ]
+    candidate = factory.build(
+        source_id=1, surface_form="give up", context_fragment="give it up", occurrences=1,
+    )
+    assert candidate.lemma == "give up"
+    assert candidate.is_phrasal_verb is True

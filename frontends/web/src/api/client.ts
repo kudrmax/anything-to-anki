@@ -253,6 +253,12 @@ export const api = {
       body: JSON.stringify({ example_text: exampleText }),
     }),
 
+  addSavedPhrase: (phrase: string, target: string) =>
+    req<StoredCandidate>('/sources/saved-phrases', {
+      method: 'POST',
+      body: JSON.stringify({ phrase, target }),
+    }),
+
   addManualCandidate: (sourceId: number, surfaceForm: string, contextFragment: string) =>
     req<StoredCandidate>(`/sources/${sourceId}/candidates/manual`, {
       method: 'POST',

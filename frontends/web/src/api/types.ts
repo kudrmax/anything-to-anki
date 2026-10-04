@@ -6,8 +6,8 @@ export type SourceStatus =
   | 'partially_reviewed'
   | 'reviewed'
 
-export type InputMethod = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file' | 'video_file' | 'youtube_url' | 'topic_query'
-export type ContentType = 'text' | 'lyrics' | 'video' | 'topic'
+export type InputMethod = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file' | 'video_file' | 'youtube_url' | 'topic_query' | 'phrase_added'
+export type ContentType = 'text' | 'lyrics' | 'video' | 'topic' | 'phrases'
 export type SourceType = InputMethod
 
 export type ProcessingStage = 'cleaning_source' | 'analyzing_text' | 'mapping_timecodes' | 'collecting_phrases'
@@ -44,6 +44,8 @@ export interface SourceSummary {
   awaiting_generation: boolean
   generation_status: GenerationStatus | null
   generation_error: string | null
+  /** Встроенный источник: его нельзя удалить и переобработать. */
+  is_permanent: boolean
 }
 
 export type GenerationStatus = 'queued' | 'running' | 'failed'
@@ -148,6 +150,8 @@ export interface SourceDetail {
   source_type: SourceType
   content_type: ContentType
   can_polish_phrases: boolean
+  /** Есть ли у источника свой текст, который показывает ревью. */
+  has_source_text: boolean
   source_url: string | null
   video_downloaded: boolean
   error_message: string | null

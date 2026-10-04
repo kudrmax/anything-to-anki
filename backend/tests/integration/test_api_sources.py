@@ -165,3 +165,55 @@ class TestCreateFileSource:
 
         assert resp.status_code == 404
         assert "not found" in resp.json()["detail"].lower()
+
+
+@pytest.mark.integration
+class TestSavedPhrasesAPI:
+    def test_phrase_goes_to_saved_phrases_source_to_learn(self, client: TestClient) -> None:
+        response = client.post(
+            "/sources/saved-phrases",
+            json={"phrase": "She finally gave in to the pressure.", "target": "gave in"},
+        )
+
+        assert response.status_code == 201
+        candidate = response.json()
+        assert candidate["status"] == "learn"
+        assert candidate["lemma"] == "give in"
+        sources = client.get("/sources").json()
+        assert len(sources) == 1
+        saved_source = sources[0]
+        assert saved_source["title"] == "Saved phrases"
+        assert saved_source["content_type"] == "phrases"
+        assert saved_source["is_permanent"] is True
+        assert saved_source["learn_count"] == 1
+        detail = client.get(f"/sources/{saved_source['id']}").json()
+        assert detail["has_source_text"] is False
+        assert detail["can_polish_phrases"] is False
+
+    def test_second_phrase_reuses_the_same_source(self, client: TestClient) -> None:
+        for phrase in ("It was a daunting task.", "Keep it concise."):
+            target = phrase.split()[-1].rstrip(".")
+            client.post("/sources/saved-phrases", json={"phrase": phrase, "target": target})
+
+        sources = client.get("/sources").json()
+        assert len(sources) == 1
+        assert sources[0]["candidate_count"] == 2
+
+    def test_target_outside_phrase_is_rejected(self, client: TestClient) -> None:
+        response = client.post(
+            "/sources/saved-phrases",
+            json={"phrase": "It was a daunting task.", "target": "challenge"},
+        )
+        assert response.status_code == 400
+
+    def test_saved_phrases_source_cannot_be_deleted_or_reprocessed(
+        self, client: TestClient,
+    ) -> None:
+        client.post(
+            "/sources/saved-phrases",
+            json={"phrase": "It was a daunting task.", "target": "daunting"},
+        )
+        source_id = client.get("/sources").json()[0]["id"]
+
+        assert client.delete(f"/sources/{source_id}").status_code == 409
+        assert client.post(f"/sources/{source_id}/reprocess").status_code == 409

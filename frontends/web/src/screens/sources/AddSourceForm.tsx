@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { api } from '@/api/client'
 import type { AudioTrack, SourceSummary, SourceType, SubtitleTrack } from '@/api/types'
 import { detectedFileType, detectedUrlType, isVideoPath } from '@/lib/text/sourceInput'
-import { Button, Field, Label, Segmented, Stack, Tabs, Text, TextArea } from '@/ui'
+import { pickedWords, toggled } from '@/lib/text/words'
+import { Button, Field, Label, Segmented, Stack, Tabs, Text, TextArea, WordPicker } from '@/ui'
 import { PathField } from './PathField'
 import { TrackSelectionModal } from './TrackSelectionModal'
 
-type Tab = 'text' | 'url' | 'file' | 'topic'
+type Tab = 'text' | 'url' | 'file' | 'topic' | 'phrase'
 type TextType = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file'
 
 const TABS: { value: Tab; label: string }[] = [
@@ -14,6 +15,7 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'url', label: 'URL' },
   { value: 'file', label: 'File' },
   { value: 'topic', label: 'Topic' },
+  { value: 'phrase', label: 'Phrase' },
 ]
 const TEXT_TYPES: { value: TextType; label: string }[] = [
   { value: 'text_pasted', label: 'Text' },
@@ -27,6 +29,9 @@ const TEXT_PLACEHOLDER: Record<TextType, string> = {
 }
 const TOPIC_PLACEHOLDER = 'Negotiating a salary, phrasal verbs with get…'
 const TOPIC_HINT = 'Targets come from AI, phrases from your sources'
+const PHRASE_PLACEHOLDER = 'Paste a phrase you came across…'
+const PHRASE_HINT = 'Tap words to select target'
+const PHRASE_SAVED = 'Phrase saved'
 const SUBTITLE_EXTENSIONS = ['srt']
 const NO_SUBTITLES_ERROR = 'subtitles_not_available'
 const PREVIEW_LENGTH = 100
@@ -55,6 +60,9 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
   const [filePath, setFilePath] = useState('')
   const [srtPath, setSrtPath] = useState('')
   const [topic, setTopic] = useState('')
+  const [phrase, setPhrase] = useState('')
+  const [phraseTarget, setPhraseTarget] = useState<Set<number>>(new Set())
+  const [phraseSaved, setPhraseSaved] = useState(false)
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingTracks, setPendingTracks] = useState<PendingTracks | null>(null)
@@ -146,6 +154,7 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
         awaiting_generation: false,
         generation_status: null,
         generation_error: null,
+        is_permanent: false,
       })
       setText('')
       setTextType(null)
@@ -172,11 +181,35 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
     }
   }
 
+  const editPhrase = (value: string) => {
+    setPhrase(value)
+    setPhraseTarget(new Set())
+    setPhraseSaved(false)
+  }
+
+  const addPhrase = async () => {
+    const target = pickedWords(phrase, phraseTarget)
+    if (!phrase.trim()) { setError('Paste a phrase'); return }
+    if (!target) { setError('Select target words'); return }
+    setAdding(true)
+    try {
+      await api.addSavedPhrase(phrase.trim(), target)
+      await onReload()
+      editPhrase('')
+      setPhraseSaved(true)
+    } catch (e) {
+      setError(messageOf(e))
+    } finally {
+      setAdding(false)
+    }
+  }
+
   const add = () => {
     setError(null)
     if (tab === 'url') void addUrl()
     else if (tab === 'file') void addFile()
     else if (tab === 'topic') void addTopic()
+    else if (tab === 'phrase') void addPhrase()
     else void addText()
   }
 
@@ -185,7 +218,7 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
       <Tabs value={tab} options={TABS} onChange={setTab} />
       <Stack gap="m">
         <Stack>
-          <Field value={title} placeholder="Title (optional)" onChange={e => setTitle(e.target.value)} />
+          {tab !== 'phrase' && <Field value={title} placeholder="Title (optional)" onChange={e => setTitle(e.target.value)} />}
           {tab === 'text' && (
             <TextArea value={text} placeholder={TEXT_PLACEHOLDER[textType ?? 'text_pasted']} onChange={e => setText(e.target.value)} />
           )}
@@ -210,6 +243,17 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
               <Text tone="muted" size="s">{TOPIC_HINT}</Text>
             </>
           )}
+          {tab === 'phrase' && (
+            <>
+              <TextArea value={phrase} placeholder={PHRASE_PLACEHOLDER} onChange={e => editPhrase(e.target.value)} />
+              {phrase.trim() ? (
+                <>
+                  <Text tone="muted" size="s">{PHRASE_HINT}</Text>
+                  <WordPicker phrase={phrase} selected={phraseTarget} onToggle={i => setPhraseTarget(prev => toggled(prev, i))} />
+                </>
+              ) : phraseSaved && <Text tone="muted" size="s">{PHRASE_SAVED}</Text>}
+            </>
+          )}
         </Stack>
         {tab === 'text' && (
           <div>
@@ -218,7 +262,7 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
           </div>
         )}
         {error && <Text tone="err" size="s">{error}</Text>}
-        <Button variant="fill" wide busy={adding} onClick={add}>Add source</Button>
+        <Button variant="fill" wide busy={adding} onClick={add}>{tab === 'phrase' ? 'Add phrase' : 'Add source'}</Button>
       </Stack>
       {pendingTracks && (
         <TrackSelectionModal

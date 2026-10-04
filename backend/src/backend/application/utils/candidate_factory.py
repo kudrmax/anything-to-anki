@@ -14,7 +14,10 @@ if TYPE_CHECKING:
     from backend.domain.ports.cefr_classifier import CEFRClassifier
     from backend.domain.ports.frequency_provider import FrequencyProvider
     from backend.domain.ports.text_analyzer import TextAnalyzer
-    from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
+    from backend.domain.services.phrasal_verb_detector import (
+        PhrasalVerbDetector,
+        PhrasalVerbMatch,
+    )
     from backend.domain.value_objects.phrase_origin import PhraseOrigin
 
 FALLBACK_POS = "X"
@@ -88,7 +91,7 @@ class CandidateFactory:
         pv_match = next(
             (
                 m for m in self._phrasal_verb_detector.detect(tokens)
-                if m.surface_form.lower() == surface_lower
+                if _is_picked(m, tokens, surface_lower)
             ),
             None,
         )
@@ -134,6 +137,15 @@ def _collocation(tokens: list[TokenData]) -> _Lexeme:
         + "".join(t.text.lower() + t.whitespace_after for t in rest)
     ).strip()
     return _Lexeme(lemma=lemma, pos=COLLOCATION_POS, tag=COLLOCATION_TAG, is_phrasal_verb=False)
+
+
+def _is_picked(match: PhrasalVerbMatch, tokens: list[TokenData], surface_lower: str) -> bool:
+    """Picked as written, or only by its parts: "give it up" → "give up"."""
+    if match.surface_form.lower() == surface_lower:
+        return True
+    texts = {t.index: t.text.lower() for t in tokens}
+    parts = " ".join(texts.get(i, "") for i in match.component_indices)
+    return parts == surface_lower
 
 
 def _first_word(tokens: Iterable[TokenData]) -> TokenData | None:

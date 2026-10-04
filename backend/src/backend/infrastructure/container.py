@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
+from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.assign_source_collection import AssignSourceToCollectionUseCase
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
@@ -279,6 +280,17 @@ class Container:
 
     def add_manual_candidate_use_case(self, session: Session) -> AddManualCandidateUseCase:
         return AddManualCandidateUseCase(
+            source_repo=SqlaSourceRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
+            text_analyzer=self._text_analyzer,
+            cefr_classifier=self._cefr_classifier,
+            frequency_provider=self._frequency_provider,
+            phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
+            review_status=self._review_status_updater(session),
+        )
+
+    def add_saved_phrase_use_case(self, session: Session) -> AddSavedPhraseUseCase:
+        return AddSavedPhraseUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             text_analyzer=self._text_analyzer,

@@ -49,6 +49,9 @@ class CreateSourceUseCase:
         if not raw_text.strip():
             msg = "Source text cannot be empty"
             raise ValueError(msg)
+        if input_method == InputMethod.PHRASE_ADDED:
+            msg = "Phrases are added one by one to the built-in source"
+            raise ValueError(msg)
         resolved_title = title.strip() if title and title.strip() else raw_text[:100]
         source = Source(
             raw_text=raw_text,
