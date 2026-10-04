@@ -4,7 +4,7 @@ import { decisionChange, type Decision } from '@/lib/decision'
 import { reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { phraseListShownPref, sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
-import { ChevronLeft, ChevronRight, FileText, List, PanelRightClose, PanelRightOpen, Upload } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileText, List, ListChevronsDownUp, ListChevronsUpDown, PanelRightClose, PanelRightOpen, Upload } from 'lucide-react'
 import { Banner, Button, Empty, Icon, IconButton, Progress, Spinner, Toast } from '@/ui'
 import { GenerateMenu } from './GenerateMenu'
 import { PhraseCard } from './PhraseCard'
@@ -98,6 +98,20 @@ export function ReviewScreen() {
 
   const hasSourceText = source.has_source_text
 
+  const showCard = (id: number) => {
+    setCurrentId(id)
+    setPhoneView('card')
+  }
+
+  // Позиция и ‹ › — в ряду телефона и в шапке десктопа без списка.
+  const stepper = (
+    <>
+      <span className={css.position}>{currentIndex + 1} / {candidates.length}</span>
+      <IconButton icon={ChevronLeft} label="Previous phrase" disabled={prevId === null} onClick={() => prevId !== null && showCard(prevId)} />
+      <IconButton icon={ChevronRight} label="Next phrase" disabled={nextId === null} onClick={() => nextId !== null && showCard(nextId)} />
+    </>
+  )
+
   const header = (
     <PageHeader
       title={source.title}
@@ -111,6 +125,7 @@ export function ReviewScreen() {
       )}
     >
       <div className={css.headerTools}>
+        {candidates.length > 0 && !phraseListShown && <div className={css.headerStepper}>{stepper}</div>}
         {candidates.length > 0 && (
           <>
             <SortMenu value={review.sortOrder} onChange={review.setSortOrder} />
@@ -120,8 +135,7 @@ export function ReviewScreen() {
         {candidates.length > 0 && (
           <IconButton
             className={css.desktopOnly}
-            icon={List}
-            active={phraseListShown}
+            icon={phraseListShown ? ListChevronsDownUp : ListChevronsUpDown}
             label={phraseListShown ? 'Hide phrase list' : 'Show phrase list'}
             onClick={togglePhraseList}
           />
@@ -151,11 +165,6 @@ export function ReviewScreen() {
   // Правка границ фразы идёт по тексту источника — на телефоне показываем его.
   const view: PhoneView = editing ? 'text' : phoneView
 
-  const showCard = (id: number) => {
-    setCurrentId(id)
-    setPhoneView('card')
-  }
-
   const sourceText = (onWordClick: (id: number) => void) => (
     <SourceText
       text={source.cleaned_text ?? source.raw_text}
@@ -178,9 +187,7 @@ export function ReviewScreen() {
           <div className={css.phoneBar}>
             {hasSourceText && <IconButton className={css.phoneOnly} icon={FileText} label="Source text" active={view === 'text'} onClick={() => togglePhoneView('text')} />}
             <IconButton className={css.phoneOnly} icon={List} label="All phrases" active={view === 'list'} onClick={() => togglePhoneView('list')} />
-            <span className={css.phoneBarPosition}>{currentIndex + 1} / {candidates.length}</span>
-            <IconButton icon={ChevronLeft} label="Previous phrase" disabled={prevId === null} onClick={() => prevId !== null && showCard(prevId)} />
-            <IconButton icon={ChevronRight} label="Next phrase" disabled={nextId === null} onClick={() => nextId !== null && showCard(nextId)} />
+            {stepper}
           </div>
         )}
         {view === 'text' && hasSourceText && <div className={css.textPanel}>{sourceText(showCard)}</div>}
