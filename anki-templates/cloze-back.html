@@ -1,0 +1,33 @@
+<div class="card-inner">
+  <div class="media">
+    {{#Image}}<div class="image">{{Image}}</div>{{/Image}}
+    {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
+  </div>
+
+  <div class="sentence">{{cloze:Text}}</div>
+
+  <hr>
+
+  <div class="target-word">{{Target}}</div>
+  {{#IPA}}<div class="ipa">{{IPA}}</div>{{/IPA}}
+
+  <hr>
+
+  <div class="meaning">{{Meaning}}</div>
+
+  {{#Translation}}<hr><div class="translation">{{Translation}}</div>{{/Translation}}
+  {{#Synonyms}}<hr><div class="synonyms">{{Synonyms}}</div>{{/Synonyms}}
+
+  {{#Examples}}<hr><div class="examples">{{Examples}}</div>{{/Examples}}
+</div>
+
+<script>
+(function() {
+  var el = document.querySelector('.examples');
+  if (!el || el.querySelector('ul')) return;
+  var lines = el.innerHTML.split(/<br\s*\/?>/i).filter(function(l) { return l.trim(); });
+  if (lines.length > 0) {
+    el.innerHTML = '<ul>' + lines.map(function(l) { return '<li>' + l.trim() + '</li>'; }).join('') + '</ul>';
+  }
+})();
+</script>

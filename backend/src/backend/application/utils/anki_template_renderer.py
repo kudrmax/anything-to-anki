@@ -32,6 +32,14 @@ class AnkiTemplateRenderer:
             "css": self.render_css(),
         }
 
+    def render_cloze(self) -> dict[str, str]:
+        """Templates of the cloze note type: its field names are fixed, nothing to substitute."""
+        return {
+            "front": self._read("cloze-front.html"),
+            "back": self._read("cloze-back.html"),
+            "css": self.render_css(),
+        }
+
     def _read(self, filename: str) -> str:
         if filename not in self._cache:
             path = self.templates_dir / filename

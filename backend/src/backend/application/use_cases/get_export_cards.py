@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from backend.application.utils.export_queue import ExportBatch, ExportQueue
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.services.cloze_builder import ClozeBuilder
 
 
 class GetExportCardsUseCase:
@@ -21,10 +22,12 @@ class GetExportCardsUseCase:
         self,
         export_queue: ExportQueue,
         source_repo: SourceRepository,
+        cloze_builder: ClozeBuilder,
         media_base_url: str = "/media",
     ) -> None:
         self._export_queue = export_queue
         self._source_repo = source_repo
+        self._cloze_builder = cloze_builder
         self._media_base_url = media_base_url
 
     def execute(self, source_id: int) -> GlobalExportDTO:
@@ -82,14 +85,17 @@ class GetExportCardsUseCase:
         synonyms_text = meaning_obj.synonyms if meaning_obj else None
         examples_text = meaning_obj.examples if meaning_obj else None
 
+        cloze = self._cloze_builder.effective(candidate)
+        sentence = (
+            highlight_all_forms(candidate.card_phrase, candidate.lemma, candidate.surface_form)
+            if cloze is None
+            else self._cloze_builder.highlight_hidden(cloze.phrase, cloze.hidden_word_indices)
+        )
+
         return CardPreviewDTO(
             candidate_id=candidate.id,  # type: ignore[arg-type]
             lemma=candidate.lemma,
-            sentence=highlight_all_forms(
-                candidate.card_phrase,
-                candidate.lemma,
-                candidate.surface_form,
-            ),
+            sentence=sentence,
             meaning=(
                 highlight_all_forms(meaning_text, candidate.lemma, candidate.surface_form)
                 if meaning_text is not None
@@ -105,4 +111,5 @@ class GetExportCardsUseCase:
             pronunciation_uk_url=pronunciation_uk_url,
             tts_audio_url=tts_audio_url,
             missing=[part.value for part in missing_parts(candidate)],
+            is_cloze=cloze is not None,
         )

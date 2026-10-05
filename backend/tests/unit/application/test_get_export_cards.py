@@ -1,14 +1,18 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.utils.export_queue import ExportQueue
+from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.stored_candidate import StoredCandidate
+from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
 
 def _make_candidate(
@@ -80,6 +84,7 @@ class TestGetExportCardsExecute:
         self.use_case = GetExportCardsUseCase(
             export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
             source_repo=self.source_repo,
+            cloze_builder=ClozeBuilder(),
         )
 
     def test_returns_only_learn_candidates(self) -> None:
@@ -254,6 +259,7 @@ class TestGetExportCardsExecute:
         use_case = GetExportCardsUseCase(
             export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
             source_repo=self.source_repo,
+            cloze_builder=ClozeBuilder(),
             media_base_url="/custom/media",
         )
         self.candidate_repo.get_by_source.return_value = [
@@ -320,6 +326,37 @@ class TestGetExportCardsExecute:
         assert result.incomplete[0].source_title == "Source #99"
 
 
+    def test_cloze_card_shows_hidden_words_in_bold(self) -> None:
+        phrase = "She finally gave up smoking last year."
+        candidate = replace(
+            _make_candidate("give up", CandidateStatus.LEARN, phrase),
+            surface_form="gave up",
+            cloze=CandidateCloze(
+                candidate_id=1,
+                hidden_word_indices=(3,),
+                hint_kind=ClozeHintKind.NONE,
+                custom_hint=None,
+                phrase=phrase,
+            ),
+        )
+        self.candidate_repo.get_by_source.return_value = [candidate]
+
+        card = self.use_case.execute(source_id=1).incomplete[0].cards[0]
+
+        assert card.is_cloze is True
+        assert card.sentence == "She finally gave <b>up</b> smoking last year."
+
+    def test_recognition_card_is_not_cloze(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate("burnout", CandidateStatus.LEARN, "leads to burnout quickly"),
+        ]
+
+        card = self.use_case.execute(source_id=1).incomplete[0].cards[0]
+
+        assert card.is_cloze is False
+        assert card.sentence == "leads to <b>burnout</b> quickly"
+
+
 @pytest.mark.unit
 class TestGetExportCardsExecuteAll:
     def setup_method(self) -> None:
@@ -330,6 +367,7 @@ class TestGetExportCardsExecuteAll:
         self.use_case = GetExportCardsUseCase(
             export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
             source_repo=self.source_repo,
+            cloze_builder=ClozeBuilder(),
         )
 
     def test_groups_by_source(self) -> None:

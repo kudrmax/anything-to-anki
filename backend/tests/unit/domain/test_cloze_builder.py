@@ -170,3 +170,10 @@ def test_effective_drops_cloze_when_target_is_gone() -> None:
 
 def test_effective_without_cloze_is_none() -> None:
     assert builder.effective(_candidate(GIVE_UP, "give up", "gave up", None)) is None
+
+
+def test_highlight_hidden_wraps_runs_and_keeps_punctuation_outside() -> None:
+    highlight = builder.highlight_hidden
+    assert highlight(GIVE_UP, (3,)) == "She finally gave <b>up</b> smoking last year."
+    assert highlight(GIVE_UP, (2, 3)) == "She finally <b>gave up</b> smoking last year."
+    assert highlight(GIVE_UP, (6,)) == "She finally gave up smoking last <b>year</b>."

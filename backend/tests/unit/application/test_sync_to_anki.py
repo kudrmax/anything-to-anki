@@ -10,6 +10,7 @@ from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import AnkiNotAvailableError
+from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.export_group import ExportGroup
 
@@ -77,6 +78,7 @@ class TestSyncToAnkiUseCase:
             anki_sync_repo=self.anki_sync_repo,
             template_renderer=self.template_renderer,
             known_word_repo=self.known_word_repo,
+            cloze_builder=ClozeBuilder(),
         )
 
     def test_returns_zero_when_no_learn_candidates(self) -> None:
@@ -295,7 +297,8 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        with patch("backend.application.use_cases.sync_to_anki.os.path.exists", return_value=True):
+        exists_path = "backend.application.utils.anki_note_builders.os.path.exists"
+        with patch(exists_path, return_value=True):
             self.use_case.execute(source_id=1, group=ExportGroup.READY)
 
         call_args = self.anki_connector.add_notes.call_args
@@ -508,7 +511,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        exists_path = "backend.application.use_cases.sync_to_anki.os.path.exists"
+        exists_path = "backend.application.utils.anki_note_builders.os.path.exists"
         with patch(exists_path, return_value=False):
             self.use_case.execute(source_id=1, group=ExportGroup.READY)
 

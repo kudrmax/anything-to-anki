@@ -91,3 +91,27 @@ class TestAnkiTemplateRenderer:
         (templates_dir / "front.html").write_text("CHANGED")
         result2 = renderer.render_front(_default_field_map())
         assert result1 == result2
+
+    def test_render_cloze_reads_cloze_templates_and_shared_css(
+        self, templates_dir: Path
+    ) -> None:
+        (templates_dir / "cloze-front.html").write_text("{{cloze:Text}}")
+        (templates_dir / "cloze-back.html").write_text("{{cloze:Text}} {{Target}}")
+        renderer = AnkiTemplateRenderer(templates_dir)
+        assert renderer.render_cloze() == {
+            "front": "{{cloze:Text}}",
+            "back": "{{cloze:Text}} {{Target}}",
+            "css": ".card { font-size: 18px; }",
+        }
+
+    def test_real_cloze_templates_use_cloze_fields(self) -> None:
+        from pathlib import Path as RealPath
+
+        root = RealPath(__file__).resolve().parents[4] / "anki-templates"
+        result = AnkiTemplateRenderer(root).render_cloze()
+        assert "{{cloze:Text}}" in result["front"]
+        assert "{{#Hint}}" in result["front"]
+        assert "{{cloze:Text}}" in result["back"]
+        assert "{{Target}}" in result["back"]
+        assert ".cloze" in result["css"]
+        assert ".hint" in result["css"]

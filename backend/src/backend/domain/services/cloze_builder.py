@@ -98,6 +98,9 @@ class ClozeBuilder:
     def front_preview(self, phrase: str, indices: tuple[int, ...]) -> str:
         return self._render(phrase, indices, lambda _core: GAP)
 
+    def highlight_hidden(self, phrase: str, indices: tuple[int, ...]) -> str:
+        return self._render(phrase, indices, lambda core: f"<b>{core}</b>")
+
     def hidden_words(self, phrase: str, indices: tuple[int, ...]) -> list[str]:
         hidden = set(indices)
         return [_split(w).core for i, w in enumerate(phrase.split()) if i in hidden]

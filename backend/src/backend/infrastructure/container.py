@@ -588,12 +588,14 @@ class Container:
             anki_sync_repo=SqlaAnkiSyncRepository(session),
             template_renderer=self._anki_template_renderer,
             known_word_repo=SqlaKnownWordRepository(session),
+            cloze_builder=ClozeBuilder(),
         )
 
     def get_export_cards_use_case(self, session: Session) -> GetExportCardsUseCase:
         return GetExportCardsUseCase(
             export_queue=self._export_queue(session),
             source_repo=SqlaSourceRepository(session),
+            cloze_builder=ClozeBuilder(),
         )
 
     def _export_queue(self, session: Session) -> ExportQueue:
