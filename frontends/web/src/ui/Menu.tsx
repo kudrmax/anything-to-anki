@@ -19,10 +19,17 @@ export interface MenuItem {
   value?: string
   /** Подменю: открывается сбоку при наведении. */
   items?: MenuItem[]
+  /** Страница: заменяет содержимое меню, когда пунктам нужно поле ввода. */
+  page?: MenuPage
   /** Линия над пунктом: начало новой группы. */
   separated?: boolean
   /** Выбор не закрывает меню: для пунктов-переключателей. */
   keepOpen?: boolean
+}
+
+export interface MenuPage {
+  items: MenuItem[]
+  footer?: (close: () => void) => ReactNode
 }
 
 interface MenuProps {
@@ -37,6 +44,7 @@ interface MenuProps {
 
 export function Menu({ trigger, items, footer, emptyText, align = 'end', openOn = 'click' }: MenuProps) {
   const [open, setOpen] = useState(false)
+  const [pageLabel, setPageLabel] = useState<string | null>(null)
   const rootRef = useRef<HTMLSpanElement>(null)
 
   // Не удлиняем страницу: если снизу не хватает места, а сверху хватает — открываемся вверх.
@@ -72,30 +80,58 @@ export function Menu({ trigger, items, footer, emptyText, align = 'end', openOn 
 
   const close = () => setOpen(false)
   const triggerProps = openOn === 'click'
-    ? { onClick: (e: MouseEvent) => { e.stopPropagation(); setOpen(o => !o) } }
-    : { onContextMenu: (e: MouseEvent) => { e.preventDefault(); setOpen(true) } }
+    ? { onClick: (e: MouseEvent) => { e.stopPropagation(); setPageLabel(null); setOpen(o => !o) } }
+    : { onContextMenu: (e: MouseEvent) => { e.preventDefault(); setPageLabel(null); setOpen(true) } }
+  const pageItem = pageLabel === null ? undefined : findPageItem(items, pageLabel)
+  const page = pageItem?.page
+  const shownItems = page ? page.items : items
+  const shownFooter = page ? page.footer : footer
+  const side = align === 'end' ? 'left' : 'right'
 
   return (
     <span className={css.root} ref={rootRef}>
       <span className={css.trigger} {...triggerProps}>{trigger}</span>
       {open && (
-        <div ref={placeMenu} className={`${css.menu} ${css[align]}`} role="menu" onClick={e => e.stopPropagation()}>
-          {items.length === 0 && emptyText && <div className={css.empty}>{emptyText}</div>}
-          {items.map((item, index) => (
-            <MenuEntry key={index} item={item} side={align === 'end' ? 'left' : 'right'} onDone={close} />
+        <div key={pageLabel ?? ''} ref={placeMenu} className={`${css.menu} ${css[align]}`} role="menu" onClick={e => e.stopPropagation()}>
+          {pageItem && (
+            <button type="button" className={`${css.item} ${css.back}`} onClick={() => setPageLabel(null)}>
+              <Icon as={ChevronLeft} size="s" />
+              <span className={css.label}>{pageItem.label}</span>
+            </button>
+          )}
+          {shownItems.length === 0 && !page && emptyText && <div className={css.empty}>{emptyText}</div>}
+          {shownItems.map((item, index) => (
+            <MenuEntry key={index} item={item} side={side} onDone={close} onOpenPage={setPageLabel} />
           ))}
-          {footer && <div className={css.footer}>{footer(close)}</div>}
+          {shownFooter && <div className={css.footer}>{shownFooter(close)}</div>}
         </div>
       )}
     </span>
   )
 }
 
-function MenuEntry({ item, side, onDone }: { item: MenuItem; side: 'left' | 'right'; onDone: () => void }) {
+function findPageItem(items: MenuItem[], label: string): MenuItem | undefined {
+  for (const item of items) {
+    if (item.page && item.label === label) return item
+    const nested = item.items && findPageItem(item.items, label)
+    if (nested) return nested
+  }
+  return undefined
+}
+
+interface MenuEntryProps {
+  item: MenuItem
+  side: 'left' | 'right'
+  onDone: () => void
+  onOpenPage: (label: string) => void
+}
+
+function MenuEntry({ item, side, onDone, onOpenPage }: MenuEntryProps) {
   const [subOpen, setSubOpen] = useState(false)
   const classes = [css.item, item.danger && css.danger, item.items && subOpen && css.active].filter(Boolean).join(' ')
   const select = () => {
     if (item.items) { setSubOpen(open => !open); return }
+    if (item.page) { onOpenPage(item.label); return }
     if (!item.keepOpen) onDone()
     item.onSelect?.()
   }
@@ -109,7 +145,7 @@ function MenuEntry({ item, side, onDone }: { item: MenuItem; side: 'left' | 'rig
       <button
         type="button"
         role="menuitem"
-        aria-haspopup={item.items ? 'menu' : undefined}
+        aria-haspopup={item.items || item.page ? 'menu' : undefined}
         aria-expanded={item.items ? subOpen : undefined}
         disabled={item.disabled}
         className={classes}
@@ -123,10 +159,11 @@ function MenuEntry({ item, side, onDone }: { item: MenuItem; side: 'left' | 'rig
         {item.value && <span className={css.value}>{item.value}</span>}
         {item.selected && <span className={css.check}><Icon as={Check} size="s" /></span>}
         {item.items && <Icon as={side === 'left' ? ChevronLeft : ChevronRight} size="s" />}
+        {item.page && <Icon as={ChevronRight} size="s" />}
       </button>
       {item.items && subOpen && (
         <div className={`${css.menu} ${css.submenu} ${css[side]}`} role="menu">
-          {item.items.map((child, index) => <MenuEntry key={index} item={child} side={side} onDone={onDone} />)}
+          {item.items.map((child, index) => <MenuEntry key={index} item={child} side={side} onDone={onDone} onOpenPage={onOpenPage} />)}
         </div>
       )}
     </div>
