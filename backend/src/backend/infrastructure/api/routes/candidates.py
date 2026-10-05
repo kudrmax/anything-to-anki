@@ -186,11 +186,12 @@ def regenerate_candidate_media(
 @router.get("/{candidate_id}/image-options")
 def search_target_images(
     candidate_id: int,
+    query: str | None = None,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> TargetImageOptionsDTO:
     try:
-        return container.search_target_images_use_case(session).execute(candidate_id)
+        return container.search_target_images_use_case(session).execute(candidate_id, query)
     except CandidateNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except ImageSearchError as e:

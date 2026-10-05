@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { CandidateStatus, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageOption, SourceDetail, StoredCandidate } from '@/api/types'
+import type { CandidateStatus, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, SourceDetail, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
@@ -224,9 +224,9 @@ export function useReview(sourceId: number) {
     }
   })
 
-  const findImages = async (candidateId: number): Promise<ImageOption[] | null> => {
+  const findImages = async (candidateId: number, query?: string): Promise<ImageSearchResult | null> => {
     try {
-      return (await api.searchTargetImages(candidateId)).options
+      return await api.searchTargetImages(candidateId, query)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Picture search failed')
       return null
