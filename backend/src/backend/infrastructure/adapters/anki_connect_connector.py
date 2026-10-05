@@ -27,7 +27,7 @@ _FALLBACK_CSS = (
 
 
 def _quote(text: str) -> str:
-    return text.replace('"', '\\"')
+    return text.replace("\\", "\\\\").replace('"', '\\"')
 
 
 class AnkiConnectConnector(AnkiConnector):
@@ -109,7 +109,7 @@ class AnkiConnectConnector(AnkiConnector):
     def find_notes_by_target(
         self, deck_name: str, model_name: str, target_field: str, target: str
     ) -> list[int]:
-        query = f'note:"{_quote(model_name)}" {target_field}:"{_quote(target)}"'
+        query = f'note:"{_quote(model_name)}" "{_quote(target_field)}:{_quote(target)}"'
         raw = self._invoke("findNotes", query=query)
         return cast("list[int]", raw) if raw else []
 

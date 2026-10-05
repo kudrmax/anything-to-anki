@@ -124,20 +124,32 @@ class TestFindNotesByTarget:
         with patch.object(connector, "_invoke", return_value=[]) as invoke:
             connector.find_notes_by_target("deck", "AnythingToAnkiCloze", "Target", "give up")
         invoke.assert_called_once_with(
-            "findNotes", query='note:"AnythingToAnkiCloze" Target:"give up"'
+            "findNotes", query='note:"AnythingToAnkiCloze" "Target:give up"'
         )
 
     def test_query_uses_custom_model_and_target_field(self) -> None:
         connector = AnkiConnectConnector(url="http://test")
         with patch.object(connector, "_invoke", return_value=[]) as invoke:
             connector.find_notes_by_target("deck", "My Words", "Word", "burnout")
-        invoke.assert_called_once_with("findNotes", query='note:"My Words" Word:"burnout"')
+        invoke.assert_called_once_with("findNotes", query='note:"My Words" "Word:burnout"')
 
     def test_query_escapes_quotes_in_target(self) -> None:
         connector = AnkiConnectConnector(url="http://test")
         with patch.object(connector, "_invoke", return_value=[]) as invoke:
             connector.find_notes_by_target("deck", "M", "Target", 'say "hi"')
-        assert invoke.call_args.kwargs["query"] == 'note:"M" Target:"say \\"hi\\""'
+        assert invoke.call_args.kwargs["query"] == 'note:"M" "Target:say \\"hi\\""'
+
+    def test_query_quotes_field_name_with_spaces(self) -> None:
+        connector = AnkiConnectConnector(url="http://test")
+        with patch.object(connector, "_invoke", return_value=[]) as invoke:
+            connector.find_notes_by_target("deck", "My Words", "Target Word", "burnout")
+        assert invoke.call_args.kwargs["query"] == 'note:"My Words" "Target Word:burnout"'
+
+    def test_query_escapes_backslashes(self) -> None:
+        connector = AnkiConnectConnector(url="http://test")
+        with patch.object(connector, "_invoke", return_value=[]) as invoke:
+            connector.find_notes_by_target("deck", "M\\1", "Tar\\get", "a\\b")
+        assert invoke.call_args.kwargs["query"] == 'note:"M\\\\1" "Tar\\\\get:a\\\\b"'
 
 
 @pytest.mark.unit
