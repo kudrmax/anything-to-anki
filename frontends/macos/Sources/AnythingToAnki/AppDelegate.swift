@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var launcher: ServerLauncher?
     private var windowController: MainWindowController?
     private var quickAddPanel: QuickAddPanelController?
+    private var statusBar: StatusBarController?
     private let quickAddService = QuickAddService()
     private var pendingQuickAddText: String?
     private var isServerReady = false
@@ -20,7 +21,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        NSApp.mainMenu = MainMenu.build(appName: ProcessInfo.processInfo.processName)
+        let appName = ProcessInfo.processInfo.processName
+        NSApp.mainMenu = MainMenu.build(appName: appName)
+        statusBar = StatusBarController(appName: appName, target: self)
         launcher = ServerLauncher(
             projectDir: config.projectDir,
             probe: HTTPHealthProbe(url: config.serverURL),
@@ -30,12 +33,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         let controller = MainWindowController(config: config)
         controller.onRetry = { [weak self] in self?.launch() }
+        controller.onClose = { NSApp.setActivationPolicy(.accessory) }
         windowController = controller
         quickAddPanel = QuickAddPanelController(config: config)
         quickAddService.onText = { [weak self] text in self?.quickAdd(text) }
         NSApp.servicesProvider = quickAddService
-        controller.showWindow(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        openMainWindow(nil)
         launch()
     }
 
@@ -52,11 +55,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { windowController?.showWindow(nil) }
+        if !flag { openMainWindow(nil) }
         return true
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Closing the window takes the app out of the Dock; opening it brings the app back.
+    @objc func openMainWindow(_ sender: Any?) {
+        NSApp.setActivationPolicy(.regular)
+        windowController?.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
 
     @objc func reloadPage(_ sender: Any?) {
         windowController?.reload()

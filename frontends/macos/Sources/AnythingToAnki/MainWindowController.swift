@@ -1,12 +1,13 @@
 import AppKit
 import LauncherCore
 
-final class MainWindowController: NSWindowController {
+final class MainWindowController: NSWindowController, NSWindowDelegate {
     private static let frameName = "MainWindow"
     private static let defaultSize = NSSize(width: 1440, height: 900)
     private static let minimumSize = NSSize(width: 900, height: 600)
 
     var onRetry: (() -> Void)?
+    var onClose: (() -> Void)?
 
     private let webController: WebViewController
     private let statusController = StatusViewController()
@@ -30,6 +31,7 @@ final class MainWindowController: NSWindowController {
         window.center()
         window.setFrameAutosaveName(Self.frameName)
         super.init(window: window)
+        window.delegate = self
 
         statusController.onRetry = { [weak self] in self?.onRetry?() }
         webController.onLoadFailed = { [weak self] message in
@@ -46,6 +48,10 @@ final class MainWindowController: NSWindowController {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    func windowWillClose(_ notification: Notification) {
+        onClose?()
+    }
 
     func showStatus(_ status: LaunchStatus) {
         self.status = status
