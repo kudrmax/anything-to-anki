@@ -1,26 +1,27 @@
 """SQLite-backed async job worker.
 
-Replaces arq+Redis. Polls the jobs table for QUEUED work,
-dispatches to handlers, manages lifecycle (done→delete, fail→mark).
+Polls the jobs table, claims the head of the queue and owns the whole job
+lifecycle: success → complete, error or timeout → fail, cancel → drop result.
 
-Run with: python -m backend.infrastructure.queue.job_worker
+Run with: python -m backend.infrastructure.queue
 """
 from __future__ import annotations
 
 import asyncio
+import fcntl
 import logging
+import os
 import signal
 import sys
-from typing import TYPE_CHECKING
+from typing import IO, TYPE_CHECKING
 
-from backend.domain.exceptions import CancelledByUserError, PermanentAIError, PermanentMediaError
+from backend.domain.exceptions import CancelledByUserError, PermanentError
 from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
+from backend.infrastructure.queue.claimed_run import ClaimedRun
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from sqlalchemy.orm import Session
+    from collections.abc import Mapping
 
     from backend.domain.entities.job import Job
     from backend.infrastructure.container import Container
@@ -28,8 +29,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 POLL_DELAY: float = 0.1  # seconds between polls when queue is empty
-JOB_TIMEOUT: int = 600  # seconds per job (10 minutes)
+JOB_TIMEOUT: int = 600  # seconds per run (10 minutes)
 AI_BATCH_SIZE: int = 15
+RUN_LIMITS: Mapping[JobType, int] = {
+    JobType.MEANING: AI_BATCH_SIZE,
+    JobType.POLISH: AI_BATCH_SIZE,
+}
+TIMEOUT_ERROR = "timeout"
+NO_AI_RESULT_ERROR = "AI returned no result for this card"
+TTS_CRASH_ERROR = "TTS worker exited with code {code}"
+LOCK_FILE_NAME = "worker.lock"
 
 
 class JobWorker:
@@ -38,6 +47,7 @@ class JobWorker:
     def __init__(self, container: Container) -> None:
         self._container = container
         self._shutdown = False
+        self._tts_process: asyncio.subprocess.Process | None = None
 
     async def run(self) -> None:
         """Main loop: reconcile on startup, then poll and process jobs."""
@@ -58,278 +68,168 @@ class JobWorker:
     def _request_shutdown(self) -> None:
         logger.info("Shutdown signal received")
         self._shutdown = True
+        if self._tts_process is not None and self._tts_process.returncode is None:
+            self._tts_process.terminate()
 
     def _reconcile_on_startup(self) -> None:
-        """Mark all RUNNING jobs as FAILED — they were interrupted by restart."""
+        """Put RUNNING jobs back in line: the worker that ran them is gone.
+        Every handler is idempotent, so the work is simply redone."""
         with self._container.session_scope() as session:
-            job_repo = SqlaJobRepository(session)
-            count = job_repo.fail_all_running("interrupted by worker restart")
+            count = SqlaJobRepository(session).requeue_running()
         if count:
-            logger.warning(
-                "Startup reconciliation: reset %d RUNNING jobs to FAILED", count,
-            )
+            logger.warning("Startup reconciliation: requeued %d interrupted jobs", count)
 
     async def _process_one_job(self) -> bool:
-        """Dequeue and process one job. Returns True if a job was processed."""
+        """Claim and process the head of the queue. Returns True if a run was processed."""
         with self._container.session_scope() as session:
-            job_repo = SqlaJobRepository(session)
-            job = job_repo.dequeue_next()
-
-        if job is None:
+            jobs = SqlaJobRepository(session).claim_next_run(RUN_LIMITS)
+        if not jobs:
             return False
 
+        run = ClaimedRun(self._container, jobs)
+        head = run.head
         logger.info(
-            "Processing job %d: type=%s candidate=%s source=%d",
-            job.id, job.job_type.value, job.candidate_id, job.source_id,
+            "Processing %d job(s) from %d: type=%s candidate=%s source=%d",
+            len(jobs), head.id, head.job_type.value, head.candidate_id, head.source_id,
         )
+        if head.job_type is JobType.TTS:
+            await self._run_tts_subprocess(head)
+            return True
 
         try:
-            match job.job_type:
-                case JobType.MEANING:
-                    # Meaning handler manages its own batch success/failure
-                    await self._handle_meaning(job)
-                    return True
-                case JobType.MEDIA:
-                    await self._handle_media(job)
-                case JobType.PRONUNCIATION:
-                    await self._handle_pronunciation(job)
-                case JobType.VIDEO_DOWNLOAD:
-                    await self._handle_video_download(job)
-                case JobType.POLISH:
-                    # Polish handler manages its own batch success/failure
-                    await self._handle_polish(job)
-                    return True
-                case JobType.TOPIC_TARGETS:
-                    await self._handle_topic_targets(job)
-                case JobType.TTS:
-                    # TTS handler manages its own lifecycle via subprocess
-                    await self._handle_tts(job)
-                    return True
+            unanswered = await asyncio.wait_for(
+                asyncio.to_thread(self._execute, run), timeout=JOB_TIMEOUT,
+            )
         except CancelledByUserError:
-            logger.info("Job %d cancelled by user", job.id)
-        except (PermanentAIError, PermanentMediaError) as exc:
-            logger.warning("Job %d permanent error: %s", job.id, exc)
-            self._mark_jobs_failed([job], str(exc))
+            logger.info("Run from job %d cancelled, result dropped", head.id)
+        except TimeoutError:
+            logger.warning("Run from job %d timed out", head.id)
+            self._fail(jobs, TIMEOUT_ERROR)
+        except PermanentError as exc:
+            logger.warning("Run from job %d permanent error: %s", head.id, exc)
+            self._fail(jobs, str(exc))
         except Exception as exc:
-            logger.exception("Job %d unexpected error", job.id)
-            self._mark_jobs_failed([job], f"{type(exc).__name__}: {exc}")
+            logger.exception("Run from job %d unexpected error", head.id)
+            self._fail(jobs, f"{type(exc).__name__}: {exc}")
         else:
-            self._delete_jobs([job])
-
+            failed = [j for j in jobs if j.candidate_id in unanswered]
+            self._fail(failed, NO_AI_RESULT_ERROR)
+            self._complete([j for j in jobs if j not in failed])
         return True
 
     # ------------------------------------------------------------------
-    # Handlers
+    # Work — runs in a thread
     # ------------------------------------------------------------------
 
-    async def _handle_meaning(self, job: Job) -> None:
-        await self._handle_ai_batch(job, self._run_meaning_batch)
+    def _execute(self, run: ClaimedRun) -> set[int]:
+        """Do the run's work. Returns candidates left without a result."""
+        head = run.head
+        c = self._container
+        with run.session() as session:
+            match head.job_type:
+                case JobType.MEANING:
+                    return set(c.meaning_generation_use_case(session).execute_batch(
+                        run.candidate_ids, run.still_wanted,
+                    ))
+                case JobType.POLISH:
+                    return set(c.phrase_polish_use_case(session).execute_batch(
+                        run.candidate_ids, run.still_wanted,
+                    ))
+                case JobType.MEDIA:
+                    assert head.candidate_id is not None
+                    c.media_extraction_use_case(session).execute_one(head.candidate_id)
+                case JobType.PRONUNCIATION:
+                    assert head.candidate_id is not None
+                    c.download_pronunciation_use_case(session).execute_one(head.candidate_id)
+                case JobType.VIDEO_DOWNLOAD:
+                    c.download_video_use_case(session).execute(head.source_id)
+                case JobType.TOPIC_TARGETS:
+                    c.generate_topic_targets_use_case(session).execute(head.source_id)
+                case JobType.TTS:
+                    raise AssertionError("TTS runs in its own subprocess")
+        if head.job_type is JobType.MEDIA:
+            with c.session_scope() as session:
+                c.cleanup_youtube_video_use_case(session).execute(head.source_id)
+        return set()
 
-    async def _handle_polish(self, job: Job) -> None:
-        await self._handle_ai_batch(job, self._run_polish_batch)
+    # ------------------------------------------------------------------
+    # TTS subprocess
+    # ------------------------------------------------------------------
 
-    async def _handle_ai_batch(
-        self, job: Job, run: Callable[[list[int], Job], None],
-    ) -> None:
-        """AI generation with opportunistic batching.
+    async def _run_tts_subprocess(self, job: Job) -> None:
+        """Hand the claimed TTS job to a subprocess.
 
-        Dequeues extra QUEUED jobs of the same type for the same source and
-        processes them all in one AI call. Manages its own success/failure
-        because the outer handler only knows about the primary job.
-        """
-        kind = job.job_type.value
-        with self._container.session_scope() as session:
-            extra_jobs = SqlaJobRepository(session).dequeue_batch(
-                job.job_type, job.source_id, limit=AI_BATCH_SIZE - 1,
-            )
-        all_jobs = [job, *extra_jobs]
-        candidate_ids = [j.candidate_id for j in all_jobs if j.candidate_id is not None]
-
-        if not candidate_ids:
-            self._delete_jobs(all_jobs)
-            return
-
-        try:
-            await asyncio.wait_for(
-                asyncio.to_thread(run, candidate_ids, job),
-                timeout=JOB_TIMEOUT,
-            )
-        except TimeoutError:
-            logger.warning("%s batch timed out for source %d", kind, job.source_id)
-            self._mark_jobs_failed(all_jobs, "timeout")
-            return
-        except CancelledByUserError:
-            # Primary job was cancelled — let outer handler log it.
-            # Extra batch jobs are already RUNNING and will be caught
-            # by reconciliation on next restart if not cleaned up.
-            raise
-        except (PermanentAIError, PermanentMediaError) as exc:
-            logger.warning("%s batch permanent error: %s", kind, exc)
-            self._mark_jobs_failed(all_jobs, str(exc))
-            return
-        except Exception as exc:
-            logger.exception("%s batch unexpected error", kind)
-            self._mark_jobs_failed(all_jobs, f"{type(exc).__name__}: {exc}")
-            return
-
-        self._delete_jobs(all_jobs)
-
-    def _run_meaning_batch(self, candidate_ids: list[int], primary_job: Job) -> None:
-        """Sync meaning generation — runs in a thread."""
-        with self._container.session_scope() as session:
-            self._check_not_cancelled(primary_job, session)
-            use_case = self._container.meaning_generation_use_case(session)
-            use_case.execute_batch(candidate_ids)
-
-    def _run_polish_batch(self, candidate_ids: list[int], primary_job: Job) -> None:
-        """Sync phrase polishing — runs in a thread."""
-        with self._container.session_scope() as session:
-            self._check_not_cancelled(primary_job, session)
-            use_case = self._container.phrase_polish_use_case(session)
-            use_case.execute_batch(candidate_ids)
-
-    @staticmethod
-    def _check_not_cancelled(job: Job, session: Session) -> None:
-        from backend.infrastructure.queue.cancellation_token import CancellationToken
-
-        assert job.id is not None
-        CancellationToken(job_id=job.id, job_repo=SqlaJobRepository(session)).check()
-
-    async def _handle_media(self, job: Job) -> None:
-        """Single-candidate media extraction."""
-        try:
-            await asyncio.wait_for(
-                asyncio.to_thread(self._run_media, job),
-                timeout=JOB_TIMEOUT,
-            )
-        except TimeoutError:
-            logger.warning("Media extraction timed out for job %d", job.id)
-            self._mark_jobs_failed([job], "timeout")
-            return
-        # Other exceptions bubble up to _process_one_job
-        self._delete_jobs([job])
-
-    def _run_media(self, job: Job) -> None:
-        """Sync media extraction — runs in a thread."""
-        assert job.candidate_id is not None
-        with self._container.session_scope() as session:
-            use_case = self._container.media_extraction_use_case(session)
-            use_case.execute_one(job.candidate_id)
-
-        # Check if all media done → clean up YouTube video
-        with self._container.session_scope() as session:
-            from backend.infrastructure.persistence.sqla_candidate_repository import (
-                SqlaCandidateRepository,
-            )
-            cand = SqlaCandidateRepository(session).get_by_id(job.candidate_id)
-            if cand is not None:
-                cleanup = self._container.cleanup_youtube_video_use_case(session)
-                cleanup.execute(cand.source_id)
-
-    async def _handle_pronunciation(self, job: Job) -> None:
-        """Single-candidate pronunciation download."""
-        try:
-            await asyncio.wait_for(
-                asyncio.to_thread(self._run_pronunciation, job),
-                timeout=JOB_TIMEOUT,
-            )
-        except TimeoutError:
-            logger.warning("Pronunciation download timed out for job %d", job.id)
-            self._mark_jobs_failed([job], "timeout")
-            return
-        # Other exceptions bubble up to _process_one_job
-        self._delete_jobs([job])
-
-    def _run_pronunciation(self, job: Job) -> None:
-        """Sync pronunciation download — runs in a thread."""
-        assert job.candidate_id is not None
-        with self._container.session_scope() as session:
-            use_case = self._container.download_pronunciation_use_case(session)
-            use_case.execute_one(job.candidate_id)
-
-    async def _handle_topic_targets(self, job: Job) -> None:
-        """AI step of a topic source. Processing stays a separate, offline step."""
-        await asyncio.wait_for(
-            asyncio.to_thread(self._run_topic_targets, job),
-            timeout=JOB_TIMEOUT,
-        )
-
-    def _run_topic_targets(self, job: Job) -> None:
-        """Sync topic target generation — runs in a thread."""
-        with self._container.session_scope() as session:
-            use_case = self._container.generate_topic_targets_use_case(session)
-            use_case.execute(job.source_id)
-
-    async def _handle_tts(self, job: Job) -> None:
-        """Spawn TTS subprocess to handle all TTS jobs.
-
-        Requeues the current job so the subprocess can pick it up,
-        then spawns a separate process that loads PyTorch/kokoro,
-        processes all TTS jobs, and exits — freeing all TTS memory.
+        The subprocess loads PyTorch/kokoro, processes this job and every TTS
+        job that reaches the head of the queue after it, then exits — freeing
+        all TTS memory. The worker waits, so no other job runs meanwhile.
         """
         assert job.id is not None
-        with self._container.session_scope() as session:
-            SqlaJobRepository(session).requeue(job.id)
-
         logger.info("Spawning TTS subprocess")
-        proc = await asyncio.create_subprocess_exec(
+        self._tts_process = await asyncio.create_subprocess_exec(
             sys.executable, "-m", "backend.infrastructure.queue.tts_subprocess",
+            str(job.id),
         )
-        await proc.wait()
-        if proc.returncode != 0:
-            logger.error("TTS subprocess exited with code %d", proc.returncode)
-        else:
+        returncode = await self._tts_process.wait()
+        self._tts_process = None
+        if returncode == 0:
             logger.info("TTS subprocess finished successfully")
-
-    async def _handle_video_download(self, job: Job) -> None:
-        """YouTube video download — special error handling for source status."""
-        try:
-            with self._container.session_scope() as session:
-                use_case = self._container.download_video_use_case(session)
-                use_case.execute(job.source_id)
-        except Exception as exc:
-            logger.exception("Video download error for source %d", job.source_id)
-            with self._container.session_scope() as session:
-                from backend.domain.value_objects.source_status import SourceStatus
-                from backend.infrastructure.persistence.sqla_source_repository import (
-                    SqlaSourceRepository,
-                )
-                SqlaSourceRepository(session).update_status(
-                    job.source_id,
-                    SourceStatus.ERROR,
-                    error_message=f"Video download failed: {exc}",
-                )
-            raise  # let outer handler mark job as failed
-        self._delete_jobs([job])
+            return
+        logger.error("TTS subprocess exited with code %d", returncode)
+        if self._shutdown:
+            return  # interrupted on purpose; the next start requeues its job
+        with self._container.session_scope() as session:
+            SqlaJobRepository(session).fail_running(
+                JobType.TTS, TTS_CRASH_ERROR.format(code=returncode),
+            )
 
     # ------------------------------------------------------------------
-    # Helpers
+    # Lifecycle helpers
     # ------------------------------------------------------------------
 
-    def _mark_jobs_failed(self, jobs: list[Job], error: str) -> None:
+    def _fail(self, jobs: list[Job], error: str) -> None:
         job_ids = [j.id for j in jobs if j.id is not None]
         if not job_ids:
             return
         with self._container.session_scope() as session:
-            SqlaJobRepository(session).mark_failed_bulk(job_ids, error)
+            SqlaJobRepository(session).fail(job_ids, error)
 
-    def _delete_jobs(self, jobs: list[Job]) -> None:
-        job_ids = [j.id for j in jobs if j.id is not None]
-        if not job_ids:
+    def _complete(self, jobs: list[Job]) -> None:
+        if not jobs:
             return
         with self._container.session_scope() as session:
-            SqlaJobRepository(session).delete_bulk(job_ids)
+            SqlaJobRepository(session).complete(jobs)
+
+
+def _acquire_single_worker_lock() -> IO[str]:
+    """Hold an exclusive lock for the process lifetime: one worker per data dir.
+
+    Two workers would requeue each other's running jobs and claim the queue
+    concurrently. The OS drops the lock when the process dies, however it dies.
+    """
+    data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
+    os.makedirs(data_dir, exist_ok=True)
+    # Not a `with` block: closing the file releases the lock, so it stays open.
+    lock_file = open(os.path.join(data_dir, LOCK_FILE_NAME), "w")  # noqa: SIM115
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        logger.error("Another worker is already running for %s, exiting", data_dir)
+        sys.exit(1)
+    return lock_file
 
 
 async def main() -> None:
-    """Entry point for ``python -m backend.infrastructure.queue.job_worker``."""
+    """Entry point for ``python -m backend.infrastructure.queue``."""
     from backend.infrastructure.container import Container
     from backend.infrastructure.logging_setup import configure_logging
 
     configure_logging("worker")
-    container = Container()
-    worker = JobWorker(container)
-    await worker.run()
+    lock = _acquire_single_worker_lock()
+    try:
+        worker = JobWorker(Container())
+        await worker.run()
+    finally:
+        lock.close()
 
 
 if __name__ == "__main__":

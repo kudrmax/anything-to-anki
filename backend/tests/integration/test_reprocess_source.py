@@ -15,7 +15,6 @@ from backend.domain.exceptions import SourceHasActiveJobsError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
-from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
@@ -172,18 +171,8 @@ def test_reprocess_blocked_by_active_jobs(db_session: Session) -> None:
     first_candidate_id = candidates[0].id
     assert first_candidate_id is not None
 
-    # Create an active (RUNNING) job for this candidate
-    now = datetime.now(tz=UTC)
-    job_repo.create_bulk([Job(
-        id=None,
-        job_type=JobType.MEANING,
-        candidate_id=first_candidate_id,
-        source_id=source_id,
-        status=JobStatus.RUNNING,
-        error=None,
-        created_at=now,
-        started_at=now,
-    )])
+    # Create an active job for this candidate
+    job_repo.enqueue([Job.queued(JobType.MEANING, source_id, first_candidate_id)])
 
     # Attempt reprocess -> SourceHasActiveJobsError
     process_source_uc = MagicMock()

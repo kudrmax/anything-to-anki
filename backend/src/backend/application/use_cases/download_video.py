@@ -14,7 +14,10 @@ logger = logging.getLogger(__name__)
 
 
 class DownloadVideoUseCase:
-    """Downloads video for a YouTube source. Called from worker job."""
+    """Downloads video for a YouTube source. Called from worker job.
+
+    Idempotent: a source that already has its video is left as is.
+    """
 
     def __init__(
         self,
@@ -35,7 +38,8 @@ class DownloadVideoUseCase:
         if source.source_url is None:
             raise ValueError(f"Source {source_id} has no source_url")
         if source.video_path is not None:
-            raise ValueError(f"Source {source_id} video already downloaded")
+            logger.info("Video for source %d is already downloaded", source_id)
+            return
 
         filename = f"{uuid.uuid4()}.mp4"
         absolute_path = self._video_path_resolver.resolve(filename, InputMethod.YOUTUBE_URL)

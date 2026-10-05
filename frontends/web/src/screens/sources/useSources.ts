@@ -72,8 +72,8 @@ export function useSources() {
   }
 
   const generate = (id: number) => runGeneration(() => api.enqueueTopicGeneration(id), 'Failed to queue generation')
-  const cancelGeneration = (id: number) => runGeneration(() => api.cancelQueue(TOPIC_JOB_TYPE, id), 'Failed to cancel generation')
-  const retryGeneration = (id: number) => runGeneration(() => api.retryQueue(TOPIC_JOB_TYPE, id), 'Failed to retry generation')
+  const cancelGeneration = (id: number) => runGeneration(() => api.cancelQueue({ job_type: TOPIC_JOB_TYPE, source_id: id }), 'Failed to cancel generation')
+  const retryGeneration = (id: number) => runGeneration(() => api.retryQueue({ job_type: TOPIC_JOB_TYPE, source_id: id }), 'Failed to retry generation')
 
   const processAll = async () => {
     const pending = sources.filter(isPending)

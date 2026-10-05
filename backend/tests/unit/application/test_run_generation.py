@@ -28,6 +28,7 @@ from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_kind import GenerationKind
 from backend.domain.value_objects.generation_scope import GenerationScope
 from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_status import SourceStatus
@@ -97,6 +98,7 @@ class _Setup:
         self.candidate_repo.get_by_source.return_value = candidates
         self.meaning_repo = MagicMock()
         self.job_repo = MagicMock()
+        self.job_repo.enqueue.side_effect = lambda jobs: jobs
         by_candidate: dict[int, dict[str, Job]] = {}
         for job in jobs or []:
             assert job.candidate_id is not None
@@ -125,7 +127,7 @@ class _Setup:
         return next(k for k in self.status.execute(SOURCE_ID).kinds if k.kind == kind)
 
     def queued_ids(self) -> list[int | None]:
-        return [j.candidate_id for j in self.job_repo.create_bulk.call_args.args[0]]
+        return [j.candidate_id for j in self.job_repo.enqueue.call_args.args[0]]
 
 
 def _mixed_meanings() -> _Setup:
@@ -150,19 +152,15 @@ class TestRunGeneration:
 
         assert queued == 1
         assert setup.queued_ids() == [2]
-        setup.job_repo.delete_failed_by_source_and_type.assert_not_called()
         setup.meaning_repo.delete_by_candidate_id.assert_not_called()
 
-    def test_failed_requeues_failed_cards_and_drops_their_old_jobs(self) -> None:
+    def test_failed_requeues_only_failed_cards(self) -> None:
         setup = _mixed_meanings()
 
         queued = setup.run.execute(SOURCE_ID, GenerationKind.MEANING, GenerationScope.FAILED)
 
         assert queued == 1
         assert setup.queued_ids() == [4]
-        setup.job_repo.delete_failed_by_source_and_type.assert_called_once_with(
-            SOURCE_ID, JobType.MEANING,
-        )
 
     def test_all_replaces_every_card_except_ones_already_running(self) -> None:
         setup = _mixed_meanings()
@@ -188,7 +186,7 @@ class TestRunGeneration:
         setup = _Setup([_candidate(1, meaning=True)])
 
         assert setup.run.execute(SOURCE_ID, GenerationKind.MEANING, GenerationScope.MISSING) == 0
-        setup.job_repo.create_bulk.assert_not_called()
+        assert setup.queued_ids() == []
 
     def test_kind_the_source_has_no_use_for_is_refused(self) -> None:
         setup = _Setup([_candidate(1)], source=_source(ContentType.VIDEO, video_path="v.mp4"))
@@ -205,7 +203,7 @@ class TestRunGeneration:
 
         with pytest.raises(GenerationBlockedError):
             setup.run.execute(SOURCE_ID, GenerationKind.MEDIA, GenerationScope.MISSING)
-        setup.job_repo.create_bulk.assert_not_called()
+        setup.job_repo.enqueue.assert_not_called()
 
 
 @pytest.mark.unit
@@ -266,9 +264,11 @@ class TestGetGenerationStatus:
 @pytest.mark.unit
 def test_cancel_drops_queued_and_running_jobs_of_the_kind() -> None:
     job_repo = MagicMock()
-    job_repo.delete_by_source_and_type.return_value = 3
+    job_repo.cancel.return_value = 3
 
     cancelled = CancelGenerationUseCase(job_repo).execute(SOURCE_ID, GenerationKind.TTS)
 
     assert cancelled == 3
-    job_repo.delete_by_source_and_type.assert_called_once_with(SOURCE_ID, JobType.TTS)
+    job_repo.cancel.assert_called_once_with(
+        JobSelection(job_type=JobType.TTS, source_id=SOURCE_ID),
+    )

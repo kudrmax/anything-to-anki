@@ -163,3 +163,26 @@ def test_video_cards_are_not_polished() -> None:
     use_case.execute_batch([1])
 
     ai.polish_phrases_batch.assert_not_called()
+
+
+@pytest.mark.unit
+def test_cards_ai_did_not_answer_are_reported() -> None:
+    easy = "People abandoned the old barn."
+    use_case, repo, _, _ = _use_case(
+        [_candidate(1), _candidate(2)], [PolishedPhrase(1, easy)],
+    )
+
+    assert use_case.execute_batch([1, 2]) == [2]
+    repo.set_polished_fragment.assert_called_once_with(1, easy)
+
+
+@pytest.mark.unit
+def test_cards_no_longer_wanted_are_left_untouched() -> None:
+    easy = "People abandoned the old barn."
+    use_case, repo, _, reset = _use_case(
+        [_candidate(1), _candidate(2)], [PolishedPhrase(1, easy), PolishedPhrase(2, easy)],
+    )
+
+    assert use_case.execute_batch([1, 2], still_wanted=lambda ids: {1}) == []
+    repo.set_polished_fragment.assert_called_once_with(1, easy)
+    reset.reset.assert_called_once_with(1)

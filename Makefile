@@ -13,6 +13,8 @@ APP_PID := .pids/app.pid
 APP_LOG := .logs/app.log
 WRK_PID := .pids/worker.pid
 WRK_LOG := .logs/worker.log
+# Сколько тиков по 0.25 с ждать остановки воркера (5 секунд).
+WORKER_STOP_TICKS := 20
 PYTHON_VERSION  := 3.12
 LOCK_FILE       := requirements.lock
 SPACY_MODEL     := en_core_web_sm
@@ -45,6 +47,26 @@ define kill_by_pid
 	fi
 endef
 
+# Остановить воркер вместе с его TTS-subprocess и дождаться выхода. $(1) — путь к PID-файлу.
+# Воркер не прерывает задачу на полпути, поэтому после паузы — SIGKILL:
+# прерванные задачи он сам вернёт в очередь при следующем старте.
+define stop_worker
+	@if [ -f $(1) ]; then \
+	    pid=$$(cat $(1)); \
+	    if kill -0 $$pid 2>/dev/null; then \
+	        pkill -TERM -P $$pid 2>/dev/null; kill $$pid 2>/dev/null; \
+	        for i in $$(seq 1 $(WORKER_STOP_TICKS)); do kill -0 $$pid 2>/dev/null || break; sleep 0.25; done; \
+	        if kill -0 $$pid 2>/dev/null; then \
+	            pkill -KILL -P $$pid 2>/dev/null; kill -9 $$pid 2>/dev/null; \
+	            echo "Killed worker (PID $$pid)"; \
+	        else \
+	            echo "Stopped worker (PID $$pid)"; \
+	        fi; \
+	    fi; \
+	    rm -f $(1); \
+	fi
+endef
+
 # Убить процесс на порту $(1), если он соответствует паттерну $(2) в args.
 # Безопасно: не убьёт чужой процесс на том же порту.
 define kill_on_port
@@ -59,13 +81,20 @@ define kill_on_port
 endef
 
 # Воркер не слушает порт, и после перезаписи pid-файла его не найти:
-# ищем воркеры, запущенные из этой рабочей копии.
+# ищем воркеры (и их TTS-subprocess), запущенные из этой рабочей копии,
+# и ждём их так же, как stop_worker.
 define kill_workers_of_this_copy
-	@for pid in $$(pgrep -f 'backend.infrastructure.queue' 2>/dev/null); do \
+	@pids=""; \
+	for pid in $$(pgrep -f 'backend.infrastructure.queue' 2>/dev/null); do \
 	    if [ "$$(lsof -a -p $$pid -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" = "$(CURDIR)" ]; then \
-	        kill $$pid 2>/dev/null && echo "Stopped worker (PID $$pid)"; \
+	        kill $$pid 2>/dev/null && pids="$$pids $$pid" && echo "Stopped worker (PID $$pid)"; \
 	    fi; \
-	done
+	done; \
+	for i in $$(seq 1 $(WORKER_STOP_TICKS)); do \
+	    alive=""; for pid in $$pids; do kill -0 $$pid 2>/dev/null && alive="$$alive $$pid"; done; \
+	    [ -z "$$alive" ] && break; sleep 0.25; \
+	done; \
+	for pid in $$pids; do kill -9 $$pid 2>/dev/null && echo "Killed worker (PID $$pid)"; done; true
 endef
 
 define wait_port_free
@@ -78,7 +107,7 @@ endef
 # Порты worktree общие для всех worktree: сносим и чужой запущенный worktree.
 define stop_worktree
 	$(call kill_by_pid,.pids/app_wt.pid,worktree app)
-	$(call kill_by_pid,.pids/worker_wt.pid,worktree worker)
+	$(call stop_worker,.pids/worker_wt.pid)
 	$(call kill_by_pid,.pids/ai_proxy_wt.pid,worktree ai_proxy)
 	$(call kill_workers_of_this_copy)
 	$(call kill_on_port,$(WORKTREE_PORT),uvicorn)
@@ -106,6 +135,8 @@ endef
 
 define start_worker
 	@mkdir -p .pids .logs
+	$(call stop_worker,$(WRK_PID))
+	$(call kill_workers_of_this_copy)
 	@AI_PROXY_URL=http://localhost:$(AI_PROXY_PORT) \
 	    no_proxy=localhost,127.0.0.1 \
 	    .venv/bin/python -m backend.infrastructure.queue >> $(WRK_LOG) 2>&1 & echo $$! > $(WRK_PID); \
@@ -277,7 +308,8 @@ up-worktree: _check_env _check_setup dict-update  ## Запустить worktree
 down:  ## Остановить
 	$(call kill_by_pid,$(APP_PID),app)
 	$(call kill_on_port,$(PORT),uvicorn)
-	$(call kill_by_pid,$(WRK_PID),worker)
+	$(call stop_worker,$(WRK_PID))
+	$(call kill_workers_of_this_copy)
 	$(call stop_ai_proxy)
 
 down-worktree:  ## Остановить worktree

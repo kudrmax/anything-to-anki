@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.job import Job
@@ -9,7 +8,6 @@ from backend.domain.exceptions import (
     PhrasePolishNotSupportedError,
     SourceNotFoundError,
 )
-from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
@@ -51,20 +49,6 @@ class EnqueuePhrasePolishUseCase:
         return source
 
     def _queue(self, source_id: int, candidates: list[StoredCandidate]) -> None:
-        now = datetime.now(tz=UTC)
-        jobs = [
-            Job(
-                id=None,
-                job_type=JobType.POLISH,
-                candidate_id=c.id,
-                source_id=source_id,
-                status=JobStatus.QUEUED,
-                error=None,
-                created_at=now,
-                started_at=None,
-            )
-            for c in candidates
-            if c.id is not None
-        ]
-        if jobs:
-            self._job_repo.create_bulk(jobs)
+        self._job_repo.enqueue([
+            Job.queued(JobType.POLISH, source_id, c.id) for c in candidates if c.id is not None
+        ])

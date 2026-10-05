@@ -4,20 +4,11 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 
-class JobTypeSummaryDTO(BaseModel):
+class JobTypeCountsDTO(BaseModel):
+    job_type: str
     queued: int
     running: int
     failed: int
-
-
-class QueueGlobalSummaryDTO(BaseModel):
-    meaning: JobTypeSummaryDTO
-    media: JobTypeSummaryDTO
-    pronunciation: JobTypeSummaryDTO
-    video_download: JobTypeSummaryDTO
-    topic_targets: JobTypeSummaryDTO
-    polish: JobTypeSummaryDTO
-    tts: JobTypeSummaryDTO
 
 
 class QueueJobDTO(BaseModel):
@@ -30,12 +21,6 @@ class QueueJobDTO(BaseModel):
     candidate_id: int | None
 
 
-class QueueOrderDTO(BaseModel):
-    running: list[QueueJobDTO]
-    queued: list[QueueJobDTO]
-    total_queued: int
-
-
 class FailedSourceDTO(BaseModel):
     source_id: int
     source_title: str
@@ -46,7 +31,6 @@ class FailedGroupDTO(BaseModel):
     error_text: str
     count: int
     sources: list[FailedSourceDTO]
-    candidate_ids: list[int]
 
 
 class FailedByJobTypeDTO(BaseModel):
@@ -55,17 +39,30 @@ class FailedByJobTypeDTO(BaseModel):
     groups: list[FailedGroupDTO]
 
 
-class QueueFailedDTO(BaseModel):
-    types: list[FailedByJobTypeDTO]
+class QueueSnapshotDTO(BaseModel):
+    """Everything the queue screen shows, in one read.
+
+    ``counts`` lists only job types with any jobs, in pipeline order.
+    ``queued`` holds the first jobs in line; ``total_queued`` counts them all.
+    """
+
+    counts: list[JobTypeCountsDTO]
+    total_queued: int
+    total_running: int
+    total_failed: int
+    running: list[QueueJobDTO]
+    queued: list[QueueJobDTO]
+    failed: list[FailedByJobTypeDTO]
 
 
-class RetryRequestDTO(BaseModel):
-    job_type: str
+class QueueActionRequestDTO(BaseModel):
+    """Which jobs a queue action applies to. Every unset field matches everything."""
+
+    job_type: str | None = None
     source_id: int | None = None
+    job_id: int | None = None
     error_text: str | None = None
 
 
-class CancelRequestDTO(BaseModel):
-    job_type: str
-    source_id: int | None = None
-    job_id: int | None = None
+class QueueActionResultDTO(BaseModel):
+    affected: int

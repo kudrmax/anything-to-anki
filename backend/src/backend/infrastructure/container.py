@@ -144,6 +144,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.download_pronunciation import DownloadPronunciationUseCase
     from backend.application.use_cases.download_video import DownloadVideoUseCase
     from backend.application.use_cases.edit_card_phrase import EditCardPhraseUseCase
+    from backend.application.use_cases.enqueue_candidate_tts import EnqueueCandidateTTSUseCase
     from backend.application.use_cases.enqueue_phrase_polish import EnqueuePhrasePolishUseCase
     from backend.application.use_cases.enqueue_topic_generation import (
         EnqueueTopicGenerationUseCase,
@@ -153,15 +154,15 @@ if TYPE_CHECKING:
     from backend.application.use_cases.get_ai_usage_stats import GetAIUsageStatsUseCase
     from backend.application.use_cases.get_generation_status import GetGenerationStatusUseCase
     from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
-    from backend.application.use_cases.get_queue_failed import GetQueueFailedUseCase
-    from backend.application.use_cases.get_queue_global_summary import (
-        GetQueueGlobalSummaryUseCase,
-    )
-    from backend.application.use_cases.get_queue_order import GetQueueOrderUseCase
+    from backend.application.use_cases.get_queue_snapshot import GetQueueSnapshotUseCase
+    from backend.application.use_cases.manage_queue import ManageQueueUseCase
     from backend.application.use_cases.paste_target_image import PasteTargetImageUseCase
     from backend.application.use_cases.polish_phrases import PhrasePolishUseCase
     from backend.application.use_cases.regenerate_candidate_media import (
         RegenerateCandidateMediaUseCase,
+    )
+    from backend.application.use_cases.request_video_download import (
+        RequestVideoDownloadUseCase,
     )
     from backend.application.use_cases.revert_phrase_polish import RevertPhrasePolishUseCase
     from backend.application.use_cases.run_generation import RunGenerationUseCase
@@ -856,34 +857,33 @@ class Container:
         from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
         return CancelGenerationUseCase(job_repo=SqlaJobRepository(session))
 
-    def get_queue_global_summary_use_case(
-        self, session: Session,
-    ) -> GetQueueGlobalSummaryUseCase:
-        from backend.application.use_cases.get_queue_global_summary import (
-            GetQueueGlobalSummaryUseCase,
-        )
-        return GetQueueGlobalSummaryUseCase(
-            job_repo=SqlaJobRepository(session),
-        )
-
-    def get_queue_order_use_case(
-        self, session: Session,
-    ) -> GetQueueOrderUseCase:
-        from backend.application.use_cases.get_queue_order import (
-            GetQueueOrderUseCase,
-        )
-        return GetQueueOrderUseCase(
+    def get_queue_snapshot_use_case(self, session: Session) -> GetQueueSnapshotUseCase:
+        from backend.application.use_cases.get_queue_snapshot import GetQueueSnapshotUseCase
+        return GetQueueSnapshotUseCase(
             job_repo=SqlaJobRepository(session),
             source_repo=SqlaSourceRepository(session),
         )
 
-    def get_queue_failed_use_case(
+    def manage_queue_use_case(self, session: Session) -> ManageQueueUseCase:
+        from backend.application.use_cases.manage_queue import ManageQueueUseCase
+        return ManageQueueUseCase(job_repo=SqlaJobRepository(session))
+
+    def request_video_download_use_case(
         self, session: Session,
-    ) -> GetQueueFailedUseCase:
-        from backend.application.use_cases.get_queue_failed import (
-            GetQueueFailedUseCase,
+    ) -> RequestVideoDownloadUseCase:
+        from backend.application.use_cases.request_video_download import (
+            RequestVideoDownloadUseCase,
         )
-        return GetQueueFailedUseCase(
-            job_repo=SqlaJobRepository(session),
+        return RequestVideoDownloadUseCase(
             source_repo=SqlaSourceRepository(session),
+            job_repo=SqlaJobRepository(session),
+        )
+
+    def enqueue_candidate_tts_use_case(self, session: Session) -> EnqueueCandidateTTSUseCase:
+        from backend.application.use_cases.enqueue_candidate_tts import (
+            EnqueueCandidateTTSUseCase,
+        )
+        return EnqueueCandidateTTSUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            job_repo=SqlaJobRepository(session),
         )

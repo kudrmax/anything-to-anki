@@ -346,20 +346,11 @@ export interface AnkiTemplates {
   css: string
 }
 
-export interface JobTypeSummary {
+export interface JobTypeCounts {
+  job_type: string
   queued: number
   running: number
   failed: number
-}
-
-export interface QueueGlobalSummary {
-  meaning: JobTypeSummary
-  media: JobTypeSummary
-  pronunciation: JobTypeSummary
-  video_download: JobTypeSummary
-  topic_targets: JobTypeSummary
-  polish: JobTypeSummary
-  tts: JobTypeSummary
 }
 
 export interface QueueJob {
@@ -372,12 +363,6 @@ export interface QueueJob {
   candidate_id: number | null
 }
 
-export interface QueueOrder {
-  running: QueueJob[]
-  queued: QueueJob[]
-  total_queued: number
-}
-
 export interface FailedSource {
   source_id: number
   source_title: string
@@ -388,7 +373,6 @@ export interface FailedGroup {
   error_text: string
   count: number
   sources: FailedSource[]
-  candidate_ids: number[]
 }
 
 export interface FailedByJobType {
@@ -397,8 +381,26 @@ export interface FailedByJobType {
   groups: FailedGroup[]
 }
 
-export interface QueueFailed {
-  types: FailedByJobType[]
+export interface QueueSnapshot {
+  counts: JobTypeCounts[]
+  total_queued: number
+  total_running: number
+  total_failed: number
+  running: QueueJob[]
+  queued: QueueJob[]
+  failed: FailedByJobType[]
+}
+
+/** Which jobs a queue action applies to; every field left out matches everything. */
+export interface QueueSelection {
+  job_type?: string
+  source_id?: number
+  job_id?: number
+  error_text?: string
+}
+
+export interface QueueActionResult {
+  affected: number
 }
 
 export interface BootstrapStatus {

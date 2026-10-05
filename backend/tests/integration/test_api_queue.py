@@ -118,444 +118,173 @@ def _insert_job(
     session.flush()
 
 
-# ── global-summary ───────────────────────────────────────────────────────────
+def _seed(session: Session) -> None:
+    """Two sources: a running TTS, queued meanings, failures of two kinds."""
+    _insert_source(session, 1, "Alpha")
+    _insert_source(session, 2, "Beta")
+    for cid, sid in ((1, 1), (2, 1), (3, 2), (4, 1), (5, 2), (6, 2)):
+        _insert_candidate(session, cid, sid)
+    _insert_job(session, 1, 1, 1, job_type="tts", status="running",
+                created_at="2026-01-01 00:00:00", started_at="2026-01-01 00:00:01")
+    _insert_job(session, 2, 2, 1, job_type="meaning", created_at="2026-01-01 00:00:02")
+    _insert_job(session, 3, 3, 2, job_type="meaning", created_at="2026-01-01 00:00:03")
+    _insert_job(session, 4, 4, 1, job_type="meaning", status="failed", error="timeout")
+    _insert_job(session, 5, 5, 2, job_type="meaning", status="failed", error="timeout")
+    _insert_job(session, 6, 6, 2, job_type="polish", status="failed", error=None)
+    session.commit()
+
+
+def _active_ids(client: TestClient) -> list[int]:
+    queue = client.get("/api/queue").json()
+    return [j["job_id"] for j in queue["running"] + queue["queued"]]
+
+
+# ── snapshot ────────────────────────────────────────────────────────────────
 
 
 @pytest.mark.integration
-class TestGlobalSummary:
-    def test_returns_zeros_when_no_jobs(self, client: TestClient) -> None:
-        response = client.get("/api/queue/global-summary")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["meaning"] == {"queued": 0, "running": 0, "failed": 0}
-        assert data["media"] == {"queued": 0, "running": 0, "failed": 0}
-        assert data["pronunciation"] == {"queued": 0, "running": 0, "failed": 0}
-        assert data["video_download"] == {"queued": 0, "running": 0, "failed": 0}
-        assert data["tts"] == {"queued": 0, "running": 0, "failed": 0}
+class TestQueueSnapshot:
+    def test_empty_queue(self, client: TestClient) -> None:
+        assert client.get("/api/queue").json() == {
+            "counts": [], "total_queued": 0, "total_running": 0, "total_failed": 0,
+            "running": [], "queued": [], "failed": [],
+        }
 
-    def test_returns_correct_counts(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 1)
-        _insert_candidate(db_session, 3, 1)
-        _insert_job(db_session, 1, 1, 1, job_type="meaning", status="queued")
-        _insert_job(db_session, 2, 2, 1, job_type="meaning", status="failed", error="oops")
-        _insert_job(
-            db_session, 3, 3, 1,
-            job_type="media", status="running", started_at="2026-01-01 01:00:00",
-        )
-        db_session.commit()
-
-        response = client.get("/api/queue/global-summary")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["meaning"]["queued"] == 1
-        assert data["meaning"]["failed"] == 1
-        assert data["meaning"]["running"] == 0
-        assert data["media"]["running"] == 1
-        assert data["media"]["queued"] == 0
-
-    def test_filtered_by_source_id(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        _insert_source(db_session, 2)
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 2)
-        _insert_job(db_session, 1, 1, 1, job_type="meaning", status="queued")
-        _insert_job(db_session, 2, 2, 2, job_type="meaning", status="queued")
-        db_session.commit()
-
-        response = client.get("/api/queue/global-summary?source_id=1")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["meaning"]["queued"] == 1  # only source 1
-
-
-# ── order ────────────────────────────────────────────────────────────────────
-
-
-@pytest.mark.integration
-class TestQueueOrder:
-    def test_returns_empty_when_no_jobs(self, client: TestClient) -> None:
-        response = client.get("/api/queue/order")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["running"] == []
-        assert data["queued"] == []
-        assert data["total_queued"] == 0
-
-    def test_returns_running_and_queued(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1, title="My Source")
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 1)
-        _insert_job(db_session, 1, 1, 1, status="running", started_at="2026-01-01 01:00:00")
-        _insert_job(db_session, 2, 2, 1, status="queued")
-        db_session.commit()
-
-        response = client.get("/api/queue/order")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["running"]) == 1
-        assert len(data["queued"]) == 1
-        assert data["total_queued"] == 1
-        assert data["running"][0]["source_title"] == "My Source"
-        assert data["queued"][0]["position"] == 1
-
-    def test_queued_positions_are_sequential(
+    def test_counts_jobs_by_type_in_pipeline_order(
         self, client: TestClient, db_session: Session,
     ) -> None:
-        _insert_source(db_session, 1)
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 1)
-        _insert_candidate(db_session, 3, 1)
-        _insert_job(db_session, 1, 1, 1, status="queued", created_at="2026-01-01 00:00:01")
-        _insert_job(db_session, 2, 2, 1, status="queued", created_at="2026-01-01 00:00:02")
-        _insert_job(db_session, 3, 3, 1, status="queued", created_at="2026-01-01 00:00:03")
-        db_session.commit()
+        _seed(db_session)
 
-        response = client.get("/api/queue/order")
-        assert response.status_code == 200
-        data = response.json()
-        positions = [j["position"] for j in data["queued"]]
-        assert positions == [1, 2, 3]
+        queue = client.get("/api/queue").json()
 
-    def test_filtered_by_source_id(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        _insert_source(db_session, 2)
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 2)
-        _insert_job(db_session, 1, 1, 1, status="queued")
-        _insert_job(db_session, 2, 2, 2, status="queued")
-        db_session.commit()
+        assert queue["counts"] == [
+            {"job_type": "polish", "queued": 0, "running": 0, "failed": 1},
+            {"job_type": "meaning", "queued": 2, "running": 0, "failed": 2},
+            {"job_type": "tts", "queued": 0, "running": 1, "failed": 0},
+        ]
+        assert (queue["total_queued"], queue["total_running"], queue["total_failed"]) == (2, 1, 3)
 
-        response = client.get("/api/queue/order?source_id=1")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["queued"]) == 1
-        assert data["queued"][0]["source_id"] == 1
-
-    def test_failed_jobs_are_excluded(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        _insert_candidate(db_session, 1, 1)
-        _insert_job(db_session, 1, 1, 1, status="failed", error="boom")
-        db_session.commit()
-
-        response = client.get("/api/queue/order")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["running"] == []
-        assert data["queued"] == []
-
-    def test_limit_param(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        for i in range(1, 6):
-            _insert_candidate(db_session, i, 1)
-            _insert_job(db_session, i, i, 1, status="queued", created_at=f"2026-01-01 00:00:0{i}")
-        db_session.commit()
-
-        response = client.get("/api/queue/order?limit=2")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["queued"]) == 2
-        assert data["total_queued"] == 5
-
-
-# ── failed ───────────────────────────────────────────────────────────────────
-
-
-@pytest.mark.integration
-class TestQueueFailed:
-    def test_returns_empty_when_no_failures(self, client: TestClient) -> None:
-        response = client.get("/api/queue/failed")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["types"] == []
-
-    def test_returns_failed_jobs_grouped(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1, title="Source One")
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 1)
-        _insert_job(db_session, 1, 1, 1, job_type="meaning", status="failed", error="timeout")
-        _insert_job(db_session, 2, 2, 1, job_type="meaning", status="failed", error="timeout")
-        db_session.commit()
-
-        response = client.get("/api/queue/failed")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["types"]) == 1
-        type_entry = data["types"][0]
-        assert type_entry["job_type"] == "meaning"
-        assert type_entry["total_failed"] == 2
-        assert len(type_entry["groups"]) == 1
-        assert type_entry["groups"][0]["error_text"] == "timeout"
-        assert type_entry["groups"][0]["count"] == 2
-
-    def test_groups_by_error_text(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 1)
-        _insert_candidate(db_session, 3, 1)
-        _insert_job(db_session, 1, 1, 1, job_type="meaning", status="failed", error="error A")
-        _insert_job(db_session, 2, 2, 1, job_type="meaning", status="failed", error="error B")
-        _insert_job(db_session, 3, 3, 1, job_type="meaning", status="failed", error="error A")
-        db_session.commit()
-
-        response = client.get("/api/queue/failed")
-        assert response.status_code == 200
-        data = response.json()
-        type_entry = data["types"][0]
-        assert type_entry["total_failed"] == 3
-        groups_by_error = {g["error_text"]: g for g in type_entry["groups"]}
-        assert groups_by_error["error A"]["count"] == 2
-        assert groups_by_error["error B"]["count"] == 1
-
-    def test_groups_by_job_type(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 1)
-        _insert_job(db_session, 1, 1, 1, job_type="meaning", status="failed", error="err")
-        _insert_job(db_session, 2, 2, 1, job_type="media", status="failed", error="err")
-        db_session.commit()
-
-        response = client.get("/api/queue/failed")
-        assert response.status_code == 200
-        data = response.json()
-        job_types = {t["job_type"] for t in data["types"]}
-        assert "meaning" in job_types
-        assert "media" in job_types
-
-    def test_filtered_by_source_id(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        _insert_source(db_session, 2)
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 2)
-        _insert_job(db_session, 1, 1, 1, job_type="meaning", status="failed", error="err")
-        _insert_job(db_session, 2, 2, 2, job_type="meaning", status="failed", error="err")
-        db_session.commit()
-
-        response = client.get("/api/queue/failed?source_id=1")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["types"]) == 1
-        # only 1 candidate from source 1
-        assert data["types"][0]["total_failed"] == 1
-
-
-# ── cancel ───────────────────────────────────────────────────────────────────
-
-
-@pytest.mark.integration
-class TestCancelQueue:
-    def test_cancel_by_job_id(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        _insert_candidate(db_session, 1, 1)
-        _insert_job(db_session, 42, 1, 1, status="queued")
-        db_session.commit()
-
-        response = client.post(
-            "/api/queue/cancel",
-            json={"job_type": "meaning", "job_id": 42},
-        )
-        assert response.status_code == 200
-        assert response.json() == {"cancelled": 1}
-
-        # Verify job is gone via order endpoint
-        order = client.get("/api/queue/order").json()
-        assert order["queued"] == []
-
-    def test_cancel_by_source_and_type(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        _insert_source(db_session, 2)
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 2)
-        _insert_job(db_session, 1, 1, 1, job_type="meaning", status="queued")
-        _insert_job(db_session, 2, 2, 2, job_type="meaning", status="queued")
-        db_session.commit()
-
-        response = client.post(
-            "/api/queue/cancel",
-            json={"job_type": "meaning", "source_id": 1},
-        )
-        assert response.status_code == 200
-        assert response.json() == {"cancelled": 1}
-
-        # Source 2 job still there
-        order = client.get("/api/queue/order").json()
-        assert len(order["queued"]) == 1
-        assert order["queued"][0]["source_id"] == 2
-
-    def test_cancel_globally_by_type(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        _insert_source(db_session, 2)
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 1)
-        _insert_candidate(db_session, 3, 2)
-        _insert_job(db_session, 1, 1, 1, job_type="meaning", status="queued")
-        _insert_job(db_session, 2, 2, 1, job_type="meaning", status="queued")
-        _insert_job(db_session, 3, 3, 2, job_type="meaning", status="queued")
-        db_session.commit()
-
-        response = client.post(
-            "/api/queue/cancel",
-            json={"job_type": "meaning"},
-        )
-        assert response.status_code == 200
-        assert response.json()["cancelled"] == 3
-
-        order = client.get("/api/queue/order").json()
-        assert order["queued"] == []
-
-    def test_cancel_tts_jobs(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        _insert_candidate(db_session, 1, 1)
-        _insert_job(db_session, 1, 1, 1, job_type="tts", status="queued")
-        db_session.commit()
-
-        response = client.post("/api/queue/cancel", json={"job_type": "tts"})
-
-        assert response.json() == {"cancelled": 1}
-
-    def test_cancel_unknown_job_type_returns_zero(self, client: TestClient) -> None:
-        response = client.post(
-            "/api/queue/cancel",
-            json={"job_type": "unknown_type"},
-        )
-        assert response.status_code == 200
-        assert response.json() == {"cancelled": 0}
-
-    def test_cancel_running_jobs_also_cancelled(
+    def test_lists_running_and_queued_jobs_in_line(
         self, client: TestClient, db_session: Session,
     ) -> None:
-        _insert_source(db_session, 1)
-        _insert_candidate(db_session, 1, 1)
-        _insert_job(db_session, 1, 1, 1, status="running", started_at="2026-01-01 01:00:00")
-        db_session.commit()
+        _seed(db_session)
 
-        response = client.post(
-            "/api/queue/cancel",
-            json={"job_type": "meaning", "source_id": 1},
-        )
-        assert response.status_code == 200
-        assert response.json() == {"cancelled": 1}
+        queue = client.get("/api/queue").json()
+
+        assert [(j["job_id"], j["status"], j["position"]) for j in queue["running"]] == [
+            (1, "running", None),
+        ]
+        assert [(j["job_id"], j["position"], j["source_title"]) for j in queue["queued"]] == [
+            (2, 1, "Alpha"), (3, 2, "Beta"),
+        ]
+
+    def test_queued_limit_caps_the_list_but_not_the_total(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        _seed(db_session)
+
+        queue = client.get("/api/queue?queued_limit=1").json()
+
+        assert [j["job_id"] for j in queue["queued"]] == [2]
+        assert queue["total_queued"] == 2
+
+    def test_groups_failures_by_type_and_error(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        _seed(db_session)
+
+        failed = client.get("/api/queue").json()["failed"]
+
+        assert failed == [
+            {"job_type": "polish", "total_failed": 1, "groups": [
+                {"error_text": "Unknown error", "count": 1, "sources": [
+                    {"source_id": 2, "source_title": "Beta", "count": 1},
+                ]},
+            ]},
+            {"job_type": "meaning", "total_failed": 2, "groups": [
+                {"error_text": "timeout", "count": 2, "sources": [
+                    {"source_id": 1, "source_title": "Alpha", "count": 1},
+                    {"source_id": 2, "source_title": "Beta", "count": 1},
+                ]},
+            ]},
+        ]
+
+    def test_filtered_by_source(self, client: TestClient, db_session: Session) -> None:
+        _seed(db_session)
+
+        queue = client.get("/api/queue?source_id=2").json()
+
+        assert [j["job_id"] for j in queue["queued"]] == [3]
+        assert queue["running"] == []
+        assert queue["total_failed"] == 2
 
 
-# ── retry ────────────────────────────────────────────────────────────────────
+# ── actions ─────────────────────────────────────────────────────────────────
 
 
 @pytest.mark.integration
-class TestRetryQueue:
-    def test_retry_failed_by_type(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 1)
-        _insert_job(db_session, 1, 1, 1, job_type="meaning", status="failed", error="timeout")
-        _insert_job(db_session, 2, 2, 1, job_type="meaning", status="failed", error="timeout")
-        db_session.commit()
+class TestQueueActions:
+    def test_cancel_single_running_job(self, client: TestClient, db_session: Session) -> None:
+        _seed(db_session)
 
-        response = client.post(
-            "/api/queue/retry",
-            json={"job_type": "meaning"},
-        )
-        assert response.status_code == 202
-        assert response.json() == {"retried": 2}
+        response = client.post("/api/queue/cancel", json={"job_id": 1})
 
-        # Failed jobs should now be queued again
-        order = client.get("/api/queue/order").json()
-        assert len(order["queued"]) == 2
+        assert response.json() == {"affected": 1}
+        assert _active_ids(client) == [2, 3]
 
-        failed = client.get("/api/queue/failed").json()
-        assert failed["types"] == []
+    def test_cancel_missing_job_affects_nothing(self, client: TestClient) -> None:
+        assert client.post("/api/queue/cancel", json={"job_id": 999}).json() == {"affected": 0}
 
-    def test_retry_by_error_text_filters_correctly(
-        self, client: TestClient, db_session: Session
-    ) -> None:
-        # Use two different sources so that delete_failed_by_source_and_type
-        # only touches the source we want to retry (source 1 = timeout only).
-        _insert_source(db_session, 1)
-        _insert_source(db_session, 2)
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 2)
-        _insert_job(db_session, 1, 1, 1, job_type="meaning", status="failed", error="timeout")
-        _insert_job(
-            db_session, 2, 2, 2, job_type="meaning", status="failed", error="connection refused",
-        )
-        db_session.commit()
+    def test_cancel_by_type_and_source(self, client: TestClient, db_session: Session) -> None:
+        _seed(db_session)
 
-        response = client.post(
-            "/api/queue/retry",
-            json={"job_type": "meaning", "error_text": "timeout"},
-        )
-        assert response.status_code == 202
-        assert response.json() == {"retried": 1}
+        response = client.post("/api/queue/cancel", json={"job_type": "meaning", "source_id": 2})
 
-        # Only the "timeout" job was retried; "connection refused" stays failed
-        failed = client.get("/api/queue/failed").json()
-        assert len(failed["types"]) == 1
-        assert failed["types"][0]["groups"][0]["error_text"] == "connection refused"
+        assert response.json() == {"affected": 1}
+        assert _active_ids(client) == [1, 2]
 
-    def test_retry_by_error_text_preserves_other_errors_in_same_source(
+    def test_cancel_everything_keeps_failures(
         self, client: TestClient, db_session: Session,
     ) -> None:
-        """Retry with error_text must NOT delete failed jobs with a different error
-        in the same source. Regression test for data-loss bug."""
-        _insert_source(db_session, 1)
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 1)
-        _insert_candidate(db_session, 3, 1)
-        _insert_job(db_session, 1, 1, 1, job_type="meaning", status="failed", error="timeout")
-        _insert_job(db_session, 2, 2, 1, job_type="meaning", status="failed", error="timeout")
-        _insert_job(db_session, 3, 3, 1, job_type="meaning", status="failed", error="rate limit")
-        db_session.commit()
+        _seed(db_session)
+
+        assert client.post("/api/queue/cancel", json={}).json() == {"affected": 3}
+        assert _active_ids(client) == []
+        assert client.get("/api/queue").json()["total_failed"] == 3
+
+    def test_unknown_job_type_is_rejected(self, client: TestClient) -> None:
+        response = client.post("/api/queue/cancel", json={"job_type": "nope"})
+        assert response.status_code == 422
+
+    def test_retry_by_error_moves_failures_to_the_end_of_the_line(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        _seed(db_session)
+
+        response = client.post("/api/queue/retry", json={"error_text": "timeout"})
+
+        assert response.json() == {"affected": 2}
+        queue = client.get("/api/queue").json()
+        assert [j["job_id"] for j in queue["queued"]] == [2, 3, 4, 5]
+        assert queue["total_failed"] == 1
+
+    def test_retry_unknown_error_group(self, client: TestClient, db_session: Session) -> None:
+        _seed(db_session)
 
         response = client.post(
-            "/api/queue/retry",
-            json={"job_type": "meaning", "error_text": "timeout"},
+            "/api/queue/retry", json={"job_type": "polish", "error_text": "Unknown error"},
         )
-        assert response.status_code == 202
-        assert response.json() == {"retried": 2}
 
-        # "rate limit" job must still be in failed
-        failed = client.get("/api/queue/failed").json()
-        assert len(failed["types"]) == 1
-        assert failed["types"][0]["groups"][0]["error_text"] == "rate limit"
-        assert failed["types"][0]["total_failed"] == 1
+        assert response.json() == {"affected": 1}
 
-        # The 2 "timeout" jobs should be re-queued
-        order = client.get("/api/queue/order").json()
-        assert len(order["queued"]) == 2
+    def test_dismiss_removes_failures_without_retrying(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        _seed(db_session)
 
-    def test_retry_unknown_job_type_returns_zero(self, client: TestClient) -> None:
-        response = client.post(
-            "/api/queue/retry",
-            json={"job_type": "unknown_type"},
-        )
-        assert response.status_code == 202
-        assert response.json() == {"retried": 0}
+        response = client.post("/api/queue/dismiss", json={"job_type": "meaning", "source_id": 1})
 
-    def test_retry_when_no_failed_jobs_returns_zero(self, client: TestClient) -> None:
-        response = client.post(
-            "/api/queue/retry",
-            json={"job_type": "meaning"},
-        )
-        assert response.status_code == 202
-        assert response.json() == {"retried": 0}
-
-    def test_retry_filtered_by_source_id(self, client: TestClient, db_session: Session) -> None:
-        _insert_source(db_session, 1)
-        _insert_source(db_session, 2)
-        _insert_candidate(db_session, 1, 1)
-        _insert_candidate(db_session, 2, 2)
-        _insert_job(db_session, 1, 1, 1, job_type="meaning", status="failed", error="err")
-        _insert_job(db_session, 2, 2, 2, job_type="meaning", status="failed", error="err")
-        db_session.commit()
-
-        response = client.post(
-            "/api/queue/retry",
-            json={"job_type": "meaning", "source_id": 1},
-        )
-        assert response.status_code == 202
-        assert response.json() == {"retried": 1}
-
-        # Source 2 job still failed
-        failed = client.get("/api/queue/failed").json()
-        assert len(failed["types"]) == 1
-        assert failed["types"][0]["total_failed"] == 1
+        assert response.json() == {"affected": 1}
+        queue = client.get("/api/queue").json()
+        assert queue["total_failed"] == 2
+        assert _active_ids(client) == [1, 2, 3]

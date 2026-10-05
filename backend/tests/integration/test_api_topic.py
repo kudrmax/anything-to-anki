@@ -103,8 +103,10 @@ def test_generation_is_queued_once(client: TestClient) -> None:
     assert first.status_code == 202
     assert second.status_code == 409
     assert _summary(client, source_id)["generation_status"] == "queued"
-    queue = client.get(f"/api/queue/global-summary?source_id={source_id}").json()
-    assert queue[TOPIC_JOB] == {"queued": 1, "running": 0, "failed": 0}
+    queue = client.get(f"/api/queue?source_id={source_id}").json()
+    assert queue["counts"] == [
+        {"job_type": TOPIC_JOB, "queued": 1, "running": 0, "failed": 0},
+    ]
 
 
 def test_generation_is_only_for_topics(client: TestClient) -> None:
@@ -151,7 +153,7 @@ def test_failed_generation_is_shown_and_can_be_retried(
         "/api/queue/retry",
         json={"job_type": TOPIC_JOB, "source_id": source_id, "error_text": BLOCKED},
     )
-    assert response.json() == {"retried": 1}
+    assert response.json() == {"affected": 1}
     assert _summary(client, source_id)["generation_status"] == "queued"
 
 
@@ -169,7 +171,7 @@ def test_retry_by_error_text_keeps_other_failures(
         "/api/queue/retry", json={"job_type": TOPIC_JOB, "error_text": BLOCKED},
     )
 
-    assert response.json() == {"retried": 1}
+    assert response.json() == {"affected": 1}
     assert _summary(client, blocked_id)["generation_status"] == "queued"
     assert _summary(client, other_id)["generation_status"] == "failed"
 
@@ -182,5 +184,5 @@ def test_generation_can_be_cancelled(client: TestClient) -> None:
         "/api/queue/cancel", json={"job_type": TOPIC_JOB, "source_id": source_id},
     )
 
-    assert response.json() == {"cancelled": 1}
+    assert response.json() == {"affected": 1}
     assert _summary(client, source_id)["generation_status"] is None

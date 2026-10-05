@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from backend.application.utils.generation_targets import job_of, target_for
@@ -10,7 +9,6 @@ from backend.domain.exceptions import GenerationBlockedError, SourceNotFoundErro
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.card_generation_state import CardGenerationState
 from backend.domain.value_objects.generation_scope import GenerationScope
-from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
@@ -78,8 +76,6 @@ class RunGenerationUseCase:
         in_scope = _STATES_IN_SCOPE[scope]
         chosen = [c for c in candidates if target.state(c, job_of(jobs, c, kind)) in in_scope]
 
-        if scope != GenerationScope.MISSING:
-            self._job_repo.delete_failed_by_source_and_type(source_id, kind.job_type)
         if scope == GenerationScope.ALL:
             for candidate in chosen:
                 assert candidate.id is not None
@@ -96,21 +92,6 @@ class RunGenerationUseCase:
     def _queue(
         self, source_id: int, kind: GenerationKind, candidates: list[StoredCandidate],
     ) -> int:
-        now = datetime.now(tz=UTC)
-        jobs = [
-            Job(
-                id=None,
-                job_type=kind.job_type,
-                candidate_id=c.id,
-                source_id=source_id,
-                status=JobStatus.QUEUED,
-                error=None,
-                created_at=now,
-                started_at=None,
-            )
-            for c in candidates
-            if c.id is not None
-        ]
-        if jobs:
-            self._job_repo.create_bulk(jobs)
-        return len(jobs)
+        return len(self._job_repo.enqueue([
+            Job.queued(kind.job_type, source_id, c.id) for c in candidates if c.id is not None
+        ]))
