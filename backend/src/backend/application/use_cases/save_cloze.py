@@ -7,6 +7,7 @@ from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.exceptions import (
     CandidateNotFoundError,
     ClozeNotAllowedError,
+    ClozePhraseChangedError,
     InvalidClozeError,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -46,18 +47,23 @@ class SaveClozeUseCase:
     def execute(
         self,
         candidate_id: int,
+        phrase: str,
         hidden_word_indices: list[int],
         hint_kind: ClozeHintKind,
         custom_hint: str | None,
     ) -> StoredCandidateDTO:
-        """Returns the candidate as it is after saving."""
+        """Returns the candidate as it is after saving.
+
+        `phrase` is the card phrase the user picked the words in: if the card shows another
+        one by now (polish landed or was reverted), the indices point at other words."""
         candidate = self._candidate_repo.get_by_id(candidate_id)
         if candidate is None:
             raise CandidateNotFoundError(candidate_id)
         if candidate_id in self._anki_sync_repo.get_synced_candidate_ids([candidate_id]):
             raise ClozeNotAllowedError(f"Candidate {candidate_id} is already in Anki")
 
-        phrase = candidate.card_phrase
+        if phrase != candidate.card_phrase:
+            raise ClozePhraseChangedError(candidate_id)
         indices = tuple(sorted(set(hidden_word_indices)))
         words = self._builder.words(phrase, candidate.lemma, candidate.surface_form)
         self._builder.validate(words, indices)

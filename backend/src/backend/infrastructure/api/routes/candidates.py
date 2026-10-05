@@ -33,6 +33,7 @@ from backend.domain.exceptions import (
     CandidateNotFoundError,
     CandidateNotPolishedError,
     ClozeNotAllowedError,
+    ClozePhraseChangedError,
     EmptyReportCommentError,
     ImageSearchError,
     InvalidClozeError,
@@ -80,6 +81,7 @@ def save_cloze(
     try:
         candidate = container.save_cloze_use_case(session).execute(
             candidate_id,
+            request.phrase,
             request.hidden_word_indices,
             ClozeHintKind(request.hint_kind),
             request.custom_hint,
@@ -88,7 +90,7 @@ def save_cloze(
         return candidate
     except CandidateNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except ClozeNotAllowedError as e:
+    except (ClozeNotAllowedError, ClozePhraseChangedError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidClozeError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e

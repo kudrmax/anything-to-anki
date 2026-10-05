@@ -9,6 +9,7 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 if TYPE_CHECKING:
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.candidate_cloze_repository import CandidateClozeRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.known_word_repository import KnownWordRepository
@@ -21,7 +22,8 @@ class MarkCandidateUseCase:
     """Marks a candidate status (or undoes it back to pending), keeps known
     words in sync and remembers known/learn verdicts for calibration.
 
-    Any status change drops the cloze markup: the user decided on the card anew."""
+    Any status change drops the cloze markup: the user decided on the card anew. A card
+    already exported keeps it: Anki holds it as a cloze note."""
 
     def __init__(
         self,
@@ -30,19 +32,22 @@ class MarkCandidateUseCase:
         decision_repo: WordDecisionRepository,
         review_status: ReviewStatusUpdater,
         cloze_repo: CandidateClozeRepository,
+        anki_sync_repo: AnkiSyncRepository,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._known_word_repo = known_word_repo
         self._decision_repo = decision_repo
         self._review_status = review_status
         self._cloze_repo = cloze_repo
+        self._anki_sync_repo = anki_sync_repo
 
     def execute(self, candidate_id: int, status: CandidateStatus) -> None:
         candidate = self._candidate_repo.get_by_id(candidate_id)
         if candidate is None:
             raise CandidateNotFoundError(candidate_id)
         self.apply(candidate, status)
-        self._cloze_repo.delete_by_candidate_id(candidate_id)
+        if candidate_id not in self._anki_sync_repo.get_synced_candidate_ids([candidate_id]):
+            self._cloze_repo.delete_by_candidate_id(candidate_id)
 
     def apply(self, candidate: StoredCandidate, status: CandidateStatus) -> None:
         """Sets the status with all its side effects, leaving the cloze markup as is."""

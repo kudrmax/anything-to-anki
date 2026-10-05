@@ -522,6 +522,7 @@ class Container:
             decision_repo=SqlaWordDecisionRepository(session),
             review_status=self._review_status_updater(session),
             cloze_repo=SqlaCandidateClozeRepository(session),
+            anki_sync_repo=SqlaAnkiSyncRepository(session),
         )
 
     def save_cloze_use_case(self, session: Session) -> SaveClozeUseCase:

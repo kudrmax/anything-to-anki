@@ -37,6 +37,7 @@ class ClozeWordDTO(BaseModel):
 class ClozePreviewDTO(BaseModel):
     """How the cloze card would look with the given markup."""
 
+    phrase: str
     words: list[ClozeWordDTO]
     hidden_word_indices: list[int]
     hint_kind: str
@@ -44,11 +45,15 @@ class ClozePreviewDTO(BaseModel):
     front: str
     hint: str
     available_hints: list[str]
+    can_save: bool
 
 
 class SaveClozeRequest(BaseModel):
-    """Input for saving the cloze markup of a candidate."""
+    """Input for saving the cloze markup of a candidate.
 
+    `phrase` is the card phrase the indices were picked in."""
+
+    phrase: str
     hidden_word_indices: list[int]
     hint_kind: HintKindName
     custom_hint: str | None = None

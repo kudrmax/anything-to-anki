@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from unittest.mock import MagicMock
 
 import pytest
@@ -64,6 +65,8 @@ class TestPreviewCloze:
         assert preview.available_hints == [
             "none", "translation", "synonyms", "first_letter", "custom",
         ]
+        assert preview.phrase == GIVE_UP
+        assert preview.can_save is True
 
     def test_preview_ignores_corrupt_default_hint_setting(self) -> None:
         self.default_hint = "bogus"
@@ -114,6 +117,27 @@ class TestPreviewCloze:
         preview = self.use_case.execute(1, PreviewClozeRequest(hidden_word_indices=[]))
         assert preview.hidden_word_indices == []
         assert preview.front == GIVE_UP
+        assert preview.can_save is False
+
+    def test_preview_echoes_the_card_phrase(self) -> None:
+        self.candidate_repo.get_by_id.return_value = replace(
+            _candidate(), polished_fragment="She gave up smoking.",
+        )
+        preview = self.use_case.execute(1, PreviewClozeRequest())
+        assert preview.phrase == "She gave up smoking."
+
+    def test_custom_hint_without_text_cannot_be_saved(self) -> None:
+        preview = self.use_case.execute(
+            1, PreviewClozeRequest(hint_kind="custom", custom_hint="   "),
+        )
+        assert preview.hint_kind == "custom"
+        assert preview.can_save is False
+
+    def test_custom_hint_with_text_can_be_saved(self) -> None:
+        preview = self.use_case.execute(
+            1, PreviewClozeRequest(hint_kind="custom", custom_hint="a habit"),
+        )
+        assert preview.can_save is True
 
     def test_preview_drops_leaking_hint_to_none(self) -> None:
         self.candidate_repo.get_by_id.return_value = _candidate(synonyms="give up, quit")

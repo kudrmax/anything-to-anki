@@ -16,12 +16,15 @@ class TestMarkCandidateUseCase:
         self.review_status = MagicMock()
         self.decision_repo = MagicMock()
         self.cloze_repo = MagicMock()
+        self.anki_sync_repo = MagicMock()
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.use_case = MarkCandidateUseCase(
             candidate_repo=self.candidate_repo,
             known_word_repo=self.known_word_repo,
             decision_repo=self.decision_repo,
             review_status=self.review_status,
             cloze_repo=self.cloze_repo,
+            anki_sync_repo=self.anki_sync_repo,
         )
 
     def test_mark_as_learn(self) -> None:
@@ -86,6 +89,17 @@ class TestMarkCandidateUseCase:
         self.use_case.execute(1, status)
         self.cloze_repo.delete_by_candidate_id.assert_called_once_with(1)
 
+    @pytest.mark.parametrize("status", list(CandidateStatus))
+    def test_status_change_keeps_cloze_of_exported_candidate(
+        self, status: CandidateStatus,
+    ) -> None:
+        self._existing(CandidateStatus.LEARN)
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}
+        self.use_case.execute(1, status)
+        self.candidate_repo.update_status.assert_called_once_with(1, status)
+        self.anki_sync_repo.get_synced_candidate_ids.assert_called_once_with([1])
+        self.cloze_repo.delete_by_candidate_id.assert_not_called()
+
     def test_apply_keeps_the_cloze(self) -> None:
         self._existing(CandidateStatus.PENDING)
         candidate = self.candidate_repo.get_by_id.return_value
@@ -121,6 +135,7 @@ class TestMarkCandidateRemembersDecisions:
             decision_repo=self.decision_repo,
             review_status=MagicMock(),
             cloze_repo=MagicMock(),
+            anki_sync_repo=MagicMock(),
         )
 
     def test_learn_is_remembered_as_unknown(self) -> None:

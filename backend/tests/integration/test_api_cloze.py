@@ -75,7 +75,9 @@ class TestSaveClozeAPI:
     def test_save_marks_learn_and_shows_cloze(self, client: TestClient) -> None:
         response = client.put(
             f"/candidates/{CANDIDATE_ID}/cloze",
-            json={"hidden_word_indices": [3, 2], "hint_kind": "first_letter"},
+            json={
+                "hidden_word_indices": [3, 2], "hint_kind": "first_letter", "phrase": GIVE_UP,
+            },
         )
         assert response.status_code == 200
         body = response.json()
@@ -93,38 +95,56 @@ class TestSaveClozeAPI:
         assert _candidate_in_source(client, SYNCED_CANDIDATE_ID)["can_cloze"] is False
         response = client.put(
             f"/candidates/{SYNCED_CANDIDATE_ID}/cloze",
-            json={"hidden_word_indices": [4], "hint_kind": "none"},
+            json={"hidden_word_indices": [4], "hint_kind": "none", "phrase": GIVE_UP},
         )
         assert response.status_code == 409
 
     def test_empty_indices_are_rejected(self, client: TestClient) -> None:
         response = client.put(
             f"/candidates/{CANDIDATE_ID}/cloze",
-            json={"hidden_word_indices": [], "hint_kind": "none"},
+            json={"hidden_word_indices": [], "hint_kind": "none", "phrase": GIVE_UP},
         )
         assert response.status_code == 422
 
     def test_unknown_hint_kind_is_rejected(self, client: TestClient) -> None:
         response = client.put(
             f"/candidates/{CANDIDATE_ID}/cloze",
-            json={"hidden_word_indices": [2], "hint_kind": "bogus"},
+            json={"hidden_word_indices": [2], "hint_kind": "bogus", "phrase": GIVE_UP},
         )
         assert response.status_code == 422
 
     def test_missing_candidate_is_404(self, client: TestClient) -> None:
         response = client.put(
-            "/candidates/999/cloze", json={"hidden_word_indices": [0], "hint_kind": "none"},
+            "/candidates/999/cloze",
+            json={"hidden_word_indices": [0], "hint_kind": "none", "phrase": GIVE_UP},
         )
         assert response.status_code == 404
 
     def test_status_change_drops_cloze(self, client: TestClient) -> None:
         client.put(
             f"/candidates/{CANDIDATE_ID}/cloze",
-            json={"hidden_word_indices": [2, 3], "hint_kind": "none"},
+            json={"hidden_word_indices": [2, 3], "hint_kind": "none", "phrase": GIVE_UP},
         )
         response = client.patch(f"/candidates/{CANDIDATE_ID}", json={"status": "skip"})
         assert response.status_code == 200
+        response = client.patch(f"/candidates/{CANDIDATE_ID}", json={"status": "learn"})
+        assert response.status_code == 200
         assert _candidate_in_source(client, CANDIDATE_ID)["cloze"] is None
+
+    def test_markup_of_another_phrase_is_rejected(self, client: TestClient) -> None:
+        response = client.put(
+            f"/candidates/{CANDIDATE_ID}/cloze",
+            json={"hidden_word_indices": [2], "hint_kind": "none", "phrase": "Old phrase."},
+        )
+        assert response.status_code == 409
+        assert _candidate_in_source(client, CANDIDATE_ID)["status"] == "pending"
+
+    def test_missing_phrase_is_rejected(self, client: TestClient) -> None:
+        response = client.put(
+            f"/candidates/{CANDIDATE_ID}/cloze",
+            json={"hidden_word_indices": [2], "hint_kind": "none"},
+        )
+        assert response.status_code == 422
 
 
 @pytest.mark.integration
@@ -138,6 +158,8 @@ class TestPreviewClozeAPI:
         assert body["front"] == "She finally […] smoking last year."
         assert body["hint_kind"] == "none"
         assert "first_letter" in body["available_hints"]
+        assert body["phrase"] == GIVE_UP
+        assert body["can_save"] is True
 
     def test_preview_uses_default_hint_setting(self, client: TestClient) -> None:
         settings = client.patch("/api/settings", json={"cloze_default_hint": "first_letter"})

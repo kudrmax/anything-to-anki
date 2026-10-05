@@ -56,6 +56,7 @@ class PreviewClozeUseCase:
             custom = saved.custom_hint
 
         return ClozePreviewDTO(
+            phrase=phrase,
             words=[ClozeWordDTO(index=w.index, text=w.text, is_target=w.is_target) for w in words],
             hidden_word_indices=list(indices),
             hint_kind=kind.value,
@@ -63,7 +64,20 @@ class PreviewClozeUseCase:
             front=self._builder.front_preview(phrase, indices),
             hint=self._builder.hint_text(kind, candidate.meaning, hidden, custom),
             available_hints=[k.value for k in available],
+            can_save=self._can_save(indices, kind, available, custom),
         )
+
+    @staticmethod
+    def _can_save(
+        indices: tuple[int, ...],
+        kind: ClozeHintKind,
+        available: list[ClozeHintKind],
+        custom: str | None,
+    ) -> bool:
+        """Mirrors what SaveClozeUseCase accepts."""
+        if not indices or kind not in available:
+            return False
+        return kind is not ClozeHintKind.CUSTOM or bool((custom or "").strip())
 
     def _indices(
         self,
