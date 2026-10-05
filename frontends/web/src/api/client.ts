@@ -141,6 +141,13 @@ export const api = {
   applyTargetImage: (candidateId: number, url: string) =>
     req<{ status: string }>(`/candidates/${candidateId}/image`, { method: 'PUT', body: JSON.stringify({ url }) }),
 
+  pasteTargetImage: (candidateId: number, picture: Blob) =>
+    req<{ status: string }>(`/candidates/${candidateId}/image/pasted`, {
+      method: 'PUT',
+      headers: { 'Content-Type': picture.type, ...buildHeaders() },
+      body: picture,
+    }),
+
   downloadVideo: (sourceId: number) =>
     req<{ status: string }>(`/sources/${sourceId}/download-video`, { method: 'POST' }),
 

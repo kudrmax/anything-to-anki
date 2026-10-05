@@ -158,6 +158,7 @@ if TYPE_CHECKING:
         GetQueueGlobalSummaryUseCase,
     )
     from backend.application.use_cases.get_queue_order import GetQueueOrderUseCase
+    from backend.application.use_cases.paste_target_image import PasteTargetImageUseCase
     from backend.application.use_cases.polish_phrases import PhrasePolishUseCase
     from backend.application.use_cases.regenerate_candidate_media import (
         RegenerateCandidateMediaUseCase,
@@ -166,6 +167,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.run_generation import RunGenerationUseCase
     from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
     from backend.application.use_cases.search_target_images import SearchTargetImagesUseCase
+    from backend.application.utils.card_picture_placer import CardPicturePlacer
     from backend.application.utils.generation_targets import GenerationTarget
     from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
     from backend.domain.ports.target_image_source import TargetImageSource
@@ -783,9 +785,22 @@ class Container:
         from backend.application.use_cases.apply_target_image import ApplyTargetImageUseCase
         return ApplyTargetImageUseCase(
             candidate_repo=SqlaCandidateRepository(session),
-            media_repo=SqlaCandidateMediaRepository(session),
             image_sources=self._target_image_sources,
             file_downloader=self._image_downloader,
+            picture_placer=self._card_picture_placer(session),
+        )
+
+    def paste_target_image_use_case(self, session: Session) -> PasteTargetImageUseCase:
+        from backend.application.use_cases.paste_target_image import PasteTargetImageUseCase
+        return PasteTargetImageUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            picture_placer=self._card_picture_placer(session),
+        )
+
+    def _card_picture_placer(self, session: Session) -> CardPicturePlacer:
+        from backend.application.utils.card_picture_placer import CardPicturePlacer
+        return CardPicturePlacer(
+            media_repo=SqlaCandidateMediaRepository(session),
             picture_encoder=self._picture_encoder,
             media_root=self._media_root,
         )

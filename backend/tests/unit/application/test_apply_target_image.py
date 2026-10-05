@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.apply_target_image import ApplyTargetImageUseCase
+from backend.application.utils.card_picture_placer import CardPicturePlacer
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import UnknownImageUrlError
@@ -65,11 +66,13 @@ class _Fixture:
         self.media_root = str(tmp_path)
         self.use_case = ApplyTargetImageUseCase(
             candidate_repo=repo,
-            media_repo=self.media_repo,
             image_sources=[source],
             file_downloader=self.downloader,
-            picture_encoder=self.encoder,
-            media_root=self.media_root,
+            picture_placer=CardPicturePlacer(
+                media_repo=self.media_repo,
+                picture_encoder=self.encoder,
+                media_root=self.media_root,
+            ),
         )
 
     def saved_media(self) -> CandidateMedia:
