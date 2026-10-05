@@ -15,6 +15,10 @@ WRK_PID := .pids/worker.pid
 WRK_LOG := .logs/worker.log
 # Сколько тиков по 0.25 с ждать остановки воркера (5 секунд).
 WORKER_STOP_TICKS := 20
+# Сколько тиков по 0.25 с ждать освобождения порта (10 секунд).
+PORT_WAIT_TICKS := 40
+# Сколько тиков по 0.25 с ждать, пока app/ai_proxy откроют порт (60 секунд).
+START_WAIT_TICKS := 240
 PYTHON_VERSION  := 3.12
 LOCK_FILE       := requirements.lock
 SPACY_MODEL     := en_core_web_sm
@@ -67,17 +71,23 @@ define stop_worker
 	fi
 endef
 
-# Убить процесс на порту $(1), если он соответствует паттерну $(2) в args.
-# Безопасно: не убьёт чужой процесс на том же порту.
-define kill_on_port
-	@pids=$$(lsof -ti :$(1) 2>/dev/null); \
-	for pid in $$pids; do \
-	    if ps -p $$pid -o args= 2>/dev/null | grep -q '$(2)'; then \
-	        kill $$pid 2>/dev/null || true; \
-	        echo "Killed $(2) on port $(1) (PID $$pid)"; \
-	    fi; \
+# Рабочая папка процесса $$pid — по ней видно, из какой копии он запущен:
+# имена процессов у dev, prod и worktree одинаковые.
+PID_CWD = lsof -a -p $$pid -d cwd -Fn 2>/dev/null | sed -n 's/^n//p'
+
+# Остановить процесс, который слушает порт $(1), если в args есть $(2), а его
+# рабочая папка подходит под glob $(3). Чужие копии на том же порту не трогаем.
+define kill_own_on_port
+	@pids=""; \
+	for pid in $$(lsof -ti :$(1) -sTCP:LISTEN 2>/dev/null); do \
+	    case "$$($(PID_CWD))" in $(3)) ;; *) continue ;; esac; \
+	    ps -p $$pid -o args= 2>/dev/null | grep -q '$(2)' || continue; \
+	    kill $$pid 2>/dev/null && pids="$$pids $$pid" && echo "Stopped $(2) on port $(1) (PID $$pid)"; \
 	done; \
-	if [ -n "$$pids" ]; then sleep 0.5; fi
+	for i in $$(seq 1 $(PORT_WAIT_TICKS)); do \
+	    alive=""; for pid in $$pids; do kill -0 $$pid 2>/dev/null && alive="$$alive $$pid"; done; \
+	    [ -z "$$alive" ] && break; sleep 0.25; \
+	done; true
 endef
 
 # Воркер не слушает порт, и после перезаписи pid-файла его не найти:
@@ -97,40 +107,66 @@ define kill_workers_of_this_copy
 	for pid in $$pids; do kill -9 $$pid 2>/dev/null && echo "Killed worker (PID $$pid)"; done; true
 endef
 
-define wait_port_free
-	@for i in $$(seq 1 40); do \
-	    lsof -ti :$(1) -sTCP:LISTEN >/dev/null 2>&1 || break; \
-	    sleep 0.25; \
-	done
+# Не запускаться на порту $(1), который держит другая копия: иначе новый
+# процесс молча умрёт на bind, а по адресу будет отвечать чужая копия.
+define require_port_free
+	@pid=$$(lsof -ti :$(1) -sTCP:LISTEN 2>/dev/null | head -1); \
+	if [ -n "$$pid" ]; then \
+	    echo "ERROR: port $(1) is held by PID $$pid from $$($(PID_CWD))"; \
+	    echo "       $$(ps -p $$pid -o args= | cut -c1-100)"; \
+	    echo "       Stop it in that copy or change the port in .env."; \
+	    exit 1; \
+	fi
 endef
 
-# Порты worktree общие для всех worktree: сносим и чужой запущенный worktree.
+# Дождаться, пока процесс из pid-файла $(1) начнёт слушать порт $(2).
+# Если он умер на старте — показать хвост лога $(3) и упасть. $(4) — название.
+define wait_started
+	@pid=$$(cat $(1)); \
+	for i in $$(seq 1 $(START_WAIT_TICKS)); do \
+	    if ! kill -0 $$pid 2>/dev/null; then \
+	        echo "ERROR: $(4) exited on start. Last lines of $(3):"; \
+	        tail -n 20 $(3); rm -f $(1); exit 1; \
+	    fi; \
+	    if lsof -a -p $$pid -i :$(2) -sTCP:LISTEN >/dev/null 2>&1; then \
+	        echo "$(4) started on port $(2) (PID $$pid)"; exit 0; \
+	    fi; \
+	    sleep 0.25; \
+	done; \
+	echo "ERROR: $(4) (PID $$pid) did not open port $(2) in time, see $(3)"; exit 1
+endef
+
+# Порты worktree общие для всех worktree: сносим и другой запущенный worktree,
+# но только worktree — dev и prod на этих портах не трогаем.
+WORKTREE_CWD_GLOB := */.claude/worktrees/*
+
 define stop_worktree
 	$(call kill_by_pid,.pids/app_wt.pid,worktree app)
 	$(call stop_worker,.pids/worker_wt.pid)
 	$(call kill_by_pid,.pids/ai_proxy_wt.pid,worktree ai_proxy)
 	$(call kill_workers_of_this_copy)
-	$(call kill_on_port,$(WORKTREE_PORT),uvicorn)
-	$(call kill_on_port,$(WORKTREE_AI_PROXY_PORT),ai_proxy)
-	$(call wait_port_free,$(WORKTREE_PORT))
-	$(call wait_port_free,$(WORKTREE_AI_PROXY_PORT))
+	$(call kill_own_on_port,$(WORKTREE_PORT),uvicorn,$(WORKTREE_CWD_GLOB))
+	$(call kill_own_on_port,$(WORKTREE_AI_PROXY_PORT),ai_proxy,$(WORKTREE_CWD_GLOB))
 endef
 
 define start_ai_proxy
 	@mkdir -p .pids .logs
-	$(call kill_on_port,$(AI_PROXY_PORT),ai_proxy)
-	@.venv/bin/python ai_proxy.py --port $(AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > $(AI_PID); \
-	    echo "ai_proxy started on port $(AI_PROXY_PORT) (PID $$(cat $(AI_PID)))"
+	$(call stop_ai_proxy)
+	$(call require_port_free,$(AI_PROXY_PORT))
+	@.venv/bin/python ai_proxy.py --port $(AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > $(AI_PID)
+	$(call wait_started,$(AI_PID),$(AI_PROXY_PORT),$(AI_LOG),ai_proxy)
 endef
 
 define start_app
 	@mkdir -p .pids .logs
-	$(call kill_on_port,$(PORT),uvicorn)
+	$(call kill_by_pid,$(APP_PID),app)
+	$(call kill_own_on_port,$(PORT),uvicorn,$(CURDIR))
+	$(call require_port_free,$(PORT))
 	@AI_PROXY_URL=http://localhost:$(AI_PROXY_PORT) \
 	    no_proxy=localhost,127.0.0.1 \
 	    .venv/bin/uvicorn backend.infrastructure.api.app:app \
-	    --host 0.0.0.0 --port $(PORT) >> $(APP_LOG) 2>&1 & echo $$! > $(APP_PID); \
-	    echo "app started on port $(PORT) (PID $$(cat $(APP_PID)))"
+	    --host 0.0.0.0 --port $(PORT) >> $(APP_LOG) 2>&1 & echo $$! > $(APP_PID)
+	$(call wait_started,$(APP_PID),$(PORT),$(APP_LOG),app)
 endef
 
 define start_worker
@@ -144,7 +180,8 @@ define start_worker
 endef
 
 define stop_ai_proxy
-	$(call kill_on_port,$(AI_PROXY_PORT),ai_proxy)
+	$(call kill_by_pid,$(AI_PID),ai_proxy)
+	$(call kill_own_on_port,$(AI_PROXY_PORT),ai_proxy,$(CURDIR))
 	@rm -f $(AI_PID)
 endef
 
@@ -285,14 +322,16 @@ up-worktree: _check_env _check_setup dict-update  ## Запустить worktree
 	@cd frontends/web && VITE_INSTANCE_ENV_NAME=worktree npm run build
 	$(call stop_worktree)
 	@mkdir -p .pids .logs
-	@.venv/bin/python ai_proxy.py --port $(WORKTREE_AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > .pids/ai_proxy_wt.pid; \
-	    echo "ai_proxy started on port $(WORKTREE_AI_PROXY_PORT)"
+	$(call require_port_free,$(WORKTREE_AI_PROXY_PORT))
+	$(call require_port_free,$(WORKTREE_PORT))
+	@.venv/bin/python ai_proxy.py --port $(WORKTREE_AI_PROXY_PORT) >> $(AI_LOG) 2>&1 & echo $$! > .pids/ai_proxy_wt.pid
+	$(call wait_started,.pids/ai_proxy_wt.pid,$(WORKTREE_AI_PROXY_PORT),$(AI_LOG),ai_proxy)
 	@AI_PROXY_URL=http://localhost:$(WORKTREE_AI_PROXY_PORT) \
 	    no_proxy=localhost,127.0.0.1 \
 	    INSTANCE_ENV_NAME=worktree \
 	    .venv/bin/uvicorn backend.infrastructure.api.app:app \
-	    --host 0.0.0.0 --port $(WORKTREE_PORT) >> .logs/app_wt.log 2>&1 & echo $$! > .pids/app_wt.pid; \
-	    echo "app started on port $(WORKTREE_PORT)"
+	    --host 0.0.0.0 --port $(WORKTREE_PORT) >> .logs/app_wt.log 2>&1 & echo $$! > .pids/app_wt.pid
+	$(call wait_started,.pids/app_wt.pid,$(WORKTREE_PORT),.logs/app_wt.log,app)
 	@AI_PROXY_URL=http://localhost:$(WORKTREE_AI_PROXY_PORT) \
 	    no_proxy=localhost,127.0.0.1 \
 	    .venv/bin/python -m backend.infrastructure.queue >> .logs/worker_wt.log 2>&1 & echo $$! > .pids/worker_wt.pid; \
@@ -307,7 +346,7 @@ up-worktree: _check_env _check_setup dict-update  ## Запустить worktree
 
 down:  ## Остановить
 	$(call kill_by_pid,$(APP_PID),app)
-	$(call kill_on_port,$(PORT),uvicorn)
+	$(call kill_own_on_port,$(PORT),uvicorn,$(CURDIR))
 	$(call stop_worker,$(WRK_PID))
 	$(call kill_workers_of_this_copy)
 	$(call stop_ai_proxy)

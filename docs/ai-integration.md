@@ -17,7 +17,7 @@ backend (app, worker)  ──HTTP──►  ai_proxy.py  ──SDK──►  cla
                           localhost:8766/8767
 ```
 
-- **Dev**: ai_proxy на `:8766`, prod: `:8767` — два независимых процесса (в каждой рабочей копии свой `AI_PROXY_PORT` из `.env`), чтобы не мешали друг другу
+- **Dev**: ai_proxy на `:8766`, prod: `:8767`, worktree: `:8770` — независимые процессы (в каждой рабочей копии свой `AI_PROXY_PORT` из `.env`), чтобы не мешали друг другу
 - Запуск/остановка — автоматически через `make up` / `make down` (см. Makefile, `start_ai_proxy` / `stop_ai_proxy`)
 - Логи — `make logs` (ai_proxy идёт одним потоком со всеми сервисами, префикс `ai_proxy`). Сам файл лога лежит в `.logs/ai_proxy.log` текущей рабочей копии
 
