@@ -13,7 +13,7 @@ anything-to-anki/
 │   └── videos/                           # Скачанные видео
 ├── .venv/                                # Python-окружение копии (в .gitignore), создаёт make setup
 ├── .logs/ и .pids/                       # Логи и PID-файлы запущенных процессов (в .gitignore)
-├── anki-templates/                       # Шаблоны карточек Anki
+├── anki-templates/                       # Шаблоны карточек Anki (AnythingToAnkiType и cloze-тип AnythingToAnkiCloze)
 ├── docs/                                 # Спецификации, планы, справочная документация
 ├── .env.example                          # Шаблон локального .env для рабочей копии
 └── Makefile                              # Все команды запуска и проверок
