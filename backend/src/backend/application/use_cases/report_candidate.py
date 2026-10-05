@@ -24,6 +24,7 @@ REPORT_REASONS: tuple[str, ...] = (
     "I know this word",
     "Not a real word",
     "Wrong word form",
+    "I don't understand the grammar",
 )
 
 
