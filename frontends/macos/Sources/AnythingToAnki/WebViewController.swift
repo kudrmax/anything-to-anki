@@ -60,7 +60,8 @@ final class WebViewController: NSViewController {
         configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.userContentController.addScriptMessageHandler(filePicker, contentWorld: .page, name: FilePickerBridge.name)
-        let webView = WKWebView(frame: .zero, configuration: configuration)
+        let webView = FileDropWebView(frame: .zero, configuration: configuration)
+        webView.isAppPage = { [weak webView, config] in webView?.url.map(config.isAppURL) == true }
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true

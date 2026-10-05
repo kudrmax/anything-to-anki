@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { CLOSE_QUICK_ADD_HANDLER, nativeHost, PICK_FILE_HANDLER, quickAddPanel } from './nativeHost'
+import { CLOSE_QUICK_ADD_HANDLER, FILE_DROP_EVENT, nativeHost, PICK_FILE_HANDLER, quickAddPanel } from './nativeHost'
 
 const hostWindow = (reply: unknown) => {
   const postMessage = vi.fn().mockResolvedValue(reply)
@@ -24,6 +24,20 @@ describe('nativeHost', () => {
     const { win } = hostWindow(null)
 
     expect(await nativeHost(win)?.pickFile()).toBeNull()
+  })
+
+  it('passes on paths the macOS app reports for dropped files until unsubscribed', () => {
+    const target = new EventTarget()
+    const win = Object.assign(target, hostWindow(null).win) as unknown as Window
+    const listener = vi.fn()
+
+    const unsubscribe = nativeHost(win)?.onFileDrop(listener)
+    win.dispatchEvent(new CustomEvent(FILE_DROP_EVENT, { detail: ['/Users/me/a.epub', 42] }))
+    unsubscribe?.()
+    win.dispatchEvent(new CustomEvent(FILE_DROP_EVENT, { detail: ['/Users/me/b.epub'] }))
+
+    expect(listener).toHaveBeenCalledOnce()
+    expect(listener).toHaveBeenCalledWith(['/Users/me/a.epub'])
   })
 })
 
