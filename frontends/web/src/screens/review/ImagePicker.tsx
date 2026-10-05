@@ -25,7 +25,7 @@ const PROVIDER_LABEL: Record<ImageProvider, string> = { wiktionary: 'Wiktionary'
  * Сразу ищет по target'у; запрос можно уточнить, если у слова несколько значений.
  */
 export function ImagePicker({ candidate, review, onClose }: ImagePickerProps) {
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(candidate.lemma)
   const [options, setOptions] = useState<ImageOption[] | null>(null)
   const [failed, setFailed] = useState(false)
   const latestSearch = useRef(0)
@@ -69,7 +69,7 @@ export function ImagePicker({ candidate, review, onClose }: ImagePickerProps) {
         )}
       </p>
       <form className={css.imageSearch} onSubmit={submit}>
-        <Field value={query} placeholder={candidate.lemma} aria-label="Picture search" onChange={e => setQuery(e.target.value)} />
+        <Field value={query} aria-label="Picture search" onChange={e => setQuery(e.target.value)} />
         <Button type="submit" disabled={options === null && !failed}>Search</Button>
       </form>
       {failed && <Empty>Picture search failed</Empty>}
