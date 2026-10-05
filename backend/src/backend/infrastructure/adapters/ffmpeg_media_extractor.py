@@ -1,24 +1,19 @@
 from __future__ import annotations
 
-import io
 import logging
-import os
 import subprocess
-
-from PIL import Image
+from typing import TYPE_CHECKING
 
 from backend.domain.ports.media_extractor import MediaExtractor
 
+if TYPE_CHECKING:
+    from backend.domain.ports.card_picture_encoder import CardPictureEncoder
+
 logger = logging.getLogger(__name__)
 
-_SCREENSHOT_MAX_WIDTH: int = 640
-_SCREENSHOT_WEBP_QUALITY: int = 75
 _SCREENSHOT_FRAME_CODEC: str = "png"
 _SCREENSHOT_PIPE_FORMAT: str = "image2pipe"
 _SCREENSHOT_PIPE_TARGET: str = "-"
-_WEBP_FORMAT: str = "WEBP"
-_WEBP_COLOR_MODE: str = "RGB"
-_INCOMPLETE_SUFFIX: str = ".part"
 _AUDIO_BITRATE: str = "96k"
 _AUDIO_CHANNELS: int = 1
 
@@ -26,13 +21,17 @@ _AUDIO_CHANNELS: int = 1
 class FfmpegMediaExtractor(MediaExtractor):
     """Generates screenshots and audio clips from video files using ffmpeg."""
 
-    def extract_screenshot(self, video_path: str, timestamp_ms: int, out_path: str) -> None:
-        """Grab a frame with ffmpeg, then encode it to WebP with Pillow.
+    def __init__(self, picture_encoder: CardPictureEncoder) -> None:
+        self._picture_encoder = picture_encoder
 
-        ffmpeg only decodes and scales here — every build can do that. WebP
-        encoding is deliberately kept out of ffmpeg: its libwebp is an optional
+    def extract_screenshot(self, video_path: str, timestamp_ms: int, out_path: str) -> None:
+        """Grab a full-size frame with ffmpeg and hand it to the card picture encoder.
+
+        ffmpeg only decodes here — every build can do that. Scaling and WebP
+        encoding are deliberately kept out of ffmpeg: its libwebp is an optional
         build dependency, and homebrew/core dropped it, which silently broke
-        screenshot generation.
+        screenshot generation. The encoder also shrinks pictures picked for a
+        target, so every card picture gets the same size and format.
         """
         ts_s = timestamp_ms / 1000.0
         cmd = [
@@ -40,7 +39,6 @@ class FfmpegMediaExtractor(MediaExtractor):
             "-ss", str(ts_s),
             "-i", video_path,
             "-vframes", "1",
-            "-vf", f"scale='min({_SCREENSHOT_MAX_WIDTH},iw)':'-2'",
             "-f", _SCREENSHOT_PIPE_FORMAT,
             "-c:v", _SCREENSHOT_FRAME_CODEC,
             _SCREENSHOT_PIPE_TARGET,
@@ -66,29 +64,7 @@ class FfmpegMediaExtractor(MediaExtractor):
             )
             raise RuntimeError(f"ffmpeg decoded no frame at {timestamp_ms} ms of {video_path}")
 
-        self._encode_webp(result.stdout, out_path)
-
-    @staticmethod
-    def _encode_webp(frame: bytes, out_path: str) -> None:
-        """Write the frame as WebP, leaving no half-written file behind.
-
-        The path is stored in the DB, so a truncated file would look like a
-        valid screenshot forever after.
-        """
-        incomplete_path = f"{out_path}{_INCOMPLETE_SUFFIX}"
-        try:
-            with Image.open(io.BytesIO(frame)) as img:
-                # Videos with alpha decode to RGBA, which WebP would keep.
-                img.convert(_WEBP_COLOR_MODE).save(
-                    incomplete_path,
-                    format=_WEBP_FORMAT,
-                    quality=_SCREENSHOT_WEBP_QUALITY,
-                )
-            os.replace(incomplete_path, out_path)
-        except Exception:
-            if os.path.exists(incomplete_path):
-                os.remove(incomplete_path)
-            raise
+        self._picture_encoder.encode(result.stdout, out_path)
 
     def extract_audio(
         self,

@@ -7,11 +7,11 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
+from backend.domain.ports.card_picture_encoder import CardPictureEncoder
 from backend.infrastructure.adapters.ffmpeg_media_extractor import (
     _AUDIO_BITRATE,
     _AUDIO_CHANNELS,
     _SCREENSHOT_FRAME_CODEC,
-    _SCREENSHOT_MAX_WIDTH,
     _SCREENSHOT_PIPE_FORMAT,
     _SCREENSHOT_PIPE_TARGET,
     FfmpegMediaExtractor,
@@ -21,9 +21,14 @@ from PIL import Image
 if TYPE_CHECKING:
     from pathlib import Path
 
-_WEBP_RIFF_HEADER = b"RIFF"
-_WEBP_FORMAT_MARKER = b"WEBP"
-_WEBP_FORMAT_OFFSET = 8
+
+
+class _RecordingEncoder(CardPictureEncoder):
+    def __init__(self) -> None:
+        self.calls: list[tuple[bytes, str]] = []
+
+    def encode(self, picture: bytes, out_path: str) -> None:
+        self.calls.append((picture, out_path))
 
 
 def _png_frame() -> bytes:
@@ -36,12 +41,14 @@ def _png_frame() -> bytes:
 @pytest.mark.unit
 class TestFfmpegMediaExtractorScreenshot:
     @patch("backend.infrastructure.adapters.ffmpeg_media_extractor.subprocess.run")
-    def test_extract_screenshot_pipes_frame_and_encodes_webp(
+    def test_extract_screenshot_pipes_full_frame_to_the_card_picture_encoder(
         self, mock_run: MagicMock, tmp_path: Path,
     ) -> None:
-        mock_run.return_value = MagicMock(returncode=0, stdout=_png_frame(), stderr=b"")
+        frame = _png_frame()
+        mock_run.return_value = MagicMock(returncode=0, stdout=frame, stderr=b"")
         out_path = tmp_path / "1_screenshot.webp"
-        extractor = FfmpegMediaExtractor()
+        encoder = _RecordingEncoder()
+        extractor = FfmpegMediaExtractor(encoder)
 
         extractor.extract_screenshot("/videos/movie.mkv", 5000, str(out_path))
 
@@ -52,12 +59,8 @@ class TestFfmpegMediaExtractorScreenshot:
         assert "-i" in args
         assert "/videos/movie.mkv" in args
         assert "-vframes" in args
-        assert "-vf" in args
-        # scale expression keeps aspect ratio, max 640 wide, even height
-        vf_idx = args.index("-vf")
-        assert "scale=" in args[vf_idx + 1]
-        assert str(_SCREENSHOT_MAX_WIDTH) in args[vf_idx + 1]
-        # ffmpeg only decodes: the frame goes to stdout, WebP is Pillow's job
+        # ffmpeg only decodes: sizing and WebP are the encoder's job
+        assert "-vf" not in args
         format_idx = args.index("-f")
         assert args[format_idx + 1] == _SCREENSHOT_PIPE_FORMAT
         codec_idx = args.index("-c:v")
@@ -69,9 +72,7 @@ class TestFfmpegMediaExtractorScreenshot:
         assert kwargs.get("check") is True
         assert kwargs.get("capture_output") is True
 
-        data = out_path.read_bytes()
-        assert data[:4] == _WEBP_RIFF_HEADER
-        assert data[_WEBP_FORMAT_OFFSET:_WEBP_FORMAT_OFFSET + 4] == _WEBP_FORMAT_MARKER
+        assert encoder.calls == [(frame, str(out_path))]
 
     @patch("backend.infrastructure.adapters.ffmpeg_media_extractor.subprocess.run")
     def test_extract_screenshot_raises_and_logs_when_no_frame_decoded(
@@ -82,12 +83,14 @@ class TestFfmpegMediaExtractorScreenshot:
             returncode=0, stdout=b"", stderr=b"Output file is empty, nothing was encoded",
         )
         out_path = tmp_path / "1_screenshot.webp"
-        extractor = FfmpegMediaExtractor()
+        encoder = _RecordingEncoder()
+        extractor = FfmpegMediaExtractor(encoder)
 
         with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError):
             extractor.extract_screenshot("/videos/movie.mkv", 5000, str(out_path))
 
         assert not out_path.exists()
+        assert encoder.calls == []
         assert "Output file is empty" in caplog.text
 
 
@@ -96,7 +99,7 @@ class TestFfmpegMediaExtractorAudio:
     @patch("backend.infrastructure.adapters.ffmpeg_media_extractor.subprocess.run")
     def test_extract_audio_uses_aac_mono_96k_no_track_index(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0)
-        extractor = FfmpegMediaExtractor()
+        extractor = FfmpegMediaExtractor(_RecordingEncoder())
 
         extractor.extract_audio("/videos/movie.mkv", 1000, 4000, "/media/1_audio.m4a")
 
@@ -126,7 +129,7 @@ class TestFfmpegMediaExtractorAudio:
     @patch("backend.infrastructure.adapters.ffmpeg_media_extractor.subprocess.run")
     def test_extract_audio_uses_map_when_track_index_given(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0)
-        extractor = FfmpegMediaExtractor()
+        extractor = FfmpegMediaExtractor(_RecordingEncoder())
 
         extractor.extract_audio(
             "/videos/movie.mkv", 1000, 4000, "/media/1_audio.m4a", audio_track_index=2,
