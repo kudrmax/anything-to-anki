@@ -284,10 +284,10 @@ export const api = {
 
   getAnkiTemplates: () => req<AnkiTemplates>('/anki/templates'),
 
-  getQueue: (sourceId: number | undefined, queuedLimit: number) => {
+  getQueue: (sourceId: number | undefined, queuedLimit: number, signal?: AbortSignal) => {
     const params = new URLSearchParams({ queued_limit: String(queuedLimit) })
     if (sourceId != null) params.set('source_id', String(sourceId))
-    return req<QueueSnapshot>(`/api/queue?${params.toString()}`)
+    return req<QueueSnapshot>(`/api/queue?${params.toString()}`, { signal })
   },
 
   cancelQueue: (selection: QueueSelection) => queueAction('cancel', selection),
