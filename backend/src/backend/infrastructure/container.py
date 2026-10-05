@@ -88,6 +88,7 @@ from backend.infrastructure.adapters.wiktionary_image_source import WiktionaryIm
 from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
 )
+from backend.infrastructure.adapters.yandex_image_source import YandexImageSource
 from backend.infrastructure.config.prompts_loader import PromptsLoader
 from backend.infrastructure.persistence.sqla_anki_sync_repository import (
     SqlaAnkiSyncRepository,
@@ -235,6 +236,7 @@ class Container:
         self._target_image_sources: list[TargetImageSource] = [
             WiktionaryImageSource(),
             BingImageSource(),
+            YandexImageSource(),
         ]
         # Its own pacing: a picture the user picked must not queue behind bulk
         # pronunciation downloads, nor wait minutes out on a rate limit.
@@ -786,6 +788,7 @@ class Container:
         )
         return SearchTargetImagesUseCase(
             candidate_repo=SqlaCandidateRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
             image_sources=self._target_image_sources,
         )
 

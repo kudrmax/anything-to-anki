@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, field_validator, model_validator
 
+from backend.application.constants import MAX_IMAGES_PER_SOURCE, MIN_IMAGES_PER_SOURCE
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
 
@@ -31,6 +32,7 @@ class SettingsDTO(BaseModel):
     tts_enabled_voices: list[str]
     tts_speed: float
     anki_field_audio_tts: str
+    images_per_source: int
 
 
 class UpdateSettingsRequest(BaseModel):
@@ -58,6 +60,7 @@ class UpdateSettingsRequest(BaseModel):
     tts_enabled_voices: list[str] | None = None
     tts_speed: float | None = None
     anki_field_audio_tts: str | None = None
+    images_per_source: int | None = None
 
     @field_validator("cefr_level")
     @classmethod
@@ -72,6 +75,15 @@ class UpdateSettingsRequest(BaseModel):
     def validate_frequent_word_threshold(cls, v: str | None) -> str | None:
         if v is not None:
             FrequentWordThreshold.from_key(v)
+        return v
+
+    @field_validator("images_per_source")
+    @classmethod
+    def validate_images_per_source(cls, v: int | None) -> int | None:
+        if v is not None and not MIN_IMAGES_PER_SOURCE <= v <= MAX_IMAGES_PER_SOURCE:
+            raise ValueError(
+                f"images_per_source must be {MIN_IMAGES_PER_SOURCE}..{MAX_IMAGES_PER_SOURCE}",
+            )
         return v
 
     @model_validator(mode="after")

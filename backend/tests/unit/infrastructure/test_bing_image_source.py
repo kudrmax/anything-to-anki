@@ -11,6 +11,8 @@ from backend.infrastructure.adapters.bing_image_source import BingImageSource
 
 pytestmark = pytest.mark.unit
 
+LIMIT = 12
+
 
 def _tile(thumbnail: str) -> str:
     metadata = html.escape(json.dumps({"turl": thumbnail, "murl": "https://shop.example/big.jpg"}))
@@ -25,7 +27,7 @@ class TestBingImageSource:
     def test_returns_bing_thumbnails_in_result_order(self) -> None:
         page = _page("https://ts1.mm.bing.net/th?id=A", "https://ts2.mm.bing.net/th?id=B")
 
-        images = BingImageSource(fetch=lambda _url: page).find_images("ladder")
+        images = BingImageSource(fetch=lambda _url: page).find_images("ladder", LIMIT)
 
         assert [image.url for image in images] == [
             "https://ts1.mm.bing.net/th?id=A", "https://ts2.mm.bing.net/th?id=B",
@@ -39,7 +41,7 @@ class TestBingImageSource:
             asked.append(url)
             return _page()
 
-        BingImageSource(fetch=fetch).find_images("rain gutter")
+        BingImageSource(fetch=fetch).find_images("rain gutter", LIMIT)
 
         assert "q=rain+gutter" in asked[0]
 
@@ -50,14 +52,14 @@ class TestBingImageSource:
             "https://cdn.example/x.jpg",
         ) + b'<a m="{not json}">broken</a>'
 
-        images = BingImageSource(fetch=lambda _url: page).find_images("ladder")
+        images = BingImageSource(fetch=lambda _url: page).find_images("ladder", LIMIT)
 
         assert [image.url for image in images] == ["https://ts1.mm.bing.net/th?id=A"]
 
     def test_caps_the_number_of_results(self) -> None:
         page = _page(*(f"https://ts1.mm.bing.net/th?id={i}" for i in range(5)))
 
-        images = BingImageSource(max_results=2, fetch=lambda _url: page).find_images("ladder")
+        images = BingImageSource(fetch=lambda _url: page).find_images("ladder", 2)
 
         assert len(images) == 2
 
@@ -66,7 +68,7 @@ class TestBingImageSource:
             raise OSError("timed out")
 
         with pytest.raises(ImageSearchError):
-            BingImageSource(fetch=broken).find_images("ladder")
+            BingImageSource(fetch=broken).find_images("ladder", LIMIT)
 
     @pytest.mark.parametrize(("url", "owned"), [
         ("https://ts2.mm.bing.net/th?id=A", True),

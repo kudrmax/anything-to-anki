@@ -86,8 +86,8 @@ class WiktionaryImageSource(TargetImageSource):
     ) -> None:
         self._fetch = fetch
 
-    def find_images(self, word: str) -> list[ImageOption]:
-        file_names = self._entry_picture_names(word)
+    def find_images(self, word: str, limit: int) -> list[ImageOption]:
+        file_names = self._entry_picture_names(word)[:limit]
         if not file_names:
             return []
         return [

@@ -4,8 +4,10 @@ import json
 from typing import TYPE_CHECKING
 
 from backend.application.constants import (
+    DEFAULT_IMAGES_PER_SOURCE,
     DEFAULT_USAGE_GROUP_ORDER,
     FREQUENT_WORD_THRESHOLD_SETTING,
+    IMAGES_PER_SOURCE_SETTING,
 )
 from backend.application.dto.settings_dtos import (
     FrequentWordThresholdDTO,
@@ -65,11 +67,13 @@ _SETTING_KEYS: dict[str, str] = {
     "tts_enabled_voices": json.dumps(ALL_VOICES),
     "tts_speed": "1.0",
     "anki_field_audio_tts": "AudioTTS",
+    IMAGES_PER_SOURCE_SETTING: str(DEFAULT_IMAGES_PER_SOURCE),
 }
 
 _BOOL_KEYS: frozenset[str] = frozenset({"enable_definitions"})
 _JSON_LIST_KEYS: frozenset[str] = frozenset({"usage_group_order", "tts_enabled_voices"})
 _FLOAT_KEYS: frozenset[str] = frozenset({"tts_speed"})
+_INT_KEYS: frozenset[str] = frozenset({IMAGES_PER_SOURCE_SETTING})
 
 
 class ManageSettingsUseCase:
@@ -88,7 +92,7 @@ class ManageSettingsUseCase:
             key: (self._settings_repo.get(key, default) or default)
             for key, default in _SETTING_KEYS.items()
         }
-        values: dict[str, str | bool | float | list[str]] = {}
+        values: dict[str, str | bool | float | int | list[str]] = {}
         for k, v in raw.items():
             if k in _BOOL_KEYS:
                 values[k] = v.lower() == "true"
@@ -96,6 +100,8 @@ class ManageSettingsUseCase:
                 values[k] = json.loads(v)
             elif k in _FLOAT_KEYS:
                 values[k] = float(v)
+            elif k in _INT_KEYS:
+                values[k] = int(v)
             else:
                 values[k] = v
         return SettingsDTO(**values)  # type: ignore[arg-type]

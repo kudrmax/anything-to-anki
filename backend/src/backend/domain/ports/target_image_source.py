@@ -11,8 +11,10 @@ class TargetImageSource(ABC):
     """Port for finding pictures that illustrate a word."""
 
     @abstractmethod
-    def find_images(self, word: str) -> list[ImageOption]:
-        """Pictures for the word, best first. Raises ImageSearchError when the lookup fails."""
+    def find_images(self, word: str, limit: int) -> list[ImageOption]:
+        """At most `limit` pictures for the word, best first.
+
+        Raises ImageSearchError when the lookup fails."""
 
     @abstractmethod
     def owns(self, url: str) -> bool:

@@ -11,6 +11,8 @@ from backend.infrastructure.adapters.wiktionary_image_source import WiktionaryIm
 
 pytestmark = pytest.mark.unit
 
+LIMIT = 12
+
 LADDER_WIKITEXT = """==English==
 [[File:Step ladder.jpg|thumb|A step ladder]]
 ===Noun===
@@ -67,7 +69,7 @@ class TestWiktionaryImageSource:
     def test_returns_pictures_of_the_english_entry_in_page_order(self) -> None:
         source = WiktionaryImageSource(fetch=_FakeWiki(LADDER_WIKITEXT))
 
-        images = source.find_images("ladder")
+        images = source.find_images("ladder", LIMIT)
 
         assert [image.url for image in images] == [
             "https://thumb.wikimedia.org/step.jpg",
@@ -76,10 +78,17 @@ class TestWiktionaryImageSource:
         ]
         assert {image.provider for image in images} == {ImageProvider.WIKTIONARY}
 
+    def test_returns_at_most_the_limit(self) -> None:
+        source = WiktionaryImageSource(fetch=_FakeWiki(LADDER_WIKITEXT))
+
+        images = source.find_images("ladder", 1)
+
+        assert [image.url for image in images] == ["https://thumb.wikimedia.org/step.jpg"]
+
     def test_ignores_other_languages_and_non_pictures(self) -> None:
         wiki = _FakeWiki(LADDER_WIKITEXT)
 
-        WiktionaryImageSource(fetch=wiki).find_images("ladder")
+        WiktionaryImageSource(fetch=wiki).find_images("ladder", LIMIT)
 
         assert "File:Ladder (Dutch).jpg" not in wiki.asked_files
         assert not any(name.endswith(".wav") for name in wiki.asked_files)
@@ -87,26 +96,26 @@ class TestWiktionaryImageSource:
     def test_entry_without_pictures(self) -> None:
         source = WiktionaryImageSource(fetch=_FakeWiki("==English==\n===Noun===\n# A word.\n"))
 
-        assert source.find_images("procrastination") == []
+        assert source.find_images("procrastination", LIMIT) == []
 
     def test_missing_entry(self) -> None:
-        assert WiktionaryImageSource(fetch=_FakeWiki(None)).find_images("qwzx") == []
+        assert WiktionaryImageSource(fetch=_FakeWiki(None)).find_images("qwzx", LIMIT) == []
 
     def test_word_with_only_a_foreign_entry(self) -> None:
         source = WiktionaryImageSource(fetch=_FakeWiki("==Dutch==\n[[File:Huis.jpg]]\n"))
 
-        assert source.find_images("huis") == []
+        assert source.find_images("huis", LIMIT) == []
 
     def test_network_failure_is_a_search_error(self) -> None:
         def broken(_url: str) -> bytes:
             raise OSError("no route to host")
 
         with pytest.raises(ImageSearchError):
-            WiktionaryImageSource(fetch=broken).find_images("ladder")
+            WiktionaryImageSource(fetch=broken).find_images("ladder", LIMIT)
 
     def test_garbage_answer_is_a_search_error(self) -> None:
         with pytest.raises(ImageSearchError):
-            WiktionaryImageSource(fetch=lambda _url: b"<html>").find_images("ladder")
+            WiktionaryImageSource(fetch=lambda _url: b"<html>").find_images("ladder", LIMIT)
 
     @pytest.mark.parametrize(("url", "owned"), [
         ("https://thumb.wikimedia.org/wikipedia/commons/thumb/a/b.jpg", True),

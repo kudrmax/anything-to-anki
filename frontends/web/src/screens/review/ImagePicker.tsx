@@ -16,7 +16,7 @@ const hideBrokenTile = (e: SyntheticEvent<HTMLImageElement>) => {
   if (tile) tile.hidden = true
 }
 
-const PROVIDER_LABEL: Record<ImageProvider, string> = { wiktionary: 'Wiktionary', bing: 'Bing' }
+const PROVIDER_LABEL: Record<ImageProvider, string> = { wiktionary: 'Wiktionary', bing: 'Bing', yandex: 'Yandex' }
 
 /** Окно выбора картинки target'а: выбранная встаёт на карточку вместо текущей. */
 export function ImagePicker({ candidate, review, onClose }: ImagePickerProps) {

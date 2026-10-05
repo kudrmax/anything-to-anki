@@ -16,5 +16,11 @@ DEFAULT_USAGE_GROUP_ORDER: list[str] = [
 FREQUENT_WORD_THRESHOLD_SETTING: str = "frequent_word_threshold"
 USAGE_GROUP_ORDER_SETTING: str = "usage_group_order"
 
+# How many pictures each picture source may offer for one target.
+IMAGES_PER_SOURCE_SETTING: str = "images_per_source"
+DEFAULT_IMAGES_PER_SOURCE: int = 12
+MIN_IMAGES_PER_SOURCE: int = 1
+MAX_IMAGES_PER_SOURCE: int = 30
+
 # The best cards come first; the user decides on a short list, the rest waits behind "show more".
 INITIALLY_SHOWN_CANDIDATES: int = 15

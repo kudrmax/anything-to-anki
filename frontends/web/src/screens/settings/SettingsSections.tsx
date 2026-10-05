@@ -55,6 +55,7 @@ const USAGE_GROUP_LABELS: Record<string, string> = {
   other: 'Literary, trademark, etc.',
 }
 const TTS_SPEED = { min: 0.5, max: 2.0, step: 0.1, fallback: 1.0 }
+const IMAGES_PER_SOURCE = { min: 1, max: 30, step: 1, fallback: 12 }
 const TTS_VOICES: { id: string; label: string; accent: string; gender: string }[] = [
   { id: 'af_heart', label: 'Heart', accent: 'US', gender: 'F' },
   { id: 'af_alloy', label: 'Alloy', accent: 'US', gender: 'F' },
@@ -278,6 +279,16 @@ export function Tts({ store, form }: SectionProps) {
         )}
       </Stack>
     </>
+  )
+}
+
+export function Pictures({ store, form }: SectionProps) {
+  const count = form.images_per_source ?? IMAGES_PER_SOURCE.fallback
+  return (
+    <DividerRow last label="Pictures per source" hint="How many pictures each source offers when you look for a picture of a word.">
+      <Text tone="muted" size="s">{count}</Text>
+      <Range min={IMAGES_PER_SOURCE.min} max={IMAGES_PER_SOURCE.max} step={IMAGES_PER_SOURCE.step} value={count} onChange={e => store.setField('images_per_source', parseInt(e.target.value, 10))} />
+    </DividerRow>
   )
 }
 
