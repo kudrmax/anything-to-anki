@@ -115,6 +115,12 @@ export interface ImageOption {
   provider: ImageProvider
 }
 
+/** Найденные картинки и запрос, по которому их искали (по умолчанию — сам target). */
+export interface ImageSearchResult {
+  query: string
+  options: ImageOption[]
+}
+
 export interface StoredCandidate {
   id: number
   lemma: string

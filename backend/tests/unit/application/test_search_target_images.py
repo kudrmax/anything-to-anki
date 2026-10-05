@@ -90,6 +90,25 @@ class TestSearchTargetImages:
 
         source.find_images.assert_called_once_with("ladder", DEFAULT_IMAGES_PER_SOURCE)
 
+    def test_reports_the_target_as_the_query_by_default(self) -> None:
+        assert _use_case(_source()).execute(CANDIDATE_ID).query == "ladder"
+
+    def test_searches_by_a_free_text_query_instead_of_the_target(self) -> None:
+        source = _source("https://b/1")
+
+        result = _use_case(source).execute(CANDIDATE_ID, query="  rope ladder  ")
+
+        source.find_images.assert_called_once_with("rope ladder", DEFAULT_IMAGES_PER_SOURCE)
+        assert result.query == "rope ladder"
+
+    @pytest.mark.parametrize("query", ["", "   "])
+    def test_a_blank_query_falls_back_to_the_target(self, query: str) -> None:
+        source = _source()
+
+        _use_case(source).execute(CANDIDATE_ID, query=query)
+
+        source.find_images.assert_called_once_with("ladder", DEFAULT_IMAGES_PER_SOURCE)
+
     def test_drops_a_picture_offered_twice(self) -> None:
         result = _use_case(_source("https://x/1"), _source("https://x/1")).execute(CANDIDATE_ID)
 

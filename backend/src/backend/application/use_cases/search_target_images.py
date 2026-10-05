@@ -27,7 +27,9 @@ class SearchTargetImagesUseCase:
     """Asks every picture source at once and ranks what they offer.
 
     The window opens as fast as the slowest source answers, not the sum of them.
-    A failing source is skipped, so one broken source never hides the others.
+    The target itself is searched unless a free-text query narrows it down, e.g. to
+    one meaning of a word that has several. A failing source is skipped, so one
+    broken source never hides the others.
     """
 
     def __init__(
@@ -40,26 +42,27 @@ class SearchTargetImagesUseCase:
         self._settings_repo = settings_repo
         self._image_sources = image_sources
 
-    def execute(self, candidate_id: int) -> TargetImageOptionsDTO:
+    def execute(self, candidate_id: int, query: str | None = None) -> TargetImageOptionsDTO:
         candidate = self._candidate_repo.get_by_id(candidate_id)
         if candidate is None:
             raise CandidateNotFoundError(candidate_id)
+        search = (query or "").strip() or candidate.lemma
 
         limit = self._images_per_source()
         with ThreadPoolExecutor(max_workers=max(1, len(self._image_sources))) as pool:
             answers = list(pool.map(
-                lambda source: self._ask(source, candidate.lemma, limit), self._image_sources,
+                lambda source: self._ask(source, search, limit), self._image_sources,
             ))
 
         found = [answer for answer in answers if answer is not None]
         if self._image_sources and not found:
-            raise ImageSearchError(f"No picture source answered for {candidate.lemma!r}")
+            raise ImageSearchError(f"No picture source answered for {search!r}")
         options = [
             ImageOptionDTO(url=o.url, provider=o.provider.value) for o in rank_image_options(found)
         ]
         logger.info("search_target_images: %d pictures for %r (candidate %d)",
-                    len(options), candidate.lemma, candidate_id)
-        return TargetImageOptionsDTO(options=options)
+                    len(options), search, candidate_id)
+        return TargetImageOptionsDTO(query=search, options=options)
 
     @staticmethod
     def _ask(source: TargetImageSource, word: str, limit: int) -> list[ImageOption] | None:

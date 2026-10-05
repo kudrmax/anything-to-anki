@@ -11,8 +11,9 @@ class ImageOptionDTO(BaseModel):
 
 
 class TargetImageOptionsDTO(BaseModel):
-    """Pictures to choose from for a target, best first."""
+    """Pictures to choose from for a target, best first, with the query they were found by."""
 
+    query: str
     options: list[ImageOptionDTO]
 
 

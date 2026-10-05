@@ -1,6 +1,8 @@
-import { useEffect, useState, type SyntheticEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type SyntheticEvent } from 'react'
 import type { ImageOption, ImageProvider, StoredCandidate } from '@/api/types'
-import { Button, Empty, Modal, Spinner } from '@/ui'
+import { highlightParts } from '@/lib/text/meaning'
+import { Button, Empty, Field, Modal, Spinner } from '@/ui'
+import phrase from '@/ui/phrase.module.css'
 import type { Review } from './useReview'
 import css from './review.module.css'
 
@@ -18,23 +20,41 @@ const hideBrokenTile = (e: SyntheticEvent<HTMLImageElement>) => {
 
 const PROVIDER_LABEL: Record<ImageProvider, string> = { wiktionary: 'Wiktionary', bing: 'Bing', yandex: 'Yandex' }
 
-/** Окно выбора картинки target'а: выбранная встаёт на карточку вместо текущей. */
+/**
+ * Окно выбора картинки target'а: выбранная встаёт на карточку вместо текущей.
+ * Сразу ищет по target'у; запрос можно уточнить, если у слова несколько значений.
+ */
 export function ImagePicker({ candidate, review, onClose }: ImagePickerProps) {
+  const [query, setQuery] = useState(candidate.lemma)
   const [options, setOptions] = useState<ImageOption[] | null>(null)
   const [failed, setFailed] = useState(false)
+  const latestSearch = useRef(0)
   const { findImages, applyImage } = review
   const applying = review.busy.image.has(candidate.id)
 
+  const search = async (text?: string) => {
+    const searchId = ++latestSearch.current
+    setOptions(null)
+    setFailed(false)
+    const found = await findImages(candidate.id, text)
+    if (searchId !== latestSearch.current) return
+    if (!found) {
+      setFailed(true)
+      return
+    }
+    setQuery(found.query)
+    setOptions(found.options)
+  }
+
   useEffect(() => {
-    let active = true
-    void findImages(candidate.id).then(found => {
-      if (!active) return
-      if (found) setOptions(found)
-      else setFailed(true)
-    })
-    return () => { active = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- ищем один раз на открытие окна
+    void search()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- первый поиск — один раз на открытие окна
   }, [candidate.id])
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    void search(query)
+  }
 
   const pick = async (url: string) => {
     await applyImage(candidate.id, url)
@@ -43,6 +63,15 @@ export function ImagePicker({ candidate, review, onClose }: ImagePickerProps) {
 
   return (
     <Modal title={`Picture for “${candidate.lemma}”`} onClose={onClose} footer={<Button onClick={onClose}>Cancel</Button>}>
+      <p className={phrase.context}>
+        {highlightParts(candidate.phrase, candidate.lemma, candidate.surface_form).map((part, i) =>
+          part.target ? <b key={i} className={phrase.target}>{part.text}</b> : part.text,
+        )}
+      </p>
+      <form className={css.imageSearch} onSubmit={submit}>
+        <Field value={query} aria-label="Picture search" onChange={e => setQuery(e.target.value)} />
+        <Button type="submit" disabled={options === null && !failed}>Search</Button>
+      </form>
       {failed && <Empty>Picture search failed</Empty>}
       {!failed && options === null && <div className={css.status}><Spinner /> Searching…</div>}
       {options?.length === 0 && <Empty>No pictures found</Empty>}
