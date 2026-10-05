@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 
 SEARCH_URL = "https://www.bing.com/images/async"
 THUMBNAIL_HOST_SUFFIX = ".mm.bing.net"
-DEFAULT_MAX_RESULTS = 12
 
 _fetch_as_browser = partial(http_get, user_agent=BROWSER_USER_AGENT)
 
@@ -41,15 +40,13 @@ class BingImageSource(TargetImageSource):
 
     def __init__(
         self,
-        max_results: int = DEFAULT_MAX_RESULTS,
         fetch: Callable[[str], bytes] = _fetch_as_browser,
     ) -> None:
-        self._max_results = max_results
         self._fetch = fetch
 
-    def find_images(self, word: str) -> list[ImageOption]:
+    def find_images(self, word: str, limit: int) -> list[ImageOption]:
         query = urllib.parse.urlencode(
-            {"q": word, "first": "0", "count": str(self._max_results), "mmasync": "1"},
+            {"q": word, "first": "0", "count": str(limit), "mmasync": "1"},
         )
         try:
             page = self._fetch(f"{SEARCH_URL}?{query}").decode("utf-8", errors="replace")
@@ -65,7 +62,7 @@ class BingImageSource(TargetImageSource):
             if thumbnail and self.owns(thumbnail) and thumbnail not in urls:
                 urls.append(thumbnail)
         return [
-            ImageOption(url=url, provider=ImageProvider.BING) for url in urls[: self._max_results]
+            ImageOption(url=url, provider=ImageProvider.BING) for url in urls[:limit]
         ]
 
     def owns(self, url: str) -> bool:

@@ -107,7 +107,7 @@ export interface CEFRBreakdown {
   votes: SourceVote[]
 }
 
-export type ImageProvider = 'wiktionary' | 'bing'
+export type ImageProvider = 'wiktionary' | 'bing' | 'yandex'
 
 /** Картинка, которую можно поставить на карточку вместо текущей. */
 export interface ImageOption {
@@ -233,6 +233,8 @@ export interface Settings {
   tts_enabled_voices: string[]
   tts_speed: number
   anki_field_audio_tts: string
+  /** Сколько картинок берётся у каждого источника для одного target'а. */
+  images_per_source: number
 }
 
 export interface FrequentWordThresholdOption {

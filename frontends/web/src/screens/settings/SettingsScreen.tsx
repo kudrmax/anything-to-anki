@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Page, PageHeader } from '@/shell'
 import { Button, Empty, Spinner, Text } from '@/ui'
-import { AiModel, Anki, Appearance, KnownWords, MediaStorage, ReviewPrefs, Tts, Vocabulary } from './SettingsSections'
+import { AiModel, Anki, Appearance, KnownWords, MediaStorage, Pictures, ReviewPrefs, Tts, Vocabulary } from './SettingsSections'
 import { useSettings } from './useSettings'
 import css from './settings.module.css'
 
@@ -37,6 +37,7 @@ export function SettingsScreen() {
     { id: 'review', title: 'Review', content: <ReviewPrefs /> },
     { id: 'ai-model', title: 'AI model', content: <AiModel store={store} form={form} />, saved: true },
     { id: 'tts', title: 'Text-to-speech', content: <Tts store={store} form={form} />, saved: true },
+    { id: 'pictures', title: 'Pictures', content: <Pictures store={store} form={form} />, saved: true },
     { id: 'known-words', title: 'Known words', content: <KnownWords store={store} />, count: store.knownWords.length },
     { id: 'media-storage', title: 'Media storage', content: <MediaStorage store={store} /> },
   ]

@@ -136,6 +136,24 @@ class TestManageSettingsUseCase:
         result = self.use_case.get_settings()
         assert result.anki_field_audio_tts == "AudioTTS"
 
+    def test_get_settings_images_per_source_default_is_12(self) -> None:
+        self.settings_repo.get.return_value = None
+        result = self.use_case.get_settings()
+        assert result.images_per_source == 12
+
+    def test_update_images_per_source_stores_as_string_reads_as_int(self) -> None:
+        self.settings_repo.get.side_effect = lambda key, default=None: (
+            "8" if key == "images_per_source" else None
+        )
+        result = self.use_case.update_settings(UpdateSettingsRequest(images_per_source=8))
+        self.settings_repo.set.assert_any_call("images_per_source", "8")
+        assert result.images_per_source == 8
+
+    @pytest.mark.parametrize("value", [0, 31])
+    def test_images_per_source_out_of_range_is_rejected(self, value: int) -> None:
+        with pytest.raises(ValueError, match="images_per_source"):
+            UpdateSettingsRequest(images_per_source=value)
+
     def test_update_tts_speed_stores_as_string_reads_as_float(self) -> None:
         self.settings_repo.get.return_value = None
         req = UpdateSettingsRequest(tts_speed=0.75)

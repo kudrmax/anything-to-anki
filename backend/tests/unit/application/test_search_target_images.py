@@ -3,12 +3,11 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from backend.application.constants import DEFAULT_IMAGES_PER_SOURCE, IMAGES_PER_SOURCE_SETTING
 from backend.application.use_cases.search_target_images import SearchTargetImagesUseCase
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.exceptions import (
-    CandidateNotFoundError,
-    ImageSearchError,
-)
+from backend.domain.exceptions import CandidateNotFoundError, ImageSearchError
+from backend.domain.ports.settings_repository import SettingsRepository
 from backend.domain.ports.target_image_source import TargetImageSource
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.image_option import ImageOption
@@ -39,25 +38,57 @@ def _failing_source() -> MagicMock:
     return source
 
 
+class _Settings(SettingsRepository):
+    def __init__(self, values: dict[str, str] | None = None) -> None:
+        self._values = values or {}
+
+    def get(self, key: str, default: str | None = None) -> str | None:
+        return self._values.get(key, default)
+
+    def set(self, key: str, value: str) -> None:
+        self._values[key] = value
+
+
 def _use_case(
-    *sources: MagicMock, candidate: StoredCandidate | None = None,
+    *sources: MagicMock,
+    candidate: StoredCandidate | None = None,
+    settings: _Settings | None = None,
 ) -> SearchTargetImagesUseCase:
     repo = MagicMock()
     repo.get_by_id.return_value = candidate if candidate is not None else _candidate()
-    return SearchTargetImagesUseCase(candidate_repo=repo, image_sources=list(sources))
+    return SearchTargetImagesUseCase(
+        candidate_repo=repo, settings_repo=settings or _Settings(), image_sources=list(sources),
+    )
 
 
 class TestSearchTargetImages:
-    def test_lists_pictures_of_all_sources_in_source_order(self) -> None:
+    def test_dictionary_first_then_search_engines_in_turns(self) -> None:
         wiktionary = _source("https://w/1", provider=ImageProvider.WIKTIONARY)
         bing = _source("https://b/1", "https://b/2")
+        yandex = _source("https://y/1", "https://y/2", provider=ImageProvider.YANDEX)
 
-        result = _use_case(wiktionary, bing).execute(CANDIDATE_ID)
+        result = _use_case(wiktionary, bing, yandex).execute(CANDIDATE_ID)
 
         assert [(o.url, o.provider) for o in result.options] == [
-            ("https://w/1", "wiktionary"), ("https://b/1", "bing"), ("https://b/2", "bing"),
+            ("https://w/1", "wiktionary"),
+            ("https://b/1", "bing"), ("https://y/1", "yandex"),
+            ("https://b/2", "bing"), ("https://y/2", "yandex"),
         ]
-        wiktionary.find_images.assert_called_once_with("ladder")
+
+    def test_asks_each_source_for_the_configured_number_of_pictures(self) -> None:
+        source = _source("https://b/1")
+        settings = _Settings({IMAGES_PER_SOURCE_SETTING: "5"})
+
+        _use_case(source, settings=settings).execute(CANDIDATE_ID)
+
+        source.find_images.assert_called_once_with("ladder", 5)
+
+    def test_asks_for_the_default_number_when_not_configured(self) -> None:
+        source = _source("https://b/1")
+
+        _use_case(source).execute(CANDIDATE_ID)
+
+        source.find_images.assert_called_once_with("ladder", DEFAULT_IMAGES_PER_SOURCE)
 
     def test_drops_a_picture_offered_twice(self) -> None:
         result = _use_case(_source("https://x/1"), _source("https://x/1")).execute(CANDIDATE_ID)
@@ -87,7 +118,9 @@ class TestSearchTargetImages:
     def test_unknown_candidate(self) -> None:
         repo = MagicMock()
         repo.get_by_id.return_value = None
-        use_case = SearchTargetImagesUseCase(candidate_repo=repo, image_sources=[])
+        use_case = SearchTargetImagesUseCase(
+            candidate_repo=repo, settings_repo=_Settings(), image_sources=[],
+        )
 
         with pytest.raises(CandidateNotFoundError):
             use_case.execute(CANDIDATE_ID)

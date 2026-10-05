@@ -7,7 +7,7 @@ class ImageOptionDTO(BaseModel):
     """A picture offered for a target."""
 
     url: str
-    provider: str  # 'wiktionary' | 'bing'
+    provider: str  # 'wiktionary' | 'bing' | 'yandex'
 
 
 class TargetImageOptionsDTO(BaseModel):
