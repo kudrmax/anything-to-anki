@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, Clapperboard, Ellipsis, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, X, ZoomIn, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Clapperboard, Ellipsis, Feather, Flag, HelpCircle, Image, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, Undo2, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { decisionChange, type Decision } from '@/lib/decision'
 import { Button, Field, Icon, IconButton, Menu, Spinner, type MenuItem, type MenuPage } from '@/ui'
@@ -61,7 +61,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
     tts: review.busy.tts.has(id),
     image: review.busy.image.has(id),
   }
-  const anyBusy = Object.values(busy).some(Boolean)
+  const anyBusy = Object.values(busy).some(Boolean) || candidate.polish_status === 'running'
 
   const askQuestion = (close: () => void) => {
     if (!question.trim()) return
@@ -70,10 +70,11 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
     close()
   }
   const askPage: MenuPage = {
-    items: FOLLOW_UP_PRESETS.map(preset => ({ label: preset.label, icon: preset.icon, onSelect: () => void review.generate(id, preset.action) })),
+    items: [],
     footer: close => (
       <div className={css.ask}>
         <Field
+          autoFocus
           value={question}
           placeholder="Your own question…"
           onChange={e => setQuestion(e.target.value)}
@@ -117,36 +118,57 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
     ),
   }
 
-  const regenerateItem = (label: string, hint: string, icon: LucideIcon, isBusy: boolean, run: () => Promise<unknown>): MenuItem => ({
+  const actionItem = (label: string, icon: LucideIcon, isBusy: boolean, onSelect: () => void, hint?: string): MenuItem => ({
     label,
     hint,
     icon,
     lead: isBusy ? <Spinner /> : undefined,
     disabled: isBusy,
-    onSelect: () => void run(),
+    onSelect,
   })
-  const regenerateItems: MenuItem[] = [
-    ...(hasMeaning ? [regenerateItem('Meaning', 'Definition, translation, examples', Sparkles, busy.meaning, () => review.generate(id))] : []),
-    ...(isVideo ? [regenerateItem('Media', 'Screenshot and clip from the video', Clapperboard, busy.media, () => review.regenerateMedia(id))] : []),
-    regenerateItem('Speech', 'Phrase read aloud', Speech, busy.tts, () => review.generateTTS(id)),
+  const groupLead = (isBusy: boolean) => (isBusy ? <Spinner /> : undefined)
+
+  const polished = Boolean(candidate.polished_fragment)
+  const polishing = candidate.polish_status === 'queued' || candidate.polish_status === 'running'
+  const phraseItems: MenuItem[] = [
+    { label: 'Edit text', hint: 'Fix words in the phrase', icon: TextCursorInput, onSelect: onEditPhrase },
+    { label: 'Change boundary', hint: 'Pick the phrase in the source', icon: TextSelect, onSelect: () => review.startEditing(id) },
+    ...(review.source?.can_polish_phrases ? [{
+      ...actionItem(polished ? 'Polish again' : 'Polish', WandSparkles, polishing, () => void review.polishAgain(id), 'AI simplifies the phrase'),
+      separated: true,
+    }] : []),
+    ...(polished ? [{
+      label: candidate.polish_reverted ? 'Use polished phrase' : 'Revert to original',
+      hint: candidate.polish_reverted ? 'Back to the AI version' : 'The phrase from the book',
+      icon: Undo2,
+      onSelect: () => void review.setPolishReverted(id, !candidate.polish_reverted),
+    }] : []),
+  ]
+
+  const meaningItems: MenuItem[] = [
+    actionItem(hasMeaning ? 'Regenerate' : 'Generate', RefreshCw, busy.meaning, () => void review.generate(id), 'Definition, translation, examples'),
+    ...(hasMeaning && !isRated ? [
+      ...FOLLOW_UP_PRESETS.map((preset, index) => ({
+        label: preset.label,
+        icon: preset.icon,
+        disabled: busy.meaning,
+        separated: index === 0,
+        onSelect: () => void review.generate(id, preset.action),
+      })),
+      { label: 'Your own question', icon: HelpCircle, disabled: busy.meaning, page: askPage },
+    ] : []),
+  ]
+
+  const mediaItems: MenuItem[] = [
+    actionItem('Choose a picture', ImagePlus, busy.image, () => setPickingImage(true), 'Image of the word'),
+    ...(isVideo ? [actionItem('Regenerate clip', Clapperboard, busy.media, () => void review.regenerateMedia(id), 'Screenshot and clip from the video')] : []),
+    actionItem('Regenerate speech', Speech, busy.tts, () => void review.generateTTS(id), 'Phrase read aloud'),
   ]
 
   const items: MenuItem[] = [
-    ...(hasMeaning && !isRated ? [{ label: 'Ask AI', hint: 'Examples or your own question', icon: HelpCircle, page: askPage }] : []),
-    regenerateItems.length === 1
-      ? { ...regenerateItems[0], label: `Regenerate ${regenerateItems[0].label.toLowerCase()}`, icon: RefreshCw }
-      : { label: 'Regenerate', hint: regenerateItems.map(item => item.label).join(', '), icon: RefreshCw, items: regenerateItems },
-    {
-      label: 'Find a picture',
-      hint: 'Pick an image of the word',
-      icon: ImagePlus,
-      lead: busy.image ? <Spinner /> : undefined,
-      disabled: busy.image,
-      separated: true,
-      onSelect: () => setPickingImage(true),
-    },
-    { label: 'Edit phrase text', hint: 'Fix words in the phrase', icon: TextCursorInput, onSelect: onEditPhrase },
-    { label: 'Change boundary', hint: 'Pick the phrase in the source', icon: TextSelect, onSelect: () => review.startEditing(id) },
+    { label: 'Phrase', hint: 'Edit, boundary, polish', icon: Pencil, lead: groupLead(polishing), items: phraseItems },
+    { label: 'Meaning', hint: 'Regenerate, ask AI', icon: Sparkles, lead: groupLead(busy.meaning), items: meaningItems },
+    { label: 'Media', hint: isVideo ? 'Picture, clip, speech' : 'Picture, speech', icon: Image, lead: groupLead(busy.image || busy.media || busy.tts), items: mediaItems },
     {
       label: 'Report a problem',
       hint: candidate.reported ? 'Reported — add another' : 'Tell what’s wrong',
