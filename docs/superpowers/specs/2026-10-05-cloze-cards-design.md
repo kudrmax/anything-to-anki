@@ -65,26 +65,27 @@ Cloze-карточка = `status == LEARN` и есть `CandidateCloze`. `Candid
 
 ## Application
 
-- `SaveClozeUseCase.execute(candidate_id, hidden_word_indices, hint_kind, custom_hint)`:
+- `SaveClozeUseCase.execute(candidate_id, phrase, hidden_word_indices, hint_kind, custom_hint)`:
   - кандидат уже в Anki → `ClozeNotAllowedError` (API 409);
+  - `phrase` (фраза, в которой выбраны индексы) ≠ `card_phrase` → `ClozePhraseChangedError` (API 409): фраза сменилась, пока открыт режим разметки, индексы указывают на другие слова;
   - валидирует через `ClozeBuilder`, `custom` требует непустой `custom_hint`, вид подсказки должен быть в `available_hints` → иначе `InvalidClozeError` (422);
   - сохраняет `CandidateCloze`, ставит `LEARN` через ту же логику, что `MarkCandidateUseCase` (known words, решения, статус источника).
-- `PreviewClozeUseCase.execute(candidate_id, hidden_word_indices | None, hint_kind | None, custom_hint)` → `ClozePreviewDTO { words, hidden_word_indices, hint_kind, front, hint, available_hints }`. Без индексов — текущая разметка или дефолт; без вида — текущий или `cloze_default_hint` (если он недоступен — `none`).
-- `MarkCandidateUseCase`: любая смена статуса удаляет cloze кандидата.
+- `PreviewClozeUseCase.execute(candidate_id, hidden_word_indices | None, hint_kind | None, custom_hint)` → `ClozePreviewDTO { phrase, words, hidden_word_indices, hint_kind, front, hint, available_hints, can_save }`. `phrase` — фраза, к которой относятся слова; `can_save` — то же правило, что у Save (≥1 скрытое слово, вид доступен, для `custom` — непустой текст). Без индексов — текущая разметка или дефолт; без вида — текущий или `cloze_default_hint` (если он недоступен — `none`).
+- `MarkCandidateUseCase`: любая смена статуса удаляет cloze кандидата, кроме уже экспортированного — в Anki он лежит как cloze-заметка.
 - DTO кандидата получает `cloze: { hidden_word_indices, hint_kind, custom_hint } | null` и `can_cloze: bool` (false, если кандидат уже в Anki).
 - Настройка `cloze_default_hint` в `_SETTING_KEYS`, значения — виды без `custom`.
 
 ## Anki
 
 - Тип `AnythingToAnkiCloze` (`isCloze: true`), поля: `Text`, `Hint`, `Target`, `IPA`, `Meaning`, `Translation`, `Synonyms`, `Examples`, `Image`, `Audio`, `AudioTargetUS`, `AudioTargetUK`, `AudioTTS`. Имена фиксированные, маппинга в настройках нет.
-- Шаблоны: `anki-templates/cloze-front.html`, `anki-templates/cloze-back.html`, CSS общий `style.css` (+ стили `.cloze` и `.hint`). Front: картинка, аудио, `{{cloze:Text}}`, `Hint`. Back: `{{cloze:Text}}`, далее как у обычной карточки.
+- Шаблоны: `anki-templates/cloze-front.html`, `anki-templates/cloze-back.html`, CSS общий `style.css` (+ стили `.cloze` и `.hint`). Front: картинка, `{{cloze:Text}}`, `Hint` — без аудио: озвучка фразы произносит скрытые слова. Аудио — только на Back. Back: `{{cloze:Text}}`, далее как у обычной карточки.
 - `AnkiConnector.ensure_note_type(..., is_cloze: bool = False)` — при создании модели передаёт `isCloze`.
 - `AnkiConnector.find_notes_by_target(deck, model, target_field, target)` — поиск дублей по нужной модели и полю. Чинит захардкоженный `AnythingToAnkiType`.
 - `SyncToAnkiUseCase`: сборка записи вынесена в два сборщика — `RecognitionNoteBuilder` (как сейчас) и `ClozeNoteBuilder`. Для каждого кандидата выбирается сборщик по наличию cloze; обе модели гарантируются (`ensure_note_type`) только если в партии есть их карточки. Медиа и дедупликация общие.
 
 ## API
 
-- `PUT /api/candidates/{id}/cloze` — тело `{hidden_word_indices, hint_kind, custom_hint}` → кандидат. 404 / 409 / 422.
+- `PUT /api/candidates/{id}/cloze` — тело `{phrase, hidden_word_indices, hint_kind, custom_hint}` → кандидат. 404 / 409 / 422.
 - `POST /api/candidates/{id}/cloze/preview` — тело `{hidden_word_indices?, hint_kind?, custom_hint?}` → `ClozePreviewDTO`.
 
 ## Frontend
@@ -93,7 +94,8 @@ Cloze-карточка = `status == LEARN` и есть `CandidateCloze`. `Candid
 - Нажатие Cloze (или `2`) включает режим разметки текущей карточки (локальный UI-state):
   - `CardPhrase` показывает слова из превью как кнопки; клик переключает скрытие; target подчёркнут; скрытое не-target слово помечено точкой;
   - `ClozePanel` под фразой: переключатель подсказки (недоступные виды выключены), поле для `custom`, превью «Anki front», Cancel `Esc`, Save cloze `↵`;
-  - каждый клик/смена подсказки → `preview`; Save → `PUT`.
+  - каждый клик/смена подсказки → `preview`; Save → `PUT` с `phrase` из превью; сменилась фраза карточки — превью запрашивается заново с дефолтной разметкой;
+  - Learn/Know/Skip в режиме разметки сначала закрывают его;
 - Cloze-карточка вне режима разметки: скрытые слова в пунктирной рамке, в фактах метка `cloze · hint: …`; клик по фразе или `2` — снова режим разметки.
 - Список фраз и экран экспорта: бейдж `cloze`.
 - Settings → Review: строка «Default cloze hint» (segmented: No hint / Translation / Synonyms / First letter).
