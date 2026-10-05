@@ -13,6 +13,8 @@ APP_PID := .pids/app.pid
 APP_LOG := .logs/app.log
 WRK_PID := .pids/worker.pid
 WRK_LOG := .logs/worker.log
+# Сколько тиков по 0.25 с ждать остановки воркера (5 секунд).
+WORKER_STOP_TICKS := 20
 PYTHON_VERSION  := 3.12
 LOCK_FILE       := requirements.lock
 SPACY_MODEL     := en_core_web_sm
@@ -40,6 +42,26 @@ define kill_by_pid
 	    if kill -0 $$pid 2>/dev/null; then \
 	        kill $$pid; \
 	        echo "Stopped $(2) (PID $$pid)"; \
+	    fi; \
+	    rm -f $(1); \
+	fi
+endef
+
+# Остановить воркер вместе с его TTS-subprocess и дождаться выхода. $(1) — путь к PID-файлу.
+# Воркер не прерывает задачу на полпути, поэтому после паузы — SIGKILL:
+# прерванные задачи он сам вернёт в очередь при следующем старте.
+define stop_worker
+	@if [ -f $(1) ]; then \
+	    pid=$$(cat $(1)); \
+	    if kill -0 $$pid 2>/dev/null; then \
+	        pkill -TERM -P $$pid 2>/dev/null; kill $$pid 2>/dev/null; \
+	        for i in $$(seq 1 $(WORKER_STOP_TICKS)); do kill -0 $$pid 2>/dev/null || break; sleep 0.25; done; \
+	        if kill -0 $$pid 2>/dev/null; then \
+	            pkill -KILL -P $$pid 2>/dev/null; kill -9 $$pid 2>/dev/null; \
+	            echo "Killed worker (PID $$pid)"; \
+	        else \
+	            echo "Stopped worker (PID $$pid)"; \
+	        fi; \
 	    fi; \
 	    rm -f $(1); \
 	fi
@@ -78,7 +100,7 @@ endef
 # Порты worktree общие для всех worktree: сносим и чужой запущенный worktree.
 define stop_worktree
 	$(call kill_by_pid,.pids/app_wt.pid,worktree app)
-	$(call kill_by_pid,.pids/worker_wt.pid,worktree worker)
+	$(call stop_worker,.pids/worker_wt.pid)
 	$(call kill_by_pid,.pids/ai_proxy_wt.pid,worktree ai_proxy)
 	$(call kill_workers_of_this_copy)
 	$(call kill_on_port,$(WORKTREE_PORT),uvicorn)
@@ -277,7 +299,7 @@ up-worktree: _check_env _check_setup dict-update  ## Запустить worktree
 down:  ## Остановить
 	$(call kill_by_pid,$(APP_PID),app)
 	$(call kill_on_port,$(PORT),uvicorn)
-	$(call kill_by_pid,$(WRK_PID),worker)
+	$(call stop_worker,$(WRK_PID))
 	$(call stop_ai_proxy)
 
 down-worktree:  ## Остановить worktree

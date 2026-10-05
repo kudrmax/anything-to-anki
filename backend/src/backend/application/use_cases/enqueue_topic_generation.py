@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.job import Job
@@ -12,7 +11,6 @@ from backend.domain.exceptions import (
     TopicTargetsAlreadyGeneratedError,
 )
 from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
@@ -49,16 +47,5 @@ class EnqueueTopicGenerationUseCase:
         if self._job_repo.has_active_jobs_for_source(source_id, _TOPIC_JOB_TYPES):
             raise GenerationAlreadyRunningError()
 
-        self._job_repo.create_bulk([
-            Job(
-                id=None,
-                job_type=JobType.TOPIC_TARGETS,
-                candidate_id=None,
-                source_id=source_id,
-                status=JobStatus.QUEUED,
-                error=None,
-                created_at=datetime.now(tz=UTC),
-                started_at=None,
-            ),
-        ])
+        self._job_repo.enqueue([Job.queued(JobType.TOPIC_TARGETS, source_id)])
         logger.info("enqueue_topic_generation: queued (source_id=%d)", source_id)

@@ -51,7 +51,7 @@ class TestEnqueueTopicGeneration:
     def test_queues_one_source_level_job(self) -> None:
         self.use_case.execute(SOURCE_ID)
 
-        (jobs,), _ = self.job_repo.create_bulk.call_args
+        (jobs,), _ = self.job_repo.enqueue.call_args
         assert len(jobs) == 1
         assert jobs[0].job_type == JobType.TOPIC_TARGETS
         assert jobs[0].source_id == SOURCE_ID
@@ -67,16 +67,16 @@ class TestEnqueueTopicGeneration:
         self.source_repo.get_by_id.return_value = _source(InputMethod.TEXT_PASTED)
         with pytest.raises(SourceNotTopicError):
             self.use_case.execute(SOURCE_ID)
-        self.job_repo.create_bulk.assert_not_called()
+        self.job_repo.enqueue.assert_not_called()
 
     def test_topic_with_targets_is_rejected(self) -> None:
         self.topic_target_repo.has_targets.return_value = True
         with pytest.raises(TopicTargetsAlreadyGeneratedError):
             self.use_case.execute(SOURCE_ID)
-        self.job_repo.create_bulk.assert_not_called()
+        self.job_repo.enqueue.assert_not_called()
 
     def test_second_job_is_not_queued_while_one_is_active(self) -> None:
         self.job_repo.has_active_jobs_for_source.return_value = True
         with pytest.raises(GenerationAlreadyRunningError):
             self.use_case.execute(SOURCE_ID)
-        self.job_repo.create_bulk.assert_not_called()
+        self.job_repo.enqueue.assert_not_called()

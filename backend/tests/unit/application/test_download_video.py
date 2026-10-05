@@ -57,9 +57,12 @@ class TestDownloadVideo:
         with pytest.raises(ValueError, match="source_url"):
             self.use_case.execute(42)
 
-    def test_raises_if_video_already_downloaded(self) -> None:
+    def test_does_nothing_if_video_already_downloaded(self) -> None:
         source = _make_youtube_source()
         source.video_path = "/data/videos/existing.mp4"
         self.source_repo.get_by_id.return_value = source
-        with pytest.raises(ValueError, match="already downloaded"):
-            self.use_case.execute(42)
+
+        self.use_case.execute(42)
+
+        self.video_downloader.download.assert_not_called()
+        self.source_repo.update_video_path.assert_not_called()

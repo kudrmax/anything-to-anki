@@ -171,11 +171,12 @@ class UnsupportedUrlError(Exception):
 
 
 class CancelledByUserError(Exception):
-    """Raised by CancellationToken when a job has been cancelled."""
+    """Raised when finished work belongs to jobs no longer running: the user
+    cancelled them, or they already failed by timeout. Its result is dropped."""
 
-    def __init__(self, job_id: int) -> None:
-        self.job_id = job_id
-        super().__init__(f"Job {job_id} cancelled by user")
+    def __init__(self, job_ids: list[int]) -> None:
+        self.job_ids = job_ids
+        super().__init__(f"Jobs {job_ids} are no longer running, result dropped")
 
 
 class CollectionNotFoundError(DomainError):
@@ -272,3 +273,19 @@ class UnknownImageUrlError(DomainError):
     def __init__(self, url: str) -> None:
         super().__init__(f"Picture URL doesn't come from a known source: {url}")
         self.url = url
+
+
+class SourceHasNoUrlError(DomainError):
+    """Raised when a source-URL operation is requested for a source without a URL."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Source {source_id} has no URL")
+        self.source_id = source_id
+
+
+class VideoAlreadyDownloadedError(DomainError):
+    """Raised when a video download is requested for a source that already has its video."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Video of source {source_id} is already downloaded")
+        self.source_id = source_id

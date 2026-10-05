@@ -4,6 +4,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from backend.application.utils.candidate_filter import CandidateFilter, keep_all
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
@@ -21,8 +22,8 @@ class MeaningGenerationUseCase:
     """Generates meanings for a batch of candidates.
 
     One-shot: called by worker per batch (up to 15 candidates).
-    Writes results to candidate_meanings.
-    Transient errors (AI service unavailable) propagate for retry.
+    Writes results to candidate_meanings, only for candidates still wanted once
+    AI answers. Errors (AI service unavailable) propagate: the worker fails the jobs.
     """
 
     def __init__(
@@ -37,9 +38,14 @@ class MeaningGenerationUseCase:
         self._ai_service = ai_service
         self._prompts_config = prompts_config
 
-    def execute_batch(self, candidate_ids: list[int]) -> None:
+    def execute_batch(
+        self,
+        candidate_ids: list[int],
+        still_wanted: CandidateFilter = keep_all,
+    ) -> list[int]:
+        """Returns the wanted candidates AI gave no answer for."""
         if not candidate_ids:
-            return
+            return []
 
         candidates = self._candidate_repo.get_by_ids(candidate_ids)
         # Filter out candidates whose status changed (KNOWN/SKIP) or already have meaning
@@ -53,7 +59,7 @@ class MeaningGenerationUseCase:
             logger.info(
                 "MeaningGeneration batch: all candidates skipped (status changed or done)"
             )
-            return
+            return []
 
         user_template = self._prompts_config.generate_meaning_user_template
         parts: list[str] = [
@@ -66,17 +72,21 @@ class MeaningGenerationUseCase:
             f"Word {i}: {part}" for i, part in enumerate(parts, 1)
         )
 
-        # Transient errors propagate -> worker retries
         results = self._ai_service.generate_meanings_batch(
             self._prompts_config.generate_meaning_system, batch_prompt
         )
         result_map = {r.word_index: r for r in results}
+        wanted = still_wanted([c.id for c in active if c.id is not None])
 
         now = datetime.now(tz=UTC)
         matched = 0
+        unanswered: list[int] = []
         for i, c in enumerate(active, 1):
+            if c.id is None or c.id not in wanted:
+                continue
             r = result_map.get(i)
-            if r is None or c.id is None:
+            if r is None:
+                unanswered.append(c.id)
                 continue
             self._meaning_repo.upsert(CandidateMeaning(
                 candidate_id=c.id,
@@ -90,6 +100,7 @@ class MeaningGenerationUseCase:
             matched += 1
 
         logger.info(
-            "MeaningGeneration batch: %d/%d matched",
-            matched, len(active),
+            "MeaningGeneration batch: %d/%d matched, %d still wanted",
+            matched, len(active), len(wanted),
         )
+        return unanswered

@@ -193,10 +193,9 @@ def test_execute_batch_returns_early_when_all_candidates_filtered() -> None:
 
 
 @pytest.mark.unit
-def test_execute_batch_skips_candidate_without_ai_result() -> None:
-    """When the AI returns fewer results than requested (e.g. word_index=2
-    missing), the loop must ``continue`` for missing indexes rather than
-    raising KeyError or writing an incomplete row. Covers line 82."""
+def test_execute_batch_reports_candidate_without_ai_result() -> None:
+    """When the AI returns fewer results than requested, the missing card is
+    reported back instead of silently staying without a meaning."""
     c1 = _make_candidate(1, "first")
     c2 = _make_candidate(2, "second")
 
@@ -224,8 +223,32 @@ def test_execute_batch_skips_candidate_without_ai_result() -> None:
         ai_service=ai_service,
         prompts_config=_CONFIG,
     )
-    use_case.execute_batch([1, 2])
+    unanswered = use_case.execute_batch([1, 2])
 
-    # Only c1 should be upserted; c2 silently skipped.
+    assert unanswered == [2]
     assert meaning_repo.upsert.call_count == 1
     assert meaning_repo.upsert.call_args.args[0].candidate_id == 1
+
+
+@pytest.mark.unit
+def test_execute_batch_writes_only_candidates_still_wanted() -> None:
+    candidate_repo = MagicMock()
+    candidate_repo.get_by_ids.return_value = [_make_candidate(1, "a"), _make_candidate(2, "b")]
+    meaning_repo = MagicMock()
+    ai_service = MagicMock()
+    ai_service.generate_meanings_batch.return_value = [
+        BatchMeaningResult(word_index=i, meaning="m", translation="t", synonyms="s",
+                           examples="", ipa=None)
+        for i in (1, 2)
+    ]
+    use_case = MeaningGenerationUseCase(
+        candidate_repo=candidate_repo,
+        meaning_repo=meaning_repo,
+        ai_service=ai_service,
+        prompts_config=_CONFIG,
+    )
+
+    unanswered = use_case.execute_batch([1, 2], still_wanted=lambda ids: {2})
+
+    assert unanswered == []
+    assert [c.args[0].candidate_id for c in meaning_repo.upsert.call_args_list] == [2]

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from collections import Counter
-from itertools import takewhile
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from itertools import takewhile
+from typing import TYPE_CHECKING
 
-from sqlalchemy import CursorResult, delete, func, select, update
+from sqlalchemy import CursorResult, and_, delete, func, or_, select, update
 
 from backend.domain.ports.job_repository import DEFAULT_RUN_LIMIT, JobRepository
+from backend.domain.value_objects.failed_job_group import FailedJobGroup
+from backend.domain.value_objects.job_selection import UNKNOWN_JOB_ERROR
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.persistence.models import JobModel
@@ -15,9 +17,40 @@ from backend.infrastructure.persistence.models import JobModel
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from sqlalchemy import ColumnElement, Delete, Update
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.job import Job
+    from backend.domain.value_objects.job_selection import JobSelection
+
+_ACTIVE_STATUSES = (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
+_QUEUE_ORDER = (JobModel.created_at.asc(), JobModel.id.asc())
+
+
+def _same_key(job_type: str, source_id: int, candidate_id: int | None) -> ColumnElement[bool]:
+    if candidate_id is not None:
+        return and_(JobModel.job_type == job_type, JobModel.candidate_id == candidate_id)
+    return and_(
+        JobModel.job_type == job_type,
+        JobModel.source_id == source_id,
+        JobModel.candidate_id.is_(None),
+    )
+
+
+def _selected(selection: JobSelection) -> list[ColumnElement[bool]]:
+    clauses: list[ColumnElement[bool]] = []
+    if selection.job_type is not None:
+        clauses.append(JobModel.job_type == selection.job_type.value)
+    if selection.source_id is not None:
+        clauses.append(JobModel.source_id == selection.source_id)
+    if selection.job_id is not None:
+        clauses.append(JobModel.id == selection.job_id)
+    if selection.error is not None:
+        if selection.error == UNKNOWN_JOB_ERROR:
+            clauses.append(or_(JobModel.error.is_(None), JobModel.error == UNKNOWN_JOB_ERROR))
+        else:
+            clauses.append(JobModel.error == selection.error)
+    return clauses
 
 
 class SqlaJobRepository(JobRepository):
@@ -26,8 +59,26 @@ class SqlaJobRepository(JobRepository):
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def create_bulk(self, jobs: list[Job]) -> list[Job]:
-        models = [JobModel.from_entity(j) for j in jobs]
+    # ── Lifecycle ────────────────────────────────────────────────────
+
+    def enqueue(self, jobs: list[Job]) -> list[Job]:
+        models: list[JobModel] = []
+        seen: set[tuple[str, int, int | None]] = set()
+        for job in jobs:
+            key = (job.job_type.value, job.source_id, job.candidate_id)
+            if key in seen or self._is_active(*key):
+                continue
+            seen.add(key)
+            self._session.execute(
+                delete(JobModel).where(
+                    _same_key(*key), JobModel.status == JobStatus.FAILED.value,
+                )
+            )
+            model = JobModel.from_entity(job)
+            model.status = JobStatus.QUEUED.value
+            model.error = None
+            model.started_at = None
+            models.append(model)
         self._session.add_all(models)
         self._session.flush()
         return [m.to_entity() for m in models]
@@ -41,7 +92,7 @@ class SqlaJobRepository(JobRepository):
         stmt = (
             select(JobModel)
             .where(JobModel.status == JobStatus.QUEUED.value)
-            .order_by(JobModel.created_at.asc(), JobModel.id.asc())
+            .order_by(*_QUEUE_ORDER)
             .limit(fetch_size)
         )
         queued = list(self._session.execute(stmt).scalars().all())
@@ -64,111 +115,94 @@ class SqlaJobRepository(JobRepository):
         self._session.flush()
         return [m.to_entity() for m in run]
 
-    def mark_failed(self, job_id: int, error: str) -> None:
-        self._session.execute(
-            update(JobModel)
-            .where(JobModel.id == job_id)
-            .values(status=JobStatus.FAILED.value, error=error)
-        )
-        self._session.flush()
-
-    def mark_failed_bulk(self, job_ids: list[int], error: str) -> None:
+    def running_ids(self, job_ids: list[int]) -> set[int]:
         if not job_ids:
-            return
-        self._session.execute(
-            update(JobModel)
-            .where(JobModel.id.in_(job_ids))
-            .values(status=JobStatus.FAILED.value, error=error)
+            return set()
+        stmt = select(JobModel.id).where(
+            JobModel.id.in_(job_ids), JobModel.status == JobStatus.RUNNING.value,
         )
-        self._session.flush()
+        return set(self._session.execute(stmt).scalars().all())
 
-    def delete(self, job_id: int) -> None:
-        self._session.execute(
-            delete(JobModel).where(JobModel.id == job_id)
-        )
-        self._session.flush()
-
-    def delete_bulk(self, job_ids: list[int]) -> None:
-        if not job_ids:
-            return
-        self._session.execute(
-            delete(JobModel).where(JobModel.id.in_(job_ids))
-        )
-        self._session.flush()
-
-    def delete_by_source_and_type(
-        self, source_id: int, job_type: JobType,
-    ) -> int:
-        stmt = (
-            delete(JobModel)
-            .where(
-                JobModel.source_id == source_id,
-                JobModel.job_type == job_type.value,
-                JobModel.status.in_([
-                    JobStatus.QUEUED.value,
-                    JobStatus.RUNNING.value,
-                ]),
-            )
-        )
-        result: CursorResult[tuple[()]] = self._session.execute(stmt)  # type: ignore[assignment]
-        self._session.flush()
-        return result.rowcount
-
-    def delete_failed_by_source_and_type(
-        self, source_id: int, job_type: JobType,
-    ) -> list[Job]:
-        # First select the failed jobs to return them
-        select_stmt = (
-            select(JobModel)
-            .where(
-                JobModel.source_id == source_id,
-                JobModel.job_type == job_type.value,
-                JobModel.status == JobStatus.FAILED.value,
-            )
-        )
-        models = list(self._session.execute(select_stmt).scalars().all())
-        entities = [m.to_entity() for m in models]
-        # Then delete them
-        if models:
-            delete_stmt = (
-                delete(JobModel)
-                .where(
-                    JobModel.source_id == source_id,
-                    JobModel.job_type == job_type.value,
+    def complete(self, jobs: list[Job]) -> None:
+        job_ids = [j.id for j in jobs if j.id is not None]
+        if job_ids:
+            self._session.execute(delete(JobModel).where(JobModel.id.in_(job_ids)))
+        for job in jobs:
+            self._session.execute(
+                delete(JobModel).where(
+                    _same_key(job.job_type.value, job.source_id, job.candidate_id),
                     JobModel.status == JobStatus.FAILED.value,
                 )
             )
-            self._session.execute(delete_stmt)
-            self._session.flush()
-        return entities
+        self._session.flush()
 
-    def fail_all_running(self, error: str) -> int:
-        count_stmt = (
-            select(func.count())
-            .select_from(JobModel)
-            .where(JobModel.status == JobStatus.RUNNING.value)
+    def fail(self, job_ids: list[int], error: str) -> None:
+        if not job_ids:
+            return
+        self._session.execute(
+            update(JobModel)
+            .where(JobModel.id.in_(job_ids), JobModel.status == JobStatus.RUNNING.value)
+            .values(status=JobStatus.FAILED.value, error=error)
         )
-        count: int = self._session.execute(count_stmt).scalar_one()
-        if count:
-            self._session.execute(
-                update(JobModel)
-                .where(JobModel.status == JobStatus.RUNNING.value)
-                .values(status=JobStatus.FAILED.value, error=error)
+        self._session.flush()
+
+    def requeue_running(self) -> int:
+        return self._affected(
+            update(JobModel)
+            .where(JobModel.status == JobStatus.RUNNING.value)
+            .values(status=JobStatus.QUEUED.value, started_at=None)
+        )
+
+    def fail_running(self, job_type: JobType, error: str) -> int:
+        return self._affected(
+            update(JobModel)
+            .where(
+                JobModel.status == JobStatus.RUNNING.value,
+                JobModel.job_type == job_type.value,
             )
-            self._session.flush()
-        return count
+            .values(status=JobStatus.FAILED.value, error=error)
+        )
+
+    # ── User actions ─────────────────────────────────────────────────
+
+    def cancel(self, selection: JobSelection) -> int:
+        return self._affected(
+            delete(JobModel).where(JobModel.status.in_(_ACTIVE_STATUSES), *_selected(selection))
+        )
+
+    def dismiss(self, selection: JobSelection) -> int:
+        return self._affected(
+            delete(JobModel).where(
+                JobModel.status == JobStatus.FAILED.value, *_selected(selection),
+            )
+        )
+
+    def retry(self, selection: JobSelection) -> int:
+        stmt = (
+            select(JobModel)
+            .where(JobModel.status == JobStatus.FAILED.value, *_selected(selection))
+            .order_by(*_QUEUE_ORDER)
+        )
+        failed = list(self._session.execute(stmt).scalars().all())
+        now = datetime.now(tz=UTC)
+        retried = 0
+        for model in failed:
+            if self._is_active(model.job_type, model.source_id, model.candidate_id):
+                self._session.delete(model)
+                continue
+            model.status = JobStatus.QUEUED.value
+            model.error = None
+            model.started_at = None
+            model.created_at = now
+            retried += 1
+        self._session.flush()
+        return retried
+
+    # ── Reads ────────────────────────────────────────────────────────
 
     def get(self, job_id: int) -> Job | None:
         model = self._session.get(JobModel, job_id)
         return model.to_entity() if model is not None else None
-
-    def job_exists(self, job_id: int) -> bool:
-        stmt = (
-            select(func.count())
-            .select_from(JobModel)
-            .where(JobModel.id == job_id)
-        )
-        return self._session.execute(stmt).scalar_one() > 0
 
     def has_active_jobs_for_source(
         self, source_id: int, job_types: frozenset[JobType] | None = None,
@@ -178,10 +212,7 @@ class SqlaJobRepository(JobRepository):
             .select_from(JobModel)
             .where(
                 JobModel.source_id == source_id,
-                JobModel.status.in_([
-                    JobStatus.QUEUED.value,
-                    JobStatus.RUNNING.value,
-                ]),
+                JobModel.status.in_(_ACTIVE_STATUSES),
             )
         )
         if job_types is not None:
@@ -238,22 +269,6 @@ class SqlaJobRepository(JobRepository):
                 result[model.candidate_id][model.job_type] = model.to_entity()
         return result
 
-    def get_source_ids_with_active_jobs(
-        self, job_type: JobType,
-    ) -> list[int]:
-        stmt = (
-            select(JobModel.source_id)
-            .where(
-                JobModel.job_type == job_type.value,
-                JobModel.status.in_([
-                    JobStatus.QUEUED.value,
-                    JobStatus.RUNNING.value,
-                ]),
-            )
-            .distinct()
-        )
-        return list(self._session.execute(stmt).scalars().all())
-
     def get_jobs_by_status(
         self,
         statuses: list[JobStatus],
@@ -264,7 +279,7 @@ class SqlaJobRepository(JobRepository):
         stmt = (
             select(JobModel)
             .where(JobModel.status.in_([s.value for s in statuses]))
-            .order_by(JobModel.created_at.asc(), JobModel.id.asc())
+            .order_by(*_QUEUE_ORDER)
         )
         if source_id is not None:
             stmt = stmt.where(JobModel.source_id == source_id)
@@ -279,17 +294,17 @@ class SqlaJobRepository(JobRepository):
         self,
         source_id: int | None = None,
         job_type: JobType | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[FailedJobGroup]:
+        error = func.coalesce(JobModel.error, UNKNOWN_JOB_ERROR)
         stmt = (
             select(
                 JobModel.job_type,
-                JobModel.error,
+                error.label("error"),
                 func.count().label("count"),
                 func.group_concat(JobModel.source_id).label("source_ids_csv"),
-                func.group_concat(JobModel.candidate_id).label("candidate_ids_csv"),
             )
             .where(JobModel.status == JobStatus.FAILED.value)
-            .group_by(JobModel.job_type, JobModel.error)
+            .group_by(JobModel.job_type, error)
             .order_by(func.count().desc())
         )
         if source_id is not None:
@@ -297,20 +312,32 @@ class SqlaJobRepository(JobRepository):
         if job_type is not None:
             stmt = stmt.where(JobModel.job_type == job_type.value)
 
-        rows = self._session.execute(stmt).all()
-        result: list[dict[str, Any]] = []
-        for row in rows:
-            source_ids_raw = str(row.source_ids_csv or "")
-            candidate_ids_raw = str(row.candidate_ids_csv or "")
-            source_counts = Counter(int(s) for s in source_ids_raw.split(",") if s)
-            source_ids = sorted(source_counts)
-            candidate_ids = [int(c) for c in candidate_ids_raw.split(",") if c]
-            result.append({
-                "job_type": row.job_type,
-                "error": row.error or "Unknown error",
-                "count": row.count,
-                "source_ids": source_ids,
-                "source_counts": dict(source_counts),
-                "candidate_ids": candidate_ids,
-            })
-        return result
+        return [
+            FailedJobGroup(
+                job_type=JobType(row.job_type),
+                error=row.error,
+                count=row._mapping["count"],
+                source_counts=dict(Counter(
+                    int(s) for s in str(row.source_ids_csv or "").split(",") if s
+                )),
+            )
+            for row in self._session.execute(stmt).all()
+        ]
+
+    # ── Helpers ──────────────────────────────────────────────────────
+
+    def _is_active(self, job_type: str, source_id: int, candidate_id: int | None) -> bool:
+        stmt = (
+            select(func.count())
+            .select_from(JobModel)
+            .where(
+                _same_key(job_type, source_id, candidate_id),
+                JobModel.status.in_(_ACTIVE_STATUSES),
+            )
+        )
+        return self._session.execute(stmt).scalar_one() > 0
+
+    def _affected(self, stmt: Update | Delete) -> int:
+        result: CursorResult[tuple[()]] = self._session.execute(stmt)  # type: ignore[assignment]
+        self._session.flush()
+        return result.rowcount

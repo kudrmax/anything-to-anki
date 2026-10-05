@@ -4,6 +4,7 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
+from backend.application.utils.candidate_filter import CandidateFilter, keep_all
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.fragment_surroundings import FragmentSurroundings
 
@@ -50,14 +51,19 @@ class PhrasePolishUseCase:
         self._ai_service = ai_service
         self._prompts_config = prompts_config
 
-    def execute_batch(self, candidate_ids: list[int]) -> None:
+    def execute_batch(
+        self,
+        candidate_ids: list[int],
+        still_wanted: CandidateFilter = keep_all,
+    ) -> list[int]:
+        """Returns the wanted candidates AI gave no answer for."""
         waiting = [
             c for c in self._candidate_repo.get_by_ids(candidate_ids)
             if c.id is not None and c.status in _ACTIVE_STATUSES and c.polished_fragment is None
         ]
         if not waiting:
             logger.info("PhrasePolish batch: nothing left to polish")
-            return
+            return []
 
         sources: dict[int, Source | None] = {}
         for c in waiting:
@@ -65,20 +71,25 @@ class PhrasePolishUseCase:
                 sources[c.source_id] = self._source_repo.get_by_id(c.source_id)
         polishable = [c for c in waiting if (s := sources[c.source_id]) and s.can_polish_phrases]
         if not polishable:
-            return
+            return []
 
         batch_prompt = "\n\n".join(
             f"Phrase {i}:\n{self._phrase_prompt(c, sources[c.source_id])}"
             for i, c in enumerate(polishable, 1)
         )
-        # Transient errors propagate -> worker marks the jobs failed for retry
+        # Errors propagate -> worker marks the jobs failed for retry
         results = self._ai_service.polish_phrases_batch(self._system_prompt(), batch_prompt)
         by_index = {r.phrase_index: r.phrase for r in results}
+        wanted = still_wanted([c.id for c in polishable if c.id is not None])
 
         changed = 0
+        unanswered: list[int] = []
         for i, c in enumerate(polishable, 1):
+            if c.id is None or c.id not in wanted:
+                continue
             answer = by_index.get(i)
-            if answer is None or c.id is None:
+            if answer is None:
+                unanswered.append(c.id)
                 continue
             phrase = self._accepted_phrase(c, answer)
             self._candidate_repo.set_polished_fragment(c.id, phrase)
@@ -87,9 +98,10 @@ class PhrasePolishUseCase:
                 changed += 1
 
         logger.info(
-            "PhrasePolish batch: %d answered, %d changed of %d",
-            len(by_index), changed, len(polishable),
+            "PhrasePolish batch: %d answered, %d changed of %d, %d still wanted",
+            len(by_index), changed, len(polishable), len(wanted),
         )
+        return unanswered
 
     def _system_prompt(self) -> str:
         cefr_level = (

@@ -53,7 +53,7 @@ def test_video_source_is_refused() -> None:
 
     with pytest.raises(PhrasePolishNotSupportedError):
         use_case.execute_one(1)
-    job_repo.create_bulk.assert_not_called()
+    job_repo.enqueue.assert_not_called()
 
 
 @pytest.mark.unit
@@ -65,4 +65,4 @@ def test_polish_again_drops_old_polish_and_queues_the_card() -> None:
     use_case.execute_one(4)
 
     candidate_repo.set_polished_fragment.assert_called_once_with(4, None)
-    assert [j.candidate_id for j in job_repo.create_bulk.call_args.args[0]] == [4]
+    assert [j.candidate_id for j in job_repo.enqueue.call_args.args[0]] == [4]

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from backend.domain.entities.job import Job
+    from backend.domain.value_objects.failed_job_group import FailedJobGroup
+    from backend.domain.value_objects.job_selection import JobSelection
     from backend.domain.value_objects.job_status import JobStatus
     from backend.domain.value_objects.job_type import JobType
 
@@ -14,11 +16,20 @@ DEFAULT_RUN_LIMIT: int = 1
 
 
 class JobRepository(ABC):
-    """Port for the job queue backed by SQLite."""
+    """Port for the job queue backed by SQLite.
+
+    A job is identified by its key: (job_type, candidate_id) for candidate jobs,
+    (job_type, source_id) for source-level jobs. The queue holds at most one
+    active (QUEUED or RUNNING) job per key, and a failed job stays only until
+    the same work is queued again or succeeds.
+    """
+
+    # ── Lifecycle ────────────────────────────────────────────────────
 
     @abstractmethod
-    def create_bulk(self, jobs: list[Job]) -> list[Job]:
-        """Insert jobs into the queue. Returns jobs with assigned IDs."""
+    def enqueue(self, jobs: list[Job]) -> list[Job]:
+        """Queue jobs at the tail. Jobs whose key is already active are skipped;
+        failed jobs with the same key are superseded. Returns the queued jobs."""
 
     @abstractmethod
     def claim_next_run(
@@ -37,47 +48,47 @@ class JobRepository(ABC):
         is claimed. Returns an empty list when nothing was claimed."""
 
     @abstractmethod
-    def mark_failed(self, job_id: int, error: str) -> None:
-        """Set job status to FAILED with error message."""
+    def running_ids(self, job_ids: list[int]) -> set[int]:
+        """The subset of ``job_ids`` still RUNNING. A job cancelled or failed by
+        timeout meanwhile is no longer RUNNING, and its result must be dropped."""
 
     @abstractmethod
-    def mark_failed_bulk(self, job_ids: list[int], error: str) -> None:
-        """Bulk FAILED for a list of job IDs."""
+    def complete(self, jobs: list[Job]) -> None:
+        """Remove finished jobs together with failed jobs of the same keys."""
 
     @abstractmethod
-    def delete(self, job_id: int) -> None:
-        """Remove a completed or cancelled job from the queue."""
+    def fail(self, job_ids: list[int], error: str) -> None:
+        """Mark RUNNING jobs FAILED. Jobs cancelled meanwhile stay gone."""
 
     @abstractmethod
-    def delete_bulk(self, job_ids: list[int]) -> None:
-        """Remove multiple jobs from the queue."""
+    def requeue_running(self) -> int:
+        """Return every RUNNING job to QUEUED in its original place.
+        Used when the worker starts: whatever was running was interrupted."""
 
     @abstractmethod
-    def delete_by_source_and_type(
-        self, source_id: int, job_type: JobType,
-    ) -> int:
-        """Delete all QUEUED and RUNNING jobs for source+type. Returns count.
-        Used by cancel endpoint."""
+    def fail_running(self, job_type: JobType, error: str) -> int:
+        """Mark every RUNNING job of the type FAILED. Returns how many."""
+
+    # ── User actions ─────────────────────────────────────────────────
 
     @abstractmethod
-    def delete_failed_by_source_and_type(
-        self, source_id: int, job_type: JobType,
-    ) -> list[Job]:
-        """Delete FAILED jobs for source+type, returning them before deletion.
-        Used by retry endpoint to know which candidates to re-enqueue."""
+    def cancel(self, selection: JobSelection) -> int:
+        """Remove the selected QUEUED and RUNNING jobs. Returns how many."""
 
     @abstractmethod
-    def fail_all_running(self, error: str) -> int:
-        """Mark all RUNNING jobs as FAILED. Used by worker startup reconciliation.
-        Returns count of affected rows."""
+    def dismiss(self, selection: JobSelection) -> int:
+        """Remove the selected FAILED jobs. Returns how many."""
+
+    @abstractmethod
+    def retry(self, selection: JobSelection) -> int:
+        """Queue the selected FAILED jobs again at the tail. A failed job whose
+        key is already active is dropped instead. Returns how many were queued."""
+
+    # ── Reads ────────────────────────────────────────────────────────
 
     @abstractmethod
     def get(self, job_id: int) -> Job | None:
         """Return the job, or None if it no longer exists."""
-
-    @abstractmethod
-    def job_exists(self, job_id: int) -> bool:
-        """Check if a job still exists. Used by CancellationToken."""
 
     @abstractmethod
     def has_active_jobs_for_source(
@@ -103,12 +114,6 @@ class JobRepository(ABC):
         takes precedence over failed."""
 
     @abstractmethod
-    def get_source_ids_with_active_jobs(
-        self, job_type: JobType,
-    ) -> list[int]:
-        """Return distinct source IDs that have QUEUED or RUNNING jobs of the given type."""
-
-    @abstractmethod
     def get_jobs_by_status(
         self,
         statuses: list[JobStatus],
@@ -116,16 +121,12 @@ class JobRepository(ABC):
         job_type: JobType | None = None,
         limit: int | None = None,
     ) -> list[Job]:
-        """Return jobs matching given statuses, ordered by created_at asc.
-        Used by queue management page to list active/queued jobs."""
+        """Return jobs matching given statuses, in queue order."""
 
     @abstractmethod
     def get_failed_grouped_by_error(
         self,
         source_id: int | None = None,
         job_type: JobType | None = None,
-    ) -> list[dict[str, Any]]:
-        """Return failed jobs grouped by (job_type, error).
-        Each dict: {job_type, error, count, source_ids, source_counts, candidate_ids};
-        source_counts maps source id to its number of failed jobs in the group.
-        Used by queue management page."""
+    ) -> list[FailedJobGroup]:
+        """Return failed jobs grouped by (job_type, error), largest group first."""

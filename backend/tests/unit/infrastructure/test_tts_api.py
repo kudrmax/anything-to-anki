@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.exceptions import CandidateNotFoundError
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import (
     get_container,
@@ -60,37 +60,19 @@ def _get_mock_container() -> MagicMock:
 
 @pytest.mark.unit
 class TestEnqueueCandidateTTS:
-    def test_returns_202_for_valid_candidate(self, client: TestClient) -> None:
-        mock_container = _get_mock_container()
-        mock_job_repo = MagicMock()
-        mock_container.job_repository.return_value = mock_job_repo
-
-        # Insert a real candidate into the in-memory DB
-        from backend.infrastructure.persistence.models import StoredCandidateModel
-
-        session_factory = app.dependency_overrides[get_session_factory]()
-        session = session_factory()
-        session.add(StoredCandidateModel(
-            id=1,
-            source_id=10,
-            lemma="test",
-            pos="NOUN",
-            zipf_frequency=4.0,
-            is_sweet_spot=True,
-            context_fragment="a test",
-            fragment_purity="clean",
-            occurrences=1,
-            status=CandidateStatus.LEARN.value,
-        ))
-        session.commit()
-        session.close()
+    def test_returns_202_and_queues_the_card(self, client: TestClient) -> None:
+        use_case = _get_mock_container().enqueue_candidate_tts_use_case.return_value
 
         response = client.post("/candidates/1/generate-tts")
 
         assert response.status_code == 202
         assert response.json() == {"status": "enqueued"}
+        use_case.execute.assert_called_once_with(1)
 
     def test_returns_404_for_missing_candidate(self, client: TestClient) -> None:
+        use_case = _get_mock_container().enqueue_candidate_tts_use_case.return_value
+        use_case.execute.side_effect = CandidateNotFoundError(9999)
+
         response = client.post("/candidates/9999/generate-tts")
 
         assert response.status_code == 404

@@ -25,10 +25,12 @@ from backend.domain.exceptions import (
     PermanentSourceError,
     SourceAlreadyProcessedError,
     SourceHasActiveJobsError,
+    SourceHasNoUrlError,
     SourceIsProcessingError,
     SourceNotFoundError,
     SourceNotReprocessableError,
     TopicTargetsMissingError,
+    VideoAlreadyDownloadedError,
 )
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.source_status import SourceStatus
@@ -191,35 +193,14 @@ def download_video(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, str]:
-    from datetime import UTC, datetime
-
-    from backend.domain.entities.job import Job
-    from backend.domain.value_objects.job_status import JobStatus
-    from backend.domain.value_objects.job_type import JobType
-    from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
-
-    repo = SqlaSourceRepository(session)
-    source = repo.get_by_id(source_id)
-    if source is None:
-        raise HTTPException(status_code=404, detail=f"Source {source_id} not found")
-    if source.source_url is None:
-        raise HTTPException(status_code=400, detail="Source has no URL")
-    if source.video_path is not None:
-        raise HTTPException(status_code=409, detail="Video already downloaded")
-
-    job_repo = container.job_repository(session)
-    job_repo.create_bulk([
-        Job(
-            id=None,
-            job_type=JobType.VIDEO_DOWNLOAD,
-            candidate_id=None,
-            source_id=source_id,
-            status=JobStatus.QUEUED,
-            error=None,
-            created_at=datetime.now(tz=UTC),
-            started_at=None,
-        ),
-    ])
+    try:
+        container.request_video_download_use_case(session).execute(source_id)
+    except SourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except SourceHasNoUrlError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except VideoAlreadyDownloadedError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     session.commit()
     return {"status": "downloading"}
 
