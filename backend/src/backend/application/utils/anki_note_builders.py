@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.application.utils.highlight import format_examples_as_list, highlight_all_forms
+from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -178,10 +179,13 @@ class ClozeNoteBuilder:
     def build(self, candidate: StoredCandidate, cloze: CandidateCloze) -> dict[str, str]:
         indices = cloze.hidden_word_indices
         hidden = self._builder.hidden_words(cloze.phrase, indices)
+        kind = cloze.hint_kind
+        if kind not in self._builder.available_hints(candidate.meaning, hidden):
+            kind = ClozeHintKind.NONE
         note = {
             CLOZE_FIELD_TEXT: self._builder.cloze_text(cloze.phrase, indices),
             CLOZE_FIELD_HINT: self._builder.hint_text(
-                cloze.hint_kind, candidate.meaning, hidden, cloze.custom_hint,
+                kind, candidate.meaning, hidden, cloze.custom_hint,
             ),
         }
         self._content.fill(note, candidate)

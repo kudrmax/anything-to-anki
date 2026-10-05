@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from unittest.mock import MagicMock
 
 import pytest
@@ -173,3 +174,14 @@ class TestSyncToAnkiCloze:
         [(model, note)] = self._added()
         assert model == "AnythingToAnkiCloze"
         assert note["Text"] == "She finally {{c1::gave up}} smoking last year."
+
+    def test_unavailable_hint_is_not_exported(self) -> None:
+        cloze = replace(_cloze(1, indices=(2, 3)), hint_kind=ClozeHintKind.SYNONYMS)
+        candidate = _give_up(cloze)
+        assert candidate.meaning is not None
+        leaking = replace(candidate.meaning, synonyms="give up, quit")
+        candidate = replace(candidate, meaning=leaking)
+        self._sync(candidate)
+
+        [(_, note)] = self._added()
+        assert note["Hint"] == ""
