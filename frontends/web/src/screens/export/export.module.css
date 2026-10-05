@@ -14,6 +14,4 @@
 .details { display: flex; flex-direction: column; gap: var(--s3); margin-top: var(--s3); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
 .examples { list-style: none; display: flex; flex-direction: column; gap: var(--s2); padding-left: var(--s5); border-left: var(--underline) solid var(--line); }
 .translation { grid-area: translation; min-width: 0; font-size: var(--fs-b); font-weight: var(--fw-m); line-height: var(--lh); overflow-wrap: anywhere; padding-top: var(--s1); }
-.more { grid-area: more; opacity: var(--reveal); transition: opacity var(--t); }
-.row:hover .more, .more:focus-within { opacity: 1; }
 .media { grid-area: media; }
