@@ -371,6 +371,7 @@ export interface QueueJob {
   status: 'running' | 'queued'
   position: number | null
   candidate_id: number | null
+  target: string | null
 }
 
 export interface FailedSource {

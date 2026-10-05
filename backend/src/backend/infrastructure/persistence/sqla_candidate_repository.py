@@ -123,6 +123,16 @@ class SqlaCandidateRepository(CandidateRepository):
         entities = [m.to_entity() for m in models]
         return self._bulk_attach(entities)
 
+    def get_lemma_map(self, candidate_ids: list[int]) -> dict[int, str]:
+        if not candidate_ids:
+            return {}
+        rows = (
+            self._session.query(StoredCandidateModel.id, StoredCandidateModel.lemma)
+            .filter(StoredCandidateModel.id.in_(candidate_ids))
+            .all()
+        )
+        return {row.id: row.lemma for row in rows}
+
     def delete_by_source(self, source_id: int) -> None:
         """Delete all candidates for a source.
 

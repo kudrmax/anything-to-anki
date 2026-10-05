@@ -873,6 +873,7 @@ class Container:
         return GetQueueSnapshotUseCase(
             job_repo=SqlaJobRepository(session),
             source_repo=SqlaSourceRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
         )
 
     def manage_queue_use_case(self, session: Session) -> ManageQueueUseCase:

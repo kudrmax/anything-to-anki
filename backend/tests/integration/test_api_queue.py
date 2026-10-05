@@ -74,15 +74,17 @@ def _insert_source(session: Session, source_id: int, title: str | None = None) -
     session.flush()
 
 
-def _insert_candidate(session: Session, candidate_id: int, source_id: int) -> None:
+def _insert_candidate(
+    session: Session, candidate_id: int, source_id: int, lemma: str = "word",
+) -> None:
     session.execute(
         text(
             "INSERT INTO candidates (id, source_id, lemma, pos, "
             "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
             "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-            "VALUES (:id, :sid, 'word', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
+            "VALUES (:id, :sid, :lemma, 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
         ),
-        {"id": candidate_id, "sid": source_id},
+        {"id": candidate_id, "sid": source_id, "lemma": lemma},
     )
     session.flush()
 
@@ -90,7 +92,7 @@ def _insert_candidate(session: Session, candidate_id: int, source_id: int) -> No
 def _insert_job(
     session: Session,
     job_id: int,
-    candidate_id: int,
+    candidate_id: int | None,
     source_id: int,
     job_type: str = "meaning",
     status: str = "queued",
@@ -177,6 +179,22 @@ class TestQueueSnapshot:
         assert [(j["job_id"], j["position"], j["source_title"]) for j in queue["queued"]] == [
             (2, 1, "Alpha"), (3, 2, "Beta"),
         ]
+
+    def test_names_the_target_of_each_candidate_job(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        _insert_source(db_session, 1, "Alpha")
+        _insert_candidate(db_session, 10, 1, lemma="procrastinate")
+        _insert_candidate(db_session, 11, 1, lemma="give in")
+        _insert_job(db_session, 1, 10, 1, status="running", started_at="2026-01-01 00:00:00")
+        _insert_job(db_session, 2, 11, 1)
+        _insert_job(db_session, 3, None, 1, job_type="video_download")
+        db_session.commit()
+
+        queue = client.get("/api/queue").json()
+
+        assert [j["target"] for j in queue["running"]] == ["procrastinate"]
+        assert [(j["job_id"], j["target"]) for j in queue["queued"]] == [(2, "give in"), (3, None)]
 
     def test_queued_limit_caps_the_list_but_not_the_total(
         self, client: TestClient, db_session: Session,

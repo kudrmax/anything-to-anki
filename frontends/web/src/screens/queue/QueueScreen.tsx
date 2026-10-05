@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { RefreshCw, Trash2, X, type LucideIcon } from 'lucide-react'
+import { ChevronDown, RefreshCw, Trash2, X, type LucideIcon } from 'lucide-react'
 import { api } from '@/api/client'
 import type { FailedGroup, QueueActionResult, QueueJob, QueueSelection, SourceSummary } from '@/api/types'
 import { useQueuePolling } from '@/hooks/useQueuePolling'
 import { Page, PageHeader } from '@/shell'
-import { Button, Empty, IconButton, Select, Spinner, Stat, StatGrid, Text, Toast, useToast } from '@/ui'
+import { Button, Empty, Icon, IconButton, Menu, Spinner, Stat, StatGrid, Text, Toast, useToast } from '@/ui'
 import css from './queue.module.css'
 
 const JOB_LABEL: Record<string, string> = {
@@ -42,11 +42,16 @@ function ActionIcon({ icon, label, onAct }: { icon: LucideIcon; label: string; o
   return <IconButton icon={icon} label={label} busy={busy} onClick={() => void act()} />
 }
 
-function JobRow({ job, run }: { job: QueueJob; run: RunAction }) {
+function JobRow({ job, showSource, run }: { job: QueueJob; showSource: boolean; run: RunAction }) {
   return (
     <div className={css.row}>
       <span className={css.type}>{jobLabel(job.job_type)}</span>
-      <span className={css.title} title={job.source_title}>{job.source_title}</span>
+      <span className={css.subject}>
+        {job.target !== null && <span className={css.target}>{job.target}</span>}
+        {(job.target === null || showSource) && (
+          <span className={job.target === null ? css.title : css.source} title={job.source_title}>{job.source_title}</span>
+        )}
+      </span>
       <span className={css.detail}>
         {job.status === 'running'
           ? <span className={css.running}><Spinner />Running</span>
@@ -111,10 +116,24 @@ export function QueueScreen() {
 
   const header = (
     <PageHeader title="Queue">
-      <Select value={sourceId ?? ''} onChange={e => setSourceId(e.target.value ? Number(e.target.value) : undefined)}>
-        <option value="">All sources</option>
-        {sources.map(source => <option key={source.id} value={source.id}>{source.title}</option>)}
-      </Select>
+      <Menu
+        align="start"
+        trigger={
+          <Button variant="link" className={css.sourceTrigger}>
+            <span className={css.sourceLabel}>{sources.find(source => source.id === sourceId)?.title ?? 'All sources'}</span>
+            <Icon as={ChevronDown} size="s" />
+          </Button>
+        }
+        items={[
+          { label: 'All sources', selected: sourceId === undefined, onSelect: () => setSourceId(undefined) },
+          ...sources.map((source, index) => ({
+            label: source.title,
+            selected: source.id === sourceId,
+            separated: index === 0,
+            onSelect: () => setSourceId(source.id),
+          })),
+        ]}
+      />
       <Button variant="link" disabled={totalFailed === 0} onClick={() => void run(api.retryQueue, scope, retried)}>Retry failed</Button>
       <Button variant="link" disabled={totalFailed === 0} onClick={() => void run(api.dismissQueue, scope, dismissed)}>Clear failed</Button>
       <Button variant="danger-link" disabled={totalQueued + totalRunning === 0} onClick={() => void run(api.cancelQueue, scope, cancelled)}>Cancel all</Button>
@@ -148,8 +167,8 @@ export function QueueScreen() {
     <FailedRow key={`${type.job_type}-${group.error_text}`} group={group} jobType={type.job_type} sourceId={sourceId} run={run} />
   )))
   const groups: { id: string; label: string; count: number; rows: ReactNode }[] = [
-    { id: 'running', label: 'Running', count: totalRunning, rows: queue?.running.map(job => <JobRow key={job.job_id} job={job} run={run} />) },
-    { id: 'queued', label: 'Queued', count: totalQueued, rows: queuedJobs.map(job => <JobRow key={job.job_id} job={job} run={run} />) },
+    { id: 'running', label: 'Running', count: totalRunning, rows: queue?.running.map(job => <JobRow key={job.job_id} job={job} showSource={sourceId === undefined} run={run} />) },
+    { id: 'queued', label: 'Queued', count: totalQueued, rows: queuedJobs.map(job => <JobRow key={job.job_id} job={job} showSource={sourceId === undefined} run={run} />) },
     { id: 'failed', label: 'Failed', count: totalFailed, rows: failedRows },
   ]
 

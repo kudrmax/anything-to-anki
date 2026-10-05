@@ -2,15 +2,20 @@
 .group + .group { margin-top: var(--s7); }
 .groupTitle { display: flex; gap: var(--s3); margin-bottom: var(--s3); font-size: var(--fs-xs); font-weight: var(--fw-m); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--tx3); }
 
-/* задача: тип | источник | положение | действие */
+/* задача: тип | target и источник | положение | действие */
 .row { display: grid; grid-template-columns: var(--queue-type-w) minmax(0, 1fr) var(--queue-detail-w) auto; align-items: center; gap: var(--s5); padding: var(--s3) 0; }
 .row > :last-child { justify-self: end; margin-right: var(--icon-inset-trim); }
 .row + .row { border-top: var(--bw) solid var(--line-soft); }
 .type { font-size: var(--fs-s); color: var(--tx3); }
 .title { display: block; font-size: var(--fs-b); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.subject { min-width: 0; display: flex; align-items: baseline; gap: var(--s3); }
+.target { flex: none; max-width: 50%; font-size: var(--fs-b); font-weight: var(--fw-m); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.source { min-width: 0; font-size: var(--fs-s); color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .failed { min-width: 0; display: flex; flex-direction: column; gap: var(--s1); }
 .detail { font-size: var(--fs-s); color: var(--tx3); text-align: right; font-variant-numeric: tabular-nums; }
 .running { display: inline-flex; align-items: center; gap: var(--s2); color: var(--ac); }
 .actions { display: flex; gap: var(--s1); }
 .more { padding-top: var(--s3); }
 .tileActions { display: flex; flex-wrap: wrap; gap: var(--s4); margin-top: var(--s2); }
+.sourceTrigger { gap: var(--s2); max-width: var(--menu); }
+.sourceLabel { overflow: hidden; text-overflow: ellipsis; }

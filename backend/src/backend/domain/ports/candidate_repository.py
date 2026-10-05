@@ -46,6 +46,10 @@ class CandidateRepository(ABC):
         """Get candidates by explicit list of IDs, preserving order."""
 
     @abstractmethod
+    def get_lemma_map(self, candidate_ids: list[int]) -> dict[int, str]:
+        """Return {candidate_id: lemma} for the given ids; missing ids are omitted."""
+
+    @abstractmethod
     def delete_by_source(self, source_id: int) -> None: ...
 
     @abstractmethod
