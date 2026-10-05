@@ -5,48 +5,46 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.anki_dtos import CardPreviewDTO, ExportSectionDTO, GlobalExportDTO
 from backend.application.utils.highlight import highlight_all_forms
-from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
+    from backend.application.utils.export_queue import ExportQueue
     from backend.domain.entities.stored_candidate import StoredCandidate
-    from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.source_repository import SourceRepository
 
 
 class GetExportCardsUseCase:
-    """Builds card previews for 'learn' candidates, grouped by source."""
+    """Builds card previews for 'learn' candidates not yet exported, grouped by source."""
 
     def __init__(
         self,
-        candidate_repo: CandidateRepository,
+        export_queue: ExportQueue,
         source_repo: SourceRepository,
         media_base_url: str = "/media",
     ) -> None:
-        self._candidate_repo = candidate_repo
+        self._export_queue = export_queue
         self._source_repo = source_repo
         self._media_base_url = media_base_url
 
     def execute(self, source_id: int) -> GlobalExportDTO:
-        candidates = self._candidate_repo.get_by_source(source_id)
-        learn = [c for c in candidates if c.status == CandidateStatus.LEARN]
-        if not learn:
-            return GlobalExportDTO(sections=[])
+        batch = self._export_queue.for_source(source_id)
+        if not batch.pending:
+            return GlobalExportDTO(sections=[], exported_count=batch.exported_count)
         source = self._source_repo.get_by_id(source_id)
         title = source.title if source and source.title else f"Source #{source_id}"
-        cards = [self._build_card(c) for c in learn]
-        return GlobalExportDTO(sections=[ExportSectionDTO(
-            source_id=source_id,
-            source_title=title,
-            cards=cards,
-        )])
+        cards = [self._build_card(c) for c in batch.pending]
+        return GlobalExportDTO(
+            sections=[ExportSectionDTO(
+                source_id=source_id,
+                source_title=title,
+                cards=cards,
+            )],
+            exported_count=batch.exported_count,
+        )
 
     def execute_all(self) -> GlobalExportDTO:
-        all_learn = self._candidate_repo.get_all_by_status(CandidateStatus.LEARN)
-        if not all_learn:
-            return GlobalExportDTO(sections=[])
-
+        batch = self._export_queue.for_all()
         sections: list[ExportSectionDTO] = []
-        for src_id, group in groupby(all_learn, key=lambda c: c.source_id):
+        for src_id, group in groupby(batch.pending, key=lambda c: c.source_id):
             candidates = list(group)
             source = self._source_repo.get_by_id(src_id)
             title = source.title if source and source.title else f"Source #{src_id}"
@@ -56,7 +54,7 @@ class GetExportCardsUseCase:
                 source_title=title,
                 cards=cards,
             ))
-        return GlobalExportDTO(sections=sections)
+        return GlobalExportDTO(sections=sections, exported_count=batch.exported_count)
 
     def _build_card(self, candidate: StoredCandidate) -> CardPreviewDTO:
         screenshot_url: str | None = None

@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
+from backend.application.utils.export_queue import ExportQueue
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -65,7 +66,7 @@ class TestSyncToAnkiUseCase:
         self.settings_repo.get.return_value = None  # use default deck
         self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.use_case = SyncToAnkiUseCase(
-            candidate_repo=self.candidate_repo,
+            export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
             anki_connector=self.anki_connector,
             settings_repo=self.settings_repo,
             anki_sync_repo=self.anki_sync_repo,
@@ -108,56 +109,40 @@ class TestSyncToAnkiUseCase:
         self.known_word_repo.add.assert_any_call("burnout", "NOUN")
         self.known_word_repo.add.assert_any_call("relentless", "NOUN")
 
-    def test_skips_already_synced_candidates(self) -> None:
+    def test_exports_only_not_yet_exported_candidates(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
             _make_candidate(1, "burnout", CandidateStatus.LEARN),
             _make_candidate(2, "relentless", CandidateStatus.LEARN),
         ]
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}  # burnout already synced
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}  # burnout already exported
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [99999]
 
         result = self.use_case.execute(source_id=1)
 
-        assert result.total == 2
+        assert result.total == 1
         assert result.added == 1
-        assert result.skipped == 1
-        assert result.skipped_lemmas == ["burnout"]
-        # burnout should NOT be passed to add_notes
+        assert result.skipped == 0
+        assert result.skipped_lemmas == []
+        self.anki_connector.add_notes.assert_called_once()
         call_notes = self.anki_connector.add_notes.call_args[1]["notes"]
         assert call_notes[0]["Target"] == "relentless"
+        self.known_word_repo.add.assert_called_once_with("relentless", "NOUN")
 
-    def test_skips_already_synced_and_adds_to_known_words(self) -> None:
-        """Already-synced candidates must be added to known_words."""
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "burnout", CandidateStatus.LEARN),
-            _make_candidate(2, "relentless", CandidateStatus.LEARN),
-        ]
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1, 2}
-        self.anki_connector.is_available.return_value = True
-
-        self.use_case.execute(source_id=1)
-
-        assert self.known_word_repo.add.call_count == 2
-        self.known_word_repo.add.assert_any_call("burnout", "NOUN")
-        self.known_word_repo.add.assert_any_call("relentless", "NOUN")
-
-    def test_all_already_synced_returns_without_calling_anki(self) -> None:
+    def test_all_already_exported_returns_without_calling_anki(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
             _make_candidate(1, "burnout", CandidateStatus.LEARN),
         ]
         self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}
-        self.anki_connector.is_available.return_value = True
 
         result = self.use_case.execute(source_id=1)
 
-        assert result.total == 1
+        assert result.total == 0
         assert result.added == 0
-        assert result.skipped == 1
-        self.anki_connector.ensure_note_type.assert_not_called()
+        assert result.skipped == 0
+        self.anki_connector.is_available.assert_not_called()
         self.anki_connector.add_notes.assert_not_called()
-        # Even though no Anki calls, known_words should be updated
-        self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
+        self.known_word_repo.add.assert_not_called()
 
     def test_marks_synced_after_successful_add(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -351,6 +336,27 @@ class TestSyncToAnkiUseCase:
         assert result.total == 2
         assert result.added == 2
         assert result.errors == 0
+
+    def test_execute_all_skips_sources_with_everything_exported(self) -> None:
+        exported = _make_candidate(10, "burnout", CandidateStatus.LEARN, source_id=1)
+        fresh = _make_candidate(20, "pursuit", CandidateStatus.LEARN, source_id=2)
+
+        self.candidate_repo.get_all_by_status.return_value = [exported, fresh]
+        self.candidate_repo.get_by_source.side_effect = lambda sid: {
+            1: [exported],
+            2: [fresh],
+        }[sid]
+        self.anki_sync_repo.get_synced_candidate_ids.side_effect = (
+            lambda ids: {10} & set(ids)
+        )
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        result = self.use_case.execute_all()
+
+        assert result.total == 1
+        assert result.added == 1
+        self.candidate_repo.get_by_source.assert_called_once_with(2)
 
     def test_execute_all_empty_when_no_learn(self) -> None:
         self.candidate_repo.get_all_by_status.return_value = []

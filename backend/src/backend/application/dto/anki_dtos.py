@@ -37,9 +37,10 @@ class ExportSectionDTO(BaseModel):
 
 
 class GlobalExportDTO(BaseModel):
-    """All cards for export, grouped by source."""
+    """Cards still waiting for export, grouped by source."""
 
     sections: list[ExportSectionDTO]
+    exported_count: int = 0  # 'learn' cards in scope that are already in Anki
 
 
 class SyncResultDTO(BaseModel):
@@ -47,7 +48,7 @@ class SyncResultDTO(BaseModel):
 
     total: int
     added: int
-    skipped: int   # already in anki_synced_cards (previously synced successfully)
+    skipped: int   # rejected by Anki as duplicates of notes already in the deck
     errors: int
     skipped_lemmas: list[str] = []
     error_lemmas: list[str] = []

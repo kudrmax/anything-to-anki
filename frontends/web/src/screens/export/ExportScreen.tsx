@@ -22,7 +22,7 @@ function ExportView({ sourceId }: { sourceId: number | undefined }) {
     return <Page wide header={<PageHeader title="Export" back={back} />}><Empty><Spinner /></Empty></Page>
   }
 
-  const { ankiStatus, sections, settings, result, totalCards } = exporter
+  const { ankiStatus, sections, exportedCount, settings, result, totalCards } = exporter
   // Колонка превью нужна всем строкам, если видео есть хоть у одной: иначе колонки разъезжаются.
   const withMedia = sections.some(section => section.cards.some(card => card.screenshot_url || card.audio_url))
   const ankiLabel = ankiStatus === null ? 'Checking…' : ankiStatus.available ? 'Anki connected' : 'Anki unavailable'
@@ -46,6 +46,7 @@ function ExportView({ sourceId }: { sourceId: number | undefined }) {
         <Stat value={`${exporter.readyCards} / ${totalCards}`} label="ready to export" progress={totalCards > 0 ? exporter.readyCards / totalCards : 0} wide />
         <Stat small value={settings?.anki_deck_name ?? '—'} label="deck" />
         <Stat small value={settings?.anki_note_type ?? '—'} label="note type" />
+        {exportedCount > 0 && <Stat small value={exportedCount} label="already exported" wide />}
       </StatGrid>
       {result && (
         <StatGrid>
@@ -68,7 +69,13 @@ function ExportView({ sourceId }: { sourceId: number | undefined }) {
 
   return (
     <Page wide header={header} aside={aside} banner={(exporter.error || ankiStatus?.available === false) ? banner : undefined}>
-      {totalCards === 0 && <Empty>No words marked for learning. Go to the review page and mark words as “Learn”.</Empty>}
+      {totalCards === 0 && (
+        <Empty>
+          {exportedCount > 0
+            ? 'Everything marked for learning is already in Anki.'
+            : 'No words marked for learning. Go to the review page and mark words as “Learn”.'}
+        </Empty>
+      )}
       {sections.map(section => (
         <section key={section.source_id} className={css.group}>
           {sourceId === undefined && (

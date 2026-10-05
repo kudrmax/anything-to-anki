@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { ExportSection, Settings, SyncResult } from '@/api/types'
+import type { ExportSection, GlobalExport, Settings, SyncResult } from '@/api/types'
 import { useAnkiStatus } from '@/hooks/useAnkiStatus'
 import { useToast } from '@/ui'
 
@@ -8,6 +8,7 @@ import { useToast } from '@/ui'
 export function useExport(sourceId?: number) {
   const ankiStatus = useAnkiStatus()
   const [sections, setSections] = useState<ExportSection[]>([])
+  const [exportedCount, setExportedCount] = useState(0)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -17,11 +18,15 @@ export function useExport(sourceId?: number) {
   const [generatingAll, setGeneratingAll] = useState(false)
   const [toast, showToast] = useToast()
 
+  const applyExport = useCallback((data: GlobalExport) => {
+    setSections(data.sections)
+    setExportedCount(data.exported_count)
+  }, [])
+
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await api.getExportCards(sourceId)
-        setSections(data.sections)
+        applyExport(await api.getExportCards(sourceId))
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load')
       } finally {
@@ -30,19 +35,20 @@ export function useExport(sourceId?: number) {
     }
     void load()
     api.getSettings().then(setSettings).catch(() => {})
-  }, [sourceId])
+  }, [sourceId, applyExport])
 
   const sync = useCallback(async () => {
     setSyncing(true)
     setError(null)
     try {
       setResult(await api.syncToAnki(sourceId))
+      applyExport(await api.getExportCards(sourceId))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sync failed')
     } finally {
       setSyncing(false)
     }
-  }, [sourceId])
+  }, [sourceId, applyExport])
 
   const generate = useCallback(async (candidateId: number) => {
     setGeneratingIds(prev => new Set(prev).add(candidateId))
@@ -71,21 +77,20 @@ export function useExport(sourceId?: number) {
     setError(null)
     try {
       for (const section of sections) await api.runGeneration(section.source_id, 'meaning', 'missing')
-      const updated = await api.getExportCards(sourceId)
-      setSections(updated.sections)
+      applyExport(await api.getExportCards(sourceId))
       showToast('Generation started in background')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed')
     } finally {
       setGeneratingAll(false)
     }
-  }, [sections, sourceId, showToast])
+  }, [sections, sourceId, showToast, applyExport])
 
   const cards = sections.flatMap(section => section.cards)
   const totalCards = cards.length
 
   return {
-    ankiStatus, sections, settings, loading, syncing, result, error, generatingIds, generatingAll, toast,
+    ankiStatus, sections, exportedCount, settings, loading, syncing, result, error, generatingIds, generatingAll, toast,
     totalCards, readyCards: cards.filter(card => card.meaning).length,
     canSync: ankiStatus?.available === true && totalCards > 0 && !syncing,
     canGenerateAll: totalCards > 0 && !generatingAll && generatingIds.size === 0,

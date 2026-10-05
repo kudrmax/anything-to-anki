@@ -8,15 +8,14 @@ from backend.application.dto.anki_dtos import SyncResultDTO
 from backend.application.use_cases.manage_settings import build_anki_field_map
 from backend.application.utils.highlight import format_examples_as_list, highlight_all_forms
 from backend.domain.exceptions import AnkiNotAvailableError
-from backend.domain.value_objects.candidate_status import CandidateStatus
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
+    from backend.application.utils.export_queue import ExportQueue
     from backend.domain.ports.anki_connector import AnkiConnector
     from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
-    from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.settings_repository import SettingsRepository
 
@@ -37,18 +36,18 @@ _DEFAULT_FIELD_AUDIO_TTS: str = "AudioTTS"
 
 
 class SyncToAnkiUseCase:
-    """Generates Anki cards for 'learn' candidates and pushes them via AnkiConnect."""
+    """Pushes not yet exported 'learn' candidates to Anki as cards via AnkiConnect."""
 
     def __init__(
         self,
-        candidate_repo: CandidateRepository,
+        export_queue: ExportQueue,
         anki_connector: AnkiConnector,
         settings_repo: SettingsRepository,
         anki_sync_repo: AnkiSyncRepository,
         template_renderer: AnkiTemplateRenderer,
         known_word_repo: KnownWordRepository,
     ) -> None:
-        self._candidate_repo = candidate_repo
+        self._export_queue = export_queue
         self._connector = anki_connector
         self._settings_repo = settings_repo
         self._anki_sync_repo = anki_sync_repo
@@ -108,12 +107,11 @@ class SyncToAnkiUseCase:
             or _DEFAULT_FIELD_AUDIO_TTS
         )
 
-        candidates = self._candidate_repo.get_by_source(source_id)
-        learn_candidates = [c for c in candidates if c.status == CandidateStatus.LEARN]
+        pending = self._export_queue.for_source(source_id).pending
 
-        total = len(learn_candidates)
+        total = len(pending)
         logger.info(
-            "sync_to_anki: start (source_id=%d, deck=%s, learn_candidates=%d)",
+            "sync_to_anki: start (source_id=%d, deck=%s, pending=%d)",
             source_id, deck_name, total,
         )
         if total == 0:
@@ -122,21 +120,8 @@ class SyncToAnkiUseCase:
         if not self._connector.is_available():
             raise AnkiNotAvailableError()
 
-        candidate_ids = [c.id for c in learn_candidates if c.id is not None]
-        already_synced = self._anki_sync_repo.get_synced_candidate_ids(candidate_ids)
-        already_synced_candidates = [c for c in learn_candidates if c.id in already_synced]
-        pending = [c for c in learn_candidates if c.id not in already_synced]
-        skipped = len(already_synced_candidates)
-        skipped_lemmas: list[str] = [c.lemma for c in already_synced_candidates]
-
-        for c in already_synced_candidates:
-            self._known_word_repo.add(c.lemma, c.pos)
-
-        if not pending:
-            return SyncResultDTO(
-                total=total, added=0, skipped=skipped, errors=0,
-                skipped_lemmas=skipped_lemmas,
-            )
+        skipped = 0
+        skipped_lemmas: list[str] = []
 
         active_fields = [
             f for f in [
@@ -344,12 +329,12 @@ class SyncToAnkiUseCase:
         )
 
     def execute_all(self) -> SyncResultDTO:
-        """Sync all sources with learn candidates to Anki."""
-        all_learn = self._candidate_repo.get_all_by_status(CandidateStatus.LEARN)
-        if not all_learn:
+        """Sync all sources with not yet exported learn candidates to Anki."""
+        pending = self._export_queue.for_all().pending
+        if not pending:
             return SyncResultDTO(total=0, added=0, skipped=0, errors=0)
 
-        source_ids = list(dict.fromkeys(c.source_id for c in all_learn))
+        source_ids = list(dict.fromkeys(c.source_id for c in pending))
 
         total = 0
         added = 0

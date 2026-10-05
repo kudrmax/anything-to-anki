@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
+from backend.application.utils.export_queue import ExportQueue
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
@@ -53,7 +54,7 @@ class TestSyncToAnkiTemplates:
 
         known_word_repo = MagicMock()
         use_case = SyncToAnkiUseCase(
-            candidate_repo=candidate_repo,
+            export_queue=ExportQueue(candidate_repo, anki_sync_repo),
             anki_connector=anki_connector,
             settings_repo=settings_repo,
             anki_sync_repo=anki_sync_repo,

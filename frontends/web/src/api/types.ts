@@ -199,6 +199,7 @@ export interface ExportSection {
 
 export interface GlobalExport {
   sections: ExportSection[]
+  exported_count: number
 }
 
 export interface SyncResult {
