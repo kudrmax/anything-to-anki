@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, Clapperboard, Feather, Flag, GitCompare, HelpCircle, Image, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { decisionChange, type Decision } from '@/lib/decision'
 import { Button, Field, Icon, IconButton, Menu, Spinner, type MenuItem, type MenuPage } from '@/ui'
@@ -127,25 +127,13 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
     onSelect,
   })
 
-  const polished = candidate.polished_fragment
-  const phraseItems: MenuItem[] = [
+  const editItems: MenuItem[] = [
     { label: 'Edit text', hint: 'Fix words in the phrase', icon: TextCursorInput, onSelect: onEditPhrase },
     { label: 'Change boundary', hint: 'Pick the phrase in the source', icon: TextSelect, onSelect: () => review.startEditing(id) },
-    ...(polished ? [{
-      label: 'Compare with original',
-      hint: candidate.polish_reverted ? 'Showing the original now' : 'See what AI changed',
-      icon: GitCompare,
-      separated: true,
-      page: { items: [], footer: (close: () => void) => <PolishComparison candidate={candidate} polished={polished} review={review} onDone={close} /> },
-    }] : []),
-    ...(review.source?.can_polish_phrases ? [{
-      ...actionItem(polished ? 'Polish again' : 'Polish', WandSparkles, polishing, () => void review.polishAgain(id), 'AI simplifies the phrase'),
-      separated: !polished,
-    }] : []),
   ]
 
   const meaningItems: MenuItem[] = [
-    actionItem(hasMeaning ? 'Regenerate' : 'Generate', RefreshCw, busy.meaning, () => void review.generate(id), 'Definition, translation, examples'),
+    actionItem(hasMeaning ? 'Regenerate all' : 'Generate', RefreshCw, busy.meaning, () => void review.generate(id), 'Definition, translation, examples'),
     ...(hasMeaning && !isRated ? [
       ...FOLLOW_UP_PRESETS.map((preset, index) => ({
         label: preset.label,
@@ -157,14 +145,29 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
       { label: 'Your own question', icon: HelpCircle, disabled: busy.meaning, page: askPage },
     ] : []),
   ]
+  const meaningEntry: MenuItem = meaningItems.length === 1
+    ? { ...meaningItems[0], label: 'Meaning' }
+    : { label: 'Meaning', hint: 'From scratch or a single part', icon: Sparkles, lead: busy.meaning ? <Spinner /> : undefined, items: meaningItems }
 
-  const mediaItems: MenuItem[] = [
-    actionItem('Choose a picture', ImagePlus, busy.image, () => setPickingImage(true), 'Image of the word'),
-    ...(isVideo ? [actionItem('Regenerate clip', Clapperboard, busy.media, () => void review.regenerateMedia(id), 'Screenshot and clip from the video')] : []),
-    actionItem('Regenerate speech', Speech, busy.tts, () => void review.generateTTS(id), 'Phrase read aloud'),
+  const polished = candidate.polished_fragment
+  const polishEntry: MenuItem = polished && !polishing
+    ? {
+      label: 'Polish',
+      hint: candidate.polish_reverted ? 'Original is in use — compare' : 'Compare, revert, polish again',
+      icon: WandSparkles,
+      page: { items: [], footer: close => <PolishComparison candidate={candidate} polished={polished} review={review} onDone={close} /> },
+    }
+    : actionItem('Polish', WandSparkles, polishing, () => void review.polishAgain(id), 'AI simplifies the phrase')
+
+  const regenerateItems: MenuItem[] = [
+    meaningEntry,
+    ...(review.source?.can_polish_phrases || polished ? [polishEntry] : []),
+    actionItem('Speech', Speech, busy.tts, () => void review.generateTTS(id), 'Phrase read aloud'),
+    ...(isVideo ? [actionItem('Screenshot and clip', Clapperboard, busy.media, () => void review.regenerateMedia(id), 'From the video')] : []),
   ]
+  const regenerating = busy.meaning || busy.media || busy.tts || polishing
 
-  const toolTrigger = (icon: LucideIcon, label: string, isBusy: boolean, className?: string) => (
+  const menuTrigger = (icon: LucideIcon, label: string, isBusy: boolean, className?: string) => (
     <Button variant="link" className={[css.iconTrigger, className].filter(Boolean).join(' ')} title={label} aria-label={label}>
       {isBusy ? <Spinner /> : <Icon as={icon} />}
     </Button>
@@ -173,13 +176,13 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   return (
     <div className={css.tools}>
       {isEditing && <IconButton icon={X} label="Cancel editing" active onClick={review.cancelEditing} />}
-      <Menu items={phraseItems} trigger={toolTrigger(Pencil, 'Phrase: edit, boundary, polish', polishing)} />
-      <Menu items={meaningItems} trigger={toolTrigger(Sparkles, 'Meaning: regenerate, ask AI', busy.meaning)} />
-      <Menu items={mediaItems} trigger={toolTrigger(Image, 'Media: picture, clip, speech', busy.image || busy.media || busy.tts)} />
+      <IconButton icon={ImagePlus} label="Choose a picture of the word" busy={busy.image} onClick={() => setPickingImage(true)} />
+      <Menu items={editItems} trigger={menuTrigger(Pencil, 'Edit phrase', false)} />
+      <Menu items={regenerateItems} trigger={menuTrigger(RefreshCw, 'Regenerate', regenerating)} />
       <Menu
         items={report.items}
         footer={report.footer}
-        trigger={toolTrigger(
+        trigger={menuTrigger(
           Flag,
           candidate.reported ? 'Reported — report another problem' : 'Report a problem with this card',
           false,
