@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '@/api/client'
 import type { AudioTrack, SourceSummary, SourceType, SubtitleTrack } from '@/api/types'
-import { detectedFileType, detectedUrlType, isVideoPath } from '@/lib/text/sourceInput'
+import { nativeHost } from '@/lib/nativeHost'
+import { detectedFileType, detectedUrlType, isVideoPath, withDroppedPaths } from '@/lib/text/sourceInput'
 import { pickedWords, toggled } from '@/lib/text/words'
 import { Button, Field, Label, Segmented, Stack, Tabs, Text, TextArea, WordPicker } from '@/ui'
+import css from './AddSourceForm.module.css'
 import { PathField } from './PathField'
 import { TrackSelectionModal } from './TrackSelectionModal'
+import { useFileDrag } from './useFileDrag'
 
 type Tab = 'text' | 'url' | 'file' | 'topic' | 'phrase'
 type TextType = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file'
@@ -35,6 +38,9 @@ const PHRASE_SAVED = 'Phrase saved'
 const SUBTITLE_EXTENSIONS = ['srt']
 const NO_SUBTITLES_ERROR = 'subtitles_not_available'
 const PREVIEW_LENGTH = 100
+const DROP_HINT = 'Drop the file here'
+const DRAG_HINT = 'or drag a file here'
+const BROWSER_DROP_ERROR = 'Dropped files reach the app only in the macOS app — enter the path instead'
 
 interface PendingTracks {
   filePath: string
@@ -66,6 +72,25 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingTracks, setPendingTracks] = useState<PendingTracks | null>(null)
+  const [host] = useState(() => nativeHost())
+
+  const fileDrag = useFileDrag({
+    onEnter: () => {
+      setTab('file')
+      setError(null)
+    },
+    onBrowserDrop: () => setError(BROWSER_DROP_ERROR),
+  })
+  const resetFileDrag = fileDrag.reset
+
+  useEffect(() => host?.onFileDrop(paths => {
+    resetFileDrag()
+    setTab('file')
+    setError(null)
+    const chosen = withDroppedPaths({ filePath, srtPath }, paths)
+    setFilePath(chosen.filePath)
+    setSrtPath(chosen.srtPath)
+  }), [host, filePath, srtPath, resetFileDrag])
 
   const addUrl = async () => {
     if (!url.trim()) { setError('Please enter a URL'); return }
@@ -230,11 +255,14 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
           )}
           {tab === 'file' && (
             <>
+              {fileDrag.dragging && <div className={css.dropZone}>{DROP_HINT}</div>}
               <PathField value={filePath} placeholder="/path/to/movie.mkv" onChange={setFilePath} onError={setError} />
               {isVideoPath(filePath) && (
                 <PathField value={srtPath} placeholder="/path/to/subtitles.srt (optional)" extensions={SUBTITLE_EXTENSIONS} onChange={setSrtPath} onError={setError} />
               )}
-              {filePath.trim() && <Text tone="muted" size="s">{detectedFileType(filePath)}</Text>}
+              {filePath.trim()
+                ? <Text tone="muted" size="s">{detectedFileType(filePath)}</Text>
+                : host && !fileDrag.dragging && <Text tone="muted" size="s">{DRAG_HINT}</Text>}
             </>
           )}
           {tab === 'topic' && (
