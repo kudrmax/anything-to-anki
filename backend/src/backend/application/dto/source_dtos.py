@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from backend.application.dto.cefr_dtos import (
     CEFRBreakdownDTO,  # noqa: TC001 — Pydantic needs this at runtime
 )
+from backend.application.dto.cloze_dtos import CandidateClozeDTO
+from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.job_type import JobType
 
@@ -139,6 +141,9 @@ class StoredCandidateDTO(BaseModel):
     usage_distribution: dict[str, float] | None = None
     frequency_band: str | None = None
     origin: PhraseOriginDTO | None = None
+    cloze: CandidateClozeDTO | None = None
+    # False once the card is in Anki: its note type can no longer change.
+    can_cloze: bool = True
 
 
 class SourceDetailDTO(BaseModel):
@@ -245,6 +250,7 @@ def stored_candidate_to_dto(
     c: StoredCandidate,
     jobs_by_candidate: dict[int, dict[str, Job]] | None = None,
     reported_ids: set[int] | None = None,
+    synced_ids: set[int] | None = None,
 ) -> StoredCandidateDTO:
     """Canonical converter: StoredCandidate entity → StoredCandidateDTO.
 
@@ -253,6 +259,8 @@ def stored_candidate_to_dto(
 
     ``jobs_by_candidate`` maps candidate_id → {job_type_value: Job}.
     When provided, enrichment status/error are derived from jobs.
+
+    ``synced_ids`` are the candidates already in Anki; they can't become cloze cards.
     """
     from backend.application.dto.cefr_dtos import breakdown_to_dto
 
@@ -392,4 +400,17 @@ def stored_candidate_to_dto(
             if c.origin is not None
             else None
         ),
+        cloze=_cloze_dto(c),
+        can_cloze=synced_ids is None or c.id not in synced_ids,
+    )
+
+
+def _cloze_dto(c: StoredCandidate) -> CandidateClozeDTO | None:
+    cloze = ClozeBuilder().effective(c)
+    if cloze is None:
+        return None
+    return CandidateClozeDTO(
+        hidden_word_indices=list(cloze.hidden_word_indices),
+        hint_kind=cloze.hint_kind.value,
+        custom_hint=cloze.custom_hint,
     )

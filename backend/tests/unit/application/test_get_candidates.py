@@ -28,12 +28,15 @@ class TestGetCandidatesUseCase:
         self.job_repo.get_jobs_for_candidates.return_value = {}
         self.report_repo = MagicMock()
         self.report_repo.reported_candidate_ids.return_value = set()
+        self.anki_sync_repo = MagicMock()
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.use_case = GetCandidatesUseCase(
             source_repo=self.source_repo,
             candidate_repo=self.candidate_repo,
             candidate_sorter=candidate_sorter(self.settings_repo),
             job_repo=self.job_repo,
             report_repo=self.report_repo,
+            anki_sync_repo=self.anki_sync_repo,
         )
 
     def test_returns_candidates_for_source(self) -> None:
@@ -49,6 +52,19 @@ class TestGetCandidatesUseCase:
         result = self.use_case.execute(1)
         assert len(result) == 1
         assert result[0].lemma == "test"
+
+    def test_forbids_cloze_for_synced_candidates(self) -> None:
+        self.source_repo.get_by_id.return_value = MagicMock()
+        self.candidate_repo.get_by_source.return_value = [
+            StoredCandidate(
+                id=1, source_id=1, lemma="test", pos="NOUN",
+                cefr_level="B2", zipf_frequency=3.5,
+                context_fragment="a test", fragment_purity="clean",
+                occurrences=1, status=CandidateStatus.LEARN,
+            ),
+        ]
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}
+        assert self.use_case.execute(1)[0].can_cloze is False
 
     def test_source_not_found(self) -> None:
         self.source_repo.get_by_id.return_value = None

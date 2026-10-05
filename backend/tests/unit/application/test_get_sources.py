@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.domain.entities.source import Source
+from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
@@ -23,6 +24,8 @@ class TestGetSourcesUseCase:
         self.job_repo.get_jobs_for_candidates.return_value = {}
         self.report_repo = MagicMock()
         self.report_repo.reported_candidate_ids.return_value = set()
+        self.anki_sync_repo = MagicMock()
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.collection_repo = MagicMock()
         self.collection_repo.list_all.return_value = []
         self.topic_target_repo = MagicMock()
@@ -35,6 +38,7 @@ class TestGetSourcesUseCase:
             collection_repo=self.collection_repo,
             topic_target_repo=self.topic_target_repo,
             report_repo=self.report_repo,
+            anki_sync_repo=self.anki_sync_repo,
         )
 
     def test_list_all(self) -> None:
@@ -90,8 +94,6 @@ class TestGetSourcesUseCase:
         self.job_repo.get_jobs_by_status.assert_not_called()
 
     def test_list_all_learn_count(self) -> None:
-        from backend.domain.entities.stored_candidate import StoredCandidate
-
         self.source_repo.list_all.return_value = [
             Source(id=1, raw_text="Text one", status=SourceStatus.DONE,
                    input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT),
@@ -150,6 +152,24 @@ class TestGetSourcesUseCase:
         self.candidate_repo.get_by_source.return_value = []
         result = self.use_case.get_by_id(1, sort_order=CandidateSortOrder.KEY_WORDS)
         assert result.initially_shown_candidates == 15
+
+    def test_get_by_id_forbids_cloze_for_synced_candidates(self) -> None:
+        self.source_repo.get_by_id.return_value = Source(
+            id=1, raw_text="Hello", status=SourceStatus.DONE,
+            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
+        )
+        self.candidate_repo.get_by_source.return_value = [
+            StoredCandidate(
+                id=cid, source_id=1, lemma=lemma, pos="NOUN", cefr_level="B2",
+                zipf_frequency=3.5, context_fragment=f"a {lemma}", fragment_purity="clean",
+                occurrences=1, status=CandidateStatus.LEARN,
+            )
+            for cid, lemma in [(1, "burnout"), (2, "lizard")]
+        ]
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}
+        result = self.use_case.get_by_id(1)
+        can_cloze = {c.id: c.can_cloze for c in result.candidates}
+        assert can_cloze == {1: False, 2: True}
 
     def test_get_by_id_not_found(self) -> None:
         self.source_repo.get_by_id.return_value = None

@@ -159,3 +159,17 @@ class TestManageSettingsUseCase:
         req = UpdateSettingsRequest(tts_speed=0.75)
         self.use_case.update_settings(req)
         self.settings_repo.set.assert_any_call("tts_speed", "0.75")
+
+    def test_cloze_default_hint_defaults_to_none(self) -> None:
+        self.settings_repo.get.return_value = None
+        assert self.use_case.get_settings().cloze_default_hint == "none"
+
+    def test_update_cloze_default_hint(self) -> None:
+        self.settings_repo.get.return_value = None
+        self.use_case.update_settings(UpdateSettingsRequest(cloze_default_hint="first_letter"))
+        self.settings_repo.set.assert_any_call("cloze_default_hint", "first_letter")
+
+    @pytest.mark.parametrize("value", ["custom", "bogus"])
+    def test_cloze_default_hint_rejects_unknown_kinds(self, value: str) -> None:
+        with pytest.raises(ValueError, match="cloze_default_hint must be one of"):
+            UpdateSettingsRequest(cloze_default_hint=value)

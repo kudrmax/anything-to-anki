@@ -19,6 +19,7 @@ from backend.domain.value_objects.job_type import JobType
 if TYPE_CHECKING:
     from backend.application.utils.candidate_sorter import CandidateSorter
     from backend.domain.entities.source import Source
+    from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.card_report_repository import CardReportRepository
     from backend.domain.ports.collection_repository import CollectionRepository
@@ -51,6 +52,7 @@ class GetSourcesUseCase:
         collection_repo: CollectionRepository,
         topic_target_repo: TopicTargetRepository,
         report_repo: CardReportRepository,
+        anki_sync_repo: AnkiSyncRepository,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
@@ -59,6 +61,7 @@ class GetSourcesUseCase:
         self._collection_repo = collection_repo
         self._topic_target_repo = topic_target_repo
         self._report_repo = report_repo
+        self._anki_sync_repo = anki_sync_repo
 
     def list_all(self, *, collection_id: int | None = None) -> list[SourceDTO]:
         sources = self._source_repo.list_all()
@@ -146,6 +149,7 @@ class GetSourcesUseCase:
         candidate_ids = [c.id for c in candidates if c.id is not None]
         jobs_by_candidate = self._job_repo.get_jobs_for_candidates(candidate_ids)
         reported_ids = self._report_repo.reported_candidate_ids(candidate_ids)
+        synced_ids = self._anki_sync_repo.get_synced_candidate_ids(candidate_ids)
         return SourceDetailDTO(
             id=source.id,
             title=source.title or source.raw_text[:_PREVIEW_LENGTH],
@@ -162,7 +166,7 @@ class GetSourcesUseCase:
             processing_stage=source.processing_stage.value if source.processing_stage else None,
             created_at=source.created_at,
             candidates=[
-                stored_candidate_to_dto(c, jobs_by_candidate, reported_ids)
+                stored_candidate_to_dto(c, jobs_by_candidate, reported_ids, synced_ids)
                 for c in candidates
             ],
             initially_shown_candidates=initially_shown,
