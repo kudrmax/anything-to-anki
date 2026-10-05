@@ -8,9 +8,12 @@ public struct AppConfigError: Error, CustomStringConvertible {
 public struct AppConfig: Sendable {
     public static let projectDirKey = "A2AProjectDir"
     public static let portKey = "A2APort"
+    public static let menuBarIconKey = "A2AMenuBarIcon"
 
     public let projectDir: URL
     public let serverURL: URL
+    /// The app lives in the menu bar and leaves the Dock when its window is closed.
+    public let showsMenuBarIcon: Bool
 
     public init(infoDictionary: [String: Any]) throws {
         guard let dir = infoDictionary[Self.projectDirKey] as? String, !dir.isEmpty else {
@@ -21,6 +24,7 @@ public struct AppConfig: Sendable {
         }
         projectDir = URL(fileURLWithPath: dir, isDirectory: true)
         serverURL = URL(string: "http://localhost:\(port)/")!
+        showsMenuBarIcon = infoDictionary[Self.menuBarIconKey] as? Bool ?? false
     }
 
     public func isAppURL(_ url: URL) -> Bool {

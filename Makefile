@@ -347,7 +347,7 @@ typecheck: _check_setup  ## Проверка типов (mypy)
 
 ##@ macOS-приложение
 app: _check_env  ## Собрать .app для этой копии и положить в ~/Applications
-	@frontends/macos/scripts/build-app.sh "$(CURDIR)" "$(PORT)" "$(INSTANCE_ENV_NAME)"
+	@frontends/macos/scripts/build-app.sh "$(CURDIR)" "$(PORT)" "$(INSTANCE_ENV_NAME)" "$(MENU_BAR_ICON)"
 
 test-macos:  ## Тесты macOS-оболочки
 	swift test --package-path frontends/macos
