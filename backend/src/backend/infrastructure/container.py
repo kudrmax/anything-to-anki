@@ -612,10 +612,7 @@ class Container:
 
     def edit_card_phrase_use_case(self, session: Session) -> EditCardPhraseUseCase:
         from backend.application.use_cases.edit_card_phrase import EditCardPhraseUseCase
-        return EditCardPhraseUseCase(
-            candidate_repo=SqlaCandidateRepository(session),
-            enrichment_reset=self._phrase_enrichment_reset(session),
-        )
+        return EditCardPhraseUseCase(candidate_repo=SqlaCandidateRepository(session))
 
     def _phrase_enrichment_reset(self, session: Session) -> PhraseEnrichmentReset:
         from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
