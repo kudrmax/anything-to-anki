@@ -10,6 +10,7 @@ from backend.application.dto.cefr_dtos import (
 )
 from backend.application.dto.cloze_dtos import CandidateClozeDTO
 from backend.domain.services.cloze_builder import ClozeBuilder
+from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.job_type import JobType
 
@@ -406,6 +407,9 @@ def stored_candidate_to_dto(
 
 
 def _cloze_dto(c: StoredCandidate) -> CandidateClozeDTO | None:
+    """A cloze card is a candidate to learn with markup; markup on any other status is moot."""
+    if c.status != CandidateStatus.LEARN:
+        return None
     cloze = ClozeBuilder().effective(c)
     if cloze is None:
         return None

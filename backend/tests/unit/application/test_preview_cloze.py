@@ -65,6 +65,11 @@ class TestPreviewCloze:
             "none", "translation", "synonyms", "first_letter", "custom",
         ]
 
+    def test_preview_ignores_corrupt_default_hint_setting(self) -> None:
+        self.default_hint = "bogus"
+        preview = self.use_case.execute(1, PreviewClozeRequest())
+        assert preview.hint_kind == "none"
+
     def test_preview_falls_back_to_none_when_default_unavailable(self) -> None:
         self.default_hint = "translation"
         self.candidate_repo.get_by_id.return_value = _candidate(with_meaning=False)

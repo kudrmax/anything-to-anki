@@ -264,11 +264,13 @@ class TestStoredCandidateToDtoStatusDerivation:
 
 @pytest.mark.unit
 class TestStoredCandidateToDtoCloze:
-    def _candidate(self, cloze: CandidateCloze | None) -> StoredCandidate:
+    def _candidate(
+        self, cloze: CandidateCloze | None, status: CandidateStatus = CandidateStatus.LEARN,
+    ) -> StoredCandidate:
         return StoredCandidate(
             id=1, source_id=10, lemma="give up", pos="VERB", cefr_level="B1",
             zipf_frequency=4.0, context_fragment="She finally gave up smoking.",
-            fragment_purity="clean", occurrences=1, status=CandidateStatus.LEARN,
+            fragment_purity="clean", occurrences=1, status=status,
             surface_form="gave up", cloze=cloze,
         )
 
@@ -284,3 +286,9 @@ class TestStoredCandidateToDtoCloze:
         synced = stored_candidate_to_dto(self._candidate(None), synced_ids={1})
         assert synced.cloze is None
         assert synced.can_cloze is False
+
+    def test_cloze_is_shown_only_for_learn(self) -> None:
+        phrase = "She finally gave up smoking."
+        cloze = CandidateCloze(1, (2, 3), ClozeHintKind.NONE, None, phrase)
+        dto = stored_candidate_to_dto(self._candidate(cloze, CandidateStatus.SKIP))
+        assert dto.cloze is None

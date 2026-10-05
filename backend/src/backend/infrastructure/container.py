@@ -529,6 +529,8 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             cloze_repo=SqlaCandidateClozeRepository(session),
             anki_sync_repo=SqlaAnkiSyncRepository(session),
+            job_repo=SqlaJobRepository(session),
+            report_repo=SqlaCardReportRepository(session),
             mark_candidate=self.mark_candidate_use_case(session),
             builder=ClozeBuilder(),
         )

@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.candidate_cloze_repository import CandidateClozeRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.card_report_repository import CardReportRepository
+    from backend.domain.ports.job_repository import JobRepository
     from backend.domain.services.cloze_builder import ClozeBuilder
 
 
@@ -28,12 +30,16 @@ class SaveClozeUseCase:
         candidate_repo: CandidateRepository,
         cloze_repo: CandidateClozeRepository,
         anki_sync_repo: AnkiSyncRepository,
+        job_repo: JobRepository,
+        report_repo: CardReportRepository,
         mark_candidate: MarkCandidateUseCase,
         builder: ClozeBuilder,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._cloze_repo = cloze_repo
         self._anki_sync_repo = anki_sync_repo
+        self._job_repo = job_repo
+        self._report_repo = report_repo
         self._mark_candidate = mark_candidate
         self._builder = builder
 
@@ -74,4 +80,9 @@ class SaveClozeUseCase:
         ))
         saved = self._candidate_repo.get_by_id(candidate_id)
         assert saved is not None
-        return stored_candidate_to_dto(saved)
+        return stored_candidate_to_dto(
+            saved,
+            self._job_repo.get_jobs_for_candidates([candidate_id]),
+            self._report_repo.reported_candidate_ids([candidate_id]),
+            synced_ids=set(),
+        )

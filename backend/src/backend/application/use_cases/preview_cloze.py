@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from backend.application.constants import CLOZE_DEFAULT_HINT_SETTING, DEFAULT_CLOZE_HINT
@@ -13,6 +14,8 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.services.cloze_builder import ClozeBuilder, ClozeWord
+
+logger = logging.getLogger(__name__)
 
 
 class PreviewClozeUseCase:
@@ -82,4 +85,8 @@ class PreviewClozeUseCase:
         if saved is not None:
             return saved.hint_kind
         default = self._settings_repo.get(CLOZE_DEFAULT_HINT_SETTING, DEFAULT_CLOZE_HINT)
-        return ClozeHintKind(default or DEFAULT_CLOZE_HINT)
+        try:
+            return ClozeHintKind(default or DEFAULT_CLOZE_HINT)
+        except ValueError:
+            logger.warning("Unknown cloze_default_hint setting %r, using none", default)
+            return ClozeHintKind.NONE
