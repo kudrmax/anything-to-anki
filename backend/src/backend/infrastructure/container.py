@@ -638,6 +638,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             known_word_repo=SqlaKnownWordRepository(session),
             export_queue=self._export_queue(session),
+            job_repo=SqlaJobRepository(session),
         )
 
     def build_bootstrap_index_use_case(self, session: Session) -> BuildBootstrapIndexUseCase:

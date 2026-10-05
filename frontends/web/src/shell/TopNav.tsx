@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { api } from '@/api/client'
+import { statsStore, useStats } from '@/hooks/useStats'
 import css from './TopNav.module.css'
 
 const ENV_NAME = import.meta.env.VITE_INSTANCE_ENV_NAME as string | undefined
@@ -33,13 +33,14 @@ function sectionOf(pathname: string): Section {
 export function TopNav() {
   const { pathname } = useLocation()
   const current = sectionOf(pathname)
-  const [exportPendingCount, setExportPendingCount] = useState(0)
+  const stats = useStats()
 
-  useEffect(() => {
-    let cancelled = false
-    api.getStats().then(stats => { if (!cancelled) setExportPendingCount(stats.export_pending_count) }).catch(() => {})
-    return () => { cancelled = true }
-  }, [pathname])
+  useEffect(() => { void statsStore.refresh() }, [pathname])
+
+  const badges: Partial<Record<Section, number>> = {
+    export: stats?.export_pending_count,
+    queue: stats?.queue_active_count,
+  }
 
   const tab = (destination: Destination, badge?: number) => (
     <NavLink
@@ -55,7 +56,7 @@ export function TopNav() {
 
   return (
     <nav className={css.nav}>
-      {MAIN.map(destination => tab(destination, destination.section === 'export' ? exportPendingCount : undefined))}
+      {MAIN.map(destination => tab(destination, badges[destination.section]))}
       <span className={css.spacer} />
       {ENV_NAME && <span className={ENV_NAME === PROD_ENV ? `${css.env} ${css.prod}` : css.env}>{ENV_NAME}</span>}
       {tab(SETTINGS)}
