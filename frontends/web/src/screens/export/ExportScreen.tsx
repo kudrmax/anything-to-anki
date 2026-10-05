@@ -1,8 +1,7 @@
 import { useParams } from 'react-router-dom'
-import { Sparkles } from 'lucide-react'
 import { useAudioPlayer } from '@/lib/useAudioPlayer'
 import { Page, PageHeader } from '@/shell'
-import { Banner, Button, Empty, IconButton, Spinner, Stat, StatGrid, StatusDot, Text, Toast } from '@/ui'
+import { Banner, Button, Empty, Spinner, Stat, StatGrid, StatusDot, Text, Toast } from '@/ui'
 import { ExportCardRow } from './ExportCardRow'
 import { useExport } from './useExport'
 import css from './export.module.css'
@@ -33,7 +32,6 @@ function ExportView({ sourceId }: { sourceId: number | undefined }) {
       back={back}
       meta={<><StatusDot tone={ankiStatus === null ? 'idle' : ankiStatus.available ? 'ok' : 'err'} />{ankiLabel}</>}
     >
-      <IconButton icon={Sparkles} label="Generate missing meanings" busy={exporter.generatingAll} disabled={!exporter.canGenerateAll} onClick={() => void exporter.generateAll()} />
       <Button variant="fill" busy={exporter.syncing} disabled={!exporter.canSync} onClick={() => void exporter.sync()}>
         Add to Anki · {totalCards} {totalCards === 1 ? 'card' : 'cards'}
       </Button>
