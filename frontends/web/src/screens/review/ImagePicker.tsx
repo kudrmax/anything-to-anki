@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type SyntheticEvent } from 'react'
 import type { ImageOption, ImageProvider, StoredCandidate } from '@/api/types'
+import { highlightParts } from '@/lib/text/meaning'
 import { Button, Empty, Field, Modal, Spinner } from '@/ui'
+import phrase from '@/ui/phrase.module.css'
 import type { Review } from './useReview'
 import css from './review.module.css'
 
@@ -61,6 +63,11 @@ export function ImagePicker({ candidate, review, onClose }: ImagePickerProps) {
 
   return (
     <Modal title={`Picture for “${candidate.lemma}”`} onClose={onClose} footer={<Button onClick={onClose}>Cancel</Button>}>
+      <p className={phrase.context}>
+        {highlightParts(candidate.phrase, candidate.lemma, candidate.surface_form).map((part, i) =>
+          part.target ? <b key={i} className={phrase.target}>{part.text}</b> : part.text,
+        )}
+      </p>
       <form className={css.imageSearch} onSubmit={submit}>
         <Field value={query} placeholder={candidate.lemma} aria-label="Picture search" onChange={e => setQuery(e.target.value)} />
         <Button type="submit" disabled={options === null && !failed}>Search</Button>
