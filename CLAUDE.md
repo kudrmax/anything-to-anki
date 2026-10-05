@@ -87,7 +87,7 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 ### Worktree
 
-В worktree: `make up-worktree`. Команда использует `WORKTREE_PORT`/`WORKTREE_AI_PROXY_PORT` из `.env` и автоматически сносит предыдущий worktree, если он запущен.
+В worktree: `make up-worktree`. Команда использует `WORKTREE_PORT`/`WORKTREE_AI_PROXY_PORT` из `.env` (по умолчанию 17840/8770) и автоматически сносит предыдущий worktree, если он запущен. Dev и prod она не трогает: если порт занят другой копией, make падает с ошибкой.
 
 > # КРИТИЧЕСКОЕ ПРАВИЛО: процессы — только через make
 >

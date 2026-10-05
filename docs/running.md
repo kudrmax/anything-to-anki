@@ -16,13 +16,15 @@ Python берётся из uv, а не из Homebrew: `brew upgrade` удаля�
 
 ## Характеристики копий
 
-| | dev | prod |
-|---|---|---|
-| Web порт | `17832` | `17833` |
-| ai_proxy порт | `8766` | `8767` |
-| БД | `./data/app.db` (в dev-папке) | `./data/app.db` (в prod-папке) |
-| `INSTANCE_ENV_NAME` | `dev` | `prod` |
-| URL | http://localhost:17832 | http://localhost:17833 |
+| | dev | prod | worktree |
+|---|---|---|---|
+| Web порт | `17832` | `17833` | `17840` (`WORKTREE_PORT`) |
+| ai_proxy порт | `8766` | `8767` | `8770` (`WORKTREE_AI_PROXY_PORT`) |
+| БД | `./data/app.db` (в dev-папке) | `./data/app.db` (в prod-папке) | `./data/app.db` (в папке worktree) |
+| `INSTANCE_ENV_NAME` | `dev` | `prod` | `worktree` |
+| URL | http://localhost:17832 | http://localhost:17833 | http://localhost:17840 |
+
+Порты всех копий должны различаться. Make останавливает на порту только процессы своей копии (узнаёт их по рабочей папке процесса), а `make up-worktree` — ещё и процессы другого worktree. Если порт держит другая копия, `make up` / `make up-worktree` падает с ошибкой и показывает, из какой папки этот процесс; чужой процесс не трогается. После старта make ждёт, пока app и ai_proxy откроют порт, и падает с хвостом лога, если процесс умер.
 
 Значения задаются в `./.env` каждой копии. Шаблон — `.env.example` (коммитится в git). При первом запуске в новой копии: `cp .env.example .env` и при необходимости отредактировать (в prod-копии — поменять значения на prod-шные).
 
