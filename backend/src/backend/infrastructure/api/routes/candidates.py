@@ -31,7 +31,6 @@ from backend.domain.exceptions import (
     ImageSearchError,
     InvalidPhraseError,
     PhrasePolishNotSupportedError,
-    SourceNotFoundError,
     TargetImageNotSupportedError,
     UnknownImageUrlError,
     UnknownReportReasonError,
@@ -145,10 +144,8 @@ def edit_card_phrase(
     try:
         container.edit_card_phrase_use_case(session).execute(candidate_id, request.phrase)
         session.commit()
-    except (CandidateNotFoundError, SourceNotFoundError) as e:
+    except CandidateNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except PhrasePolishNotSupportedError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
     except InvalidPhraseError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return {"id": candidate_id}

@@ -6,10 +6,8 @@ import type { Review } from './useReview'
 export function usePhraseEditor(candidate: StoredCandidate, review: Review) {
   const [draft, setDraft] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const editable = Boolean(review.source?.can_polish_phrases)
 
   const start = () => {
-    if (!editable) return
     window.getSelection()?.removeAllRanges()
     setDraft(candidate.phrase)
   }
@@ -26,7 +24,7 @@ export function usePhraseEditor(candidate: StoredCandidate, review: Review) {
     if (saved) setDraft(null)
   }
 
-  return { draft, setDraft, saving, editable, start, save, cancel: () => setDraft(null) }
+  return { draft, setDraft, saving, start, save, cancel: () => setDraft(null) }
 }
 
 export type PhraseEditor = ReturnType<typeof usePhraseEditor>

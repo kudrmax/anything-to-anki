@@ -614,7 +614,6 @@ class Container:
         from backend.application.use_cases.edit_card_phrase import EditCardPhraseUseCase
         return EditCardPhraseUseCase(
             candidate_repo=SqlaCandidateRepository(session),
-            source_repo=SqlaSourceRepository(session),
             enrichment_reset=self._phrase_enrichment_reset(session),
         )
 

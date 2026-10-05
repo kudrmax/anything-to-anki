@@ -12,7 +12,7 @@ interface CardPhraseProps {
 
 /** Фраза карточки, а в режиме правки — поле: Enter сохраняет, Esc отменяет. */
 export function CardPhrase({ candidate, editor }: CardPhraseProps) {
-  const { draft, saving, editable } = editor
+  const { draft, saving } = editor
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -44,7 +44,7 @@ export function CardPhrase({ candidate, editor }: CardPhraseProps) {
   }
 
   return (
-    <p className={css.phrase} title={editable ? 'Double-click to edit' : undefined} onDoubleClick={editor.start}>
+    <p className={css.phrase} title="Double-click to edit" onDoubleClick={editor.start}>
       {highlightParts(candidate.phrase, candidate.lemma, candidate.surface_form).map((part, i) =>
         part.target ? <b key={i} className={`${phrase.target} ${phrase.targetCurrent}`}>{part.text}</b> : part.text,
       )}

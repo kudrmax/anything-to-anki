@@ -42,8 +42,7 @@ export function DecisionButtons({ candidate, review }: PhraseActionsProps) {
 }
 
 interface PhraseToolsProps extends PhraseActionsProps {
-  /** Нет — фразу этого источника править нельзя, карандаш сразу правит границы. */
-  onEditPhrase?: () => void
+  onEditPhrase: () => void
 }
 
 export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProps) {
@@ -89,10 +88,10 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
     }
   }
 
-  const editItems: MenuItem[] = onEditPhrase ? [
+  const editItems: MenuItem[] = [
     { label: 'Edit phrase text', icon: TextCursorInput, onSelect: onEditPhrase },
     { label: 'Edit boundary in source', icon: TextSelect, onSelect: () => review.startEditing(id) },
-  ] : []
+  ]
 
   return (
     <div className={css.tools}>
@@ -139,9 +138,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
       />
       {isEditing
         ? <IconButton icon={X} label="Cancel editing" active onClick={review.cancelEditing} />
-        : onEditPhrase
-          ? <Menu trigger={<IconButton icon={Pencil} label="Edit phrase" />} items={editItems} />
-          : <IconButton icon={Pencil} label="Edit context fragment" onClick={() => review.startEditing(id)} />}
+        : <Menu trigger={<IconButton icon={Pencil} label="Edit phrase" />} items={editItems} />}
     </div>
   )
 }
