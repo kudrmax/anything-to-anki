@@ -121,6 +121,47 @@ export interface ImageSearchResult {
   options: ImageOption[]
 }
 
+export type ClozeHintKind = 'none' | 'translation' | 'synonyms' | 'first_letter' | 'custom'
+
+/** Подсказка по умолчанию: своя пишется только под конкретную карточку. */
+export type ClozeDefaultHint = Exclude<ClozeHintKind, 'custom'>
+
+/** Какие слова фразы скрыты на cloze-карточке и какая подсказка к пропуску. */
+export interface CandidateCloze {
+  hidden_word_indices: number[]
+  hint_kind: ClozeHintKind
+  custom_hint: string | null
+}
+
+export type ClozeDraft = CandidateCloze
+
+/** Сохранение разметки: `phrase` — фраза, в которой выбраны слова (из превью). */
+export interface SaveClozeRequest extends ClozeDraft {
+  phrase: string
+}
+
+export interface ClozeWord {
+  index: number
+  text: string
+  is_target: boolean
+}
+
+/** Как будет выглядеть cloze-карточка: слова фразы, лицевая сторона и доступные подсказки. */
+export interface ClozePreview {
+  /** Фраза карточки, к которой относятся слова и индексы. */
+  phrase: string
+  words: ClozeWord[]
+  hidden_word_indices: number[]
+  hint_kind: ClozeHintKind
+  custom_hint: string | null
+  /** Лицевая сторона: скрытые слова заменены на CLOZE_GAP. */
+  front: string
+  hint: string
+  available_hints: ClozeHintKind[]
+  /** Разметку можно сохранить: те же правила, что у сохранения. */
+  can_save: boolean
+}
+
 export interface StoredCandidate {
   id: number
   lemma: string
@@ -153,6 +194,10 @@ export interface StoredCandidate {
   frequency_band: string | null
   usage_distribution: Record<string, number> | null
   origin: PhraseOrigin | null
+  /** Разметка cloze; есть только у фраз на изучение. */
+  cloze: CandidateCloze | null
+  /** false — карточка уже в Anki, превратить её в cloze нельзя. */
+  can_cloze: boolean
 }
 
 export interface SourceDetail {
@@ -197,6 +242,8 @@ export interface CardPreview {
   tts_audio_url: string | null
   /** Обязательные части, которых у карточки нет. */
   missing: MissingCardPart[]
+  /** Карточка уйдёт в Anki как cloze; в sentence скрытые слова выделены <b>. */
+  is_cloze: boolean
 }
 
 export type MissingCardPart = 'meaning' | 'audio'
@@ -248,6 +295,7 @@ export interface Settings {
   anki_field_audio_tts: string
   /** Сколько картинок берётся у каждого источника для одного target'а. */
   images_per_source: number
+  cloze_default_hint: ClozeDefaultHint
 }
 
 export interface FrequentWordThresholdOption {

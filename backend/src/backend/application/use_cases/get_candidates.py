@@ -8,6 +8,7 @@ from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
 if TYPE_CHECKING:
     from backend.application.utils.candidate_sorter import CandidateSorter
+    from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.card_report_repository import CardReportRepository
     from backend.domain.ports.job_repository import JobRepository
@@ -24,12 +25,14 @@ class GetCandidatesUseCase:
         candidate_sorter: CandidateSorter,
         job_repo: JobRepository,
         report_repo: CardReportRepository,
+        anki_sync_repo: AnkiSyncRepository,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
         self._candidate_sorter = candidate_sorter
         self._job_repo = job_repo
         self._report_repo = report_repo
+        self._anki_sync_repo = anki_sync_repo
 
     def execute(
         self,
@@ -47,4 +50,8 @@ class GetCandidatesUseCase:
         candidate_ids = [c.id for c in candidates if c.id is not None]
         jobs_by_candidate = self._job_repo.get_jobs_for_candidates(candidate_ids)
         reported_ids = self._report_repo.reported_candidate_ids(candidate_ids)
-        return [stored_candidate_to_dto(c, jobs_by_candidate, reported_ids) for c in candidates]
+        synced_ids = self._anki_sync_repo.get_synced_candidate_ids(candidate_ids)
+        return [
+            stored_candidate_to_dto(c, jobs_by_candidate, reported_ids, synced_ids)
+            for c in candidates
+        ]

@@ -101,7 +101,9 @@ class TestFindNotesByTarget:
     def test_returns_list_when_notes_found(self) -> None:
         connector = AnkiConnectConnector(url="http://test")
         with patch.object(connector, "_invoke", return_value=[1, 2, 3]):
-            assert connector.find_notes_by_target("deck", "procrastinate") == [
+            assert connector.find_notes_by_target(
+                "deck", "AnythingToAnkiType", "Target", "procrastinate"
+            ) == [
                 1,
                 2,
                 3,
@@ -110,22 +112,50 @@ class TestFindNotesByTarget:
     def test_returns_empty_list_when_invoke_returns_none(self) -> None:
         connector = AnkiConnectConnector(url="http://test")
         with patch.object(connector, "_invoke", return_value=None):
-            assert connector.find_notes_by_target("deck", "t") == []
+            assert connector.find_notes_by_target("deck", "M", "Target", "t") == []
 
     def test_returns_empty_list_when_invoke_returns_empty(self) -> None:
         connector = AnkiConnectConnector(url="http://test")
         with patch.object(connector, "_invoke", return_value=[]):
-            assert connector.find_notes_by_target("deck", "t") == []
+            assert connector.find_notes_by_target("deck", "M", "Target", "t") == []
 
     def test_query_uses_target_and_model_name(self) -> None:
         connector = AnkiConnectConnector(url="http://test")
         with patch.object(connector, "_invoke", return_value=[]) as invoke:
-            connector.find_notes_by_target("deck", "give up")
-        invoke.assert_called_once()
-        assert invoke.call_args.args[0] == "findNotes"
-        query = invoke.call_args.kwargs["query"]
-        assert 'Target:"give up"' in query
-        assert "note:AnythingToAnkiType" in query
+            connector.find_notes_by_target("deck", "AnythingToAnkiCloze", "Target", "give up")
+        invoke.assert_called_once_with(
+            "findNotes", query='note:"AnythingToAnkiCloze" "Target:give up"'
+        )
+
+    def test_query_uses_custom_model_and_target_field(self) -> None:
+        connector = AnkiConnectConnector(url="http://test")
+        with patch.object(connector, "_invoke", return_value=[]) as invoke:
+            connector.find_notes_by_target("deck", "My Words", "Word", "burnout")
+        invoke.assert_called_once_with("findNotes", query='note:"My Words" "Word:burnout"')
+
+    def test_query_escapes_quotes_in_target(self) -> None:
+        connector = AnkiConnectConnector(url="http://test")
+        with patch.object(connector, "_invoke", return_value=[]) as invoke:
+            connector.find_notes_by_target("deck", "M", "Target", 'say "hi"')
+        assert invoke.call_args.kwargs["query"] == 'note:"M" "Target:say \\"hi\\""'
+
+    def test_query_quotes_field_name_with_spaces(self) -> None:
+        connector = AnkiConnectConnector(url="http://test")
+        with patch.object(connector, "_invoke", return_value=[]) as invoke:
+            connector.find_notes_by_target("deck", "My Words", "Target Word", "burnout")
+        assert invoke.call_args.kwargs["query"] == 'note:"My Words" "Target Word:burnout"'
+
+    def test_query_escapes_wildcards_in_target(self) -> None:
+        connector = AnkiConnectConnector(url="http://test")
+        with patch.object(connector, "_invoke", return_value=[]) as invoke:
+            connector.find_notes_by_target("deck", "M", "Target", "a*b_c")
+        assert invoke.call_args.kwargs["query"] == 'note:"M" "Target:a\\*b\\_c"'
+
+    def test_query_escapes_backslashes(self) -> None:
+        connector = AnkiConnectConnector(url="http://test")
+        with patch.object(connector, "_invoke", return_value=[]) as invoke:
+            connector.find_notes_by_target("deck", "M\\1", "Tar\\get", "a\\b")
+        assert invoke.call_args.kwargs["query"] == 'note:"M\\\\1" "Tar\\\\get:a\\\\b"'
 
 
 @pytest.mark.unit
@@ -267,3 +297,37 @@ class TestEnsureNoteType:
 
         for c in invoke.call_args_list:
             assert c.args[0] not in ("modelFieldRemove",)
+
+    def test_creates_standard_model_by_default(self) -> None:
+        connector = AnkiConnectConnector(url="http://test")
+        with patch.object(connector, "_invoke") as invoke:
+            invoke.side_effect = [[], None]
+            connector.ensure_note_type("MyType", ["A"])
+
+        create_call = invoke.call_args_list[1]
+        assert create_call.kwargs["isCloze"] is False
+        assert create_call.kwargs["cardTemplates"][0]["Name"] == "AnythingToAnki Card"
+
+    def test_creates_cloze_model(self) -> None:
+        connector = AnkiConnectConnector(url="http://test")
+        with patch.object(connector, "_invoke") as invoke:
+            invoke.side_effect = [[], None]
+            connector.ensure_note_type(
+                "AnythingToAnkiCloze",
+                ["Text", "Target"],
+                front_template="{{cloze:Text}}",
+                back_template="{{cloze:Text}}{{Target}}",
+                css=".card {}",
+                is_cloze=True,
+            )
+
+        create_call = invoke.call_args_list[1]
+        assert create_call.args[0] == "createModel"
+        assert create_call.kwargs["isCloze"] is True
+        assert create_call.kwargs["cardTemplates"] == [
+            {
+                "Name": "AnythingToAnki Cloze",
+                "Front": "{{cloze:Text}}",
+                "Back": "{{cloze:Text}}{{Target}}",
+            }
+        ]

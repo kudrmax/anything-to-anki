@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from backend.domain.entities.candidate_cloze import CandidateCloze
     from backend.domain.entities.candidate_meaning import CandidateMeaning
     from backend.domain.entities.candidate_media import CandidateMedia
     from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
@@ -32,6 +33,8 @@ class StoredCandidate:
     `context_fragment` is the phrase as it stands in the source. AI may polish
     it into an easier `polished_fragment`, or the user may rewrite it there by
     hand; the card shows the polished one unless the user reverted it.
+
+    `cloze` is the markup of the cloze card, if the user made one.
     """
 
     source_id: int
@@ -50,6 +53,7 @@ class StoredCandidate:
     media: CandidateMedia | None = None
     pronunciation: CandidatePronunciation | None = None
     tts: CandidateTTS | None = None
+    cloze: CandidateCloze | None = None
     id: int | None = None
     cefr_breakdown: CEFRBreakdown | None = None
     usage_distribution: UsageDistribution | None = None

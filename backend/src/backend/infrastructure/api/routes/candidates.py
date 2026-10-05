@@ -17,6 +17,11 @@ from backend.application.dto.card_report_dtos import (  # noqa: TC001
     CardReportDTO,
     ReportCandidateRequest,
 )
+from backend.application.dto.cloze_dtos import (  # noqa: TC001
+    ClozePreviewDTO,
+    PreviewClozeRequest,
+    SaveClozeRequest,
+)
 from backend.application.dto.follow_up_dtos import FollowUpRequest  # noqa: TC001
 from backend.application.dto.source_dtos import StoredCandidateDTO  # noqa: TC001
 from backend.application.dto.target_image_dtos import (  # noqa: TC001
@@ -27,14 +32,18 @@ from backend.domain.exceptions import (
     AIServiceError,
     CandidateNotFoundError,
     CandidateNotPolishedError,
+    ClozeNotAllowedError,
+    ClozePhraseChangedError,
     EmptyReportCommentError,
     ImageSearchError,
+    InvalidClozeError,
     InvalidPhraseError,
     PhrasePolishNotSupportedError,
     UnknownImageUrlError,
     UnknownReportReasonError,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
 if TYPE_CHECKING:
@@ -60,6 +69,46 @@ def mark_candidate(
         return {"id": candidate_id, "status": request.status}
     except CandidateNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.put("/{candidate_id}/cloze")
+def save_cloze(
+    candidate_id: int,
+    request: SaveClozeRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> StoredCandidateDTO:
+    try:
+        candidate = container.save_cloze_use_case(session).execute(
+            candidate_id,
+            request.phrase,
+            request.hidden_word_indices,
+            ClozeHintKind(request.hint_kind),
+            request.custom_hint,
+        )
+        session.commit()
+        return candidate
+    except CandidateNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except (ClozeNotAllowedError, ClozePhraseChangedError) as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except InvalidClozeError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@router.post("/{candidate_id}/cloze/preview")
+def preview_cloze(
+    candidate_id: int,
+    request: PreviewClozeRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> ClozePreviewDTO:
+    try:
+        return container.preview_cloze_use_case(session).execute(candidate_id, request)
+    except CandidateNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except InvalidClozeError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
 
 @router.post("/{candidate_id}/report", status_code=201)

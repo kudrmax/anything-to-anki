@@ -4,6 +4,8 @@ import json
 from typing import TYPE_CHECKING
 
 from backend.application.constants import (
+    CLOZE_DEFAULT_HINT_SETTING,
+    DEFAULT_CLOZE_HINT,
     DEFAULT_IMAGES_PER_SOURCE,
     DEFAULT_USAGE_GROUP_ORDER,
     FREQUENT_WORD_THRESHOLD_SETTING,
@@ -68,6 +70,7 @@ _SETTING_KEYS: dict[str, str] = {
     "tts_speed": "1.0",
     "anki_field_audio_tts": "AudioTTS",
     IMAGES_PER_SOURCE_SETTING: str(DEFAULT_IMAGES_PER_SOURCE),
+    CLOZE_DEFAULT_HINT_SETTING: DEFAULT_CLOZE_HINT,
 }
 
 _BOOL_KEYS: frozenset[str] = frozenset({"enable_definitions"})

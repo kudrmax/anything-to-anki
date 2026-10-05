@@ -5,12 +5,14 @@ from datetime import UTC, datetime
 
 import pytest
 from backend.application.dto.source_dtos import stored_candidate_to_dto
+from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.job import Job
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 
@@ -258,3 +260,35 @@ class TestStoredCandidateToDtoStatusDerivation:
         # No matching job for candidate 1 → status from data
         assert dto.meaning is not None
         assert dto.meaning.status == "done"
+
+
+@pytest.mark.unit
+class TestStoredCandidateToDtoCloze:
+    def _candidate(
+        self, cloze: CandidateCloze | None, status: CandidateStatus = CandidateStatus.LEARN,
+    ) -> StoredCandidate:
+        return StoredCandidate(
+            id=1, source_id=10, lemma="give up", pos="VERB", cefr_level="B1",
+            zipf_frequency=4.0, context_fragment="She finally gave up smoking.",
+            fragment_purity="clean", occurrences=1, status=status,
+            surface_form="gave up", cloze=cloze,
+        )
+
+    def test_stored_candidate_dto_has_effective_cloze_and_can_cloze(self) -> None:
+        stale = CandidateCloze(1, (0,), ClozeHintKind.FIRST_LETTER, None, "Old phrase.")
+        dto = stored_candidate_to_dto(self._candidate(stale))
+        assert dto.cloze is not None
+        assert dto.cloze.hidden_word_indices == [2, 3]
+        assert dto.cloze.hint_kind == "first_letter"
+        assert dto.cloze.custom_hint is None
+        assert dto.can_cloze is True
+
+        synced = stored_candidate_to_dto(self._candidate(None), synced_ids={1})
+        assert synced.cloze is None
+        assert synced.can_cloze is False
+
+    def test_cloze_is_shown_only_for_learn(self) -> None:
+        phrase = "She finally gave up smoking."
+        cloze = CandidateCloze(1, (2, 3), ClozeHintKind.NONE, None, phrase)
+        dto = stored_candidate_to_dto(self._candidate(cloze, CandidateStatus.SKIP))
+        assert dto.cloze is None

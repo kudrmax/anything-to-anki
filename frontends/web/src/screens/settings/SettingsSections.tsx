@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GripVertical } from 'lucide-react'
 import type { FrequentWordThresholdOption, Settings } from '@/api/types'
+import { CLOZE_DEFAULT_HINT_OPTIONS } from '@/lib/clozeHints'
 import { autoPlayAudioPref, type ThemePref } from '@/lib/preferences'
 import { formatBytes } from '@/lib/text/format'
 import { useTheme } from '@/lib/theme'
@@ -236,13 +237,22 @@ function UsagePriority({ store, form }: SectionProps) {
   )
 }
 
-export function ReviewPrefs() {
+export function ReviewPrefs({ store, form }: SectionProps) {
   const [autoPlay, setAutoPlay] = useState<boolean>(() => autoPlayAudioPref.read())
   const toggle = (next: boolean) => { setAutoPlay(next); autoPlayAudioPref.write(next) }
   return (
-    <DividerRow last label="Auto-play audio" hint="After marking a word, automatically play the next word's audio (if available).">
-      <Switch checked={autoPlay} onChange={toggle} label="Auto-play audio" />
-    </DividerRow>
+    <>
+      <DividerRow label="Auto-play audio" hint="After marking a word, automatically play the next word's audio (if available).">
+        <Switch checked={autoPlay} onChange={toggle} label="Auto-play audio" />
+      </DividerRow>
+      <DividerRow last label="Default cloze hint" hint="Preselected when you mark a phrase as Cloze. You can change it on any card.">
+        <Segmented
+          value={form.cloze_default_hint}
+          options={CLOZE_DEFAULT_HINT_OPTIONS}
+          onChange={hint => store.setField('cloze_default_hint', hint)}
+        />
+      </DividerRow>
+    </>
   )
 }
 

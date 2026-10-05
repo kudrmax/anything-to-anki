@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { CandidateStatus, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, SourceDetail, StoredCandidate } from '@/api/types'
+import type { CandidateStatus, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, SaveClozeRequest, SourceDetail, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
@@ -105,6 +105,27 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   useEffect(() => { candidatesRef.current = candidates }, [candidates])
 
   const { play, stop } = player
+
+  /**
+   * После решения по фразе: порядок задаёт backend — решённые фразы уходят вниз, известные слова
+   * пересортировывают остальные. Новый порядок и смену фокуса применяем одним рендером, иначе карточка
+   * сначала сворачивается на месте; следующую фразу выбираем уже по новому порядку.
+   */
+  const settle = useCallback(async (candidateId: number, markedIndex: number, decided: (c: StoredCandidate) => StoredCandidate, advance: boolean) => {
+    const refreshed = await fetchCandidates().catch(() => null)
+    const fresh = refreshed ?? candidatesRef.current.map(c => (c.id === candidateId ? decided(c) : c))
+    if (refreshed) applyCandidates(refreshed)
+    else setCandidates(fresh)
+
+    if (!advance) return
+    const focusId = nextFocusId(fresh, candidateId, markedIndex)
+    if (focusId === null) return
+    setCurrentId(focusId)
+    const focus = fresh.find(c => c.id === focusId)
+    const nextUrl = focus && autoPlayAudioPref.read() ? audioUrlForCandidate(focus, sourceId) : null
+    if (nextUrl) play(nextUrl)
+  }, [sourceId, play, fetchCandidates, applyCandidates])
+
   const mark = useCallback(async (candidateId: number, status: CandidateStatus) => {
     stop()
     const markedIndex = candidatesRef.current.findIndex(c => c.id === candidateId)
@@ -115,22 +136,33 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
       showToast(e instanceof Error ? e.message : 'Failed to save the decision')
       return
     }
-    // Порядок задаёт backend: решённые фразы уходят вниз, известные слова пересортировывают
-    // остальные. Новый порядок и смену фокуса применяем одним рендером, иначе карточка
-    // сначала сворачивается на месте; следующую фразу выбираем уже по новому порядку.
-    const refreshed = await fetchCandidates().catch(() => null)
-    const fresh = refreshed ?? candidatesRef.current.map(c => (c.id === candidateId ? { ...c, status } : c))
-    if (refreshed) applyCandidates(refreshed)
-    else setCandidates(fresh)
+    await settle(candidateId, markedIndex, c => ({ ...c, status, cloze: null }), status !== 'pending')
+  }, [stop, showToast, settle])
 
-    if (status === 'pending') return
-    const focusId = nextFocusId(fresh, candidateId, markedIndex)
-    if (focusId === null) return
-    setCurrentId(focusId)
-    const focus = fresh.find(c => c.id === focusId)
-    const nextUrl = focus && autoPlayAudioPref.read() ? audioUrlForCandidate(focus, sourceId) : null
-    if (nextUrl) play(nextUrl)
-  }, [sourceId, play, stop, showToast, fetchCandidates, applyCandidates])
+  const [clozeEditingId, setClozeEditingId] = useState<number | null>(null)
+  // Разметка cloze относится к одной карточке: при переходе на другую она закрывается.
+  useEffect(() => { setClozeEditingId(null) }, [currentId])
+  const startCloze = useCallback((candidateId: number) => {
+    window.getSelection()?.removeAllRanges()
+    setClozeEditingId(candidateId)
+  }, [])
+  const cancelCloze = useCallback(() => setClozeEditingId(null), [])
+
+  /** true — разметка сохранена и ревью ушло к следующей фразе; при ошибке показывает её. */
+  const saveCloze = useCallback(async (candidateId: number, request: SaveClozeRequest): Promise<boolean> => {
+    stop()
+    const markedIndex = candidatesRef.current.findIndex(c => c.id === candidateId)
+    let saved: StoredCandidate
+    try {
+      saved = await api.saveCloze(candidateId, request)
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to save the cloze')
+      return false
+    }
+    setClozeEditingId(null)
+    await settle(candidateId, markedIndex, () => saved, true)
+    return true
+  }, [stop, showToast, settle])
 
   const withBusy = async (setIds: Dispatch<SetStateAction<Set<number>>>, id: number, run: () => Promise<void>) => {
     setIds(prev => new Set(prev).add(id))
@@ -345,7 +377,8 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     sourceId, source, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,
     counts: { marked: markedCount, total: candidates.length, learn: learnCount, progress: candidates.length > 0 ? markedCount / candidates.length : 0 },
     generation, generationActions,
-    mark, generate, replaceWithExample, generateTTS, regenerateMedia, findImages, applyImage, pasteImage, polishAgain, setPolishReverted, editPhrase,
+    mark, generate, replaceWithExample,
+    clozeEditingId, clozeEditing: clozeEditingId !== null, startCloze, cancelCloze, saveCloze, generateTTS, regenerateMedia, findImages, applyImage, pasteImage, polishAgain, setPolishReverted, editPhrase,
     busy: { generating: generatingIds, media: regeneratingMediaIds, tts: generatingTTSIds, image: applyingImageIds },
     vpnBlocked, dismissVpn: () => setVpnBlocked(false),
     editing, startEditing, cancelEditing, setBoundary, addWord,

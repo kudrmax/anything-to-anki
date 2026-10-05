@@ -9,6 +9,8 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 if TYPE_CHECKING:
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
+    from backend.domain.ports.candidate_cloze_repository import CandidateClozeRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.word_decision_repository import WordDecisionRepository
@@ -18,7 +20,10 @@ DECISION_STATUSES = frozenset({CandidateStatus.KNOWN, CandidateStatus.LEARN})
 
 class MarkCandidateUseCase:
     """Marks a candidate status (or undoes it back to pending), keeps known
-    words in sync and remembers known/learn verdicts for calibration."""
+    words in sync and remembers known/learn verdicts for calibration.
+
+    Any status change drops the cloze markup: the user decided on the card anew. A card
+    already exported keeps it: Anki holds it as a cloze note."""
 
     def __init__(
         self,
@@ -26,17 +31,28 @@ class MarkCandidateUseCase:
         known_word_repo: KnownWordRepository,
         decision_repo: WordDecisionRepository,
         review_status: ReviewStatusUpdater,
+        cloze_repo: CandidateClozeRepository,
+        anki_sync_repo: AnkiSyncRepository,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._known_word_repo = known_word_repo
         self._decision_repo = decision_repo
         self._review_status = review_status
+        self._cloze_repo = cloze_repo
+        self._anki_sync_repo = anki_sync_repo
 
     def execute(self, candidate_id: int, status: CandidateStatus) -> None:
         candidate = self._candidate_repo.get_by_id(candidate_id)
         if candidate is None:
             raise CandidateNotFoundError(candidate_id)
-        self._candidate_repo.update_status(candidate_id, status)
+        self.apply(candidate, status)
+        if candidate_id not in self._anki_sync_repo.get_synced_candidate_ids([candidate_id]):
+            self._cloze_repo.delete_by_candidate_id(candidate_id)
+
+    def apply(self, candidate: StoredCandidate, status: CandidateStatus) -> None:
+        """Sets the status with all its side effects, leaving the cloze markup as is."""
+        assert candidate.id is not None
+        self._candidate_repo.update_status(candidate.id, status)
         if status == CandidateStatus.KNOWN:
             self._known_word_repo.add(candidate.lemma, candidate.pos)
         elif candidate.status == CandidateStatus.KNOWN:

@@ -13,15 +13,26 @@ logger = logging.getLogger(__name__)
 _ANKI_URL = os.getenv("ANKI_URL", "http://localhost:8765")
 _VERSION = 6
 
-_DEFAULT_MODEL_NAME = "AnythingToAnkiType"
-_DEFAULT_MODEL_FIELDS = ["Sentence", "Target", "Meaning", "IPA"]
+_CARD_TEMPLATE_NAME = "AnythingToAnki Card"
+_CLOZE_TEMPLATE_NAME = "AnythingToAnki Cloze"
 
 _FALLBACK_FRONT = "{{Sentence}}"
 _FALLBACK_BACK = "{{FrontSide}}<hr id=answer>{{Target}}<br>{{Meaning}}"
+_FALLBACK_CLOZE_FRONT = "{{cloze:Text}}"
+_FALLBACK_CLOZE_BACK = "{{cloze:Text}}<hr id=answer>{{Target}}"
 _FALLBACK_CSS = (
     ".card { font-family: Arial, sans-serif; font-size: 18px; text-align: left;"
     " color: #222; background-color: #fff; padding: 20px; }"
 )
+
+
+def _quote(text: str) -> str:
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _quote_value(text: str) -> str:
+    """A field value matched literally: Anki reads `*` and `_` in it as wildcards."""
+    return _quote(text).replace("*", "\\*").replace("_", "\\_")
 
 
 class AnkiConnectConnector(AnkiConnector):
@@ -59,19 +70,26 @@ class AnkiConnectConnector(AnkiConnector):
         front_template: str | None = None,
         back_template: str | None = None,
         css: str | None = None,
+        is_cloze: bool = False,
     ) -> None:
         existing = cast("list[str]", self._invoke("modelNames"))
         if model_name not in existing:
+            name, front, back = (
+                (_CLOZE_TEMPLATE_NAME, _FALLBACK_CLOZE_FRONT, _FALLBACK_CLOZE_BACK)
+                if is_cloze
+                else (_CARD_TEMPLATE_NAME, _FALLBACK_FRONT, _FALLBACK_BACK)
+            )
             self._invoke(
                 "createModel",
                 modelName=model_name,
                 inOrderFields=fields,
                 css=css or _FALLBACK_CSS,
+                isCloze=is_cloze,
                 cardTemplates=[
                     {
-                        "Name": "AnythingToAnki Card",
-                        "Front": front_template or _FALLBACK_FRONT,
-                        "Back": back_template or _FALLBACK_BACK,
+                        "Name": name,
+                        "Front": front_template or front,
+                        "Back": back_template or back,
                     }
                 ],
             )
@@ -93,8 +111,10 @@ class AnkiConnectConnector(AnkiConnector):
     def ensure_deck(self, deck_name: str) -> None:
         self._invoke("createDeck", deck=deck_name)
 
-    def find_notes_by_target(self, deck_name: str, target: str) -> list[int]:
-        query = f'note:{_DEFAULT_MODEL_NAME} Target:"{target}"'
+    def find_notes_by_target(
+        self, deck_name: str, model_name: str, target_field: str, target: str
+    ) -> list[int]:
+        query = f'note:"{_quote(model_name)}" "{_quote(target_field)}:{_quote_value(target)}"'
         raw = self._invoke("findNotes", query=query)
         return cast("list[int]", raw) if raw else []
 

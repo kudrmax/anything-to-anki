@@ -15,7 +15,7 @@ class CardPreviewDTO(BaseModel):
 
     candidate_id: int
     lemma: str
-    sentence: str        # context_fragment with <b>word</b>
+    sentence: str        # card phrase with <b>word</b>; for a cloze card the hidden words in <b>
     meaning: str | None  # None if not yet fetched from dictionary
     translation: str | None = None
     synonyms: str | None = None
@@ -27,6 +27,7 @@ class CardPreviewDTO(BaseModel):
     pronunciation_uk_url: str | None = None
     tts_audio_url: str | None = None
     missing: list[str] = []  # required parts the card lacks: 'meaning', 'audio'
+    is_cloze: bool = False
 
 
 class ExportSectionDTO(BaseModel):

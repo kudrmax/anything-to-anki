@@ -4,7 +4,13 @@ from pydantic import BaseModel, field_validator, model_validator
 
 from backend.application.constants import MAX_IMAGES_PER_SOURCE, MIN_IMAGES_PER_SOURCE
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
+
+# A custom hint is written per card, so it can't be the default.
+CLOZE_DEFAULT_HINTS: frozenset[str] = frozenset(
+    kind.value for kind in ClozeHintKind if kind is not ClozeHintKind.CUSTOM
+)
 
 
 class SettingsDTO(BaseModel):
@@ -33,6 +39,7 @@ class SettingsDTO(BaseModel):
     tts_speed: float
     anki_field_audio_tts: str
     images_per_source: int
+    cloze_default_hint: str
 
 
 class UpdateSettingsRequest(BaseModel):
@@ -61,6 +68,7 @@ class UpdateSettingsRequest(BaseModel):
     tts_speed: float | None = None
     anki_field_audio_tts: str | None = None
     images_per_source: int | None = None
+    cloze_default_hint: str | None = None
 
     @field_validator("cefr_level")
     @classmethod
@@ -83,6 +91,15 @@ class UpdateSettingsRequest(BaseModel):
         if v is not None and not MIN_IMAGES_PER_SOURCE <= v <= MAX_IMAGES_PER_SOURCE:
             raise ValueError(
                 f"images_per_source must be {MIN_IMAGES_PER_SOURCE}..{MAX_IMAGES_PER_SOURCE}",
+            )
+        return v
+
+    @field_validator("cloze_default_hint")
+    @classmethod
+    def validate_cloze_default_hint(cls, v: str | None) -> str | None:
+        if v is not None and v not in CLOZE_DEFAULT_HINTS:
+            raise ValueError(
+                f"cloze_default_hint must be one of {', '.join(sorted(CLOZE_DEFAULT_HINTS))}",
             )
         return v
 

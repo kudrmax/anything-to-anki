@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.domain.entities.ai_usage_record import AIUsageRecord
 from backend.domain.entities.bootstrap_index_meta import BootstrapIndexMeta
 from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
+from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
@@ -25,6 +26,7 @@ from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
@@ -635,6 +637,42 @@ class CandidateTTSModel(Base):
             candidate_id=entity.candidate_id,
             audio_path=entity.audio_path,
             generated_at=entity.generated_at,
+        )
+
+
+class CandidateClozeModel(Base):
+    """SQLAlchemy model for the user's cloze markup (1:1 with candidate)."""
+
+    __tablename__ = "candidate_clozes"
+
+    candidate_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("candidates.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    hidden_word_indices: Mapped[str] = mapped_column(Text, nullable=False)
+    hint_kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    custom_hint: Mapped[str | None] = mapped_column(Text, nullable=True)
+    phrase: Mapped[str] = mapped_column(Text, nullable=False)
+
+    def to_entity(self) -> CandidateCloze:
+        return CandidateCloze(
+            candidate_id=self.candidate_id,
+            hidden_word_indices=tuple(json.loads(self.hidden_word_indices)),
+            hint_kind=ClozeHintKind(self.hint_kind),
+            custom_hint=self.custom_hint,
+            phrase=self.phrase,
+        )
+
+    @staticmethod
+    def from_entity(entity: CandidateCloze) -> CandidateClozeModel:
+        return CandidateClozeModel(
+            candidate_id=entity.candidate_id,
+            hidden_word_indices=json.dumps(list(entity.hidden_word_indices)),
+            hint_kind=entity.hint_kind.value,
+            custom_hint=entity.custom_hint,
+            phrase=entity.phrase,
         )
 
 

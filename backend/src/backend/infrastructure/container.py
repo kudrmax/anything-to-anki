@@ -29,6 +29,7 @@ from backend.application.use_cases.list_collections import ListCollectionsUseCas
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
+from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.rename_collection import RenameCollectionUseCase
 from backend.application.use_cases.rename_source import RenameSourceUseCase
@@ -36,6 +37,7 @@ from backend.application.use_cases.replace_with_example import ReplaceWithExampl
 from backend.application.use_cases.report_candidate import ReportCandidateUseCase
 from backend.application.use_cases.reprocess_source import ReprocessSourceUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
+from backend.application.use_cases.save_cloze import SaveClozeUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.application.utils.candidate_factory import CandidateFactory
@@ -49,6 +51,7 @@ from backend.application.utils.topic_phrase_collector import TopicPhraseCollecto
 from backend.domain.ports.cefr_source import (
     CEFRSource,  # noqa: TC001 — used at runtime in list[CEFRSource]
 )
+from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
 from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
 from backend.domain.value_objects.fragment_selection_config import (
@@ -95,6 +98,9 @@ from backend.infrastructure.persistence.sqla_anki_sync_repository import (
 )
 from backend.infrastructure.persistence.sqla_bootstrap_index_repository import (
     SqlaBootstrapIndexRepository,
+)
+from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
+    SqlaCandidateClozeRepository,
 )
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
@@ -363,6 +369,7 @@ class Container:
             collection_repo=SqlaCollectionRepository(session),
             topic_target_repo=SqlaTopicTargetRepository(session),
             report_repo=SqlaCardReportRepository(session),
+            anki_sync_repo=SqlaAnkiSyncRepository(session),
         )
 
     def create_collection_use_case(self, session: Session) -> CreateCollectionUseCase:
@@ -498,6 +505,7 @@ class Container:
             candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
             report_repo=SqlaCardReportRepository(session),
+            anki_sync_repo=SqlaAnkiSyncRepository(session),
         )
 
     def report_candidate_use_case(self, session: Session) -> ReportCandidateUseCase:
@@ -513,6 +521,26 @@ class Container:
             known_word_repo=SqlaKnownWordRepository(session),
             decision_repo=SqlaWordDecisionRepository(session),
             review_status=self._review_status_updater(session),
+            cloze_repo=SqlaCandidateClozeRepository(session),
+            anki_sync_repo=SqlaAnkiSyncRepository(session),
+        )
+
+    def save_cloze_use_case(self, session: Session) -> SaveClozeUseCase:
+        return SaveClozeUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            cloze_repo=SqlaCandidateClozeRepository(session),
+            anki_sync_repo=SqlaAnkiSyncRepository(session),
+            job_repo=SqlaJobRepository(session),
+            report_repo=SqlaCardReportRepository(session),
+            mark_candidate=self.mark_candidate_use_case(session),
+            builder=ClozeBuilder(),
+        )
+
+    def preview_cloze_use_case(self, session: Session) -> PreviewClozeUseCase:
+        return PreviewClozeUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
+            builder=ClozeBuilder(),
         )
 
     def replace_with_example_use_case(self, session: Session) -> ReplaceWithExampleUseCase:
@@ -561,12 +589,14 @@ class Container:
             anki_sync_repo=SqlaAnkiSyncRepository(session),
             template_renderer=self._anki_template_renderer,
             known_word_repo=SqlaKnownWordRepository(session),
+            cloze_builder=ClozeBuilder(),
         )
 
     def get_export_cards_use_case(self, session: Session) -> GetExportCardsUseCase:
         return GetExportCardsUseCase(
             export_queue=self._export_queue(session),
             source_repo=SqlaSourceRepository(session),
+            cloze_builder=ClozeBuilder(),
         )
 
     def _export_queue(self, session: Session) -> ExportQueue:

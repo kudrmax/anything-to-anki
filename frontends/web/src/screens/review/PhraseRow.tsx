@@ -1,6 +1,6 @@
 import type { CandidateStatus, StoredCandidate } from '@/api/types'
 import { highlightParts } from '@/lib/text/meaning'
-import { StatusDot, type Tone } from '@/ui'
+import { Badge, StatusDot, type Tone } from '@/ui'
 import css from './review.module.css'
 
 const TONE: Record<CandidateStatus, Tone> = { pending: 'idle', learn: 'ok', known: 'off', skip: 'off' }
@@ -23,6 +23,7 @@ export function PhraseRow({ candidate, onSelect, current = false }: PhraseRowPro
           part.target ? <span key={i} className={css.queueTarget}>{part.text}</span> : part.text,
         )}
       </span>
+      {candidate.cloze && <Badge>cloze</Badge>}
     </button>
   )
 }

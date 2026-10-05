@@ -1,3 +1,4 @@
 .segmented { display: inline-flex; flex: var(--segmented-flex); min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; height: var(--h); padding: var(--s2); border-radius: var(--rc); background: var(--soft); }
 .item { padding: 0 var(--s4); border-radius: var(--r-s); font-size: var(--fs-c); color: var(--tx2); white-space: nowrap; }
 .on { background: var(--card); color: var(--tx); box-shadow: inset 0 0 0 var(--bw) var(--line); font-weight: var(--fw-m); }
+.item:disabled { opacity: var(--o-disabled); cursor: default; }

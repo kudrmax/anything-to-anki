@@ -7,6 +7,7 @@ from sqlalchemy import func
 
 from backend.domain.ports.candidate_repository import CandidateRepository
 from backend.infrastructure.persistence.models import (
+    CandidateClozeModel,
     CandidateMeaningModel,
     CandidateMediaModel,
     CandidatePronunciationModel,
@@ -163,6 +164,8 @@ class SqlaCandidateRepository(CandidateRepository):
         entity.media = media_model.to_entity() if media_model else None
         entity.pronunciation = pron_model.to_entity() if pron_model else None
         entity.tts = tts_model.to_entity() if tts_model else None
+        cloze_model = self._session.get(CandidateClozeModel, entity.id)
+        entity.cloze = cloze_model.to_entity() if cloze_model else None
         return entity
 
     def _bulk_attach(self, entities: list[StoredCandidate]) -> list[StoredCandidate]:
@@ -189,14 +192,21 @@ class SqlaCandidateRepository(CandidateRepository):
             .filter(CandidateTTSModel.candidate_id.in_(ids))
             .all()
         )
+        cloze_rows = (
+            self._session.query(CandidateClozeModel)
+            .filter(CandidateClozeModel.candidate_id.in_(ids))
+            .all()
+        )
         meanings = {r.candidate_id: r.to_entity() for r in meaning_rows}
         medias = {r.candidate_id: r.to_entity() for r in media_rows}
         prons = {r.candidate_id: r.to_entity() for r in pron_rows}
         ttses = {r.candidate_id: r.to_entity() for r in tts_rows}
+        clozes = {r.candidate_id: r.to_entity() for r in cloze_rows}
         for e in entities:
             if e.id is not None:
                 e.meaning = meanings.get(e.id)
                 e.media = medias.get(e.id)
                 e.pronunciation = prons.get(e.id)
                 e.tts = ttses.get(e.id)
+                e.cloze = clozes.get(e.id)
         return entities

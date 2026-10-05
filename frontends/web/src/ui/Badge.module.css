@@ -1,0 +1,1 @@
+.badge { flex: none; margin-left: auto; padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--ac-wash); }

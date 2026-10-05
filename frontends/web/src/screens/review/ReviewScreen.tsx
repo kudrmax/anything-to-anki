@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { decisionChange, type Decision } from '@/lib/decision'
-import { reviewAction, type ReviewAction } from '@/lib/hotkeys'
+import { decisionChange, learnConvertsCloze, type Decision } from '@/lib/decision'
+import { allowedInClozeMarkup, reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { pastedPicture } from '@/lib/pastedPicture'
 import { phraseListShownPref, sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
@@ -66,13 +66,15 @@ export function ReviewScreen() {
     listRef.current?.querySelector(`[data-candidate-id="${currentId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [currentId, currentIndex, loading])
 
-  const { mark, setCurrentId, cancelEditing, sourceId } = review
+  const { mark, setCurrentId, cancelEditing, sourceId, clozeEditing, startCloze, cancelCloze } = review
   const toggleAudio = review.player.toggle
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && editing && !selection) { cancelEditing(); return }
       const action = reviewAction(e)
       if (!action) return
+      // В разметке cloze карточка остаётся на месте; оценка сначала закрывает разметку.
+      if (clozeEditing && !allowedInClozeMarkup(action)) return
       e.preventDefault()
       if (action === 'prev' || action === 'next') {
         const target = action === 'next' ? nextId : prevId
@@ -85,12 +87,18 @@ export function ReviewScreen() {
         if (url) toggleAudio(url)
         return
       }
+      if (action === 'cloze') {
+        if (current.can_cloze) startCloze(current.id)
+        return
+      }
       const status = DECISION[action]
-      if (status) void mark(current.id, decisionChange(current.status, status))
+      if (!status) return
+      if (clozeEditing) cancelCloze()
+      void mark(current.id, decisionChange(current.status, status, learnConvertsCloze(current)))
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [current, prevId, nextId, editing, selection, mark, setCurrentId, cancelEditing, toggleAudio, sourceId])
+  }, [current, prevId, nextId, editing, selection, mark, setCurrentId, cancelEditing, toggleAudio, sourceId, clozeEditing, startCloze, cancelCloze])
 
   const { pasteImage } = review
   useEffect(() => {
@@ -236,7 +244,7 @@ export function ReviewScreen() {
         )}
         {candidates.length > 0 && counts.marked === counts.total && <Empty>All candidates reviewed.</Empty>}
         {candidates.length > 0 && (
-          <div className={css.hint}>↑ ↓ — next phrase · 1 Learn · 2 Know · 3 Skip · Space — play audio · ⌘V — paste picture</div>
+          <div className={css.hint}>↑ ↓ — next phrase · 1 Learn · 2 Cloze · 3 Know · 4 Skip · Space — play audio · ⌘V — paste picture</div>
         )}
       </div>
       {selection && (

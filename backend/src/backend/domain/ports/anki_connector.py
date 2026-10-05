@@ -19,11 +19,13 @@ class AnkiConnector(ABC):
         front_template: str | None = None,
         back_template: str | None = None,
         css: str | None = None,
+        is_cloze: bool = False,
     ) -> None:
         """Ensure the note type exists and contains all of the listed fields.
 
         If the note type does not exist, create it with exactly the listed
-        fields using the provided templates (or built-in fallbacks if None).
+        fields using the provided templates (or built-in fallbacks if None);
+        `is_cloze` creates it as Anki's native cloze type.
         If it exists, add any missing fields to it (existing extra fields are
         preserved). When creating a new model, the order of fields matches
         the order of the input list.
@@ -34,8 +36,10 @@ class AnkiConnector(ABC):
         """Create the deck if it does not exist yet."""
 
     @abstractmethod
-    def find_notes_by_target(self, deck_name: str, target: str) -> list[int]:
-        """Return note IDs that match the given target lemma in the deck."""
+    def find_notes_by_target(
+        self, deck_name: str, model_name: str, target_field: str, target: str
+    ) -> list[int]:
+        """Return IDs of notes of the note type whose target field equals the lemma."""
 
     @abstractmethod
     def add_notes(

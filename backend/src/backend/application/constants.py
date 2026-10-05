@@ -24,3 +24,7 @@ MAX_IMAGES_PER_SOURCE: int = 30
 
 # The best cards come first; the user decides on a short list, the rest waits behind "show more".
 INITIALLY_SHOWN_CANDIDATES: int = 15
+
+# Which hint a new cloze card gets until the user picks another one.
+CLOZE_DEFAULT_HINT_SETTING: str = "cloze_default_hint"
+DEFAULT_CLOZE_HINT: str = "none"

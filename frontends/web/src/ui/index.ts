@@ -1,3 +1,4 @@
+export { Badge } from './Badge'
 export { Banner } from './Banner'
 export { Button } from './Button'
 export { Chip } from './Chip'
