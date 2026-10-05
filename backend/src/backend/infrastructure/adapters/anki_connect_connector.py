@@ -30,6 +30,11 @@ def _quote(text: str) -> str:
     return text.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def _quote_value(text: str) -> str:
+    """A field value matched literally: Anki reads `*` and `_` in it as wildcards."""
+    return _quote(text).replace("*", "\\*").replace("_", "\\_")
+
+
 class AnkiConnectConnector(AnkiConnector):
     """Communicates with AnkiConnect via its HTTP JSON-RPC API."""
 
@@ -109,7 +114,7 @@ class AnkiConnectConnector(AnkiConnector):
     def find_notes_by_target(
         self, deck_name: str, model_name: str, target_field: str, target: str
     ) -> list[int]:
-        query = f'note:"{_quote(model_name)}" "{_quote(target_field)}:{_quote(target)}"'
+        query = f'note:"{_quote(model_name)}" "{_quote(target_field)}:{_quote_value(target)}"'
         raw = self._invoke("findNotes", query=query)
         return cast("list[int]", raw) if raw else []
 

@@ -145,6 +145,12 @@ class TestFindNotesByTarget:
             connector.find_notes_by_target("deck", "My Words", "Target Word", "burnout")
         assert invoke.call_args.kwargs["query"] == 'note:"My Words" "Target Word:burnout"'
 
+    def test_query_escapes_wildcards_in_target(self) -> None:
+        connector = AnkiConnectConnector(url="http://test")
+        with patch.object(connector, "_invoke", return_value=[]) as invoke:
+            connector.find_notes_by_target("deck", "M", "Target", "a*b_c")
+        assert invoke.call_args.kwargs["query"] == 'note:"M" "Target:a\\*b\\_c"'
+
     def test_query_escapes_backslashes(self) -> None:
         connector = AnkiConnectConnector(url="http://test")
         with patch.object(connector, "_invoke", return_value=[]) as invoke:
