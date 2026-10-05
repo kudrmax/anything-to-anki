@@ -113,9 +113,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
         />
       )}
       {isVideo && <IconButton icon={Image} label="Regenerate media" busy={review.busy.media.has(id)} onClick={() => void review.regenerateMedia(id)} />}
-      {candidate.can_have_target_image && (
-        <IconButton icon={ImagePlus} label="Find a picture of the word" busy={review.busy.image.has(id)} onClick={() => setPickingImage(true)} />
-      )}
+      <IconButton icon={ImagePlus} label="Find a picture of the word" busy={review.busy.image.has(id)} onClick={() => setPickingImage(true)} />
       {pickingImage && <ImagePicker candidate={candidate} review={review} onClose={() => setPickingImage(false)} />}
       <IconButton icon={Speech} label="Generate TTS audio" busy={review.busy.tts.has(id)} onClick={() => void review.generateTTS(id)} />
       <PolishedPhrase candidate={candidate} review={review} />

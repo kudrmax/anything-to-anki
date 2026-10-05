@@ -168,11 +168,6 @@ class TestCardReportsAPI:
 
 @pytest.mark.integration
 class TestTargetImageAPI:
-    def test_noun_candidate_offers_a_picture(self, client: TestClient) -> None:
-        candidates = client.get("/sources/1").json()["candidates"]
-
-        assert candidates[0]["can_have_target_image"] is True
-
     def test_refuses_to_download_a_url_no_source_handed_out(self, client: TestClient) -> None:
         response = client.put("/candidates/1/image", json={"url": "https://evil.example/x.jpg"})
 

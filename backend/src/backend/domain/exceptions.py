@@ -261,13 +261,6 @@ class GenerationBlockedError(DomainError):
         self.reason = reason
 
 
-class TargetImageNotSupportedError(DomainError):
-    """Raised when a picture is asked for a target that can't be drawn (not a noun)."""
-
-    def __init__(self, candidate_id: int) -> None:
-        super().__init__(f"Pictures are offered only for nouns: candidate {candidate_id}")
-        self.candidate_id = candidate_id
-
 
 class ImageSearchError(DomainError):
     """Raised when a picture source can't be reached or answers with garbage."""
