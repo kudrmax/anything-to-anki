@@ -7,6 +7,8 @@ import type {
   CandidateSortOrder,
   CandidateStatus,
   CleanupMediaKind,
+  ClozeDraft,
+  ClozePreview,
   Collection,
   CreateNoteTypeResponse,
   ExportGroup,
@@ -95,6 +97,12 @@ export const api = {
 
   getCandidates: (id: number, sort: CandidateSortOrder = 'relevance') =>
     req<StoredCandidate[]>(`/sources/${id}/candidates?sort=${sort}`),
+
+  previewCloze: (id: number, draft: Partial<ClozeDraft>, signal?: AbortSignal) =>
+    req<ClozePreview>(`/candidates/${id}/cloze/preview`, { method: 'POST', body: JSON.stringify(draft), signal }),
+
+  saveCloze: (id: number, draft: ClozeDraft) =>
+    req<StoredCandidate>(`/candidates/${id}/cloze`, { method: 'PUT', body: JSON.stringify(draft) }),
 
   markCandidate: (id: number, status: CandidateStatus) =>
     req<{ id: number; status: string }>(`/candidates/${id}`, {

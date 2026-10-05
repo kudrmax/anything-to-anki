@@ -31,7 +31,10 @@ export function ExportCardRow({ card, sourceId, withMedia, player }: ExportCardR
     <div className={classes} onClick={() => navigate(`/sources/${sourceId}/review?candidate=${card.candidate_id}`)}>
       <div className={css.main}>
         {/* sentence и meaning приходят из backend готовым HTML с выделенным словом */}
-        <p className={`${css.sentence} ${phrase.html}`} dangerouslySetInnerHTML={{ __html: card.sentence }} />
+        <div className={css.sentenceRow}>
+          <p className={`${css.sentence} ${phrase.html}`} dangerouslySetInnerHTML={{ __html: card.sentence }} />
+          {card.is_cloze && <span className={css.kind}>cloze</span>}
+        </div>
         {definition && <p className={css.definition} dangerouslySetInnerHTML={{ __html: definition }} />}
         {card.missing.length > 0 && (
           <p className={css.missing}>{card.missing.map(part => MISSING_LABEL[part]).join(' · ')}</p>

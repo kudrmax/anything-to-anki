@@ -112,3 +112,29 @@
 .imageOption:disabled { opacity: var(--o-disabled); }
 .imageOption img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .imageProvider { position: absolute; left: var(--s2); bottom: var(--s2); padding: 0 var(--s2); border-radius: var(--r-xs); font-size: var(--fs-2xs); color: var(--on-media); background: var(--media-veil); }
+
+/* cloze: разметка скрытых слов прямо во фразе */
+.clozeEditing { box-shadow: inset 0 0 0 var(--bw) var(--ac); }
+.clozeEdit { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s2) var(--s1); }
+.clozeWord { position: relative; margin: 0 calc(var(--bw) * -1); padding: 0 var(--s2); border-radius: var(--r-s); font: inherit; letter-spacing: inherit; color: var(--tx); cursor: pointer; transition: background var(--t); }
+.clozeWord:hover { background: var(--hover); }
+.clozeWordTarget { text-decoration: underline; text-decoration-color: var(--ac); text-decoration-thickness: var(--underline); text-underline-offset: var(--s2); }
+.clozeGap { color: var(--ac); background: var(--ac-wash); border: var(--dash-bw) dashed var(--ac); border-radius: var(--r-s); padding: 0 calc(var(--s2) - var(--dash-bw)); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.clozeWord.clozeGap:hover { background: var(--ac-tint); }
+.clozeWordExtra::after { content: ''; position: absolute; top: calc(var(--s2) * -1); left: 0; right: 0; width: var(--cloze-mark); height: var(--cloze-mark); margin-inline: auto; border-radius: 50%; background: var(--ac); }
+.clozeSaved { cursor: pointer; }
+.clozeFact { display: inline-flex; align-items: center; gap: var(--s2); color: var(--ac); }
+.kind { flex: none; margin-left: auto; padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--ac-wash); }
+
+/* панель cloze под фразой */
+.clozePanel { display: flex; flex-direction: column; gap: var(--s4); margin-top: var(--s2); padding: var(--s5); border-radius: var(--r); background: var(--soft); }
+.clozeCols { display: grid; grid-template-columns: var(--cloze-cols); gap: var(--s6); align-items: start; }
+.clozeField { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
+.clozeField > input { margin-top: var(--s2); }
+.clozeLabel { font-size: var(--fs-xs); color: var(--tx3); text-transform: uppercase; letter-spacing: var(--ls-caps); }
+.clozeHints { align-self: flex-start; background: var(--bg); }
+.clozeFront { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx); }
+.clozeBlank { color: var(--ac); font-weight: var(--fw-m); }
+.clozeFrontHint { color: var(--tx3); }
+.clozeActions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--s3); }
+.clozeTip { margin-right: auto; font-size: var(--fs-s); color: var(--tx3); }

@@ -9,4 +9,8 @@ describe('decisionChange', () => {
   it('undoes the decision when it is chosen again', () => {
     expect(decisionChange('known', 'known')).toBe('pending')
   })
+  it('turns a cloze card back into a plain Learn card instead of undoing it', () => {
+    expect(decisionChange('learn', 'learn', true)).toBe('learn')
+    expect(decisionChange('learn', 'skip', true)).toBe('skip')
+  })
 })

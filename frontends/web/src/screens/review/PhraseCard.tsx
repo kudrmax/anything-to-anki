@@ -1,12 +1,15 @@
 import { useState } from 'react'
-import { Target, Volume2 } from 'lucide-react'
-import type { EnrichmentStatus, PhraseOrigin, StoredCandidate } from '@/api/types'
+import { Brackets, Target, Volume2 } from 'lucide-react'
+import type { CandidateCloze, EnrichmentStatus, PhraseOrigin, StoredCandidate } from '@/api/types'
+import { CLOZE_HINT_LABEL } from '@/lib/clozeHints'
 import { FREQ_BAND_LABEL, isDivider, meaningAction, meaningParts, mediaUrl, nonEmptyLines, parseExamples, primaryUsageGroup } from '@/lib/text/meaning'
 import { Button, Chip, Icon, MediaThumb, Spinner, Text } from '@/ui'
 import { CardPhrase } from './CardPhrase'
 import { CefrTooltip } from './CefrTooltip'
+import { ClozePanel } from './ClozePanel'
 import { DecisionButtons, PhraseTools } from './PhraseActions'
 import type { Review } from './useReview'
+import { useClozeEditor } from './useClozeEditor'
 import { usePhraseEditor } from './usePhraseEditor'
 import phrase from '@/ui/phrase.module.css'
 import css from './review.module.css'
@@ -21,6 +24,9 @@ const GENERATED_PHRASE = 'generated phrase'
 /** Откуда фраза кандидата темы: из другого источника или сгенерирована. */
 const originLabel = (origin: PhraseOrigin): string =>
   origin.kind === 'source' && origin.source_title ? `from ${origin.source_title}` : GENERATED_PHRASE
+
+const clozeLabel = ({ hint_kind }: CandidateCloze): string =>
+  hint_kind === 'none' ? 'cloze · no hint' : `cloze · hint: ${CLOZE_HINT_LABEL[hint_kind].toLowerCase()}`
 
 const isActive = (status: EnrichmentStatus | undefined): boolean => status === 'queued' || status === 'running' || status === 'failed'
 
@@ -51,6 +57,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   const meaning = candidate.meaning
   const media = review.mediaFor(candidate)
   const phraseEditor = usePhraseEditor(candidate, review)
+  const clozeEditor = useClozeEditor(candidate, review)
 
   const usUrl = mediaUrl(sourceId, candidate.pronunciation?.us_audio_path)
   const ukUrl = mediaUrl(sourceId, candidate.pronunciation?.uk_audio_path)
@@ -77,9 +84,9 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   const [definition, ...context] = paragraphs
 
   return (
-    <article className={css.card} data-candidate-id={candidate.id}>
+    <article className={clozeEditor.active ? `${css.card} ${css.clozeEditing}` : css.card} data-candidate-id={candidate.id}>
       <header className={css.cardHead}>
-        <CardPhrase candidate={candidate} editor={phraseEditor} />
+        <CardPhrase candidate={candidate} editor={phraseEditor} cloze={clozeEditor} />
         {hasMeta && (
           <div className={css.meta}>
             {meaning?.ipa && <Text mono>{meaning.ipa}</Text>}
@@ -94,6 +101,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             )}
           </div>
         )}
+        {clozeEditor.active && <ClozePanel editor={clozeEditor} />}
       </header>
 
       <div className={css.cardLeft}>
@@ -107,7 +115,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
           playing={player.playingUrl === media.audioUrl}
           onToggle={player.toggle}
         />
-        <DecisionButtons candidate={candidate} review={review} />
+        <DecisionButtons candidate={candidate} review={review} cloze={clozeEditor} />
       </div>
 
       <div className={css.cardRight}>
@@ -141,6 +149,9 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
         )}
         <div className={css.cardFoot}>
           <div className={css.facts}>
+            {candidate.cloze && (
+              <span className={css.clozeFact}><Icon as={Brackets} size="s" />{clozeLabel(candidate.cloze)}</span>
+            )}
             {candidate.is_phrasal_verb ? <span>phrasal verb</span> : candidate.cefr_level && (
               <span
                 className={css.cefr}

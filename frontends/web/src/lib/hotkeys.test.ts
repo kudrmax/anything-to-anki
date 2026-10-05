@@ -8,10 +8,13 @@ describe('reviewAction', () => {
   it('maps keys to actions', () => {
     expect(press('ArrowDown')).toBe('next')
     expect(press('ArrowUp')).toBe('prev')
-    expect(press('1')).toBe('learn')
-    expect(press('2')).toBe('known')
-    expect(press('3')).toBe('skip')
     expect(press(' ')).toBe('audio')
+  })
+  it('maps decision keys 1-4 in order', () => {
+    expect(press('1')).toBe('learn')
+    expect(press('2')).toBe('cloze')
+    expect(press('3')).toBe('known')
+    expect(press('4')).toBe('skip')
   })
   it('ignores other keys', () => {
     expect(press('a')).toBeNull()

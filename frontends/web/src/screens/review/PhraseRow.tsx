@@ -23,6 +23,7 @@ export function PhraseRow({ candidate, onSelect, current = false }: PhraseRowPro
           part.target ? <span key={i} className={css.queueTarget}>{part.text}</span> : part.text,
         )}
       </span>
+      {candidate.cloze && <span className={css.kind}>cloze</span>}
     </button>
   )
 }

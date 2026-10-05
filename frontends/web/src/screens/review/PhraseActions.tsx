@@ -5,6 +5,7 @@ import { decisionChange, type Decision } from '@/lib/decision'
 import { Button, Field, Icon, IconButton, Menu, Spinner, type MenuItem, type MenuPage } from '@/ui'
 import { ImagePicker } from './ImagePicker'
 import { PolishComparison } from './PolishComparison'
+import type { ClozeEditor } from './useClozeEditor'
 import type { Review } from './useReview'
 import css from './review.module.css'
 
@@ -15,25 +16,50 @@ const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string; icon: LucideIc
   { action: 'how_to_say', label: 'How to say it', icon: MessageCircle },
 ]
 
-const DECISIONS: { status: Decision; label: string; kbd: string }[] = [
-  { status: 'learn', label: 'Learn', kbd: '1' },
-  { status: 'known', label: 'Know', kbd: '2' },
-  { status: 'skip', label: 'Skip', kbd: '3' },
+const LEARN = { status: 'learn', label: 'Learn', kbd: '1' } as const
+const CLOZE = { label: 'Cloze', kbd: '2' } as const
+const OTHER_DECISIONS: { status: Decision; label: string; kbd: string }[] = [
+  { status: 'known', label: 'Know', kbd: '3' },
+  { status: 'skip', label: 'Skip', kbd: '4' },
 ]
+const ALREADY_IN_ANKI = 'Already in Anki'
 
 interface PhraseActionsProps {
   candidate: StoredCandidate
   review: Review
 }
 
-export function DecisionButtons({ candidate, review }: PhraseActionsProps) {
+interface DecisionButtonsProps extends PhraseActionsProps {
+  cloze: ClozeEditor
+}
+
+/** Решения по фразе: Learn 1 · Cloze 2 · Know 3 · Skip 4. */
+export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsProps) {
   const isRated = candidate.status !== 'pending'
-  const decide = (status: Decision) => void review.mark(candidate.id, decisionChange(candidate.status, status))
-  const isPrimary = (status: CandidateStatus) => (isRated ? candidate.status === status : status === 'learn')
+  const isCloze = candidate.cloze !== null
+  const decide = (status: Decision) => void review.mark(candidate.id, decisionChange(candidate.status, status, isCloze))
+  const isPrimary = (status: CandidateStatus) => {
+    if (cloze.active) return false
+    if (status === 'learn' && isCloze) return false
+    return isRated ? candidate.status === status : status === 'learn'
+  }
+  const variant = (primary: boolean) => (primary ? 'fill' : 'soft')
   return (
     <div className={css.decisions}>
-      {DECISIONS.map(decision => (
-        <Button key={decision.status} variant={isPrimary(decision.status) ? 'fill' : 'soft'} kbd={decision.kbd} onClick={() => decide(decision.status)}>
+      <Button variant={variant(isPrimary(LEARN.status))} kbd={LEARN.kbd} onClick={() => decide(LEARN.status)}>
+        {LEARN.label}
+      </Button>
+      <Button
+        variant={variant(isCloze || cloze.active)}
+        kbd={CLOZE.kbd}
+        disabled={!candidate.can_cloze}
+        title={candidate.can_cloze ? undefined : ALREADY_IN_ANKI}
+        onClick={cloze.start}
+      >
+        {CLOZE.label}
+      </Button>
+      {OTHER_DECISIONS.map(decision => (
+        <Button key={decision.status} variant={variant(isPrimary(decision.status))} kbd={decision.kbd} onClick={() => decide(decision.status)}>
           {decision.label}
         </Button>
       ))}
