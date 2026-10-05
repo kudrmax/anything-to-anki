@@ -124,7 +124,6 @@
 .clozeWordExtra::after { content: ''; position: absolute; top: calc(var(--s2) * -1); left: 0; right: 0; width: var(--cloze-mark); height: var(--cloze-mark); margin-inline: auto; border-radius: 50%; background: var(--ac); }
 .clozeSaved { cursor: pointer; }
 .clozeFact { display: inline-flex; align-items: center; gap: var(--s2); color: var(--ac); }
-.kind { flex: none; margin-left: auto; padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--ac-wash); }
 
 /* панель cloze под фразой */
 .clozePanel { display: flex; flex-direction: column; gap: var(--s4); margin-top: var(--s2); padding: var(--s5); border-radius: var(--r); background: var(--soft); }

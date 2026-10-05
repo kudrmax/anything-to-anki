@@ -58,6 +58,11 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   const media = review.mediaFor(candidate)
   const phraseEditor = usePhraseEditor(candidate, review)
   const clozeEditor = useClozeEditor(candidate, review)
+  // Правка текста и разметка cloze не открываются вместе: индексы скрытых слов относятся к старому тексту.
+  const editPhrase = () => {
+    clozeEditor.cancel()
+    phraseEditor.start()
+  }
 
   const usUrl = mediaUrl(sourceId, candidate.pronunciation?.us_audio_path)
   const ukUrl = mediaUrl(sourceId, candidate.pronunciation?.uk_audio_path)
@@ -165,7 +170,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             {facts.map(fact => <span key={fact}>{fact}</span>)}
             {candidate.origin && <span>{originLabel(candidate.origin)}</span>}
           </div>
-          <PhraseTools candidate={candidate} review={review} onEditPhrase={phraseEditor.start} />
+          <PhraseTools candidate={candidate} review={review} onEditPhrase={editPhrase} />
         </div>
       </div>
 

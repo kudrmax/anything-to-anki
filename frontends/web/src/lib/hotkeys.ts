@@ -3,7 +3,7 @@ export type ReviewAction = 'prev' | 'next' | 'learn' | 'cloze' | 'known' | 'skip
 const KEYS: Record<string, ReviewAction> = {
   ArrowUp: 'prev', ArrowDown: 'next', '1': 'learn', '2': 'cloze', '3': 'known', '4': 'skip', ' ': 'audio',
 }
-const OVERLAY = '[role="dialog"], [role="menu"]'
+export const OVERLAY = '[role="dialog"], [role="menu"]'
 const BLOCKING = `input, textarea, select, [contenteditable="true"], ${OVERLAY}`
 const ACTIVATED_BY_SPACE = 'button, a'
 /** Удержание клавиши листает фразы, но не оценивает их подряд. */

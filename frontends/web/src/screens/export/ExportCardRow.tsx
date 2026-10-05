@@ -2,7 +2,7 @@ import type { MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { CardPreview, MissingCardPart } from '@/api/types'
 import type { AudioPlayer } from '@/lib/useAudioPlayer'
-import { MediaThumb } from '@/ui'
+import { Badge, MediaThumb } from '@/ui'
 import phrase from '@/ui/phrase.module.css'
 import css from './export.module.css'
 
@@ -33,7 +33,7 @@ export function ExportCardRow({ card, sourceId, withMedia, player }: ExportCardR
         {/* sentence и meaning приходят из backend готовым HTML с выделенным словом */}
         <div className={css.sentenceRow}>
           <p className={`${css.sentence} ${phrase.html}`} dangerouslySetInnerHTML={{ __html: card.sentence }} />
-          {card.is_cloze && <span className={css.kind}>cloze</span>}
+          {card.is_cloze && <Badge>cloze</Badge>}
         </div>
         {definition && <p className={css.definition} dangerouslySetInnerHTML={{ __html: definition }} />}
         {card.missing.length > 0 && (

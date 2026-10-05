@@ -22,4 +22,3 @@
 .media { grid-area: media; }
 .sentenceRow { display: flex; align-items: baseline; gap: var(--s3); }
 .sentenceRow > .sentence { flex: 1; min-width: 0; }
-.kind { flex: none; padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--ac-wash); }

@@ -1,11 +1,10 @@
 import { useEffect } from 'react'
 import type { ClozePreview } from '@/api/types'
 import { CLOZE_GAP, CLOZE_HINT_OPTIONS } from '@/lib/clozeHints'
+import { OVERLAY } from '@/lib/hotkeys'
 import { Button, Field, Segmented, Text } from '@/ui'
 import type { ClozeEditor } from './useClozeEditor'
 import css from './review.module.css'
-
-const OVERLAY = '[role="dialog"], [role="menu"]'
 
 function AnkiFront({ preview }: { preview: ClozePreview }) {
   const parts = preview.front.split(CLOZE_GAP)
@@ -22,7 +21,10 @@ function AnkiFront({ preview }: { preview: ClozePreview }) {
   )
 }
 
-/** Панель разметки cloze под фразой: подсказка, лицевая сторона в Anki, сохранение. Enter сохраняет, Esc отменяет. */
+/**
+ * Панель разметки cloze под фразой: подсказка, лицевая сторона в Anki, сохранение.
+ * Enter сохраняет (кроме кнопки в фокусе — она нажимается сама), Esc отменяет.
+ */
 export function ClozePanel({ editor }: { editor: ClozeEditor }) {
   const { draft, preview, error, cancel, save } = editor
 
@@ -30,10 +32,15 @@ export function ClozePanel({ editor }: { editor: ClozeEditor }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.repeat) return
       if (document.querySelector(OVERLAY)) return
+      const target = e.target instanceof Element ? e.target : null
+      // Поле правки фразы живёт своими клавишами.
+      if (target?.closest('textarea')) return
       if (e.key === 'Escape') {
         e.preventDefault()
         cancel()
       } else if (e.key === 'Enter') {
+        // Кнопка в фокусе (слово, подсказка, Cancel, Save) нажимается сама.
+        if (target?.closest('button')) return
         e.preventDefault()
         void save()
       }
