@@ -35,24 +35,27 @@ import type {
   UsagePeriod,
   VerifyNoteTypeResponse,
 } from './types'
+import { buildHeaders, reloadIfStale } from './clientBuild'
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? ''
 
-async function req<T>(path: string, init?: RequestInit): Promise<T> {
+async function send(path: string, init?: RequestInit): Promise<Response> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...buildHeaders() },
     ...init,
   })
+  reloadIfStale(res)
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+  return res
+}
+
+async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await send(path, init)
   return res.json() as Promise<T>
 }
 
 async function reqVoid(path: string, init?: RequestInit): Promise<void> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  })
-  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+  await send(path, init)
 }
 
 export const api = {
