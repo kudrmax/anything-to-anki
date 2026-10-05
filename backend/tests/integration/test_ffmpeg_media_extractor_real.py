@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.infrastructure.adapters.ffmpeg_media_extractor import FfmpegMediaExtractor
+from backend.infrastructure.adapters.pillow_card_picture_encoder import PillowCardPictureEncoder
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -53,11 +54,15 @@ def video_file(tmp_path: Path) -> Path:
     return path
 
 
+def _extractor() -> FfmpegMediaExtractor:
+    return FfmpegMediaExtractor(PillowCardPictureEncoder())
+
+
 def test_extract_screenshot_writes_real_webp(video_file: Path, tmp_path: Path) -> None:
     """На выходе — валидный WebP, а не пустой файл и не молчаливый пропуск."""
     out_path = tmp_path / "1_screenshot.webp"
 
-    FfmpegMediaExtractor().extract_screenshot(str(video_file), 1000, str(out_path))
+    _extractor().extract_screenshot(str(video_file), 1000, str(out_path))
 
     assert out_path.exists()
     data = out_path.read_bytes()
@@ -78,6 +83,6 @@ def test_extract_screenshot_fails_loudly_past_end_of_video(
     past_end_ms = (_FIXTURE_DURATION_S + 60) * 1000
 
     with pytest.raises(RuntimeError):
-        FfmpegMediaExtractor().extract_screenshot(str(video_file), past_end_ms, str(out_path))
+        _extractor().extract_screenshot(str(video_file), past_end_ms, str(out_path))
 
     assert not out_path.exists(), "недоделанный скриншот не должен оставаться на диске"

@@ -9,6 +9,7 @@ from backend.application.use_cases.apply_target_image import ApplyTargetImageUse
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import TargetImageNotSupportedError, UnknownImageUrlError
+from backend.domain.ports.card_picture_encoder import CardPictureEncoder
 from backend.domain.ports.file_downloader import FileDownloader
 from backend.domain.ports.target_image_source import TargetImageSource
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -42,12 +43,23 @@ class _WritingDownloader(FileDownloader):
             out.write(b"picture")
 
 
+class _CopyingEncoder(CardPictureEncoder):
+    def __init__(self) -> None:
+        self.pictures: list[bytes] = []
+
+    def encode(self, picture: bytes, out_path: str) -> None:
+        self.pictures.append(picture)
+        with open(out_path, "wb") as out:
+            out.write(b"encoded")
+
+
 class _Fixture:
     def __init__(self, tmp_path: Path, candidate: StoredCandidate) -> None:
         repo = MagicMock()
         repo.get_by_id.return_value = candidate
         self.media_repo = MagicMock()
         self.downloader = _WritingDownloader()
+        self.encoder = _CopyingEncoder()
         source = MagicMock(spec=TargetImageSource)
         source.owns.side_effect = lambda url: url in (BING_URL, WIKI_URL)
         self.media_root = str(tmp_path)
@@ -56,6 +68,7 @@ class _Fixture:
             media_repo=self.media_repo,
             image_sources=[source],
             file_downloader=self.downloader,
+            picture_encoder=self.encoder,
             media_root=self.media_root,
         )
 
@@ -78,23 +91,32 @@ class TestApplyTargetImage:
         assert os.path.dirname(saved.screenshot_path) == expected_dir
         assert os.path.exists(saved.screenshot_path)
 
-    def test_file_name_keeps_the_screenshot_pattern_and_the_url_extension(
-        self, tmp_path: Path,
-    ) -> None:
+    def test_shrinks_the_download_with_the_card_picture_encoder(self, tmp_path: Path) -> None:
+        fx = _Fixture(tmp_path, _candidate())
+
+        fx.use_case.execute(CANDIDATE_ID, WIKI_URL)
+
+        saved_path = fx.saved_media().screenshot_path or ""
+        assert fx.encoder.pictures == [b"picture"]
+        with open(saved_path, "rb") as saved:
+            assert saved.read() == b"encoded"
+
+    def test_file_name_keeps_the_screenshot_pattern_as_webp(self, tmp_path: Path) -> None:
         fx = _Fixture(tmp_path, _candidate())
 
         fx.use_case.execute(CANDIDATE_ID, WIKI_URL)
 
         name = os.path.basename(fx.saved_media().screenshot_path or "")
         assert name.startswith(f"{CANDIDATE_ID}_screenshot.")
-        assert name.endswith(".png")
+        assert name.endswith(".webp")
 
-    def test_url_without_extension_is_saved_as_jpg(self, tmp_path: Path) -> None:
+    def test_keeps_only_the_encoded_file(self, tmp_path: Path) -> None:
         fx = _Fixture(tmp_path, _candidate())
 
         fx.use_case.execute(CANDIDATE_ID, BING_URL)
 
-        assert (fx.saved_media().screenshot_path or "").endswith(".jpg")
+        saved_path = fx.saved_media().screenshot_path or ""
+        assert os.listdir(os.path.dirname(saved_path)) == [os.path.basename(saved_path)]
 
     def test_another_picture_gets_another_file_name(self, tmp_path: Path) -> None:
         first = _Fixture(tmp_path, _candidate())

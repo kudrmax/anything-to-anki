@@ -73,6 +73,7 @@ from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
 )
 from backend.infrastructure.adapters.local_file_reader import LocalFileReader
+from backend.infrastructure.adapters.pillow_card_picture_encoder import PillowCardPictureEncoder
 from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
 from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
@@ -240,7 +241,8 @@ class Container:
         self._phrasal_verb_dictionary = JsonPhrasalVerbDictionary()
         self._fragment_selection_config = FragmentSelectionConfig()
         self._subtitle_extractor = FfmpegSubtitleExtractor()
-        self._media_extractor = FfmpegMediaExtractor()
+        self._picture_encoder = PillowCardPictureEncoder()
+        self._media_extractor = FfmpegMediaExtractor(self._picture_encoder)
         self._file_reader = LocalFileReader()
 
         from backend.infrastructure.adapters.ytdlp_subtitle_fetcher import YtDlpSubtitleFetcher
@@ -788,6 +790,7 @@ class Container:
             media_repo=SqlaCandidateMediaRepository(session),
             image_sources=self._target_image_sources,
             file_downloader=self._image_downloader,
+            picture_encoder=self._picture_encoder,
             media_root=self._media_root,
         )
 
