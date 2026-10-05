@@ -40,6 +40,7 @@ from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.application.utils.candidate_factory import CandidateFactory
 from backend.application.utils.candidate_sorter import CandidateSorter
+from backend.application.utils.export_queue import ExportQueue
 from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
@@ -552,7 +553,7 @@ class Container:
 
     def sync_to_anki_use_case(self, session: Session) -> SyncToAnkiUseCase:
         return SyncToAnkiUseCase(
-            candidate_repo=SqlaCandidateRepository(session),
+            export_queue=self._export_queue(session),
             anki_connector=self._anki_connector,
             settings_repo=SqlaSettingsRepository(session),
             anki_sync_repo=SqlaAnkiSyncRepository(session),
@@ -562,8 +563,14 @@ class Container:
 
     def get_export_cards_use_case(self, session: Session) -> GetExportCardsUseCase:
         return GetExportCardsUseCase(
-            candidate_repo=SqlaCandidateRepository(session),
+            export_queue=self._export_queue(session),
             source_repo=SqlaSourceRepository(session),
+        )
+
+    def _export_queue(self, session: Session) -> ExportQueue:
+        return ExportQueue(
+            candidate_repo=SqlaCandidateRepository(session),
+            anki_sync_repo=SqlaAnkiSyncRepository(session),
         )
 
     def generate_meaning_use_case(self, session: Session) -> GenerateMeaningUseCase:

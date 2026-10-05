@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
+from backend.application.utils.export_queue import ExportQueue
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -21,6 +22,7 @@ def _make_candidate(
     screenshot_path: str | None = None,
     audio_path: str | None = None,
     source_id: int = 1,
+    candidate_id: int = 1,
 ) -> StoredCandidate:
     meaning_obj = None
     if any(v is not None for v in (meaning, ipa, translation, synonyms, examples)):
@@ -44,7 +46,7 @@ def _make_candidate(
             generated_at=datetime(2026, 4, 7, tzinfo=UTC),
         )
     return StoredCandidate(
-        id=1,
+        id=candidate_id,
         source_id=source_id,
         lemma=lemma,
         pos="NOUN",
@@ -70,10 +72,12 @@ def _make_source_mock(source_id: int = 1, title: str = "Test Source") -> MagicMo
 class TestGetExportCardsExecute:
     def setup_method(self) -> None:
         self.candidate_repo = MagicMock()
+        self.anki_sync_repo = MagicMock()
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.source_repo = MagicMock()
         self.source_repo.get_by_id.return_value = _make_source_mock(1, "Test Source")
         self.use_case = GetExportCardsUseCase(
-            candidate_repo=self.candidate_repo,
+            export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
             source_repo=self.source_repo,
         )
 
@@ -94,6 +98,30 @@ class TestGetExportCardsExecute:
         assert len(result.sections) == 1
         assert len(result.sections[0].cards) == 1
         assert result.sections[0].cards[0].lemma == "burnout"
+
+    def test_excludes_already_exported_candidates(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate("burnout", CandidateStatus.LEARN, candidate_id=1),
+            _make_candidate("relentless", CandidateStatus.LEARN, candidate_id=2),
+            _make_candidate("pursuit", CandidateStatus.LEARN, candidate_id=3),
+        ]
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1, 3}
+
+        result = self.use_case.execute(source_id=1)
+
+        assert [card.lemma for card in result.sections[0].cards] == ["relentless"]
+        assert result.exported_count == 2
+
+    def test_no_sections_when_everything_exported(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate("burnout", CandidateStatus.LEARN, candidate_id=1),
+        ]
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}
+
+        result = self.use_case.execute(source_id=1)
+
+        assert result.sections == []
+        assert result.exported_count == 1
 
     def test_section_has_source_title(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -221,7 +249,7 @@ class TestGetExportCardsExecute:
 
     def test_custom_media_base_url(self) -> None:
         use_case = GetExportCardsUseCase(
-            candidate_repo=self.candidate_repo,
+            export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
             source_repo=self.source_repo,
             media_base_url="/custom/media",
         )
@@ -275,9 +303,11 @@ class TestGetExportCardsExecute:
 class TestGetExportCardsExecuteAll:
     def setup_method(self) -> None:
         self.candidate_repo = MagicMock()
+        self.anki_sync_repo = MagicMock()
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.source_repo = MagicMock()
         self.use_case = GetExportCardsUseCase(
-            candidate_repo=self.candidate_repo,
+            export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
             source_repo=self.source_repo,
         )
 
@@ -300,6 +330,19 @@ class TestGetExportCardsExecuteAll:
         assert result.sections[1].source_id == 2
         assert result.sections[1].source_title == "Source 2 Title"
         assert len(result.sections[1].cards) == 1
+
+    def test_omits_sources_with_everything_exported(self) -> None:
+        self.candidate_repo.get_all_by_status.return_value = [
+            _make_candidate("burnout", CandidateStatus.LEARN, source_id=1, candidate_id=1),
+            _make_candidate("relentless", CandidateStatus.LEARN, source_id=2, candidate_id=2),
+        ]
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}
+        self.source_repo.get_by_id.side_effect = lambda sid: _make_source_mock(sid, f"S{sid}")
+
+        result = self.use_case.execute_all()
+
+        assert [section.source_id for section in result.sections] == [2]
+        assert result.exported_count == 1
 
     def test_empty_when_no_learn_candidates(self) -> None:
         self.candidate_repo.get_all_by_status.return_value = []

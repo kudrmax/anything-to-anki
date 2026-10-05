@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { CandidateStatus, CardPreview, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageOption, SourceDetail, StoredCandidate } from '@/api/types'
+import type { CandidateStatus, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageOption, SourceDetail, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
@@ -28,15 +28,6 @@ const hasCandidateVpnErrors = (candidates: StoredCandidate[]): boolean =>
 
 export const audioUrlForCandidate = candidateAudioUrl
 
-const toMediaMap = (cards: CardPreview[]): Record<number, MediaRefs> => {
-  const map: Record<number, MediaRefs> = {}
-  for (const card of cards) map[card.candidate_id] = { screenshotUrl: card.screenshot_url, audioUrl: card.audio_url }
-  return map
-}
-
-const fetchCards = (sourceId: number): Promise<CardPreview[]> =>
-  api.getExportCards(sourceId).then(d => d.sections.flatMap(s => s.cards)).catch(() => [] as CardPreview[])
-
 const firstPendingId = (candidates: StoredCandidate[]): number | null =>
   (candidates.find(c => c.status === 'pending') ?? candidates[0])?.id ?? null
 
@@ -51,7 +42,6 @@ export function useReview(sourceId: number) {
   const [applyingImageIds, setApplyingImageIds] = useState<Set<number>>(new Set())
   const [generation, setGeneration] = useState<GenerationOverview | null>(null)
   const [vpnBlocked, setVpnBlocked] = useState(false)
-  const [mediaMap, setMediaMap] = useState<Record<number, MediaRefs>>({})
   const [sortOrder, setSortOrderState] = useState<SortOrder>(() => sortOrderPref.read())
   const [editing, setEditing] = useState<Editing | null>(null)
   const [toast, showToast] = useToast()
@@ -64,14 +54,13 @@ export function useReview(sourceId: number) {
   const setSortOrder = (order: SortOrder) => { sortOrderPref.write(order); setSortOrderState(order) }
 
   const fetchCandidates = useCallback(
-    () => Promise.all([api.getCandidates(sourceId, sortOrder), fetchCards(sourceId)]),
+    () => api.getCandidates(sourceId, sortOrder),
     [sourceId, sortOrder],
   )
 
-  const applyCandidates = useCallback(([cands, cards]: Awaited<ReturnType<typeof fetchCandidates>>) => {
+  const applyCandidates = useCallback((cands: StoredCandidate[]) => {
     setCandidates(cands)
     if (hasCandidateVpnErrors(cands)) setVpnBlocked(true)
-    setMediaMap(toMediaMap(cards))
   }, [])
 
   const loadCandidates = useCallback(async () => {
@@ -93,7 +82,7 @@ export function useReview(sourceId: number) {
         setSource(src)
         setCandidates(src.candidates)
         setCurrentId(prev => prev ?? firstPendingId(src.candidates))
-        await Promise.all([fetchCards(sourceId).then(cards => setMediaMap(toMediaMap(cards))), loadGeneration()])
+        await loadGeneration()
       } catch {
         setSource(null)
       } finally {
@@ -132,7 +121,7 @@ export function useReview(sourceId: number) {
     // остальные. Новый порядок и смену фокуса применяем одним рендером, иначе карточка
     // сначала сворачивается на месте; следующую фразу выбираем уже по новому порядку.
     const refreshed = await fetchCandidates().catch(() => null)
-    const fresh = refreshed?.[0] ?? candidatesRef.current.map(c => (c.id === candidateId ? { ...c, status } : c))
+    const fresh = refreshed ?? candidatesRef.current.map(c => (c.id === candidateId ? { ...c, status } : c))
     if (refreshed) applyCandidates(refreshed)
     else setCandidates(fresh)
 
@@ -347,8 +336,8 @@ export function useReview(sourceId: number) {
   }
 
   const mediaFor = (candidate: StoredCandidate): MediaRefs => ({
-    screenshotUrl: mediaUrl(sourceId, candidate.media?.screenshot_path) ?? mediaMap[candidate.id]?.screenshotUrl ?? null,
-    audioUrl: mediaUrl(sourceId, candidate.media?.audio_path) ?? mediaMap[candidate.id]?.audioUrl ?? null,
+    screenshotUrl: mediaUrl(sourceId, candidate.media?.screenshot_path),
+    audioUrl: mediaUrl(sourceId, candidate.media?.audio_path),
   })
 
   const markedCount = candidates.filter(c => c.status !== 'pending').length
