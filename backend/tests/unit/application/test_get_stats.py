@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.get_stats import GetStatsUseCase
+from backend.application.utils.export_queue import ExportBatch
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 
@@ -10,9 +11,12 @@ class TestGetStatsUseCase:
     def setup_method(self) -> None:
         self.candidate_repo = MagicMock()
         self.known_word_repo = MagicMock()
+        self.export_queue = MagicMock()
+        self.export_queue.for_all.return_value = ExportBatch(pending=[], exported_count=0)
         self.use_case = GetStatsUseCase(
             candidate_repo=self.candidate_repo,
             known_word_repo=self.known_word_repo,
+            export_queue=self.export_queue,
         )
 
     def test_returns_correct_counts(self) -> None:
@@ -34,3 +38,14 @@ class TestGetStatsUseCase:
         assert result.learn_count == 0
         assert result.candidate_count == 0
         assert result.known_word_count == 0
+        assert result.export_pending_count == 0
+
+    def test_export_pending_count_excludes_already_exported(self) -> None:
+        self.candidate_repo.count_by_status.return_value = 31
+        self.export_queue.for_all.return_value = ExportBatch(
+            pending=[MagicMock(), MagicMock(), MagicMock()],
+            exported_count=28,
+        )
+        result = self.use_case.execute()
+        assert result.learn_count == 31
+        assert result.export_pending_count == 3

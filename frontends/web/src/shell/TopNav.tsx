@@ -33,11 +33,11 @@ function sectionOf(pathname: string): Section {
 export function TopNav() {
   const { pathname } = useLocation()
   const current = sectionOf(pathname)
-  const [learnCount, setLearnCount] = useState(0)
+  const [exportPendingCount, setExportPendingCount] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    api.getStats().then(stats => { if (!cancelled) setLearnCount(stats.learn_count) }).catch(() => {})
+    api.getStats().then(stats => { if (!cancelled) setExportPendingCount(stats.export_pending_count) }).catch(() => {})
     return () => { cancelled = true }
   }, [pathname])
 
@@ -55,7 +55,7 @@ export function TopNav() {
 
   return (
     <nav className={css.nav}>
-      {MAIN.map(destination => tab(destination, destination.section === 'export' ? learnCount : undefined))}
+      {MAIN.map(destination => tab(destination, destination.section === 'export' ? exportPendingCount : undefined))}
       <span className={css.spacer} />
       {ENV_NAME && <span className={ENV_NAME === PROD_ENV ? `${css.env} ${css.prod}` : css.env}>{ENV_NAME}</span>}
       {tab(SETTINGS)}
