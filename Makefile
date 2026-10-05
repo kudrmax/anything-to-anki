@@ -1,4 +1,4 @@
-.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths app test-macos _check_env _check_setup
+.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths app test-macos _check_env _check_setup _up _up-worktree _down _down-worktree
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # -include не падает если файла нет; если .env создаётся правилом ниже,
@@ -74,6 +74,21 @@ endef
 # Рабочая папка процесса $$pid — по ней видно, из какой копии он запущен:
 # имена процессов у dev, prod и worktree одинаковые.
 PID_CWD = lsof -a -p $$pid -d cwd -Fn 2>/dev/null | sed -n 's/^n//p'
+
+# up/down одной копии идут строго по очереди: macOS-приложение запускает
+# make up само, и два параллельных запуска останавливали процессы друг друга.
+# shlock сам забирает замок, если его владелец умер (например, после kill -9).
+COPY_LOCK := .pids/make.lock
+
+define with_copy_lock
+	@mkdir -p .pids; \
+	until shlock -f $(COPY_LOCK) -p $$$$; do \
+	    echo "Waiting for another make up/down in this copy (PID $$(cat $(COPY_LOCK) 2>/dev/null))..."; \
+	    sleep 1; \
+	done; \
+	trap 'rm -f $(COPY_LOCK)' EXIT; \
+	$(MAKE) --no-print-directory $(1)
+endef
 
 # Остановить процесс, который слушает порт $(1), если в args есть $(2), а его
 # рабочая папка подходит под glob $(3). Чужие копии на том же порту не трогаем.
@@ -301,7 +316,10 @@ define install_frontend_deps
 endef
 
 ##@ Запуск (читает .env)
-up: _check_env _check_setup dict-update  ## Запустить (ai_proxy + app + worker)
+up:  ## Запустить (ai_proxy + app + worker)
+	$(call with_copy_lock,_up)
+
+_up: _check_env _check_setup dict-update
 	$(call install_frontend_deps)
 	@echo "Building frontend..."
 	@cd frontends/web && VITE_INSTANCE_ENV_NAME=$(INSTANCE_ENV_NAME) npm run build
@@ -316,7 +334,10 @@ up: _check_env _check_setup dict-update  ## Запустить (ai_proxy + app +
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "\033[0m\n"
 
-up-worktree: _check_env _check_setup dict-update  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий)
+up-worktree:  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий)
+	$(call with_copy_lock,_up-worktree)
+
+_up-worktree: _check_env _check_setup dict-update
 	$(call install_frontend_deps)
 	@echo "Building frontend..."
 	@cd frontends/web && VITE_INSTANCE_ENV_NAME=worktree npm run build
@@ -345,6 +366,9 @@ up-worktree: _check_env _check_setup dict-update  ## Запустить worktree
 	@printf "\033[0m\n"
 
 down:  ## Остановить
+	$(call with_copy_lock,_down)
+
+_down:
 	$(call kill_by_pid,$(APP_PID),app)
 	$(call kill_own_on_port,$(PORT),uvicorn,$(CURDIR))
 	$(call stop_worker,$(WRK_PID))
@@ -352,6 +376,9 @@ down:  ## Остановить
 	$(call stop_ai_proxy)
 
 down-worktree:  ## Остановить worktree
+	$(call with_copy_lock,_down-worktree)
+
+_down-worktree:
 	$(call stop_worktree)
 
 logs:  ## Логи app + worker + ai_proxy одним потоком
