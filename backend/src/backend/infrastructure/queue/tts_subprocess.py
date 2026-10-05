@@ -11,6 +11,7 @@ Run with: python -m backend.infrastructure.queue.tts_subprocess <job_id>
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,8 @@ from backend.infrastructure.persistence.sqla_job_repository import SqlaJobReposi
 from backend.infrastructure.queue.claimed_run import ClaimedRun
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from backend.domain.entities.job import Job
     from backend.infrastructure.container import Container
 
@@ -58,9 +61,14 @@ def _process(container: Container, job: Job) -> None:
             repo.fail([job.id], error)
 
 
-def process_tts_run(container: Container, first_job_id: int) -> int:
+def process_tts_run(
+    container: Container,
+    first_job_id: int,
+    worker_alive: Callable[[], bool] = lambda: True,
+) -> int:
     """Process the given claimed job, then TTS jobs while they head the queue.
-    Returns how many jobs were processed."""
+    Stops early once the worker that spawned it is gone: the next worker owns
+    the queue then. Returns how many jobs were processed."""
     with container.session_scope() as session:
         job = SqlaJobRepository(session).get(first_job_id)
     if job is not None and job.status is not JobStatus.RUNNING:
@@ -69,6 +77,9 @@ def process_tts_run(container: Container, first_job_id: int) -> int:
     while job is not None:
         _process(container, job)
         processed += 1
+        if not worker_alive():
+            logger.warning("Worker is gone, TTS subprocess stops")
+            break
         job = _claim_next_tts(container)
     return processed
 
@@ -80,7 +91,10 @@ def main() -> None:
     configure_logging("tts-worker")
     container = Container()
     logger.info("TTS subprocess started")
-    processed = process_tts_run(container, int(sys.argv[1]))
+    worker_pid = os.getppid()
+    processed = process_tts_run(
+        container, int(sys.argv[1]), worker_alive=lambda: os.getppid() == worker_pid,
+    )
     logger.info("TTS run finished, exiting (processed %d jobs)", processed)
     container.tts_generator.unload()
 

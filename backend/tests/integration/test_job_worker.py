@@ -383,6 +383,18 @@ class TestTTSSubprocess:
             (JobType.TTS, 4, JobStatus.QUEUED, None),
         ]
 
+    def test_stops_when_its_worker_is_gone(self, container: _Container) -> None:
+        _enqueue(container, (JobType.TTS, 1), (JobType.TTS, 2))
+        first = _claim_head(container)
+        assert first.id is not None
+
+        processed = process_tts_run(
+            container, first.id, worker_alive=lambda: False,  # type: ignore[arg-type]
+        )
+
+        assert processed == 1
+        assert _jobs(container) == [(JobType.TTS, 2, JobStatus.QUEUED, None)]
+
     def test_failure_fails_only_that_job(self, container: _Container) -> None:
         _enqueue(container, (JobType.TTS, 1), (JobType.TTS, 2))
         first = _claim_head(container)
