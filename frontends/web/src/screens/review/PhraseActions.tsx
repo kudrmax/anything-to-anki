@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { ArrowRight, Clapperboard, Ellipsis, Feather, Flag, HelpCircle, Image, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, Undo2, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Clapperboard, Ellipsis, Feather, Flag, GitCompare, HelpCircle, Image, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { decisionChange, type Decision } from '@/lib/decision'
 import { Button, Field, Icon, IconButton, Menu, Spinner, type MenuItem, type MenuPage } from '@/ui'
 import { ImagePicker } from './ImagePicker'
-import { PolishedPhrase } from './PolishedPhrase'
+import { PolishComparison } from './PolishComparison'
 import type { Review } from './useReview'
 import css from './review.module.css'
 
@@ -55,13 +55,14 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   const isVideo = review.source?.content_type === 'video'
   const isEditing = review.editing?.candidateId === id
   const hasMeaning = Boolean(candidate.meaning?.meaning)
+  const polishing = candidate.polish_status === 'queued' || candidate.polish_status === 'running'
   const busy = {
     meaning: review.busy.generating.has(id),
     media: review.busy.media.has(id),
     tts: review.busy.tts.has(id),
     image: review.busy.image.has(id),
   }
-  const anyBusy = Object.values(busy).some(Boolean) || candidate.polish_status === 'running'
+  const anyBusy = Object.values(busy).some(Boolean) || polishing
 
   const askQuestion = (close: () => void) => {
     if (!question.trim()) return
@@ -128,20 +129,20 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   })
   const groupLead = (isBusy: boolean) => (isBusy ? <Spinner /> : undefined)
 
-  const polished = Boolean(candidate.polished_fragment)
-  const polishing = candidate.polish_status === 'queued' || candidate.polish_status === 'running'
+  const polished = candidate.polished_fragment
   const phraseItems: MenuItem[] = [
     { label: 'Edit text', hint: 'Fix words in the phrase', icon: TextCursorInput, onSelect: onEditPhrase },
     { label: 'Change boundary', hint: 'Pick the phrase in the source', icon: TextSelect, onSelect: () => review.startEditing(id) },
+    ...(polished ? [{
+      label: 'Compare with original',
+      hint: candidate.polish_reverted ? 'Showing the original now' : 'See what AI changed',
+      icon: GitCompare,
+      separated: true,
+      page: { items: [], footer: (close: () => void) => <PolishComparison candidate={candidate} polished={polished} review={review} onDone={close} /> },
+    }] : []),
     ...(review.source?.can_polish_phrases ? [{
       ...actionItem(polished ? 'Polish again' : 'Polish', WandSparkles, polishing, () => void review.polishAgain(id), 'AI simplifies the phrase'),
-      separated: true,
-    }] : []),
-    ...(polished ? [{
-      label: candidate.polish_reverted ? 'Use polished phrase' : 'Revert to original',
-      hint: candidate.polish_reverted ? 'Back to the AI version' : 'The phrase from the book',
-      icon: Undo2,
-      onSelect: () => void review.setPolishReverted(id, !candidate.polish_reverted),
+      separated: !polished,
     }] : []),
   ]
 
@@ -180,7 +181,6 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
 
   return (
     <div className={css.tools}>
-      <PolishedPhrase candidate={candidate} review={review} />
       {isEditing && <IconButton icon={X} label="Cancel editing" active onClick={review.cancelEditing} />}
       <Menu
         items={items}
