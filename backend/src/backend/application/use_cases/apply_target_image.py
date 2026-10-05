@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.exceptions import (
     CandidateNotFoundError,
-    TargetImageNotSupportedError,
     UnknownImageUrlError,
 )
 
@@ -57,8 +56,6 @@ class ApplyTargetImageUseCase:
         candidate = self._candidate_repo.get_by_id(candidate_id)
         if candidate is None:
             raise CandidateNotFoundError(candidate_id)
-        if not candidate.can_have_target_image:
-            raise TargetImageNotSupportedError(candidate_id)
         if not any(source.owns(url) for source in self._image_sources):
             raise UnknownImageUrlError(url)
 

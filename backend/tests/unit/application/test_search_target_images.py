@@ -8,7 +8,6 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import (
     CandidateNotFoundError,
     ImageSearchError,
-    TargetImageNotSupportedError,
 )
 from backend.domain.ports.target_image_source import TargetImageSource
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -77,12 +76,13 @@ class TestSearchTargetImages:
     def test_nothing_found_is_an_empty_list_not_an_error(self) -> None:
         assert _use_case(_source()).execute(CANDIDATE_ID).options == []
 
-    def test_refuses_a_target_that_is_not_a_noun(self) -> None:
+    @pytest.mark.parametrize("pos", ["VERB", "ADJ", "ADV"])
+    def test_searches_for_any_part_of_speech(self, pos: str) -> None:
         source = _source("https://b/1")
 
-        with pytest.raises(TargetImageNotSupportedError):
-            _use_case(source, candidate=_candidate(pos="VERB")).execute(CANDIDATE_ID)
-        source.find_images.assert_not_called()
+        result = _use_case(source, candidate=_candidate(pos=pos)).execute(CANDIDATE_ID)
+
+        assert [o.url for o in result.options] == ["https://b/1"]
 
     def test_unknown_candidate(self) -> None:
         repo = MagicMock()

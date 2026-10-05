@@ -8,7 +8,7 @@ import pytest
 from backend.application.use_cases.apply_target_image import ApplyTargetImageUseCase
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.exceptions import TargetImageNotSupportedError, UnknownImageUrlError
+from backend.domain.exceptions import UnknownImageUrlError
 from backend.domain.ports.card_picture_encoder import CardPictureEncoder
 from backend.domain.ports.file_downloader import FileDownloader
 from backend.domain.ports.target_image_source import TargetImageSource
@@ -150,9 +150,9 @@ class TestApplyTargetImage:
         assert fx.downloader.urls == []
         fx.media_repo.upsert.assert_not_called()
 
-    def test_refuses_a_target_that_is_not_a_noun(self, tmp_path: Path) -> None:
+    def test_any_part_of_speech_gets_a_picture(self, tmp_path: Path) -> None:
         fx = _Fixture(tmp_path, _candidate(pos="VERB"))
 
-        with pytest.raises(TargetImageNotSupportedError):
-            fx.use_case.execute(CANDIDATE_ID, BING_URL)
-        assert fx.downloader.urls == []
+        fx.use_case.execute(CANDIDATE_ID, BING_URL)
+
+        assert fx.downloader.urls == [BING_URL]

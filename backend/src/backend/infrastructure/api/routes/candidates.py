@@ -32,7 +32,6 @@ from backend.domain.exceptions import (
     InvalidPhraseError,
     PhrasePolishNotSupportedError,
     SourceNotFoundError,
-    TargetImageNotSupportedError,
     UnknownImageUrlError,
     UnknownReportReasonError,
 )
@@ -197,8 +196,6 @@ def search_target_images(
         return container.search_target_images_use_case(session).execute(candidate_id)
     except CandidateNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except TargetImageNotSupportedError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
     except ImageSearchError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
 
@@ -216,7 +213,7 @@ def apply_target_image(
         return {"status": "applied"}
     except CandidateNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except (TargetImageNotSupportedError, UnknownImageUrlError) as e:
+    except UnknownImageUrlError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except OSError as e:
         raise HTTPException(status_code=502, detail=f"Failed to download the picture: {e}") from e

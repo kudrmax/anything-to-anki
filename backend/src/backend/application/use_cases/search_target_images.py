@@ -7,7 +7,6 @@ from backend.application.dto.target_image_dtos import ImageOptionDTO, TargetImag
 from backend.domain.exceptions import (
     CandidateNotFoundError,
     ImageSearchError,
-    TargetImageNotSupportedError,
 )
 
 if TYPE_CHECKING:
@@ -20,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class SearchTargetImagesUseCase:
-    """Collects pictures for a noun target from every source, in source order.
+    """Collects pictures for a target from every source, in source order.
 
     A failing source is skipped, so one broken source never hides the others.
     """
@@ -37,8 +36,6 @@ class SearchTargetImagesUseCase:
         candidate = self._candidate_repo.get_by_id(candidate_id)
         if candidate is None:
             raise CandidateNotFoundError(candidate_id)
-        if not candidate.can_have_target_image:
-            raise TargetImageNotSupportedError(candidate_id)
 
         options: list[ImageOptionDTO] = []
         seen_urls: set[str] = set()
