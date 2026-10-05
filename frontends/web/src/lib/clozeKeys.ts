@@ -14,8 +14,8 @@ interface KeyLike {
 
 /**
  * Клавиши панели разметки cloze: Enter сохраняет, Esc отменяет.
- * Кнопка, на которую пришли с клавиатуры (`:focus-visible`), нажимается Enter'ом сама.
- * После клика мышью кнопка тоже в фокусе, но Enter всё равно сохраняет.
+ * Кнопка в фокусе нажимается Enter'ом сама: мышью кнопки разметки фокус не получают
+ * (keepFocusOnMouseDown), значит на неё пришли с клавиатуры.
  */
 export function clozePanelKey(e: KeyLike): ClozePanelKey | null {
   if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.repeat) return null
@@ -25,7 +25,6 @@ export function clozePanelKey(e: KeyLike): ClozePanelKey | null {
   if (target?.closest('textarea')) return null
   if (e.key === 'Escape') return 'cancel'
   if (e.key !== 'Enter') return null
-  const button = target?.closest('button')
-  if (button?.matches(':focus-visible')) return null
+  if (target?.closest('button')) return null
   return 'save'
 }

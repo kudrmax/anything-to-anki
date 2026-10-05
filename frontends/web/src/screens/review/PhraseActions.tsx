@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ArrowRight, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { decisionChange, learnConvertsCloze, type Decision } from '@/lib/decision'
+import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { Button, Field, Icon, IconButton, Menu, Spinner, type MenuItem, type MenuPage } from '@/ui'
 import { ImagePicker } from './ImagePicker'
 import { PolishComparison } from './PolishComparison'
@@ -50,7 +51,7 @@ export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsPro
   const variant = (primary: boolean) => (primary ? 'fill' : 'soft')
   return (
     <div className={css.decisions}>
-      <Button variant={variant(isPrimary(LEARN.status))} kbd={LEARN.kbd} onClick={() => decide(LEARN.status)}>
+      <Button variant={variant(isPrimary(LEARN.status))} kbd={LEARN.kbd} onMouseDown={keepFocusOnMouseDown} onClick={() => decide(LEARN.status)}>
         {LEARN.label}
       </Button>
       <Button
@@ -58,12 +59,13 @@ export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsPro
         kbd={CLOZE.kbd}
         disabled={!candidate.can_cloze}
         title={candidate.can_cloze ? undefined : ALREADY_IN_ANKI}
+        onMouseDown={keepFocusOnMouseDown}
         onClick={cloze.start}
       >
         {CLOZE.label}
       </Button>
       {OTHER_DECISIONS.map(decision => (
-        <Button key={decision.status} variant={variant(isPrimary(decision.status))} kbd={decision.kbd} onClick={() => decide(decision.status)}>
+        <Button key={decision.status} variant={variant(isPrimary(decision.status))} kbd={decision.kbd} onMouseDown={keepFocusOnMouseDown} onClick={() => decide(decision.status)}>
           {decision.label}
         </Button>
       ))}

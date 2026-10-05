@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import type { ClozePreview } from '@/api/types'
 import { CLOZE_GAP, CLOZE_HINT_OPTIONS } from '@/lib/clozeHints'
 import { clozePanelKey } from '@/lib/clozeKeys'
+import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { Button, Field, Segmented, Text } from '@/ui'
 import type { ClozeEditor } from './useClozeEditor'
 import css from './review.module.css'
@@ -23,7 +24,7 @@ function AnkiFront({ preview }: { preview: ClozePreview }) {
 
 /**
  * Панель разметки cloze под фразой: подсказка, лицевая сторона в Anki, сохранение.
- * Enter сохраняет (кроме кнопки, на которую пришли с клавиатуры, — она нажимается сама), Esc отменяет.
+ * Enter сохраняет (кроме кнопки в фокусе — на неё пришли с клавиатуры, она нажимается сама), Esc отменяет.
  */
 export function ClozePanel({ editor }: { editor: ClozeEditor }) {
   const { draft, preview, error, cancel, save } = editor
@@ -51,7 +52,7 @@ export function ClozePanel({ editor }: { editor: ClozeEditor }) {
         <div className={css.clozeCols}>
           <div className={css.clozeField}>
             <span className={css.clozeLabel}>Hint</span>
-            <Segmented className={css.clozeHints} value={draft.hint_kind} options={hintOptions} onChange={editor.setHintKind} />
+            <Segmented className={css.clozeHints} value={draft.hint_kind} options={hintOptions} onChange={editor.setHintKind} onOptionMouseDown={keepFocusOnMouseDown} />
             {draft.hint_kind === 'custom' && (
               <Field
                 autoFocus

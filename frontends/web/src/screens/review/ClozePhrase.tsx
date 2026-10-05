@@ -1,4 +1,5 @@
 import type { ClozePreview } from '@/api/types'
+import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import css from './review.module.css'
 
 interface ClozePhraseProps {
@@ -20,7 +21,7 @@ export function ClozePhrase({ preview, hidden, onToggle }: ClozePhraseProps) {
           isHidden && !word.is_target && css.clozeWordExtra,
         ].filter(Boolean).join(' ')
         return (
-          <button key={word.index} type="button" className={classes} aria-pressed={isHidden} onClick={() => onToggle(word.index)}>
+          <button key={word.index} type="button" className={classes} aria-pressed={isHidden} onMouseDown={keepFocusOnMouseDown} onClick={() => onToggle(word.index)}>
             {word.text}
           </button>
         )

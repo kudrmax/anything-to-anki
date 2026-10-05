@@ -1,20 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { clozePanelKey } from './clozeKeys'
 
 const press = (key: string, target: EventTarget | null = document.body, mods = {}) =>
   clozePanelKey({ key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, repeat: false, target, ...mods })
 
-const button = (focusVisible: boolean) => {
-  const el = document.createElement('button')
-  const matches = el.matches.bind(el)
-  vi.spyOn(el, 'matches').mockImplementation(selector => (selector === ':focus-visible' ? focusVisible : matches(selector)))
-  document.body.append(el)
-  return el
-}
-
 afterEach(() => {
   document.body.replaceChildren()
-  vi.restoreAllMocks()
 })
 
 describe('clozePanelKey', () => {
@@ -25,11 +16,11 @@ describe('clozePanelKey', () => {
   it('saves on Enter in the custom hint field', () => {
     expect(press('Enter', document.createElement('input'))).toBe('save')
   })
-  it('saves on Enter after a word was clicked with the mouse', () => {
-    expect(press('Enter', button(false))).toBe('save')
-  })
-  it('lets a button focused from the keyboard take Enter itself', () => {
-    expect(press('Enter', button(true))).toBeNull()
+  it('lets a focused button take Enter itself: clicks never focus buttons, only Tab does', () => {
+    const button = document.createElement('button')
+    button.append(document.createElement('span'))
+    expect(press('Enter', button)).toBeNull()
+    expect(press('Enter', button.firstChild)).toBeNull()
   })
   it('leaves Enter and Esc to the phrase textarea', () => {
     const textarea = document.createElement('textarea')
