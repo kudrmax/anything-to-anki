@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ArrowRight, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
-import { decisionChange, type Decision } from '@/lib/decision'
+import { decisionChange, learnConvertsCloze, type Decision } from '@/lib/decision'
 import { Button, Field, Icon, IconButton, Menu, Spinner, type MenuItem, type MenuPage } from '@/ui'
 import { ImagePicker } from './ImagePicker'
 import { PolishComparison } from './PolishComparison'
@@ -37,10 +37,14 @@ interface DecisionButtonsProps extends PhraseActionsProps {
 export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsProps) {
   const isRated = candidate.status !== 'pending'
   const isCloze = candidate.cloze !== null
-  const decide = (status: Decision) => void review.mark(candidate.id, decisionChange(candidate.status, status, isCloze))
+  const convertsCloze = learnConvertsCloze(candidate)
+  const decide = (status: Decision) => {
+    if (cloze.active) cloze.cancel()
+    void review.mark(candidate.id, decisionChange(candidate.status, status, convertsCloze))
+  }
   const isPrimary = (status: CandidateStatus) => {
     if (cloze.active) return false
-    if (status === 'learn' && isCloze) return false
+    if (status === 'learn' && convertsCloze) return false
     return isRated ? candidate.status === status : status === 'learn'
   }
   const variant = (primary: boolean) => (primary ? 'fill' : 'soft')

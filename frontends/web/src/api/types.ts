@@ -135,6 +135,11 @@ export interface CandidateCloze {
 
 export type ClozeDraft = CandidateCloze
 
+/** Сохранение разметки: `phrase` — фраза, в которой выбраны слова (из превью). */
+export interface SaveClozeRequest extends ClozeDraft {
+  phrase: string
+}
+
 export interface ClozeWord {
   index: number
   text: string
@@ -143,6 +148,8 @@ export interface ClozeWord {
 
 /** Как будет выглядеть cloze-карточка: слова фразы, лицевая сторона и доступные подсказки. */
 export interface ClozePreview {
+  /** Фраза карточки, к которой относятся слова и индексы. */
+  phrase: string
   words: ClozeWord[]
   hidden_word_indices: number[]
   hint_kind: ClozeHintKind
@@ -151,6 +158,8 @@ export interface ClozePreview {
   front: string
   hint: string
   available_hints: ClozeHintKind[]
+  /** Разметку можно сохранить: те же правила, что у сохранения. */
+  can_save: boolean
 }
 
 export interface StoredCandidate {

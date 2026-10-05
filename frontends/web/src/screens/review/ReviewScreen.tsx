@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { decisionChange, type Decision } from '@/lib/decision'
-import { reviewAction, type ReviewAction } from '@/lib/hotkeys'
+import { decisionChange, learnConvertsCloze, type Decision } from '@/lib/decision'
+import { allowedInClozeMarkup, reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { pastedPicture } from '@/lib/pastedPicture'
 import { phraseListShownPref, sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
@@ -66,15 +66,15 @@ export function ReviewScreen() {
     listRef.current?.querySelector(`[data-candidate-id="${currentId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [currentId, currentIndex, loading])
 
-  const { mark, setCurrentId, cancelEditing, sourceId, clozeEditing, startCloze } = review
+  const { mark, setCurrentId, cancelEditing, sourceId, clozeEditing, startCloze, cancelCloze } = review
   const toggleAudio = review.player.toggle
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && editing && !selection) { cancelEditing(); return }
       const action = reviewAction(e)
       if (!action) return
-      // В разметке cloze клавиатурой правит её панель: решения и переходы не срабатывают.
-      if (clozeEditing && action !== 'audio') return
+      // В разметке cloze карточка остаётся на месте; оценка сначала закрывает разметку.
+      if (clozeEditing && !allowedInClozeMarkup(action)) return
       e.preventDefault()
       if (action === 'prev' || action === 'next') {
         const target = action === 'next' ? nextId : prevId
@@ -92,11 +92,13 @@ export function ReviewScreen() {
         return
       }
       const status = DECISION[action]
-      if (status) void mark(current.id, decisionChange(current.status, status, current.cloze !== null))
+      if (!status) return
+      if (clozeEditing) cancelCloze()
+      void mark(current.id, decisionChange(current.status, status, learnConvertsCloze(current)))
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [current, prevId, nextId, editing, selection, mark, setCurrentId, cancelEditing, toggleAudio, sourceId, clozeEditing, startCloze])
+  }, [current, prevId, nextId, editing, selection, mark, setCurrentId, cancelEditing, toggleAudio, sourceId, clozeEditing, startCloze, cancelCloze])
 
   const { pasteImage } = review
   useEffect(() => {

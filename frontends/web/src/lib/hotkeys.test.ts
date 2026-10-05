@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { reviewAction } from './hotkeys'
+import { allowedInClozeMarkup, reviewAction } from './hotkeys'
 
 const press = (key: string, target: EventTarget | null = document.body, mods = {}) =>
   reviewAction({ key, metaKey: false, ctrlKey: false, altKey: false, repeat: false, target, ...mods })
@@ -56,5 +56,19 @@ describe('reviewAction', () => {
   })
   it('ignores key combinations with modifiers', () => {
     expect(press('1', document.body, { metaKey: true })).toBeNull()
+  })
+})
+
+describe('allowedInClozeMarkup', () => {
+  it('lets decisions and audio through while markup mode is open', () => {
+    expect(allowedInClozeMarkup('learn')).toBe(true)
+    expect(allowedInClozeMarkup('known')).toBe(true)
+    expect(allowedInClozeMarkup('skip')).toBe(true)
+    expect(allowedInClozeMarkup('audio')).toBe(true)
+  })
+  it('keeps the card in place while markup mode is open', () => {
+    expect(allowedInClozeMarkup('prev')).toBe(false)
+    expect(allowedInClozeMarkup('next')).toBe(false)
+    expect(allowedInClozeMarkup('cloze')).toBe(false)
   })
 })

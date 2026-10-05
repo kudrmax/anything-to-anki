@@ -9,6 +9,7 @@ import type {
   CleanupMediaKind,
   ClozeDraft,
   ClozePreview,
+  SaveClozeRequest,
   Collection,
   CreateNoteTypeResponse,
   ExportGroup,
@@ -101,8 +102,8 @@ export const api = {
   previewCloze: (id: number, draft: Partial<ClozeDraft>, signal?: AbortSignal) =>
     req<ClozePreview>(`/candidates/${id}/cloze/preview`, { method: 'POST', body: JSON.stringify(draft), signal }),
 
-  saveCloze: (id: number, draft: ClozeDraft) =>
-    req<StoredCandidate>(`/candidates/${id}/cloze`, { method: 'PUT', body: JSON.stringify(draft) }),
+  saveCloze: (id: number, request: SaveClozeRequest) =>
+    req<StoredCandidate>(`/candidates/${id}/cloze`, { method: 'PUT', body: JSON.stringify(request) }),
 
   markCandidate: (id: number, status: CandidateStatus) =>
     req<{ id: number; status: string }>(`/candidates/${id}`, {

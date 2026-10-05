@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { CandidateStatus, ClozeDraft, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, SourceDetail, StoredCandidate } from '@/api/types'
+import type { CandidateStatus, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, SaveClozeRequest, SourceDetail, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
@@ -149,12 +149,12 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   const cancelCloze = useCallback(() => setClozeEditingId(null), [])
 
   /** true — разметка сохранена и ревью ушло к следующей фразе; при ошибке показывает её. */
-  const saveCloze = useCallback(async (candidateId: number, draft: ClozeDraft): Promise<boolean> => {
+  const saveCloze = useCallback(async (candidateId: number, request: SaveClozeRequest): Promise<boolean> => {
     stop()
     const markedIndex = candidatesRef.current.findIndex(c => c.id === candidateId)
     let saved: StoredCandidate
     try {
-      saved = await api.saveCloze(candidateId, draft)
+      saved = await api.saveCloze(candidateId, request)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to save the cloze')
       return false

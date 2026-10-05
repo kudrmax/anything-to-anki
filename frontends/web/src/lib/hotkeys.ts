@@ -6,6 +6,8 @@ const KEYS: Record<string, ReviewAction> = {
 export const OVERLAY = '[role="dialog"], [role="menu"]'
 const BLOCKING = `input, textarea, select, [contenteditable="true"], ${OVERLAY}`
 const ACTIVATED_BY_SPACE = 'button, a'
+/** В разметке cloze карточка не меняется: оценка сначала закрывает разметку. */
+const ALLOWED_IN_CLOZE_MARKUP: ReviewAction[] = ['learn', 'known', 'skip', 'audio']
 /** Удержание клавиши листает фразы, но не оценивает их подряд. */
 const REPEATABLE: ReviewAction[] = ['prev', 'next']
 
@@ -30,4 +32,8 @@ export function reviewAction(e: KeyLike): ReviewAction | null {
   const action = KEYS[e.key] ?? null
   if (action && e.repeat && !REPEATABLE.includes(action)) return null
   return action
+}
+
+export function allowedInClozeMarkup(action: ReviewAction): boolean {
+  return ALLOWED_IN_CLOZE_MARKUP.includes(action)
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/api/client'
 import type { ClozeDraft, ClozeHintKind, ClozePreview, StoredCandidate } from '@/api/types'
+import { clozeSaveRequest } from './clozeDraft'
 import type { Review } from './useReview'
 
 const FAILED_PREVIEW = 'Failed to preview the cloze'
@@ -11,6 +12,7 @@ const isAbort = (e: unknown): boolean => e instanceof DOMException && e.name ===
  * Разметка cloze текущей карточки: какие слова скрыть и какая подсказка.
  * Слова, умолчания, доступные подсказки и лицевую сторону считает backend — здесь только черновик.
  * Каждое изменение черновика перезапрашивает превью; новый запрос отменяет тот, что ещё в пути.
+ * Сменилась фраза карточки (polish, откат, фоновая генерация) — черновик сбрасывается к умолчаниям новой фразы.
  */
 export function useClozeEditor(candidate: StoredCandidate, review: Review) {
   const active = review.clozeEditingId === candidate.id
@@ -38,6 +40,7 @@ export function useClozeEditor(candidate: StoredCandidate, review: Review) {
     }
   }, [candidate.id])
 
+  const phrase = candidate.phrase
   useEffect(() => {
     if (!active) return
     void requestPreview({})
@@ -48,7 +51,8 @@ export function useClozeEditor(candidate: StoredCandidate, review: Review) {
       setPreview(null)
       setError(null)
     }
-  }, [active, requestPreview])
+    // phrase: новая фраза — новые слова и индексы, старый черновик к ней не относится.
+  }, [active, phrase, requestPreview])
 
   const change = (patch: Partial<ClozeDraft>) => {
     if (!draft) return
@@ -68,14 +72,16 @@ export function useClozeEditor(candidate: StoredCandidate, review: Review) {
   const setHintKind = (kind: ClozeHintKind) => change({ hint_kind: kind })
   const setCustomHint = (text: string) => change({ custom_hint: text })
 
-  const canSave = draft !== null && !saving && draft.hidden_word_indices.length > 0
-    && (draft.hint_kind !== 'custom' || Boolean(draft.custom_hint?.trim()))
+  const canSave = draft !== null && preview !== null && !saving && preview.can_save
 
   const save = async () => {
-    if (!draft || !canSave) return
+    if (!draft || !preview || !canSave) return
     setSaving(true)
-    await review.saveCloze(candidate.id, draft)
-    setSaving(false)
+    try {
+      await review.saveCloze(candidate.id, clozeSaveRequest(draft, preview))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return {
