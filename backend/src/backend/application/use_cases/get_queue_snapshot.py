@@ -15,6 +15,7 @@ from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
     from backend.domain.entities.job import Job
+    from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_repository import SourceRepository
 
@@ -32,9 +33,15 @@ PIPELINE_ORDER: tuple[JobType, ...] = (
 class GetQueueSnapshotUseCase:
     """Counts, running jobs, the head of the line and failures — globally or for one source."""
 
-    def __init__(self, job_repo: JobRepository, source_repo: SourceRepository) -> None:
+    def __init__(
+        self,
+        job_repo: JobRepository,
+        source_repo: SourceRepository,
+        candidate_repo: CandidateRepository,
+    ) -> None:
         self._job_repo = job_repo
         self._source_repo = source_repo
+        self._candidate_repo = candidate_repo
 
     def execute(self, source_id: int | None = None, queued_limit: int = 50) -> QueueSnapshotDTO:
         summary = self._job_repo.get_queue_summary(source_id=source_id)
@@ -53,6 +60,9 @@ class GetQueueSnapshotUseCase:
         for group in failed_groups:
             source_ids.update(group.source_ids)
         titles = self._source_repo.get_title_map(sorted(source_ids)) if source_ids else {}
+        targets = self._candidate_repo.get_lemma_map(
+            sorted({j.candidate_id for j in running + queued if j.candidate_id is not None}),
+        )
 
         def job_dto(job: Job, position: int | None) -> QueueJobDTO:
             assert job.id is not None
@@ -64,6 +74,7 @@ class GetQueueSnapshotUseCase:
                 status=job.status.value,
                 position=position,
                 candidate_id=job.candidate_id,
+                target=targets.get(job.candidate_id) if job.candidate_id is not None else None,
             )
 
         failed: list[FailedByJobTypeDTO] = []

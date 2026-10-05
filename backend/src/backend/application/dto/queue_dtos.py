@@ -19,6 +19,7 @@ class QueueJobDTO(BaseModel):
     status: str  # "running" | "queued"
     position: int | None
     candidate_id: int | None
+    target: str | None
 
 
 class FailedSourceDTO(BaseModel):
