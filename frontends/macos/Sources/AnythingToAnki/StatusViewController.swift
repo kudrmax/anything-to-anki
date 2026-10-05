@@ -59,9 +59,9 @@ final class StatusViewController: NSViewController {
         loadViewIfNeeded()
         switch status {
         case .starting:
-            render(title: "Starting…", message: "Running make up", details: nil, spinning: true)
+            render(title: "Starting…", message: "", details: nil, spinning: true)
         case .stopping:
-            render(title: "Stopping…", message: "Running make down", details: nil, spinning: true)
+            render(title: "Stopping…", message: "", details: nil, spinning: true)
         case let .failed(message, details):
             render(title: "Could not start", message: message, details: details, spinning: false)
         }
@@ -70,6 +70,7 @@ final class StatusViewController: NSViewController {
     private func render(title: String, message: String, details: String?, spinning: Bool) {
         titleLabel.stringValue = title
         messageLabel.stringValue = message
+        messageLabel.isHidden = message.isEmpty
         detailsView.string = details ?? ""
         detailsScroll.isHidden = (details ?? "").isEmpty
         retryButton.isHidden = spinning
