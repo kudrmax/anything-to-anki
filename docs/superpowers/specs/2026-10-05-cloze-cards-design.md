@@ -56,7 +56,12 @@ Cloze-карточка = `status == LEARN` и есть `CandidateCloze`. `Candid
 
 ### Смена фразы
 
-Когда меняется `card_phrase` (Edit text, Polish, revert Polish, Change boundary, Use as phrase), cloze пересобирается: `hidden_word_indices = default_hidden` новой фразы, `phrase` — новая, подсказка сохраняется. Если target в новой фразе не найден — cloze удаляется, кандидат остаётся в `LEARN` (обычная карточка). Пересборку делает application-сервис `ClozeRefresher`, его вызывают все use case'ы, меняющие фразу.
+Фраза меняется во многих местах (Edit text, Polish, revert Polish, Change boundary, Use as phrase), поэтому cloze сверяется с фразой лениво, при чтении: `ClozeBuilder.effective(cloze, candidate)`.
+- `cloze.phrase == card_phrase` → разметка как есть;
+- иначе → `hidden_word_indices = default_hidden` новой фразы, `phrase` — новая, подсказка сохраняется;
+- target в новой фразе не найден → `None`: карточка ведёт себя как обычная (`LEARN` без cloze).
+
+Через `effective` cloze читают DTO кандидата, превью и синк. Хранимая запись обновляется при следующем сохранении.
 
 ## Application
 
