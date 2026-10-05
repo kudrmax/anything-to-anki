@@ -18,8 +18,6 @@ builder = ClozeBuilder()
 def _meaning(
     translation: str | None = "бросить", synonyms: str | None = "quit, stop"
 ) -> CandidateMeaning:
-    # Посмотри конструктор CandidateMeaning в domain/entities/candidate_meaning.py
-    # и передай остальные обязательные поля нейтральными значениями.
     return CandidateMeaning(
         candidate_id=1,
         meaning="To **give up** is to stop.",

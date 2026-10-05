@@ -25,7 +25,7 @@ HINT_ORDER = (
     ClozeHintKind.FIRST_LETTER,
     ClozeHintKind.CUSTOM,
 )
-_ZERO_WIDTH_SPACE = "​"
+_ZERO_WIDTH_SPACE = "\u200b"
 _ANKI_SEPARATOR = "::"
 _ANKI_CLOSE = "}}"
 _ESCAPED_SEPARATOR = f":{_ZERO_WIDTH_SPACE}:"
