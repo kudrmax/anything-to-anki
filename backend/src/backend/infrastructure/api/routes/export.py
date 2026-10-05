@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.anki_dtos import GlobalExportDTO, SyncResultDTO  # noqa: TC001
 from backend.domain.exceptions import AnkiNotAvailableError, AnkiSyncError
+from backend.domain.value_objects.export_group import ExportGroup  # noqa: TC001
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
 if TYPE_CHECKING:
@@ -37,12 +38,13 @@ def get_source_export_cards(
 
 @router.post("/export/sync-to-anki")
 def sync_all_to_anki(
+    group: ExportGroup,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> SyncResultDTO:
     use_case = container.sync_to_anki_use_case(session)
     try:
-        result = use_case.execute_all()
+        result = use_case.execute_all(group)
         session.commit()
         return result
     except AnkiNotAvailableError as exc:
@@ -54,12 +56,13 @@ def sync_all_to_anki(
 @router.post("/export/sync-to-anki/{source_id}")
 def sync_source_to_anki(
     source_id: int,
+    group: ExportGroup,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> SyncResultDTO:
     use_case = container.sync_to_anki_use_case(session)
     try:
-        result = use_case.execute(source_id)
+        result = use_case.execute(source_id, group)
         session.commit()
         return result
     except AnkiNotAvailableError as exc:

@@ -5,15 +5,17 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.anki_dtos import CardPreviewDTO, ExportSectionDTO, GlobalExportDTO
 from backend.application.utils.highlight import highlight_all_forms
+from backend.domain.services.export_readiness import missing_parts
+from backend.domain.value_objects.export_group import ExportGroup
 
 if TYPE_CHECKING:
-    from backend.application.utils.export_queue import ExportQueue
+    from backend.application.utils.export_queue import ExportBatch, ExportQueue
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.source_repository import SourceRepository
 
 
 class GetExportCardsUseCase:
-    """Builds card previews for 'learn' candidates not yet exported, grouped by source."""
+    """Builds card previews for 'learn' candidates not yet exported: ready and incomplete apart."""
 
     def __init__(
         self,
@@ -26,35 +28,28 @@ class GetExportCardsUseCase:
         self._media_base_url = media_base_url
 
     def execute(self, source_id: int) -> GlobalExportDTO:
-        batch = self._export_queue.for_source(source_id)
-        if not batch.pending:
-            return GlobalExportDTO(sections=[], exported_count=batch.exported_count)
-        source = self._source_repo.get_by_id(source_id)
-        title = source.title if source and source.title else f"Source #{source_id}"
-        cards = [self._build_card(c) for c in batch.pending]
+        return self._build(self._export_queue.for_source(source_id))
+
+    def execute_all(self) -> GlobalExportDTO:
+        return self._build(self._export_queue.for_all())
+
+    def _build(self, batch: ExportBatch) -> GlobalExportDTO:
         return GlobalExportDTO(
-            sections=[ExportSectionDTO(
-                source_id=source_id,
-                source_title=title,
-                cards=cards,
-            )],
+            ready=self._build_sections(batch.in_group(ExportGroup.READY)),
+            incomplete=self._build_sections(batch.in_group(ExportGroup.INCOMPLETE)),
             exported_count=batch.exported_count,
         )
 
-    def execute_all(self) -> GlobalExportDTO:
-        batch = self._export_queue.for_all()
+    def _build_sections(self, candidates: list[StoredCandidate]) -> list[ExportSectionDTO]:
         sections: list[ExportSectionDTO] = []
-        for src_id, group in groupby(batch.pending, key=lambda c: c.source_id):
-            candidates = list(group)
+        for src_id, group in groupby(candidates, key=lambda c: c.source_id):
             source = self._source_repo.get_by_id(src_id)
-            title = source.title if source and source.title else f"Source #{src_id}"
-            cards = [self._build_card(c) for c in candidates]
             sections.append(ExportSectionDTO(
                 source_id=src_id,
-                source_title=title,
-                cards=cards,
+                source_title=source.title if source and source.title else f"Source #{src_id}",
+                cards=[self._build_card(c) for c in group],
             ))
-        return GlobalExportDTO(sections=sections, exported_count=batch.exported_count)
+        return sections
 
     def _build_card(self, candidate: StoredCandidate) -> CardPreviewDTO:
         screenshot_url: str | None = None
@@ -109,4 +104,5 @@ class GetExportCardsUseCase:
             pronunciation_us_url=pronunciation_us_url,
             pronunciation_uk_url=pronunciation_uk_url,
             tts_audio_url=tts_audio_url,
+            missing=[part.value for part in missing_parts(candidate)],
         )

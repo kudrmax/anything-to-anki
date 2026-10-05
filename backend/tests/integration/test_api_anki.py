@@ -197,8 +197,8 @@ class TestGetExportCardsAPI:
         response = client.get(f"/export/cards/{source_id}")
         assert response.status_code == 200
         data = response.json()
-        assert "sections" in data
-        assert isinstance(data["sections"], list)
+        assert isinstance(data["ready"], list)
+        assert isinstance(data["incomplete"], list)
 
     def test_returns_all_export_cards(self, client: TestClient) -> None:
         client.post("/sources", json={"raw_text": "burnout is common"})
@@ -206,8 +206,8 @@ class TestGetExportCardsAPI:
         response = client.get("/export/cards")
         assert response.status_code == 200
         data = response.json()
-        assert "sections" in data
-        assert isinstance(data["sections"], list)
+        assert isinstance(data["ready"], list)
+        assert isinstance(data["incomplete"], list)
 
 
 @pytest.mark.integration
@@ -222,7 +222,7 @@ class TestSyncToAnkiAPI:
         ):
             # Need at least one learn candidate - with empty source there are none,
             # so total=0 and returns 200
-            response = client.post(f"/export/sync-to-anki/{source_id}")
+            response = client.post(f"/export/sync-to-anki/{source_id}?group=incomplete")
         assert response.status_code == 200
         assert response.json()["total"] == 0
 
@@ -230,7 +230,7 @@ class TestSyncToAnkiAPI:
         post = client.post("/sources", json={"raw_text": "test text"})
         source_id = post.json()["id"]
 
-        response = client.post(f"/export/sync-to-anki/{source_id}")
+        response = client.post(f"/export/sync-to-anki/{source_id}?group=incomplete")
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 0
@@ -272,10 +272,37 @@ class TestSyncToAnkiAPI:
                 ],
             ),
         ):
-            response = client.post(f"/export/sync-to-anki/{source_id}")
+            response = client.post(f"/export/sync-to-anki/{source_id}?group=incomplete")
 
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 1
         assert data["added"] == 1
         assert data["skipped"] == 0
+
+    def test_requires_export_group(self, client: TestClient) -> None:
+        post = client.post("/sources", json={"raw_text": "test text"})
+        source_id = post.json()["id"]
+
+        assert client.post(f"/export/sync-to-anki/{source_id}").status_code == 422
+        assert client.post("/export/sync-to-anki").status_code == 422
+
+    def test_ready_group_leaves_incomplete_cards_out(self, client: TestClient) -> None:
+        post = client.post("/sources", json={"raw_text": "burnout is exhausting"})
+        source_id = post.json()["id"]
+
+        with patch(
+            "backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository.get_by_source",
+            return_value=[
+                StoredCandidate(
+                    id=1, source_id=source_id, lemma="burnout", pos="NOUN",
+                    cefr_level="B2", zipf_frequency=3.5,
+                    context_fragment="burnout is exhausting", fragment_purity="clean",
+                    occurrences=1, status=CandidateStatus.LEARN,
+                )
+            ],
+        ):
+            response = client.post(f"/export/sync-to-anki/{source_id}?group=ready")
+
+        assert response.status_code == 200
+        assert response.json()["total"] == 0
