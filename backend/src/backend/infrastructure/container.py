@@ -142,6 +142,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.create_source_from_url import CreateSourceFromUrlUseCase
     from backend.application.use_cases.download_pronunciation import DownloadPronunciationUseCase
     from backend.application.use_cases.download_video import DownloadVideoUseCase
+    from backend.application.use_cases.edit_card_phrase import EditCardPhraseUseCase
     from backend.application.use_cases.enqueue_phrase_polish import EnqueuePhrasePolishUseCase
     from backend.application.use_cases.enqueue_topic_generation import (
         EnqueueTopicGenerationUseCase,
@@ -604,6 +605,14 @@ class Container:
         )
         return RevertPhrasePolishUseCase(
             candidate_repo=SqlaCandidateRepository(session),
+            enrichment_reset=self._phrase_enrichment_reset(session),
+        )
+
+    def edit_card_phrase_use_case(self, session: Session) -> EditCardPhraseUseCase:
+        from backend.application.use_cases.edit_card_phrase import EditCardPhraseUseCase
+        return EditCardPhraseUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            source_repo=SqlaSourceRepository(session),
             enrichment_reset=self._phrase_enrichment_reset(session),
         )
 

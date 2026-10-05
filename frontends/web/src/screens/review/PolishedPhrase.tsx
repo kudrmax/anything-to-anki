@@ -11,7 +11,7 @@ interface PolishedPhraseProps {
   review: Review
 }
 
-/** Иконка у фразы, которую упростил AI: под ней оригинал из книги, правки и откат. */
+/** Иконка у фразы, которую упростил AI или поправил пользователь: под ней оригинал из книги, правки и откат. */
 export function PolishedPhrase({ candidate, review }: PolishedPhraseProps) {
   const polishing = candidate.polish_status === 'queued' || candidate.polish_status === 'running'
   const polished = candidate.polished_fragment
@@ -22,7 +22,7 @@ export function PolishedPhrase({ candidate, review }: PolishedPhraseProps) {
   const reverted = candidate.polish_reverted
   return (
     <Menu
-      trigger={<IconButton icon={WandSparkles} label="Phrase polished — see original" />}
+      trigger={<IconButton icon={WandSparkles} label="Phrase changed — see original" />}
       items={[]}
       footer={close => (
         <div className={css.polish}>

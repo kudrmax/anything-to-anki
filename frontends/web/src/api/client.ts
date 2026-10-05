@@ -150,6 +150,12 @@ export const api = {
       body: JSON.stringify({ reverted }),
     }),
 
+  editPhrase: (candidateId: number, phrase: string) =>
+    req<{ id: number }>(`/candidates/${candidateId}/phrase`, {
+      method: 'PUT',
+      body: JSON.stringify({ phrase }),
+    }),
+
   generateCandidateTTS: (candidateId: number) =>
     req<{ status: string }>(`/candidates/${candidateId}/generate-tts`, { method: 'POST' }),
 
