@@ -99,7 +99,7 @@ class TestProcessOneJob:
         self, mock_repo_cls: MagicMock,
     ) -> None:
         repo_instance = MagicMock()
-        repo_instance.dequeue_next.return_value = None
+        repo_instance.claim_next_run.return_value = []
         mock_repo_cls.return_value = repo_instance
 
         container = _make_container()
@@ -114,7 +114,7 @@ class TestProcessOneJob:
     ) -> None:
         job = _make_job(job_type=JobType.MEDIA)
         repo_instance = MagicMock()
-        repo_instance.dequeue_next.return_value = job
+        repo_instance.claim_next_run.return_value = [job]
         mock_repo_cls.return_value = repo_instance
 
         container = _make_container()
@@ -138,7 +138,7 @@ class TestProcessOneJob:
     ) -> None:
         job = _make_job(job_type=JobType.MEDIA)
         repo_instance = MagicMock()
-        repo_instance.dequeue_next.return_value = job
+        repo_instance.claim_next_run.return_value = [job]
         mock_repo_cls.return_value = repo_instance
 
         container = _make_container()
@@ -163,7 +163,7 @@ class TestProcessOneJob:
     ) -> None:
         job = _make_job(job_type=JobType.MEDIA)
         repo_instance = MagicMock()
-        repo_instance.dequeue_next.return_value = job
+        repo_instance.claim_next_run.return_value = [job]
         mock_repo_cls.return_value = repo_instance
 
         container = _make_container()
@@ -187,7 +187,7 @@ class TestProcessOneJob:
     ) -> None:
         job = _make_job(job_type=JobType.MEDIA)
         repo_instance = MagicMock()
-        repo_instance.dequeue_next.return_value = job
+        repo_instance.claim_next_run.return_value = [job]
         mock_repo_cls.return_value = repo_instance
 
         container = _make_container()
@@ -211,7 +211,7 @@ class TestProcessOneJob:
     ) -> None:
         job = _make_job(job_type=JobType.PRONUNCIATION)
         repo_instance = MagicMock()
-        repo_instance.dequeue_next.return_value = job
+        repo_instance.claim_next_run.return_value = [job]
         mock_repo_cls.return_value = repo_instance
 
         container = _make_container()
@@ -233,7 +233,7 @@ class TestProcessOneJob:
     ) -> None:
         job = _make_job(job_type=JobType.VIDEO_DOWNLOAD, candidate_id=None)
         repo_instance = MagicMock()
-        repo_instance.dequeue_next.return_value = job
+        repo_instance.claim_next_run.return_value = [job]
         mock_repo_cls.return_value = repo_instance
 
         container = _make_container()
@@ -258,7 +258,7 @@ class TestHandleTopicTargets:
     ) -> None:
         job = _make_job(job_type=JobType.TOPIC_TARGETS, candidate_id=None)
         repo_instance = MagicMock()
-        repo_instance.dequeue_next.return_value = job
+        repo_instance.claim_next_run.return_value = [job]
         mock_repo_cls.return_value = repo_instance
         container = _make_container()
         worker = JobWorker(container)
@@ -275,7 +275,7 @@ class TestHandleTopicTargets:
     async def test_ai_failure_marks_job_failed(self, mock_repo_cls: MagicMock) -> None:
         job = _make_job(job_type=JobType.TOPIC_TARGETS, candidate_id=None)
         repo_instance = MagicMock()
-        repo_instance.dequeue_next.return_value = job
+        repo_instance.claim_next_run.return_value = [job]
         mock_repo_cls.return_value = repo_instance
         container = _make_container()
         container.generate_topic_targets_use_case.return_value.execute.side_effect = (
@@ -302,7 +302,6 @@ class TestHandleMeaning:
         extra_job = _make_job(job_type=JobType.MEANING, job_id=2, candidate_id=11)
 
         repo_instance = MagicMock()
-        repo_instance.dequeue_batch.return_value = [extra_job]
         mock_repo_cls.return_value = repo_instance
 
         container = _make_container()
@@ -311,7 +310,7 @@ class TestHandleMeaning:
         # Mock _run_meaning_batch to do nothing
         worker._run_meaning_batch = MagicMock()  # type: ignore[assignment]
 
-        await worker._handle_meaning(primary_job)
+        await worker._handle_ai_batch([primary_job, extra_job], worker._run_meaning_batch)
 
         # Both jobs should be deleted
         repo_instance.delete_bulk.assert_called_once()
@@ -326,7 +325,6 @@ class TestHandleMeaning:
         primary_job = _make_job(job_type=JobType.MEANING, job_id=1, candidate_id=10)
 
         repo_instance = MagicMock()
-        repo_instance.dequeue_batch.return_value = []
         mock_repo_cls.return_value = repo_instance
 
         container = _make_container()
@@ -337,7 +335,7 @@ class TestHandleMeaning:
 
         worker._run_meaning_batch = raise_error  # type: ignore[assignment]
 
-        await worker._handle_meaning(primary_job)
+        await worker._handle_ai_batch([primary_job], worker._run_meaning_batch)
 
         repo_instance.mark_failed_bulk.assert_called_once()
         call_args = repo_instance.mark_failed_bulk.call_args
@@ -352,7 +350,6 @@ class TestHandleMeaning:
         primary_job = _make_job(job_type=JobType.MEANING, job_id=1, candidate_id=10)
 
         repo_instance = MagicMock()
-        repo_instance.dequeue_batch.return_value = []
         mock_repo_cls.return_value = repo_instance
 
         container = _make_container()
@@ -361,7 +358,7 @@ class TestHandleMeaning:
         # Patch asyncio.wait_for to raise TimeoutError
         with patch("backend.infrastructure.queue.job_worker.asyncio.wait_for") as mock_wait:
             mock_wait.side_effect = TimeoutError()
-            await worker._handle_meaning(primary_job)
+            await worker._handle_ai_batch([primary_job], worker._run_meaning_batch)
 
         repo_instance.mark_failed_bulk.assert_called_once()
         call_args = repo_instance.mark_failed_bulk.call_args
@@ -378,13 +375,12 @@ class TestHandleMeaning:
         )
 
         repo_instance = MagicMock()
-        repo_instance.dequeue_batch.return_value = []
         mock_repo_cls.return_value = repo_instance
 
         container = _make_container()
         worker = JobWorker(container)
 
-        await worker._handle_meaning(primary_job)
+        await worker._handle_ai_batch([primary_job], worker._run_meaning_batch)
 
         # Jobs deleted without processing
         repo_instance.delete_bulk.assert_called_once()
@@ -398,7 +394,6 @@ class TestHandleMeaning:
         extra_job = _make_job(job_type=JobType.MEANING, job_id=2, candidate_id=11)
 
         repo_instance = MagicMock()
-        repo_instance.dequeue_batch.return_value = [extra_job]
         mock_repo_cls.return_value = repo_instance
 
         container = _make_container()
@@ -409,7 +404,7 @@ class TestHandleMeaning:
 
         worker._run_meaning_batch = raise_perm  # type: ignore[assignment]
 
-        await worker._handle_meaning(primary_job)
+        await worker._handle_ai_batch([primary_job, extra_job], worker._run_meaning_batch)
 
         repo_instance.mark_failed_bulk.assert_called_once()
         call_args = repo_instance.mark_failed_bulk.call_args
@@ -727,7 +722,7 @@ class TestRunLoop:
     ) -> None:
         repo_instance = MagicMock()
         repo_instance.fail_all_running.return_value = 0
-        repo_instance.dequeue_next.return_value = None
+        repo_instance.claim_next_run.return_value = []
         mock_repo_cls.return_value = repo_instance
 
         container = _make_container()
@@ -745,7 +740,7 @@ class TestRunLoop:
             await worker.run()
 
         repo_instance.fail_all_running.assert_called_once()
-        repo_instance.dequeue_next.assert_called_once()
+        repo_instance.claim_next_run.assert_called_once()
 
 
 @pytest.mark.unit
@@ -757,3 +752,60 @@ class TestRequestShutdown:
         assert worker._shutdown is False
         worker._request_shutdown()
         assert worker._shutdown is True
+
+
+@pytest.mark.unit
+class TestClaimedRunDispatch:
+
+    @pytest.mark.asyncio
+    @patch("backend.infrastructure.queue.job_worker.SqlaJobRepository")
+    async def test_whole_claimed_ai_run_goes_into_one_batch(
+        self, mock_repo_cls: MagicMock,
+    ) -> None:
+        run = [
+            _make_job(job_type=JobType.POLISH, job_id=1, candidate_id=10),
+            _make_job(job_type=JobType.POLISH, job_id=2, candidate_id=11),
+        ]
+        repo_instance = MagicMock()
+        repo_instance.claim_next_run.return_value = run
+        mock_repo_cls.return_value = repo_instance
+
+        worker = JobWorker(_make_container())
+        worker._run_polish_batch = MagicMock()  # type: ignore[assignment]
+
+        await worker._process_one_job()
+
+        worker._run_polish_batch.assert_called_once_with([10, 11], run[0])
+        repo_instance.delete_bulk.assert_called_once_with([1, 2])
+
+    @pytest.mark.asyncio
+    @patch("backend.infrastructure.queue.job_worker.SqlaJobRepository")
+    async def test_tts_subprocess_receives_claimed_job_id(
+        self, mock_repo_cls: MagicMock,
+    ) -> None:
+        job = _make_job(job_type=JobType.TTS, job_id=42)
+        repo_instance = MagicMock()
+        repo_instance.claim_next_run.return_value = [job]
+        mock_repo_cls.return_value = repo_instance
+
+        proc = MagicMock()
+        proc.returncode = 0
+
+        async def wait() -> int:
+            return 0
+
+        proc.wait = wait
+
+        async def spawn(*args: str) -> MagicMock:
+            spawn.args = args  # type: ignore[attr-defined]
+            return proc
+
+        worker = JobWorker(_make_container())
+        with patch(
+            "backend.infrastructure.queue.job_worker.asyncio.create_subprocess_exec",
+            spawn,
+        ):
+            await worker._process_one_job()
+
+        assert spawn.args[-1] == "42"  # type: ignore[attr-defined]
+        repo_instance.requeue.assert_not_called()

@@ -18,7 +18,7 @@ from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
     from sqlalchemy.orm import Session
 
@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 POLL_DELAY: float = 0.1  # seconds between polls when queue is empty
 JOB_TIMEOUT: int = 600  # seconds per job (10 minutes)
 AI_BATCH_SIZE: int = 15
+RUN_LIMITS: Mapping[JobType, int] = {
+    JobType.MEANING: AI_BATCH_SIZE,
+    JobType.POLISH: AI_BATCH_SIZE,
+}
 
 
 class JobWorker:
@@ -73,10 +77,11 @@ class JobWorker:
         """Dequeue and process one job. Returns True if a job was processed."""
         with self._container.session_scope() as session:
             job_repo = SqlaJobRepository(session)
-            job = job_repo.dequeue_next()
+            run = job_repo.claim_next_run(RUN_LIMITS)
 
-        if job is None:
+        if not run:
             return False
+        job = run[0]
 
         logger.info(
             "Processing job %d: type=%s candidate=%s source=%d",
@@ -87,7 +92,7 @@ class JobWorker:
             match job.job_type:
                 case JobType.MEANING:
                     # Meaning handler manages its own batch success/failure
-                    await self._handle_meaning(job)
+                    await self._handle_ai_batch(run, self._run_meaning_batch)
                     return True
                 case JobType.MEDIA:
                     await self._handle_media(job)
@@ -97,7 +102,7 @@ class JobWorker:
                     await self._handle_video_download(job)
                 case JobType.POLISH:
                     # Polish handler manages its own batch success/failure
-                    await self._handle_polish(job)
+                    await self._handle_ai_batch(run, self._run_polish_batch)
                     return True
                 case JobType.TOPIC_TARGETS:
                     await self._handle_topic_targets(job)
@@ -122,27 +127,16 @@ class JobWorker:
     # Handlers
     # ------------------------------------------------------------------
 
-    async def _handle_meaning(self, job: Job) -> None:
-        await self._handle_ai_batch(job, self._run_meaning_batch)
-
-    async def _handle_polish(self, job: Job) -> None:
-        await self._handle_ai_batch(job, self._run_polish_batch)
-
     async def _handle_ai_batch(
-        self, job: Job, run: Callable[[list[int], Job], None],
+        self, all_jobs: list[Job], run: Callable[[list[int], Job], None],
     ) -> None:
-        """AI generation with opportunistic batching.
+        """One AI call for a claimed run of same-type, same-source jobs.
 
-        Dequeues extra QUEUED jobs of the same type for the same source and
-        processes them all in one AI call. Manages its own success/failure
-        because the outer handler only knows about the primary job.
+        Manages its own success/failure because the outer handler only knows
+        about the primary job.
         """
+        job = all_jobs[0]
         kind = job.job_type.value
-        with self._container.session_scope() as session:
-            extra_jobs = SqlaJobRepository(session).dequeue_batch(
-                job.job_type, job.source_id, limit=AI_BATCH_SIZE - 1,
-            )
-        all_jobs = [job, *extra_jobs]
         candidate_ids = [j.candidate_id for j in all_jobs if j.candidate_id is not None]
 
         if not candidate_ids:
@@ -261,19 +255,17 @@ class JobWorker:
             use_case.execute(job.source_id)
 
     async def _handle_tts(self, job: Job) -> None:
-        """Spawn TTS subprocess to handle all TTS jobs.
+        """Hand the claimed TTS job to a subprocess.
 
-        Requeues the current job so the subprocess can pick it up,
-        then spawns a separate process that loads PyTorch/kokoro,
-        processes all TTS jobs, and exits — freeing all TTS memory.
+        The subprocess loads PyTorch/kokoro, processes this job and every TTS
+        job that reaches the head of the queue after it, then exits — freeing
+        all TTS memory.
         """
         assert job.id is not None
-        with self._container.session_scope() as session:
-            SqlaJobRepository(session).requeue(job.id)
-
         logger.info("Spawning TTS subprocess")
         proc = await asyncio.create_subprocess_exec(
             sys.executable, "-m", "backend.infrastructure.queue.tts_subprocess",
+            str(job.id),
         )
         await proc.wait()
         if proc.returncode != 0:

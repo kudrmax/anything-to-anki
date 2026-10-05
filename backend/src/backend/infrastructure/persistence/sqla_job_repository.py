@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 from collections import Counter
+from itertools import takewhile
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import CursorResult, delete, func, select, update
 
-from backend.domain.ports.job_repository import JobRepository
+from backend.domain.ports.job_repository import DEFAULT_RUN_LIMIT, JobRepository
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.persistence.models import JobModel
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.job import Job
@@ -29,72 +32,37 @@ class SqlaJobRepository(JobRepository):
         self._session.flush()
         return [m.to_entity() for m in models]
 
-    def dequeue_next(self) -> Job | None:
+    def claim_next_run(
+        self,
+        run_limits: Mapping[JobType, int],
+        accepted_types: frozenset[JobType] | None = None,
+    ) -> list[Job]:
+        fetch_size = max([DEFAULT_RUN_LIMIT, *run_limits.values()])
         stmt = (
             select(JobModel)
             .where(JobModel.status == JobStatus.QUEUED.value)
             .order_by(JobModel.created_at.asc(), JobModel.id.asc())
-            .limit(1)
-            .with_for_update()
+            .limit(fetch_size)
         )
-        model = self._session.execute(stmt).scalar_one_or_none()
-        if model is None:
-            return None
-        model.status = JobStatus.RUNNING.value
-        model.started_at = datetime.now(tz=UTC)
-        self._session.flush()
-        return model.to_entity()
+        queued = list(self._session.execute(stmt).scalars().all())
+        if not queued:
+            return []
+        head = queued[0]
+        head_type = JobType(head.job_type)
+        if accepted_types is not None and head_type not in accepted_types:
+            return []
 
-    def dequeue_next_by_type(self, job_type: JobType) -> Job | None:
-        """Dequeue the next QUEUED job of the given type."""
-        stmt = (
-            select(JobModel)
-            .where(
-                JobModel.status == JobStatus.QUEUED.value,
-                JobModel.job_type == job_type.value,
-            )
-            .order_by(JobModel.created_at.asc(), JobModel.id.asc())
-            .limit(1)
-            .with_for_update()
-        )
-        model = self._session.execute(stmt).scalar_one_or_none()
-        if model is None:
-            return None
-        model.status = JobStatus.RUNNING.value
-        model.started_at = datetime.now(tz=UTC)
-        self._session.flush()
-        return model.to_entity()
-
-    def requeue(self, job_id: int) -> None:
-        """Put a RUNNING job back to QUEUED."""
-        self._session.execute(
-            update(JobModel)
-            .where(JobModel.id == job_id)
-            .values(status=JobStatus.QUEUED.value, started_at=None)
-        )
-        self._session.flush()
-
-    def dequeue_batch(
-        self, job_type: JobType, source_id: int, limit: int,
-    ) -> list[Job]:
-        stmt = (
-            select(JobModel)
-            .where(
-                JobModel.status == JobStatus.QUEUED.value,
-                JobModel.job_type == job_type.value,
-                JobModel.source_id == source_id,
-            )
-            .order_by(JobModel.created_at.asc(), JobModel.id.asc())
-            .limit(limit)
-            .with_for_update()
-        )
-        models = list(self._session.execute(stmt).scalars().all())
+        run_limit = run_limits.get(head_type, DEFAULT_RUN_LIMIT)
+        run = list(takewhile(
+            lambda m: m.job_type == head.job_type and m.source_id == head.source_id,
+            queued[:run_limit],
+        ))
         now = datetime.now(tz=UTC)
-        for m in models:
-            m.status = JobStatus.RUNNING.value
-            m.started_at = now
+        for model in run:
+            model.status = JobStatus.RUNNING.value
+            model.started_at = now
         self._session.flush()
-        return [m.to_entity() for m in models]
+        return [m.to_entity() for m in run]
 
     def mark_failed(self, job_id: int, error: str) -> None:
         self._session.execute(
@@ -189,6 +157,10 @@ class SqlaJobRepository(JobRepository):
             )
             self._session.flush()
         return count
+
+    def get(self, job_id: int) -> Job | None:
+        model = self._session.get(JobModel, job_id)
+        return model.to_entity() if model is not None else None
 
     def job_exists(self, job_id: int) -> bool:
         stmt = (

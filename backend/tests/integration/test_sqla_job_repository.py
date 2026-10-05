@@ -83,9 +83,9 @@ class TestSqlaJobRepository:
         assert created[0].id != created[1].id
         assert created[0].status == JobStatus.QUEUED
 
-    # --- dequeue_next ---
+    # --- claim_next_run ---
 
-    def test_dequeue_next_returns_oldest_queued(self, db_session: Session) -> None:
+    def test_claim_next_run_returns_oldest_queued(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
         repo = SqlaJobRepository(db_session)
@@ -97,19 +97,20 @@ class TestSqlaJobRepository:
             _make_job(candidate_id=2, created_at=t1),
         ])
 
-        dequeued = repo.dequeue_next()
-        assert dequeued is not None
-        assert dequeued.candidate_id == 2  # older one
-        assert dequeued.status == JobStatus.RUNNING
-        assert dequeued.started_at is not None
+        run = repo.claim_next_run({})
+        assert [j.candidate_id for j in run] == [2]
+        assert run[0].status == JobStatus.RUNNING
+        assert run[0].started_at is not None
 
-    def test_dequeue_next_returns_none_when_empty(self, db_session: Session) -> None:
+    def test_claim_next_run_returns_empty_when_queue_empty(
+        self, db_session: Session,
+    ) -> None:
         self._setup_source_and_candidate(db_session)
         repo = SqlaJobRepository(db_session)
 
-        assert repo.dequeue_next() is None
+        assert repo.claim_next_run({}) == []
 
-    def test_dequeue_next_skips_running_and_failed(self, db_session: Session) -> None:
+    def test_claim_next_run_skips_running_and_failed(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
         repo = SqlaJobRepository(db_session)
@@ -120,25 +121,78 @@ class TestSqlaJobRepository:
             _make_job(candidate_id=2, status=JobStatus.FAILED, error="err"),
         ])
 
-        assert repo.dequeue_next() is None
+        assert repo.claim_next_run({}) == []
 
-    # --- dequeue_batch ---
-
-    def test_dequeue_batch(self, db_session: Session) -> None:
+    def test_claim_next_run_groups_consecutive_jobs_of_same_type_and_source(
+        self, db_session: Session,
+    ) -> None:
         self._setup_source_and_candidate(db_session)
-        _insert_candidate(db_session, 2, 1)
-        _insert_candidate(db_session, 3, 1)
+        for cid in (2, 3, 4):
+            _insert_candidate(db_session, cid, 1)
         repo = SqlaJobRepository(db_session)
 
         repo.create_bulk([
             _make_job(candidate_id=1, job_type=JobType.MEANING),
             _make_job(candidate_id=2, job_type=JobType.MEANING),
-            _make_job(candidate_id=3, job_type=JobType.MEDIA),  # different type
+            _make_job(candidate_id=3, job_type=JobType.MEANING),
+            _make_job(candidate_id=4, job_type=JobType.MEANING),
         ])
 
-        batch = repo.dequeue_batch(JobType.MEANING, source_id=1, limit=10)
-        assert len(batch) == 2
-        assert all(j.status == JobStatus.RUNNING for j in batch)
+        run = repo.claim_next_run({JobType.MEANING: 3})
+        assert [j.candidate_id for j in run] == [1, 2, 3]
+        assert all(j.status == JobStatus.RUNNING for j in run)
+
+    def test_claim_next_run_never_overtakes_older_job_of_other_type(
+        self, db_session: Session,
+    ) -> None:
+        self._setup_source_and_candidate(db_session)
+        for cid in (2, 3):
+            _insert_candidate(db_session, cid, 1)
+        repo = SqlaJobRepository(db_session)
+
+        repo.create_bulk([_make_job(candidate_id=1, job_type=JobType.POLISH)])
+        repo.create_bulk([_make_job(candidate_id=2, job_type=JobType.MEANING)])
+        repo.create_bulk([_make_job(candidate_id=3, job_type=JobType.POLISH)])
+
+        first = repo.claim_next_run({JobType.POLISH: 10})
+        second = repo.claim_next_run({JobType.POLISH: 10})
+        third = repo.claim_next_run({JobType.POLISH: 10})
+        assert [j.candidate_id for j in first] == [1]
+        assert [j.candidate_id for j in second] == [2]
+        assert [j.candidate_id for j in third] == [3]
+
+    def test_claim_next_run_does_not_mix_sources(self, db_session: Session) -> None:
+        self._setup_source_and_candidate(db_session)
+        _insert_source(db_session, 2)
+        _insert_candidate(db_session, 2, 2)
+        repo = SqlaJobRepository(db_session)
+
+        repo.create_bulk([
+            _make_job(candidate_id=1, source_id=1),
+            _make_job(candidate_id=2, source_id=2),
+        ])
+
+        run = repo.claim_next_run({JobType.MEANING: 10})
+        assert [j.candidate_id for j in run] == [1]
+
+    def test_claim_next_run_respects_accepted_types(self, db_session: Session) -> None:
+        self._setup_source_and_candidate(db_session)
+        _insert_candidate(db_session, 2, 1)
+        repo = SqlaJobRepository(db_session)
+
+        repo.create_bulk([
+            _make_job(candidate_id=1, job_type=JobType.POLISH),
+            _make_job(candidate_id=2, job_type=JobType.TTS),
+        ])
+
+        assert repo.claim_next_run({}, accepted_types=frozenset({JobType.TTS})) == []
+        assert [
+            j.candidate_id for j in repo.claim_next_run({})
+        ] == [1]
+        assert [
+            j.candidate_id
+            for j in repo.claim_next_run({}, accepted_types=frozenset({JobType.TTS}))
+        ] == [2]
 
     # --- mark_failed ---
 
@@ -153,7 +207,7 @@ class TestSqlaJobRepository:
         repo.mark_failed(job_id, "something broke")
 
         # Should not be dequeued
-        assert repo.dequeue_next() is None
+        assert repo.claim_next_run({}) == []
 
     # --- mark_failed_bulk ---
 
@@ -169,7 +223,7 @@ class TestSqlaJobRepository:
         ids = [j.id for j in created if j.id is not None]
         repo.mark_failed_bulk(ids, "batch error")
 
-        assert repo.dequeue_next() is None
+        assert repo.claim_next_run({}) == []
 
     # --- delete ---
 
@@ -242,7 +296,7 @@ class TestSqlaJobRepository:
         # The failed job is gone
         assert not repo.job_exists(deleted[0].id)  # type: ignore[arg-type]
         # The queued job is still there
-        assert repo.dequeue_next() is not None
+        assert repo.claim_next_run({}) != []
 
     # --- fail_all_running ---
 
@@ -261,9 +315,23 @@ class TestSqlaJobRepository:
         assert count == 1
 
         # The queued job is still dequeue-able
-        dequeued = repo.dequeue_next()
-        assert dequeued is not None
-        assert dequeued.candidate_id == 2
+        run = repo.claim_next_run({})
+        assert [j.candidate_id for j in run] == [2]
+
+    # --- get ---
+
+    def test_get(self, db_session: Session) -> None:
+        self._setup_source_and_candidate(db_session)
+        repo = SqlaJobRepository(db_session)
+
+        created = repo.create_bulk([_make_job()])
+        job_id = created[0].id
+        assert job_id is not None
+
+        fetched = repo.get(job_id)
+        assert fetched is not None
+        assert fetched.candidate_id == 1
+        assert repo.get(99999) is None
 
     # --- job_exists ---
 

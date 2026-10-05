@@ -4,9 +4,13 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from backend.domain.entities.job import Job
     from backend.domain.value_objects.job_status import JobStatus
     from backend.domain.value_objects.job_type import JobType
+
+DEFAULT_RUN_LIMIT: int = 1
 
 
 class JobRepository(ABC):
@@ -17,16 +21,20 @@ class JobRepository(ABC):
         """Insert jobs into the queue. Returns jobs with assigned IDs."""
 
     @abstractmethod
-    def dequeue_next(self) -> Job | None:
-        """Atomically pick the oldest QUEUED job and mark it RUNNING.
-        Returns None if queue is empty."""
-
-    @abstractmethod
-    def dequeue_batch(
-        self, job_type: JobType, source_id: int, limit: int,
+    def claim_next_run(
+        self,
+        run_limits: Mapping[JobType, int],
+        accepted_types: frozenset[JobType] | None = None,
     ) -> list[Job]:
-        """Atomically dequeue up to `limit` additional QUEUED jobs
-        of the given type and source. Used for meaning batching."""
+        """Atomically claim the head of the queue and mark it RUNNING.
+
+        The queue is strictly FIFO across all job types. The run is the oldest
+        QUEUED job plus the jobs immediately following it that share its type
+        and source, capped by ``run_limits`` (DEFAULT_RUN_LIMIT for absent types).
+        A run never skips over an older job, so batching cannot reorder work.
+
+        If ``accepted_types`` is given and the head is of another type, nothing
+        is claimed. Returns an empty list when nothing was claimed."""
 
     @abstractmethod
     def mark_failed(self, job_id: int, error: str) -> None:
@@ -62,6 +70,10 @@ class JobRepository(ABC):
     def fail_all_running(self, error: str) -> int:
         """Mark all RUNNING jobs as FAILED. Used by worker startup reconciliation.
         Returns count of affected rows."""
+
+    @abstractmethod
+    def get(self, job_id: int) -> Job | None:
+        """Return the job, or None if it no longer exists."""
 
     @abstractmethod
     def job_exists(self, job_id: int) -> bool:
