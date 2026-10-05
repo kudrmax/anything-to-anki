@@ -115,13 +115,17 @@ class SqlaJobRepository(JobRepository):
         self._session.flush()
         return [m.to_entity() for m in run]
 
-    def running_ids(self, job_ids: list[int]) -> set[int]:
-        if not job_ids:
+    def still_claimed(self, jobs: list[Job]) -> set[int]:
+        claimed_at = {j.id: j.started_at for j in jobs if j.id is not None}
+        if not claimed_at:
             return set()
-        stmt = select(JobModel.id).where(
-            JobModel.id.in_(job_ids), JobModel.status == JobStatus.RUNNING.value,
+        stmt = select(JobModel.id, JobModel.started_at).where(
+            JobModel.id.in_(list(claimed_at)), JobModel.status == JobStatus.RUNNING.value,
         )
-        return set(self._session.execute(stmt).scalars().all())
+        return {
+            job_id for job_id, started_at in self._session.execute(stmt).all()
+            if started_at is not None and started_at == claimed_at[job_id]
+        }
 
     def complete(self, jobs: list[Job]) -> None:
         job_ids = [j.id for j in jobs if j.id is not None]

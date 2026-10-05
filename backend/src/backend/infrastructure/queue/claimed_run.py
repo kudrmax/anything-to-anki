@@ -20,7 +20,7 @@ class ClaimedRun:
 
     The user may cancel a job, or the worker may fail it by timeout, while its
     work is still going. Work writes through ``session()``, which commits only
-    if some of the jobs are still RUNNING when the work ends; otherwise it
+    if some of the jobs are still RUNNING under this claim when the work ends; otherwise it
     rolls back and raises CancelledByUserError. A batch that lost only some of
     its jobs filters its writes with ``still_wanted``.
     """
@@ -42,20 +42,20 @@ class ClaimedRun:
     def session(self) -> Iterator[Session]:
         with self._container.session_scope() as session:
             yield session
-            if not self._running_ids():
+            if not self._still_claimed():
                 raise CancelledByUserError(self._job_ids())
 
     def still_wanted(self, candidate_ids: list[int]) -> set[int]:
-        running = self._running_ids()
+        claimed = self._still_claimed()
         return {
             j.candidate_id for j in self.jobs
             if j.candidate_id is not None and j.candidate_id in candidate_ids
-            and j.id in running
+            and j.id in claimed
         }
 
-    def _running_ids(self) -> set[int]:
+    def _still_claimed(self) -> set[int]:
         with self._container.session_scope() as session:
-            return SqlaJobRepository(session).running_ids(self._job_ids())
+            return SqlaJobRepository(session).still_claimed(self.jobs)
 
     def _job_ids(self) -> list[int]:
         return [j.id for j in self.jobs if j.id is not None]

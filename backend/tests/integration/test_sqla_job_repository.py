@@ -242,19 +242,37 @@ class TestSqlaJobRepository:
         failed = repo.get_jobs_by_status([JobStatus.FAILED])
         assert [j.candidate_id for j in failed] == [2]
 
-    # --- running_ids / complete / fail ---
+    # --- still_claimed / complete / fail ---
 
-    def test_running_ids_drops_cancelled_and_failed(self, db_session: Session) -> None:
+    def test_still_claimed_drops_cancelled_and_failed(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
+        _insert_candidate(db_session, 3, 1)
         repo = SqlaJobRepository(db_session)
-        running, failed = _insert(db_session, [
-            _make_job(candidate_id=1, status=JobStatus.RUNNING),
-            _make_job(candidate_id=2, status=JobStatus.FAILED, error="timeout"),
-        ])
-        assert running.id is not None and failed.id is not None
+        repo.enqueue([_make_job(candidate_id=c) for c in (1, 2, 3)])
+        kept, timed_out, cancelled = repo.claim_next_run({JobType.MEANING: 3})
+        assert timed_out.id is not None and cancelled.id is not None
 
-        assert repo.running_ids([running.id, failed.id, 99999]) == {running.id}
+        repo.fail([timed_out.id], "timeout")
+        repo.cancel(JobSelection(job_id=cancelled.id))
+
+        assert repo.still_claimed([kept, timed_out, cancelled]) == {kept.id}
+
+    def test_still_claimed_tells_a_new_claim_of_the_same_job_apart(
+        self, db_session: Session,
+    ) -> None:
+        self._setup_source_and_candidate(db_session)
+        repo = SqlaJobRepository(db_session)
+        repo.enqueue([_make_job()])
+        (first_claim,) = repo.claim_next_run({})
+        assert first_claim.id is not None
+        repo.fail([first_claim.id], "timeout")
+        repo.retry(JobSelection())
+        (second_claim,) = repo.claim_next_run({})
+
+        assert second_claim.id == first_claim.id
+        assert repo.still_claimed([first_claim]) == set()
+        assert repo.still_claimed([second_claim]) == {second_claim.id}
 
     def test_complete_removes_jobs_and_failed_jobs_of_same_key(
         self, db_session: Session,

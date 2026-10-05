@@ -48,9 +48,13 @@ class JobRepository(ABC):
         is claimed. Returns an empty list when nothing was claimed."""
 
     @abstractmethod
-    def running_ids(self, job_ids: list[int]) -> set[int]:
-        """The subset of ``job_ids`` still RUNNING. A job cancelled or failed by
-        timeout meanwhile is no longer RUNNING, and its result must be dropped."""
+    def still_claimed(self, jobs: list[Job]) -> set[int]:
+        """Ids of the claimed ``jobs`` still RUNNING under that same claim.
+
+        A job cancelled or failed by timeout meanwhile is no longer RUNNING, and
+        its result must be dropped. The claim is matched by ``started_at`` too:
+        a job retried and claimed again, or a new job that reused the id, is a
+        different claim."""
 
     @abstractmethod
     def complete(self, jobs: list[Job]) -> None:
