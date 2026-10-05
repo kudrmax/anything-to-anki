@@ -177,3 +177,12 @@ class TestTargetImageAPI:
         response = client.get("/candidates/999/image-options")
 
         assert response.status_code == 404
+
+    def test_pasting_for_an_unknown_candidate(self, client: TestClient) -> None:
+        response = client.put(
+            "/candidates/999/image/pasted",
+            content=b"picture",
+            headers={"Content-Type": "image/png"},
+        )
+
+        assert response.status_code == 404

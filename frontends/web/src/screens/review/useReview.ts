@@ -254,6 +254,16 @@ export function useReview(sourceId: number) {
     }
   })
 
+  const pasteImage = (candidateId: number, picture: Blob) => withBusy(setApplyingImageIds, candidateId, async () => {
+    try {
+      await api.pasteTargetImage(candidateId, picture)
+      await loadCandidates()
+      showToast('Picture pasted')
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to paste the picture')
+    }
+  })
+
   const startEditing = (candidateId: number) => {
     const candidate = candidates.find(c => c.id === candidateId)
     if (!candidate) return
@@ -348,7 +358,7 @@ export function useReview(sourceId: number) {
     sourceId, source, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,
     counts: { marked: markedCount, total: candidates.length, learn: learnCount, progress: candidates.length > 0 ? markedCount / candidates.length : 0 },
     generation, generationActions,
-    mark, generate, replaceWithExample, generateTTS, regenerateMedia, findImages, applyImage, polishAgain, setPolishReverted, editPhrase,
+    mark, generate, replaceWithExample, generateTTS, regenerateMedia, findImages, applyImage, pasteImage, polishAgain, setPolishReverted, editPhrase,
     busy: { generating: generatingIds, media: regeneratingMediaIds, tts: generatingTTSIds, image: applyingImageIds },
     vpnBlocked, dismissVpn: () => setVpnBlocked(false),
     editing, startEditing, cancelEditing, setBoundary, addWord,

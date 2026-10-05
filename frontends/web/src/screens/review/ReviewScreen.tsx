@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { decisionChange, type Decision } from '@/lib/decision'
 import { reviewAction, type ReviewAction } from '@/lib/hotkeys'
+import { pastedPicture } from '@/lib/pastedPicture'
 import { phraseListShownPref, sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
 import { ChevronLeft, ChevronRight, FileText, List, ListChevronsDownUp, ListChevronsUpDown, PanelRightClose, PanelRightOpen, Upload } from 'lucide-react'
@@ -83,6 +84,19 @@ export function ReviewScreen() {
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [current, prevId, nextId, editing, selection, mark, setCurrentId, cancelEditing, toggleAudio, sourceId])
+
+  const { pasteImage } = review
+  useEffect(() => {
+    if (!current) return
+    const onPaste = (e: ClipboardEvent) => {
+      const picture = pastedPicture(e)
+      if (!picture) return
+      e.preventDefault()
+      void pasteImage(current.id, picture)
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [current, pasteImage])
 
   if (review.loading) {
     return <Page header={<PageHeader title="Review" back={SOURCES_PATH} />}><Empty><Spinner /></Empty></Page>
@@ -215,7 +229,7 @@ export function ReviewScreen() {
         )}
         {candidates.length > 0 && counts.marked === counts.total && <Empty>All candidates reviewed.</Empty>}
         {candidates.length > 0 && (
-          <div className={css.hint}>↑ ↓ — next phrase · 1 Learn · 2 Know · 3 Skip · Space — play audio</div>
+          <div className={css.hint}>↑ ↓ — next phrase · 1 Learn · 2 Know · 3 Skip · Space — play audio · ⌘V — paste picture</div>
         )}
       </div>
       {selection && (

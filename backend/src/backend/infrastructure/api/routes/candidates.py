@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO  # noqa: TC001
 from backend.application.dto.candidate_dtos import (  # noqa: TC001
@@ -214,6 +214,25 @@ def apply_target_image(
         raise HTTPException(status_code=400, detail=str(e)) from e
     except OSError as e:
         raise HTTPException(status_code=502, detail=f"Failed to download the picture: {e}") from e
+
+
+@router.put("/{candidate_id}/image/pasted")
+async def paste_target_image(
+    candidate_id: int,
+    request: Request,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, str]:
+    picture = await request.body()
+    try:
+        use_case = container.paste_target_image_use_case(session)
+        await asyncio.to_thread(use_case.execute, candidate_id, picture)
+        session.commit()
+        return {"status": "applied"}
+    except CandidateNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except OSError as e:
+        raise HTTPException(status_code=400, detail=f"Not a picture: {e}") from e
 
 
 @router.post("/{candidate_id}/generate-meaning")
