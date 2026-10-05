@@ -12,6 +12,22 @@ final class AppConfigTests: XCTestCase {
         XCTAssertEqual(config.serverURL.absoluteString, "http://localhost:17833/")
     }
 
+    func testMenuBarIconIsOffByDefault() throws {
+        let config = try AppConfig(infoDictionary: [AppConfig.projectDirKey: "/tmp", AppConfig.portKey: "17833"])
+
+        XCTAssertFalse(config.showsMenuBarIcon)
+    }
+
+    func testReadsMenuBarIcon() throws {
+        let config = try AppConfig(infoDictionary: [
+            AppConfig.projectDirKey: "/tmp",
+            AppConfig.portKey: "17833",
+            AppConfig.menuBarIconKey: true,
+        ])
+
+        XCTAssertTrue(config.showsMenuBarIcon)
+    }
+
     func testRejectsMissingProjectDir() {
         XCTAssertThrowsError(try AppConfig(infoDictionary: [AppConfig.portKey: "17833"]))
     }

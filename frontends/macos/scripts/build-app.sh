@@ -1,11 +1,12 @@
 #!/bin/zsh
 # Builds the .app for one working copy and installs it into ~/Applications.
-# Usage: build-app.sh <project dir> <port> <instance env name>
+# Usage: build-app.sh <project dir> <port> <instance env name> [menu bar icon: 1 or 0]
 set -euo pipefail
 
 project_dir=${1:?project dir}
 port=${2:?port}
 env_name=${3:?instance env name}
+menu_bar_icon=${4:-0}
 
 macos_dir=${0:A:h:h}
 
@@ -45,6 +46,7 @@ plutil -replace CFBundleVersion -string "$version" "$plist"
 plutil -replace NSServices.0.NSMenuItem.default -string "Add to $app_name" "$plist"
 plutil -replace A2AProjectDir -string "$project_dir" "$plist"
 plutil -replace A2APort -string "$port" "$plist"
+plutil -replace A2AMenuBarIcon -bool $([[ $menu_bar_icon == 1 ]] && echo YES || echo NO) "$plist"
 plutil -lint -s "$plist"
 
 iconset="$build_dir/AppIcon.iconset"

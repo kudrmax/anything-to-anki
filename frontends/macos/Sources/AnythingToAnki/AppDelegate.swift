@@ -23,7 +23,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let appName = ProcessInfo.processInfo.processName
         NSApp.mainMenu = MainMenu.build(appName: appName)
-        statusBar = StatusBarController(appName: appName, target: self)
         launcher = ServerLauncher(
             projectDir: config.projectDir,
             probe: HTTPHealthProbe(url: config.serverURL),
@@ -33,7 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         let controller = MainWindowController(config: config)
         controller.onRetry = { [weak self] in self?.launch() }
-        controller.onClose = { NSApp.setActivationPolicy(.accessory) }
+        if config.showsMenuBarIcon {
+            statusBar = StatusBarController(appName: appName, target: self)
+            controller.onClose = { NSApp.setActivationPolicy(.accessory) }
+        }
         windowController = controller
         quickAddPanel = QuickAddPanelController(config: config)
         quickAddService.onText = { [weak self] text in self?.quickAdd(text) }
@@ -61,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
-    /// Closing the window takes the app out of the Dock; opening it brings the app back.
+    /// With the menu bar icon, closing the window takes the app out of the Dock; opening it brings the app back.
     @objc func openMainWindow(_ sender: Any?) {
         NSApp.setActivationPolicy(.regular)
         windowController?.showWindow(nil)
