@@ -62,7 +62,7 @@ export function ImagePicker({ candidate, review, onClose }: ImagePickerProps) {
   }
 
   return (
-    <Modal title={`Picture for “${candidate.lemma}”`} onClose={onClose} footer={<Button onClick={onClose}>Cancel</Button>}>
+    <Modal wide title={`Picture for “${candidate.lemma}”`} onClose={onClose} footer={<Button onClick={onClose}>Cancel</Button>}>
       <p className={phrase.context}>
         {highlightParts(candidate.phrase, candidate.lemma, candidate.surface_form).map((part, i) =>
           part.target ? <b key={i} className={phrase.target}>{part.text}</b> : part.text,
