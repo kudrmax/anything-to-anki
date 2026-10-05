@@ -8,5 +8,6 @@ class StatsDTO(BaseModel):
 
     learn_count: int
     export_pending_count: int
+    queue_active_count: int
     candidate_count: int
     known_word_count: int

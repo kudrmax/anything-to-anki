@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
 import type { ExportSection, GlobalExport, Settings, SyncResult } from '@/api/types'
 import { useAnkiStatus } from '@/hooks/useAnkiStatus'
+import { statsStore } from '@/hooks/useStats'
 import { useToast } from '@/ui'
 
 /** Экспорт одного источника (sourceId задан) или всех сразу. */
@@ -42,6 +43,7 @@ export function useExport(sourceId?: number) {
     try {
       setResult(await api.syncToAnki(sourceId))
       applyExport(await api.getExportCards(sourceId))
+      void statsStore.refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sync failed')
     } finally {

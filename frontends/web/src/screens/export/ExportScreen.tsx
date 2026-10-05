@@ -68,7 +68,7 @@ function ExportView({ sourceId }: { sourceId: number | undefined }) {
   return (
     <Page wide header={header} aside={aside} banner={(exporter.error || ankiStatus?.available === false) ? banner : undefined}>
       {totalCards === 0 && (
-        <Empty>
+        <Empty flush>
           {exportedCount > 0
             ? 'Everything marked for learning is already in Anki.'
             : 'No words marked for learning. Go to the review page and mark words as “Learn”.'}
