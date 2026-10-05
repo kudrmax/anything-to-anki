@@ -10,22 +10,31 @@ interface QueuePollingResult {
   refetch: () => Promise<void>
 }
 
-/** Polls the queue snapshot while the page is visible. */
+/** Polls the queue snapshot while the page is visible. A new read aborts the one still in flight. */
 export function useQueuePolling(sourceId: number | undefined, queuedLimit: number): QueuePollingResult {
   const [queue, setQueue] = useState<QueueSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const params = useRef({ sourceId, queuedLimit })
   params.current = { sourceId, queuedLimit }
+  const inFlight = useRef<AbortController | null>(null)
 
   const refetch = useCallback(async () => {
+    inFlight.current?.abort()
+    const controller = new AbortController()
+    inFlight.current = controller
     try {
-      setQueue(await api.getQueue(params.current.sourceId, params.current.queuedLimit))
+      setQueue(await api.getQueue(params.current.sourceId, params.current.queuedLimit, controller.signal))
     } catch {
       // a missed poll is retried on the next tick
     } finally {
-      setLoading(false)
+      if (inFlight.current === controller) {
+        inFlight.current = null
+        setLoading(false)
+      }
     }
   }, [])
+
+  useEffect(() => () => inFlight.current?.abort(), [])
 
   useEffect(() => {
     setLoading(true)
