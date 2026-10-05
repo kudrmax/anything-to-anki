@@ -154,7 +154,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             {facts.map(fact => <span key={fact}>{fact}</span>)}
             {candidate.origin && <span>{originLabel(candidate.origin)}</span>}
           </div>
-          <PhraseTools candidate={candidate} review={review} onEditPhrase={phraseEditor.editable ? phraseEditor.start : undefined} />
+          <PhraseTools candidate={candidate} review={review} onEditPhrase={phraseEditor.start} />
         </div>
       </div>
 
