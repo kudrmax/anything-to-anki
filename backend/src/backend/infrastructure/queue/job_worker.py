@@ -208,6 +208,7 @@ def _acquire_single_worker_lock() -> IO[str]:
     """
     data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
     os.makedirs(data_dir, exist_ok=True)
+    # Not a `with` block: closing the file releases the lock, so it stays open.
     lock_file = open(os.path.join(data_dir, LOCK_FILE_NAME), "w")  # noqa: SIM115
     try:
         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)

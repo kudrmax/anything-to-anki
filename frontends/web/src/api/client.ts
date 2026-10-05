@@ -18,9 +18,9 @@ import type {
   GlobalExport,
   ImageOption,
   KnownWord,
-  QueueFailed,
-  QueueGlobalSummary,
-  QueueOrder,
+  QueueActionResult,
+  QueueSelection,
+  QueueSnapshot,
   ReprocessStats,
   Settings,
   SourceDetail,
@@ -56,6 +56,10 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 
 async function reqVoid(path: string, init?: RequestInit): Promise<void> {
   await send(path, init)
+}
+
+function queueAction(action: 'cancel' | 'retry' | 'dismiss', selection: QueueSelection): Promise<QueueActionResult> {
+  return req<QueueActionResult>(`/api/queue/${action}`, { method: 'POST', body: JSON.stringify(selection) })
 }
 
 export const api = {
@@ -280,38 +284,17 @@ export const api = {
 
   getAnkiTemplates: () => req<AnkiTemplates>('/anki/templates'),
 
-  getQueueGlobalSummary: (sourceId?: number) =>
-    req<QueueGlobalSummary>(`/api/queue/global-summary${sourceId != null ? `?source_id=${sourceId}` : ''}`),
-
-  getQueueOrder: (sourceId?: number, limit = 50) => {
-    const params = new URLSearchParams()
+  getQueue: (sourceId: number | undefined, queuedLimit: number) => {
+    const params = new URLSearchParams({ queued_limit: String(queuedLimit) })
     if (sourceId != null) params.set('source_id', String(sourceId))
-    params.set('limit', String(limit))
-    return req<QueueOrder>(`/api/queue/order?${params.toString()}`)
+    return req<QueueSnapshot>(`/api/queue?${params.toString()}`)
   },
 
-  getQueueFailed: (sourceId?: number) =>
-    req<QueueFailed>(`/api/queue/failed${sourceId != null ? `?source_id=${sourceId}` : ''}`),
+  cancelQueue: (selection: QueueSelection) => queueAction('cancel', selection),
 
-  retryQueue: (jobType: string, sourceId?: number, errorText?: string) =>
-    req<{ retried: number }>('/api/queue/retry', {
-      method: 'POST',
-      body: JSON.stringify({
-        job_type: jobType,
-        source_id: sourceId ?? null,
-        error_text: errorText ?? null,
-      }),
-    }),
+  retryQueue: (selection: QueueSelection) => queueAction('retry', selection),
 
-  cancelQueue: (jobType: string, sourceId?: number, jobId?: number) =>
-    req<{ cancelled: number }>('/api/queue/cancel', {
-      method: 'POST',
-      body: JSON.stringify({
-        job_type: jobType,
-        source_id: sourceId ?? null,
-        job_id: jobId ?? null,
-      }),
-    }),
+  dismissQueue: (selection: QueueSelection) => queueAction('dismiss', selection),
 
   listCollections: () => req<Collection[]>('/collections'),
 

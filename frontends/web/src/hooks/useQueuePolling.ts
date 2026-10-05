@@ -1,39 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/api/client'
-import type { QueueFailed, QueueGlobalSummary, QueueOrder } from '@/api/types'
+import type { QueueSnapshot } from '@/api/types'
 
 const POLL_INTERVAL_MS = 2000
 
 interface QueuePollingResult {
-  summary: QueueGlobalSummary | null
-  order: QueueOrder | null
-  failed: QueueFailed | null
+  queue: QueueSnapshot | null
   loading: boolean
-  refetch: () => void
+  refetch: () => Promise<void>
 }
 
-export function useQueuePolling(sourceId?: number): QueuePollingResult {
-  const [summary, setSummary] = useState<QueueGlobalSummary | null>(null)
-  const [order, setOrder] = useState<QueueOrder | null>(null)
-  const [failed, setFailed] = useState<QueueFailed | null>(null)
+/** Polls the queue snapshot while the page is visible. */
+export function useQueuePolling(sourceId: number | undefined, queuedLimit: number): QueuePollingResult {
+  const [queue, setQueue] = useState<QueueSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const sourceIdRef = useRef(sourceId)
-  sourceIdRef.current = sourceId
+  const params = useRef({ sourceId, queuedLimit })
+  params.current = { sourceId, queuedLimit }
 
-  const fetchAll = useCallback(async () => {
-    const sid = sourceIdRef.current
+  const refetch = useCallback(async () => {
     try {
-      const [s, o, f] = await Promise.all([
-        api.getQueueGlobalSummary(sid),
-        api.getQueueOrder(sid, 50),
-        api.getQueueFailed(sid),
-      ])
-      setSummary(s)
-      setOrder(o)
-      setFailed(f)
+      setQueue(await api.getQueue(params.current.sourceId, params.current.queuedLimit))
     } catch {
-      // ignore poll errors
+      // a missed poll is retried on the next tick
     } finally {
       setLoading(false)
     }
@@ -41,19 +29,33 @@ export function useQueuePolling(sourceId?: number): QueuePollingResult {
 
   useEffect(() => {
     setLoading(true)
-    void fetchAll()
+    void refetch()
+  }, [refetch, sourceId, queuedLimit])
 
-    intervalRef.current = setInterval(() => {
-      void fetchAll()
-    }, POLL_INTERVAL_MS)
-
-    return () => {
-      if (intervalRef.current !== null) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null
+    const start = () => {
+      if (timer === null) timer = setInterval(() => void refetch(), POLL_INTERVAL_MS)
+    }
+    const stop = () => {
+      if (timer !== null) clearInterval(timer)
+      timer = null
+    }
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop()
+      } else {
+        void refetch()
+        start()
       }
     }
-  }, [fetchAll, sourceId])
+    if (!document.hidden) start()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [refetch])
 
-  return { summary, order, failed, loading, refetch: fetchAll }
+  return { queue, loading, refetch }
 }
