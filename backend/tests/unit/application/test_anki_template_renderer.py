@@ -115,3 +115,11 @@ class TestAnkiTemplateRenderer:
         assert "{{Target}}" in result["back"]
         assert ".cloze" in result["css"]
         assert ".hint" in result["css"]
+
+    def test_real_cloze_front_does_not_speak_the_answer(self) -> None:
+        from pathlib import Path as RealPath
+
+        root = RealPath(__file__).resolve().parents[4] / "anki-templates"
+        result = AnkiTemplateRenderer(root).render_cloze()
+        assert "{{Audio}}" not in result["front"]
+        assert "{{Audio}}" in result["back"]
