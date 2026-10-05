@@ -3,12 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from backend.domain.services.export_readiness import export_group
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.value_objects.export_group import ExportGroup
 
 
 @dataclass(frozen=True)
@@ -17,6 +19,9 @@ class ExportBatch:
 
     pending: list[StoredCandidate]
     exported_count: int
+
+    def in_group(self, group: ExportGroup) -> list[StoredCandidate]:
+        return [c for c in self.pending if export_group(c) == group]
 
 
 class ExportQueue:

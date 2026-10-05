@@ -8,6 +8,7 @@ from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.application.utils.export_queue import ExportQueue
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.export_group import ExportGroup
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -61,7 +62,7 @@ class TestSyncToAnkiTemplates:
             template_renderer=renderer,
             known_word_repo=known_word_repo,
         )
-        use_case.execute(source_id=1)
+        use_case.execute(source_id=1, group=ExportGroup.READY)
 
         anki_connector.ensure_note_type.assert_called_once()
         call_kwargs = anki_connector.ensure_note_type.call_args

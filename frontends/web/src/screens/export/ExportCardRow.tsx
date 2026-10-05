@@ -1,62 +1,43 @@
-import { useState, type MouseEvent } from 'react'
-import { Sparkles } from 'lucide-react'
-import type { CardPreview } from '@/api/types'
+import type { MouseEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import type { CardPreview, MissingCardPart } from '@/api/types'
 import type { AudioPlayer } from '@/lib/useAudioPlayer'
-import { nonEmptyLines, stripMarkdown } from '@/lib/text/meaning'
-import { Button, Icon, MediaThumb, Text } from '@/ui'
+import { MediaThumb } from '@/ui'
 import phrase from '@/ui/phrase.module.css'
 import css from './export.module.css'
 
 /** Backend отдаёт значение готовым HTML: определение, затем пояснения через <br>. */
 const PARAGRAPH_BREAK = /<br\s*\/?>/i
 
+const MISSING_LABEL: Record<MissingCardPart, string> = { meaning: 'No meaning', audio: 'No audio' }
+
 interface ExportCardRowProps {
   card: CardPreview
+  sourceId: number
   /** В группе есть карточки с видео: колонка превью нужна всем строкам. */
   withMedia: boolean
-  generating: boolean
-  onGenerate: (candidateId: number) => void
   player: AudioPlayer
 }
 
 const stop = (e: MouseEvent) => e.stopPropagation()
 
-export function ExportCardRow({ card, withMedia, generating, onGenerate, player }: ExportCardRowProps) {
-  const [expanded, setExpanded] = useState(false)
-  const [definition, ...details] = card.meaning ? card.meaning.split(PARAGRAPH_BREAK) : []
-  const examples = card.examples ? nonEmptyLines(card.examples).map(stripMarkdown) : []
+/** Строка карточки: клик открывает её на ревью, где карточку можно дополнить. */
+export function ExportCardRow({ card, sourceId, withMedia, player }: ExportCardRowProps) {
+  const navigate = useNavigate()
+  const [definition] = card.meaning ? card.meaning.split(PARAGRAPH_BREAK) : []
   const classes = [css.row, withMedia && css.withMedia].filter(Boolean).join(' ')
 
   return (
-    <div className={classes} onClick={() => setExpanded(open => !open)}>
+    <div className={classes} onClick={() => navigate(`/sources/${sourceId}/review?candidate=${card.candidate_id}`)}>
       <div className={css.main}>
         {/* sentence и meaning приходят из backend готовым HTML с выделенным словом */}
         <p className={`${css.sentence} ${phrase.html}`} dangerouslySetInnerHTML={{ __html: card.sentence }} />
-        {definition
-          ? <p className={css.definition} dangerouslySetInnerHTML={{ __html: definition }} />
-          : <p className={css.missing}>No meaning yet — generate it before export</p>}
-        {expanded && (
-          <div className={css.details}>
-            {details.map((paragraph, i) => <p key={i} dangerouslySetInnerHTML={{ __html: paragraph }} />)}
-            {card.synonyms && <p>{card.synonyms}</p>}
-            {card.ipa && <Text mono>{card.ipa}</Text>}
-            {examples.length > 0 && (
-              <ul className={css.examples}>
-                {examples.map((line, i) => <li key={i}>{line}</li>)}
-              </ul>
-            )}
-          </div>
+        {definition && <p className={css.definition} dangerouslySetInnerHTML={{ __html: definition }} />}
+        {card.missing.length > 0 && (
+          <p className={css.missing}>{card.missing.map(part => MISSING_LABEL[part]).join(' · ')}</p>
         )}
       </div>
-      <div className={css.translation} onClick={stop}>
-        {card.meaning
-          ? card.translation
-          : (
-            <Button variant="accent-link" busy={generating} onClick={() => onGenerate(card.candidate_id)}>
-              <Icon as={Sparkles} size="s" />Generate
-            </Button>
-          )}
-      </div>
+      <div className={css.translation}>{card.translation}</div>
       {withMedia && (
         <div className={css.media} onClick={stop}>
           <MediaThumb

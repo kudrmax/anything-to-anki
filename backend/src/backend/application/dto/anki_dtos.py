@@ -26,6 +26,7 @@ class CardPreviewDTO(BaseModel):
     pronunciation_us_url: str | None = None
     pronunciation_uk_url: str | None = None
     tts_audio_url: str | None = None
+    missing: list[str] = []  # required parts the card lacks: 'meaning', 'audio'
 
 
 class ExportSectionDTO(BaseModel):
@@ -37,9 +38,10 @@ class ExportSectionDTO(BaseModel):
 
 
 class GlobalExportDTO(BaseModel):
-    """Cards still waiting for export, grouped by source."""
+    """Cards still waiting for export: ready ones and incomplete ones, each grouped by source."""
 
-    sections: list[ExportSectionDTO]
+    ready: list[ExportSectionDTO]
+    incomplete: list[ExportSectionDTO]
     exported_count: int = 0  # 'learn' cards in scope that are already in Anki
 
 

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.settings_repository import SettingsRepository
+    from backend.domain.value_objects.export_group import ExportGroup
 
 _DEFAULT_NOTE_TYPE: str = "AnythingToAnkiType"
 _DEFAULT_DECK: str = "Default"
@@ -36,7 +37,7 @@ _DEFAULT_FIELD_AUDIO_TTS: str = "AudioTTS"
 
 
 class SyncToAnkiUseCase:
-    """Pushes not yet exported 'learn' candidates to Anki as cards via AnkiConnect."""
+    """Pushes one export group of not yet exported 'learn' candidates to Anki via AnkiConnect."""
 
     def __init__(
         self,
@@ -54,7 +55,7 @@ class SyncToAnkiUseCase:
         self._template_renderer = template_renderer
         self._known_word_repo = known_word_repo
 
-    def execute(self, source_id: int) -> SyncResultDTO:
+    def execute(self, source_id: int, group: ExportGroup) -> SyncResultDTO:
         deck_name = self._settings_repo.get("anki_deck_name", _DEFAULT_DECK) or _DEFAULT_DECK
         note_type = (
             self._settings_repo.get("anki_note_type", _DEFAULT_NOTE_TYPE) or _DEFAULT_NOTE_TYPE
@@ -107,12 +108,12 @@ class SyncToAnkiUseCase:
             or _DEFAULT_FIELD_AUDIO_TTS
         )
 
-        pending = self._export_queue.for_source(source_id).pending
+        pending = self._export_queue.for_source(source_id).in_group(group)
 
         total = len(pending)
         logger.info(
-            "sync_to_anki: start (source_id=%d, deck=%s, pending=%d)",
-            source_id, deck_name, total,
+            "sync_to_anki: start (source_id=%d, group=%s, deck=%s, pending=%d)",
+            source_id, group, deck_name, total,
         )
         if total == 0:
             return SyncResultDTO(total=0, added=0, skipped=0, errors=0)
@@ -328,9 +329,9 @@ class SyncToAnkiUseCase:
             skipped_lemmas=skipped_lemmas, error_lemmas=error_lemmas,
         )
 
-    def execute_all(self) -> SyncResultDTO:
-        """Sync all sources with not yet exported learn candidates to Anki."""
-        pending = self._export_queue.for_all().pending
+    def execute_all(self, group: ExportGroup) -> SyncResultDTO:
+        """Sync the group's not yet exported learn candidates of every source to Anki."""
+        pending = self._export_queue.for_all().in_group(group)
         if not pending:
             return SyncResultDTO(total=0, added=0, skipped=0, errors=0)
 
@@ -344,7 +345,7 @@ class SyncToAnkiUseCase:
         error_lemmas: list[str] = []
 
         for source_id in source_ids:
-            result = self.execute(source_id)
+            result = self.execute(source_id, group)
             total += result.total
             added += result.added
             skipped += result.skipped
