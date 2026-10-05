@@ -3,7 +3,7 @@ import { Sparkles } from 'lucide-react'
 import type { CardPreview } from '@/api/types'
 import type { AudioPlayer } from '@/lib/useAudioPlayer'
 import { nonEmptyLines, stripMarkdown } from '@/lib/text/meaning'
-import { Button, Icon, IconButton, MediaThumb, Text } from '@/ui'
+import { Button, Icon, MediaThumb, Text } from '@/ui'
 import phrase from '@/ui/phrase.module.css'
 import css from './export.module.css'
 
@@ -67,9 +67,6 @@ export function ExportCardRow({ card, withMedia, generating, onGenerate, player 
           />
         </div>
       )}
-      <div className={css.more} onClick={stop}>
-        {card.meaning && <IconButton icon={Sparkles} label="Regenerate meaning" busy={generating} onClick={() => onGenerate(card.candidate_id)} />}
-      </div>
     </div>
   )
 }
