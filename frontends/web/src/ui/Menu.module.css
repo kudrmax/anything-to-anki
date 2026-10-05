@@ -18,6 +18,7 @@
 .value { font-size: var(--fs-s); color: var(--tx3); }
 .item > svg { color: var(--tx3); }
 .danger > svg { color: var(--err); }
+.back { margin-bottom: var(--s2); color: var(--tx2); box-shadow: 0 var(--bw) 0 var(--line); border-radius: var(--rc) var(--rc) 0 0; }
 .separator { height: var(--bw); margin: var(--s2) var(--s3); background: var(--line); }
 .submenu { translate: none; position: var(--submenu-position); top: calc(var(--s2) * -1); min-width: var(--submenu-min-w); margin-left: calc(var(--submenu-indent) - var(--s2)); background: var(--submenu-bg); box-shadow: var(--submenu-shadow); }
 /* подменю стоит снаружи родительского меню; невидимый мостик держит наведение на зазоре */

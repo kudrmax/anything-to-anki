@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { ArrowRight, Feather, Flag, Image, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, X, ZoomIn, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Clapperboard, Ellipsis, Feather, Flag, HelpCircle, Image, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, Undo2, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { decisionChange, type Decision } from '@/lib/decision'
-import { Button, Field, IconButton, Menu, type MenuItem } from '@/ui'
+import { Button, Field, Icon, IconButton, Menu, Spinner, type MenuItem, type MenuPage } from '@/ui'
 import { ImagePicker } from './ImagePicker'
 import { PolishedPhrase } from './PolishedPhrase'
 import type { Review } from './useReview'
@@ -54,30 +54,39 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   const isRated = candidate.status !== 'pending'
   const isVideo = review.source?.content_type === 'video'
   const isEditing = review.editing?.candidateId === id
+  const hasMeaning = Boolean(candidate.meaning?.meaning)
+  const busy = {
+    meaning: review.busy.generating.has(id),
+    media: review.busy.media.has(id),
+    tts: review.busy.tts.has(id),
+    image: review.busy.image.has(id),
+  }
+  const anyBusy = Object.values(busy).some(Boolean) || candidate.polish_status === 'running'
 
-  const followUpItems: MenuItem[] = [
-    { label: 'Regenerate all', icon: RefreshCw, onSelect: () => void review.generate(id) },
-    ...(isRated ? [] : [{
-      label: 'Ask AI',
-      icon: Sparkles,
-      items: FOLLOW_UP_PRESETS.map(preset => ({ label: preset.label, icon: preset.icon, onSelect: () => void review.generate(id, preset.action) })),
-    }]),
-  ]
   const askQuestion = (close: () => void) => {
     if (!question.trim()) return
     void review.generate(id, 'free_question', question.trim())
     setQuestion('')
     close()
   }
+  const askPage: MenuPage = {
+    items: [],
+    footer: close => (
+      <div className={css.ask}>
+        <Field
+          autoFocus
+          value={question}
+          placeholder="Your own question…"
+          onChange={e => setQuestion(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') askQuestion(close) }}
+        />
+        <IconButton icon={ArrowRight} label="Ask" disabled={!question.trim()} onClick={() => askQuestion(close)} />
+      </div>
+    ),
+  }
 
   const toggleReason = (reason: string) =>
     setReasons(prev => (prev.includes(reason) ? prev.filter(r => r !== reason) : [...prev, reason]))
-  const reportItems: MenuItem[] = review.reportReasons.map(reason => ({
-    label: reason,
-    selected: reasons.includes(reason),
-    keepOpen: true,
-    onSelect: () => toggleReason(reason),
-  }))
   const canSend = reasons.length > 0 || complaint.trim().length > 0
   const sendReport = async (close: () => void) => {
     if (!canSend) return
@@ -87,56 +96,101 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
       close()
     }
   }
+  const reportPage: MenuPage = {
+    items: review.reportReasons.map(reason => ({
+      label: reason,
+      selected: reasons.includes(reason),
+      keepOpen: true,
+      onSelect: () => toggleReason(reason),
+    })),
+    footer: close => (
+      <div className={css.reportFooter}>
+        <Field
+          value={complaint}
+          placeholder="Describe the problem…"
+          onChange={e => setComplaint(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') void sendReport(close) }}
+        />
+        <Button variant="fill" wide disabled={!canSend} onClick={() => void sendReport(close)}>
+          {reasons.length > 1 ? `Send ${reasons.length} reasons` : 'Send report'}
+        </Button>
+      </div>
+    ),
+  }
 
-  const editItems: MenuItem[] = [
-    { label: 'Edit phrase text', icon: TextCursorInput, onSelect: onEditPhrase },
-    { label: 'Edit boundary in source', icon: TextSelect, onSelect: () => review.startEditing(id) },
+  const actionItem = (label: string, icon: LucideIcon, isBusy: boolean, onSelect: () => void, hint?: string): MenuItem => ({
+    label,
+    hint,
+    icon,
+    lead: isBusy ? <Spinner /> : undefined,
+    disabled: isBusy,
+    onSelect,
+  })
+  const groupLead = (isBusy: boolean) => (isBusy ? <Spinner /> : undefined)
+
+  const polished = Boolean(candidate.polished_fragment)
+  const polishing = candidate.polish_status === 'queued' || candidate.polish_status === 'running'
+  const phraseItems: MenuItem[] = [
+    { label: 'Edit text', hint: 'Fix words in the phrase', icon: TextCursorInput, onSelect: onEditPhrase },
+    { label: 'Change boundary', hint: 'Pick the phrase in the source', icon: TextSelect, onSelect: () => review.startEditing(id) },
+    ...(review.source?.can_polish_phrases ? [{
+      ...actionItem(polished ? 'Polish again' : 'Polish', WandSparkles, polishing, () => void review.polishAgain(id), 'AI simplifies the phrase'),
+      separated: true,
+    }] : []),
+    ...(polished ? [{
+      label: candidate.polish_reverted ? 'Use polished phrase' : 'Revert to original',
+      hint: candidate.polish_reverted ? 'Back to the AI version' : 'The phrase from the book',
+      icon: Undo2,
+      onSelect: () => void review.setPolishReverted(id, !candidate.polish_reverted),
+    }] : []),
+  ]
+
+  const meaningItems: MenuItem[] = [
+    actionItem(hasMeaning ? 'Regenerate' : 'Generate', RefreshCw, busy.meaning, () => void review.generate(id), 'Definition, translation, examples'),
+    ...(hasMeaning && !isRated ? [
+      ...FOLLOW_UP_PRESETS.map((preset, index) => ({
+        label: preset.label,
+        icon: preset.icon,
+        disabled: busy.meaning,
+        separated: index === 0,
+        onSelect: () => void review.generate(id, preset.action),
+      })),
+      { label: 'Your own question', icon: HelpCircle, disabled: busy.meaning, page: askPage },
+    ] : []),
+  ]
+
+  const mediaItems: MenuItem[] = [
+    actionItem('Choose a picture', ImagePlus, busy.image, () => setPickingImage(true), 'Image of the word'),
+    ...(isVideo ? [actionItem('Regenerate clip', Clapperboard, busy.media, () => void review.regenerateMedia(id), 'Screenshot and clip from the video')] : []),
+    actionItem('Regenerate speech', Speech, busy.tts, () => void review.generateTTS(id), 'Phrase read aloud'),
+  ]
+
+  const items: MenuItem[] = [
+    { label: 'Phrase', hint: 'Edit, boundary, polish', icon: Pencil, lead: groupLead(polishing), items: phraseItems },
+    { label: 'Meaning', hint: 'Regenerate, ask AI', icon: Sparkles, lead: groupLead(busy.meaning), items: meaningItems },
+    { label: 'Media', hint: isVideo ? 'Picture, clip, speech' : 'Picture, speech', icon: Image, lead: groupLead(busy.image || busy.media || busy.tts), items: mediaItems },
+    {
+      label: 'Report a problem',
+      hint: candidate.reported ? 'Reported — add another' : 'Tell what’s wrong',
+      icon: Flag,
+      separated: true,
+      page: reportPage,
+    },
   ]
 
   return (
     <div className={css.tools}>
-      {candidate.meaning?.meaning && (
-        <Menu
-          trigger={<IconButton icon={Sparkles} label="Regenerate or ask" busy={review.busy.generating.has(id)} />}
-          items={followUpItems}
-          footer={isRated ? undefined : close => (
-            <div className={css.ask}>
-              <Field
-                value={question}
-                placeholder="Ask your own question…"
-                onChange={e => setQuestion(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') askQuestion(close) }}
-              />
-              <IconButton icon={ArrowRight} label="Ask" disabled={!question.trim()} onClick={() => askQuestion(close)} />
-            </div>
-          )}
-        />
-      )}
-      {isVideo && <IconButton icon={Image} label="Regenerate media" busy={review.busy.media.has(id)} onClick={() => void review.regenerateMedia(id)} />}
-      <IconButton icon={ImagePlus} label="Find a picture of the word" busy={review.busy.image.has(id)} onClick={() => setPickingImage(true)} />
-      {pickingImage && <ImagePicker candidate={candidate} review={review} onClose={() => setPickingImage(false)} />}
-      <IconButton icon={Speech} label="Generate TTS audio" busy={review.busy.tts.has(id)} onClick={() => void review.generateTTS(id)} />
       <PolishedPhrase candidate={candidate} review={review} />
+      {isEditing && <IconButton icon={X} label="Cancel editing" active onClick={review.cancelEditing} />}
       <Menu
-        trigger={<IconButton icon={Flag} label={candidate.reported ? 'Reported — report another problem' : 'Report a problem with this card'} className={candidate.reported ? css.reported : undefined} />}
-        items={reportItems}
-        footer={close => (
-          <div className={css.reportFooter}>
-            <Field
-              value={complaint}
-              placeholder="Describe the problem…"
-              onChange={e => setComplaint(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') void sendReport(close) }}
-            />
-            <Button variant="fill" wide disabled={!canSend} onClick={() => void sendReport(close)}>
-              {reasons.length > 1 ? `Send ${reasons.length} reasons` : 'Send report'}
-            </Button>
-          </div>
-        )}
+        items={items}
+        trigger={
+          <Button variant="link" className={css.iconTrigger} title="Card actions" aria-label="Card actions">
+            {anyBusy ? <Spinner /> : <Icon as={Ellipsis} />}
+          </Button>
+        }
       />
-      {isEditing
-        ? <IconButton icon={X} label="Cancel editing" active onClick={review.cancelEditing} />
-        : <Menu trigger={<IconButton icon={Pencil} label="Edit phrase" />} items={editItems} />}
+      {pickingImage && <ImagePicker candidate={candidate} review={review} onClose={() => setPickingImage(false)} />}
     </div>
   )
 }
