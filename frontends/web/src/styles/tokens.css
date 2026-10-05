@@ -162,6 +162,7 @@
   --current-card-order: 0;
   --main-pb: var(--s8);
   --fit-display: grid;
+  --fit-align: start;
   --fit-h: auto;
   --fit-content-display: block;
   --review-body-display: block;
@@ -315,6 +316,7 @@
     --current-card-order: -1;
     --main-pb: calc(var(--s5) + env(safe-area-inset-bottom));
     --fit-display: flex;
+    --fit-align: stretch;
     --fit-h: 100%;
     --fit-content-display: flex;
     --review-body-display: flex;
