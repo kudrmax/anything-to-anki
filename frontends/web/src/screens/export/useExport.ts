@@ -1,24 +1,24 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { ExportSection, GlobalExport, Settings, SyncResult } from '@/api/types'
+import type { ExportGroup, ExportSection, GlobalExport, Settings, SyncResult } from '@/api/types'
 import { useAnkiStatus } from '@/hooks/useAnkiStatus'
-import { useToast } from '@/ui'
+
+const countCards = (sections: ExportSection[]): number =>
+  sections.reduce((sum, section) => sum + section.cards.length, 0)
 
 /** Экспорт одного источника (sourceId задан) или всех сразу. */
 export function useExport(sourceId?: number) {
   const ankiStatus = useAnkiStatus()
-  const [sections, setSections] = useState<ExportSection[]>([])
+  const [groups, setGroups] = useState<Record<ExportGroup, ExportSection[]>>({ ready: [], incomplete: [] })
   const [exportedCount, setExportedCount] = useState(0)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState(false)
+  const [syncing, setSyncing] = useState<ExportGroup | null>(null)
   const [result, setResult] = useState<SyncResult | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set())
-  const [toast, showToast] = useToast()
 
   const applyExport = useCallback((data: GlobalExport) => {
-    setSections(data.sections)
+    setGroups({ ready: data.ready, incomplete: data.incomplete })
     setExportedCount(data.exported_count)
   }, [])
 
@@ -36,48 +36,25 @@ export function useExport(sourceId?: number) {
     api.getSettings().then(setSettings).catch(() => {})
   }, [sourceId, applyExport])
 
-  const sync = useCallback(async () => {
-    setSyncing(true)
+  const sync = useCallback(async (group: ExportGroup) => {
+    setSyncing(group)
     setError(null)
     try {
-      setResult(await api.syncToAnki(sourceId))
+      setResult(await api.syncToAnki(group, sourceId))
       applyExport(await api.getExportCards(sourceId))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sync failed')
     } finally {
-      setSyncing(false)
+      setSyncing(null)
     }
   }, [sourceId, applyExport])
 
-  const generate = useCallback(async (candidateId: number) => {
-    setGeneratingIds(prev => new Set(prev).add(candidateId))
-    try {
-      const res = await api.generateMeaning(candidateId)
-      setSections(prev => prev.map(section => ({
-        ...section,
-        cards: section.cards.map(c => c.candidate_id === candidateId
-          ? { ...c, meaning: res.meaning, translation: res.translation, synonyms: res.synonyms, examples: res.examples, ipa: res.ipa }
-          : c),
-      })))
-      showToast(`Tokens used: ${res.tokens_used}`)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Generation failed')
-    } finally {
-      setGeneratingIds(prev => {
-        const next = new Set(prev)
-        next.delete(candidateId)
-        return next
-      })
-    }
-  }, [showToast])
-
-  const cards = sections.flatMap(section => section.cards)
-  const totalCards = cards.length
+  const counts: Record<ExportGroup, number> = { ready: countCards(groups.ready), incomplete: countCards(groups.incomplete) }
+  const canSync = (group: ExportGroup) => ankiStatus?.available === true && counts[group] > 0 && syncing === null
 
   return {
-    ankiStatus, sections, exportedCount, settings, loading, syncing, result, error, generatingIds, toast,
-    totalCards, readyCards: cards.filter(card => card.meaning).length,
-    canSync: ankiStatus?.available === true && totalCards > 0 && !syncing,
-    sync, generate,
+    ankiStatus, groups, counts, totalCards: counts.ready + counts.incomplete,
+    exportedCount, settings, loading, syncing, result, error,
+    canSync, sync,
   }
 }

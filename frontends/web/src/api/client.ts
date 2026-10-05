@@ -9,6 +9,7 @@ import type {
   CleanupMediaKind,
   Collection,
   CreateNoteTypeResponse,
+  ExportGroup,
   FollowUpAction,
   FrequentWordThresholdOption,
   GenerateMeaningResult,
@@ -107,9 +108,9 @@ export const api = {
   getExportCards: (sourceId?: number) =>
     req<GlobalExport>(sourceId != null ? `/export/cards/${sourceId}` : '/export/cards'),
 
-  syncToAnki: (sourceId?: number) =>
+  syncToAnki: (group: ExportGroup, sourceId?: number) =>
     req<SyncResult>(
-      sourceId != null ? `/export/sync-to-anki/${sourceId}` : '/export/sync-to-anki',
+      `${sourceId != null ? `/export/sync-to-anki/${sourceId}` : '/export/sync-to-anki'}?group=${group}`,
       { method: 'POST' },
     ),
 

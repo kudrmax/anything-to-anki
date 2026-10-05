@@ -7,6 +7,7 @@ import { candidateAudioUrl } from '@/lib/candidateAudio'
 import { mediaUrl } from '@/lib/text/meaning'
 import { useToast } from '@/ui'
 import { useAudioPlayer } from '@/lib/useAudioPlayer'
+import { initialFocusId } from './initialFocus'
 import { nextFocusId } from './nextFocus'
 
 const POLL_INTERVAL_MS = 3000
@@ -28,10 +29,7 @@ const hasCandidateVpnErrors = (candidates: StoredCandidate[]): boolean =>
 
 export const audioUrlForCandidate = candidateAudioUrl
 
-const firstPendingId = (candidates: StoredCandidate[]): number | null =>
-  (candidates.find(c => c.status === 'pending') ?? candidates[0])?.id ?? null
-
-export function useReview(sourceId: number) {
+export function useReview(sourceId: number, requestedId: number | null = null) {
   const [source, setSource] = useState<SourceDetail | null>(null)
   const [candidates, setCandidates] = useState<StoredCandidate[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,7 +79,7 @@ export function useReview(sourceId: number) {
         const src = await api.getSource(sourceId, sortOrder)
         setSource(src)
         setCandidates(src.candidates)
-        setCurrentId(prev => prev ?? firstPendingId(src.candidates))
+        setCurrentId(prev => prev ?? initialFocusId(src.candidates, requestedId))
         await loadGeneration()
       } catch {
         setSource(null)
@@ -90,7 +88,7 @@ export function useReview(sourceId: number) {
       }
     }
     void load()
-  }, [sourceId, sortOrder, loadGeneration])
+  }, [sourceId, sortOrder, loadGeneration, requestedId])
 
   const inProgress = generation?.in_progress ?? false
   useEffect(() => {

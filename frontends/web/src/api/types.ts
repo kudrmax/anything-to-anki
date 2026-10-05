@@ -195,7 +195,13 @@ export interface CardPreview {
   pronunciation_us_url: string | null
   pronunciation_uk_url: string | null
   tts_audio_url: string | null
+  /** Обязательные части, которых у карточки нет. */
+  missing: MissingCardPart[]
 }
+
+export type MissingCardPart = 'meaning' | 'audio'
+
+export type ExportGroup = 'ready' | 'incomplete'
 
 export interface ExportSection {
   source_id: number
@@ -204,7 +210,8 @@ export interface ExportSection {
 }
 
 export interface GlobalExport {
-  sections: ExportSection[]
+  ready: ExportSection[]
+  incomplete: ExportSection[]
   exported_count: number
 }
 

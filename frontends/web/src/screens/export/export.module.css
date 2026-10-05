@@ -1,4 +1,11 @@
-/* группа: источник и его карточки */
+/* группа экспорта: готовые или неполные карточки со своей кнопкой */
+.exportGroup + .exportGroup { margin-top: var(--s8); }
+.exportGroupHead { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); flex-wrap: wrap; padding-bottom: var(--s4); border-bottom: var(--bw) solid var(--line); }
+.exportGroupTitle { font-size: var(--fs-t); font-weight: var(--fw-m); }
+.exportGroupTitle span { margin-left: var(--s3); font-size: var(--fs-s); font-weight: var(--fw); color: var(--tx3); }
+.exportGroupHead + .group { margin-top: var(--s4); }
+
+/* источник и его карточки внутри группы */
 .group + .group { margin-top: var(--s7); }
 .groupTitle { margin-bottom: var(--s2); font-size: var(--fs-b); font-weight: var(--fw-m); color: var(--tx2); }
 .groupTitle span { margin-left: var(--s3); font-size: var(--fs-s); font-weight: var(--fw); color: var(--tx3); }
@@ -11,7 +18,5 @@
 .sentence { font-size: var(--fs-t); line-height: var(--lh); }
 .definition { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
 .missing { font-size: var(--fs-m); color: var(--warn); }
-.details { display: flex; flex-direction: column; gap: var(--s3); margin-top: var(--s3); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
-.examples { list-style: none; display: flex; flex-direction: column; gap: var(--s2); padding-left: var(--s5); border-left: var(--underline) solid var(--line); }
 .translation { grid-area: translation; min-width: 0; font-size: var(--fs-b); font-weight: var(--fw-m); line-height: var(--lh); overflow-wrap: anywhere; padding-top: var(--s1); }
 .media { grid-area: media; }

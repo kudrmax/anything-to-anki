@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { decisionChange, type Decision } from '@/lib/decision'
 import { reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { pastedPicture } from '@/lib/pastedPicture'
@@ -21,11 +21,15 @@ const DECISION: Partial<Record<ReviewAction, Decision>> = { learn: 'learn', know
 type PhoneView = 'card' | 'text' | 'list'
 
 const SOURCES_PATH = '/'
+/** Ссылка на конкретную карточку: с ней ревью открывается сразу на ней. */
+const CANDIDATE_PARAM = 'candidate'
 
 export function ReviewScreen() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const review = useReview(Number(id))
+  const [searchParams] = useSearchParams()
+  const requestedCandidate = searchParams.get(CANDIDATE_PARAM)
+  const review = useReview(Number(id), requestedCandidate === null ? null : Number(requestedCandidate))
   const listRef = useRef<HTMLDivElement>(null)
   const [selection, setSelection] = useState<{ phrase: string; point: SelectionPoint } | null>(null)
   const [sourceTextShown, setSourceTextShown] = useState(() => sourceTextShownPref.read())
@@ -51,13 +55,16 @@ export function ReviewScreen() {
     `${id}:${review.sortOrder}`,
   )
 
-  // Держим карточку в поле зрения и когда фоновое обновление переставило её в списке.
+  // Держим карточку в поле зрения: и когда список только появился (ревью открыли ссылкой на карточку),
+  // и когда фоновое обновление переставило её в списке.
   const currentIndex = candidates.findIndex(c => c.id === currentId)
   const prevId = candidates[currentIndex - 1]?.id ?? null
   const nextId = currentIndex >= 0 ? candidates[currentIndex + 1]?.id ?? null : null
+  const { loading } = review
   useEffect(() => {
+    if (loading) return
     listRef.current?.querySelector(`[data-candidate-id="${currentId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-  }, [currentId, currentIndex])
+  }, [currentId, currentIndex, loading])
 
   const { mark, setCurrentId, cancelEditing, sourceId } = review
   const toggleAudio = review.player.toggle
