@@ -289,3 +289,11 @@ class VideoAlreadyDownloadedError(DomainError):
     def __init__(self, source_id: int) -> None:
         super().__init__(f"Video of source {source_id} is already downloaded")
         self.source_id = source_id
+
+
+class InvalidClozeError(DomainError, ValueError):
+    """Raised when the hidden words of a cloze card are empty or out of the phrase."""
+
+
+class ClozeNotAllowedError(DomainError):
+    """Raised when a cloze card is requested for a candidate that cannot have one."""
