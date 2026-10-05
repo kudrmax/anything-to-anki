@@ -3,15 +3,11 @@ import AppKit
 /// The menu bar icon that keeps the app reachable while its window is closed and it is out of the Dock.
 @MainActor
 final class StatusBarController {
-    private static let symbolName = "rectangle.stack"
-
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
     init(appName: String, target: AppDelegate) {
         if let button = statusItem.button {
-            let image = NSImage(systemSymbolName: Self.symbolName, accessibilityDescription: appName)
-            image?.isTemplate = true
-            button.image = image
+            button.image = MenuBarIcon.make(accessibilityDescription: appName)
             button.toolTip = appName
         }
         let menu = NSMenu()
