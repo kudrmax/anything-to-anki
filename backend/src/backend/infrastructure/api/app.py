@@ -115,6 +115,15 @@ app.include_router(queue_router)
 app.include_router(collections.router)
 app.include_router(bootstrap.router)
 
+# Browsers must re-check the page on every open: it names the bundle of the
+# current build, and a cached copy keeps an old frontend alive after a deploy.
+INDEX_CACHE_CONTROL = "no-cache"
+
+
+def index_response(dist: Path) -> FileResponse:
+    return FileResponse(str(dist / "index.html"), headers={"Cache-Control": INDEX_CACHE_CONTROL})
+
+
 _dist_env = os.getenv("FRONTEND_DIST")
 _DIST = Path(_dist_env) if _dist_env else Path(__file__).parents[5] / "frontends" / "web" / "dist"
 if _DIST.exists():
@@ -123,6 +132,6 @@ if _DIST.exists():
     @app.get("/{full_path:path}")
     async def spa_fallback(full_path: str) -> FileResponse:  # noqa: RUF029
         candidate = _DIST / full_path
-        if candidate.is_file():
+        if candidate.is_file() and candidate.name != "index.html":
             return FileResponse(str(candidate))
-        return FileResponse(str(_DIST / "index.html"))
+        return index_response(_DIST)
