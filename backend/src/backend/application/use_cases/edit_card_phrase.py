@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from backend.domain.exceptions import CandidateNotFoundError, InvalidPhraseError
 
 if TYPE_CHECKING:
-    from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
     from backend.domain.ports.candidate_repository import CandidateRepository
 
 
@@ -13,15 +12,11 @@ class EditCardPhraseUseCase:
     """Lets the user rewrite the card phrase by hand, in the slot AI polishing uses.
 
     The source phrase stays untouched, so the user can still see it and revert.
+    Meaning and TTS are kept: a hand edit is a small tweak the user controls.
     """
 
-    def __init__(
-        self,
-        candidate_repo: CandidateRepository,
-        enrichment_reset: PhraseEnrichmentReset,
-    ) -> None:
+    def __init__(self, candidate_repo: CandidateRepository) -> None:
         self._candidate_repo = candidate_repo
-        self._enrichment_reset = enrichment_reset
 
     def execute(self, candidate_id: int, phrase: str) -> None:
         candidate = self._candidate_repo.get_by_id(candidate_id)
@@ -35,4 +30,3 @@ class EditCardPhraseUseCase:
         self._candidate_repo.set_polished_fragment(candidate.id, edited)
         if candidate.polish_reverted:
             self._candidate_repo.set_polish_reverted(candidate.id, False)
-        self._enrichment_reset.reset(candidate.id)
