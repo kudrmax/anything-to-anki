@@ -68,14 +68,14 @@ public actor ServerLauncher {
         ownsProcesses = true
         let result = await runner.run(Self.upCommand, in: projectDir)
         guard result.exitCode == 0 else {
-            return .failed(message: "`\(Self.upCommand)` exited with code \(result.exitCode)", outputTail: tail(of: result.output))
+            return .failed(message: "The server failed to start (exit code \(result.exitCode))", outputTail: tail(of: result.output))
         }
 
         for _ in 0..<policy.attempts where inFlightStop == nil {
             if await probe.isUp() { return .ready }
             await sleeper.sleep(for: policy.pollInterval)
         }
-        return .failed(message: "The server did not answer after `\(Self.upCommand)`", outputTail: tail(of: result.output))
+        return .failed(message: "The server started but did not respond", outputTail: tail(of: result.output))
     }
 
     private func performStop() async {
