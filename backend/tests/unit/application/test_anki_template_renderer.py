@@ -108,3 +108,22 @@ class TestRealTemplates:
 
         assert "{{Audio}}" not in result.front
         assert "{{Audio}}" in result.back
+
+
+class TestRealTemplatesAudio:
+    def test_recognition_speaks_the_phrase_on_the_front_and_the_target_on_the_back(self) -> None:
+        result = AnkiTemplateRenderer(REAL_TEMPLATES).render_recognition(DEFAULT_FIELDS)
+
+        assert "{{AudioTTS}}" in result.front
+        assert "{{AudioTargetUS}}" not in result.front
+        assert "{{AudioTTS}}" in result.back
+        assert "{{AudioTargetUS}}" in result.back
+        assert "{{AudioTargetUK}}" in result.back
+
+    def test_cloze_front_does_not_speak_the_phrase(self) -> None:
+        result = AnkiTemplateRenderer(REAL_TEMPLATES).render_cloze(DEFAULT_FIELDS)
+
+        assert "{{AudioTTS}}" not in result.front
+        assert "{{AudioTargetUS}}" not in result.front
+        assert "{{AudioTTS}}" in result.back
+        assert "{{AudioTargetUK}}" in result.back

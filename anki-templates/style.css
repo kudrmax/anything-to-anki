@@ -103,6 +103,14 @@ hr {
   margin-bottom: 2px;
 }
 
+/* Pronunciation of the target: US / UK */
+.pron {
+  display: inline-block;
+  margin-right: 12px;
+  font-size: 13px;
+  color: #92400e;
+}
+
 /* Meaning */
 .meaning {
   font-size: 18px;
@@ -179,7 +187,8 @@ hr {
   color: #f1f5f9;
 }
 
-.nightMode .ipa {
+.nightMode .ipa,
+.nightMode .pron {
   color: #a5b4fc;
 }
 

@@ -119,6 +119,9 @@ class AnkiFieldNames:
             "FIELD_IMAGE": self.image,
             "FIELD_MEANING_IMAGE": self.meaning_image,
             "FIELD_AUDIO": self.audio,
+            "FIELD_AUDIO_TARGET_US": self.audio_target_us,
+            "FIELD_AUDIO_TARGET_UK": self.audio_target_uk,
+            "FIELD_AUDIO_TTS": self.audio_tts,
         }
 
     def _content_fields(self) -> list[str]:
