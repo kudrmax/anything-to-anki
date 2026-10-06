@@ -4,68 +4,85 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.manage_anki_note_types import ManageAnkiNoteTypesUseCase
+from backend.application.utils.anki_note_types import NoteTypeKind
 from backend.application.utils.anki_template_renderer import NoteTemplates
 from backend.domain.exceptions import AnkiNotAvailableError
 
 pytestmark = pytest.mark.unit
 
+RECOGNITION_FIELDS = [
+    "Sentence", "Target", "Meaning", "IPA", "Translation", "Synonyms", "Examples",
+    "Image", "MeaningImage", "Audio", "AudioTargetUS", "AudioTargetUK", "AudioTTS",
+]
 
-class _Fixture:
-    def __init__(self, existing: dict[str, list[str]], settings: dict[str, str]) -> None:
+
+class _Anki:
+    """Note types in a fake Anki: ensure_note_type creates a type or adds the missing fields."""
+
+    def __init__(self, note_types: dict[str, list[str]]) -> None:
+        self.note_types = note_types
         self.connector = MagicMock()
         self.connector.is_available.return_value = True
-        self.connector.get_model_field_names.side_effect = existing.get
-        settings_repo = MagicMock()
-        settings_repo.get.side_effect = lambda key, default=None: settings.get(key)
-        renderer = MagicMock()
-        renderer.render_recognition.return_value = NoteTemplates("F", "B", "C")
-        renderer.render_cloze.return_value = NoteTemplates("CF", "CB", "C")
-        self.use_case = ManageAnkiNoteTypesUseCase(self.connector, settings_repo, renderer)
+        self.connector.get_model_field_names.side_effect = note_types.get
+        self.connector.ensure_note_type.side_effect = self._ensure
+
+    def _ensure(self, name: str, fields: list[str], **_: object) -> None:
+        current = self.note_types.setdefault(name, [])
+        current.extend(field for field in fields if field not in current)
 
 
-class TestVerify:
-    def test_valid_when_both_types_have_every_field(self) -> None:
-        recognition = ["Sentence", "Target", "Meaning", "IPA", "Translation", "Synonyms",
-                       "Examples", "Image", "MeaningImage", "Audio",
-                       "AudioTargetUS", "AudioTargetUK", "AudioTTS"]
-        fx = _Fixture(
-            {"AnythingToAnkiType": recognition, "AnythingToAnkiCloze": [*recognition, "Hint"]},
-            {},
-        )
+def _use_case(anki: _Anki, settings: dict[str, str]) -> ManageAnkiNoteTypesUseCase:
+    settings_repo = MagicMock()
+    settings_repo.get.side_effect = lambda key, default=None: settings.get(key)
+    renderer = MagicMock()
+    renderer.render_recognition.return_value = NoteTemplates("F", "B", "C")
+    renderer.render_cloze.return_value = NoteTemplates("CF", "CB", "C")
+    return ManageAnkiNoteTypesUseCase(anki.connector, settings_repo, renderer)
 
-        result = fx.use_case.verify()
 
-        assert result.valid is True
-        assert [check.missing_fields for check in result.note_types] == [[], []]
-
-    def test_cloze_type_needs_the_hint_and_the_shared_fields(self) -> None:
-        fx = _Fixture({"Main": ["Phrase"], "Main Cloze": ["Phrase"]}, {
-            "anki_note_type": "Main",
-            "anki_cloze_note_type": "Main Cloze",
-            "anki_field_sentence": "Phrase",
+class TestCheck:
+    def test_ready_types_need_no_fix(self) -> None:
+        anki = _Anki({
+            "AnythingToAnkiType": list(RECOGNITION_FIELDS),
+            "AnythingToAnkiCloze": [*RECOGNITION_FIELDS, "Hint"],
         })
 
-        recognition, cloze = fx.use_case.verify().note_types
+        checks = _use_case(anki, {}).check()
 
-        assert "Hint" not in recognition.missing_fields
-        assert "Hint" in cloze.missing_fields
-        assert "MeaningImage" in cloze.missing_fields
+        assert [(c.kind, c.fix) for c in checks] == [("recognition", None), ("cloze", None)]
+
+    def test_each_type_says_what_fixes_it(self) -> None:
+        anki = _Anki({"Main": ["Sentence"]})
+
+        recognition, cloze = _use_case(anki, {"anki_note_type": "Main"}).check()
+
+        assert (recognition.note_type, recognition.fix) == ("Main", "add_fields")
+        assert "AudioTTS" in recognition.missing_fields
+        assert (cloze.note_type, cloze.fix) == ("AnythingToAnkiCloze", "create")
 
     def test_anki_unavailable(self) -> None:
-        fx = _Fixture({}, {})
-        fx.connector.is_available.return_value = False
+        anki = _Anki({})
+        anki.connector.is_available.return_value = False
 
         with pytest.raises(AnkiNotAvailableError):
-            fx.use_case.verify()
+            _use_case(anki, {}).check()
 
 
-class TestCreate:
-    def test_user_types_get_the_missing_fields_too(self) -> None:
-        fx = _Fixture({"Main": ["Sentence"]}, {"anki_note_type": "Main"})
+class TestFix:
+    def test_adds_only_the_missing_fields_to_that_type(self) -> None:
+        anki = _Anki({"Main": ["Sentence", "Target"]})
 
-        result = fx.use_case.create()
+        result = _use_case(anki, {"anki_note_type": "Main"}).fix(NoteTypeKind.RECOGNITION)
 
-        assert result.created == ["AnythingToAnkiCloze"]
-        ensured = {c.args[0]: c.kwargs.get("is_cloze", False)
-                   for c in fx.connector.ensure_note_type.call_args_list}
-        assert ensured == {"Main": False, "AnythingToAnkiCloze": True}
+        assert result.fix is None
+        assert anki.note_types["Main"][:2] == ["Sentence", "Target"]
+        assert "AnythingToAnkiCloze" not in anki.note_types
+
+    def test_creates_a_cloze_type_that_is_not_in_anki(self) -> None:
+        anki = _Anki({})
+
+        result = _use_case(anki, {}).fix(NoteTypeKind.CLOZE)
+
+        assert (result.note_type, result.fix) == ("AnythingToAnkiCloze", None)
+        anki.connector.ensure_note_type.assert_called_once()
+        assert anki.connector.ensure_note_type.call_args.kwargs["is_cloze"] is True

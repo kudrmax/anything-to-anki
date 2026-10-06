@@ -9,18 +9,26 @@ if TYPE_CHECKING:
 
 
 class NoteTypeCheckDTO(BaseModel):
-    """Whether a note type is in Anki and which fields the export needs it still lacks."""
+    """How a note type stands in Anki.
 
+    `fix` is what makes it able to take the cards: `create` when it is not in
+    Anki, `add_fields` when it lacks fields the export fills; None when ready.
+    """
+
+    kind: str
     note_type: str
     exists: bool
     missing_fields: list[str]
+    fix: str | None
 
     @staticmethod
     def of(check: NoteTypeCheck) -> NoteTypeCheckDTO:
         return NoteTypeCheckDTO(
+            kind=check.kind.value,
             note_type=check.note_type,
             exists=check.exists,
             missing_fields=list(check.missing_fields),
+            fix=check.fix.value if check.fix else None,
         )
 
 
@@ -77,19 +85,6 @@ class SyncResultDTO(BaseModel):
     errors: int
     skipped_lemmas: list[str] = []
     error_lemmas: list[str] = []
-
-
-class VerifyNoteTypesResponseDTO(BaseModel):
-    """Check of both note types; valid when both exist with every field the export fills."""
-
-    valid: bool
-    note_types: list[NoteTypeCheckDTO]
-
-
-class CreateNoteTypesResponseDTO(BaseModel):
-    """Note types that were not in Anki and got created."""
-
-    created: list[str]
 
 
 class AnkiTemplatesDTO(BaseModel):

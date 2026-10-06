@@ -19,7 +19,7 @@ export function AnkiProblemsBanner() {
           </li>
         ))}
       </ul>
-      <Link className={css.fix} to="/settings?section=anki">Fix in Settings → Anki → Create type</Link>
+      <Link className={css.fix} to="/settings?section=anki">Fix in Settings → Anki</Link>
     </div>
   )
 }

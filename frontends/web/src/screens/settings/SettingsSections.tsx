@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GripVertical } from 'lucide-react'
-import type { FrequentWordThresholdOption, Settings } from '@/api/types'
+import type { FrequentWordThresholdOption, NoteTypeCheck, NoteTypeKind, Settings } from '@/api/types'
 import { CLOZE_DEFAULT_HINT_OPTIONS } from '@/lib/clozeHints'
 import { autoPlayAudioPref, type ThemePref } from '@/lib/preferences'
 import { formatBytes } from '@/lib/text/format'
@@ -128,25 +128,7 @@ export function Anki({ store, form }: SectionProps) {
           </label>
         ))}
       </div>
-      <DividerRow
-        label={
-          <Stack row gap="m" wrap>
-            {store.verifyResult && (store.verifyResult.valid
-              ? <Text tone="ok">✓ Valid</Text>
-              : store.verifyResult.note_types.filter(t => !t.exists || t.missing_fields.length > 0).map(t => (
-                <Text key={t.note_type} tone="err">
-                  {t.exists ? `${t.note_type} misses: ${t.missing_fields.join(', ')}` : `${t.note_type} is not in Anki`}
-                </Text>
-              )))}
-            {store.verifyError && <Text tone="err">{store.verifyError}</Text>}
-            {store.createResult && <Text tone="ok">{store.createResult.created.length ? `Created ${store.createResult.created.join(', ')} ✓` : 'Fields added ✓'}</Text>}
-            {store.createError && <Text tone="err">{store.createError}</Text>}
-          </Stack>
-        }
-      >
-        <Button busy={store.verifying} disabled={!form.anki_note_type.trim()} onClick={() => void store.verify()}>Verify note type</Button>
-        <Button busy={store.creating} disabled={!form.anki_note_type.trim()} onClick={() => void store.createNoteType()}>Create type</Button>
-      </DividerRow>
+      <NoteTypesInAnki store={store} />
       <DividerRow last label="Card template" hint="Copy and paste into Anki's card template editor. Field names match your mapping above.">
         {TEMPLATE_PARTS.map(({ part, label }) => (
           <Button key={part} variant="link" onClick={() => void store.copyTemplate(part)}>
@@ -154,6 +136,39 @@ export function Anki({ store, form }: SectionProps) {
           </Button>
         ))}
       </DividerRow>
+    </>
+  )
+}
+
+const NOTE_TYPE_KIND_LABEL: Record<NoteTypeKind, string> = {
+  recognition: 'Note type for regular cards',
+  cloze: 'Note type for cloze cards',
+}
+const NOTE_TYPE_FIX_LABEL: Record<NonNullable<NoteTypeCheck['fix']>, string> = {
+  create: 'Create note type',
+  add_fields: 'Add missing fields',
+}
+
+function NoteTypesInAnki({ store }: { store: SettingsStore }) {
+  return (
+    <>
+      <Label>In Anki</Label>
+      {store.noteTypesError && <DividerRow label={<Text tone="err">{store.noteTypesError}</Text>} />}
+      {store.noteTypes?.map(t => (
+        <DividerRow
+          key={t.kind}
+          label={`«${t.note_type}»`}
+          hint={
+            t.fix === null ? NOTE_TYPE_KIND_LABEL[t.kind]
+              : t.fix === 'create' ? <Text tone="err">Not in Anki</Text>
+                : <Text tone="err">Missing fields: {t.missing_fields.join(', ')}</Text>
+          }
+        >
+          {t.fix === null
+            ? <Text tone="ok">✓ Ready</Text>
+            : <Button busy={store.fixingNoteType === t.kind} onClick={() => void store.fixNoteType(t.kind)}>{NOTE_TYPE_FIX_LABEL[t.fix]}</Button>}
+        </DividerRow>
+      ))}
     </>
   )
 }

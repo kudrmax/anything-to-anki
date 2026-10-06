@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { BootstrapStatus, CleanupMediaKind, CreateNoteTypesResponse, FrequentWordThresholdOption, KnownWord, Settings, SourceMediaStats, VerifyNoteTypesResponse } from '@/api/types'
+import type { BootstrapStatus, NoteTypeCheck, NoteTypeKind, CleanupMediaKind, FrequentWordThresholdOption, KnownWord, Settings, SourceMediaStats } from '@/api/types'
 
 const BOOTSTRAP_POLL_MS = 2000
 const FLASH_MS = 2000
@@ -16,12 +16,9 @@ export function useSettings() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [knownWords, setKnownWords] = useState<KnownWord[]>([])
   const [deletingId, setDeletingId] = useState<number | null>(null)
-  const [verifying, setVerifying] = useState(false)
-  const [verifyResult, setVerifyResult] = useState<VerifyNoteTypesResponse | null>(null)
-  const [verifyError, setVerifyError] = useState<string | null>(null)
-  const [creating, setCreating] = useState(false)
-  const [createResult, setCreateResult] = useState<CreateNoteTypesResponse | null>(null)
-  const [createError, setCreateError] = useState<string | null>(null)
+  const [noteTypes, setNoteTypes] = useState<NoteTypeCheck[] | null>(null)
+  const [noteTypesError, setNoteTypesError] = useState<string | null>(null)
+  const [fixingNoteType, setFixingNoteType] = useState<NoteTypeKind | null>(null)
   const [mediaStats, setMediaStats] = useState<SourceMediaStats[]>([])
   const [mediaStatsLoading, setMediaStatsLoading] = useState(false)
   const [copiedTemplate, setCopiedTemplate] = useState<TemplatePart | null>(null)
@@ -93,6 +90,21 @@ export function useSettings() {
     void load()
   }, [])
 
+  /** Note type в Anki проверяются по сохранённым настройкам: при открытии и после каждого Save. */
+  const loadNoteTypes = useCallback(async () => {
+    setNoteTypesError(null)
+    try {
+      setNoteTypes(await api.getNoteTypes())
+    } catch (e) {
+      setNoteTypes(null)
+      setNoteTypesError(e instanceof Error ? e.message : 'Anki is not available')
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadNoteTypes()
+  }, [loadNoteTypes])
+
   const save = useCallback(async () => {
     if (!form) return
     setSaving(true)
@@ -100,6 +112,7 @@ export function useSettings() {
     setSaved(false)
     try {
       setForm(await api.updateSettings(form))
+      void loadNoteTypes()
       setSaved(true)
       setTimeout(() => setSaved(false), FLASH_MS)
     } catch (e) {
@@ -107,7 +120,7 @@ export function useSettings() {
     } finally {
       setSaving(false)
     }
-  }, [form])
+  }, [form, loadNoteTypes])
 
   const deleteWord = async (id: number) => {
     setDeletingId(id)
@@ -119,36 +132,18 @@ export function useSettings() {
     }
   }
 
-  /** Проверка и создание идут по сохранённым настройкам, поэтому форма сперва сохраняется. */
-  const verify = useCallback(async () => {
-    if (!form) return
-    setVerifying(true)
-    setVerifyResult(null)
-    setVerifyError(null)
+  const fixNoteType = async (kind: NoteTypeKind) => {
+    setFixingNoteType(kind)
+    setNoteTypesError(null)
     try {
-      setForm(await api.updateSettings(form))
-      setVerifyResult(await api.verifyNoteTypes())
+      const fixed = await api.fixNoteType(kind)
+      setNoteTypes(prev => prev?.map(t => (t.kind === kind ? fixed : t)) ?? [fixed])
     } catch (e) {
-      setVerifyError(e instanceof Error ? e.message : 'Anki is not available')
+      setNoteTypesError(e instanceof Error ? e.message : 'Anki is not available')
     } finally {
-      setVerifying(false)
+      setFixingNoteType(null)
     }
-  }, [form])
-
-  const createNoteType = useCallback(async () => {
-    if (!form) return
-    setCreating(true)
-    setCreateResult(null)
-    setCreateError(null)
-    try {
-      setForm(await api.updateSettings(form))
-      setCreateResult(await api.createNoteTypes())
-    } catch (e) {
-      setCreateError(e instanceof Error ? e.message : 'Anki is not available')
-    } finally {
-      setCreating(false)
-    }
-  }, [form])
+  }
 
   const copyTemplate = useCallback(async (part: TemplatePart) => {
     try {
@@ -163,8 +158,6 @@ export function useSettings() {
 
   const setField = (key: keyof Settings, value: string | number | string[]) => {
     setForm(prev => (prev ? { ...prev, [key]: value } : prev))
-    setVerifyResult(null)
-    setCreateResult(null)
   }
 
   /** Порядок групп сохраняется сразу, без кнопки Save. */
@@ -176,8 +169,7 @@ export function useSettings() {
   return {
     form, loading, saving, saved, saveError, setField, save,
     knownWords, deletingId, deleteWord,
-    verifying, verifyResult, verifyError, verify,
-    creating, createResult, createError, createNoteType,
+    noteTypes, noteTypesError, fixingNoteType, fixNoteType,
     copiedTemplate, copyTemplate,
     bootstrapStatus, buildBootstrap,
     mediaStats, mediaStatsLoading, loadMediaStats, cleanupMedia,

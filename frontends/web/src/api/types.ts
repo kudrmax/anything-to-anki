@@ -328,20 +328,15 @@ export interface Stats {
   known_word_count: number
 }
 
+export type NoteTypeKind = 'recognition' | 'cloze'
+
 export interface NoteTypeCheck {
+  kind: NoteTypeKind
   note_type: string
   exists: boolean
   missing_fields: string[]
-}
-
-export interface VerifyNoteTypesResponse {
-  valid: boolean
-  note_types: NoteTypeCheck[]
-}
-
-export interface CreateNoteTypesResponse {
-  /** Типы, которых не было в Anki и которые создались. */
-  created: string[]
+  /** Что сделает note type готовым: создать его или добавить недостающие поля; null — готов. */
+  fix: 'create' | 'add_fields' | null
 }
 
 export interface GenerateMeaningResult {

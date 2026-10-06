@@ -10,12 +10,12 @@ from backend.application.utils.anki_note_builders import (
     NoteMedia,
     RecognitionNoteBuilder,
 )
-from backend.application.utils.anki_note_settings import (
-    DEFAULT_CLOZE_NOTE_TYPE,
-    DEFAULT_RECOGNITION_NOTE_TYPE,
-    AnkiNoteSettings,
+from backend.application.utils.anki_note_settings import AnkiNoteSettings
+from backend.application.utils.anki_note_types import (
+    AnkiNoteTypes,
+    NoteTypeKind,
+    is_app_note_type,
 )
-from backend.application.utils.anki_note_types import AnkiNoteTypes
 from backend.domain.exceptions import AnkiNotAvailableError, AnkiNoteTypeIncompleteError
 
 logger = logging.getLogger(__name__)
@@ -103,12 +103,11 @@ class SyncToAnkiUseCase:
         fields = settings.fields
         plan = [(candidate, self._cloze_builder.effective(candidate)) for candidate in pending]
         note_types = AnkiNoteTypes(self._connector, self._template_renderer)
-        if any(cloze is None for _, cloze in plan):
-            self._ensure_recognition_type(settings)
-            _refuse_incomplete(note_types.check_recognition(settings))
-        if any(cloze is not None for _, cloze in plan):
-            self._ensure_cloze_type(settings)
-            _refuse_incomplete(note_types.check_cloze(settings))
+        used = {NoteTypeKind.CLOZE if cloze else NoteTypeKind.RECOGNITION for _, cloze in plan}
+        for kind in (kind for kind in NoteTypeKind if kind in used):
+            if is_app_note_type(kind, settings):
+                note_types.ensure(kind, settings)
+            _refuse_incomplete(note_types.check(kind, settings))
         self._connector.ensure_deck(deck_name)
 
         media = NoteMedia(self._connector)
@@ -207,16 +206,6 @@ class SyncToAnkiUseCase:
     def _mark_exported(self, candidate: StoredCandidate, note_id: int) -> None:
         self._anki_sync_repo.mark_synced(candidate.id, note_id)  # type: ignore[arg-type]
         self._known_word_repo.add(candidate.lemma, candidate.pos)
-
-    def _ensure_recognition_type(self, settings: AnkiNoteSettings) -> None:
-        """Only the app's own note type is created on export; a user's own type is left as is."""
-        if settings.recognition_note_type == DEFAULT_RECOGNITION_NOTE_TYPE:
-            AnkiNoteTypes(self._connector, self._template_renderer).ensure_recognition(settings)
-
-    def _ensure_cloze_type(self, settings: AnkiNoteSettings) -> None:
-        """Only the app's own note type is created on export; a user's own type is left as is."""
-        if settings.cloze_note_type == DEFAULT_CLOZE_NOTE_TYPE:
-            AnkiNoteTypes(self._connector, self._template_renderer).ensure_cloze(settings)
 
     def _setting(self, key: str, default: str) -> str:
         return self._settings_repo.get(key, default) or default
