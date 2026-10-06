@@ -6,19 +6,19 @@ from typing import TYPE_CHECKING
 from backend.domain.exceptions import CandidateNotFoundError
 
 if TYPE_CHECKING:
-    from backend.application.utils.card_picture_placer import CardPicturePlacer
+    from backend.application.utils.meaning_image_placer import MeaningImagePlacer
     from backend.domain.ports.candidate_repository import CandidateRepository
 
 logger = logging.getLogger(__name__)
 
 
 class PasteTargetImageUseCase:
-    """Puts a picture the user brought themselves (e.g. from the clipboard) on the card."""
+    """Puts a picture the user brought (e.g. from the clipboard) on the card as its meaning."""
 
     def __init__(
         self,
         candidate_repo: CandidateRepository,
-        picture_placer: CardPicturePlacer,
+        picture_placer: MeaningImagePlacer,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._picture_placer = picture_placer

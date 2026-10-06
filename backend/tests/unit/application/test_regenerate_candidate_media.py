@@ -7,13 +7,15 @@ import pytest
 from backend.application.use_cases.regenerate_candidate_media import (
     RegenerateCandidateMediaUseCase,
 )
-from backend.domain.entities.candidate_media import CandidateMedia
+from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
 from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.parsed_srt import ParsedSrt
 from backend.domain.value_objects.subtitle_block import SubtitleBlock
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from backend.domain.entities.candidate_media import CandidateMedia
 
 
 def _make_parsed_srt() -> ParsedSrt:
@@ -141,10 +143,10 @@ class TestRegenerateCandidateMedia:
         audio_call = media_extractor.extract_audio.call_args
         assert audio_call.kwargs.get("audio_track_index") == 2
 
-    def test_new_frame_replaces_a_picked_picture_file(self, tmp_path: Path) -> None:
+    def test_new_frame_leaves_the_meaning_image_alone(self, tmp_path: Path) -> None:
         video = tmp_path / "movie.mkv"
         video.write_bytes(b"video")
-        picked = tmp_path / "42" / "10_screenshot.abc123.jpg"
+        picked = tmp_path / "42" / "10_meaning.abc123.webp"
         picked.parent.mkdir()
         picked.write_bytes(b"picture")
 
@@ -152,10 +154,8 @@ class TestRegenerateCandidateMedia:
         candidate.id = 10
         candidate.source_id = 42
         candidate.context_fragment = "How are you?"
-        candidate.media = CandidateMedia(
-            candidate_id=10, screenshot_path=str(picked), audio_path=None,
-            start_ms=None, end_ms=None, generated_at=None,
-        )
+        candidate.media = None
+        candidate.meaning_image = CandidateMeaningImage(candidate_id=10, image_path=str(picked))
         source = MagicMock()
         source.id = 42
         source.content_type = ContentType.VIDEO
@@ -180,7 +180,7 @@ class TestRegenerateCandidateMedia:
             video_path_resolver=video_path_resolver,
         ).execute(candidate_id=10)
 
-        assert not picked.exists()
+        assert picked.read_bytes() == b"picture"
 
     def test_raises_if_candidate_not_found(self) -> None:
         candidate_repo = MagicMock()

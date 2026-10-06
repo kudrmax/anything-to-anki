@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.candidate_meaning import CandidateMeaning
+from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.candidate_tts import CandidateTTS
@@ -15,6 +16,9 @@ from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.persistence.models import EnrichmentCacheModel
+from backend.infrastructure.persistence.sqla_candidate_meaning_image_repository import (
+    SqlaCandidateMeaningImageRepository,
+)
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -518,3 +522,36 @@ def test_cleanup_all(db_session: Session) -> None:
 
     rows_after = db_session.query(EnrichmentCacheModel).all()
     assert len(rows_after) == 0
+
+
+@pytest.mark.integration
+def test_meaning_image_survives_reprocess(db_session: Session) -> None:
+    fragment = "She tends to procrastinate when facing deadlines."
+    source_id = _create_source_with_enriched_candidates(db_session)
+    cache_repo = SqlaEnrichmentCacheRepository(db_session)
+    candidate_repo = SqlaCandidateRepository(db_session)
+    image_repo = SqlaCandidateMeaningImageRepository(db_session)
+    old = next(c for c in candidate_repo.get_by_source(source_id) if c.lemma == "deadline")
+    assert old.id is not None
+    image_path = f"/media/{source_id}/{old.id}_meaning.0a1b2c3d4e.webp"
+    image_repo.upsert(CandidateMeaningImage(candidate_id=old.id, image_path=image_path))
+
+    cache_repo.save_from_source(source_id)
+    candidate_repo.delete_by_source(source_id)
+    db_session.flush()
+    [new] = candidate_repo.create_batch([
+        StoredCandidate(
+            source_id=source_id, lemma="deadline", pos="NOUN", cefr_level="B2",
+            zipf_frequency=4.5, context_fragment=fragment, fragment_purity="pure",
+            occurrences=1, status=CandidateStatus.PENDING,
+        ),
+    ])
+    db_session.flush()
+    cache_repo.restore_to_candidates(source_id)
+
+    assert new.id is not None
+    restored = candidate_repo.get_by_id(new.id)
+    assert restored is not None
+    assert restored.meaning_image == CandidateMeaningImage(
+        candidate_id=new.id, image_path=image_path,
+    )

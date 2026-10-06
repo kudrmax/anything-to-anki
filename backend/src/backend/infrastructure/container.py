@@ -102,6 +102,9 @@ from backend.infrastructure.persistence.sqla_bootstrap_index_repository import (
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
+from backend.infrastructure.persistence.sqla_candidate_meaning_image_repository import (
+    SqlaCandidateMeaningImageRepository,
+)
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -176,8 +179,8 @@ if TYPE_CHECKING:
     from backend.application.use_cases.run_generation import RunGenerationUseCase
     from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
     from backend.application.use_cases.search_target_images import SearchTargetImagesUseCase
-    from backend.application.utils.card_picture_placer import CardPicturePlacer
     from backend.application.utils.generation_targets import GenerationTarget
+    from backend.application.utils.meaning_image_placer import MeaningImagePlacer
     from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
     from backend.domain.ports.target_image_source import TargetImageSource
     from backend.domain.ports.url_source_fetcher import UrlSourceFetcher
@@ -743,6 +746,7 @@ class Container:
         return CleanupMediaUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             media_repo=SqlaCandidateMediaRepository(session),
+            image_repo=SqlaCandidateMeaningImageRepository(session),
             media_root=self._media_root,
         )
 
@@ -830,20 +834,20 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             image_sources=self._target_image_sources,
             file_downloader=self._image_downloader,
-            picture_placer=self._card_picture_placer(session),
+            picture_placer=self._meaning_image_placer(session),
         )
 
     def paste_target_image_use_case(self, session: Session) -> PasteTargetImageUseCase:
         from backend.application.use_cases.paste_target_image import PasteTargetImageUseCase
         return PasteTargetImageUseCase(
             candidate_repo=SqlaCandidateRepository(session),
-            picture_placer=self._card_picture_placer(session),
+            picture_placer=self._meaning_image_placer(session),
         )
 
-    def _card_picture_placer(self, session: Session) -> CardPicturePlacer:
-        from backend.application.utils.card_picture_placer import CardPicturePlacer
-        return CardPicturePlacer(
-            media_repo=SqlaCandidateMediaRepository(session),
+    def _meaning_image_placer(self, session: Session) -> MeaningImagePlacer:
+        from backend.application.utils.meaning_image_placer import MeaningImagePlacer
+        return MeaningImagePlacer(
+            image_repo=SqlaCandidateMeaningImageRepository(session),
             picture_encoder=self._picture_encoder,
             media_root=self._media_root,
         )

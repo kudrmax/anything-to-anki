@@ -12,7 +12,7 @@ from backend.domain.exceptions import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from backend.application.utils.card_picture_placer import CardPicturePlacer
+    from backend.application.utils.meaning_image_placer import MeaningImagePlacer
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.file_downloader import FileDownloader
     from backend.domain.ports.target_image_source import TargetImageSource
@@ -23,14 +23,14 @@ DOWNLOAD_SUFFIX = ".download"
 
 
 class ApplyTargetImageUseCase:
-    """Puts a picture picked from the search results on the card."""
+    """Puts a picture picked from the search results on the card as its meaning image."""
 
     def __init__(
         self,
         candidate_repo: CandidateRepository,
         image_sources: Sequence[TargetImageSource],
         file_downloader: FileDownloader,
-        picture_placer: CardPicturePlacer,
+        picture_placer: MeaningImagePlacer,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._image_sources = image_sources
