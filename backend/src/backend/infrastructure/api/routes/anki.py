@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.application.dto.anki_dtos import (  # noqa: TC001
     AnkiStatusDTO,
     AnkiTemplatesDTO,
-    CreateNoteTypesResponseDTO,
-    VerifyNoteTypesResponseDTO,
+    NoteTypeCheckDTO,
 )
+from backend.application.utils.anki_note_types import NoteTypeKind  # noqa: TC001
 from backend.domain.exceptions import AnkiNotAvailableError
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
@@ -30,24 +30,25 @@ def get_anki_status(
     return use_case.execute()
 
 
-@router.post("/anki/verify-note-type")
-def verify_note_types(
+@router.get("/anki/note-types")
+def check_note_types(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> VerifyNoteTypesResponseDTO:
+) -> list[NoteTypeCheckDTO]:
     try:
-        return container.manage_anki_note_types_use_case(session).verify()
+        return container.manage_anki_note_types_use_case(session).check()
     except AnkiNotAvailableError as exc:
         raise HTTPException(status_code=503, detail="Anki is not available") from exc
 
 
-@router.post("/anki/create-note-type")
-def create_note_types(
+@router.post("/anki/note-types/{kind}/fix")
+def fix_note_type(
+    kind: NoteTypeKind,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> CreateNoteTypesResponseDTO:
+) -> NoteTypeCheckDTO:
     try:
-        return container.manage_anki_note_types_use_case(session).create()
+        return container.manage_anki_note_types_use_case(session).fix(kind)
     except AnkiNotAvailableError as exc:
         raise HTTPException(status_code=503, detail="Anki is not available") from exc
 

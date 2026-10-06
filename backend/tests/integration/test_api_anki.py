@@ -93,11 +93,11 @@ _CONNECTOR = "backend.infrastructure.adapters.anki_connect_connector.AnkiConnect
 
 
 @pytest.mark.integration
-class TestVerifyNoteTypeAPI:
+class TestNoteTypesAPI:
     def test_returns_503_when_anki_unavailable(self, client: TestClient) -> None:
         with patch(f"{_CONNECTOR}.is_available", return_value=False):
-            response = client.post("/anki/verify-note-type")
-        assert response.status_code == 503
+            assert client.get("/anki/note-types").status_code == 503
+            assert client.post("/anki/note-types/cloze/fix").status_code == 503
 
     def test_checks_both_note_types_of_the_saved_settings(self, client: TestClient) -> None:
         assert client.patch("/api/settings", json={"anki_note_type": "Main"}).status_code == 200
@@ -106,34 +106,29 @@ class TestVerifyNoteTypeAPI:
             patch(f"{_CONNECTOR}.is_available", return_value=True),
             patch(f"{_CONNECTOR}.get_model_field_names", side_effect=fields.get),
         ):
-            response = client.post("/anki/verify-note-type")
+            response = client.get("/anki/note-types")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["valid"] is False
-        main, cloze = data["note_types"]
-        assert (main["note_type"], main["exists"]) == ("Main", True)
+        main, cloze = response.json()
+        assert (main["kind"], main["note_type"]) == ("recognition", "Main")
+        assert main["fix"] == "add_fields"
         assert "MeaningImage" in main["missing_fields"]
-        assert "Sentence" not in main["missing_fields"]
-        assert (cloze["note_type"], cloze["exists"]) == ("AnythingToAnkiCloze", False)
+        assert (cloze["kind"], cloze["fix"]) == ("cloze", "create")
 
-
-@pytest.mark.integration
-class TestCreateNoteTypeAPI:
-    def test_creates_the_missing_types_with_templates(self, client: TestClient) -> None:
+    def test_fixes_only_the_requested_type(self, client: TestClient) -> None:
         with (
             patch(f"{_CONNECTOR}.is_available", return_value=True),
             patch(f"{_CONNECTOR}.get_model_field_names", return_value=None),
             patch(f"{_CONNECTOR}.ensure_note_type") as ensure,
         ):
-            response = client.post("/anki/create-note-type")
+            response = client.post("/anki/note-types/cloze/fix")
 
         assert response.status_code == 200
-        assert response.json()["created"] == ["AnythingToAnkiType", "AnythingToAnkiCloze"]
-        assert [c.args[0] for c in ensure.call_args_list] == [
-            "AnythingToAnkiType", "AnythingToAnkiCloze",
-        ]
-        assert all(c.kwargs["front_template"] for c in ensure.call_args_list)
+        assert [c.args[0] for c in ensure.call_args_list] == ["AnythingToAnkiCloze"]
+        assert ensure.call_args.kwargs["front_template"]
+
+    def test_unknown_kind(self, client: TestClient) -> None:
+        assert client.post("/anki/note-types/basic/fix").status_code == 422
 
 
 @pytest.mark.integration
