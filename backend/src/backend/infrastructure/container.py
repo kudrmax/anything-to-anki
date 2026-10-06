@@ -583,8 +583,12 @@ class Container:
             threshold_resolver=self._threshold_resolver(session),
         )
 
-    def get_anki_status_use_case(self) -> GetAnkiStatusUseCase:
-        return GetAnkiStatusUseCase(connector=self._anki_connector)
+    def get_anki_status_use_case(self, session: Session) -> GetAnkiStatusUseCase:
+        return GetAnkiStatusUseCase(
+            connector=self._anki_connector,
+            settings_repo=SqlaSettingsRepository(session),
+            template_renderer=self._anki_template_renderer,
+        )
 
     def sync_to_anki_use_case(self, session: Session) -> SyncToAnkiUseCase:
         return SyncToAnkiUseCase(

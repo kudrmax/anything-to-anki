@@ -1,13 +1,35 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from backend.application.utils.anki_note_types import NoteTypeCheck
+
+
+class NoteTypeCheckDTO(BaseModel):
+    """Whether a note type is in Anki and which fields the export needs it still lacks."""
+
+    note_type: str
+    exists: bool
+    missing_fields: list[str]
+
+    @staticmethod
+    def of(check: NoteTypeCheck) -> NoteTypeCheckDTO:
+        return NoteTypeCheckDTO(
+            note_type=check.note_type,
+            exists=check.exists,
+            missing_fields=list(check.missing_fields),
+        )
 
 
 class AnkiStatusDTO(BaseModel):
-    """AnkiConnect availability status."""
+    """AnkiConnect availability, and the user's note types that would lose parts of cards."""
 
     available: bool
     version: int | None = None
+    note_type_problems: list[NoteTypeCheckDTO] = []
 
 
 class CardPreviewDTO(BaseModel):
@@ -55,14 +77,6 @@ class SyncResultDTO(BaseModel):
     errors: int
     skipped_lemmas: list[str] = []
     error_lemmas: list[str] = []
-
-
-class NoteTypeCheckDTO(BaseModel):
-    """Whether a note type is in Anki and which fields the export needs it still lacks."""
-
-    note_type: str
-    exists: bool
-    missing_fields: list[str]
 
 
 class VerifyNoteTypesResponseDTO(BaseModel):

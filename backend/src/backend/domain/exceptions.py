@@ -97,6 +97,23 @@ class AnkiNotAvailableError(DomainError):
         )
 
 
+class AnkiNoteTypeIncompleteError(DomainError):
+    """Raised when a note type lacks fields the export fills: Anki would drop them silently."""
+
+    def __init__(self, note_type: str, missing_fields: list[str], exists: bool) -> None:
+        problem = (
+            f"lacks the fields {', '.join(missing_fields)}"
+            if exists
+            else "is not in Anki"
+        )
+        super().__init__(
+            f"Note type «{note_type}» {problem}. Nothing was exported: these parts of "
+            "the cards would be lost. Add them in Settings → Anki → Create type."
+        )
+        self.note_type = note_type
+        self.missing_fields = missing_fields
+
+
 class AnkiSyncError(DomainError):
     """Raised when an Anki sync operation fails unexpectedly."""
 

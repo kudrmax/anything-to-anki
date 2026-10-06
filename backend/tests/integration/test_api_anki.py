@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+from backend.application.utils.anki_note_settings import AnkiFieldNames
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.source_status import SourceStatus
@@ -87,6 +88,7 @@ def _seed_source_with_candidate(
     return source.id, candidate.id
 
 
+_DEFAULT_CLOZE_FIELDS = AnkiFieldNames.read(MagicMock(**{"get.return_value": None})).cloze_fields()
 _CONNECTOR = "backend.infrastructure.adapters.anki_connect_connector.AnkiConnectConnector"
 
 
@@ -216,6 +218,10 @@ class TestSyncToAnkiAPI:
             ),
             patch(
                 "backend.infrastructure.adapters.anki_connect_connector.AnkiConnectConnector.ensure_note_type",
+            ),
+            patch(
+                "backend.infrastructure.adapters.anki_connect_connector.AnkiConnectConnector.get_model_field_names",
+                return_value=_DEFAULT_CLOZE_FIELDS,
             ),
             patch(
                 "backend.infrastructure.adapters.anki_connect_connector.AnkiConnectConnector.ensure_deck",

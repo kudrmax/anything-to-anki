@@ -226,6 +226,8 @@ export interface SourceDetail {
 export interface AnkiStatus {
   available: boolean
   version: number | null
+  /** Свои note type пользователя, которые потеряют часть карточек; экспорт в них запрещён. */
+  note_type_problems: NoteTypeCheck[]
 }
 
 export interface CardPreview {
