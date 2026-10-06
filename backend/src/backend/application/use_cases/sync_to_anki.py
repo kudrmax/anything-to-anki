@@ -16,11 +16,12 @@ from backend.application.utils.anki_note_settings import (
     AnkiNoteSettings,
 )
 from backend.application.utils.anki_note_types import AnkiNoteTypes
-from backend.domain.exceptions import AnkiNotAvailableError
+from backend.domain.exceptions import AnkiNotAvailableError, AnkiNoteTypeIncompleteError
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from backend.application.utils.anki_note_types import NoteTypeCheck
     from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
     from backend.application.utils.export_queue import ExportQueue
     from backend.domain.entities.stored_candidate import StoredCandidate
@@ -101,10 +102,13 @@ class SyncToAnkiUseCase:
         settings = AnkiNoteSettings.read(self._settings_repo)
         fields = settings.fields
         plan = [(candidate, self._cloze_builder.effective(candidate)) for candidate in pending]
+        note_types = AnkiNoteTypes(self._connector, self._template_renderer)
         if any(cloze is None for _, cloze in plan):
             self._ensure_recognition_type(settings)
+            _refuse_incomplete(note_types.check_recognition(settings))
         if any(cloze is not None for _, cloze in plan):
             self._ensure_cloze_type(settings)
+            _refuse_incomplete(note_types.check_cloze(settings))
         self._connector.ensure_deck(deck_name)
 
         media = NoteMedia(self._connector)
@@ -248,4 +252,12 @@ class SyncToAnkiUseCase:
             errors=errors,
             skipped_lemmas=skipped_lemmas,
             error_lemmas=error_lemmas,
+        )
+
+
+def _refuse_incomplete(check: NoteTypeCheck) -> None:
+    """Anki drops the fields a note type lacks without a word, so such an export must not start."""
+    if not check.ok:
+        raise AnkiNoteTypeIncompleteError(
+            check.note_type, list(check.missing_fields), exists=check.exists,
         )

@@ -21,6 +21,13 @@ pytestmark = pytest.mark.unit
 GIVE_UP = "She finally gave up smoking last year."
 
 
+class _EveryField(list[str]):
+    """Fields of a note type that has every field the export asks for."""
+
+    def __contains__(self, name: object) -> bool:
+        return True
+
+
 def _cloze(
     candidate_id: int, indices: tuple[int, ...] = (3,), phrase: str = GIVE_UP
 ) -> CandidateCloze:
@@ -79,6 +86,7 @@ class TestSyncToAnkiCloze:
         self.connector = MagicMock()
         self.connector.is_available.return_value = True
         self.connector.add_notes.return_value = [111]
+        self.connector.get_model_field_names.return_value = _EveryField()
         self.settings_repo = MagicMock()
         self.settings_repo.get.return_value = None
         self.anki_sync_repo = MagicMock()

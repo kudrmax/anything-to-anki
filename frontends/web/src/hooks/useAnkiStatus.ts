@@ -20,7 +20,7 @@ export function useAnkiStatus(): AnkiStatus | null {
         const s = await api.getAnkiStatus()
         if (!cancelled) setStatus(s)
       } catch {
-        if (!cancelled) setStatus({ available: false, version: null })
+        if (!cancelled) setStatus({ available: false, version: null, note_type_problems: [] })
       }
     }
 

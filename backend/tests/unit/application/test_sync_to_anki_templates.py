@@ -15,6 +15,13 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+class _EveryField(list[str]):
+    """Fields of a note type that has every field the export asks for."""
+
+    def __contains__(self, name: object) -> bool:
+        return True
+
+
 @pytest.fixture()
 def templates_dir(tmp_path: Path) -> Path:
     (tmp_path / "front.html").write_text("FRONT {{edit:%FIELD_SENTENCE%}}")
@@ -52,6 +59,7 @@ class TestSyncToAnkiTemplates:
         candidate_repo.get_by_source.return_value = [candidate]
 
         anki_connector.is_available.return_value = True
+        anki_connector.get_model_field_names.return_value = _EveryField()
         anki_sync_repo.get_synced_candidate_ids.return_value = set()
         anki_connector.add_notes.return_value = [12345]
 

@@ -5,7 +5,11 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.anki_dtos import GlobalExportDTO, SyncResultDTO  # noqa: TC001
-from backend.domain.exceptions import AnkiNotAvailableError, AnkiSyncError
+from backend.domain.exceptions import (
+    AnkiNotAvailableError,
+    AnkiNoteTypeIncompleteError,
+    AnkiSyncError,
+)
 from backend.domain.value_objects.export_group import ExportGroup  # noqa: TC001
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
@@ -49,6 +53,8 @@ def sync_all_to_anki(
         return result
     except AnkiNotAvailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except AnkiNoteTypeIncompleteError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except AnkiSyncError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -67,5 +73,7 @@ def sync_source_to_anki(
         return result
     except AnkiNotAvailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except AnkiNoteTypeIncompleteError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except AnkiSyncError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

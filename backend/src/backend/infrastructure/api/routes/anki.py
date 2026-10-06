@@ -23,9 +23,10 @@ router = APIRouter(tags=["anki"])
 
 @router.get("/anki/status")
 def get_anki_status(
+    session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> AnkiStatusDTO:
-    use_case = container.get_anki_status_use_case()
+    use_case = container.get_anki_status_use_case(session)
     return use_case.execute()
 
 

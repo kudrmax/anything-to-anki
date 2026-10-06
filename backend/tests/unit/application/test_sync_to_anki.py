@@ -11,10 +11,17 @@ from backend.domain.entities.candidate_meaning_image import CandidateMeaningImag
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.exceptions import AnkiNotAvailableError
+from backend.domain.exceptions import AnkiNotAvailableError, AnkiNoteTypeIncompleteError
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.export_group import ExportGroup
+
+
+class _EveryField(list[str]):
+    """Fields of a note type that has every field the export asks for."""
+
+    def __contains__(self, name: object) -> bool:
+        return True
 
 
 def _make_candidate(
@@ -70,6 +77,7 @@ class TestSyncToAnkiUseCase:
             "<front/>", "<back/>", "",
         )
         self.settings_repo.get.return_value = None  # use default deck
+        self.anki_connector.get_model_field_names.return_value = _EveryField()
         self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.use_case = SyncToAnkiUseCase(
             export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
@@ -558,3 +566,48 @@ class TestSyncToAnkiUseCase:
         assert "Image" not in note[0]
         assert "Audio" not in note[0]
         self.anki_connector.store_media_file.assert_not_called()
+
+
+@pytest.mark.unit
+class TestSyncRefusesIncompleteNoteType:
+    def _use_case(self, model_fields: list[str] | None) -> tuple[SyncToAnkiUseCase, MagicMock]:
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "burnout", CandidateStatus.LEARN, meaning="выгорание"),
+        ]
+        connector = MagicMock()
+        connector.is_available.return_value = True
+        connector.get_model_field_names.return_value = model_fields
+        settings_repo = MagicMock()
+        names = {"anki_note_type": "Main"}
+        settings_repo.get.side_effect = lambda key, default=None: names.get(key)
+        anki_sync_repo = MagicMock()
+        anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        use_case = SyncToAnkiUseCase(
+            export_queue=ExportQueue(candidate_repo, anki_sync_repo),
+            anki_connector=connector,
+            settings_repo=settings_repo,
+            anki_sync_repo=anki_sync_repo,
+            template_renderer=MagicMock(),
+            known_word_repo=MagicMock(),
+            cloze_builder=ClozeBuilder(),
+        )
+        return use_case, connector
+
+    def test_a_missing_field_stops_the_export_before_any_card(self) -> None:
+        use_case, connector = self._use_case(["Sentence", "Target", "Meaning"])
+
+        with pytest.raises(AnkiNoteTypeIncompleteError) as error:
+            use_case.execute(source_id=1, group=ExportGroup.READY)
+
+        assert error.value.note_type == "Main"
+        assert "AudioTTS" in error.value.missing_fields
+        assert "AudioTTS" in str(error.value)
+        connector.add_notes.assert_not_called()
+
+    def test_a_missing_note_type_stops_the_export(self) -> None:
+        use_case, connector = self._use_case(None)
+
+        with pytest.raises(AnkiNoteTypeIncompleteError, match="is not in Anki"):
+            use_case.execute(source_id=1, group=ExportGroup.READY)
+        connector.add_notes.assert_not_called()

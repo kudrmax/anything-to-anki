@@ -35,18 +35,18 @@ class ManageAnkiNoteTypesUseCase:
 
     def verify(self) -> VerifyNoteTypesResponseDTO:
         settings = self._settings()
-        checks = [
-            self._check(settings.recognition_note_type, settings.fields.recognition_fields()),
-            self._check(settings.cloze_note_type, settings.fields.cloze_fields()),
-        ]
-        valid = all(check.exists and not check.missing_fields for check in checks)
-        return VerifyNoteTypesResponseDTO(valid=valid, note_types=checks)
+        note_types = self._note_types()
+        checks = [note_types.check_recognition(settings), note_types.check_cloze(settings)]
+        return VerifyNoteTypesResponseDTO(
+            valid=all(check.ok for check in checks),
+            note_types=[NoteTypeCheckDTO.of(check) for check in checks],
+        )
 
     def create(self) -> CreateNoteTypesResponseDTO:
         settings = self._settings()
         names = [settings.recognition_note_type, settings.cloze_note_type]
         created = [name for name in names if self._connector.get_model_field_names(name) is None]
-        note_types = AnkiNoteTypes(self._connector, self._template_renderer)
+        note_types = self._note_types()
         note_types.ensure_recognition(settings)
         note_types.ensure_cloze(settings)
         return CreateNoteTypesResponseDTO(created=created)
@@ -56,9 +56,5 @@ class ManageAnkiNoteTypesUseCase:
             raise AnkiNotAvailableError()
         return AnkiNoteSettings.read(self._settings_repo)
 
-    def _check(self, note_type: str, required: list[str]) -> NoteTypeCheckDTO:
-        available = self._connector.get_model_field_names(note_type)
-        if available is None:
-            return NoteTypeCheckDTO(note_type=note_type, exists=False, missing_fields=required)
-        missing = [name for name in required if name not in available]
-        return NoteTypeCheckDTO(note_type=note_type, exists=True, missing_fields=missing)
+    def _note_types(self) -> AnkiNoteTypes:
+        return AnkiNoteTypes(self._connector, self._template_renderer)
