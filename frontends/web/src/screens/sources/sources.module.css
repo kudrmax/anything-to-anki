@@ -18,3 +18,5 @@
 
 /* правая колонка */
 .add { padding: var(--source-add-pad); border: var(--dash-bw) dashed var(--line); border-radius: var(--r); }
+/* на телефоне форма живёт на отдельном экране Add */
+.desktopOnly { display: var(--desktop-display); }

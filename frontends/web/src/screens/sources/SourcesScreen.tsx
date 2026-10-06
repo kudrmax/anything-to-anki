@@ -70,7 +70,7 @@ export function SourcesScreen() {
 
   const aside = (
     <>
-      <section className={css.add}>
+      <section className={`${css.add} ${css.desktopOnly}`}>
         <AddSourceForm onCreated={store.prepend} onReload={store.reload} onToast={showToast} />
       </section>
       <StatGrid>

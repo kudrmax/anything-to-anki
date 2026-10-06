@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppShell, ErrorBoundary } from '@/shell'
 import { SourcesScreen } from '@/screens/sources/SourcesScreen'
+import { AddSourceScreen } from '@/screens/sources/AddSourceScreen'
 import { ReviewScreen } from '@/screens/review/ReviewScreen'
 import { ExportScreen } from '@/screens/export/ExportScreen'
 import { QueueScreen } from '@/screens/queue/QueueScreen'
@@ -15,6 +16,7 @@ export function App() {
       <Routes>
         <Route path={QUICK_ADD_PATH} element={<ErrorBoundary><QuickAddScreen /></ErrorBoundary>} />
         <Route element={<AppShell />}>
+          <Route path="/add" element={<ErrorBoundary><AddSourceScreen /></ErrorBoundary>} />
           <Route path="/settings" element={<ErrorBoundary><SettingsScreen /></ErrorBoundary>} />
           <Route path="/calibrate" element={<ErrorBoundary><CalibrateScreen /></ErrorBoundary>} />
           <Route path="/queue" element={<ErrorBoundary><QueueScreen /></ErrorBoundary>} />
