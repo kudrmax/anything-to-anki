@@ -167,6 +167,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.get_generation_status import GetGenerationStatusUseCase
     from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
     from backend.application.use_cases.get_queue_snapshot import GetQueueSnapshotUseCase
+    from backend.application.use_cases.manage_anki_note_types import ManageAnkiNoteTypesUseCase
     from backend.application.use_cases.manage_queue import ManageQueueUseCase
     from backend.application.use_cases.paste_target_image import PasteTargetImageUseCase
     from backend.application.use_cases.polish_phrases import PhrasePolishUseCase
@@ -691,9 +692,6 @@ class Container:
             settings_repo=SqlaSettingsRepository(session),
         )
 
-    def anki_connector(self) -> AnkiConnectConnector:
-        return self._anki_connector
-
     def media_root(self) -> str:
         return self._media_root
 
@@ -796,6 +794,16 @@ class Container:
 
     def candidate_media_repository(self, session: Session) -> SqlaCandidateMediaRepository:
         return SqlaCandidateMediaRepository(session)
+
+    def manage_anki_note_types_use_case(self, session: Session) -> ManageAnkiNoteTypesUseCase:
+        from backend.application.use_cases.manage_anki_note_types import (
+            ManageAnkiNoteTypesUseCase,
+        )
+        return ManageAnkiNoteTypesUseCase(
+            connector=self._anki_connector,
+            settings_repo=SqlaSettingsRepository(session),
+            template_renderer=self._anki_template_renderer,
+        )
 
     def get_anki_templates_use_case(self, session: Session) -> GetAnkiTemplatesUseCase:
         from backend.application.use_cases.get_anki_templates import GetAnkiTemplatesUseCase

@@ -133,9 +133,13 @@ export function Anki({ store, form }: SectionProps) {
           <Stack row gap="m" wrap>
             {store.verifyResult && (store.verifyResult.valid
               ? <Text tone="ok">✓ Valid</Text>
-              : <Text tone="err">Missing: {store.verifyResult.missing_fields.join(', ')}</Text>)}
+              : store.verifyResult.note_types.filter(t => !t.exists || t.missing_fields.length > 0).map(t => (
+                <Text key={t.note_type} tone="err">
+                  {t.exists ? `${t.note_type} misses: ${t.missing_fields.join(', ')}` : `${t.note_type} is not in Anki`}
+                </Text>
+              )))}
             {store.verifyError && <Text tone="err">{store.verifyError}</Text>}
-            {store.createResult && <Text tone="ok">{store.createResult.already_existed ? 'Already exists' : 'Created ✓'}</Text>}
+            {store.createResult && <Text tone="ok">{store.createResult.created.length ? `Created ${store.createResult.created.join(', ')} ✓` : 'Fields added ✓'}</Text>}
             {store.createError && <Text tone="err">{store.createError}</Text>}
           </Stack>
         }

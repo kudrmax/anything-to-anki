@@ -326,14 +326,20 @@ export interface Stats {
   known_word_count: number
 }
 
-export interface VerifyNoteTypeResponse {
-  valid: boolean
-  available_fields: string[]
+export interface NoteTypeCheck {
+  note_type: string
+  exists: boolean
   missing_fields: string[]
 }
 
-export interface CreateNoteTypeResponse {
-  already_existed: boolean
+export interface VerifyNoteTypesResponse {
+  valid: boolean
+  note_types: NoteTypeCheck[]
+}
+
+export interface CreateNoteTypesResponse {
+  /** Типы, которых не было в Anki и которые создались. */
+  created: string[]
 }
 
 export interface GenerateMeaningResult {

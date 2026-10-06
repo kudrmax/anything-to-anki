@@ -57,32 +57,25 @@ class SyncResultDTO(BaseModel):
     error_lemmas: list[str] = []
 
 
-class VerifyNoteTypeRequest(BaseModel):
-    """Request to verify that a note type exists and has required fields."""
+class NoteTypeCheckDTO(BaseModel):
+    """Whether a note type is in Anki and which fields the export needs it still lacks."""
 
     note_type: str
-    required_fields: list[str]
-
-
-class VerifyNoteTypeResponseDTO(BaseModel):
-    """Result of note type verification."""
-
-    valid: bool
-    available_fields: list[str]
+    exists: bool
     missing_fields: list[str]
 
 
-class CreateNoteTypeRequest(BaseModel):
-    """Request to create a note type in Anki."""
+class VerifyNoteTypesResponseDTO(BaseModel):
+    """Check of both note types; valid when both exist with every field the export fills."""
 
-    note_type: str
-    fields: list[str]
+    valid: bool
+    note_types: list[NoteTypeCheckDTO]
 
 
-class CreateNoteTypeResponseDTO(BaseModel):
-    """Result of note type creation."""
+class CreateNoteTypesResponseDTO(BaseModel):
+    """Note types that were not in Anki and got created."""
 
-    already_existed: bool
+    created: list[str]
 
 
 class AnkiTemplatesDTO(BaseModel):

@@ -15,6 +15,7 @@ from backend.application.utils.anki_note_settings import (
     DEFAULT_RECOGNITION_NOTE_TYPE,
     AnkiNoteSettings,
 )
+from backend.application.utils.anki_note_types import AnkiNoteTypes
 from backend.domain.exceptions import AnkiNotAvailableError
 
 logger = logging.getLogger(__name__)
@@ -204,31 +205,14 @@ class SyncToAnkiUseCase:
         self._known_word_repo.add(candidate.lemma, candidate.pos)
 
     def _ensure_recognition_type(self, settings: AnkiNoteSettings) -> None:
-        """Only the app's own note type gets its templates; a user's own type is left as is."""
-        if settings.recognition_note_type != DEFAULT_RECOGNITION_NOTE_TYPE:
-            return
-        templates = self._template_renderer.render_recognition(settings.fields)
-        self._connector.ensure_note_type(
-            settings.recognition_note_type,
-            settings.fields.recognition_fields(),
-            front_template=templates.front,
-            back_template=templates.back,
-            css=templates.css,
-        )
+        """Only the app's own note type is created on export; a user's own type is left as is."""
+        if settings.recognition_note_type == DEFAULT_RECOGNITION_NOTE_TYPE:
+            AnkiNoteTypes(self._connector, self._template_renderer).ensure_recognition(settings)
 
     def _ensure_cloze_type(self, settings: AnkiNoteSettings) -> None:
-        """Only the app's own note type gets its templates; a user's own type is left as is."""
-        if settings.cloze_note_type != DEFAULT_CLOZE_NOTE_TYPE:
-            return
-        templates = self._template_renderer.render_cloze(settings.fields)
-        self._connector.ensure_note_type(
-            settings.cloze_note_type,
-            settings.fields.cloze_fields(),
-            front_template=templates.front,
-            back_template=templates.back,
-            css=templates.css,
-            is_cloze=True,
-        )
+        """Only the app's own note type is created on export; a user's own type is left as is."""
+        if settings.cloze_note_type == DEFAULT_CLOZE_NOTE_TYPE:
+            AnkiNoteTypes(self._connector, self._template_renderer).ensure_cloze(settings)
 
     def _setting(self, key: str, default: str) -> str:
         return self._settings_repo.get(key, default) or default

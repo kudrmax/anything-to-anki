@@ -11,7 +11,7 @@ import type {
   ClozePreview,
   SaveClozeRequest,
   Collection,
-  CreateNoteTypeResponse,
+  CreateNoteTypesResponse,
   ExportGroup,
   FollowUpAction,
   FrequentWordThresholdOption,
@@ -37,7 +37,7 @@ import type {
   AudioTrack,
   SyncResult,
   UsagePeriod,
-  VerifyNoteTypeResponse,
+  VerifyNoteTypesResponse,
 } from './types'
 import { buildHeaders, reloadIfStale } from './clientBuild'
 
@@ -209,17 +209,11 @@ export const api = {
   getUsage: (period: UsagePeriod, timezone: string) =>
     req<AIUsageStats>(`/api/usage?period=${period}&tz=${encodeURIComponent(timezone)}`),
 
-  verifyNoteType: (note_type: string, required_fields: string[]) =>
-    req<VerifyNoteTypeResponse>('/anki/verify-note-type', {
-      method: 'POST',
-      body: JSON.stringify({ note_type, required_fields }),
-    }),
+  verifyNoteTypes: () =>
+    req<VerifyNoteTypesResponse>('/anki/verify-note-type', { method: 'POST' }),
 
-  createNoteType: (note_type: string, fields: string[]) =>
-    req<CreateNoteTypeResponse>('/anki/create-note-type', {
-      method: 'POST',
-      body: JSON.stringify({ note_type, fields }),
-    }),
+  createNoteTypes: () =>
+    req<CreateNoteTypesResponse>('/anki/create-note-type', { method: 'POST' }),
 
   updateCandidateFragment: (candidateId: number, contextFragment: string) =>
     req<{ id: number; context_fragment: string }>(`/candidates/${candidateId}/context-fragment`, {
