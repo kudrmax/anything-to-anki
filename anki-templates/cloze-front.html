@@ -1,8 +1,8 @@
 <div class="card-inner">
   <div class="media">
-    {{#Image}}<div class="image">{{Image}}</div>{{/Image}}
+    {{#%FIELD_IMAGE%}}<div class="image">{{%FIELD_IMAGE%}}</div>{{/%FIELD_IMAGE%}}
   </div>
 
-  <div class="sentence">{{cloze:Text}}</div>
-  {{#Hint}}<div class="hint">({{Hint}})</div>{{/Hint}}
+  <div class="sentence">{{cloze:%FIELD_SENTENCE%}}</div>
+  {{#%FIELD_HINT%}}<div class="hint">({{%FIELD_HINT%}})</div>{{/%FIELD_HINT%}}
 </div>

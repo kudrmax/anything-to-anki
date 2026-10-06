@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { BootstrapStatus, CleanupMediaKind, CreateNoteTypeResponse, FrequentWordThresholdOption, KnownWord, Settings, SourceMediaStats, VerifyNoteTypeResponse } from '@/api/types'
+import type { BootstrapStatus, CleanupMediaKind, CreateNoteTypesResponse, FrequentWordThresholdOption, KnownWord, Settings, SourceMediaStats, VerifyNoteTypesResponse } from '@/api/types'
 
 const BOOTSTRAP_POLL_MS = 2000
 const FLASH_MS = 2000
 
-export type TemplatePart = 'front' | 'back' | 'css'
+export type TemplatePart = 'front' | 'back' | 'cloze_front' | 'cloze_back' | 'css'
 
 export function useSettings() {
   const [bootstrapStatus, setBootstrapStatus] = useState<BootstrapStatus | null>(null)
@@ -17,10 +17,10 @@ export function useSettings() {
   const [knownWords, setKnownWords] = useState<KnownWord[]>([])
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [verifying, setVerifying] = useState(false)
-  const [verifyResult, setVerifyResult] = useState<VerifyNoteTypeResponse | null>(null)
+  const [verifyResult, setVerifyResult] = useState<VerifyNoteTypesResponse | null>(null)
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
-  const [createResult, setCreateResult] = useState<CreateNoteTypeResponse | null>(null)
+  const [createResult, setCreateResult] = useState<CreateNoteTypesResponse | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
   const [mediaStats, setMediaStats] = useState<SourceMediaStats[]>([])
   const [mediaStatsLoading, setMediaStatsLoading] = useState(false)
@@ -119,22 +119,15 @@ export function useSettings() {
     }
   }
 
+  /** Проверка и создание идут по сохранённым настройкам, поэтому форма сперва сохраняется. */
   const verify = useCallback(async () => {
     if (!form) return
     setVerifying(true)
     setVerifyResult(null)
     setVerifyError(null)
-    const requiredFields = [
-      form.anki_field_sentence,
-      form.anki_field_target_word,
-      form.anki_field_meaning,
-      form.anki_field_ipa,
-      form.anki_field_translation,
-      form.anki_field_synonyms,
-      form.anki_field_examples,
-    ].filter(Boolean)
     try {
-      setVerifyResult(await api.verifyNoteType(form.anki_note_type, requiredFields))
+      setForm(await api.updateSettings(form))
+      setVerifyResult(await api.verifyNoteTypes())
     } catch (e) {
       setVerifyError(e instanceof Error ? e.message : 'Anki is not available')
     } finally {
@@ -147,19 +140,9 @@ export function useSettings() {
     setCreating(true)
     setCreateResult(null)
     setCreateError(null)
-    const fields = [
-      form.anki_field_sentence,
-      form.anki_field_target_word,
-      form.anki_field_meaning,
-      form.anki_field_ipa,
-      form.anki_field_translation,
-      form.anki_field_synonyms,
-      form.anki_field_examples,
-      form.anki_field_image,
-      form.anki_field_audio,
-    ].filter(Boolean)
     try {
-      setCreateResult(await api.createNoteType(form.anki_note_type, fields))
+      setForm(await api.updateSettings(form))
+      setCreateResult(await api.createNoteTypes())
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : 'Anki is not available')
     } finally {

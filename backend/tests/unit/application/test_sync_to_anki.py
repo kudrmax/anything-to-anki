@@ -4,8 +4,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
+from backend.application.utils.anki_template_renderer import NoteTemplates
 from backend.application.utils.export_queue import ExportQueue
 from backend.domain.entities.candidate_meaning import CandidateMeaning
+from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -64,11 +66,9 @@ class TestSyncToAnkiUseCase:
         self.anki_sync_repo = MagicMock()
         self.template_renderer = MagicMock()
         self.known_word_repo = MagicMock()
-        self.template_renderer.render_all.return_value = {
-            "front": "<front/>",
-            "back": "<back/>",
-            "css": "",
-        }
+        self.template_renderer.render_recognition.return_value = NoteTemplates(
+            "<front/>", "<back/>", "",
+        )
         self.settings_repo.get.return_value = None  # use default deck
         self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.use_case = SyncToAnkiUseCase(
@@ -308,6 +308,44 @@ class TestSyncToAnkiUseCase:
         # Connector should have stored the media files
         self.anki_connector.store_media_file.assert_any_call("img.png", "/tmp/img.png")
         self.anki_connector.store_media_file.assert_any_call("snd.mp3", "/tmp/snd.mp3")
+
+    def test_frame_and_meaning_image_go_to_their_own_fields(self) -> None:
+        candidate = _make_candidate(1, "drain", CandidateStatus.LEARN, meaning="слив")
+        candidate.media = CandidateMedia(
+            candidate_id=1, screenshot_path="/tmp/1_screenshot.webp", audio_path=None,
+            start_ms=0, end_ms=1000, generated_at=None,
+        )
+        candidate.meaning_image = CandidateMeaningImage(
+            candidate_id=1, image_path="/tmp/1_meaning.0a1b2c3d4e.webp",
+        )
+        self.candidate_repo.get_by_source.return_value = [candidate]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        exists_path = "backend.application.utils.anki_note_builders.os.path.exists"
+        with patch(exists_path, return_value=True):
+            self.use_case.execute(source_id=1, group=ExportGroup.READY)
+
+        note = self.anki_connector.add_notes.call_args.kwargs["notes"][0]
+        assert note["Image"] == '<img src="1_screenshot.webp">'
+        assert note["MeaningImage"] == '<img src="1_meaning.0a1b2c3d4e.webp">'
+
+    def test_meaning_image_without_a_frame_leaves_the_front_picture_empty(self) -> None:
+        candidate = _make_candidate(1, "drain", CandidateStatus.LEARN, meaning="слив")
+        candidate.meaning_image = CandidateMeaningImage(
+            candidate_id=1, image_path="/tmp/1_meaning.0a1b2c3d4e.webp",
+        )
+        self.candidate_repo.get_by_source.return_value = [candidate]
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.add_notes.return_value = [12345]
+
+        exists_path = "backend.application.utils.anki_note_builders.os.path.exists"
+        with patch(exists_path, return_value=True):
+            self.use_case.execute(source_id=1, group=ExportGroup.READY)
+
+        note = self.anki_connector.add_notes.call_args.kwargs["notes"][0]
+        assert "Image" not in note
+        assert note["MeaningImage"] == '<img src="1_meaning.0a1b2c3d4e.webp">'
 
     def test_image_audio_fields_absent_when_no_media(self) -> None:
         # _make_candidate constructs StoredCandidate with media=None

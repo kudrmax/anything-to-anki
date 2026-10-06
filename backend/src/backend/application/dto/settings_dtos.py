@@ -22,11 +22,14 @@ class SettingsDTO(BaseModel):
     ai_provider: str
     ai_model: str
     anki_note_type: str
+    anki_cloze_note_type: str
     anki_field_sentence: str
+    anki_field_hint: str
     anki_field_target_word: str
     anki_field_meaning: str
     anki_field_ipa: str
     anki_field_image: str
+    anki_field_meaning_image: str
     anki_field_audio: str
     anki_field_translation: str
     anki_field_synonyms: str
@@ -51,11 +54,14 @@ class UpdateSettingsRequest(BaseModel):
     ai_provider: str | None = None
     ai_model: str | None = None
     anki_note_type: str | None = None
+    anki_cloze_note_type: str | None = None
     anki_field_sentence: str | None = None
+    anki_field_hint: str | None = None
     anki_field_target_word: str | None = None
     anki_field_meaning: str | None = None
     anki_field_ipa: str | None = None
     anki_field_image: str | None = None
+    anki_field_meaning_image: str | None = None
     anki_field_audio: str | None = None
     anki_field_translation: str | None = None
     anki_field_synonyms: str | None = None

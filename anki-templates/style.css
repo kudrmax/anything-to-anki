@@ -78,6 +78,16 @@ hr {
   margin-top: 6px;
 }
 
+/* Meaning image: a picture of the target under its meaning */
+.meaning-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  margin-top: 10px;
+  border-radius: 8px;
+  border: 1px solid #e8ddd0;
+}
+
 /* Target word + IPA */
 .target-word {
   font-size: 22px;
@@ -159,7 +169,8 @@ hr {
   border-color: rgba(255,255,255,0.08);
 }
 
-.nightMode .image img {
+.nightMode .image img,
+.nightMode .meaning-image img {
   opacity: 0.92;
   border-color: rgba(255,255,255,0.1);
 }

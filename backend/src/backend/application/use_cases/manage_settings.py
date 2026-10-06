@@ -17,6 +17,10 @@ from backend.application.dto.settings_dtos import (
     UpdateSettingsRequest,
 )
 from backend.application.use_cases.generate_tts import ALL_VOICES
+from backend.application.utils.anki_note_settings import (
+    ANKI_FIELD_DEFAULTS,
+    ANKI_NOTE_TYPE_DEFAULTS,
+)
 from backend.domain.value_objects.frequent_word_threshold import (
     DEFAULT_FREQUENT_WORD_THRESHOLD,
     FREQUENT_WORD_THRESHOLDS,
@@ -30,20 +34,8 @@ if TYPE_CHECKING:
 
 _DEFAULT_CEFR_LEVEL: str = "B1"
 _DEFAULT_DECK_NAME: str = "Default"
-_DEFAULT_NOTE_TYPE: str = "AnythingToAnkiType"
 _DEFAULT_AI_PROVIDER: str = "claude"
 _DEFAULT_AI_MODEL: str = "sonnet"
-_DEFAULT_FIELD_SENTENCE: str = "Sentence"
-_DEFAULT_FIELD_TARGET: str = "Target"
-_DEFAULT_FIELD_MEANING: str = "Meaning"
-_DEFAULT_FIELD_IPA: str = "IPA"
-_DEFAULT_FIELD_IMAGE: str = "Image"
-_DEFAULT_FIELD_AUDIO: str = "Audio"
-_DEFAULT_FIELD_TRANSLATION: str = "Translation"
-_DEFAULT_FIELD_SYNONYMS: str = "Synonyms"
-_DEFAULT_FIELD_EXAMPLES: str = "Examples"
-_DEFAULT_FIELD_AUDIO_TARGET_US: str = "AudioTargetUS"
-_DEFAULT_FIELD_AUDIO_TARGET_UK: str = "AudioTargetUK"
 _DEFAULT_ENABLE_DEFINITIONS: str = "true"
 
 _SETTING_KEYS: dict[str, str] = {
@@ -52,23 +44,12 @@ _SETTING_KEYS: dict[str, str] = {
     "anki_deck_name": _DEFAULT_DECK_NAME,
     "ai_provider": _DEFAULT_AI_PROVIDER,
     "ai_model": _DEFAULT_AI_MODEL,
-    "anki_note_type": _DEFAULT_NOTE_TYPE,
-    "anki_field_sentence": _DEFAULT_FIELD_SENTENCE,
-    "anki_field_target_word": _DEFAULT_FIELD_TARGET,
-    "anki_field_meaning": _DEFAULT_FIELD_MEANING,
-    "anki_field_ipa": _DEFAULT_FIELD_IPA,
-    "anki_field_image": _DEFAULT_FIELD_IMAGE,
-    "anki_field_audio": _DEFAULT_FIELD_AUDIO,
-    "anki_field_translation": _DEFAULT_FIELD_TRANSLATION,
-    "anki_field_synonyms": _DEFAULT_FIELD_SYNONYMS,
-    "anki_field_examples": _DEFAULT_FIELD_EXAMPLES,
-    "anki_field_audio_target_us": _DEFAULT_FIELD_AUDIO_TARGET_US,
-    "anki_field_audio_target_uk": _DEFAULT_FIELD_AUDIO_TARGET_UK,
+    **ANKI_NOTE_TYPE_DEFAULTS,
+    **ANKI_FIELD_DEFAULTS,
     "enable_definitions": _DEFAULT_ENABLE_DEFINITIONS,
     "usage_group_order": json.dumps(DEFAULT_USAGE_GROUP_ORDER),
     "tts_enabled_voices": json.dumps(ALL_VOICES),
     "tts_speed": "1.0",
-    "anki_field_audio_tts": "AudioTTS",
     IMAGES_PER_SOURCE_SETTING: str(DEFAULT_IMAGES_PER_SOURCE),
     CLOZE_DEFAULT_HINT_SETTING: DEFAULT_CLOZE_HINT,
 }
@@ -139,23 +120,3 @@ class ManageSettingsUseCase:
     def update_cefr_level(self, level: str) -> None:
         self._settings_repo.set("cefr_level", level)
 
-
-_FIELD_MAP_KEYS: dict[str, str] = {
-    "anki_field_sentence": "FIELD_SENTENCE",
-    "anki_field_target_word": "FIELD_TARGET",
-    "anki_field_meaning": "FIELD_MEANING",
-    "anki_field_ipa": "FIELD_IPA",
-    "anki_field_image": "FIELD_IMAGE",
-    "anki_field_audio": "FIELD_AUDIO",
-    "anki_field_translation": "FIELD_TRANSLATION",
-    "anki_field_synonyms": "FIELD_SYNONYMS",
-    "anki_field_examples": "FIELD_EXAMPLES",
-}
-
-
-def build_anki_field_map(settings: dict[str, str]) -> dict[str, str]:
-    """Build placeholder->field_name map from settings dict for AnkiTemplateRenderer."""
-    return {
-        placeholder: settings[setting_key]
-        for setting_key, placeholder in _FIELD_MAP_KEYS.items()
-    }

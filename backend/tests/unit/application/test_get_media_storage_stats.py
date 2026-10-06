@@ -23,9 +23,9 @@ class TestGetMediaStorageStats:
         # Source 1: 1 screenshot (100b) + 1 audio (200b)
         (media_root / "1" / "10_screenshot.webp").write_bytes(b"x" * 100)
         (media_root / "1" / "10_audio.m4a").write_bytes(b"x" * 200)
-        # Source 2: 2 screenshots
+        # Source 2: a screenshot and a meaning image
         (media_root / "2" / "20_screenshot.webp").write_bytes(b"x" * 50)
-        (media_root / "2" / "21_screenshot.webp").write_bytes(b"x" * 75)
+        (media_root / "2" / "21_meaning.0a1b2c3d4e.webp").write_bytes(b"x" * 75)
 
         source1 = MagicMock()
         source1.id = 1

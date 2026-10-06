@@ -9,6 +9,8 @@ from backend.domain.value_objects.content_type import ContentType
 if TYPE_CHECKING:
     from backend.domain.ports.source_repository import SourceRepository
 
+IMAGE_FILE_MARKERS = ("_screenshot.", "_meaning.")
+
 
 class GetMediaStorageStatsUseCase:
     """Aggregates on-disk media footprint for each video source."""
@@ -40,7 +42,7 @@ class GetMediaStorageStatsUseCase:
                     if not os.path.isfile(fpath):
                         continue
                     size = os.path.getsize(fpath)
-                    if "_screenshot." in fname:
+                    if any(marker in fname for marker in IMAGE_FILE_MARKERS):
                         screenshot_bytes += size
                         screenshot_count += 1
                     elif "_audio." in fname:

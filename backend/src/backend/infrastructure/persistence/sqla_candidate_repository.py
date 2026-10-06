@@ -8,6 +8,7 @@ from sqlalchemy import func
 from backend.domain.ports.candidate_repository import CandidateRepository
 from backend.infrastructure.persistence.models import (
     CandidateClozeModel,
+    CandidateMeaningImageModel,
     CandidateMeaningModel,
     CandidateMediaModel,
     CandidatePronunciationModel,
@@ -166,6 +167,8 @@ class SqlaCandidateRepository(CandidateRepository):
         entity.tts = tts_model.to_entity() if tts_model else None
         cloze_model = self._session.get(CandidateClozeModel, entity.id)
         entity.cloze = cloze_model.to_entity() if cloze_model else None
+        image_model = self._session.get(CandidateMeaningImageModel, entity.id)
+        entity.meaning_image = image_model.to_entity() if image_model else None
         return entity
 
     def _bulk_attach(self, entities: list[StoredCandidate]) -> list[StoredCandidate]:
@@ -197,11 +200,17 @@ class SqlaCandidateRepository(CandidateRepository):
             .filter(CandidateClozeModel.candidate_id.in_(ids))
             .all()
         )
+        image_rows = (
+            self._session.query(CandidateMeaningImageModel)
+            .filter(CandidateMeaningImageModel.candidate_id.in_(ids))
+            .all()
+        )
         meanings = {r.candidate_id: r.to_entity() for r in meaning_rows}
         medias = {r.candidate_id: r.to_entity() for r in media_rows}
         prons = {r.candidate_id: r.to_entity() for r in pron_rows}
         ttses = {r.candidate_id: r.to_entity() for r in tts_rows}
         clozes = {r.candidate_id: r.to_entity() for r in cloze_rows}
+        images = {r.candidate_id: r.to_entity() for r in image_rows}
         for e in entities:
             if e.id is not None:
                 e.meaning = meanings.get(e.id)
@@ -209,4 +218,5 @@ class SqlaCandidateRepository(CandidateRepository):
                 e.pronunciation = prons.get(e.id)
                 e.tts = ttses.get(e.id)
                 e.cloze = clozes.get(e.id)
+                e.meaning_image = images.get(e.id)
         return entities

@@ -1,24 +1,25 @@
 <div class="card-inner">
   <div class="media">
-    {{#Image}}<div class="image">{{Image}}</div>{{/Image}}
-    {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
+    {{#%FIELD_IMAGE%}}<div class="image">{{%FIELD_IMAGE%}}</div>{{/%FIELD_IMAGE%}}
+    {{#%FIELD_AUDIO%}}<div class="audio">{{%FIELD_AUDIO%}}</div>{{/%FIELD_AUDIO%}}
   </div>
 
-  <div class="sentence">{{cloze:Text}}</div>
+  <div class="sentence">{{cloze:%FIELD_SENTENCE%}}</div>
 
   <hr>
 
-  <div class="target-word">{{Target}}</div>
-  {{#IPA}}<div class="ipa">{{IPA}}</div>{{/IPA}}
+  <div class="target-word">{{%FIELD_TARGET%}}</div>
+  {{#%FIELD_IPA%}}<div class="ipa">{{%FIELD_IPA%}}</div>{{/%FIELD_IPA%}}
 
   <hr>
 
-  <div class="meaning">{{Meaning}}</div>
+  <div class="meaning">{{%FIELD_MEANING%}}</div>
+  {{#%FIELD_MEANING_IMAGE%}}<div class="meaning-image">{{%FIELD_MEANING_IMAGE%}}</div>{{/%FIELD_MEANING_IMAGE%}}
 
-  {{#Translation}}<hr><div class="translation">{{Translation}}</div>{{/Translation}}
-  {{#Synonyms}}<hr><div class="synonyms">{{Synonyms}}</div>{{/Synonyms}}
+  {{#%FIELD_TRANSLATION%}}<hr><div class="translation">{{%FIELD_TRANSLATION%}}</div>{{/%FIELD_TRANSLATION%}}
+  {{#%FIELD_SYNONYMS%}}<hr><div class="synonyms">{{%FIELD_SYNONYMS%}}</div>{{/%FIELD_SYNONYMS%}}
 
-  {{#Examples}}<hr><div class="examples">{{Examples}}</div>{{/Examples}}
+  {{#%FIELD_EXAMPLES%}}<hr><div class="examples">{{%FIELD_EXAMPLES%}}</div>{{/%FIELD_EXAMPLES%}}
 </div>
 
 <script>

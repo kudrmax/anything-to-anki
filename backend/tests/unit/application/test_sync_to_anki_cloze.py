@@ -5,7 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
-from backend.application.utils.anki_note_builders import CLOZE_FIELDS, CLOZE_NOTE_TYPE
+from backend.application.utils.anki_note_settings import AnkiFieldNames
+from backend.application.utils.anki_template_renderer import NoteTemplates
 from backend.application.utils.export_queue import ExportQueue
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
@@ -83,8 +84,8 @@ class TestSyncToAnkiCloze:
         self.anki_sync_repo = MagicMock()
         self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.renderer = MagicMock()
-        self.renderer.render_all.return_value = {"front": "F", "back": "B", "css": "C"}
-        self.renderer.render_cloze.return_value = {"front": "CF", "back": "CB", "css": "C"}
+        self.renderer.render_recognition.return_value = NoteTemplates("F", "B", "C")
+        self.renderer.render_cloze.return_value = NoteTemplates("CF", "CB", "C")
         self.use_case = SyncToAnkiUseCase(
             export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
             anki_connector=self.connector,
@@ -112,8 +113,8 @@ class TestSyncToAnkiCloze:
         self._sync(_give_up(_cloze(1)))
 
         [(model, note)] = self._added()
-        assert model == CLOZE_NOTE_TYPE == "AnythingToAnkiCloze"
-        assert note["Text"] == "She finally gave {{c1::up}} smoking last year."
+        assert model == "AnythingToAnkiCloze"
+        assert note["Sentence"] == "She finally gave {{c1::up}} smoking last year."
         assert note["Hint"] == "бросить"
         assert note["Target"] == "give up"
         assert note["IPA"] == "/ɡɪv ʌp/"
@@ -124,7 +125,7 @@ class TestSyncToAnkiCloze:
 
         self.connector.ensure_note_type.assert_called_once_with(
             "AnythingToAnkiCloze",
-            list(CLOZE_FIELDS),
+            AnkiFieldNames.read(self.settings_repo).cloze_fields(),
             front_template="CF",
             back_template="CB",
             css="C",
@@ -173,7 +174,7 @@ class TestSyncToAnkiCloze:
 
         [(model, note)] = self._added()
         assert model == "AnythingToAnkiCloze"
-        assert note["Text"] == "She finally {{c1::gave up}} smoking last year."
+        assert note["Sentence"] == "She finally {{c1::gave up}} smoking last year."
 
     def test_unavailable_hint_is_not_exported(self) -> None:
         cloze = replace(_cloze(1, indices=(2, 3)), hint_kind=ClozeHintKind.SYNONYMS)
@@ -185,3 +186,14 @@ class TestSyncToAnkiCloze:
 
         [(_, note)] = self._added()
         assert note["Hint"] == ""
+
+    def test_cloze_goes_to_the_users_cloze_type_and_field_names(self) -> None:
+        names = {"anki_cloze_note_type": "Main Cloze", "anki_field_sentence": "Phrase"}
+        self.settings_repo.get.side_effect = lambda key, default=None: names.get(key)
+
+        self._sync(_give_up(_cloze(1)))
+
+        [(model, note)] = self._added()
+        assert model == "Main Cloze"
+        assert note["Phrase"] == "She finally gave {{c1::up}} smoking last year."
+        assert self._ensured_models() == []

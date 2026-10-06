@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.dto.media_dtos import CleanupMediaKind
 from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
+from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
 from backend.domain.entities.candidate_media import CandidateMedia
 
 if TYPE_CHECKING:
@@ -23,6 +24,7 @@ def _make_candidate(cid: int, screenshot_path: str | None, audio_path: str | Non
         end_ms=2000,
         generated_at=None,
     )
+    c.meaning_image = None
     return c
 
 
@@ -45,6 +47,7 @@ class TestCleanupMedia:
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
             media_repo=media_repo,
+            image_repo=MagicMock(),
             media_root=str(media_root),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.ALL)
@@ -74,6 +77,7 @@ class TestCleanupMedia:
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
             media_repo=media_repo,
+            image_repo=MagicMock(),
             media_root=str(media_root),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.IMAGES)
@@ -102,6 +106,7 @@ class TestCleanupMedia:
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
             media_repo=media_repo,
+            image_repo=MagicMock(),
             media_root=str(media_root),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.AUDIO)
@@ -125,6 +130,7 @@ class TestCleanupMedia:
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
             media_repo=media_repo,
+            image_repo=MagicMock(),
             media_root=str(media_root),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.ALL)
@@ -148,9 +154,49 @@ class TestCleanupMedia:
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
             media_repo=media_repo,
+            image_repo=MagicMock(),
             media_root=str(media_root),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.ALL)
 
         # No DB call since candidate has no media row
         media_repo.clear_paths.assert_not_called()
+
+
+@pytest.mark.unit
+class TestCleanupMeaningImages:
+    def _use_case(
+        self, media_root: Path, candidate: MagicMock, image_repo: MagicMock,
+    ) -> CleanupMediaUseCase:
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_source.return_value = [candidate]
+        return CleanupMediaUseCase(
+            candidate_repo=candidate_repo,
+            media_repo=MagicMock(),
+            image_repo=image_repo,
+            media_root=str(media_root),
+        )
+
+    def test_images_removes_the_meaning_image_too(self, tmp_path: Path) -> None:
+        picture = tmp_path / "10_meaning.abc.webp"
+        picture.write_bytes(b"x")
+        candidate = _make_candidate(10, None, None)
+        candidate.meaning_image = CandidateMeaningImage(candidate_id=10, image_path=str(picture))
+        image_repo = MagicMock()
+
+        self._use_case(tmp_path, candidate, image_repo).execute(1, CleanupMediaKind.IMAGES)
+
+        assert not picture.exists()
+        image_repo.delete_by_candidate_id.assert_called_once_with(10)
+
+    def test_audio_leaves_the_meaning_image(self, tmp_path: Path) -> None:
+        picture = tmp_path / "10_meaning.abc.webp"
+        picture.write_bytes(b"x")
+        candidate = _make_candidate(10, None, None)
+        candidate.meaning_image = CandidateMeaningImage(candidate_id=10, image_path=str(picture))
+        image_repo = MagicMock()
+
+        self._use_case(tmp_path, candidate, image_repo).execute(1, CleanupMediaKind.AUDIO)
+
+        assert picture.exists()
+        image_repo.delete_by_candidate_id.assert_not_called()

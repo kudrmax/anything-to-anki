@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_cloze import CandidateCloze
     from backend.domain.entities.candidate_meaning import CandidateMeaning
+    from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
     from backend.domain.entities.candidate_media import CandidateMedia
     from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
     from backend.domain.entities.candidate_tts import CandidateTTS
@@ -35,6 +36,9 @@ class StoredCandidate:
     hand; the card shows the polished one unless the user reverted it.
 
     `cloze` is the markup of the cloze card, if the user made one.
+
+    `meaning_image` is a picture of the target the user picked; the video
+    frame of the phrase is in `media`.
     """
 
     source_id: int
@@ -54,6 +58,7 @@ class StoredCandidate:
     pronunciation: CandidatePronunciation | None = None
     tts: CandidateTTS | None = None
     cloze: CandidateCloze | None = None
+    meaning_image: CandidateMeaningImage | None = None
     id: int | None = None
     cefr_breakdown: CEFRBreakdown | None = None
     usage_distribution: UsageDistribution | None = None

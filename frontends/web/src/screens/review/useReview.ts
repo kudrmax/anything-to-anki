@@ -15,6 +15,7 @@ const POLL_INTERVAL_MS = 3000
 interface MediaRefs {
   screenshotUrl: string | null
   audioUrl: string | null
+  meaningImageUrl: string | null
 }
 
 export interface Editing {
@@ -368,6 +369,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   const mediaFor = (candidate: StoredCandidate): MediaRefs => ({
     screenshotUrl: mediaUrl(sourceId, candidate.media?.screenshot_path),
     audioUrl: mediaUrl(sourceId, candidate.media?.audio_path),
+    meaningImageUrl: mediaUrl(sourceId, candidate.meaning_image_path),
   })
 
   const markedCount = candidates.filter(c => c.status !== 'pending').length

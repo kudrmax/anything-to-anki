@@ -136,6 +136,7 @@ class StoredCandidateDTO(BaseModel):
     has_custom_context_fragment: bool = False
     meaning: CandidateMeaningDTO | None = None
     media: CandidateMediaDTO | None = None
+    meaning_image_path: str | None = None
     pronunciation: CandidatePronunciationDTO | None = None
     tts: CandidateTTSDTO | None = None
     cefr_breakdown: CEFRBreakdownDTO | None = None
@@ -391,6 +392,7 @@ def stored_candidate_to_dto(
         has_custom_context_fragment=c.has_custom_context_fragment,
         meaning=meaning_dto,
         media=media_dto,
+        meaning_image_path=c.meaning_image.image_path if c.meaning_image else None,
         pronunciation=pronunciation_dto,
         tts=tts_dto,
         cefr_breakdown=breakdown_dto,

@@ -18,6 +18,7 @@
 .decisions { order: var(--decisions-order); position: var(--decisions-position); bottom: 0; z-index: 1; display: flex; flex-wrap: nowrap; gap: var(--s3); margin: var(--decisions-mt) 0 0; padding: var(--decisions-pad); border-top: var(--decisions-bw) solid var(--line); border-radius: var(--decisions-radius); background: var(--decisions-bg); box-shadow: var(--decisions-shadow); }
 .decisions > button { flex: var(--decision-flex); justify-content: center; height: var(--decision-h); }
 .definition { font-size: var(--fs-h1); line-height: var(--lh); }
+.meaningImage { display: block; max-width: 100%; max-height: var(--meaning-image-h); width: auto; align-self: flex-start; object-fit: contain; border-radius: var(--rc); }
 .context { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
 .examples { list-style: none; display: flex; flex-direction: column; gap: var(--s2); padding-left: var(--s5); border-left: var(--underline) solid var(--line); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
 .definition b, .context b, .examples b { font-weight: var(--fw-m); color: var(--tx); }

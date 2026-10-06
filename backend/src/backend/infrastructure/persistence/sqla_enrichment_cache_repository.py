@@ -7,6 +7,7 @@ from sqlalchemy import delete, select
 
 from backend.domain.ports.enrichment_cache_repository import EnrichmentCacheRepository
 from backend.infrastructure.persistence.models import (
+    CandidateMeaningImageModel,
     CandidateMeaningModel,
     CandidateMediaModel,
     CandidatePronunciationModel,
@@ -54,6 +55,8 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
                 # tts
                 CandidateTTSModel.audio_path.label("tts_audio_path"),
                 CandidateTTSModel.generated_at.label("tts_generated_at"),
+                # meaning image
+                CandidateMeaningImageModel.image_path.label("meaning_image_path"),
             )
             .outerjoin(
                 CandidateMeaningModel,
@@ -70,6 +73,10 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
             .outerjoin(
                 CandidateTTSModel,
                 CandidateTTSModel.candidate_id == StoredCandidateModel.id,
+            )
+            .outerjoin(
+                CandidateMeaningImageModel,
+                CandidateMeaningImageModel.candidate_id == StoredCandidateModel.id,
             )
             .where(StoredCandidateModel.source_id == source_id)
         )
@@ -97,6 +104,7 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
                 pronunciation_generated_at=row.pronunciation_generated_at,
                 tts_audio_path=row.tts_audio_path,
                 tts_generated_at=row.tts_generated_at,
+                meaning_image_path=row.meaning_image_path,
             )
             self._session.merge(cache_entry)
         self._session.flush()
@@ -172,6 +180,14 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
                         candidate_id=cid,
                         audio_path=cache.tts_audio_path,
                         generated_at=cache.tts_generated_at,
+                    )
+                )
+                any_restored = True
+
+            if cache.meaning_image_path is not None:
+                self._session.merge(
+                    CandidateMeaningImageModel(
+                        candidate_id=cid, image_path=cache.meaning_image_path,
                     )
                 )
                 any_restored = True

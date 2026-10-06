@@ -12,6 +12,7 @@ from backend.domain.entities.bootstrap_index_meta import BootstrapIndexMeta
 from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
+from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.candidate_tts import CandidateTTS
@@ -676,6 +677,29 @@ class CandidateClozeModel(Base):
         )
 
 
+class CandidateMeaningImageModel(Base):
+    """SQLAlchemy model for the meaning image of a candidate (1:1)."""
+
+    __tablename__ = "candidate_meaning_images"
+
+    candidate_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("candidates.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    image_path: Mapped[str] = mapped_column(Text, nullable=False)
+
+    def to_entity(self) -> CandidateMeaningImage:
+        return CandidateMeaningImage(candidate_id=self.candidate_id, image_path=self.image_path)
+
+    @staticmethod
+    def from_entity(entity: CandidateMeaningImage) -> CandidateMeaningImageModel:
+        return CandidateMeaningImageModel(
+            candidate_id=entity.candidate_id, image_path=entity.image_path,
+        )
+
+
 class EnrichmentCacheModel(Base):
     """Temporary cache for enrichment data during source reprocessing."""
 
@@ -705,6 +729,7 @@ class EnrichmentCacheModel(Base):
     # tts
     tts_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     tts_generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    meaning_image_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class JobModel(Base):
