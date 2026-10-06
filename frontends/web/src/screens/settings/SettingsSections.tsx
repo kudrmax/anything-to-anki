@@ -28,10 +28,12 @@ const AI_MODELS = [
 ]
 const FIELD_MAPPING: { key: keyof Settings; label: string }[] = [
   { key: 'anki_field_sentence', label: 'Sentence' },
+  { key: 'anki_field_hint', label: 'Cloze hint' },
   { key: 'anki_field_target_word', label: 'Target word' },
   { key: 'anki_field_meaning', label: 'Meaning' },
   { key: 'anki_field_ipa', label: 'IPA' },
-  { key: 'anki_field_image', label: 'Image' },
+  { key: 'anki_field_image', label: 'Video frame' },
+  { key: 'anki_field_meaning_image', label: 'Meaning image' },
   { key: 'anki_field_audio', label: 'Audio' },
   { key: 'anki_field_translation', label: 'Translation' },
   { key: 'anki_field_synonyms', label: 'Synonyms' },
@@ -43,6 +45,8 @@ const FIELD_MAPPING: { key: keyof Settings; label: string }[] = [
 const TEMPLATE_PARTS: { part: TemplatePart; label: string }[] = [
   { part: 'front', label: 'Copy Front' },
   { part: 'back', label: 'Copy Back' },
+  { part: 'cloze_front', label: 'Copy Cloze Front' },
+  { part: 'cloze_back', label: 'Copy Cloze Back' },
   { part: 'css', label: 'Copy CSS' },
 ]
 const USAGE_GROUP_LABELS: Record<string, string> = {
@@ -111,6 +115,9 @@ export function Anki({ store, form }: SectionProps) {
       </DividerRow>
       <DividerRow label="Note type" hint="«AnythingToAnkiType» is created automatically. Use your own type for custom fields.">
         <div className={css.control}><Field value={form.anki_note_type} onChange={e => store.setField('anki_note_type', e.target.value)} /></div>
+      </DividerRow>
+      <DividerRow label="Cloze note type" hint="«AnythingToAnkiCloze» is created automatically. Your own type must be a cloze type with the same fields plus the hint.">
+        <div className={css.control}><Field value={form.anki_cloze_note_type} onChange={e => store.setField('anki_cloze_note_type', e.target.value)} /></div>
       </DividerRow>
       <Label>Field mapping</Label>
       <div className={css.map}>

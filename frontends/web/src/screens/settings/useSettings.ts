@@ -5,7 +5,7 @@ import type { BootstrapStatus, CleanupMediaKind, CreateNoteTypeResponse, Frequen
 const BOOTSTRAP_POLL_MS = 2000
 const FLASH_MS = 2000
 
-export type TemplatePart = 'front' | 'back' | 'css'
+export type TemplatePart = 'front' | 'back' | 'cloze_front' | 'cloze_back' | 'css'
 
 export function useSettings() {
   const [bootstrapStatus, setBootstrapStatus] = useState<BootstrapStatus | null>(null)
@@ -156,6 +156,7 @@ export function useSettings() {
       form.anki_field_synonyms,
       form.anki_field_examples,
       form.anki_field_image,
+      form.anki_field_meaning_image,
       form.anki_field_audio,
     ].filter(Boolean)
     try {

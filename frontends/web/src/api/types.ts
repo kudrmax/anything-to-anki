@@ -188,6 +188,8 @@ export interface StoredCandidate {
   has_custom_context_fragment: boolean
   meaning: CandidateMeaning | null
   media: CandidateMedia | null
+  /** Картинка-значение target'а: идёт на оборот карточки, кадр из видео — в media. */
+  meaning_image_path: string | null
   pronunciation: CandidatePronunciation | null
   tts: CandidateTTS | null
   cefr_breakdown?: CEFRBreakdown | null
@@ -278,11 +280,14 @@ export interface Settings {
   ai_provider: string
   ai_model: string
   anki_note_type: string
+  anki_cloze_note_type: string
   anki_field_sentence: string
+  anki_field_hint: string
   anki_field_target_word: string
   anki_field_meaning: string
   anki_field_ipa: string
   anki_field_image: string
+  anki_field_meaning_image: string
   anki_field_audio: string
   anki_field_translation: string
   anki_field_synonyms: string
@@ -409,6 +414,8 @@ export type FollowUpAction =
 export interface AnkiTemplates {
   front: string
   back: string
+  cloze_front: string
+  cloze_back: string
   css: string
 }
 

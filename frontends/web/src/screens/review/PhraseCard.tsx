@@ -125,6 +125,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
 
       <div className={css.cardRight}>
         {definition && <p className={css.definition}><RichText text={definition} candidate={candidate} /></p>}
+        {media.meaningImageUrl && <img className={css.meaningImage} src={media.meaningImageUrl} alt="" onError={e => { e.currentTarget.hidden = true }} />}
         {paragraphs.length === 0 && (
           <div className={css.status}>
             <StatusText status={meaning?.status} error={meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
