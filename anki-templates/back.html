@@ -2,6 +2,7 @@
   <div class="media">
     {{#%FIELD_IMAGE%}}<div class="image">{{%FIELD_IMAGE%}}</div>{{/%FIELD_IMAGE%}}
     {{#%FIELD_AUDIO%}}<div class="audio">{{%FIELD_AUDIO%}}</div>{{/%FIELD_AUDIO%}}
+    {{#%FIELD_AUDIO_TTS%}}<div class="audio">{{%FIELD_AUDIO_TTS%}}</div>{{/%FIELD_AUDIO_TTS%}}
   </div>
 
   <div class="sentence">{{edit:%FIELD_SENTENCE%}}</div>
@@ -10,6 +11,8 @@
 
   <div class="target-word">{{edit:%FIELD_TARGET%}}</div>
   {{#%FIELD_IPA%}}<div class="ipa">{{edit:%FIELD_IPA%}}</div>{{/%FIELD_IPA%}}
+  {{#%FIELD_AUDIO_TARGET_US%}}<span class="pron">US {{%FIELD_AUDIO_TARGET_US%}}</span>{{/%FIELD_AUDIO_TARGET_US%}}
+  {{#%FIELD_AUDIO_TARGET_UK%}}<span class="pron">UK {{%FIELD_AUDIO_TARGET_UK%}}</span>{{/%FIELD_AUDIO_TARGET_UK%}}
 
   <hr>
 
