@@ -107,7 +107,7 @@ class RecognitionNoteBuilder:
 
 
 class ClozeNoteBuilder:
-    """Fields of a cloze note: the phrase with the hidden words as an Anki gap, plus its hint.
+    """Fields of a cloze note: the phrase with the hidden words as Anki gaps carrying the hint.
 
     The rest of the note is filled the same way as a recognition note.
     """
@@ -123,12 +123,11 @@ class ClozeNoteBuilder:
         kind = cloze.hint_kind
         if kind not in self._builder.available_hints(candidate.meaning, hidden):
             kind = ClozeHintKind.NONE
+        hints = self._builder.gap_hints(
+            kind, candidate.meaning, cloze.phrase, indices, cloze.custom_hint,
+        )
         note: dict[str, str] = {}
         if self._fields.sentence:
-            note[self._fields.sentence] = self._builder.cloze_text(cloze.phrase, indices)
-        if self._fields.hint:
-            note[self._fields.hint] = self._builder.hint_text(
-                kind, candidate.meaning, hidden, cloze.custom_hint,
-            )
+            note[self._fields.sentence] = self._builder.cloze_text(cloze.phrase, indices, hints)
         self._content.fill(note, candidate)
         return note

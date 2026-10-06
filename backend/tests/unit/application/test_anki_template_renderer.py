@@ -12,7 +12,7 @@ pytestmark = pytest.mark.unit
 REAL_TEMPLATES = Path(__file__).resolve().parents[4] / "anki-templates"
 
 DEFAULT_FIELDS = AnkiFieldNames(
-    sentence="Sentence", hint="Hint", target="Target", meaning="Meaning", ipa="IPA",
+    sentence="Sentence", target="Target", meaning="Meaning", ipa="IPA",
     translation="Translation", synonyms="Synonyms", examples="Examples",
     image="Image", meaning_image="MeaningImage", audio="Audio",
     audio_target_us="AudioTargetUS", audio_target_uk="AudioTargetUK", audio_tts="AudioTTS",
@@ -30,7 +30,7 @@ def templates_dir(tmp_path: Path) -> Path:
         "{{#%FIELD_IPA%}}{{%FIELD_IPA%}}{{/%FIELD_IPA%}}"
     )
     (tmp_path / "cloze-front.html").write_text(
-        "{{cloze:%FIELD_SENTENCE%}} {{#%FIELD_HINT%}}{{%FIELD_HINT%}}{{/%FIELD_HINT%}}"
+        "{{cloze:%FIELD_SENTENCE%}}"
     )
     (tmp_path / "cloze-back.html").write_text(
         "{{cloze:%FIELD_SENTENCE%}} {{%FIELD_TARGET%}}"
@@ -61,7 +61,7 @@ class TestAnkiTemplateRenderer:
 
         result = AnkiTemplateRenderer(templates_dir).render_cloze(fields)
 
-        assert result.front == "{{cloze:Phrase}} {{#Hint}}{{Hint}}{{/Hint}}"
+        assert result.front == "{{cloze:Phrase}}"
         assert result.back == "{{cloze:Phrase}} {{Target}}"
         assert result.css == ".card { font-size: 18px; }"
 
@@ -97,11 +97,9 @@ class TestRealTemplates:
         result = AnkiTemplateRenderer(REAL_TEMPLATES).render_cloze(DEFAULT_FIELDS)
 
         assert "{{cloze:Sentence}}" in result.front
-        assert "{{#Hint}}" in result.front
         assert "{{cloze:Sentence}}" in result.back
         assert "{{Target}}" in result.back
         assert ".cloze" in result.css
-        assert ".hint" in result.css
 
     def test_cloze_front_does_not_speak_the_answer(self) -> None:
         result = AnkiTemplateRenderer(REAL_TEMPLATES).render_cloze(DEFAULT_FIELDS)

@@ -5,7 +5,7 @@ from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import InvalidClozeError
-from backend.domain.services.cloze_builder import ClozeBuilder
+from backend.domain.services.cloze_builder import ClozeBuilder, ClozeFrontPart
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
@@ -100,9 +100,60 @@ def test_cloze_text_escapes_anki_syntax() -> None:
     assert text.count("}}") == 1
 
 
-def test_front_preview_shows_gaps() -> None:
-    assert builder.front_preview(GIVE_UP, (3,)) == "She finally gave […] smoking last year."
-    assert builder.front_preview(GIVE_UP, (2, 3)) == "She finally […] smoking last year."
+def test_cloze_text_puts_each_hint_into_its_gap() -> None:
+    assert (
+        builder.cloze_text("I gave it up at last.", (1, 3), ["g…", "u…"])
+        == "I {{c1::gave::g…}} it {{c1::up::u…}} at last."
+    )
+    assert (
+        builder.cloze_text("I gave it up at last.", (1, 3), ["бросить", ""])
+        == "I {{c1::gave::бросить}} it {{c1::up}} at last."
+    )
+
+
+def test_cloze_text_escapes_anki_syntax_in_hint() -> None:
+    text = builder.cloze_text(GIVE_UP, (6,), ["a::b}}"])
+    assert text.count("::") == 2
+    assert text.count("}}") == 1
+
+
+def test_front_shows_gaps_without_hint() -> None:
+    assert builder.front(GIVE_UP, (2, 3)) == [
+        ClozeFrontPart("She finally ", is_gap=False),
+        ClozeFrontPart("[…]", is_gap=True),
+        ClozeFrontPart(" smoking last year.", is_gap=False),
+    ]
+
+
+def test_front_shows_hint_inside_gap_and_keeps_punctuation_outside() -> None:
+    assert builder.front('"Year," she said', (0,), ["y…"]) == [
+        ClozeFrontPart('"', is_gap=False),
+        ClozeFrontPart("[y…]", is_gap=True),
+        ClozeFrontPart('," she said', is_gap=False),
+    ]
+
+
+def test_gap_hints_first_letter_per_gap() -> None:
+    hints = builder.gap_hints(
+        ClozeHintKind.FIRST_LETTER, _meaning(), "I gave it up at last.", (1, 3), None
+    )
+    assert hints == ["g…", "u…"]
+    assert builder.gap_hints(ClozeHintKind.FIRST_LETTER, None, GIVE_UP, (2, 3), None) == [
+        "g… u…"
+    ]
+
+
+def test_gap_hints_whole_target_hint_goes_to_first_gap() -> None:
+    phrase = "I gave it up at last."
+    assert builder.gap_hints(ClozeHintKind.TRANSLATION, _meaning(), phrase, (1, 3), None) == [
+        "бросить",
+        "",
+    ]
+    assert builder.gap_hints(ClozeHintKind.CUSTOM, None, phrase, (1, 3), " quit ") == [
+        "quit",
+        "",
+    ]
+    assert builder.gap_hints(ClozeHintKind.NONE, _meaning(), phrase, (1, 3), None) == ["", ""]
 
 
 def test_hint_text_variants() -> None:

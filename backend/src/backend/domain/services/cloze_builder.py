@@ -9,7 +9,7 @@ from backend.domain.services.phrase_target import WORD_EDGE_PUNCTUATION, normali
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from backend.domain.entities.candidate_cloze import CandidateCloze
     from backend.domain.entities.candidate_meaning import CandidateMeaning
@@ -43,10 +43,28 @@ class ClozeWord:
 
 
 @dataclass(frozen=True)
+class ClozeFrontPart:
+    """A piece of the card front: plain phrase text or a gap as Anki shows it."""
+
+    text: str
+    is_gap: bool
+
+
+@dataclass(frozen=True)
 class _Split:
     lead: str
     core: str
     tail: str
+
+
+@dataclass(frozen=True)
+class _Token:
+    """A word of the phrase or a run of adjacent hidden words merged into one gap."""
+
+    lead: str
+    core: str
+    tail: str
+    is_gap: bool
 
 
 def _split(word: str) -> _Split:
@@ -92,18 +110,69 @@ class ClozeBuilder:
         if any(i < 0 or i >= len(words) for i in indices):
             raise InvalidClozeError("Hidden word is out of the phrase")
 
-    def cloze_text(self, phrase: str, indices: tuple[int, ...]) -> str:
-        return self._render(phrase, indices, lambda core: "{{c1::" + _escape(core) + "}}")
+    def cloze_text(
+        self, phrase: str, indices: tuple[int, ...], hints: Sequence[str] = (),
+    ) -> str:
+        """Anki cloze markup; a gap with a hint becomes `{{c1::word::hint}}`."""
 
-    def front_preview(self, phrase: str, indices: tuple[int, ...]) -> str:
-        return self._render(phrase, indices, lambda _core: GAP)
+        def gap(core: str, number: int) -> str:
+            hint = _hint_at(hints, number)
+            suffix = _ANKI_SEPARATOR + _escape(hint) if hint else ""
+            return "{{c1::" + _escape(core) + suffix + "}}"
+
+        return self._render(phrase, indices, gap)
+
+    def front(
+        self, phrase: str, indices: tuple[int, ...], hints: Sequence[str] = (),
+    ) -> list[ClozeFrontPart]:
+        """The card front as Anki shows it: a gap is `[hint]`, or `[…]` without a hint."""
+        parts: list[ClozeFrontPart] = []
+        text = ""
+        gaps = 0
+        for position, token in enumerate(self._tokens(phrase, indices)):
+            text += (" " if position else "") + token.lead
+            if token.is_gap:
+                hint = _hint_at(hints, gaps)
+                gaps += 1
+                if text:
+                    parts.append(ClozeFrontPart(text, is_gap=False))
+                parts.append(ClozeFrontPart(f"[{hint}]" if hint else GAP, is_gap=True))
+                text = ""
+            else:
+                text += token.core
+            text += token.tail
+        if text:
+            parts.append(ClozeFrontPart(text, is_gap=False))
+        return parts
 
     def highlight_hidden(self, phrase: str, indices: tuple[int, ...]) -> str:
-        return self._render(phrase, indices, lambda core: f"<b>{core}</b>")
+        return self._render(phrase, indices, lambda core, _number: f"<b>{core}</b>")
 
     def hidden_words(self, phrase: str, indices: tuple[int, ...]) -> list[str]:
         hidden = set(indices)
         return [_split(w).core for i, w in enumerate(phrase.split()) if i in hidden]
+
+    def gap_hints(
+        self,
+        kind: ClozeHintKind,
+        meaning: CandidateMeaning | None,
+        phrase: str,
+        indices: tuple[int, ...],
+        custom: str | None,
+    ) -> list[str]:
+        """The hint of each gap in phrase order.
+
+        First letters go to every gap for its own words; any other hint is about
+        the whole target, so only the first gap carries it.
+        """
+        gaps = [token.core for token in self._tokens(phrase, indices) if token.is_gap]
+        if kind is ClozeHintKind.FIRST_LETTER:
+            return [
+                self.hint_text(kind, meaning, [_split(w).core for w in core.split()], custom)
+                for core in gaps
+            ]
+        hint = self.hint_text(kind, meaning, [], custom)
+        return [hint if number == 0 else "" for number in range(len(gaps))]
 
     def hint_text(
         self,
@@ -144,15 +213,29 @@ class ClozeBuilder:
             return None
         return replace(cloze, hidden_word_indices=hidden, phrase=phrase)
 
-    def _render(self, phrase: str, indices: tuple[int, ...], gap: Callable[[str], str]) -> str:
+    def _render(
+        self, phrase: str, indices: tuple[int, ...], gap: Callable[[str, int], str],
+    ) -> str:
+        out: list[str] = []
+        gaps = 0
+        for token in self._tokens(phrase, indices):
+            if token.is_gap:
+                out.append(token.lead + gap(token.core, gaps) + token.tail)
+                gaps += 1
+            else:
+                out.append(token.core)
+        return " ".join(out)
+
+    @staticmethod
+    def _tokens(phrase: str, indices: tuple[int, ...]) -> list[_Token]:
         """Adjacent hidden words become one gap; punctuation around a run stays outside."""
         hidden = set(indices)
         words = phrase.split()
-        out: list[str] = []
+        tokens: list[_Token] = []
         i = 0
         while i < len(words):
             if i not in hidden:
-                out.append(words[i])
+                tokens.append(_Token("", words[i], "", is_gap=False))
                 i += 1
                 continue
             run_end = i
@@ -164,6 +247,10 @@ class ClozeBuilder:
                 core = first.core
             else:
                 core = " ".join([first.core + first.tail, *middle, last.lead + last.core])
-            out.append(first.lead + gap(core) + last.tail)
+            tokens.append(_Token(first.lead, core, last.tail, is_gap=True))
             i = run_end + 1
-        return " ".join(out)
+        return tokens
+
+
+def _hint_at(hints: Sequence[str], number: int) -> str:
+    return hints[number] if number < len(hints) else ""

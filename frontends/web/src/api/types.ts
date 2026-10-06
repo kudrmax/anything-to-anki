@@ -146,6 +146,12 @@ export interface ClozeWord {
   is_target: boolean
 }
 
+/** Кусок лицевой стороны: текст фразы или пропуск с подсказкой, как его покажет Anki. */
+export interface ClozeFrontPart {
+  text: string
+  is_gap: boolean
+}
+
 /** Как будет выглядеть cloze-карточка: слова фразы, лицевая сторона и доступные подсказки. */
 export interface ClozePreview {
   /** Фраза карточки, к которой относятся слова и индексы. */
@@ -154,9 +160,7 @@ export interface ClozePreview {
   hidden_word_indices: number[]
   hint_kind: ClozeHintKind
   custom_hint: string | null
-  /** Лицевая сторона: скрытые слова заменены на CLOZE_GAP. */
-  front: string
-  hint: string
+  front: ClozeFrontPart[]
   available_hints: ClozeHintKind[]
   /** Разметку можно сохранить: те же правила, что у сохранения. */
   can_save: boolean
@@ -284,7 +288,6 @@ export interface Settings {
   anki_note_type: string
   anki_cloze_note_type: string
   anki_field_sentence: string
-  anki_field_hint: string
   anki_field_target_word: string
   anki_field_meaning: string
   anki_field_ipa: string

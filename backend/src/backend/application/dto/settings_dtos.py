@@ -24,7 +24,6 @@ class SettingsDTO(BaseModel):
     anki_note_type: str
     anki_cloze_note_type: str
     anki_field_sentence: str
-    anki_field_hint: str
     anki_field_target_word: str
     anki_field_meaning: str
     anki_field_ipa: str
@@ -56,7 +55,6 @@ class UpdateSettingsRequest(BaseModel):
     anki_note_type: str | None = None
     anki_cloze_note_type: str | None = None
     anki_field_sentence: str | None = None
-    anki_field_hint: str | None = None
     anki_field_target_word: str | None = None
     anki_field_meaning: str | None = None
     anki_field_ipa: str | None = None

@@ -25,7 +25,6 @@ class TestAnkiNoteSettings:
         assert settings.recognition_note_type == "AnythingToAnkiType"
         assert settings.cloze_note_type == "AnythingToAnkiCloze"
         assert settings.fields.sentence == "Sentence"
-        assert settings.fields.hint == "Hint"
         assert settings.fields.image == "Image"
         assert settings.fields.meaning_image == "MeaningImage"
 
@@ -44,14 +43,13 @@ class TestAnkiNoteSettings:
 
 
 class TestAnkiFieldNames:
-    def test_both_note_types_share_the_fields_and_cloze_adds_the_hint(self) -> None:
+    def test_both_note_types_share_the_fields(self) -> None:
         fields = AnkiFieldNames.read(_Settings({}))
 
         recognition = fields.recognition_fields()
         cloze = fields.cloze_fields()
 
-        assert "Hint" not in recognition
-        assert cloze == [recognition[0], "Hint", *recognition[1:]]
+        assert cloze == recognition
         assert recognition[0] == "Sentence"
         assert {"Image", "MeaningImage", "Audio"} <= set(recognition)
 
@@ -64,4 +62,3 @@ class TestAnkiFieldNames:
 
         assert placeholders["FIELD_SENTENCE"] == "Phrase"
         assert placeholders["FIELD_MEANING_IMAGE"] == "Picture"
-        assert placeholders["FIELD_HINT"] == "Hint"

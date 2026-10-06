@@ -34,6 +34,13 @@ class ClozeWordDTO(BaseModel):
     is_target: bool
 
 
+class ClozeFrontPartDTO(BaseModel):
+    """A piece of the card front: phrase text or a gap with its hint, as Anki shows it."""
+
+    text: str
+    is_gap: bool
+
+
 class ClozePreviewDTO(BaseModel):
     """How the cloze card would look with the given markup."""
 
@@ -42,8 +49,7 @@ class ClozePreviewDTO(BaseModel):
     hidden_word_indices: list[int]
     hint_kind: str
     custom_hint: str | None
-    front: str
-    hint: str
+    front: list[ClozeFrontPartDTO]
     available_hints: list[str]
     can_save: bool
 

@@ -155,7 +155,11 @@ class TestPreviewClozeAPI:
         body = response.json()
         assert [w["text"] for w in body["words"]][:4] == ["She", "finally", "gave", "up"]
         assert body["hidden_word_indices"] == [2, 3]
-        assert body["front"] == "She finally […] smoking last year."
+        assert body["front"] == [
+            {"text": "She finally ", "is_gap": False},
+            {"text": "[…]", "is_gap": True},
+            {"text": " smoking last year.", "is_gap": False},
+        ]
         assert body["hint_kind"] == "none"
         assert "first_letter" in body["available_hints"]
         assert body["phrase"] == GIVE_UP
@@ -165,7 +169,7 @@ class TestPreviewClozeAPI:
         settings = client.patch("/api/settings", json={"cloze_default_hint": "first_letter"})
         assert settings.status_code == 200
         response = client.post(f"/candidates/{CANDIDATE_ID}/cloze/preview", json={})
-        assert response.json()["hint"] == "g… u…"
+        assert {"text": "[g… u…]", "is_gap": True} in response.json()["front"]
 
     def test_default_hint_setting_rejects_custom(self, client: TestClient) -> None:
         response = client.patch("/api/settings", json={"cloze_default_hint": "custom"})
