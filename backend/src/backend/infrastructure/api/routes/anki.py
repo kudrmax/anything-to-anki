@@ -12,7 +12,6 @@ from backend.application.dto.anki_dtos import (  # noqa: TC001
     VerifyNoteTypeRequest,
     VerifyNoteTypeResponseDTO,
 )
-from backend.application.use_cases.manage_settings import build_anki_field_map
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
 if TYPE_CHECKING:
@@ -75,19 +74,4 @@ def get_anki_templates(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> AnkiTemplatesDTO:
-    settings_uc = container.manage_settings_use_case(session)
-    settings = settings_uc.get_settings()
-    field_map = build_anki_field_map({
-        "anki_field_sentence": settings.anki_field_sentence,
-        "anki_field_target_word": settings.anki_field_target_word,
-        "anki_field_meaning": settings.anki_field_meaning,
-        "anki_field_ipa": settings.anki_field_ipa,
-        "anki_field_image": settings.anki_field_image,
-        "anki_field_audio": settings.anki_field_audio,
-        "anki_field_translation": settings.anki_field_translation,
-        "anki_field_synonyms": settings.anki_field_synonyms,
-        "anki_field_examples": settings.anki_field_examples,
-    })
-    renderer = container.anki_template_renderer()
-    templates = renderer.render_all(field_map)
-    return AnkiTemplatesDTO(**templates)
+    return container.get_anki_templates_use_case(session).execute()

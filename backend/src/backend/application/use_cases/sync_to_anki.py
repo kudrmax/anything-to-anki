@@ -5,15 +5,15 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from backend.application.dto.anki_dtos import SyncResultDTO
-from backend.application.use_cases.manage_settings import build_anki_field_map
 from backend.application.utils.anki_note_builders import (
-    CLOZE_FIELD_TARGET,
-    CLOZE_FIELDS,
-    CLOZE_NOTE_TYPE,
-    AnkiFieldNames,
     ClozeNoteBuilder,
     NoteMedia,
     RecognitionNoteBuilder,
+)
+from backend.application.utils.anki_note_settings import (
+    DEFAULT_CLOZE_NOTE_TYPE,
+    DEFAULT_RECOGNITION_NOTE_TYPE,
+    AnkiNoteSettings,
 )
 from backend.domain.exceptions import AnkiNotAvailableError
 
@@ -30,21 +30,7 @@ if TYPE_CHECKING:
     from backend.domain.services.cloze_builder import ClozeBuilder
     from backend.domain.value_objects.export_group import ExportGroup
 
-_DEFAULT_NOTE_TYPE: str = "AnythingToAnkiType"
 _DEFAULT_DECK: str = "Default"
-_DEFAULT_FIELD_SENTENCE: str = "Sentence"
-_DEFAULT_FIELD_TARGET: str = "Target"
-_DEFAULT_FIELD_MEANING: str = "Meaning"
-_DEFAULT_FIELD_IPA: str = "IPA"
-_DEFAULT_FIELD_TRANSLATION: str = "Translation"
-_DEFAULT_FIELD_SYNONYMS: str = "Synonyms"
-_DEFAULT_FIELD_IMAGE: str = "Image"
-_DEFAULT_FIELD_AUDIO: str = "Audio"
-_DEFAULT_FIELD_EXAMPLES: str = "Examples"
-_DEFAULT_FIELD_AUDIO_TARGET_US: str = "AudioTargetUS"
-_DEFAULT_FIELD_AUDIO_TARGET_UK: str = "AudioTargetUK"
-_DEFAULT_FIELD_AUDIO_TTS: str = "AudioTTS"
-
 
 @dataclass(frozen=True)
 class _NoteTarget:
@@ -98,7 +84,6 @@ class SyncToAnkiUseCase:
 
     def execute(self, source_id: int, group: ExportGroup) -> SyncResultDTO:
         deck_name = self._setting("anki_deck_name", _DEFAULT_DECK)
-        note_type = self._setting("anki_note_type", _DEFAULT_NOTE_TYPE)
         pending = self._export_queue.for_source(source_id).in_group(group)
 
         total = len(pending)
@@ -112,19 +97,20 @@ class SyncToAnkiUseCase:
         if not self._connector.is_available():
             raise AnkiNotAvailableError()
 
-        fields = self._field_names()
+        settings = AnkiNoteSettings.read(self._settings_repo)
+        fields = settings.fields
         plan = [(candidate, self._cloze_builder.effective(candidate)) for candidate in pending]
         if any(cloze is None for _, cloze in plan):
-            self._ensure_recognition_type(note_type, fields)
+            self._ensure_recognition_type(settings)
         if any(cloze is not None for _, cloze in plan):
-            self._ensure_cloze_type()
+            self._ensure_cloze_type(settings)
         self._connector.ensure_deck(deck_name)
 
         media = NoteMedia(self._connector)
         recognition = RecognitionNoteBuilder(fields, media)
-        cloze_notes = ClozeNoteBuilder(self._cloze_builder, media)
-        recognition_target = _NoteTarget(note_type, fields.target)
-        cloze_target = _NoteTarget(CLOZE_NOTE_TYPE, CLOZE_FIELD_TARGET)
+        cloze_notes = ClozeNoteBuilder(self._cloze_builder, fields, media)
+        recognition_target = _NoteTarget(settings.recognition_note_type, fields.target)
+        cloze_target = _NoteTarget(settings.cloze_note_type, fields.target)
 
         tally = _Tally()
         for candidate, cloze in plan:
@@ -217,59 +203,31 @@ class SyncToAnkiUseCase:
         self._anki_sync_repo.mark_synced(candidate.id, note_id)  # type: ignore[arg-type]
         self._known_word_repo.add(candidate.lemma, candidate.pos)
 
-    def _ensure_recognition_type(self, note_type: str, fields: AnkiFieldNames) -> None:
+    def _ensure_recognition_type(self, settings: AnkiNoteSettings) -> None:
         """Only the app's own note type gets its templates; a user's own type is left as is."""
-        if note_type != _DEFAULT_NOTE_TYPE:
+        if settings.recognition_note_type != DEFAULT_RECOGNITION_NOTE_TYPE:
             return
-        field_map = build_anki_field_map({
-            "anki_field_sentence": fields.sentence,
-            "anki_field_target_word": fields.target,
-            "anki_field_meaning": fields.meaning,
-            "anki_field_ipa": fields.ipa,
-            "anki_field_image": fields.image,
-            "anki_field_audio": fields.audio,
-            "anki_field_translation": fields.translation,
-            "anki_field_synonyms": fields.synonyms,
-            "anki_field_examples": fields.examples,
-        })
-        templates = self._template_renderer.render_all(field_map)
+        templates = self._template_renderer.render_recognition(settings.fields)
         self._connector.ensure_note_type(
-            note_type,
-            fields.in_order(),
-            front_template=templates["front"],
-            back_template=templates["back"],
-            css=templates["css"],
+            settings.recognition_note_type,
+            settings.fields.recognition_fields(),
+            front_template=templates.front,
+            back_template=templates.back,
+            css=templates.css,
         )
 
-    def _ensure_cloze_type(self) -> None:
-        templates = self._template_renderer.render_cloze()
+    def _ensure_cloze_type(self, settings: AnkiNoteSettings) -> None:
+        """Only the app's own note type gets its templates; a user's own type is left as is."""
+        if settings.cloze_note_type != DEFAULT_CLOZE_NOTE_TYPE:
+            return
+        templates = self._template_renderer.render_cloze(settings.fields)
         self._connector.ensure_note_type(
-            CLOZE_NOTE_TYPE,
-            list(CLOZE_FIELDS),
-            front_template=templates["front"],
-            back_template=templates["back"],
-            css=templates["css"],
+            settings.cloze_note_type,
+            settings.fields.cloze_fields(),
+            front_template=templates.front,
+            back_template=templates.back,
+            css=templates.css,
             is_cloze=True,
-        )
-
-    def _field_names(self) -> AnkiFieldNames:
-        return AnkiFieldNames(
-            sentence=self._setting("anki_field_sentence", _DEFAULT_FIELD_SENTENCE),
-            target=self._setting("anki_field_target_word", _DEFAULT_FIELD_TARGET),
-            meaning=self._setting("anki_field_meaning", _DEFAULT_FIELD_MEANING),
-            ipa=self._setting("anki_field_ipa", _DEFAULT_FIELD_IPA),
-            translation=self._setting("anki_field_translation", _DEFAULT_FIELD_TRANSLATION),
-            synonyms=self._setting("anki_field_synonyms", _DEFAULT_FIELD_SYNONYMS),
-            examples=self._setting("anki_field_examples", _DEFAULT_FIELD_EXAMPLES),
-            image=self._setting("anki_field_image", _DEFAULT_FIELD_IMAGE),
-            audio=self._setting("anki_field_audio", _DEFAULT_FIELD_AUDIO),
-            audio_target_us=self._setting(
-                "anki_field_audio_target_us", _DEFAULT_FIELD_AUDIO_TARGET_US
-            ),
-            audio_target_uk=self._setting(
-                "anki_field_audio_target_uk", _DEFAULT_FIELD_AUDIO_TARGET_UK
-            ),
-            audio_tts=self._setting("anki_field_audio_tts", _DEFAULT_FIELD_AUDIO_TTS),
         )
 
     def _setting(self, key: str, default: str) -> str:

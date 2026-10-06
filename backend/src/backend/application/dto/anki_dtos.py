@@ -86,8 +86,14 @@ class CreateNoteTypeResponseDTO(BaseModel):
 
 
 class AnkiTemplatesDTO(BaseModel):
-    """Rendered Anki card templates with user field names substituted."""
+    """Rendered card templates of both note types with user field names substituted.
+
+    `front`/`back` belong to the recognition note type, `cloze_front`/`cloze_back`
+    to the cloze one; both share `css`.
+    """
 
     front: str
     back: str
+    cloze_front: str
+    cloze_back: str
     css: str

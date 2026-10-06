@@ -163,6 +163,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.generate_topic_targets import GenerateTopicTargetsUseCase
     from backend.application.use_cases.generate_tts import GenerateTTSUseCase
     from backend.application.use_cases.get_ai_usage_stats import GetAIUsageStatsUseCase
+    from backend.application.use_cases.get_anki_templates import GetAnkiTemplatesUseCase
     from backend.application.use_cases.get_generation_status import GetGenerationStatusUseCase
     from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
     from backend.application.use_cases.get_queue_snapshot import GetQueueSnapshotUseCase
@@ -796,8 +797,12 @@ class Container:
     def candidate_media_repository(self, session: Session) -> SqlaCandidateMediaRepository:
         return SqlaCandidateMediaRepository(session)
 
-    def anki_template_renderer(self) -> AnkiTemplateRenderer:
-        return self._anki_template_renderer
+    def get_anki_templates_use_case(self, session: Session) -> GetAnkiTemplatesUseCase:
+        from backend.application.use_cases.get_anki_templates import GetAnkiTemplatesUseCase
+        return GetAnkiTemplatesUseCase(
+            settings_repo=SqlaSettingsRepository(session),
+            template_renderer=self._anki_template_renderer,
+        )
 
     def candidate_pronunciation_repository(
         self, session: Session,
