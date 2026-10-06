@@ -100,3 +100,43 @@ class TestRegexSrtParser:
         srt = "1\n00:00:01,000 --> 00:00:03,000\n(AUDIENCE LAUGHING)"
         result = self.parser.parse(srt)
         assert result == ""
+
+    def test_removes_bracketed_sound_only_blocks(self) -> None:
+        srt = (
+            "1\n00:00:01,000 --> 00:00:03,000\n[sighs]\n\n"
+            "2\n00:00:04,000 --> 00:00:06,000\n- [alarm ringing]\n\n"
+            "3\n00:00:07,000 --> 00:00:09,000\nHe really looks up to you, you know."
+        )
+        assert self.parser.parse(srt) == "He really looks up to you, you know."
+
+    def test_removes_bracketed_speaker_labels(self) -> None:
+        srt = (
+            "1\n00:00:01,000 --> 00:00:03,000\n"
+            "[Angstrom Levy] <i>There's\nan infinite number of dimensions.</i>"
+        )
+        assert self.parser.parse(srt) == (
+            "There's\nan infinite number of dimensions."
+        )
+
+    def test_removes_inline_annotations(self) -> None:
+        srt = (
+            "1\n00:00:01,000 --> 00:00:03,000\nBut... [sighs]\n\n"
+            "2\n00:00:04,000 --> 00:00:06,000\n[Cecil sighs] Wait.\n\n"
+            "3\n00:00:07,000 --> 00:00:09,000\nI told you (chuckles) twice."
+        )
+        assert self.parser.parse(srt) == "But...\nWait.\nI told you twice."
+
+    def test_removes_annotation_spanning_lines(self) -> None:
+        srt = (
+            "1\n00:00:01,000 --> 00:00:03,000\n"
+            "[dramatic music\nplaying] National Archives building."
+        )
+        assert self.parser.parse(srt) == "National Archives building."
+
+    def test_removes_multiword_speaker_labels(self) -> None:
+        srt = "1\n00:00:01,000 --> 00:00:03,000\nBLACK SAMSON: Get down!"
+        assert self.parser.parse(srt) == "Get down!"
+
+    def test_keeps_dialogue_dash_lines(self) -> None:
+        srt = "1\n00:00:01,000 --> 00:00:03,000\n- [gasps] Hi.\n- Hello."
+        assert self.parser.parse(srt) == "- Hi.\n- Hello."

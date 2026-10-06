@@ -24,11 +24,17 @@ _POSITION_TAG_RE = re.compile(r"\{[^}]*\}")
 # HTML tags (remove tags, keep content)
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 
-# Sound description lines: (SOUND EFFECT) or - (Sound effect)
-_SOUND_DESC_RE = re.compile(r"^\s*[-–]?\s*\([A-Za-z ,']+\)\s*$")
+# SDH annotations — sound descriptions and speaker names: [sighs], (MUSIC PLAYING),
+# [Angstrom Levy]. Applied to the whole block, so an annotation may span lines.
+_ANNOTATION_RE = re.compile(r"\[[^\[\]]*\]|\([^()]*\)")
 
-# Speaker labels at start of line: "JOE: " or "BOY: " (2-15 chars, capitals only, no spaces)
-_SPEAKER_LABEL_RE = re.compile(r"^[A-Z]{2,15}:\s*")
+# Speaker labels at start of line, after an optional dialogue dash: "JOE: ", "- BLACK SAMSON: "
+_SPEAKER_LABEL_RE = re.compile(r"^([-–]\s*)?[A-Z][A-Z0-9'.]+(?: [A-Z0-9'.]+){0,3}:\s*")
+
+_MULTI_SPACES_RE = re.compile(r"[ \t]{2,}")
+
+# A line with nothing to read left, e.g. a dialogue dash whose annotation was removed
+_NO_WORDS_RE = re.compile(r"^[^\w]*$")
 
 # Credits patterns
 _CREDITS_RE = re.compile(
@@ -61,7 +67,7 @@ class RegexSrtParser(SourceParser, StructuredSrtParser):
             lines = block.splitlines()
             start_ms: int | None = None
             end_ms: int | None = None
-            block_lines: list[str] = []
+            text_lines: list[str] = []
             skip_block = False
 
             for line in lines:
@@ -81,15 +87,9 @@ class RegexSrtParser(SourceParser, StructuredSrtParser):
 
                 line = _POSITION_TAG_RE.sub("", line)
                 line = _HTML_TAG_RE.sub("", line)
+                text_lines.append(line)
 
-                if _SOUND_DESC_RE.match(line):
-                    continue
-
-                line = _SPEAKER_LABEL_RE.sub("", line)
-
-                stripped = line.strip()
-                if stripped:
-                    block_lines.append(stripped)
+            block_lines = self._strip_annotations(text_lines)
 
             if skip_block or not block_lines or start_ms is None or end_ms is None:
                 continue
@@ -115,3 +115,14 @@ class RegexSrtParser(SourceParser, StructuredSrtParser):
                 char_end=min(last.char_end, len(final_text)),
             )
         return ParsedSrt(text=final_text, blocks=tuple(blocks))
+
+    @staticmethod
+    def _strip_annotations(text_lines: list[str]) -> list[str]:
+        text = _ANNOTATION_RE.sub("", "\n".join(text_lines))
+        result: list[str] = []
+        for line in text.splitlines():
+            line = _SPEAKER_LABEL_RE.sub(r"\1", line.strip())
+            line = _MULTI_SPACES_RE.sub(" ", line).strip()
+            if not _NO_WORDS_RE.match(line):
+                result.append(line)
+        return result
