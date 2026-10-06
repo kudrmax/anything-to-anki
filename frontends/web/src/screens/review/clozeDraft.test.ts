@@ -8,8 +8,7 @@ const PREVIEW: ClozePreview = {
   hidden_word_indices: [1, 2],
   hint_kind: 'none',
   custom_hint: null,
-  front: 'She […] smoking.',
-  hint: '',
+  front: [{ text: 'She ', is_gap: false }, { text: '[…]', is_gap: true }, { text: ' smoking.', is_gap: false }],
   available_hints: ['none'],
   can_save: true,
 }

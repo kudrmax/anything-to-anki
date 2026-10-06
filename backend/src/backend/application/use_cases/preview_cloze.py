@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from backend.application.constants import CLOZE_DEFAULT_HINT_SETTING, DEFAULT_CLOZE_HINT
-from backend.application.dto.cloze_dtos import ClozePreviewDTO, ClozeWordDTO
+from backend.application.dto.cloze_dtos import ClozeFrontPartDTO, ClozePreviewDTO, ClozeWordDTO
 from backend.domain.exceptions import CandidateNotFoundError
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
@@ -54,6 +54,7 @@ class PreviewClozeUseCase:
         custom = request.custom_hint
         if custom is None and saved is not None:
             custom = saved.custom_hint
+        hints = self._builder.gap_hints(kind, candidate.meaning, phrase, indices, custom)
 
         return ClozePreviewDTO(
             phrase=phrase,
@@ -61,8 +62,10 @@ class PreviewClozeUseCase:
             hidden_word_indices=list(indices),
             hint_kind=kind.value,
             custom_hint=custom,
-            front=self._builder.front_preview(phrase, indices),
-            hint=self._builder.hint_text(kind, candidate.meaning, hidden, custom),
+            front=[
+                ClozeFrontPartDTO(text=part.text, is_gap=part.is_gap)
+                for part in self._builder.front(phrase, indices, hints)
+            ],
             available_hints=[k.value for k in available],
             can_save=self._can_save(indices, kind, available, custom),
         )

@@ -15,6 +15,3 @@ const options = <T extends ClozeHintKind>(kinds: T[]) => kinds.map(value => ({ v
 
 export const CLOZE_HINT_OPTIONS = options(HINT_KINDS)
 export const CLOZE_DEFAULT_HINT_OPTIONS = options(DEFAULT_HINT_KINDS)
-
-/** Пропуск на лицевой стороне, которую рисует backend. */
-export const CLOZE_GAP = '[…]'

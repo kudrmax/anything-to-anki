@@ -44,7 +44,7 @@ class TestCheck:
     def test_ready_types_need_no_fix(self) -> None:
         anki = _Anki({
             "AnythingToAnkiType": list(RECOGNITION_FIELDS),
-            "AnythingToAnkiCloze": [*RECOGNITION_FIELDS, "Hint"],
+            "AnythingToAnkiCloze": list(RECOGNITION_FIELDS),
         })
 
         checks = _use_case(anki, {}).check()

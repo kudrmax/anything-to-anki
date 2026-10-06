@@ -12,7 +12,6 @@ DEFAULT_RECOGNITION_NOTE_TYPE = "AnythingToAnkiType"
 DEFAULT_CLOZE_NOTE_TYPE = "AnythingToAnkiCloze"
 
 FIELD_SENTENCE_SETTING = "anki_field_sentence"
-FIELD_HINT_SETTING = "anki_field_hint"
 FIELD_TARGET_SETTING = "anki_field_target_word"
 FIELD_MEANING_SETTING = "anki_field_meaning"
 FIELD_IPA_SETTING = "anki_field_ipa"
@@ -28,7 +27,6 @@ FIELD_AUDIO_TTS_SETTING = "anki_field_audio_tts"
 
 ANKI_FIELD_DEFAULTS: dict[str, str] = {
     FIELD_SENTENCE_SETTING: "Sentence",
-    FIELD_HINT_SETTING: "Hint",
     FIELD_TARGET_SETTING: "Target",
     FIELD_MEANING_SETTING: "Meaning",
     FIELD_IPA_SETTING: "IPA",
@@ -53,14 +51,13 @@ ANKI_NOTE_TYPE_DEFAULTS: dict[str, str] = {
 class AnkiFieldNames:
     """Names of the note fields each part of a card goes to; an empty name leaves the part out.
 
-    Both note types share them. The cloze type puts the phrase with its gap
-    into the same sentence field and has one field of its own, the hint.
+    Both note types share them. The cloze type puts the phrase with its gaps
+    into the same sentence field; the hint lives inside each gap.
     `image` is the video frame of the phrase, `meaning_image` a picture of
     the target that shows its meaning.
     """
 
     sentence: str
-    hint: str
     target: str
     meaning: str
     ipa: str
@@ -82,7 +79,6 @@ class AnkiFieldNames:
 
         return AnkiFieldNames(
             sentence=name(FIELD_SENTENCE_SETTING),
-            hint=name(FIELD_HINT_SETTING),
             target=name(FIELD_TARGET_SETTING),
             meaning=name(FIELD_MEANING_SETTING),
             ipa=name(FIELD_IPA_SETTING),
@@ -103,13 +99,12 @@ class AnkiFieldNames:
 
     def cloze_fields(self) -> list[str]:
         """Field names in the order a newly created cloze note type lists them."""
-        return _present([self.sentence, self.hint, *self._content_fields()])
+        return _present([self.sentence, *self._content_fields()])
 
     def placeholders(self) -> dict[str, str]:
         """Field name for each `%FIELD_X%` placeholder of the card templates."""
         return {
             "FIELD_SENTENCE": self.sentence,
-            "FIELD_HINT": self.hint,
             "FIELD_TARGET": self.target,
             "FIELD_MEANING": self.meaning,
             "FIELD_IPA": self.ipa,

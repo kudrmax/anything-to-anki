@@ -135,6 +135,5 @@
 .clozeHints { align-self: flex-start; background: var(--bg); }
 .clozeFront { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx); }
 .clozeBlank { color: var(--ac); font-weight: var(--fw-m); }
-.clozeFrontHint { color: var(--tx3); }
 .clozeActions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--s3); }
 .clozeTip { margin-right: auto; font-size: var(--fs-s); color: var(--tx3); }

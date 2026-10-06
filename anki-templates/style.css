@@ -35,19 +35,13 @@
   border-radius: 4px;
 }
 
-/* Cloze gap and its hint */
+/* Cloze gap with its hint */
 .cloze {
   font-weight: 800;
   background: #fed7aa;
   color: #c2410c;
   padding: 1px 5px;
   border-radius: 4px;
-}
-
-.hint {
-  color: #9a7b5c;
-  font-size: 15px;
-  margin-top: 6px;
 }
 
 hr {

@@ -28,7 +28,6 @@ const AI_MODELS = [
 ]
 const FIELD_MAPPING: { key: keyof Settings; label: string }[] = [
   { key: 'anki_field_sentence', label: 'Sentence' },
-  { key: 'anki_field_hint', label: 'Cloze hint' },
   { key: 'anki_field_target_word', label: 'Target word' },
   { key: 'anki_field_meaning', label: 'Meaning' },
   { key: 'anki_field_ipa', label: 'IPA' },
@@ -116,7 +115,7 @@ export function Anki({ store, form }: SectionProps) {
       <DividerRow label="Note type" hint="«AnythingToAnkiType» is created automatically. Use your own type for custom fields.">
         <div className={css.control}><Field value={form.anki_note_type} onChange={e => store.setField('anki_note_type', e.target.value)} /></div>
       </DividerRow>
-      <DividerRow label="Cloze note type" hint="«AnythingToAnkiCloze» is created automatically. Your own type must be a cloze type with the same fields plus the hint.">
+      <DividerRow label="Cloze note type" hint="«AnythingToAnkiCloze» is created automatically. Your own type must be a cloze type with the same fields.">
         <div className={css.control}><Field value={form.anki_cloze_note_type} onChange={e => store.setField('anki_cloze_note_type', e.target.value)} /></div>
       </DividerRow>
       <Label>Field mapping</Label>

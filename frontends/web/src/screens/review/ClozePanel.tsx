@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import type { ClozePreview } from '@/api/types'
-import { CLOZE_GAP, CLOZE_HINT_OPTIONS } from '@/lib/clozeHints'
+import { CLOZE_HINT_OPTIONS } from '@/lib/clozeHints'
 import { clozePanelKey } from '@/lib/clozeKeys'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { Button, Field, Segmented, Text } from '@/ui'
@@ -8,16 +8,11 @@ import type { ClozeEditor } from './useClozeEditor'
 import css from './review.module.css'
 
 function AnkiFront({ preview }: { preview: ClozePreview }) {
-  const parts = preview.front.split(CLOZE_GAP)
   return (
     <p className={css.clozeFront}>
-      {parts.map((part, i) => (
-        <span key={i}>
-          {i > 0 && <span className={css.clozeBlank}>{CLOZE_GAP}</span>}
-          {part}
-        </span>
+      {preview.front.map((part, i) => (
+        <span key={i} className={part.is_gap ? css.clozeBlank : undefined}>{part.text}</span>
       ))}
-      {preview.hint && <span className={css.clozeFrontHint}> ({preview.hint})</span>}
     </p>
   )
 }

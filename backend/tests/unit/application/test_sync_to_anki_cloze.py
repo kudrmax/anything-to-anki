@@ -122,8 +122,8 @@ class TestSyncToAnkiCloze:
 
         [(model, note)] = self._added()
         assert model == "AnythingToAnkiCloze"
-        assert note["Sentence"] == "She finally gave {{c1::up}} smoking last year."
-        assert note["Hint"] == "бросить"
+        assert note["Sentence"] == "She finally gave {{c1::up::бросить}} smoking last year."
+        assert "Hint" not in note
         assert note["Target"] == "give up"
         assert note["IPA"] == "/ɡɪv ʌp/"
         assert note["Translation"] == "бросить"
@@ -182,7 +182,7 @@ class TestSyncToAnkiCloze:
 
         [(model, note)] = self._added()
         assert model == "AnythingToAnkiCloze"
-        assert note["Sentence"] == "She finally {{c1::gave up}} smoking last year."
+        assert note["Sentence"] == "She finally {{c1::gave up::бросить}} smoking last year."
 
     def test_unavailable_hint_is_not_exported(self) -> None:
         cloze = replace(_cloze(1, indices=(2, 3)), hint_kind=ClozeHintKind.SYNONYMS)
@@ -193,7 +193,7 @@ class TestSyncToAnkiCloze:
         self._sync(candidate)
 
         [(_, note)] = self._added()
-        assert note["Hint"] == ""
+        assert note["Sentence"] == "She finally {{c1::gave up}} smoking last year."
 
     def test_cloze_goes_to_the_users_cloze_type_and_field_names(self) -> None:
         names = {"anki_cloze_note_type": "Main Cloze", "anki_field_sentence": "Phrase"}
@@ -203,5 +203,5 @@ class TestSyncToAnkiCloze:
 
         [(model, note)] = self._added()
         assert model == "Main Cloze"
-        assert note["Phrase"] == "She finally gave {{c1::up}} smoking last year."
+        assert note["Phrase"] == "She finally gave {{c1::up::бросить}} smoking last year."
         assert self._ensured_models() == []

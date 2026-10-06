@@ -4,7 +4,12 @@ from dataclasses import replace
 from unittest.mock import MagicMock
 
 import pytest
-from backend.application.dto.cloze_dtos import ClozeWordDTO, PreviewClozeRequest
+from backend.application.dto.cloze_dtos import (
+    ClozeFrontPartDTO,
+    ClozePreviewDTO,
+    ClozeWordDTO,
+    PreviewClozeRequest,
+)
 from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
@@ -15,6 +20,14 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
 pytestmark = pytest.mark.unit
+
+
+def _front(preview: ClozePreviewDTO) -> str:
+    return "".join(part.text for part in preview.front)
+
+
+def _gaps(preview: ClozePreviewDTO) -> list[str]:
+    return [part.text for part in preview.front if part.is_gap]
 
 GIVE_UP = "She finally gave up smoking last year."
 
@@ -58,8 +71,8 @@ class TestPreviewCloze:
         preview = self.use_case.execute(1, PreviewClozeRequest())
         assert preview.hidden_word_indices == [2, 3]
         assert preview.hint_kind == "first_letter"
-        assert preview.hint == "g… u…"
-        assert preview.front == "She finally […] smoking last year."
+        assert _front(preview) == "She finally [g… u…] smoking last year."
+        assert _gaps(preview) == ["[g… u…]"]
         assert preview.words[2] == ClozeWordDTO(index=2, text="gave", is_target=True)
         assert preview.words[0] == ClozeWordDTO(index=0, text="She", is_target=False)
         assert preview.available_hints == [
@@ -78,20 +91,20 @@ class TestPreviewCloze:
         self.candidate_repo.get_by_id.return_value = _candidate(with_meaning=False)
         preview = self.use_case.execute(1, PreviewClozeRequest())
         assert preview.hint_kind == "none"
-        assert preview.hint == ""
+        assert _gaps(preview) == ["[…]"]
         assert "translation" not in preview.available_hints
 
     def test_preview_uses_request_indices(self) -> None:
         preview = self.use_case.execute(1, PreviewClozeRequest(hidden_word_indices=[3]))
         assert preview.hidden_word_indices == [3]
-        assert preview.front == "She finally gave […] smoking last year."
+        assert _front(preview) == "She finally gave […] smoking last year."
 
     def test_preview_uses_request_hint_and_custom_text(self) -> None:
         preview = self.use_case.execute(
             1, PreviewClozeRequest(hint_kind="custom", custom_hint=" stop it "),
         )
         assert preview.hint_kind == "custom"
-        assert preview.hint == "stop it"
+        assert _gaps(preview) == ["[stop it]"]
         assert preview.custom_hint == " stop it "
 
     def test_preview_uses_stored_markup(self) -> None:
@@ -102,7 +115,7 @@ class TestPreviewCloze:
         assert preview.hidden_word_indices == [4]
         assert preview.hint_kind == "custom"
         assert preview.custom_hint == "a habit"
-        assert preview.hint == "a habit"
+        assert _gaps(preview) == ["[a habit]"]
 
     def test_preview_rebuilds_stale_markup(self) -> None:
         self.candidate_repo.get_by_id.return_value = _candidate(
@@ -116,7 +129,7 @@ class TestPreviewCloze:
     def test_preview_allows_empty_indices(self) -> None:
         preview = self.use_case.execute(1, PreviewClozeRequest(hidden_word_indices=[]))
         assert preview.hidden_word_indices == []
-        assert preview.front == GIVE_UP
+        assert preview.front == [ClozeFrontPartDTO(text=GIVE_UP, is_gap=False)]
         assert preview.can_save is False
 
     def test_preview_echoes_the_card_phrase(self) -> None:
