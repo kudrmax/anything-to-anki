@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+# Claude CLI aliases: each resolves to the latest model of its family.
 _MODEL_MAP: dict[str, str] = {
-    "haiku": "claude-haiku-4-5-20251001",
-    "sonnet": "claude-sonnet-4-6",
-    "opus": "claude-opus-4-6",
+    "haiku": "haiku",
+    "sonnet": "sonnet",
+    "opus": "opus",
 }
+_DEFAULT_MODEL: str = "sonnet"
 
 
 def model_id_for(key: str) -> str:
-    """Map a settings key like 'sonnet' to the full model ID."""
-    return _MODEL_MAP.get(key, "claude-sonnet-4-6")
+    """Map a settings key like 'sonnet' to the model the Claude CLI is asked for."""
+    return _MODEL_MAP.get(key, _DEFAULT_MODEL)

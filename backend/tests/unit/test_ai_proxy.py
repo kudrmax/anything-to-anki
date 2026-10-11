@@ -51,3 +51,18 @@ async def test_error_names_the_real_cause(monkeypatch: pytest.MonkeyPatch) -> No
     message = str(exc_info.value)
     assert AUTH_FAILURE in message
     assert SDK_WRAPPER_ERROR not in message
+
+
+def test_usage_names_the_model_an_alias_resolved_to() -> None:
+    usage = ai_proxy.UsageInfo.from_sdk(
+        {"output_tokens": 50},
+        {
+            "claude-haiku-5-5": {"outputTokens": 3},
+            "claude-sonnet-5-5": {"outputTokens": 50},
+        },
+    )
+    assert usage.model == "claude-sonnet-5-5"
+
+
+def test_usage_without_model_usage_names_no_model() -> None:
+    assert ai_proxy.UsageInfo.from_sdk({}, None).model is None

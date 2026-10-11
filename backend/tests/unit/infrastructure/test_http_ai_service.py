@@ -331,6 +331,16 @@ class TestUsageRecording:
         assert record.duration_ms >= 0
         assert record.created_at.tzinfo is not None
 
+    def test_records_the_model_the_proxy_resolved_an_alias_to(self) -> None:
+        recorder = FakeUsageRecorder()
+        svc = HttpAIService(url="http://x", model="sonnet", usage_recorder=recorder)
+        payload = {**_MEANING_PAYLOAD, "usage": {"input_tokens": 1, "model": "claude-sonnet-5-5"}}
+        with patch(_MODULE, return_value=_ok_response(payload)) as post:
+            svc.generate_meaning("s", "u")
+
+        assert post.call_args.kwargs["json"]["model"] == "sonnet"
+        assert recorder.records[0].model == "claude-sonnet-5-5"
+
     def test_follow_up_is_recorded_as_its_own_feature(self) -> None:
         recorder = FakeUsageRecorder()
         svc = HttpAIService(url="http://x", model="m", usage_recorder=recorder)
