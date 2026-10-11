@@ -95,6 +95,13 @@ class HttpAIService(AIService):
             cache_creation_tokens=raw.get("cache_creation_tokens", 0),
         )
 
+    @staticmethod
+    def _parse_model(data: dict[str, Any]) -> str | None:
+        """The full model ID the proxy reports, since the requested one may be an alias."""
+        raw = data.get("usage") or {}
+        model: str | None = raw.get("model")
+        return model
+
     @classmethod
     def _parse_meaning(cls, data: dict[str, Any]) -> GenerationResult:
         return GenerationResult(
@@ -147,6 +154,7 @@ class HttpAIService(AIService):
         logger.info("http_ai_service: request (endpoint=%s, model=%s)", endpoint, self._model)
         started = time.monotonic()
         usage = TokenUsage()
+        model = self._model
         item_count = 0
         succeeded = False
         try:
@@ -162,6 +170,7 @@ class HttpAIService(AIService):
             response.raise_for_status()
             data: dict[str, Any] = response.json()
             usage = self._parse_usage(data)
+            model = self._parse_model(data) or self._model
             result = parse(data)
             item_count = len(result) if isinstance(result, list) else 1
             succeeded = True
@@ -186,11 +195,12 @@ class HttpAIService(AIService):
             logger.exception("http_ai_service: unexpected error (endpoint=%s)", endpoint)
             raise AIServiceError(str(e)) from e
         finally:
-            self._record(feature, usage, item_count, started, succeeded)
+            self._record(feature, model, usage, item_count, started, succeeded)
 
     def _record(
         self,
         feature: AIFeature,
+        model: str,
         usage: TokenUsage,
         item_count: int,
         started: float,
@@ -198,7 +208,7 @@ class HttpAIService(AIService):
     ) -> None:
         record = AIUsageRecord(
             feature=feature,
-            model=self._model,
+            model=model,
             usage=usage,
             item_count=item_count,
             duration_ms=round((time.monotonic() - started) * MS_PER_SECOND),

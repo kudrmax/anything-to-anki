@@ -150,6 +150,7 @@ class UsageInfo(BaseModel):
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_creation_tokens: int = 0
+    model: str | None = None
 
     @property
     def total(self) -> int:
@@ -159,13 +160,23 @@ class UsageInfo(BaseModel):
         )
 
     @classmethod
-    def from_sdk(cls, usage: dict[str, Any]) -> UsageInfo:
+    def from_sdk(
+        cls, usage: dict[str, Any], model_usage: dict[str, Any] | None = None,
+    ) -> UsageInfo:
         return cls(
             input_tokens=usage.get("input_tokens") or 0,
             output_tokens=usage.get("output_tokens") or 0,
             cache_read_tokens=usage.get("cache_read_input_tokens") or 0,
             cache_creation_tokens=usage.get("cache_creation_input_tokens") or 0,
+            model=_answering_model(model_usage or {}),
         )
+
+
+def _answering_model(model_usage: dict[str, Any]) -> str | None:
+    """The full model ID an alias like 'sonnet' resolved to: the one that wrote the most."""
+    if not model_usage:
+        return None
+    return max(model_usage, key=lambda m: model_usage[m].get("outputTokens") or 0)
 
 
 async def _generate_structured(
@@ -210,7 +221,7 @@ async def _generate_structured(
             elif isinstance(message, ResultMessage):
                 result_subtype = message.subtype
                 structured_output = message.structured_output
-                usage = UsageInfo.from_sdk(message.usage or {})
+                usage = UsageInfo.from_sdk(message.usage or {}, message.model_usage)
 
                 if message.is_error or message.errors:
                     logger.error(
