@@ -84,6 +84,7 @@
   --control-w: calc(var(--h) * 7);
   --label-w: calc(var(--h) * 2.3);
   --trace-max: calc(var(--h) * 7);
+  --book-chapters-max: calc(var(--h) * 8);
   --header-lead-min: calc(var(--h) * 8);
   --source-max: calc(100dvh - var(--h) * 4);
   --icon-stroke: 1.75;

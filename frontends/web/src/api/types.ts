@@ -6,7 +6,7 @@ export type SourceStatus =
   | 'partially_reviewed'
   | 'reviewed'
 
-export type InputMethod = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file' | 'video_file' | 'youtube_url' | 'topic_query' | 'phrase_added'
+export type InputMethod = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file' | 'video_file' | 'book_file' | 'youtube_url' | 'topic_query' | 'phrase_added'
 export type ContentType = 'text' | 'lyrics' | 'video' | 'topic' | 'phrases'
 export type SourceType = InputMethod
 
@@ -306,6 +306,8 @@ export interface Settings {
   /** Сколько картинок берётся у каждого источника для одного target'а. */
   images_per_source: number
   cloze_default_hint: ClozeDefaultHint
+  /** Как называется источник из главы книги, например «{{book_name}} ch{{n}}». */
+  book_chapter_title_template: string
 }
 
 export interface FrequentWordThresholdOption {
@@ -382,6 +384,12 @@ export interface ReprocessStats {
   skip_count: number
   pending_count: number
   has_active_jobs: boolean
+}
+
+export interface BookChapterPreview {
+  /** Название источника, которым станет глава. */
+  title: string
+  word_count: number
 }
 
 export interface SubtitleTrack {

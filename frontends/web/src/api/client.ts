@@ -33,6 +33,7 @@ import type {
   Stats,
   StoredCandidate,
   SubtitleTrack,
+  BookChapterPreview,
   AudioTrack,
   SyncResult,
   UsagePeriod,
@@ -260,6 +261,7 @@ export const api = {
     title: string | undefined,
     subtitleTrackIndex: number | undefined,
     audioTrackIndex: number | undefined,
+    splitBook?: boolean,
   ): Promise<{
     id?: number
     status: string
@@ -267,12 +269,16 @@ export const api = {
     audio_tracks?: AudioTrack[]
     file_path?: string
     srt_path?: string
+    book_name?: string
+    word_count?: number
+    chapters?: BookChapterPreview[]
   }> => {
     const body: Record<string, unknown> = { file_path: filePath }
     if (srtPath) body.srt_path = srtPath
     if (title) body.title = title
     if (subtitleTrackIndex !== undefined) body.subtitle_track_index = subtitleTrackIndex
     if (audioTrackIndex !== undefined) body.audio_track_index = audioTrackIndex
+    if (splitBook !== undefined) body.split_book = splitBook
     const res = await fetch(`${BASE}/sources/file`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

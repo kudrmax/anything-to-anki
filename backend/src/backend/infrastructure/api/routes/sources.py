@@ -20,6 +20,7 @@ from backend.application.dto.source_dtos import (  # noqa: TC001
     UpdateTitleRequest,
 )
 from backend.domain.exceptions import (
+    BookReadError,
     CollectionNotFoundError,
     InvalidPhraseError,
     PermanentSourceError,
@@ -279,7 +280,8 @@ def create_file_source(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, Any]:
-    from backend.application.dto.video_dtos import TrackSelectionRequired
+    from backend.application.dto.book_dtos import BookSourcesCreated, BookSplitRequired
+    from backend.application.dto.video_dtos import TrackSelectionRequired, VideoSourceCreated
     from backend.domain.value_objects.input_method import InputMethod
 
     resolver = container.video_path_resolver
@@ -302,10 +304,11 @@ def create_file_source(
             title=request.title,
             subtitle_track_index=request.subtitle_track_index,
             audio_track_index=request.audio_track_index,
+            split_book=request.split_book,
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except ValueError as e:
+    except (ValueError, BookReadError) as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     if isinstance(result, TrackSelectionRequired):
@@ -333,10 +336,21 @@ def create_file_source(
                 for t in result.audio_tracks
             ],
         }
+    if isinstance(result, BookSplitRequired):
+        return {
+            "status": "book_split_required",
+            "file_path": request.file_path,
+            **result.model_dump(),
+        }
 
-    # Both Source and VideoSourceCreated
-    source_id = result.source_id if hasattr(result, "source_id") else result.id
     session.commit()
+    if isinstance(result, BookSourcesCreated):
+        return {
+            "id": result.source_ids[0],
+            "status": "new",
+            **result.model_dump(),
+        }
+    source_id = result.source_id if isinstance(result, VideoSourceCreated) else result.id
     return {"id": source_id, "status": "new"}
 
 

@@ -13,6 +13,7 @@ from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.assign_source_collection import AssignSourceToCollectionUseCase
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
+from backend.application.use_cases.create_book_sources import CreateBookSourcesUseCase
 from backend.application.use_cases.create_collection import CreateCollectionUseCase
 from backend.application.use_cases.create_source import CreateSourceUseCase
 from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
@@ -71,6 +72,7 @@ from backend.infrastructure.adapters.dict_cache.usage_source import DictCacheUsa
 from backend.infrastructure.adapters.dict_cache.word_corpus_provider import (
     DictCacheWordCorpusProvider,
 )
+from backend.infrastructure.adapters.epub_book_reader import EpubBookReader
 from backend.infrastructure.adapters.http_ai_service import HttpAIService
 from backend.infrastructure.adapters.http_fetch import APP_USER_AGENT, http_get
 from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
@@ -261,6 +263,7 @@ class Container:
         self._picture_encoder = PillowCardPictureEncoder()
         self._media_extractor = FfmpegMediaExtractor(self._picture_encoder)
         self._file_reader = LocalFileReader()
+        self._book_reader = EpubBookReader()
 
         from backend.infrastructure.adapters.ytdlp_subtitle_fetcher import YtDlpSubtitleFetcher
         from backend.infrastructure.adapters.ytdlp_video_downloader import YtDlpVideoDownloader
@@ -351,6 +354,15 @@ class Container:
             audio_track_lister=self._subtitle_extractor,
             file_reader=self._file_reader,
             video_path_resolver=self._video_path_resolver,
+            book_sources=self.create_book_sources_use_case(session),
+        )
+
+    def create_book_sources_use_case(self, session: Session) -> CreateBookSourcesUseCase:
+        return CreateBookSourcesUseCase(
+            source_repo=SqlaSourceRepository(session),
+            collection_repo=SqlaCollectionRepository(session),
+            settings_repo=SqlaSettingsRepository(session),
+            book_reader=self._book_reader,
         )
 
     def rename_source_use_case(self, session: Session) -> RenameSourceUseCase:

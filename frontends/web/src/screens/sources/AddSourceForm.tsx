@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { AudioTrack, SourceSummary, SourceType, SubtitleTrack } from '@/api/types'
+import type { AudioTrack, BookChapterPreview, SourceSummary, SourceType, SubtitleTrack } from '@/api/types'
 import { nativeHost } from '@/lib/nativeHost'
 import { detectedFileType, detectedUrlType, isVideoPath, withDroppedPaths } from '@/lib/text/sourceInput'
 import { pickedWords, toggled } from '@/lib/text/words'
 import { Button, Field, Label, Segmented, Stack, Tabs, Text, TextArea, WordPicker } from '@/ui'
 import css from './AddSourceForm.module.css'
+import { BookSplitModal } from './BookSplitModal'
 import { PathField } from './PathField'
 import { TrackSelectionModal } from './TrackSelectionModal'
 import { useFileDrag } from './useFileDrag'
@@ -49,6 +50,13 @@ interface PendingTracks {
   audioTracks: AudioTrack[]
 }
 
+interface PendingBook {
+  filePath: string
+  bookName: string
+  wordCount: number
+  chapters: BookChapterPreview[]
+}
+
 interface AddSourceFormProps {
   onCreated: (source: SourceSummary) => void
   onReload: () => Promise<void>
@@ -72,6 +80,7 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingTracks, setPendingTracks] = useState<PendingTracks | null>(null)
+  const [pendingBook, setPendingBook] = useState<PendingBook | null>(null)
   const [host] = useState(() => nativeHost())
 
   const fileDrag = useFileDrag({
@@ -121,6 +130,13 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
           subtitleTracks: result.subtitle_tracks ?? [],
           audioTracks: result.audio_tracks ?? [],
         })
+      } else if (result.status === 'book_split_required') {
+        setPendingBook({
+          filePath: result.file_path ?? filePath.trim(),
+          bookName: result.book_name ?? '',
+          wordCount: result.word_count ?? 0,
+          chapters: result.chapters ?? [],
+        })
       } else if (result.id) {
         setFilePath('')
         setSrtPath('')
@@ -144,6 +160,25 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
       if (result.id) {
         setFilePath('')
         setSrtPath('')
+        setTitle('')
+        await onReload()
+      }
+    } catch (e) {
+      onToast(messageOf(e))
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const confirmBook = async (split: boolean) => {
+    if (!pendingBook) return
+    const pending = pendingBook
+    setPendingBook(null)
+    setAdding(true)
+    try {
+      const result = await api.createFileSource(pending.filePath, undefined, title.trim() || undefined, undefined, undefined, split)
+      if (result.id) {
+        setFilePath('')
         setTitle('')
         await onReload()
       }
@@ -256,7 +291,7 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
           {tab === 'file' && (
             <>
               {fileDrag.dragging && <div className={css.dropZone}>{DROP_HINT}</div>}
-              <PathField value={filePath} placeholder="/path/to/movie.mkv" onChange={setFilePath} onError={setError} />
+              <PathField value={filePath} placeholder="/path/to/movie.mkv or book.epub" onChange={setFilePath} onError={setError} />
               {isVideoPath(filePath) && (
                 <PathField value={srtPath} placeholder="/path/to/subtitles.srt (optional)" extensions={SUBTITLE_EXTENSIONS} onChange={setSrtPath} onError={setError} />
               )}
@@ -298,6 +333,15 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
           audioTracks={pendingTracks.audioTracks}
           onCancel={() => setPendingTracks(null)}
           onConfirm={confirmTracks}
+        />
+      )}
+      {pendingBook && (
+        <BookSplitModal
+          bookName={pendingBook.bookName}
+          wordCount={pendingBook.wordCount}
+          chapters={pendingBook.chapters}
+          onCancel={() => setPendingBook(null)}
+          onConfirm={confirmBook}
         />
       )}
     </>
