@@ -3,7 +3,7 @@
 .groupTitle { display: flex; gap: var(--s3); margin-bottom: var(--s3); font-size: var(--fs-xs); font-weight: var(--fw-m); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--tx3); }
 
 /* строка источника: тип | название | прогресс | действие | меню */
-.row { display: grid; grid-template-columns: var(--source-row-cols); grid-template-areas: var(--source-row-areas); align-items: center; gap: var(--source-row-gap); padding: var(--s4); margin: 0 calc(var(--s4) * -1); border-radius: var(--r); transition: background var(--t); }
+.row { -webkit-touch-callout: none; display: grid; grid-template-columns: var(--source-row-cols); grid-template-areas: var(--source-row-areas); align-items: center; gap: var(--source-row-gap); padding: var(--s4); margin: 0 calc(var(--s4) * -1); border-radius: var(--r); transition: background var(--t); }
 .row:hover { background: var(--hover); }
 .selected, .selected:hover { background: var(--soft); }
 .row[draggable="true"]:active { cursor: grabbing; }
@@ -19,18 +19,19 @@
 .more { grid-area: more; opacity: var(--reveal); transition: opacity var(--t); }
 .row:hover .more, .more:focus-within, .more:has([role="menu"]) { opacity: 1; }
 
-/* правая колонка */
+/* форма на экране Add */
 .add { padding: var(--source-add-pad); border: var(--dash-bw) dashed var(--line); border-radius: var(--r); }
-/* на телефоне форма живёт на отдельном экране Add */
-.desktopOnly { display: var(--desktop-display); }
 
 /* экран: дерево слева, список справа; на телефоне дерево уходит в ScopePicker */
-.layout { display: grid; grid-template-columns: var(--sources-cols); gap: var(--page-x); align-items: start; }
-.side { display: var(--desktop-display); position: sticky; top: var(--page-top); gap: var(--s7); }
+.layout { display: grid; grid-template-columns: var(--sources-cols); gap: var(--page-x); align-items: start; padding-top: var(--page-top); }
+.side { display: var(--desktop-display); align-content: start; position: sticky; top: var(--page-top); gap: var(--s7); max-height: var(--sources-side-max-h); overflow-y: auto; scrollbar-width: thin; }
+.main { min-width: 0; }
+.search { margin-bottom: var(--s7); }
+.emptyStart { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s5); }
 .phoneOnly { display: var(--phone-display); }
 
 /* шапка области: крошки, название, прогресс | действия */
-.scopeHeader { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--s4) var(--gap); margin: var(--page-top) 0 var(--s7); }
+.scopeHeader { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--s4) var(--gap); margin-bottom: var(--s6); }
 .scopeLead { flex: 1 1 var(--header-lead-min); min-width: 0; display: flex; flex-direction: column; gap: var(--s2); }
 .crumbs { display: flex; align-items: center; gap: var(--s2); min-width: 0; font-size: var(--fs-s); color: var(--tx3); }
 .crumbs > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

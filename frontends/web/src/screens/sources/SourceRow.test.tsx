@@ -15,11 +15,13 @@ describe('SourceRow', () => {
   let host: HTMLDivElement
   let root: Root
   const onReview = vi.fn()
+  const onLongPress = vi.fn()
   const noop = () => {}
 
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     onReview.mockReset()
+    onLongPress.mockReset()
     host = document.createElement('div')
     root = createRoot(host)
   })
@@ -32,6 +34,7 @@ describe('SourceRow', () => {
       onProcess={noop} onGenerate={noop} onCancelGeneration={noop} onRetryGeneration={noop}
       onReview={onReview} onExport={noop} onDelete={noop} onRename={noop} onReprocess={noop}
       onRowClick={() => takenBySelection} onMoveTo={noop} dragIds={() => [source.id]}
+      draggable onLongPress={onLongPress}
     />,
   ))
   const row = () => host.firstElementChild as HTMLElement
@@ -53,5 +56,48 @@ describe('SourceRow', () => {
     expect(host.textContent).not.toContain('Season 1')
     render(false, true)
     expect(host.textContent).toContain('Season 1')
+  })
+
+  const touch = (type: string) => act(() => {
+    const event = new MouseEvent(type, { bubbles: true })
+    Object.defineProperty(event, 'pointerType', { value: 'touch' })
+    row().dispatchEvent(event)
+  })
+
+  it('is an option of the list', () => {
+    render(false)
+    expect(row().getAttribute('role')).toBe('option')
+    expect(row().getAttribute('aria-selected')).toBe('false')
+  })
+
+  it('starts selection on a long tap and does not open the source', () => {
+    vi.useFakeTimers()
+    try {
+      render(false)
+      touch('pointerdown')
+      act(() => { vi.advanceTimersByTime(600) })
+      touch('pointerup')
+      act(() => row().click())
+      expect(onLongPress).toHaveBeenCalledWith(7)
+      expect(onReview).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('treats a short tap as a click', () => {
+    vi.useFakeTimers()
+    try {
+      render(false)
+      touch('pointerdown')
+      act(() => { vi.advanceTimersByTime(100) })
+      touch('pointerup')
+      act(() => { vi.advanceTimersByTime(1000) })
+      act(() => row().click())
+      expect(onLongPress).not.toHaveBeenCalled()
+      expect(onReview).toHaveBeenCalledWith(7)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

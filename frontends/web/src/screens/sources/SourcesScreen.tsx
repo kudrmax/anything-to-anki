@@ -1,134 +1,345 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Page, PageHeader } from '@/shell'
-import type { SourceSummary } from '@/api/types'
-import { Banner, Button, Empty, Stat, StatGrid, Toast, useToast } from '@/ui'
-import { AddSourceForm } from './AddSourceForm'
-import { CollectionFilter } from './CollectionFilter'
+import type { CollectionNode, CollectionTree as Tree, Scope, ScopeCounts, SourceStage } from '@/api/types'
+import { useStats } from '@/hooks/useStats'
+import { backTo } from '@/lib/backLink'
+import { usePhone } from '@/lib/device'
+import { OVERLAY } from '@/lib/hotkeys'
+import { droppedFiles, nativeHost } from '@/lib/nativeHost'
+import { scopeQuery, useScope } from '@/lib/scope'
+import { clickSelect, EMPTY_SELECTION, pruned, selectAll, type Selection } from '@/lib/selection'
+import { findNode } from '@/lib/treeDrop'
+import { typingIn } from '@/lib/typing'
+import { Page } from '@/shell'
+import { Banner, Button, Empty, Field, Stat, StatGrid, Toast, ToastStack, UndoToast, useToast, useUndo } from '@/ui'
+import { CollectionTree } from './CollectionTree'
+import { MoveToModal } from './MoveToModal'
+import { NameModal } from './NameModal'
 import { ReprocessModal } from './ReprocessModal'
+import { ScopeHeader } from './ScopeHeader'
+import { ScopePicker } from './ScopePicker'
+import { SelectionBar } from './SelectionBar'
 import { SourceRow } from './SourceRow'
-import { useSources } from './useSources'
+import { useCollections } from './useCollections'
+import { useFileDrag } from './useFileDrag'
+import { useSourceBoard } from './useSourceBoard'
 import css from './sources.module.css'
 
-type Stage = 'progress' | 'preparing' | 'ready' | 'reviewed'
+const STAGE_LABEL: Record<SourceStage, string> = {
+  in_progress: 'In progress',
+  preparing: 'Preparing',
+  ready: 'Ready to review',
+  reviewed: 'Reviewed',
+}
+const SCOPE_TITLE = { all: 'All sources', unsorted: 'Unsorted' } as const
+const NO_COUNTS: ScopeCounts = { total: 0, reviewed: 0, pending: 0 }
+const UNSORTED = 'Unsorted'
+const ADD_PATH = '/add'
+const EXPORT_PATH = '/export'
+// Backend ставит коллекцию в конец, если позиция больше числа соседей.
+const END_POSITION = Number.MAX_SAFE_INTEGER
 
-const STAGES: { stage: Stage; label: string }[] = [
-  { stage: 'progress', label: 'In progress' },
-  { stage: 'preparing', label: 'Preparing' },
-  { stage: 'ready', label: 'Ready to review' },
-  { stage: 'reviewed', label: 'Reviewed' },
-]
+type MoveTarget = { kind: 'sources'; ids: number[] } | { kind: 'collection'; id: number } | null
+type Naming = { kind: 'rename'; node: CollectionNode } | { kind: 'create'; parent: CollectionNode } | null
 
-/** Группа списка, в которой показан источник. */
-function stageOf(source: SourceSummary): Stage {
-  if (source.awaiting_generation) return 'preparing'
-  if (source.status === 'partially_reviewed') return 'progress'
-  if (source.status === 'done') return 'ready'
-  if (source.status === 'reviewed') return 'reviewed'
-  return 'preparing'
+const sourcesWord = (n: number) => (n === 1 ? '1 source' : `${n} sources`)
+
+/** Путь узла для хлебных крошек: родитель, затем сам узел. */
+function pathOf(tree: Tree, node: CollectionNode): string[] {
+  const parent = node.parent_id === null ? null : findNode(tree.collections, node.parent_id)
+  return parent ? [parent.name, node.name] : [node.name]
 }
 
 export function SourcesScreen() {
-  const navigate = useNavigate()
-  const store = useSources()
-  const [activeCollectionId, setActiveCollectionId] = useState<number | null>(null)
-  const [reprocessSourceId, setReprocessSourceId] = useState<number | null>(null)
+  const [scope, setScope] = useScope()
+  const [query, setQuery] = useState('')
+  const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION)
+  const [moveTarget, setMoveTarget] = useState<MoveTarget>(null)
+  const [naming, setNaming] = useState<Naming>(null)
+  const [reprocessId, setReprocessId] = useState<number | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [processingAll, setProcessingAll] = useState(false)
   const [toast, showToast] = useToast()
+  const undo = useUndo()
+  const stats = useStats()
+  const navigate = useNavigate()
+  const isPhone = usePhone()
+  const listLabel = useId()
 
-  const { sources, stats, collections } = store
-  const filtered = activeCollectionId === null ? sources : sources.filter(s => s.collection_id === activeCollectionId)
+  // Выбор и поиск принадлежат области: любая её смена (дерево, ссылка, «назад») их сбрасывает.
+  const [shownScope, setShownScope] = useState<Scope>(scope)
+  if (shownScope !== scope) {
+    setShownScope(scope)
+    setSelection(EMPTY_SELECTION)
+    setQuery('')
+  }
 
-  const review = (id: number) => navigate(`/sources/${id}/review`)
+  const onError = useCallback((message: string) => showToast(message), [showToast])
+  const boardReload = useRef<() => Promise<void>>(async () => {})
+  const collections = useCollections({ onUndo: undo.show, onError, onSourcesMoved: () => void boardReload.current() })
+  const board = useSourceBoard(scope, query, {
+    onMissingScope: () => setScope('all', { replace: true }),
+    onError,
+    onChanged: () => void collections.reload(),
+  })
+  useLayoutEffect(() => {
+    boardReload.current = board.reload
+  })
+
+  const tree = collections.tree
+  const open = (next: Scope) => {
+    setPickerOpen(false)
+    setScope(next)
+  }
+
+  const order = useMemo(() => board.board?.groups.flatMap(g => g.sources.map(s => s.id)) ?? [], [board.board])
+  const visibleSelection = pruned(selection, order)
+  const selectedIds = order.filter(id => visibleSelection.ids.has(id))
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (typingIn(event.target) || document.querySelector(OVERLAY)) return
+      if (event.key.toLowerCase() === 'a' && (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
+        if (order.length === 0) return
+        event.preventDefault()
+        setSelection(selectAll(order))
+      }
+      if (event.key === 'Escape') setSelection(EMPTY_SELECTION)
+    }
+    // Захват: открытое окно или меню ещё в DOM, когда его собственный Esc только начинает его закрывать.
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [order])
+
+  useFileDrag({ onEnter: () => navigate(ADD_PATH), onBrowserDrop: () => navigate(ADD_PATH) })
+  useEffect(() => nativeHost()?.onFileDrop(paths => navigate(ADD_PATH, { state: droppedFiles(paths) })), [navigate])
+
+  const node = typeof scope === 'number' && tree ? findNode(tree.collections, scope) : null
+  const counts = node?.counts ?? (tree ? (scope === 'unsorted' ? tree.unsorted : tree.all) : NO_COUNTS)
+  const title = node?.name ?? board.board?.title ?? (typeof scope === 'number' ? '' : SCOPE_TITLE[scope])
+  const path = tree && node ? pathOf(tree, node) : [title]
+  const nameOf = (collectionId: number | null) =>
+    collectionId === null ? UNSORTED : (tree && findNode(tree.collections, collectionId)?.name) ?? ''
+
+  const clearSelection = () => setSelection(EMPTY_SELECTION)
+  const rowClick = (e: MouseEvent, id: number) => {
+    const toggle = e.metaKey || e.ctrlKey
+    if (!toggle && !e.shiftKey && visibleSelection.ids.size === 0) return false
+    setSelection(clickSelect(visibleSelection, order, id, { toggle, range: e.shiftKey }))
+    return true
+  }
+  const longPress = (id: number) => setSelection(clickSelect(visibleSelection, order, id, { toggle: true, range: false }))
+  const dragIds = (id: number) => (visibleSelection.ids.has(id) ? selectedIds : [id])
+
+  const review = (id: number) => navigate(`/sources/${id}/review`, { state: backTo(`/${scopeQuery(scope)}`) })
   const exportSource = (id: number) => navigate(`/sources/${id}/export`)
+  const exportScope = () => navigate(`${EXPORT_PATH}${scopeQuery(scope)}`)
 
   const reprocess = (id: number) => {
-    const source = sources.find(s => s.id === id)
-    if (source?.status === 'error') void store.reprocess(id)
-    else setReprocessSourceId(id)
+    const source = board.board?.groups.flatMap(g => g.sources).find(s => s.id === id)
+    if (source?.status === 'error') void board.reprocess(id)
+    else setReprocessId(id)
   }
 
-  const deleteCollection = async (id: number) => {
-    const deleted = await store.deleteCollection(id)
-    if (deleted && activeCollectionId === id) setActiveCollectionId(null)
+  const processAll = async () => {
+    setProcessingAll(true)
+    try {
+      await board.processPending()
+    } finally {
+      setProcessingAll(false)
+    }
   }
 
-  const header = (
-    <PageHeader title="Sources">
-      <CollectionFilter
-        collections={collections}
-        activeId={activeCollectionId}
-        onSelect={setActiveCollectionId}
-        onCreate={name => void store.createCollection(name)}
-        onRename={(id, name) => void store.renameCollection(id, name)}
-        onDelete={id => void deleteCollection(id)}
-      />
-      {store.pendingCount > 0 && (
-        <Button busy={store.processingAll} onClick={() => void store.processAll()}>Process all ({store.pendingCount})</Button>
-      )}
-    </PageHeader>
-  )
+  const deleteSource = (id: number) => {
+    if (window.confirm('Delete this source and all its candidates?')) void board.remove(id)
+  }
+  const deleteSelected = () => {
+    const ids = selectedIds
+    const what = ids.length === 1 ? 'this source and all its candidates' : `${ids.length} sources and all their candidates`
+    if (window.confirm(`Delete ${what}?`)) void board.deleteSelected(ids).then(clearSelection)
+  }
+  const processSelected = () => void board.processSelected(selectedIds).then(clearSelection)
 
-  const aside = (
+  const deleteCollection = (id: number) => {
+    void collections.remove(id).then(deleted => { if (deleted && scope === id) setScope('all', { replace: true }) })
+  }
+  const placeSources = (ids: number[], collectionId: number | null) => {
+    clearSelection()
+    void collections.place(ids, collectionId, nameOf(collectionId))
+  }
+  const pickMoveTarget = (collectionId: number | null) => {
+    if (moveTarget?.kind === 'sources') placeSources(moveTarget.ids, collectionId)
+    if (moveTarget?.kind === 'collection') void collections.move(moveTarget.id, collectionId, END_POSITION)
+    setMoveTarget(null)
+  }
+  const submitName = (name: string) => {
+    if (naming?.kind === 'rename') void collections.rename(naming.node.id, name)
+    if (naming?.kind === 'create') void collections.create(name, naming.parent.id)
+    setNaming(null)
+  }
+
+  const side = (
     <>
-      <section className={`${css.add} ${css.desktopOnly}`}>
-        <AddSourceForm onReload={store.reload} onToast={showToast} />
-      </section>
       <StatGrid>
         <Stat value={stats?.learn_count ?? 0} label="to learn" />
         <Stat value={stats?.known_word_count ?? 0} label="known words" />
         <Stat value={stats?.candidate_count ?? 0} label="candidates" wide />
       </StatGrid>
+      {tree && (
+        <CollectionTree
+          tree={tree}
+          scope={scope}
+          onSelect={open}
+          onCreate={(name, parentId) => void collections.create(name, parentId)}
+          onRename={(id, name) => void collections.rename(id, name)}
+          onMove={(id, parentId, position) => void collections.move(id, parentId, position)}
+          onDelete={deleteCollection}
+          onMoveTo={id => setMoveTarget({ kind: 'collection', id })}
+          onDropSources={placeSources}
+          draggable={!isPhone}
+        />
+      )}
     </>
   )
 
-  const banner = (store.error || store.vpnBlocked) && (
-    <>
-      {store.vpnBlocked && <Banner tone="warn">AI unavailable — turn on VPN</Banner>}
-      {store.error && <Banner tone="err" onDismiss={store.clearError}>{store.error}</Banner>}
-    </>
-  )
+  const banner = board.vpnBlocked && <Banner tone="warn">AI unavailable — turn on VPN</Banner>
+
+  const groups = board.board?.groups.filter(g => g.sources.length > 0) ?? []
+  const empty = (() => {
+    if (!board.board || groups.length > 0) return null
+    if (query.trim()) return <Empty flush>Nothing matches “{query.trim()}”</Empty>
+    if (node) return <Empty flush>Drag sources here or use Move to…</Empty>
+    if (tree && tree.all.total === 0) {
+      return (
+        <Empty flush>
+          <div className={css.emptyStart}>
+            <span>No sources yet. Add a text, a video, a book or a topic to start.</span>
+            <Button variant="fill" onClick={() => navigate(ADD_PATH)}>Add a source</Button>
+          </div>
+        </Empty>
+      )
+    }
+    return <Empty flush>{scope === 'unsorted' ? 'Every source is in a collection' : 'No sources here'}</Empty>
+  })()
+
+  const movingCollection = moveTarget?.kind === 'collection' && tree ? findNode(tree.collections, moveTarget.id) : null
 
   return (
-    <Page wide header={header} aside={aside} banner={banner}>
-      {filtered.length === 0 && (
-        <Empty>{sources.length === 0 ? 'No sources yet. Add one to get started.' : 'No sources in this collection.'}</Empty>
+    <Page
+      wide
+      header={
+        <ScopePicker title={title} open={pickerOpen} onOpen={() => setPickerOpen(true)} onClose={() => setPickerOpen(false)}>
+          {side}
+        </ScopePicker>
+      }
+      banner={banner}
+    >
+      <div className={css.layout}>
+        {!isPhone && <aside className={css.side} aria-label="Collections">{side}</aside>}
+        <div className={css.main}>
+          <ScopeHeader
+            title={title}
+            path={path}
+            counts={counts}
+            node={node}
+            processing={processingAll}
+            onProcessAll={() => void processAll()}
+            onExport={exportScope}
+            onRename={() => node && setNaming({ kind: 'rename', node })}
+            onNewSubcollection={() => node && setNaming({ kind: 'create', parent: node })}
+            onMoveTo={() => node && setMoveTarget({ kind: 'collection', id: node.id })}
+            onDelete={() => node && deleteCollection(node.id)}
+          />
+          {(counts.total > 0 || query) && (
+            <Field
+              className={css.search}
+              type="search"
+              aria-label="Search sources"
+              placeholder={`Search in ${title}`}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') setQuery('') }}
+            />
+          )}
+          {empty}
+          {groups.length > 0 && (
+            <div role="listbox" aria-multiselectable="true" aria-labelledby={listLabel}>
+              <span id={listLabel} hidden>{title}</span>
+              {groups.map(group => {
+                const headingId = `${listLabel}-${group.stage}`
+                return (
+                  <section key={group.stage} className={css.group} role="group" aria-labelledby={headingId}>
+                    <h2 id={headingId} className={css.groupTitle}>{STAGE_LABEL[group.stage]}<span>{group.sources.length}</span></h2>
+                    {group.sources.map((source, index) => (
+                      <SourceRow
+                        key={source.id}
+                        source={source}
+                        selected={visibleSelection.ids.has(source.id)}
+                        showPath={scope === 'all' || (typeof scope === 'number' && source.collection_id !== scope)}
+                        primary={group.stage === 'in_progress' && index === 0}
+                        onProcess={id => void board.process(id)}
+                        onGenerate={id => void board.generate(id)}
+                        onCancelGeneration={id => void board.cancelGeneration(id)}
+                        onRetryGeneration={id => void board.retryGeneration(id)}
+                        onReview={review}
+                        onExport={exportSource}
+                        onDelete={deleteSource}
+                        onRename={(id, newTitle) => void board.rename(id, newTitle)}
+                        onReprocess={reprocess}
+                        onRowClick={rowClick}
+                        onMoveTo={id => setMoveTarget({ kind: 'sources', ids: [id] })}
+                        dragIds={() => dragIds(source.id)}
+                        draggable={!isPhone}
+                        onLongPress={longPress}
+                      />
+                    ))}
+                  </section>
+                )
+              })}
+            </div>
+          )}
+          {selectedIds.length > 0 && (
+            <SelectionBar
+              count={selectedIds.length}
+              onMoveTo={() => setMoveTarget({ kind: 'sources', ids: selectedIds })}
+              onProcess={processSelected}
+              onDelete={deleteSelected}
+              onClear={clearSelection}
+            />
+          )}
+        </div>
+      </div>
+      {moveTarget && tree && (
+        <MoveToModal
+          tree={tree}
+          title={moveTarget.kind === 'sources' ? `Move ${sourcesWord(moveTarget.ids.length)} to…` : `Move ${movingCollection?.name ?? 'collection'} to…`}
+          excludeId={moveTarget.kind === 'collection' ? moveTarget.id : undefined}
+          collectionsOnly={moveTarget.kind === 'collection'}
+          onPick={pickMoveTarget}
+          onClose={() => setMoveTarget(null)}
+        />
       )}
-      {STAGES.map(({ stage, label }) => {
-        const group = filtered.filter(source => stageOf(source) === stage)
-        if (group.length === 0) return null
-        return (
-          <section key={stage} className={css.group}>
-            <h2 className={css.groupTitle}>{label}<span>{group.length}</span></h2>
-            {group.map((source, index) => (
-              <SourceRow
-                key={source.id}
-                source={source}
-                collections={collections}
-                primary={stage === 'progress' && index === 0}
-                onProcess={id => void store.process(id)}
-                onGenerate={id => void store.generate(id)}
-                onCancelGeneration={id => void store.cancelGeneration(id)}
-                onRetryGeneration={id => void store.retryGeneration(id)}
-                onReview={review}
-                onExport={exportSource}
-                onDelete={id => void store.remove(id)}
-                onRename={(id, title) => void store.rename(id, title)}
-                onReprocess={reprocess}
-                onAssignCollection={(sourceId, collectionId) => void store.assignCollection(sourceId, collectionId)}
-              />
-            ))}
-          </section>
-        )
-      })}
-      {reprocessSourceId !== null && (
+      {naming && (
+        <NameModal
+          title={naming.kind === 'rename' ? 'Rename collection' : `New subcollection in ${naming.parent.name}`}
+          initial={naming.kind === 'rename' ? naming.node.name : ''}
+          submitLabel={naming.kind === 'rename' ? 'Rename' : 'Create'}
+          onSubmit={submitName}
+          onClose={() => setNaming(null)}
+        />
+      )}
+      {reprocessId !== null && (
         <ReprocessModal
-          sourceId={reprocessSourceId}
-          onClose={() => setReprocessSourceId(null)}
-          onReprocess={() => { const id = reprocessSourceId; setReprocessSourceId(null); void store.reprocess(id) }}
+          sourceId={reprocessId}
+          onClose={() => setReprocessId(null)}
+          onReprocess={() => { const id = reprocessId; setReprocessId(null); void board.reprocess(id) }}
           onOpenExport={exportSource}
         />
       )}
-      <Toast message={toast} tone="warn" />
+      <ToastStack raised={selectedIds.length > 0}>
+        <Toast message={toast} tone="warn" />
+        <UndoToast offer={undo.offer} onUndo={() => void undo.run()} />
+      </ToastStack>
     </Page>
   )
 }

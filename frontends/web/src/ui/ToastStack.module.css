@@ -1,0 +1,3 @@
+.stack { --toast-position: static; position: fixed; right: var(--toast-edge); bottom: var(--toast-edge); z-index: var(--z-toast); display: flex; flex-direction: column; align-items: flex-end; gap: var(--s3); pointer-events: none; transition: bottom var(--t); }
+.stack > * { pointer-events: auto; }
+.raised { bottom: var(--toast-over-bar); }

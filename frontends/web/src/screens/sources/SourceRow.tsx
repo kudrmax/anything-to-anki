@@ -1,4 +1,4 @@
-import { useState, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react'
+import { useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import { BookOpen, Clapperboard, Ellipsis, FileText, FolderInput, Globe, Music, Pencil, RefreshCw, Sparkles, Trash2, Upload, type LucideIcon } from 'lucide-react'
 import type { GenerationStatus, ProcessingStage, SourceSummary } from '@/api/types'
 import { formatDate } from '@/lib/text/format'
@@ -27,6 +27,10 @@ interface SourceRowProps {
   onMoveTo: (id: number) => void
   /** Что тащим: выбор, если строка в нём, иначе только её. */
   dragIds: () => number[]
+  /** На телефоне перетаскивания нет. */
+  draggable: boolean
+  /** Долгий тап на телефоне включает выбор. */
+  onLongPress: (id: number) => void
 }
 
 type SourceLook = 'text' | 'book' | 'lyrics' | 'video' | 'topic' | 'phrases'
@@ -58,6 +62,8 @@ const GENERATION_LABEL: Record<GenerationState, string> = {
 }
 
 const stop = (e: MouseEvent) => e.stopPropagation()
+const LONG_PRESS_MS = 500
+const TOUCH = 'touch'
 
 /** Подпись под шкалой прогресса: что известно о фразах источника. */
 function progressCaption(source: SourceSummary): string {
@@ -67,9 +73,12 @@ function progressCaption(source: SourceSummary): string {
   return `${source.candidate_count} phrases`
 }
 
-export function SourceRow({ source, selected, showPath, primary, onProcess, onGenerate, onCancelGeneration, onRetryGeneration, onReview, onExport, onDelete, onRename, onReprocess, onRowClick, onMoveTo, dragIds }: SourceRowProps) {
+export function SourceRow({ source, selected, showPath, primary, onProcess, onGenerate, onCancelGeneration, onRetryGeneration, onReview, onExport, onDelete, onRename, onReprocess, onRowClick, onMoveTo, dragIds, draggable, onLongPress }: SourceRowProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(source.title)
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Тап, которым закончился долгий тап, уже включил выбор: открывать источник не нужно.
+  const longPressed = useRef(false)
 
   const isProcessing = source.status === 'processing'
   const isReviewable = source.status === 'done' || source.status === 'partially_reviewed' || source.status === 'reviewed'
@@ -137,7 +146,24 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
   const look = lookOf(source)
   const tooltip = `${TYPE_LABEL[look]} · added ${formatDate(source.created_at)}${source.collection_path.length ? ` · ${source.collection_path.join(' / ')}` : ''}`
 
+  const cancelPress = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current)
+    pressTimer.current = null
+  }
+  const onPointerDown = (e: PointerEvent) => {
+    if (e.pointerType !== TOUCH || editing) return
+    longPressed.current = false
+    cancelPress()
+    pressTimer.current = setTimeout(() => {
+      pressTimer.current = null
+      longPressed.current = true
+      onLongPress(source.id)
+    }, LONG_PRESS_MS)
+  }
+  const onContextMenu = (e: MouseEvent) => { if (pressTimer.current || longPressed.current) e.preventDefault() }
+
   const onClick = (e: MouseEvent) => {
+    if (longPressed.current) { longPressed.current = false; return }
     if (onRowClick(e, source.id)) return
     if (isReviewable && !editing) onReview(source.id)
   }
@@ -147,7 +173,20 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
   }
 
   return (
-    <div className={classes} title={tooltip} aria-selected={selected} draggable={!editing} onDragStart={onDragStart} onClick={onClick}>
+    <div
+      className={classes}
+      title={tooltip}
+      role="option"
+      aria-selected={selected}
+      draggable={draggable && !editing}
+      onDragStart={onDragStart}
+      onClick={onClick}
+      onPointerDown={onPointerDown}
+      onPointerUp={cancelPress}
+      onPointerCancel={cancelPress}
+      onPointerLeave={cancelPress}
+      onContextMenu={onContextMenu}
+    >
       <span className={css.type}><Icon as={TYPE_ICON[look]} /></span>
       <div className={css.name}>
         {editing

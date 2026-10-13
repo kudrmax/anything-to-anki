@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseScope } from './scope'
+import { parseScope, scopeQuery } from './scope'
 
 describe('parseScope', () => {
   it('reads all, unsorted and ids', () => {
@@ -10,5 +10,13 @@ describe('parseScope', () => {
   it('falls back to all on garbage', () => {
     expect(parseScope('-3')).toBe('all')
     expect(parseScope('abc')).toBe('all')
+  })
+})
+
+describe('scopeQuery', () => {
+  it('omits all and keeps the rest', () => {
+    expect(scopeQuery('all')).toBe('')
+    expect(scopeQuery('unsorted')).toBe('?scope=unsorted')
+    expect(scopeQuery(12)).toBe('?scope=12')
   })
 })

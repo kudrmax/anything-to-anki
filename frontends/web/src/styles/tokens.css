@@ -99,6 +99,7 @@
   --tree-twisty: 20px;
   --tree-indent: 16px;
   --sources-cols: var(--tree-w) minmax(0, 1fr);
+  --sources-side-max-h: calc(100dvh - var(--nav-h) - 2 * var(--page-top));
   --move-list-h: 360px;
   --tree-drop-line: 2px;
 
@@ -233,6 +234,9 @@
   --py: 14px;         /* вертикальный отступ строки */
   --off: calc(var(--px) + var(--dot) + var(--gap));   /* левый край текста строки */
   --toast-edge: 24px;
+  --toast-position: fixed;
+  /* тосты над панелью выбора: её отступ снизу, высота и зазор */
+  --toast-over-bar: calc(var(--s5) + var(--h) + 2 * var(--s3) + var(--s3));
 
   /* типографика */
   --ui: 'Geist Variable', system-ui, sans-serif;
@@ -288,7 +292,7 @@
   }
 }
 
-/* телефон: одна колонка внутри карточек и строк, решения прилипают к низу экрана. */
+/* телефон: одна колонка внутри карточек и строк, решения прилипают к низу экрана. lib/device.ts узнаёт его по --desktop-display. */
 @media (max-width: 640px) {
   :root {
     --h: 40px;
@@ -362,6 +366,7 @@
     --source-row-areas: "type name name more" "type progress action action";
     --source-row-gap: var(--s3) var(--s4);
     --source-add-pad: var(--s5);
+    --toast-over-bar: calc(var(--s5) + 2 * var(--h) + 3 * var(--s3) + var(--s3));
     --export-row-cols: minmax(0, 1fr);
     --export-row-areas: "main" "translation";
     --export-media-cols: minmax(0, 1fr);

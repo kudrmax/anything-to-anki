@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
+import { useCallback, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { ChevronDown, ChevronRight, Inbox, Layers, Plus, type LucideIcon } from 'lucide-react'
 import type { CollectionNode, CollectionTree as Tree, Scope, ScopeCounts } from '@/api/types'
 import { useCollapsed } from '@/hooks/useCollapsed'
@@ -38,7 +38,7 @@ export function CollectionTree(props: CollectionTreeProps) {
   const settled = useRef(false)
 
   // Флаг снимается при появлении поля, а не в startEditing: меню собирает обработчики во время рендера, а там ref трогать нельзя.
-  const armEditor = (input: HTMLInputElement | null) => { if (input) settled.current = false }
+  const armEditor = useCallback((input: HTMLInputElement | null) => { if (input) settled.current = false }, [])
   const startEditing = (next: Editing, initial: string) => {
     setDraft(initial)
     setEditing(next)

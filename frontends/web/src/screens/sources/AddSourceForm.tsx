@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { api } from '@/api/client'
 import type { DetectedFormat, Question } from '@/api/types'
-import { nativeHost } from '@/lib/nativeHost'
+import { droppedPathsIn, nativeHost } from '@/lib/nativeHost'
 import { withDroppedPaths } from '@/lib/text/sourceInput'
 import { pickedWords, toggled } from '@/lib/text/words'
 import { Button, Field, Segmented, Spinner, Stack, Text, TextArea, WordPicker } from '@/ui'
@@ -37,10 +38,13 @@ interface AddSourceFormProps {
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
 export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
+  const { state: navigationState } = useLocation()
+  // Файл бросили на экран Sources: он открыл Add и передал пути сюда.
+  const [dropped] = useState(() => withDroppedPaths({ filePath: '', srtPath: '' }, droppedPathsIn(navigationState)))
   const [mode, setMode] = useState<Mode>('source')
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState(dropped.filePath)
   const [title, setTitle] = useState('')
-  const [srtPath, setSrtPath] = useState('')
+  const [srtPath, setSrtPath] = useState(dropped.srtPath)
   const [detected, setDetected] = useState<DetectedFormat | null>(null)
   const [detecting, setDetecting] = useState(false)
   const [phraseTarget, setPhraseTarget] = useState<Set<number>>(new Set())
