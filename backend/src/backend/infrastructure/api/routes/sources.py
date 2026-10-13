@@ -18,8 +18,16 @@ from backend.application.dto.candidate_dtos import (  # noqa: TC001
     AddManualCandidateRequest,
     AddSavedPhraseRequest,
 )
+from backend.application.dto.collection_dtos import (  # noqa: TC001
+    DeletedSourcesDTO,
+    PlacedSourcesDTO,
+    PlaceSourcesRequest,
+    SourceIdsRequest,
+    StartedSourcesDTO,
+)
 from backend.application.dto.document_dtos import SourceDocumentDTO  # noqa: TC001
 from backend.application.dto.source_dtos import (  # noqa: TC001
+    SourceBoardDTO,
     SourceDetailDTO,
     SourceDTO,
     StoredCandidateDTO,
@@ -28,6 +36,7 @@ from backend.application.dto.source_dtos import (  # noqa: TC001
 from backend.application.source_intake.typed_input import typed_input
 from backend.domain.exceptions import (
     BookReadError,
+    CollectionNotFoundError,
     InvalidAnswerError,
     InvalidPhraseError,
     InvalidSourceInputError,
@@ -53,6 +62,7 @@ from backend.infrastructure.api.dependencies import (
     get_db_session,
     get_session_factory,
 )
+from backend.infrastructure.api.scope_param import parse_scope
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -148,6 +158,83 @@ def list_sources(
 ) -> list[SourceDTO]:
     use_case = container.get_sources_use_case(session)
     return use_case.list_all()
+
+
+@router.get("/board")
+def get_source_board(
+    scope: str = "all",
+    query: str = "",
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> SourceBoardDTO:
+    try:
+        return container.get_sources_use_case(session).board(parse_scope(scope), query)
+    except CollectionNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.post("/placements")
+def place_sources(
+    request: PlaceSourcesRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> PlacedSourcesDTO:
+    try:
+        result = container.place_sources_use_case(session).execute(request.placements)
+        session.commit()
+        return result
+    except (SourceNotFoundError, CollectionNotFoundError) as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.post("/process-pending", status_code=202)
+async def process_pending(
+    scope: str = "all",
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+    session_factory: object = Depends(get_session_factory),  # noqa: B008
+) -> StartedSourcesDTO:
+    use_case = container.process_sources_use_case(session)
+    try:
+        result = use_case.start(use_case.pending_in(parse_scope(scope)))
+    except CollectionNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    session.commit()
+    _launch(result.started, container, session_factory)
+    return result
+
+
+@router.post("/process-batch", status_code=202)
+async def process_batch(
+    request: SourceIdsRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+    session_factory: object = Depends(get_session_factory),  # noqa: B008
+) -> StartedSourcesDTO:
+    result = container.process_sources_use_case(session).start(
+        list(dict.fromkeys(request.source_ids)),
+    )
+    session.commit()
+    _launch(result.started, container, session_factory)
+    return result
+
+
+@router.post("/delete-batch")
+def delete_batch(
+    request: SourceIdsRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> DeletedSourcesDTO:
+    result = container.delete_sources_use_case(session).execute(
+        list(dict.fromkeys(request.source_ids)),
+    )
+    session.commit()
+    return result
+
+
+def _launch(source_ids: list[int], container: Container, session_factory: object) -> None:
+    for source_id in source_ids:
+        asyncio.create_task(_process_background(source_id, container, session_factory))
 
 
 @router.get("/{source_id}")

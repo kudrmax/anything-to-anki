@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from backend.domain.entities.collection import Collection
@@ -21,7 +21,7 @@ class MoveCollectionRequest(BaseModel):
     """`position` is the index among the new siblings, not counting the moved collection."""
 
     parent_id: int | None = None
-    position: int
+    position: int = Field(ge=0)
 
 
 class CollectionDTO(BaseModel):

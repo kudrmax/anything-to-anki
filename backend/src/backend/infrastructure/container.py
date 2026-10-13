@@ -36,6 +36,7 @@ from backend.application.use_cases.list_collections import ListCollectionsUseCas
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
+from backend.application.use_cases.move_collection import MoveCollectionUseCase
 from backend.application.use_cases.place_sources import PlaceSourcesUseCase
 from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
@@ -45,6 +46,7 @@ from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
 from backend.application.use_cases.report_candidate import ReportCandidateUseCase
 from backend.application.use_cases.reprocess_source import ReprocessSourceUseCase
+from backend.application.use_cases.restore_collection import RestoreCollectionUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.save_cloze import SaveClozeUseCase
 from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
@@ -461,6 +463,15 @@ class Container:
 
     def delete_collection_use_case(self, session: Session) -> DeleteCollectionUseCase:
         return DeleteCollectionUseCase(
+            collection_repo=SqlaCollectionRepository(session),
+            source_repo=SqlaSourceRepository(session),
+        )
+
+    def move_collection_use_case(self, session: Session) -> MoveCollectionUseCase:
+        return MoveCollectionUseCase(collection_repo=SqlaCollectionRepository(session))
+
+    def restore_collection_use_case(self, session: Session) -> RestoreCollectionUseCase:
+        return RestoreCollectionUseCase(
             collection_repo=SqlaCollectionRepository(session),
             source_repo=SqlaSourceRepository(session),
         )

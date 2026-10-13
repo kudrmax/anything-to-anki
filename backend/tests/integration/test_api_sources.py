@@ -114,6 +114,32 @@ class TestSourcesAPI:
         assert response.status_code == 200
         assert len(response.json()) == 2
 
+    def test_process_pending_starts_only_scope(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        ielts = client.post("/collections", json={"name": "IELTS"}).json()
+        db_session.add_all([
+            SourceModel(title="in", status="new", collection_id=ielts["id"]),
+            SourceModel(title="out", status="new"),
+        ])
+        db_session.commit()
+        started = client.post("/sources/process-pending", params={"scope": ielts["id"]})
+        assert started.status_code == 202
+        titles = {s["id"]: s["title"] for s in client.get("/sources").json()}
+        assert [titles[i] for i in started.json()["started"]] == ["in"]
+
+    def test_process_batch_ignores_repeated_ids(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        db_session.add(SourceModel(title="one", status="new"))
+        db_session.commit()
+        source_id = client.get("/sources").json()[0]["id"]
+        response = client.post(
+            "/sources/process-batch", json={"source_ids": [source_id, source_id]},
+        )
+        assert response.status_code == 202
+        assert response.json() == {"started": [source_id]}
+
     def test_created_at_is_returned_with_utc_offset(self, client: TestClient) -> None:
         """Clients render times in the viewer's zone; they need the offset to do so."""
         before = datetime.now(tz=UTC)
