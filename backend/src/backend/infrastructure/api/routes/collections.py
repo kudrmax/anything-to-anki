@@ -9,6 +9,7 @@ from backend.application.dto.collection_dtos import (  # noqa: TC001
     CollectionDTO,
     CollectionSummaryDTO,
     CreateCollectionRequest,
+    DeletedCollectionDTO,
     RenameCollectionRequest,
     RenamedCollectionDTO,
 )
@@ -79,15 +80,16 @@ def rename_collection(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.delete("/{collection_id}", status_code=204)
+@router.delete("/{collection_id}")
 def delete_collection(
     collection_id: int,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> None:
+) -> DeletedCollectionDTO:
     try:
         use_case = container.delete_collection_use_case(session)
-        use_case.execute(collection_id)
+        result = use_case.execute(collection_id)
         session.commit()
+        return result
     except CollectionNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

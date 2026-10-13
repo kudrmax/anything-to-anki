@@ -76,9 +76,3 @@ class SqlaCollectionRepository(CollectionRepository):
             self._session.delete(model)
         self._session.flush()
         return evictions
-
-    def delete(self, collection_id: int) -> None:
-        model = self._session.get(CollectionModel, collection_id)
-        if model is not None:
-            self._session.delete(model)
-            self._session.flush()

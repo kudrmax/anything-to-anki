@@ -39,6 +39,3 @@ class InMemoryCollectionRepository(CollectionRepository):
 
     def take_evictions(self, collection_id: int) -> list[SourceEviction]:
         return self.evictions.pop(collection_id, [])
-
-    def delete(self, collection_id: int) -> None:
-        self.items.pop(collection_id, None)

@@ -35,6 +35,3 @@ class CollectionRepository(ABC):
     @abstractmethod
     def take_evictions(self, collection_id: int) -> list[SourceEviction]:
         """Evictions recorded when the collection was deleted; they are forgotten after this."""
-
-    @abstractmethod
-    def delete(self, collection_id: int) -> None: ...

@@ -454,6 +454,7 @@ class Container:
     def delete_collection_use_case(self, session: Session) -> DeleteCollectionUseCase:
         return DeleteCollectionUseCase(
             collection_repo=SqlaCollectionRepository(session),
+            source_repo=SqlaSourceRepository(session),
         )
 
     def assign_source_collection_use_case(
