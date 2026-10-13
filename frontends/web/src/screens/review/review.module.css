@@ -30,7 +30,7 @@
 /* очередь */
 .body { display: var(--review-body-display); flex-direction: column; flex: 1; min-height: 0; }
 .queue { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.queue > .queueItem, .queue > .sectionLabel { display: var(--queue-row-display); }
+.queue > .queueItem, .queue > .sectionToggle { display: var(--queue-row-display); }
 .queue > .card { order: var(--current-card-order); margin: var(--wide-lead) 0; }
 .queue > .card:first-child { margin-top: 0; }
 .queueItem { display: flex; align-items: center; gap: var(--s3); min-width: 0; padding: var(--s4) var(--card-pad); text-align: left; font-size: var(--fs-b); color: var(--tx3); transition: background var(--t), color var(--t); }
@@ -46,8 +46,8 @@
 .phoneBar > :first-child { margin-left: var(--icon-inset-trim); }
 .phoneBar > :last-child { margin-right: var(--icon-inset-trim); }
 /* десктоп без списка: только текущая карточка и стрелки */
-.focus .queue > .queueItem, .focus .queue > .sectionLabel, .focus .showMore { display: none; }
-.sectionLabel { padding: var(--s4) var(--card-pad) var(--s2); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); }
+.focus .queue > .queueItem, .focus .queue > .sectionToggle, .focus .showMore { display: none; }
+.sectionToggle { padding: var(--py) var(--card-pad) 0; }
 .phoneBar > .phoneOnly { display: var(--phone-display); }
 .headerStepper { display: var(--desktop-flex); align-items: center; gap: var(--s1); margin-right: var(--s3); }
 .position { margin-left: auto; padding-inline: var(--s3); font-size: var(--fs-s); color: var(--tx3); font-variant-numeric: tabular-nums; }
@@ -72,8 +72,7 @@
 .markPending.fragment, .markRated.fragment { color: var(--tx); }
 .hint { display: var(--hint-display); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); padding: var(--py) var(--card-pad) 0; }
 .showMore { display: var(--show-more-display); padding: var(--py) var(--card-pad) 0; }
-.knownToggle { display: var(--show-more-display); padding: var(--s2) var(--card-pad) 0; }
-.focus .knownToggle { display: none; }
+
 
 /* попап выделения */
 .popover { display: flex; flex-direction: column; gap: var(--s3); min-width: var(--menu); font-size: var(--fs-m); }

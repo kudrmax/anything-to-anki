@@ -15,7 +15,7 @@ import { SortMenu } from './SortMenu'
 import { SourceText, type SelectedText, type SelectionPoint } from './SourceText'
 import { audioUrlForCandidate, useReview } from './useReview'
 import { useShownCandidates } from './useShownCandidates'
-import { countIn, SECTION_LABEL, withSectionLabels, type ListItem } from './sections'
+import { listItems, sectionToggleLabel, visibleCandidates, type ListItem } from './sections'
 import type { CandidateSection } from '@/api/types'
 import css from './review.module.css'
 
@@ -54,10 +54,16 @@ export function ReviewScreen() {
   const current = candidates.find(c => c.id === currentId) ?? null
   // Разделы есть во всех сортировках, кроме порядка текста; Probably known свёрнут, пока его не открыли.
   const sectioned = review.sortOrder !== 'chronological'
-  const [knownShown, setKnownShown] = useState(false)
-  const knownCount = sectioned ? countIn(candidates, 'probably_known') : 0
-  const knownOpen = knownShown || current?.section === 'probably_known'
-  const visible = sectioned && !knownOpen ? candidates.filter(c => c.section !== 'probably_known') : candidates
+  const [openedSections, setOpenedSections] = useState<ReadonlySet<CandidateSection>>(new Set())
+  // Карточка, открытая ссылкой или кликом по тексту, видна, даже если её раздел свёрнут.
+  const openSections = current?.section ? new Set([...openedSections, current.section]) : openedSections
+  const toggleSection = (section: CandidateSection) => setOpenedSections(prev => {
+    const next = new Set(prev)
+    if (openSections.has(section)) next.delete(section)
+    else next.add(section)
+    return next
+  })
+  const visible = sectioned ? visibleCandidates(candidates, openSections) : candidates
   const list = useShownCandidates(
     visible,
     source?.initially_shown_candidates ?? null,
@@ -142,10 +148,14 @@ export function ReviewScreen() {
     setPhoneView('card')
   }
 
-  const sectionLabel = (section: CandidateSection) => `${SECTION_LABEL[section]} · ${countIn(candidates, section)}`
-  const listItems: ListItem[] = sectioned
-    ? withSectionLabels(list.shown)
+  const items: ListItem[] = sectioned
+    ? listItems(candidates, list.shown, openSections)
     : list.shown.map(candidate => ({ kind: 'candidate', candidate }))
+  const sectionToggle = (section: CandidateSection, count: number, open: boolean) => (
+    <div key={section} className={css.sectionToggle}>
+      <Button variant="link" onClick={() => toggleSection(section)}>{sectionToggleLabel(section, count, open)}</Button>
+    </div>
+  )
 
   // Позиция и ‹ › — в ряду телефона и в шапке десктопа без списка.
   const stepper = (
@@ -237,8 +247,8 @@ export function ReviewScreen() {
         {view === 'text' && hasSourceText && <div className={css.textPanel}>{sourceText(showCard)}</div>}
         {view === 'list' && (
           <div className={css.listPanel}>
-            {listItems.map(item => item.kind === 'section'
-              ? <div key={item.section} className={css.sectionLabel}>{sectionLabel(item.section)}</div>
+            {items.map(item => item.kind === 'section'
+              ? sectionToggle(item.section, item.count, item.open)
               : <PhraseRow key={item.candidate.id} candidate={item.candidate} current={item.candidate.id === currentId} onSelect={showCard} />)}
             {list.hiddenCount > 0 && (
               <Button variant="link" onClick={list.showMore}>Show {list.nextPageCount} more · {list.hiddenCount} left</Button>
@@ -246,8 +256,8 @@ export function ReviewScreen() {
           </div>
         )}
         <div className={view === 'card' ? css.queue : `${css.queue} ${css.away}`}>
-          {listItems.map(item => {
-            if (item.kind === 'section') return <div key={item.section} className={css.sectionLabel}>{sectionLabel(item.section)}</div>
+          {items.map(item => {
+            if (item.kind === 'section') return sectionToggle(item.section, item.count, item.open)
             const { candidate } = item
             return candidate.id === currentId
               ? <PhraseCard key={candidate.id} candidate={candidate} review={review} />
@@ -258,13 +268,6 @@ export function ReviewScreen() {
           <div className={css.showMore}>
             <Button variant="link" onClick={list.showMore}>
               Show {list.nextPageCount} more · {list.hiddenCount} left
-            </Button>
-          </div>
-        )}
-        {knownCount > 0 && list.hiddenCount === 0 && (
-          <div className={css.knownToggle}>
-            <Button variant="link" onClick={() => setKnownShown(!knownOpen)}>
-              {knownOpen ? `Hide ${SECTION_LABEL.probably_known.toLowerCase()}` : sectionLabel('probably_known')}
             </Button>
           </div>
         )}

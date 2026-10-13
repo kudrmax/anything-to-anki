@@ -1,19 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import type { CandidateSection, StoredCandidate } from '@/api/types'
-import { withSectionLabels } from './sections'
+import { listItems, visibleCandidates } from './sections'
 
 const card = (id: number, section: CandidateSection) => ({ id, section }) as StoredCandidate
+const CARDS = [card(1, 'ready'), card(2, 'extra'), card(3, 'extra'), card(4, 'probably_known')]
+const rows = (open: CandidateSection[], shownCount = CARDS.length) => {
+  const opened = new Set(open)
+  const shown = visibleCandidates(CARDS, opened).slice(0, shownCount)
+  return listItems(CARDS, shown, opened).map(item => (item.kind === 'section' ? `${item.section}${item.open ? '-' : '+'}` : item.candidate.id))
+}
 
-describe('withSectionLabels', () => {
-  it('labels each section after ready before its first card', () => {
-    const items = withSectionLabels([card(1, 'ready'), card(2, 'extra'), card(3, 'extra'), card(4, 'probably_known')])
-    expect(items.map(item => (item.kind === 'section' ? item.section : item.candidate.id))).toEqual(
-      [1, 'extra', 2, 3, 'probably_known', 4],
-    )
+describe('listItems', () => {
+  it('folds every section under ready', () => {
+    expect(rows([])).toEqual([1, 'extra+', 'probably_known+'])
   })
 
-  it('labels extra at the top when nothing is ready', () => {
-    const items = withSectionLabels([card(2, 'extra')])
-    expect(items[0]).toEqual({ kind: 'section', section: 'extra' })
+  it('shows the cards of an open section under its row', () => {
+    expect(rows(['extra'])).toEqual([1, 'extra-', 2, 3, 'probably_known+'])
+  })
+
+  it('waits for the cards above before showing the next section', () => {
+    expect(rows(['extra'], 2)).toEqual([1, 'extra-', 2])
   })
 })
