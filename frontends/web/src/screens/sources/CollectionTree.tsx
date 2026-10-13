@@ -3,7 +3,8 @@ import { ChevronDown, ChevronRight, Inbox, Layers, Plus, type LucideIcon } from 
 import type { CollectionNode, CollectionTree as Tree, Scope, ScopeCounts } from '@/api/types'
 import { useCollapsed } from '@/hooks/useCollapsed'
 import { collectionDrop, zoneAt, type DropZone } from '@/lib/treeDrop'
-import { Field, Icon, IconButton, Menu, type MenuItem } from '@/ui'
+import { Field, Icon, IconButton, Menu } from '@/ui'
+import { collectionMenuItems } from './collectionMenu'
 import css from './CollectionTree.module.css'
 
 export const SOURCES_MIME = 'application/x-anki-sources'
@@ -36,8 +37,9 @@ export function CollectionTree(props: CollectionTreeProps) {
   // Enter и Escape размонтируют поле, а размонтирование даёт blur: без флага имя уйдёт дважды.
   const settled = useRef(false)
 
+  // Флаг снимается при появлении поля, а не в startEditing: меню собирает обработчики во время рендера, а там ref трогать нельзя.
+  const armEditor = (input: HTMLInputElement | null) => { if (input) settled.current = false }
   const startEditing = (next: Editing, initial: string) => {
-    settled.current = false
     setDraft(initial)
     setEditing(next)
   }
@@ -56,7 +58,7 @@ export function CollectionTree(props: CollectionTreeProps) {
     if (e.key === 'Escape') finish(false)
   }
   const editor = (
-    <Field autoFocus value={draft} placeholder="Collection name" onChange={e => setDraft(e.target.value)} onKeyDown={onEditKey} onBlur={() => finish(true)} />
+    <Field ref={armEditor} autoFocus value={draft} placeholder="Collection name" onChange={e => setDraft(e.target.value)} onKeyDown={onEditKey} onBlur={() => finish(true)} />
   )
 
   const sourcesIn = (e: DragEvent): number[] | null => {
@@ -87,12 +89,12 @@ export function CollectionTree(props: CollectionTreeProps) {
     setDraggedId(null)
   }
 
-  const menuFor = (node: CollectionNode): MenuItem[] => [
-    { label: 'Rename', onSelect: () => startRename(node) },
-    ...(node.accepts_collections ? [{ label: 'New subcollection', onSelect: () => startCreate(node.id) }] : []),
-    { label: 'Move to…', onSelect: () => props.onMoveTo(node.id) },
-    { label: 'Delete', danger: true, separated: true, onSelect: () => props.onDelete(node.id) },
-  ]
+  const menuFor = (node: CollectionNode) => collectionMenuItems(node, {
+    onRename: () => startRename(node),
+    onNewSubcollection: () => startCreate(node.id),
+    onMoveTo: () => props.onMoveTo(node.id),
+    onDelete: () => props.onDelete(node.id),
+  })
 
   const row = (node: CollectionNode, depth: 0 | 1) => {
     const selected = scope === node.id

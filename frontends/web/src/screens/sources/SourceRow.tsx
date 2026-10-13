@@ -1,13 +1,16 @@
-import { useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { BookOpen, Clapperboard, Ellipsis, FileText, Folder, Globe, Music, Pencil, RefreshCw, Sparkles, Trash2, Upload, type LucideIcon } from 'lucide-react'
-import type { Collection, GenerationStatus, ProcessingStage, SourceSummary } from '@/api/types'
+import { useState, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react'
+import { BookOpen, Clapperboard, Ellipsis, FileText, FolderInput, Globe, Music, Pencil, RefreshCw, Sparkles, Trash2, Upload, type LucideIcon } from 'lucide-react'
+import type { GenerationStatus, ProcessingStage, SourceSummary } from '@/api/types'
 import { formatDate } from '@/lib/text/format'
 import { Button, Field, Icon, IconButton, Menu, Progress, Spinner, Text, type MenuItem } from '@/ui'
+import { SOURCES_MIME } from './CollectionTree'
 import css from './sources.module.css'
 
 interface SourceRowProps {
   source: SourceSummary
-  collections: Collection[]
+  selected: boolean
+  /** Путь узла под названием: источник лежит не прямо в открытом узле. */
+  showPath: boolean
   /** Главная строка экрана: её действие выделено. */
   primary: boolean
   onProcess: (id: number) => void
@@ -19,7 +22,11 @@ interface SourceRowProps {
   onDelete: (id: number) => void
   onRename: (id: number, title: string) => void
   onReprocess: (id: number) => void
-  onAssignCollection: (sourceId: number, collectionId: number | null) => void
+  /** true — клик ушёл на выбор строки, открывать источник не нужно. */
+  onRowClick: (e: MouseEvent, id: number) => boolean
+  onMoveTo: (id: number) => void
+  /** Что тащим: выбор, если строка в нём, иначе только её. */
+  dragIds: () => number[]
 }
 
 type SourceLook = 'text' | 'book' | 'lyrics' | 'video' | 'topic' | 'phrases'
@@ -60,7 +67,7 @@ function progressCaption(source: SourceSummary): string {
   return `${source.candidate_count} phrases`
 }
 
-export function SourceRow({ source, collections, primary, onProcess, onGenerate, onCancelGeneration, onRetryGeneration, onReview, onExport, onDelete, onRename, onReprocess, onAssignCollection }: SourceRowProps) {
+export function SourceRow({ source, selected, showPath, primary, onProcess, onGenerate, onCancelGeneration, onRetryGeneration, onReview, onExport, onDelete, onRename, onReprocess, onRowClick, onMoveTo, dragIds }: SourceRowProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(source.title)
 
@@ -80,19 +87,10 @@ export function SourceRow({ source, collections, primary, onProcess, onGenerate,
     if (e.key === 'Escape') setEditing(false)
   }
 
-  const collectionName = collections.find(c => c.id === source.collection_id)?.name ?? 'None'
   const menuItems: MenuItem[] = [
     ...(canExport ? [{ label: 'Export', icon: Upload, onSelect: () => onExport(source.id) }] : []),
     { label: 'Rename', icon: Pencil, onSelect: startEditing },
-    {
-      label: 'Collection',
-      icon: Folder,
-      value: collectionName,
-      items: [
-        { label: 'None', selected: source.collection_id === null, onSelect: () => onAssignCollection(source.id, null) },
-        ...collections.map(c => ({ label: c.name, selected: c.id === source.collection_id, onSelect: () => onAssignCollection(source.id, c.id) })),
-      ],
-    },
+    { label: 'Move to…', icon: FolderInput, onSelect: () => onMoveTo(source.id) },
     ...(isProcessing || source.status === 'new' || source.is_permanent ? [] : [{ label: 'Reprocess', icon: RefreshCw, onSelect: () => onReprocess(source.id) }]),
     ...(isProcessing || source.is_permanent ? [] : [{ label: 'Delete', icon: Trash2, danger: true, separated: true, onSelect: () => onDelete(source.id) }]),
   ]
@@ -135,17 +133,27 @@ export function SourceRow({ source, collections, primary, onProcess, onGenerate,
     )
   })()
 
-  const classes = [css.row, isReviewable && !editing && css.clickable, source.status === 'reviewed' && css.done].filter(Boolean).join(' ')
+  const classes = [css.row, isReviewable && !editing && css.clickable, source.status === 'reviewed' && css.done, selected && css.selected].filter(Boolean).join(' ')
   const look = lookOf(source)
-  const tooltip = `${TYPE_LABEL[look]} · added ${formatDate(source.created_at)}${source.collection_name ? ` · ${source.collection_name}` : ''}`
+  const tooltip = `${TYPE_LABEL[look]} · added ${formatDate(source.created_at)}${source.collection_path.length ? ` · ${source.collection_path.join(' / ')}` : ''}`
+
+  const onClick = (e: MouseEvent) => {
+    if (onRowClick(e, source.id)) return
+    if (isReviewable && !editing) onReview(source.id)
+  }
+  const onDragStart = (e: DragEvent) => {
+    e.dataTransfer.setData(SOURCES_MIME, JSON.stringify(dragIds()))
+    e.dataTransfer.effectAllowed = 'move'
+  }
 
   return (
-    <div className={classes} title={tooltip} onClick={isReviewable && !editing ? () => onReview(source.id) : undefined}>
+    <div className={classes} title={tooltip} aria-selected={selected} draggable={!editing} onDragStart={onDragStart} onClick={onClick}>
       <span className={css.type}><Icon as={TYPE_ICON[look]} /></span>
       <div className={css.name}>
         {editing
           ? <Field autoFocus value={draft} onChange={e => setDraft(e.target.value)} onBlur={save} onKeyDown={onKeyDown} onClick={stop} />
           : <span className={css.title} onDoubleClick={e => { e.stopPropagation(); startEditing() }}>{source.title}</span>}
+        {showPath && source.collection_path.length > 0 && <span className={css.path}>{source.collection_path.at(-1)}</span>}
       </div>
       <div className={css.progress}>{progress}</div>
       <div className={css.action} onClick={stop}>{action}</div>
