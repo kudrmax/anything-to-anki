@@ -38,7 +38,7 @@ def client() -> Generator[TestClient, None, None]:
     SqlaCandidateRepository(session).create_batch([
         StoredCandidate(
             source_id=source.id, lemma=lemma, pos="VERB", cefr_level="B1",
-            zipf_frequency=4.0, context_fragment=GIVE_UP, fragment_purity="clean",
+            zipf_frequency=4.0, context_fragment=GIVE_UP,
             occurrences=1, status=CandidateStatus.PENDING, surface_form=surface,
             is_phrasal_verb=" " in lemma,
         )

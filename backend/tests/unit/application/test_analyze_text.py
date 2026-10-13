@@ -19,6 +19,7 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.frequency_band import FrequencyBand
+from backend.domain.value_objects.vocabulary import Vocabulary
 
 
 def _make_token(
@@ -196,7 +197,7 @@ class TestAnalyzeTextUseCase:
         response = use_case.execute(request)
         assert len(response.candidates) == 0
 
-    def test_fragment_purity(self) -> None:
+    def test_phrase_words_are_read_from_the_phrase(self) -> None:
         tokens = [_make_token(0, "relentless", "relentless")]
         use_case = _create_use_case(
             tokens=tokens,
@@ -205,7 +206,8 @@ class TestAnalyzeTextUseCase:
         )
         request = AnalyzeTextRequest(user_level="B1")
         response = use_case.execute(request)
-        assert response.candidates[0].fragment_purity in ("clean", "dirty")
+        candidate = response.candidates[0]
+        assert candidate.phrase_words.phrase == candidate.context_fragment
 
 
 def _sentence(start: int, sent_index: int, lemmas: list[str]) -> list[TokenData]:
@@ -221,6 +223,7 @@ def _run(
     freq_map: dict[str, float] | None = None,
     known: frozenset[str] = frozenset(),
     frequent_zipf: float | None = 4.5,
+    unknown: frozenset[str] = frozenset(),
 ) -> list[WordCandidateDTO]:
     use_case = _create_use_case(
         tokens=tokens,
@@ -228,10 +231,14 @@ def _run(
         freq_map=freq_map or {},
     )
     request = AnalyzeTextRequest(
-        user_level="B1", known_lemmas=known,
+        user_level="B1", vocabulary=Vocabulary.of(known=known, unknown=unknown),
         frequent_word_zipf=frequent_zipf,
     )
     return use_case.execute(request).candidates
+
+
+def _rare(candidate: WordCandidateDTO) -> list[str]:
+    return [word.lemma for word in candidate.phrase_words.words if word.rare]
 
 
 EASY = {"one": 3.0, "two": 3.0, "three": 3.0, "four": 3.0, "five": 3.0, "six": 3.0}
@@ -256,7 +263,7 @@ class TestAnalyzeTextKnownWords:
             ),
         ]
         request = AnalyzeTextRequest(
-            user_level="B1", known_lemmas=frozenset({"make up"}),
+            user_level="B1", vocabulary=Vocabulary.of(known={"make up"}, unknown=set()),
         )
         assert use_case.execute(request).candidates == []
 
@@ -292,8 +299,7 @@ class TestAnalyzeTextPhraseChoice:
         )
         feast = next(c for c in candidates if c.lemma == "feast")
         assert feast.context_fragment == "four five six one feast"
-        assert feast.fragment_unknown_count == 0
-        assert feast.fragment_purity == "clean"
+        assert _rare(feast) == []
 
     def test_other_unknown_word_makes_phrase_dirty(self) -> None:
         tokens = _sentence(0, 0, ["one", "rival", "two", "three", "feast"])
@@ -302,17 +308,27 @@ class TestAnalyzeTextPhraseChoice:
             {**EASY, "feast": 3.9, "rival": 3.9},
         )
         feast = next(c for c in candidates if c.lemma == "feast")
-        assert feast.fragment_unknown_count == 1
-        assert feast.fragment_purity == "dirty"
+        assert _rare(feast) == ["rival"]
 
-    def test_known_neighbour_is_not_counted_as_unknown(self) -> None:
-        tokens = _sentence(0, 0, ["one", "rival", "two", "three", "feast"])
+    def test_known_neighbour_does_not_push_phrase_away(self) -> None:
+        first = _sentence(0, 0, ["one", "rival", "two", "three", "feast"])
+        second = _sentence(5, 1, ["four", "five", "six", "gale", "feast"])
         candidates = _run(
-            tokens, {"feast": CEFRLevel.C1, "rival": CEFRLevel.C1},
-            {**EASY, "feast": 3.9, "rival": 3.9}, known=frozenset({"rival"}),
+            first + second, {"feast": CEFRLevel.C1, "rival": CEFRLevel.C1, "gale": CEFRLevel.C1},
+            {**EASY, "feast": 3.9, "rival": 3.9, "gale": 3.9}, known=frozenset({"rival"}),
         )
-        assert candidates[0].lemma == "feast"
-        assert candidates[0].fragment_unknown_count == 0
+        feast = next(c for c in candidates if c.lemma == "feast")
+        assert feast.context_fragment == "one rival two three feast"
+
+    def test_unknown_neighbour_pushes_phrase_away_even_if_easy(self) -> None:
+        first = _sentence(0, 0, ["one", "two", "three", "four", "feast"])
+        second = _sentence(5, 1, ["five", "six", "two", "three", "feast"])
+        candidates = _run(
+            first + second, {"feast": CEFRLevel.C1},
+            {**EASY, "feast": 3.9}, unknown=frozenset({"one"}),
+        )
+        feast = next(c for c in candidates if c.lemma == "feast")
+        assert feast.context_fragment == "five six two three feast"
 
     def test_frequent_neighbour_is_not_counted_as_unknown(self) -> None:
         tokens = _sentence(0, 0, ["one", "concept", "two", "three", "feast"])
@@ -321,7 +337,7 @@ class TestAnalyzeTextPhraseChoice:
             {**EASY, "feast": 3.9, "concept": 4.77},
         )
         feast = next(c for c in candidates if c.lemma == "feast")
-        assert feast.fragment_unknown_count == 0
+        assert _rare(feast) == []
 
     def test_frequent_neighbour_counts_when_threshold_is_off(self) -> None:
         tokens = _sentence(0, 0, ["one", "concept", "two", "three", "feast"])
@@ -330,7 +346,7 @@ class TestAnalyzeTextPhraseChoice:
             {**EASY, "feast": 3.9, "concept": 4.77}, frequent_zipf=None,
         )
         feast = next(c for c in candidates if c.lemma == "feast")
-        assert feast.fragment_unknown_count == 1
+        assert _rare(feast) == ["concept"]
 
 
 @pytest.mark.unit

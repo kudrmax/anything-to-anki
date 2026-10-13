@@ -30,9 +30,9 @@ class TestCandidatePolishPersistence:
             s.execute(
                 text(
                     "INSERT INTO candidates (id, source_id, lemma, pos, "
-                    "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
+                    "zipf_frequency, is_sweet_spot, context_fragment, "
                     "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                    "VALUES (1, 1, 'stale', 'ADJ', 3.0, 0, 'The air was stale', 'clean', "
+                    "VALUES (1, 1, 'stale', 'ADJ', 3.0, 0, 'The air was stale', "
                     "1, 'pending', 0, 0)"
                 )
             )

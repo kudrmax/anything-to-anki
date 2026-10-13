@@ -54,7 +54,6 @@ def _make_stored_candidate(with_breakdown: bool = True) -> StoredCandidate:
         cefr_level="B1",
         zipf_frequency=5.0,
         context_fragment="I am happy",
-        fragment_purity="clean",
         occurrences=1,
         status=CandidateStatus.PENDING,
         cefr_breakdown=_make_breakdown() if with_breakdown else None,

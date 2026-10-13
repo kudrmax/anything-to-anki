@@ -35,6 +35,7 @@ from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.list_collections import ListCollectionsUseCase
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
+from backend.application.use_cases.manage_unknown_words import ManageUnknownWordsUseCase
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
 from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
@@ -54,8 +55,10 @@ from backend.application.utils.export_queue import ExportQueue
 from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
+from backend.application.utils.phrase_words_reader import PhraseWordsReader
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
+from backend.application.utils.user_vocabulary import UserVocabulary
 from backend.domain.ports.cefr_source import (
     CEFRSource,  # noqa: TC001 — used at runtime in list[CEFRSource]
 )
@@ -147,6 +150,9 @@ from backend.infrastructure.persistence.sqla_source_repository import (
 )
 from backend.infrastructure.persistence.sqla_topic_target_repository import (
     SqlaTopicTargetRepository,
+)
+from backend.infrastructure.persistence.sqla_unknown_word_repository import (
+    SqlaUnknownWordRepository,
 )
 from backend.infrastructure.persistence.sqla_word_decision_repository import (
     SqlaWordDecisionRepository,
@@ -468,7 +474,7 @@ class Container:
         return ProcessSourceUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
-            known_word_repo=SqlaKnownWordRepository(session),
+            vocabulary=self._user_vocabulary(session),
             settings_repo=SqlaSettingsRepository(session),
             threshold_resolver=self._threshold_resolver(session),
             analyze_text_use_case=self.analyze_text_use_case(),
@@ -491,7 +497,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             document_repo=SqlaDocumentRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
-            known_word_repo=SqlaKnownWordRepository(session),
+            vocabulary=self._user_vocabulary(session),
             candidate_factory=self._candidate_factory(),
         )
 
@@ -554,7 +560,7 @@ class Container:
         return GetReprocessStatsUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
-            known_word_repo=SqlaKnownWordRepository(session),
+            vocabulary=self._user_vocabulary(session),
             job_repo=SqlaJobRepository(session),
         )
 
@@ -574,12 +580,15 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             document_repo=SqlaDocumentRepository(session),
             report_repo=SqlaCardReportRepository(session),
+            vocabulary=self._user_vocabulary(session),
+            phrase_words_reader=self._phrase_words_reader(session),
+            review_status=self._review_status_updater(session),
         )
 
     def mark_candidate_use_case(self, session: Session) -> MarkCandidateUseCase:
         return MarkCandidateUseCase(
             candidate_repo=SqlaCandidateRepository(session),
-            known_word_repo=SqlaKnownWordRepository(session),
+            vocabulary=self._user_vocabulary(session),
             decision_repo=SqlaWordDecisionRepository(session),
             review_status=self._review_status_updater(session),
             cloze_repo=SqlaCandidateClozeRepository(session),
@@ -620,17 +629,43 @@ class Container:
         return CandidateSorter(
             settings_repo=SqlaSettingsRepository(session),
             threshold_resolver=self._threshold_resolver(session),
+            vocabulary=self._user_vocabulary(session),
+            phrase_words_reader=self._phrase_words_reader(session),
         )
 
     def _review_status_updater(self, session: Session) -> ReviewStatusUpdater:
         return ReviewStatusUpdater(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            candidate_sorter=self._candidate_sorter(session),
+        )
+
+    def _user_vocabulary(self, session: Session) -> UserVocabulary:
+        return UserVocabulary(
+            known_word_repo=SqlaKnownWordRepository(session),
+            unknown_word_repo=SqlaUnknownWordRepository(session),
+        )
+
+    def _phrase_words_reader(self, session: Session) -> PhraseWordsReader:
+        return PhraseWordsReader(
+            candidate_repo=SqlaCandidateRepository(session),
+            text_analyzer=self._text_analyzer,
+            cefr_classifier=self._cefr_classifier,
+            frequency_provider=self._frequency_provider,
+            settings_repo=SqlaSettingsRepository(session),
+            threshold_resolver=self._threshold_resolver(session),
+        )
+
+    def manage_unknown_words_use_case(self, session: Session) -> ManageUnknownWordsUseCase:
+        return ManageUnknownWordsUseCase(
+            vocabulary=self._user_vocabulary(session),
+            review_status=self._review_status_updater(session),
         )
 
     def manage_known_words_use_case(self, session: Session) -> ManageKnownWordsUseCase:
         return ManageKnownWordsUseCase(
-            known_word_repo=SqlaKnownWordRepository(session),
+            vocabulary=self._user_vocabulary(session),
+            review_status=self._review_status_updater(session),
         )
 
     def manage_settings_use_case(self, session: Session) -> ManageSettingsUseCase:
@@ -653,7 +688,7 @@ class Container:
             settings_repo=SqlaSettingsRepository(session),
             anki_sync_repo=SqlaAnkiSyncRepository(session),
             template_renderer=self._anki_template_renderer,
-            known_word_repo=SqlaKnownWordRepository(session),
+            vocabulary=self._user_vocabulary(session),
             cloze_builder=ClozeBuilder(),
         )
 
@@ -732,7 +767,7 @@ class Container:
     def get_stats_use_case(self, session: Session) -> GetStatsUseCase:
         return GetStatsUseCase(
             candidate_repo=SqlaCandidateRepository(session),
-            known_word_repo=SqlaKnownWordRepository(session),
+            vocabulary=self._user_vocabulary(session),
             export_queue=self._export_queue(session),
             job_repo=SqlaJobRepository(session),
         )
@@ -749,7 +784,7 @@ class Container:
     def get_bootstrap_words_use_case(self, session: Session) -> GetBootstrapWordsUseCase:
         return GetBootstrapWordsUseCase(
             index_repo=SqlaBootstrapIndexRepository(session),
-            known_word_repo=SqlaKnownWordRepository(session),
+            vocabulary=self._user_vocabulary(session),
             settings_repo=SqlaSettingsRepository(session),
         )
 

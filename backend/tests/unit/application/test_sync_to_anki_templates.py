@@ -11,6 +11,8 @@ from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.export_group import ExportGroup
 
+from tests.vocabulary_support import user_vocabulary
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -70,7 +72,7 @@ class TestSyncToAnkiTemplates:
             settings_repo=settings_repo,
             anki_sync_repo=anki_sync_repo,
             template_renderer=renderer,
-            known_word_repo=known_word_repo,
+            vocabulary=user_vocabulary(known_word_repo),
             cloze_builder=ClozeBuilder(),
         )
         use_case.execute(source_id=1, group=ExportGroup.READY)

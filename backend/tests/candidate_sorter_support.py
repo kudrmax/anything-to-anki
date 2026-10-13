@@ -1,7 +1,8 @@
 """Real candidate sorting over a mocked or fake settings repository.
 
 Use cases take a ``CandidateSorter``; tests keep configuring sorting through
-the settings repository, with no word decisions unless they pass some.
+the settings repository, with no word decisions unless they pass some. The user
+knows no words, and the cards' phrase words are taken as they are.
 """
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ from backend.application.utils.candidate_sorter import CandidateSorter
 from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
+from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY
 
 if TYPE_CHECKING:
     from backend.domain.entities.word_decision import WordDecision
@@ -28,4 +30,8 @@ def threshold_resolver(
 
 
 def candidate_sorter(settings_repo: SettingsRepository) -> CandidateSorter:
-    return CandidateSorter(settings_repo, threshold_resolver(settings_repo))
+    vocabulary = MagicMock()
+    vocabulary.snapshot.return_value = EMPTY_VOCABULARY
+    return CandidateSorter(
+        settings_repo, threshold_resolver(settings_repo), vocabulary, MagicMock(),
+    )

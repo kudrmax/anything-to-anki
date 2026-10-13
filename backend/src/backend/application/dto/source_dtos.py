@@ -17,6 +17,7 @@ from backend.domain.value_objects.job_type import JobType
 if TYPE_CHECKING:
     from backend.domain.entities.job import Job
     from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.value_objects.candidate_section import CandidateSection
 
 
 class UpdateTitleRequest(BaseModel):
@@ -39,7 +40,9 @@ class SourceDTO(BaseModel):
     created_at: datetime
     candidate_count: int
     learn_count: int
-    decided_count: int = 0
+    # Cards where only the target is new, and how many of them are decided.
+    ready_count: int = 0
+    ready_decided_count: int = 0
     processing_stage: str | None = None
     collection_id: int | None = None
     collection_name: str | None = None
@@ -120,7 +123,8 @@ class StoredCandidateDTO(BaseModel):
     polished_fragment: str | None = None
     polish_reverted: bool = False
     polish_status: str | None = None  # 'queued' | 'running' | 'failed' while AI works on it
-    fragment_purity: str
+    # ready | extra | probably_known; None when the card was not arranged with its source
+    section: str | None = None
     occurrences: int
     status: str
     surface_form: str | None = None
@@ -160,6 +164,9 @@ class SourceDetailDTO(BaseModel):
     processing_stage: str | None = None
     created_at: datetime
     candidates: list[StoredCandidateDTO]
+    # Cards where only the target is new, and how many of them are decided.
+    ready_total: int = 0
+    ready_reviewed: int = 0
     # How many candidates to show before "show more"; None — show all.
     initially_shown_candidates: int | None = None
 
@@ -247,6 +254,7 @@ def stored_candidate_to_dto(
     jobs_by_candidate: dict[int, dict[str, Job]] | None = None,
     reported_ids: set[int] | None = None,
     synced_ids: set[int] | None = None,
+    section: CandidateSection | None = None,
 ) -> StoredCandidateDTO:
     """Canonical converter: StoredCandidate entity → StoredCandidateDTO.
 
@@ -378,7 +386,7 @@ def stored_candidate_to_dto(
         polished_fragment=c.polished_fragment if c.is_polished else None,
         polish_reverted=c.polish_reverted,
         polish_status=_polish_status(c, jobs_by_candidate),
-        fragment_purity=c.fragment_purity,
+        section=section.value if section is not None else None,
         occurrences=c.occurrences,
         status=c.status.value,
         surface_form=c.surface_form,

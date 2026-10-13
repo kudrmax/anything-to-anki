@@ -58,7 +58,6 @@ def _make_candidate(
         cefr_level="B2",
         zipf_frequency=3.5,
         context_fragment=fragment,
-        fragment_purity="clean",
         occurrences=1,
         status=status,
         meaning=meaning_obj,

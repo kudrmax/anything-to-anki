@@ -14,7 +14,6 @@ def _make(zipf: float) -> StoredCandidate:
         cefr_level="B1",
         zipf_frequency=zipf,
         context_fragment="test context",
-        fragment_purity="clean",
         occurrences=1,
         status=CandidateStatus.PENDING,
     )

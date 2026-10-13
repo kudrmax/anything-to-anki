@@ -102,7 +102,7 @@ class TestGetSourcesUseCase:
         make_candidate = lambda status: StoredCandidate(  # noqa: E731
             id=1, source_id=1, lemma="word", pos="NOUN", cefr_level="B2",
             zipf_frequency=4.0, context_fragment="ctx",
-            fragment_purity="clean", occurrences=1, status=status,
+            occurrences=1, status=status,
         )
         self.candidate_repo.get_by_source.return_value = [
             make_candidate(CandidateStatus.LEARN),
@@ -113,7 +113,8 @@ class TestGetSourcesUseCase:
         result = self.use_case.list_all()
         assert result[0].candidate_count == 4
         assert result[0].learn_count == 2
-        assert result[0].decided_count == 3
+        assert result[0].ready_count == 4
+        assert result[0].ready_decided_count == 3
 
     def test_get_by_id_found(self) -> None:
         self.source_repo.get_by_id.return_value = Source(
@@ -157,7 +158,7 @@ class TestGetSourcesUseCase:
         self.candidate_repo.get_by_source.return_value = [
             StoredCandidate(
                 id=cid, source_id=1, lemma=lemma, pos="NOUN", cefr_level="B2",
-                zipf_frequency=3.5, context_fragment=f"a {lemma}", fragment_purity="clean",
+                zipf_frequency=3.5, context_fragment=f"a {lemma}",
                 occurrences=1, status=CandidateStatus.LEARN,
             )
             for cid, lemma in [(1, "burnout"), (2, "lizard")]

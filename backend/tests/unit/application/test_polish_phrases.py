@@ -47,7 +47,6 @@ def _candidate(
         cefr_level="B1",
         zipf_frequency=4.0,
         context_fragment=_SOURCE_PHRASE,
-        fragment_purity="clean",
         occurrences=1,
         status=status,
         polished_fragment=polished,

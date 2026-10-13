@@ -43,7 +43,7 @@ def client() -> Generator[TestClient, None, None]:
         StoredCandidate(
             source_id=source.id, lemma="pursuit", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,
-            context_fragment="the pursuit of", fragment_purity="clean",
+            context_fragment="the pursuit of",
             occurrences=1, status=CandidateStatus.PENDING,
             phrase_position=DocumentPosition(0, 0, phrase_start, 0, phrase_start + 14),
         ),
@@ -192,3 +192,45 @@ class TestTargetImageAPI:
         )
 
         assert response.status_code == 404
+
+
+@pytest.mark.integration
+class TestUnknownWordsAPI:
+    """Words of a phrase the user doesn't know take the card out of Ready."""
+
+    def _card(self, client: TestClient) -> dict[str, object]:
+        source = client.get("/sources/1").json()
+        return {"section": source["candidates"][0]["section"], "ready": source["ready_total"]}
+
+    def test_card_is_ready_at_first(self, client: TestClient) -> None:
+        assert self._card(client) == {"section": "ready", "ready": 1}
+
+    def test_word_marked_in_a_report_moves_the_card_to_extra(self, client: TestClient) -> None:
+        response = client.post(
+            "/candidates/1/report",
+            json={
+                "reasons": ["More than one unknown word"],
+                "unknown_words": [{"start": 0, "end": 3}],
+            },
+        )
+        assert response.status_code == 201
+        assert [w["lemma"] for w in client.get("/unknown-words").json()] == ["the"]
+        assert self._card(client) == {"section": "extra", "ready": 0}
+
+    def test_removing_the_unknown_word_returns_the_card_to_ready(
+        self, client: TestClient,
+    ) -> None:
+        client.post("/candidates/1/report", json={"unknown_words": [{"start": 0, "end": 3}]})
+        word = client.get("/unknown-words").json()[0]
+        assert client.delete(f"/unknown-words/{word['id']}").status_code == 200
+        assert self._card(client) == {"section": "ready", "ready": 1}
+
+    def test_source_with_no_ready_cards_left_is_reviewed(self, client: TestClient) -> None:
+        client.post("/candidates/1/report", json={"unknown_words": [{"start": 0, "end": 3}]})
+        assert client.get("/sources/1").json()["status"] == "reviewed"
+
+    def test_new_phrase_is_read_again(self, client: TestClient) -> None:
+        client.put("/candidates/1/phrase", json={"phrase": "the ominous pursuit of"})
+        assert self._card(client) == {"section": "extra", "ready": 0}
+        client.put("/candidates/1/phrase", json={"phrase": "the long pursuit of"})
+        assert self._card(client) == {"section": "ready", "ready": 1}

@@ -4,7 +4,6 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from backend.domain.services.known_word_filter import KnownWordFilter
 from backend.domain.services.topic_phrase_selection import (
     find_shortest_sentence,
     parse_marked_phrase,
@@ -15,15 +14,16 @@ from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOrigi
 
 if TYPE_CHECKING:
     from backend.application.utils.candidate_factory import CandidateFactory
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.source import Source
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.entities.topic_target import TopicTarget
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.document_repository import DocumentRepository
-    from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.topic_target_repository import TopicTargetRepository
     from backend.domain.value_objects.document import Document
+    from backend.domain.value_objects.vocabulary import Vocabulary
 
 logger = logging.getLogger(__name__)
 
@@ -61,14 +61,14 @@ class TopicPhraseCollector:
         source_repo: SourceRepository,
         document_repo: DocumentRepository,
         candidate_repo: CandidateRepository,
-        known_word_repo: KnownWordRepository,
+        vocabulary: UserVocabulary,
         candidate_factory: CandidateFactory,
     ) -> None:
         self._topic_target_repo = topic_target_repo
         self._source_repo = source_repo
         self._document_repo = document_repo
         self._candidate_repo = candidate_repo
-        self._known_word_repo = known_word_repo
+        self._vocabulary = vocabulary
         self._candidate_factory = candidate_factory
 
     def has_targets(self, source_id: int) -> bool:
@@ -76,7 +76,7 @@ class TopicPhraseCollector:
 
     def collect(self, source_id: int) -> CollectedTopic:
         targets = self._topic_target_repo.get_by_source(source_id)
-        known = KnownWordFilter(self._known_word_repo.get_all_pairs())
+        known = self._vocabulary.snapshot()
         library = {
             s.id: (s, document) for s in self._source_repo.list_all()
             if s.id is not None and (document := self._document_repo.get(s.id)) is not None
@@ -91,7 +91,7 @@ class TopicPhraseCollector:
             if generated.lemma in seen or known.is_known(generated.lemma):
                 continue
             seen.add(generated.lemma)
-            phrase = self._real_phrase(generated, target, library)
+            phrase = self._real_phrase(generated, target, library, known)
             candidates.append(
                 generated if phrase is None else self._candidate_factory.build(
                     source_id=source_id,
@@ -136,12 +136,13 @@ class TopicPhraseCollector:
         generated: StoredCandidate,
         target: TopicTarget,
         library: dict[int, tuple[Source, Document]],
+        vocabulary: Vocabulary,
     ) -> _Phrase | None:
         same_lemma = [
             c for c in self._candidate_repo.get_by_lemma(generated.lemma)
             if c.source_id in library
         ]
-        best = pick_best_candidate_phrase(same_lemma)
+        best = pick_best_candidate_phrase(same_lemma, vocabulary)
         if best is not None:
             return _Phrase(
                 text=best.context_fragment,

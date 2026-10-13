@@ -24,10 +24,10 @@ if TYPE_CHECKING:
     from backend.application.utils.anki_note_types import NoteTypeCheck
     from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
     from backend.application.utils.export_queue import ExportQueue
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.anki_connector import AnkiConnector
     from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
-    from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.services.cloze_builder import ClozeBuilder
     from backend.domain.value_objects.export_group import ExportGroup
@@ -73,7 +73,7 @@ class SyncToAnkiUseCase:
         settings_repo: SettingsRepository,
         anki_sync_repo: AnkiSyncRepository,
         template_renderer: AnkiTemplateRenderer,
-        known_word_repo: KnownWordRepository,
+        vocabulary: UserVocabulary,
         cloze_builder: ClozeBuilder,
     ) -> None:
         self._export_queue = export_queue
@@ -81,7 +81,7 @@ class SyncToAnkiUseCase:
         self._settings_repo = settings_repo
         self._anki_sync_repo = anki_sync_repo
         self._template_renderer = template_renderer
-        self._known_word_repo = known_word_repo
+        self._vocabulary = vocabulary
         self._cloze_builder = cloze_builder
 
     def execute(self, source_id: int, group: ExportGroup) -> SyncResultDTO:
@@ -205,7 +205,7 @@ class SyncToAnkiUseCase:
 
     def _mark_exported(self, candidate: StoredCandidate, note_id: int) -> None:
         self._anki_sync_repo.mark_synced(candidate.id, note_id)  # type: ignore[arg-type]
-        self._known_word_repo.add(candidate.lemma, candidate.pos)
+        self._vocabulary.mark_known(candidate.lemma, candidate.pos)
 
     def _setting(self, key: str, default: str) -> str:
         return self._settings_repo.get(key, default) or default

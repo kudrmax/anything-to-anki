@@ -22,7 +22,6 @@ def _candidate(
     cefr_level: str | None = "B1",
     zipf_frequency: float = 4.0,
     context_fragment: str = "He ran to the store.",
-    fragment_purity: str = "clean",
     occurrences: int = 2,
     is_phrasal_verb: bool = False,
     surface_form: str | None = "ran",
@@ -37,7 +36,6 @@ def _candidate(
         cefr_level=cefr_level,
         zipf_frequency=zipf_frequency,
         context_fragment=context_fragment,
-        fragment_purity=fragment_purity,
         occurrences=occurrences,
         status=CandidateStatus.PENDING,
         surface_form=surface_form,
@@ -141,7 +139,6 @@ class TestReplaceWithExampleHappyPath:
             cefr_level="B1",
             zipf_frequency=4.0,
             is_phrasal_verb=False,
-            fragment_purity="clean",
         )
         repo = _mock_repo(original)
         use_case = _make_use_case(candidate_repo=repo)
@@ -156,7 +153,6 @@ class TestReplaceWithExampleHappyPath:
         assert created.zipf_frequency == 4.0
         assert created.is_sweet_spot is True
         assert created.is_phrasal_verb is False
-        assert created.fragment_purity == "clean"
         assert created.context_fragment == "She runs every morning."
         assert created.has_custom_context_fragment is True
         assert created.surface_form is None

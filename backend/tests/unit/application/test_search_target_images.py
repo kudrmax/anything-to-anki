@@ -21,7 +21,7 @@ CANDIDATE_ID = 7
 def _candidate(pos: str = "NOUN") -> StoredCandidate:
     return StoredCandidate(
         id=CANDIDATE_ID, source_id=1, lemma="ladder", pos=pos, cefr_level="B1",
-        zipf_frequency=3.5, context_fragment="climb the ladder", fragment_purity="clean",
+        zipf_frequency=3.5, context_fragment="climb the ladder",
         occurrences=1, status=CandidateStatus.PENDING,
     )
 

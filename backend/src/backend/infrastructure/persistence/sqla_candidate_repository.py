@@ -14,6 +14,7 @@ from backend.infrastructure.persistence.models import (
     CandidatePronunciationModel,
     CandidateTTSModel,
     StoredCandidateModel,
+    dump_phrase_words,
     dump_position,
 )
 
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.candidate_status import CandidateStatus
     from backend.domain.value_objects.document_position import DocumentPosition
+    from backend.domain.value_objects.phrase_words import PhraseWords
 
 
 class SqlaCandidateRepository(CandidateRepository):
@@ -97,6 +99,12 @@ class SqlaCandidateRepository(CandidateRepository):
         model = self._session.get(StoredCandidateModel, candidate_id)
         if model is not None:
             model.polish_reverted = reverted
+            self._session.flush()
+
+    def set_phrase_words(self, candidate_id: int, phrase_words: PhraseWords) -> None:
+        model = self._session.get(StoredCandidateModel, candidate_id)
+        if model is not None:
+            model.phrase_words = dump_phrase_words(phrase_words)
             self._session.flush()
 
     def get_by_ids(self, candidate_ids: list[int]) -> list[StoredCandidate]:

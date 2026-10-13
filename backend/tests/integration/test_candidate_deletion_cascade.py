@@ -42,7 +42,6 @@ def _create_candidate(repo: SqlaCandidateRepository, lemma: str) -> int:
             cefr_level=None,
             zipf_frequency=4.0,
             context_fragment=f"a {lemma}",
-            fragment_purity="clean",
             occurrences=1,
             status=CandidateStatus.PENDING,
         )

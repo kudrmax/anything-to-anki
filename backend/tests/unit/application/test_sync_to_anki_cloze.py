@@ -16,6 +16,8 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.export_group import ExportGroup
 
+from tests.vocabulary_support import user_vocabulary
+
 pytestmark = pytest.mark.unit
 
 GIVE_UP = "She finally gave up smoking last year."
@@ -55,7 +57,6 @@ def _candidate(
         cefr_level="B2",
         zipf_frequency=4.0,
         context_fragment=phrase,
-        fragment_purity="clean",
         occurrences=1,
         status=CandidateStatus.LEARN,
         surface_form=surface,
@@ -100,7 +101,7 @@ class TestSyncToAnkiCloze:
             settings_repo=self.settings_repo,
             anki_sync_repo=self.anki_sync_repo,
             template_renderer=self.renderer,
-            known_word_repo=MagicMock(),
+            vocabulary=user_vocabulary(MagicMock()),
             cloze_builder=ClozeBuilder(),
         )
 

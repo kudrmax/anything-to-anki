@@ -34,7 +34,6 @@ def _make_candidate(
         cefr_level="B2",
         zipf_frequency=3.5,
         context_fragment="a test",
-        fragment_purity="clean",
         occurrences=1,
         status=CandidateStatus.PENDING,
         meaning=meaning,
@@ -270,7 +269,7 @@ class TestStoredCandidateToDtoCloze:
         return StoredCandidate(
             id=1, source_id=10, lemma="give up", pos="VERB", cefr_level="B1",
             zipf_frequency=4.0, context_fragment="She finally gave up smoking.",
-            fragment_purity="clean", occurrences=1, status=status,
+            occurrences=1, status=status,
             surface_form="gave up", cloze=cloze,
         )
 

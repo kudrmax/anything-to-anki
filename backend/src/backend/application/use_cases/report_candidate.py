@@ -9,9 +9,14 @@ from backend.domain.exceptions import (
     EmptyReportCommentError,
     UnknownReportReasonError,
 )
+from backend.domain.services.candidate_sections import extra_words
 from backend.domain.value_objects.fragment_surroundings import FragmentSurroundings
 
 if TYPE_CHECKING:
+    from backend.application.dto.card_report_dtos import ReportCandidateRequest
+    from backend.application.utils.phrase_words_reader import PhraseWordsReader
+    from backend.application.utils.review_status_updater import ReviewStatusUpdater
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.card_report_repository import CardReportRepository
     from backend.domain.ports.document_repository import DocumentRepository
@@ -30,7 +35,11 @@ REPORT_REASONS: tuple[str, ...] = (
 
 
 class ReportCandidateUseCase:
-    """Saves a complaint about a card together with a snapshot of the card."""
+    """Saves a complaint about a card together with a snapshot of the card.
+
+    Words of the phrase the user marked as not known go to their unknown words:
+    every card with them moves out of Ready.
+    """
 
     def __init__(
         self,
@@ -38,23 +47,31 @@ class ReportCandidateUseCase:
         source_repo: SourceRepository,
         document_repo: DocumentRepository,
         report_repo: CardReportRepository,
+        vocabulary: UserVocabulary,
+        phrase_words_reader: PhraseWordsReader,
+        review_status: ReviewStatusUpdater,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._document_repo = document_repo
         self._source_repo = source_repo
         self._report_repo = report_repo
+        self._vocabulary = vocabulary
+        self._phrase_words_reader = phrase_words_reader
+        self._review_status = review_status
 
-    def execute(self, candidate_id: int, reasons: list[str], comment: str) -> CardReportDTO:
-        comment_text = comment.strip()
-        chosen = tuple(dict.fromkeys(reasons))
+    def execute(self, candidate_id: int, request: ReportCandidateRequest) -> CardReportDTO:
+        comment_text = request.comment.strip()
+        chosen = tuple(dict.fromkeys(request.reasons))
         for reason in chosen:
             if reason not in REPORT_REASONS:
                 raise UnknownReportReasonError(reason)
-        if not chosen and not comment_text:
+        if not chosen and not comment_text and not request.unknown_words:
             raise EmptyReportCommentError()
         candidate = self._candidate_repo.get_by_id(candidate_id)
         if candidate is None or candidate.id is None:
             raise CandidateNotFoundError(candidate_id)
+        self._phrase_words_reader.refresh([candidate])
+        new_words = extra_words(candidate, self._vocabulary.snapshot())
         source = self._source_repo.get_by_id(candidate.source_id)
         around = FragmentSurroundings.around(
             self._document_repo.get(candidate.source_id), candidate.phrase_position,
@@ -68,14 +85,23 @@ class ReportCandidateUseCase:
             context_fragment=candidate.context_fragment,
             zipf_frequency=candidate.zipf_frequency,
             cefr_level=candidate.cefr_level,
-            fragment_unknown_count=candidate.fragment_unknown_count,
+            fragment_unknown_count=len(new_words),
             is_phrasal_verb=candidate.is_phrasal_verb,
             reasons=chosen,
             comment=comment_text,
             text_before=around.before if around else None,
             text_after=around.after if around else None,
         ))
+        self._mark_unknown(candidate.card_phrase, request)
         return to_dto(saved)
+
+    def _mark_unknown(self, phrase: str, request: ReportCandidateRequest) -> None:
+        spans = [(span.start, span.end) for span in request.unknown_words]
+        lemmas = self._phrase_words_reader.lemmas_at(phrase, spans) if spans else []
+        for lemma in lemmas:
+            self._vocabulary.mark_unknown(lemma)
+        if lemmas:
+            self._review_status.refresh_all()
 
     @staticmethod
     def reasons() -> list[str]:

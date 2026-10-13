@@ -12,6 +12,7 @@ import pytest
 from backend.application.dto.analysis_dtos import WordCandidateDTO
 from backend.application.dto.source_dtos import StoredCandidateDTO
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.phrase_words import PhraseWords
 
 from tests.integration.dict_cache_support import make_voting_classifier
 
@@ -47,7 +48,7 @@ class TestCEFRBreakdownPipeline:
             zipf_frequency=5.0,
             is_sweet_spot=True,
             context_fragment="I am happy",
-            fragment_purity="clean",
+            phrase_words=PhraseWords(phrase="I am happy", words=()),
             occurrences=1,
             cefr_breakdown=dto,
         )
@@ -89,7 +90,6 @@ class TestCEFRBreakdownPipeline:
             is_sweet_spot=True,
             context_fragment="I am happy",
             phrase="I am happy",
-            fragment_purity="clean",
             occurrences=1,
             status="pending",
             cefr_breakdown=bd_dto,

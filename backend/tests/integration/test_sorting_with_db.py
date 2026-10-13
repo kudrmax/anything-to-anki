@@ -8,6 +8,7 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.candidate_sorting import sort_by_relevance, sort_chronologically
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.document_position import DocumentPosition
+from backend.domain.value_objects.phrase_words import PhraseWord, PhraseWords
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 
 if TYPE_CHECKING:
@@ -34,8 +35,10 @@ def _make_candidate(
         cefr_level=cefr,
         zipf_frequency=zipf,
         context_fragment=context_fragment or f"context for {lemma}",
-        fragment_purity="clean" if unknowns == 0 else "dirty",
-        fragment_unknown_count=unknowns,
+        phrase_words=PhraseWords(
+            phrase=context_fragment or f"context for {lemma}",
+            words=tuple(PhraseWord(f"strange{i}", rare=True) for i in range(unknowns)),
+        ),
         occurrences=occurrences,
         status=CandidateStatus.PENDING,
         is_phrasal_verb=is_phrasal_verb,
@@ -65,7 +68,9 @@ class TestSortingWithDb:
         assert [c.lemma for c in sorted_candidates] == [
             "common_word", "mid_regular", "rare_word", "mid_phrasal", "dirty_word",
         ]
-        assert sorted_candidates[-1].fragment_unknown_count == 2
+        words = sorted_candidates[-1].phrase_words
+        assert words is not None
+        assert [w.lemma for w in words.words] == ["strange0", "strange1"]
 
     def test_chronological_sort_after_db_roundtrip(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)

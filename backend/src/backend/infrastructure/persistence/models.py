@@ -22,6 +22,7 @@ from backend.domain.entities.known_word import KnownWord
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.topic_target import TopicTarget
+from backend.domain.entities.unknown_word import UnknownWord
 from backend.domain.entities.word_decision import WordDecision
 from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -32,6 +33,7 @@ from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
+from backend.domain.value_objects.phrase_words import PhraseWord, PhraseWords
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
@@ -67,6 +69,26 @@ def load_position(stored: str | None) -> DocumentPosition | None:
         start_char=start_char,
         end_line=end_line,
         end_char=end_char,
+    )
+
+
+def dump_phrase_words(phrase_words: PhraseWords | None) -> str | None:
+    """Stored as `{"phrase": ..., "words": [[lemma, rare], ...]}`."""
+    if phrase_words is None:
+        return None
+    return json.dumps({
+        "phrase": phrase_words.phrase,
+        "words": [[word.lemma, word.rare] for word in phrase_words.words],
+    })
+
+
+def load_phrase_words(stored: str | None) -> PhraseWords | None:
+    if stored is None:
+        return None
+    raw = json.loads(stored)
+    return PhraseWords(
+        phrase=raw["phrase"],
+        words=tuple(PhraseWord(lemma=lemma, rare=rare) for lemma, rare in raw["words"]),
     )
 
 
@@ -288,10 +310,6 @@ class StoredCandidateModel(Base):
     zipf_frequency: Mapped[float] = mapped_column(Float, nullable=False)
     is_sweet_spot: Mapped[bool] = mapped_column(nullable=False)
     context_fragment: Mapped[str] = mapped_column(Text, nullable=False)
-    fragment_purity: Mapped[str] = mapped_column(String(10), nullable=False)
-    fragment_unknown_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
     occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     surface_form: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -308,6 +326,7 @@ class StoredCandidateModel(Base):
     )
     phrase_position: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_position: Mapped[str | None] = mapped_column(Text, nullable=True)
+    phrase_words: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     cefr_breakdown: Mapped[CEFRBreakdownModel | None] = relationship(
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
@@ -336,8 +355,6 @@ class StoredCandidateModel(Base):
             cefr_level=cefr_level,
             zipf_frequency=self.zipf_frequency,
             context_fragment=self.context_fragment,
-            fragment_purity=self.fragment_purity,
-            fragment_unknown_count=self.fragment_unknown_count,
             occurrences=self.occurrences,
             surface_form=self.surface_form,
             is_phrasal_verb=self.is_phrasal_verb,
@@ -352,6 +369,7 @@ class StoredCandidateModel(Base):
             polish_reverted=self.polish_reverted,
             phrase_position=load_position(self.phrase_position),
             target_position=load_position(self.target_position),
+            phrase_words=load_phrase_words(self.phrase_words),
         )
 
     def _origin(self) -> PhraseOrigin | None:
@@ -370,8 +388,6 @@ class StoredCandidateModel(Base):
             zipf_frequency=candidate.zipf_frequency,
             is_sweet_spot=candidate.is_sweet_spot,
             context_fragment=candidate.context_fragment,
-            fragment_purity=candidate.fragment_purity,
-            fragment_unknown_count=candidate.fragment_unknown_count,
             occurrences=candidate.occurrences,
             surface_form=candidate.surface_form,
             is_phrasal_verb=candidate.is_phrasal_verb,
@@ -383,6 +399,7 @@ class StoredCandidateModel(Base):
             polish_reverted=candidate.polish_reverted,
             phrase_position=dump_position(candidate.phrase_position),
             target_position=dump_position(candidate.target_position),
+            phrase_words=dump_phrase_words(candidate.phrase_words),
         )
         if candidate.cefr_breakdown is not None:
             model.cefr_breakdown = _breakdown_to_model(candidate.cefr_breakdown)
@@ -445,6 +462,21 @@ class KnownWordModel(Base):
             pos=self.pos,
             created_at=self.created_at,
         )
+
+
+class UnknownWordModel(Base):
+    """SQLAlchemy model for the words the user said they don't know."""
+
+    __tablename__ = "unknown_words"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    lemma: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
+    )
+
+    def to_entity(self) -> UnknownWord:
+        return UnknownWord(id=self.id, lemma=self.lemma, created_at=self.created_at)
 
 
 class WordDecisionModel(Base):

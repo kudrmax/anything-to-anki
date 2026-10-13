@@ -106,9 +106,9 @@ def factory(tmp_path: Path) -> Generator[sessionmaker[Session], None, None]:
         for cid in range(1, 10):
             session.execute(text(
                 "INSERT INTO candidates (id, source_id, lemma, pos, zipf_frequency,"
-                " is_sweet_spot, context_fragment, fragment_purity, occurrences, status,"
+                " is_sweet_spot, context_fragment, occurrences, status,"
                 " is_phrasal_verb, has_custom_context_fragment) VALUES (:id, :sid, 'word',"
-                " 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
+                " 'NOUN', 3.0, 0, 'ctx', 1, 'pending', 0, 0)"
             ), {"id": cid, "sid": SOURCE_ID})
         session.commit()
     yield session_factory

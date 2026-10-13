@@ -26,7 +26,6 @@ def _candidate(
         cefr_level="B2",
         zipf_frequency=3.5,
         context_fragment="Gordon was tense",
-        fragment_purity="clean",
         occurrences=1,
         status=CandidateStatus.LEARN,
         meaning=CandidateMeaning(
@@ -64,7 +63,7 @@ class TestExportReadiness:
     def test_bare_candidate_misses_both(self) -> None:
         candidate = StoredCandidate(
             source_id=1, lemma="tense", pos="ADJ", cefr_level=None, zipf_frequency=3.5,
-            context_fragment="Gordon was tense", fragment_purity="clean", occurrences=1,
+            context_fragment="Gordon was tense", occurrences=1,
             status=CandidateStatus.LEARN,
         )
         assert missing_parts(candidate) == [MissingCardPart.MEANING, MissingCardPart.AUDIO]

@@ -1,22 +1,14 @@
 from unittest.mock import MagicMock
 
 import pytest
-from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document_position import DocumentPosition
-from backend.domain.value_objects.format import Format
-from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.candidate_sorter_support import candidate_sorter
 
 SOURCE_TEXT = "The scythe was sharp. The feast was long. A scythe again."
-
-
-def _source() -> Source:
-    return Source(id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT)
 
 
 def _make(
@@ -30,7 +22,6 @@ def _make(
         cefr_level="B2",
         zipf_frequency=zipf,
         context_fragment=fragment,
-        fragment_purity="clean",
         occurrences=occurrences,
         status=CandidateStatus.PENDING,
         is_phrasal_verb=False,
@@ -47,7 +38,7 @@ class TestCandidateSorter:
         self.scythe = _make("scythe", 2.6, occurrences=2, fragment="A scythe again.", block=1)
 
     def _lemmas(self, order: CandidateSortOrder) -> list[str]:
-        result = self.sorter.sort([self.scythe, self.feast], _source(), order)
+        result = self.sorter.sort([self.scythe, self.feast], order)
         return [c.lemma for c in result]
 
     def test_relevance_puts_more_common_word_first(self) -> None:

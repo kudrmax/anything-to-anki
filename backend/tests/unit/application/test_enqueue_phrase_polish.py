@@ -22,7 +22,6 @@ def _candidate(cid: int, status: CandidateStatus, polished: str | None = None) -
         cefr_level="B2",
         zipf_frequency=3.5,
         context_fragment="The air was stale",
-        fragment_purity="clean",
         occurrences=1,
         status=status,
         polished_fragment=polished,

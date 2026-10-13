@@ -45,7 +45,7 @@ def _candidate(
     ) if with_meaning else None
     return StoredCandidate(
         id=1, source_id=5, lemma="give up", pos="VERB", cefr_level="B1",
-        zipf_frequency=4.0, context_fragment=GIVE_UP, fragment_purity="clean",
+        zipf_frequency=4.0, context_fragment=GIVE_UP,
         occurrences=1, status=CandidateStatus.LEARN, surface_form="gave up",
         is_phrasal_verb=True, meaning=meaning, cloze=cloze,
     )

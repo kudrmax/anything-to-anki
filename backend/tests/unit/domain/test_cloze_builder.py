@@ -39,7 +39,6 @@ def _candidate(
         cefr_level=None,
         zipf_frequency=4.0,
         context_fragment=phrase,
-        fragment_purity="clean",
         occurrences=1,
         status=CandidateStatus.LEARN,
         surface_form=surface,

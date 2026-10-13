@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.cefr_level import CEFRLevel
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.frequency_band import FrequencyBand
+    from backend.domain.value_objects.phrase_words import PhraseWords
     from backend.domain.value_objects.usage_distribution import UsageDistribution
 
 
@@ -21,7 +22,7 @@ class WordCandidate:
     frequency_band: FrequencyBand
     zipf_frequency: float
     context_fragment: str
-    fragment_unknown_count: int
+    phrase_words: PhraseWords
     occurrences: int
     is_phrasal_verb: bool = False
     surface_form: str | None = None  # Actual form in text, e.g. "gave up" for lemma "give up"

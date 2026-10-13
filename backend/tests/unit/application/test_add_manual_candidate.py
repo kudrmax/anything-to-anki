@@ -132,7 +132,6 @@ def _stored(candidate: StoredCandidate, new_id: int = 99) -> StoredCandidate:
         cefr_level=candidate.cefr_level,
         zipf_frequency=candidate.zipf_frequency,
         context_fragment=candidate.context_fragment,
-        fragment_purity=candidate.fragment_purity,
         occurrences=candidate.occurrences,
         surface_form=candidate.surface_form,
         is_phrasal_verb=candidate.is_phrasal_verb,
@@ -215,7 +214,6 @@ class TestRegularWordPath:
         assert dto.surface_form == "procrastinate"
         assert dto.is_phrasal_verb is False
         assert dto.occurrences == 2  # two occurrences in the document
-        assert dto.fragment_purity == "clean"
         assert dto.status == CandidateStatus.PENDING.value
         cefr_classifier.classify.assert_called_once_with("procrastinate", "VB")
         frequency_provider.get_zipf_value.assert_called_once_with("procrastinate")

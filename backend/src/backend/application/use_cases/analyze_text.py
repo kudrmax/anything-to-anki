@@ -40,8 +40,6 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.document import Document
     from backend.domain.value_objects.document_position import DocumentPosition
 
-CLEAN_PURITY = "clean"
-DIRTY_PURITY = "dirty"
 PHRASAL_VERB_POS = "VERB"
 # Each occurrence costs a fragment selection; a few are enough to find a good phrase.
 MAX_OCCURRENCES_COMPARED: int = 10
@@ -94,7 +92,7 @@ class AnalyzeTextUseCase:
         logger.info(
             "analyze_text: start (text_len=%d, user_level=%s, known_words=%d, "
             "frequent_word_zipf=%s)",
-            len(layout.text), user_level.name, len(request.known_lemmas),
+            len(layout.text), user_level.name, len(request.vocabulary.known),
             request.frequent_word_zipf,
         )
         if not tokens:
@@ -106,7 +104,7 @@ class AnalyzeTextUseCase:
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
             user_level=user_level,
-            known_lemmas=request.known_lemmas,
+            vocabulary=request.vocabulary,
             frequent_zipf=request.frequent_word_zipf,
         )
         words = self._collect_words(tokens, knowledge, user_level)
@@ -197,6 +195,7 @@ class AnalyzeTextUseCase:
     ) -> WordCandidate:
         fragment, occurrence = self._best_fragment(occurrences, tokens, knowledge)
         phrase_position = _position(layout, tokens, fragment.indices)
+        phrase = layout.fragment(phrase_position)
         zipf = knowledge.zipf(lemma)
         breakdown = occurrence.cefr_breakdown
         return WordCandidate(
@@ -205,9 +204,9 @@ class AnalyzeTextUseCase:
             cefr_level=breakdown.final_level if breakdown else None,
             frequency_band=FrequencyBand.from_zipf(zipf),
             zipf_frequency=zipf,
-            context_fragment=layout.fragment(phrase_position),
-            fragment_unknown_count=knowledge.count_unknowns(
-                fragment.indices, tokens, occurrence.protected_indices,
+            context_fragment=phrase,
+            phrase_words=knowledge.phrase_words(
+                fragment.indices, tokens, occurrence.protected_indices, phrase,
             ),
             occurrences=len(occurrences),
             is_phrasal_verb=is_phrasal_verb,
@@ -262,10 +261,7 @@ class AnalyzeTextUseCase:
             zipf_frequency=candidate.zipf_frequency,
             is_sweet_spot=candidate.frequency_band.is_sweet_spot,
             context_fragment=candidate.context_fragment,
-            fragment_purity=(
-                CLEAN_PURITY if candidate.fragment_unknown_count == 0 else DIRTY_PURITY
-            ),
-            fragment_unknown_count=candidate.fragment_unknown_count,
+            phrase_words=candidate.phrase_words,
             occurrences=candidate.occurrences,
             is_phrasal_verb=candidate.is_phrasal_verb,
             surface_form=candidate.surface_form,

@@ -18,9 +18,9 @@ if TYPE_CHECKING:
 def _insert_candidate(session: Session, cid: int) -> None:
     session.execute(text(
         "INSERT INTO candidates (id, source_id, lemma, pos, "
-        "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
+        "zipf_frequency, is_sweet_spot, context_fragment, "
         "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-        f"VALUES ({cid}, 1, 'x', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
+        f"VALUES ({cid}, 1, 'x', 'NOUN', 3.0, 0, 'ctx', 1, 'pending', 0, 0)"
     ))
 
 
@@ -171,9 +171,9 @@ class TestSqlaCandidateMediaRepository:
             # Insert candidate with status='known' (not active)
             s.execute(text(
                 "INSERT INTO candidates (id, source_id, lemma, pos, "
-                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
+                "zipf_frequency, is_sweet_spot, context_fragment, "
                 "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (4, 1, 'z', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'known', 0, 0)"
+                "VALUES (4, 1, 'z', 'NOUN', 3.0, 0, 'ctx', 1, 'known', 0, 0)"
             ))
             s.commit()
             repo = SqlaCandidateMediaRepository(s)

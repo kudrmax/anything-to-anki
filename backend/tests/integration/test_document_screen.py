@@ -38,7 +38,7 @@ def _candidate(source_id: int, lemma: str, target: DocumentPosition) -> StoredCa
     return StoredCandidate(
         source_id=source_id, lemma=lemma, pos="NOUN", cefr_level="B2", zipf_frequency=3.0,
         context_fragment="He gave up the relentless pursuit of happiness.",
-        fragment_purity="clean", occurrences=1, status=CandidateStatus.PENDING,
+        occurrences=1, status=CandidateStatus.PENDING,
         phrase_position=DocumentPosition(1, 0, 0, 1, 13), target_position=target,
     )
 

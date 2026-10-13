@@ -5,6 +5,8 @@ from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsU
 from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
+from tests.vocabulary_support import user_vocabulary
+
 
 def _entry(lemma: str, cefr: CEFRLevel, zipf: float) -> BootstrapWordEntry:
     return BootstrapWordEntry(lemma=lemma, cefr_level=cefr, zipf_value=zipf)
@@ -18,7 +20,7 @@ class TestGetBootstrapWordsUseCase:
         self.settings_repo = MagicMock()
         self.use_case = GetBootstrapWordsUseCase(
             index_repo=self.index_repo,
-            known_word_repo=self.known_word_repo,
+            vocabulary=user_vocabulary(self.known_word_repo),
             settings_repo=self.settings_repo,
         )
 

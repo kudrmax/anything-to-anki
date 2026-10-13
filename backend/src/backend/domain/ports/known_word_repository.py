@@ -20,6 +20,9 @@ class KnownWordRepository(ABC):
     def remove_by_lemma(self, lemma: str, pos: str | None) -> None: ...
 
     @abstractmethod
+    def remove_every_pos(self, lemma: str) -> None: ...
+
+    @abstractmethod
     def list_all(self) -> list[KnownWord]: ...
 
     @abstractmethod

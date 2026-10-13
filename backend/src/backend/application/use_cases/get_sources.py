@@ -78,7 +78,7 @@ class GetSourcesUseCase:
             assert source.id is not None
             candidates = self._candidate_repo.get_by_source(source.id)
             learn_count = sum(1 for c in candidates if c.status == CandidateStatus.LEARN)
-            decided_count = sum(1 for c in candidates if c.status != CandidateStatus.PENDING)
+            ready = self._candidate_sorter.arrange(candidates).ready()
             generation = self._generation_of(source)
             result.append(
                 SourceDTO(
@@ -93,7 +93,10 @@ class GetSourcesUseCase:
                     created_at=source.created_at,
                     candidate_count=len(candidates),
                     learn_count=learn_count,
-                    decided_count=decided_count,
+                    ready_count=len(ready),
+                    ready_decided_count=sum(
+                        1 for c in ready if c.status != CandidateStatus.PENDING
+                    ),
                     processing_stage=(
                         source.processing_stage.value if source.processing_stage else None
                     ),
@@ -132,19 +135,19 @@ class GetSourcesUseCase:
         source_id: int,
         sort_order: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
     ) -> SourceDetailDTO:
-        from backend.domain.services.candidate_sorting import decided_last
-
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
         assert source.id is not None
-        candidates = self._candidate_repo.get_by_source(source.id)
-        candidates = self._candidate_sorter.sort(candidates, source, sort_order)
+        arranged = self._candidate_sorter.arrange(
+            self._candidate_repo.get_by_source(source.id), sort_order,
+        )
+        candidates = arranged.candidates
+        ready = arranged.ready()
         initially_shown = (
             None if sort_order == CandidateSortOrder.CHRONOLOGICAL
             else INITIALLY_SHOWN_CANDIDATES
         )
-        candidates = decided_last(candidates)
         candidate_ids = [c.id for c in candidates if c.id is not None]
         jobs_by_candidate = self._job_repo.get_jobs_for_candidates(candidate_ids)
         reported_ids = self._report_repo.reported_candidate_ids(candidate_ids)
@@ -164,8 +167,12 @@ class GetSourcesUseCase:
             processing_stage=source.processing_stage.value if source.processing_stage else None,
             created_at=source.created_at,
             candidates=[
-                stored_candidate_to_dto(c, jobs_by_candidate, reported_ids, synced_ids)
+                stored_candidate_to_dto(
+                    c, jobs_by_candidate, reported_ids, synced_ids, arranged.section(c),
+                )
                 for c in candidates
             ],
+            ready_total=len(ready),
+            ready_reviewed=sum(1 for c in ready if c.status != CandidateStatus.PENDING),
             initially_shown_candidates=initially_shown,
         )

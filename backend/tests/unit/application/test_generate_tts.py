@@ -39,7 +39,6 @@ def _make_candidate(
         context_fragment=context_fragment,
         cefr_level=None,
         zipf_frequency=4.0,
-        fragment_purity="clean",
         occurrences=1,
     )
 

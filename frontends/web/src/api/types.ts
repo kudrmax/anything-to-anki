@@ -38,7 +38,8 @@ export interface SourceSummary {
   candidate_count: number
   learn_count: number
   /** Сколько фраз уже получили решение: learn, known или skip. */
-  decided_count: number
+  ready_count: number
+  ready_decided_count: number
   processing_stage: ProcessingStage | null
   collection_id: number | null
   collection_name: string | null
@@ -168,6 +169,9 @@ export interface ClozePreview {
   can_save: boolean
 }
 
+/** Where a card stands in review: only the target is new, more words are new, or probably known. */
+export type CandidateSection = 'ready' | 'extra' | 'probably_known'
+
 export interface StoredCandidate {
   id: number
   lemma: string
@@ -186,7 +190,7 @@ export interface StoredCandidate {
   polish_reverted: boolean
   /** AI ещё работает над фразой. */
   polish_status: EnrichmentStatus | null
-  fragment_purity: string
+  section: CandidateSection | null
   occurrences: number
   status: CandidateStatus
   surface_form: string | null
@@ -229,6 +233,8 @@ export interface SourceDetail {
   candidates: StoredCandidate[]
   /** How many candidates to show before "Show more"; null — show all. */
   initially_shown_candidates: number | null
+  ready_total: number
+  ready_reviewed: number
 }
 
 export interface AnkiStatus {

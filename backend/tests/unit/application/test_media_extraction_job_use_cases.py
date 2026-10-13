@@ -33,7 +33,7 @@ def _make_candidate(
     return StoredCandidate(
         id=cid, source_id=1, lemma="test", pos="NOUN",
         cefr_level="B1", zipf_frequency=3.5,
-        context_fragment=fragment, fragment_purity="clean", occurrences=1,
+        context_fragment=fragment, occurrences=1,
         status=CandidateStatus.LEARN,
         media=media,
     )

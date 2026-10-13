@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from backend.application.dto.cefr_dtos import CEFRBreakdownDTO
 from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.frequent_word_threshold import FALLBACK_ZIPF
+from backend.domain.value_objects.phrase_words import PhraseWords
+from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY, Vocabulary
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.usage_distribution import UsageDistribution
@@ -16,8 +18,10 @@ if TYPE_CHECKING:
 class AnalyzeTextRequest(BaseModel):
     """Settings of the text analysis pipeline."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     user_level: str
-    known_lemmas: frozenset[str] = frozenset()
+    vocabulary: Vocabulary = EMPTY_VOCABULARY
     # Words at least this frequent count as known; None — frequency is ignored.
     frequent_word_zipf: float | None = FALLBACK_ZIPF
 
@@ -31,15 +35,16 @@ class AnalyzeTextRequest(BaseModel):
 class WordCandidateDTO(BaseModel):
     """Single word candidate in the analysis result."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     lemma: str
     pos: str
     cefr_level: str | None
     zipf_frequency: float
     is_sweet_spot: bool
     context_fragment: str
-    fragment_purity: str  # "clean" | "dirty"
+    phrase_words: PhraseWords
     occurrences: int
-    fragment_unknown_count: int = 0
     is_phrasal_verb: bool = False
     surface_form: str | None = None
     cefr_breakdown: CEFRBreakdownDTO | None = None

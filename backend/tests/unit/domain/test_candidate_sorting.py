@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import pytest
 from backend.domain.entities.stored_candidate import StoredCandidate
+from backend.domain.services.candidate_sections import extra_words, section_of
 from backend.domain.services.candidate_sorting import (
     decided_last,
     sort_by_key_words,
     sort_by_relevance,
     sort_chronologically,
 )
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
+from backend.domain.value_objects.phrase_words import PhraseWord, PhraseWords
 from backend.domain.value_objects.usage_distribution import UsageDistribution
+from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY, Vocabulary
 
 
 def _make(
@@ -35,8 +39,10 @@ def _make(
         cefr_level=cefr,
         zipf_frequency=zipf,
         context_fragment=context_fragment or f"context for {lemma}",
-        fragment_purity="clean" if unknowns == 0 else "dirty",
-        fragment_unknown_count=unknowns,
+        phrase_words=PhraseWords(
+            phrase=context_fragment or f"context for {lemma}",
+            words=tuple(PhraseWord(lemma=f"strange{i}", rare=True) for i in range(unknowns)),
+        ),
         occurrences=occurrences,
         status=CandidateStatus.PENDING,
         is_phrasal_verb=is_phrasal_verb,
@@ -340,16 +346,16 @@ class TestSortByKeyWords:
         rare = _make("gallows", 2.4, occurrences=3)
         assert self._lemmas([common, rare]) == ["gallows", "dare"]
 
-    def test_dirty_phrase_does_not_lower_a_key_word(self) -> None:
+    def test_phrase_with_other_new_words_goes_below_ready_ones(self) -> None:
         clean = _make("feast", 3.95, occurrences=1)
         dirty = _make("scythe", 2.6, occurrences=5, unknowns=2)
-        assert self._lemmas([clean, dirty]) == ["scythe", "feast"]
+        assert self._lemmas([clean, dirty]) == ["feast", "scythe"]
 
     def test_cleaner_phrase_goes_first_on_equal_word(self) -> None:
         dirty = _make("scythe", 2.6, occurrences=5, unknowns=1)
         clean = _make("scythe", 2.6, occurrences=5)
         result = sort_by_key_words([dirty, clean], frequent_threshold=self.THRESHOLD)
-        assert [c.fragment_unknown_count for c in result] == [0, 1]
+        assert [len(c.phrase_words.words) for c in result if c.phrase_words] == [0, 1]
 
     def test_too_frequent_word_goes_below_even_if_repeated(self) -> None:
         frequent = _make("concept", 4.77, occurrences=9)
@@ -379,3 +385,67 @@ class TestDecidedLast:
             candidate.status = decided.get(candidate.lemma, CandidateStatus.PENDING)
         result = decided_last(candidates)
         assert [c.lemma for c in result] == ["b", "e", "a", "c", "d"]
+
+
+@pytest.mark.unit
+class TestSections:
+    """Ready cards first, then cards with other new words, then probably known; decided sink
+    inside their own section."""
+
+    THRESHOLD = FrequentWordThreshold.from_key("4.5")
+
+    def _lemmas(
+        self, candidates: list[StoredCandidate], vocabulary: Vocabulary = EMPTY_VOCABULARY,
+    ) -> list[str]:
+        result = sort_by_relevance(
+            candidates, frequent_threshold=self.THRESHOLD, vocabulary=vocabulary,
+        )
+        return [c.lemma for c in result]
+
+    def test_decided_ready_card_stays_above_pending_extra_one(self) -> None:
+        decided = _make("feast", 3.95)
+        decided.status = CandidateStatus.LEARN
+        extra = _make("scythe", 2.6, unknowns=1)
+        assert self._lemmas([extra, decided]) == ["feast", "scythe"]
+
+    def test_decided_card_goes_below_pending_one_of_its_section(self) -> None:
+        decided = _make("feast", 3.95)
+        decided.status = CandidateStatus.SKIP
+        pending = _make("gallows", 2.4)
+        assert self._lemmas([decided, pending]) == ["gallows", "feast"]
+
+    def test_known_word_no_longer_holds_phrase_back(self) -> None:
+        extra = _make("feast", 3.95, unknowns=1)
+        ready = _make("scythe", 2.6)
+        known = Vocabulary.of(known={"strange0"}, unknown=set())
+        assert self._lemmas([ready, extra]) == ["scythe", "feast"]
+        assert self._lemmas([ready, extra], known) == ["feast", "scythe"]
+
+    def test_unknown_word_holds_phrase_back_even_if_common(self) -> None:
+        held = _make("scythe", 2.6)
+        held.phrase_words = PhraseWords(
+            phrase="context for scythe", words=(PhraseWord(lemma="context", rare=False),),
+        )
+        ready = _make("feast", 3.95)
+        unknown = Vocabulary.of(known=set(), unknown={"context"})
+        assert self._lemmas([held, ready], unknown) == ["feast", "scythe"]
+
+    def test_section_of_each_kind(self) -> None:
+        threshold = self.THRESHOLD
+        assert section_of(_make("feast", 3.95), EMPTY_VOCABULARY, threshold) is (
+            CandidateSection.READY
+        )
+        assert section_of(_make("scythe", 2.6, unknowns=1), EMPTY_VOCABULARY, threshold) is (
+            CandidateSection.EXTRA
+        )
+        assert section_of(_make("concept", 4.77, unknowns=1), EMPTY_VOCABULARY, threshold) is (
+            CandidateSection.PROBABLY_KNOWN
+        )
+
+    def test_extra_words_are_listed_once(self) -> None:
+        candidate = _make("scythe", 2.6)
+        candidate.phrase_words = PhraseWords(
+            phrase="x",
+            words=(PhraseWord("grim", True), PhraseWord("grim", True), PhraseWord("the", False)),
+        )
+        assert extra_words(candidate, EMPTY_VOCABULARY) == ["grim"]

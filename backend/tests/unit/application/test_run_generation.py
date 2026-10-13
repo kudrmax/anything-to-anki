@@ -62,7 +62,6 @@ def _candidate(
         cefr_level="B2",
         zipf_frequency=3.5,
         context_fragment="The air was stale",
-        fragment_purity="clean",
         occurrences=1,
         status=status,
         meaning=_meaning(cid) if meaning else None,
@@ -106,7 +105,7 @@ class _Setup:
         self.job_repo.get_jobs_for_candidates.return_value = by_candidate
         self.job_repo.has_active_jobs_for_source.return_value = video_downloading
         sorter = MagicMock()
-        sorter.sort.side_effect = lambda cs, _source, _order: list(reversed(cs))
+        sorter.sort.side_effect = lambda cs, _order: list(reversed(cs))
         targets = [
             PolishTarget(self.candidate_repo),
             MeaningTarget(self.meaning_repo),

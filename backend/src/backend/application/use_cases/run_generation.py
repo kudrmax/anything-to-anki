@@ -81,7 +81,7 @@ class RunGenerationUseCase:
                 assert candidate.id is not None
                 target.discard(candidate.id)
 
-        ordered = self._candidate_sorter.sort(chosen, source, sort_order)
+        ordered = self._candidate_sorter.sort(chosen, sort_order)
         queued = self._queue(source_id, kind, ordered)
         logger.info(
             "run_generation: queued (source_id=%d, kind=%s, scope=%s, total=%d, sort_order=%s)",

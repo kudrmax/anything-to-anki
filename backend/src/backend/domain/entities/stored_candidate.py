@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.frequency_band import FrequencyBand
     from backend.domain.value_objects.phrase_origin import PhraseOrigin
+    from backend.domain.value_objects.phrase_words import PhraseWords
     from backend.domain.value_objects.usage_distribution import UsageDistribution
 
 @dataclass
@@ -29,8 +30,8 @@ class StoredCandidate:
     `origin` is set only when the phrase was borrowed from another source or
     generated — candidates of a topic source.
 
-    `fragment_unknown_count` is how many words of the phrase besides the
-    target the user probably does not know.
+    `phrase_words` are the words of the card's phrase besides the target, read
+    from the phrase it names; they tell which words of the phrase are new.
 
     `context_fragment` is the phrase as it stands in the source. AI may polish
     it into an easier `polished_fragment`, or the user may rewrite it there by
@@ -52,7 +53,6 @@ class StoredCandidate:
     cefr_level: str | None
     zipf_frequency: float
     context_fragment: str
-    fragment_purity: str
     occurrences: int
     status: CandidateStatus
     surface_form: str | None = None
@@ -68,7 +68,7 @@ class StoredCandidate:
     cefr_breakdown: CEFRBreakdown | None = None
     usage_distribution: UsageDistribution | None = None
     origin: PhraseOrigin | None = None
-    fragment_unknown_count: int = 0
+    phrase_words: PhraseWords | None = None
     polished_fragment: str | None = None
     polish_reverted: bool = False
     phrase_position: DocumentPosition | None = None

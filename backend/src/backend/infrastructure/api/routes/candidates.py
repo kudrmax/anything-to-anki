@@ -120,9 +120,7 @@ def report_candidate(
     container: Container = Depends(get_container),  # noqa: B008
 ) -> CardReportDTO:
     try:
-        report = container.report_candidate_use_case(session).execute(
-            candidate_id, request.reasons, request.comment,
-        )
+        report = container.report_candidate_use_case(session).execute(candidate_id, request)
         session.commit()
         return report
     except CandidateNotFoundError as e:

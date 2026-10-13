@@ -26,7 +26,6 @@ PHRASAL_VERB_POS = "VERB"
 PHRASAL_VERB_TAG = "VB"
 COLLOCATION_POS = "X"
 COLLOCATION_TAG = "NN"
-CLEAN_PURITY = "clean"
 VERB_POS_TAGS = frozenset({"VERB", "AUX"})
 
 
@@ -75,7 +74,6 @@ class CandidateFactory:
             cefr_level=cefr.name if cefr != CEFRLevel.UNKNOWN else None,
             zipf_frequency=self._frequency_provider.get_zipf_value(lexeme.lemma),
             context_fragment=context_fragment,
-            fragment_purity=CLEAN_PURITY,
             occurrences=occurrences,
             surface_form=surface_form,
             is_phrasal_verb=lexeme.is_phrasal_verb,

@@ -56,8 +56,8 @@ const stop = (e: MouseEvent) => e.stopPropagation()
 function progressCaption(source: SourceSummary): string {
   if (source.candidate_count === 0) return 'Nothing to learn'
   if (source.status === 'reviewed') return `${source.learn_count} to learn`
-  if (source.decided_count > 0) return `${source.decided_count} of ${source.candidate_count} decided`
-  return `${source.candidate_count} phrases`
+  if (source.ready_decided_count > 0) return `${source.ready_decided_count} of ${source.ready_count} decided`
+  return `${source.ready_count} phrases`
 }
 
 export function SourceRow({ source, collections, primary, onProcess, onGenerate, onCancelGeneration, onRetryGeneration, onReview, onExport, onDelete, onRename, onReprocess, onAssignCollection }: SourceRowProps) {
@@ -126,7 +126,7 @@ export function SourceRow({ source, collections, primary, onProcess, onGenerate,
     }
     if (source.status === 'new') return <Text tone="muted" size="s">Not processed yet</Text>
     if (source.status === 'error') return <Text tone="err" size="s">Processing failed</Text>
-    const value = source.status === 'reviewed' ? 1 : source.candidate_count > 0 ? source.decided_count / source.candidate_count : 0
+    const value = source.status === 'reviewed' ? 1 : source.ready_count > 0 ? source.ready_decided_count / source.ready_count : 0
     return (
       <>
         <Progress value={value} />

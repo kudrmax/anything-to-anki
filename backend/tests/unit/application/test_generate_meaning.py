@@ -33,7 +33,6 @@ def _make_candidate(cid: int = 1) -> StoredCandidate:
         status=CandidateStatus.PENDING,
         cefr_level=None,
         zipf_frequency=4.5,
-        fragment_purity="clean",
         occurrences=1,
         is_phrasal_verb=False,
         meaning=None,

@@ -10,6 +10,8 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
+from tests.vocabulary_support import user_vocabulary
+
 
 def _make_use_case() -> tuple[GetReprocessStatsUseCase, dict[str, MagicMock]]:
     mocks: dict[str, MagicMock] = {
@@ -21,7 +23,7 @@ def _make_use_case() -> tuple[GetReprocessStatsUseCase, dict[str, MagicMock]]:
     use_case = GetReprocessStatsUseCase(
         source_repo=mocks["source_repo"],
         candidate_repo=mocks["candidate_repo"],
-        known_word_repo=mocks["known_word_repo"],
+        vocabulary=user_vocabulary(mocks["known_word_repo"]),
         job_repo=mocks["job_repo"],
     )
     return use_case, mocks
@@ -40,7 +42,6 @@ def _make_candidate(
         cefr_level="B2",
         zipf_frequency=3.5,
         context_fragment="a test fragment",
-        fragment_purity="clean",
         occurrences=1,
         status=status,
     )

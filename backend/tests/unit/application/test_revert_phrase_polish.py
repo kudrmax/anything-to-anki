@@ -18,7 +18,6 @@ def _candidate(polished: str | None, reverted: bool = False) -> StoredCandidate:
         cefr_level="B2",
         zipf_frequency=3.5,
         context_fragment="The air around us was stale",
-        fragment_purity="clean",
         occurrences=1,
         status=CandidateStatus.PENDING,
         polished_fragment=polished,

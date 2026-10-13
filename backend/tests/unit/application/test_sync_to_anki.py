@@ -16,6 +16,8 @@ from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.export_group import ExportGroup
 
+from tests.vocabulary_support import user_vocabulary
+
 
 class _EveryField(list[str]):
     """Fields of a note type that has every field the export asks for."""
@@ -55,7 +57,6 @@ def _make_candidate(
         cefr_level="B2",
         zipf_frequency=3.5,
         context_fragment=f"context with {lemma} here",
-        fragment_purity="clean",
         occurrences=1,
         status=status,
         meaning=meaning_obj,
@@ -85,7 +86,7 @@ class TestSyncToAnkiUseCase:
             settings_repo=self.settings_repo,
             anki_sync_repo=self.anki_sync_repo,
             template_renderer=self.template_renderer,
-            known_word_repo=self.known_word_repo,
+            vocabulary=user_vocabulary(self.known_word_repo),
             cloze_builder=ClozeBuilder(),
         )
 
@@ -288,7 +289,6 @@ class TestSyncToAnkiUseCase:
             cefr_level=candidate.cefr_level,
             zipf_frequency=candidate.zipf_frequency,
             context_fragment=candidate.context_fragment,
-            fragment_purity=candidate.fragment_purity,
             occurrences=candidate.occurrences,
             status=candidate.status,
             meaning=candidate.meaning,
@@ -532,7 +532,6 @@ class TestSyncToAnkiUseCase:
             cefr_level="B2",
             zipf_frequency=3.5,
             context_fragment="context with thug here",
-            fragment_purity="clean",
             occurrences=1,
             status=CandidateStatus.LEARN,
             meaning=CandidateMeaning(
@@ -589,7 +588,7 @@ class TestSyncRefusesIncompleteNoteType:
             settings_repo=settings_repo,
             anki_sync_repo=anki_sync_repo,
             template_renderer=MagicMock(),
-            known_word_repo=MagicMock(),
+            vocabulary=user_vocabulary(MagicMock()),
             cloze_builder=ClozeBuilder(),
         )
         return use_case, connector

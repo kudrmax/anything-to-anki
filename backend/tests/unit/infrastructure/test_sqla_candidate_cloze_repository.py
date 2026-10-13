@@ -39,7 +39,6 @@ def session() -> Generator[Session, None, None]:
         zipf_frequency=4.0,
         is_sweet_spot=True,
         context_fragment="a test",
-        fragment_purity="clean",
         occurrences=1,
         status=CandidateStatus.LEARN.value,
     ))

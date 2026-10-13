@@ -79,7 +79,6 @@ def _add_memoir_with_candidate(session: Session) -> None:
             cefr_level="B2",
             zipf_frequency=3.6,
             context_fragment=MEMOIR_FRAGMENT,
-            fragment_purity="clean",
             occurrences=1,
             surface_form="negotiate",
             status=CandidateStatus.PENDING,

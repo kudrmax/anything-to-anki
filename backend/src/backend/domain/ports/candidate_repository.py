@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.candidate_status import CandidateStatus
     from backend.domain.value_objects.document_position import DocumentPosition
+    from backend.domain.value_objects.phrase_words import PhraseWords
 
 
 class CandidateRepository(ABC):
@@ -43,6 +44,9 @@ class CandidateRepository(ABC):
 
     @abstractmethod
     def set_polish_reverted(self, candidate_id: int, reverted: bool) -> None: ...
+
+    @abstractmethod
+    def set_phrase_words(self, candidate_id: int, phrase_words: PhraseWords) -> None: ...
 
     @abstractmethod
     def get_by_ids(self, candidate_ids: list[int]) -> list[StoredCandidate]:

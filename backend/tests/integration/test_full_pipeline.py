@@ -46,7 +46,7 @@ class TestFullPipeline:
 
         for candidate in response.candidates:
             assert candidate.context_fragment != ""
-            assert candidate.fragment_purity in ("clean", "dirty")
+            assert candidate.phrase_words.phrase == candidate.context_fragment
 
     def test_candidates_have_sweet_spot_info(self) -> None:
         response = self.use_case.execute(_prose(PROSE), B1)

@@ -8,11 +8,11 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.candidate_cloze_repository import CandidateClozeRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
-    from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.word_decision_repository import WordDecisionRepository
 
 DECISION_STATUSES = frozenset({CandidateStatus.KNOWN, CandidateStatus.LEARN})
@@ -28,14 +28,14 @@ class MarkCandidateUseCase:
     def __init__(
         self,
         candidate_repo: CandidateRepository,
-        known_word_repo: KnownWordRepository,
+        vocabulary: UserVocabulary,
         decision_repo: WordDecisionRepository,
         review_status: ReviewStatusUpdater,
         cloze_repo: CandidateClozeRepository,
         anki_sync_repo: AnkiSyncRepository,
     ) -> None:
         self._candidate_repo = candidate_repo
-        self._known_word_repo = known_word_repo
+        self._vocabulary = vocabulary
         self._decision_repo = decision_repo
         self._review_status = review_status
         self._cloze_repo = cloze_repo
@@ -53,12 +53,16 @@ class MarkCandidateUseCase:
         """Sets the status with all its side effects, leaving the cloze markup as is."""
         assert candidate.id is not None
         self._candidate_repo.update_status(candidate.id, status)
+        knowledge_changed = CandidateStatus.KNOWN in (status, candidate.status)
         if status == CandidateStatus.KNOWN:
-            self._known_word_repo.add(candidate.lemma, candidate.pos)
+            self._vocabulary.mark_known(candidate.lemma, candidate.pos)
         elif candidate.status == CandidateStatus.KNOWN:
-            self._known_word_repo.remove_by_lemma(candidate.lemma, candidate.pos)
+            self._vocabulary.forget_known(candidate.lemma, candidate.pos)
         self._remember_decision(candidate, status)
-        self._review_status.refresh(candidate.source_id)
+        if knowledge_changed:
+            self._review_status.refresh_all()
+        else:
+            self._review_status.refresh(candidate.source_id)
 
     def _remember_decision(self, candidate: StoredCandidate, status: CandidateStatus) -> None:
         """Only single words: a phrase's frequency is not comparable with a word's."""

@@ -8,11 +8,13 @@ from backend.domain.services.topic_phrase_selection import (
     pick_best_candidate_phrase,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.phrase_words import PhraseWord, PhraseWords
+from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY, Vocabulary
 
 pytestmark = pytest.mark.unit
 
 
-def _candidate(fragment: str, purity: str = "clean") -> StoredCandidate:
+def _candidate(fragment: str, new_words: tuple[str, ...] = ()) -> StoredCandidate:
     return StoredCandidate(
         source_id=1,
         lemma="negotiate",
@@ -20,7 +22,9 @@ def _candidate(fragment: str, purity: str = "clean") -> StoredCandidate:
         cefr_level="B2",
         zipf_frequency=3.5,
         context_fragment=fragment,
-        fragment_purity=purity,
+        phrase_words=PhraseWords(
+            phrase=fragment, words=tuple(PhraseWord(word, rare=True) for word in new_words),
+        ),
         occurrences=1,
         status=CandidateStatus.PENDING,
     )
@@ -42,17 +46,23 @@ class TestParseMarkedPhrase:
 
 class TestPickBestCandidatePhrase:
     def test_prefers_clean_phrase_over_shorter_dirty_one(self) -> None:
-        dirty = _candidate("They negotiate.", purity="dirty")
+        dirty = _candidate("They negotiate stealthily.", new_words=("stealthily",))
         clean = _candidate("We will negotiate the price tomorrow.")
-        assert pick_best_candidate_phrase([dirty, clean]) is clean
+        assert pick_best_candidate_phrase([dirty, clean], EMPTY_VOCABULARY) is clean
+
+    def test_word_the_user_knows_does_not_make_phrase_dirty(self) -> None:
+        known = _candidate("They negotiate stealthily.", new_words=("stealthily",))
+        longer = _candidate("We will negotiate the price tomorrow.")
+        vocabulary = Vocabulary.of(known={"stealthily"}, unknown=set())
+        assert pick_best_candidate_phrase([known, longer], vocabulary) is known
 
     def test_prefers_shorter_phrase_among_clean_ones(self) -> None:
         long = _candidate("We will negotiate the price with them tomorrow morning.")
         short = _candidate("We will negotiate the price.")
-        assert pick_best_candidate_phrase([long, short]) is short
+        assert pick_best_candidate_phrase([long, short], EMPTY_VOCABULARY) is short
 
     def test_returns_none_for_no_candidates(self) -> None:
-        assert pick_best_candidate_phrase([]) is None
+        assert pick_best_candidate_phrase([], EMPTY_VOCABULARY) is None
 
 
 class TestFindShortestSentence:

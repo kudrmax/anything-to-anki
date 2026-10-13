@@ -81,7 +81,6 @@ def _seed_source_with_candidate(
         zipf_frequency=3.5,
         is_sweet_spot=True,
         context_fragment=f"context with {lemma} here",
-        fragment_purity="clean",
         occurrences=1,
         status=status,
     )
@@ -237,7 +236,7 @@ class TestSyncToAnkiAPI:
                     StoredCandidate(
                         id=1, source_id=source_id, lemma="burnout", pos="NOUN",
                         cefr_level="B2", zipf_frequency=3.5,
-                        context_fragment="burnout is exhausting", fragment_purity="clean",
+                        context_fragment="burnout is exhausting",
                         occurrences=1, status=CandidateStatus.LEARN,
                     )
                 ],
@@ -268,7 +267,7 @@ class TestSyncToAnkiAPI:
                 StoredCandidate(
                     id=1, source_id=source_id, lemma="burnout", pos="NOUN",
                     cefr_level="B2", zipf_frequency=3.5,
-                    context_fragment="burnout is exhausting", fragment_purity="clean",
+                    context_fragment="burnout is exhausting",
                     occurrences=1, status=CandidateStatus.LEARN,
                 )
             ],

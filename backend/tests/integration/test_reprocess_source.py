@@ -57,7 +57,6 @@ def _create_processed_source(db_session: Session) -> int:
             cefr_level="C1",
             zipf_frequency=3.2,
             context_fragment="She tends to procrastinate when facing deadlines.",
-            fragment_purity="pure",
             occurrences=1,
             status=CandidateStatus.LEARN,
         ),
@@ -68,7 +67,6 @@ def _create_processed_source(db_session: Session) -> int:
             cefr_level="B2",
             zipf_frequency=4.5,
             context_fragment="She tends to procrastinate when facing deadlines.",
-            fragment_purity="pure",
             occurrences=1,
             status=CandidateStatus.KNOWN,
         ),
@@ -79,7 +77,6 @@ def _create_processed_source(db_session: Session) -> int:
             cefr_level="A2",
             zipf_frequency=5.1,
             context_fragment="She tends to procrastinate when facing deadlines.",
-            fragment_purity="pure",
             occurrences=1,
             status=CandidateStatus.SKIP,
         ),
@@ -103,13 +100,19 @@ def _make_reprocess_uc(
 
 
 def _make_stats_uc(db_session: Session) -> GetReprocessStatsUseCase:
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.infrastructure.persistence.sqla_known_word_repository import (
         SqlaKnownWordRepository,
+    )
+    from backend.infrastructure.persistence.sqla_unknown_word_repository import (
+        SqlaUnknownWordRepository,
     )
     return GetReprocessStatsUseCase(
         source_repo=SqlaSourceRepository(db_session),
         candidate_repo=SqlaCandidateRepository(db_session),
-        known_word_repo=SqlaKnownWordRepository(db_session),
+        vocabulary=UserVocabulary(
+            SqlaKnownWordRepository(db_session), SqlaUnknownWordRepository(db_session),
+        ),
         job_repo=SqlaJobRepository(db_session),
     )
 
@@ -273,7 +276,6 @@ def test_finalize_restores_enrichment(db_session: Session) -> None:
             cefr_level="C2",
             zipf_frequency=3.2,
             context_fragment="She tends to procrastinate when facing deadlines.",
-            fragment_purity="pure",
             occurrences=1,
             status=CandidateStatus.PENDING,
         ),

@@ -161,7 +161,6 @@ class TestSourcesAPI:
             zipf_frequency=3.8,
             is_sweet_spot=True,
             context_fragment="I'm gonna do it",
-            fragment_purity="clean",
             occurrences=1,
             status="pending",
             usage_distribution_json=json.dumps({"informal": 0.8, "neutral": 0.2}),

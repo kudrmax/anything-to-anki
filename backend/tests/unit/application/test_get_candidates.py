@@ -45,7 +45,7 @@ class TestGetCandidatesUseCase:
             StoredCandidate(
                 id=1, source_id=1, lemma="test", pos="NOUN",
                 cefr_level="B2", zipf_frequency=3.5,
-                context_fragment="a test", fragment_purity="clean",
+                context_fragment="a test",
                 occurrences=1, status=CandidateStatus.PENDING,
             ),
         ]
@@ -59,7 +59,7 @@ class TestGetCandidatesUseCase:
             StoredCandidate(
                 id=1, source_id=1, lemma="test", pos="NOUN",
                 cefr_level="B2", zipf_frequency=3.5,
-                context_fragment="a test", fragment_purity="clean",
+                context_fragment="a test",
                 occurrences=1, status=CandidateStatus.LEARN,
             ),
         ]
@@ -81,7 +81,7 @@ class TestGetCandidatesUseCase:
         candidate = StoredCandidate(
             id=1, source_id=1, lemma="test", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,
-            context_fragment="a test", fragment_purity="clean",
+            context_fragment="a test",
             occurrences=1, status=CandidateStatus.PENDING,
             pronunciation=pronunciation,
         )
@@ -95,7 +95,7 @@ class TestGetCandidatesUseCase:
         candidate = StoredCandidate(
             id=1, source_id=1, lemma="test", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.8,
-            context_fragment="a test", fragment_purity="clean",
+            context_fragment="a test",
             occurrences=1, status=CandidateStatus.PENDING,
         )
         dto = stored_candidate_to_dto(candidate)
@@ -105,7 +105,7 @@ class TestGetCandidatesUseCase:
         candidate = StoredCandidate(
             id=1, source_id=1, lemma="esoteric", pos="ADJ",
             cefr_level="C2", zipf_frequency=1.5,
-            context_fragment="an esoteric topic", fragment_purity="clean",
+            context_fragment="an esoteric topic",
             occurrences=1, status=CandidateStatus.PENDING,
         )
         dto = stored_candidate_to_dto(candidate)
@@ -115,7 +115,7 @@ class TestGetCandidatesUseCase:
         candidate = StoredCandidate(
             id=1, source_id=1, lemma="gonna", pos="VERB",
             cefr_level="B1", zipf_frequency=4.0,
-            context_fragment="gonna do it", fragment_purity="clean",
+            context_fragment="gonna do it",
             occurrences=1, status=CandidateStatus.PENDING,
             usage_distribution=UsageDistribution(groups={"informal": 0.8, "neutral": 0.2}),
         )
@@ -126,7 +126,7 @@ class TestGetCandidatesUseCase:
         candidate = StoredCandidate(
             id=1, source_id=1, lemma="test", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,
-            context_fragment="a test", fragment_purity="clean",
+            context_fragment="a test",
             occurrences=1, status=CandidateStatus.PENDING,
             usage_distribution=None,
         )
@@ -139,7 +139,7 @@ class TestGetCandidatesUseCase:
         candidate = StoredCandidate(
             id=1, source_id=1, lemma="test", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,
-            context_fragment="a test", fragment_purity="clean",
+            context_fragment="a test",
             occurrences=1, status=CandidateStatus.PENDING,
         )
         self.source_repo.get_by_id.return_value = MagicMock()
@@ -169,7 +169,7 @@ class TestGetCandidatesUseCase:
         candidate = StoredCandidate(
             id=1, source_id=1, lemma="test", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,
-            context_fragment="a test", fragment_purity="clean",
+            context_fragment="a test",
             occurrences=1, status=CandidateStatus.PENDING,
             meaning=meaning,
         )

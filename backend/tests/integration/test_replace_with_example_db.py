@@ -50,7 +50,6 @@ def test_replacement_keeps_cefr_level_after_reload(db_session: Session, source_i
             cefr_level="B1",
             zipf_frequency=4.0,
             context_fragment="in advance of the meeting",
-            fragment_purity="clean",
             occurrences=1,
             status=CandidateStatus.PENDING,
             cefr_breakdown=_breakdown(),

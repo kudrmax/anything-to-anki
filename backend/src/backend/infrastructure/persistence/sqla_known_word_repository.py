@@ -51,6 +51,12 @@ class SqlaKnownWordRepository(KnownWordRepository):
         self._matching(lemma, pos).delete(synchronize_session="fetch")
         self._session.flush()
 
+    def remove_every_pos(self, lemma: str) -> None:
+        self._session.query(KnownWordModel).filter(
+            func.lower(KnownWordModel.lemma) == lemma.lower(),
+        ).delete(synchronize_session="fetch")
+        self._session.flush()
+
     def exists(self, lemma: str, pos: str | None) -> bool:
         return self._matching(lemma, pos).first() is not None
 

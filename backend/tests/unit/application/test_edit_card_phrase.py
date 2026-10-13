@@ -20,7 +20,6 @@ def _candidate(polished: str | None = None, reverted: bool = False) -> StoredCan
         cefr_level="B2",
         zipf_frequency=3.5,
         context_fragment=SOURCE_PHRASE,
-        fragment_purity="clean",
         occurrences=1,
         status=CandidateStatus.PENDING,
         polished_fragment=polished,
