@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.get_sources import GetSourcesUseCase
+from backend.application.utils.topic_generation import TopicGenerationProbe
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceNotFoundError
@@ -37,7 +38,7 @@ class TestGetSourcesUseCase:
             candidate_sorter=candidate_sorter(self.settings_repo),
             job_repo=self.job_repo,
             collection_repo=self.collection_repo,
-            topic_target_repo=self.topic_target_repo,
+            generation_probe=TopicGenerationProbe(self.job_repo, self.topic_target_repo),
             report_repo=self.report_repo,
             anki_sync_repo=self.anki_sync_repo,
         )

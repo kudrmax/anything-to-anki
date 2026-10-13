@@ -55,6 +55,7 @@ from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
+from backend.application.utils.topic_generation import TopicGenerationProbe
 from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
 from backend.domain.ports.cefr_source import (
     CEFRSource,  # noqa: TC001 — used at runtime in list[CEFRSource]
@@ -430,7 +431,7 @@ class Container:
             candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
             collection_repo=SqlaCollectionRepository(session),
-            topic_target_repo=SqlaTopicTargetRepository(session),
+            generation_probe=self._generation_probe(session),
             report_repo=SqlaCardReportRepository(session),
             anki_sync_repo=SqlaAnkiSyncRepository(session),
         )
@@ -619,6 +620,12 @@ class Container:
         return CandidateSorter(
             settings_repo=SqlaSettingsRepository(session),
             threshold_resolver=self._threshold_resolver(session),
+        )
+
+    def _generation_probe(self, session: Session) -> TopicGenerationProbe:
+        return TopicGenerationProbe(
+            job_repo=SqlaJobRepository(session),
+            topic_target_repo=SqlaTopicTargetRepository(session),
         )
 
     def _review_status_updater(self, session: Session) -> ReviewStatusUpdater:
