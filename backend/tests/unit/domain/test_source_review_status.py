@@ -11,6 +11,10 @@ class TestDeriveReviewStatus:
         result = derive_review_status(SourceStatus.DONE, statuses)
         assert result == SourceStatus.PARTIALLY_REVIEWED
 
+    def test_untouched_source_stays_not_started(self) -> None:
+        statuses = [CandidateStatus.PENDING, CandidateStatus.PENDING]
+        assert derive_review_status(SourceStatus.DONE, statuses) == SourceStatus.DONE
+
     def test_no_pending_candidates_mean_reviewed(self) -> None:
         statuses = [CandidateStatus.LEARN, CandidateStatus.KNOWN, CandidateStatus.SKIP]
         result = derive_review_status(SourceStatus.PARTIALLY_REVIEWED, statuses)
