@@ -4,7 +4,7 @@ import type { DetectedFormat, Question } from '@/api/types'
 import { nativeHost } from '@/lib/nativeHost'
 import { withDroppedPaths } from '@/lib/text/sourceInput'
 import { pickedWords, toggled } from '@/lib/text/words'
-import { Button, Field, Segmented, Stack, Text, TextArea, WordPicker } from '@/ui'
+import { Button, Field, Segmented, Spinner, Stack, Text, TextArea, WordPicker } from '@/ui'
 import css from './AddSourceForm.module.css'
 import { PathField } from './PathField'
 import { QuestionsModal } from './QuestionsModal'
@@ -42,6 +42,7 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
   const [title, setTitle] = useState('')
   const [srtPath, setSrtPath] = useState('')
   const [detected, setDetected] = useState<DetectedFormat | null>(null)
+  const [detecting, setDetecting] = useState(false)
   const [phraseTarget, setPhraseTarget] = useState<Set<number>>(new Set())
   const [phraseSaved, setPhraseSaved] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -86,10 +87,13 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
 
   // Подсказку под полем считает backend: как он прочитает то, что вставлено.
   useEffect(() => {
-    if (mode !== 'source' || !entered) { setDetected(null); return }
+    if (mode !== 'source' || !entered) { setDetected(null); setDetecting(false); return }
     const controller = new AbortController()
+    setDetecting(true)
     const timer = window.setTimeout(() => {
-      api.detectFormat(input, controller.signal).then(setDetected).catch(() => {})
+      api.detectFormat(input, controller.signal)
+        .then(found => { setDetected(found); setDetecting(false) })
+        .catch(() => {})
     }, DETECT_DELAY_MS)
     return () => {
       window.clearTimeout(timer)
@@ -185,11 +189,13 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
         </Stack>
         {entered && (
           <>
-            <Segmented value={mode} options={MODES} onChange={setMode} />
+            <div className={css.modeRow}>
+              <Segmented value={mode} options={MODES} onChange={setMode} />
+              {mode === 'source' && (detecting ? <Spinner /> : detected && <Text tone="muted" size="s">{detected.label}</Text>)}
+            </div>
             {mode === 'source' && (
               <Stack>
-                {detected && <Text tone="muted" size="s">{detected.label}</Text>}
-                {isVideo && (
+                {isVideo && !detecting && (
                   <PathField value={srtPath} placeholder="/path/to/subtitles.srt (optional)" extensions={SUBTITLE_EXTENSIONS} onChange={setSrtPath} onError={setError} />
                 )}
                 <Field value={title} placeholder="Title (optional)" onChange={e => setTitle(e.target.value)} />
