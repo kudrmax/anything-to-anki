@@ -37,7 +37,4 @@ class CollectionRepository(ABC):
         """Evictions recorded when the collection was deleted; they are forgotten after this."""
 
     @abstractmethod
-    def rename(self, collection_id: int, new_name: str) -> Collection: ...
-
-    @abstractmethod
     def delete(self, collection_id: int) -> None: ...

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.application.dto.collection_dtos import CollectionDTO
+from backend.application.dto.collection_dtos import CollectionSummaryDTO
 
 if TYPE_CHECKING:
     from backend.domain.ports.collection_repository import CollectionRepository
@@ -20,7 +20,7 @@ class ListCollectionsUseCase:
         self._collection_repo = collection_repo
         self._source_repo = source_repo
 
-    def execute(self) -> list[CollectionDTO]:
+    def execute(self) -> list[CollectionSummaryDTO]:
         collections = self._collection_repo.list_all()
         all_sources = self._source_repo.list_all()
 
@@ -29,10 +29,10 @@ class ListCollectionsUseCase:
             if source.collection_id is not None:
                 counts[source.collection_id] = counts.get(source.collection_id, 0) + 1
 
-        result: list[CollectionDTO] = []
+        result: list[CollectionSummaryDTO] = []
         for c in sorted(collections, key=lambda x: x.name.lower()):
             result.append(
-                CollectionDTO(
+                CollectionSummaryDTO(
                     id=c.id,  # type: ignore[arg-type]
                     name=c.name,
                     source_count=counts.get(c.id, 0),  # type: ignore[arg-type]

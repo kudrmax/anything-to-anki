@@ -7,10 +7,16 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.collection_dtos import (  # noqa: TC001
     CollectionDTO,
+    CollectionSummaryDTO,
     CreateCollectionRequest,
     RenameCollectionRequest,
+    RenamedCollectionDTO,
 )
-from backend.domain.exceptions import CollectionNameExistsError, CollectionNotFoundError
+from backend.domain.exceptions import (
+    CollectionMoveNotAllowedError,
+    CollectionNameExistsError,
+    CollectionNotFoundError,
+)
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
 if TYPE_CHECKING:
@@ -31,11 +37,15 @@ def create_collection(
 ) -> CollectionDTO:
     try:
         use_case = container.create_collection_use_case(session)
-        result = use_case.execute(request.name)
+        result = use_case.execute(request.name, request.parent_id)
         session.commit()
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except CollectionNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except CollectionMoveNotAllowedError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except CollectionNameExistsError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
@@ -44,7 +54,7 @@ def create_collection(
 def list_collections(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> list[CollectionDTO]:
+) -> list[CollectionSummaryDTO]:
     use_case = container.list_collections_use_case(session)
     return use_case.execute()
 
@@ -55,7 +65,7 @@ def rename_collection(
     request: RenameCollectionRequest,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> CollectionDTO:
+) -> RenamedCollectionDTO:
     try:
         use_case = container.rename_collection_use_case(session)
         result = use_case.execute(collection_id, request.name)

@@ -77,14 +77,6 @@ class SqlaCollectionRepository(CollectionRepository):
         self._session.flush()
         return evictions
 
-    def rename(self, collection_id: int, new_name: str) -> Collection:
-        model = self._session.get(CollectionModel, collection_id)
-        if model is None:
-            raise CollectionNotFoundError(collection_id)
-        model.name = new_name
-        self._session.flush()
-        return model.to_entity()
-
     def delete(self, collection_id: int) -> None:
         model = self._session.get(CollectionModel, collection_id)
         if model is not None:
