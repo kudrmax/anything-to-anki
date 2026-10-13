@@ -26,9 +26,7 @@ const TYPE_ICON: Record<ContentType, LucideIcon> = { text: FileText, lyrics: Mus
 const TYPE_LABEL: Record<ContentType, string> = { text: 'Text', lyrics: 'Lyrics', video: 'Video', topic: 'Topic', phrases: 'Phrases' }
 
 const STAGE_LABEL: Record<ProcessingStage, string> = {
-  cleaning_source: 'Cleaning source format…',
   analyzing_text: 'Analyzing text…',
-  mapping_timecodes: 'Mapping timecodes…',
   collecting_phrases: 'Collecting phrases…',
 }
 const STAGE_DEFAULT = 'Starting…'

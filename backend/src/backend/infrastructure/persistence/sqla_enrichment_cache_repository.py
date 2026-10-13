@@ -111,29 +111,29 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
         logger.info("enrichment cache: saved %d rows (source_id=%d)", len(rows), source_id)
 
     def restore_to_candidates(self, source_id: int) -> int:
-        stmt = (
-            select(
-                StoredCandidateModel.id.label("candidate_id"),
-                EnrichmentCacheModel,
+        # A phrase cut out again may differ only in whitespace: lines used to be joined
+        # by line breaks, now by spaces.
+        cached = {
+            (cache.lemma, cache.pos, _spaced(cache.context_fragment)): cache
+            for cache in self._session.scalars(
+                select(EnrichmentCacheModel).where(EnrichmentCacheModel.source_id == source_id)
             )
-            .join(
-                EnrichmentCacheModel,
-                (EnrichmentCacheModel.source_id == StoredCandidateModel.source_id)
-                & (EnrichmentCacheModel.lemma == StoredCandidateModel.lemma)
-                & (EnrichmentCacheModel.pos == StoredCandidateModel.pos)
-                & (
-                    EnrichmentCacheModel.context_fragment
-                    == StoredCandidateModel.context_fragment
-                ),
+        }
+        rows = [
+            (candidate.id, cache)
+            for candidate in self._session.scalars(
+                select(StoredCandidateModel).where(StoredCandidateModel.source_id == source_id)
             )
-            .where(StoredCandidateModel.source_id == source_id)
-        )
-        rows = self._session.execute(stmt).all()
+            if (
+                cache := cached.get(
+                    (candidate.lemma, candidate.pos, _spaced(candidate.context_fragment))
+                )
+            )
+            is not None
+        ]
 
         restored = 0
-        for row in rows:
-            cid: int = row.candidate_id
-            cache: EnrichmentCacheModel = row.EnrichmentCacheModel
+        for cid, cache in rows:
             any_restored = False
 
             if cache.meaning is not None:
@@ -215,3 +215,7 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
     def cleanup_all(self) -> None:
         self._session.execute(delete(EnrichmentCacheModel))
         self._session.flush()
+
+
+def _spaced(fragment: str) -> str:
+    return " ".join(fragment.split())

@@ -72,22 +72,6 @@ class Source:
         return self.content_type not in (ContentType.TOPIC, ContentType.PHRASES)
 
     @property
-    def searchable_text(self) -> str | None:
-        """Plain text other sources may borrow phrases from, if there is any yet.
-
-        Raw subtitles and lyrics carry markup, so they count only once cleaned.
-        """
-        from backend.domain.value_objects.input_method import InputMethod
-
-        if not self.has_text:
-            return None
-        if self.cleaned_text:
-            return self.cleaned_text
-        if self.input_method in (InputMethod.TEXT_PASTED, InputMethod.BOOK_FILE):
-            return self.raw_text
-        return None
-
-    @property
     def can_polish_phrases(self) -> bool:
         """A video card cuts its clip by the source phrase, so its phrase must stay as is.
 

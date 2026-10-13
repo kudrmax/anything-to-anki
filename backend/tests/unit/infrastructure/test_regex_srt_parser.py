@@ -2,10 +2,18 @@ import pytest
 from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 
 
+class _CueText:
+    """The lines left to read, one per line, as subtitles have them."""
+
+    def parse(self, srt: str) -> str:
+        cues = RegexSrtParser().parse_cues(srt)
+        return "\n".join(line for cue in cues for line in cue.lines)
+
+
 @pytest.mark.unit
 class TestRegexSrtParser:
     def setup_method(self) -> None:
-        self.parser = RegexSrtParser()
+        self.parser = _CueText()
 
     def test_removes_block_numbers_and_timecodes(self) -> None:
         srt = "1\n00:00:01,000 --> 00:00:03,000\nHello world"

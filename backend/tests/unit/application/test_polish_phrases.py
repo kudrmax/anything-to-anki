@@ -8,6 +8,8 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
+from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.polished_phrase import PolishedPhrase
 from backend.domain.value_objects.prompts_config import PromptsConfig
@@ -25,6 +27,9 @@ _CONFIG = PromptsConfig(
 )
 _SOURCE_PHRASE = "What had once been a barn had been abandoned partway through"
 _TEXT = f"It rained. {_SOURCE_PHRASE}. Lillian was halfway down."
+_DOCUMENT = Document((Paragraph(lines=(Line(_TEXT),), mode=ParagraphMode.FLOW),))
+_PHRASE_START = _TEXT.index(_SOURCE_PHRASE)
+_PHRASE = DocumentPosition(0, 0, _PHRASE_START, 0, _PHRASE_START + len(_SOURCE_PHRASE))
 
 
 def _candidate(
@@ -46,6 +51,7 @@ def _candidate(
         occurrences=1,
         status=status,
         polished_fragment=polished,
+        phrase_position=_PHRASE,
     )
 
 
@@ -73,9 +79,12 @@ def _use_case(
     ai_service = MagicMock()
     ai_service.polish_phrases_batch.return_value = answers
     reset = MagicMock()
+    document_repo = MagicMock()
+    document_repo.get.return_value = _DOCUMENT
     use_case = PhrasePolishUseCase(
         candidate_repo=candidate_repo,
         source_repo=source_repo,
+        document_repo=document_repo,
         settings_repo=settings_repo,
         enrichment_reset=reset,
         ai_service=ai_service,

@@ -14,6 +14,7 @@ from backend.domain.entities.topic_target import TopicTarget
 from backend.domain.exceptions import TopicTargetsMissingError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import resolve_content_type
+from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.phrase_origin import PhraseOrigin
 from backend.domain.value_objects.source_status import SourceStatus
@@ -21,6 +22,7 @@ from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
+from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
@@ -58,6 +60,11 @@ def _add_source(
         ),
     )
     assert source.id is not None
+    if input_method is not InputMethod.TOPIC_QUERY:
+        SqlaDocumentRepository(session).save(
+            source.id,
+            Document((Paragraph(lines=(Line(raw_text),), mode=ParagraphMode.FLOW),)),
+        )
     return source.id
 
 
@@ -116,9 +123,10 @@ def test_topic_borrows_phrases_and_falls_back_to_generated(
         db_session, "Novel", InputMethod.TEXT_PASTED, NOVEL_TEXT, status=SourceStatus.NEW,
     )
     _add_memoir_with_candidate(db_session)
+    # Not processed yet: its document is read already, so the topic finds it too
     _add_source(
-        db_session, "Raw subtitles", InputMethod.SUBTITLES_FILE,
-        f"1\n00:00:01,000 --> 00:00:03,000\n{LATER_ARTICLE}\n", status=SourceStatus.NEW,
+        db_session, "Subtitles", InputMethod.SUBTITLES_FILE, LATER_ARTICLE,
+        status=SourceStatus.NEW,
     )
     SqlaKnownWordRepository(db_session).add("salary", "NOUN")
     topic_id = _add_topic(db_session)
@@ -139,8 +147,8 @@ def test_topic_borrows_phrases_and_falls_back_to_generated(
     assert meet_halfway.origin == PhraseOrigin.from_source("Novel")
 
     counter_offer = candidates["counter-offer"]
-    assert counter_offer.context_fragment == "They sent a counter-offer at once."
-    assert counter_offer.origin == PhraseOrigin.generated()
+    assert counter_offer.context_fragment == LATER_ARTICLE
+    assert counter_offer.origin == PhraseOrigin.from_source("Subtitles")
 
     topic = SqlaSourceRepository(db_session).get_by_id(topic_id)
     assert topic is not None

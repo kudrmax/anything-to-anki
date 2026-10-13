@@ -5,31 +5,31 @@ import os
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from backend.application.utils.timecode_mapping import find_timecodes
 from backend.domain.entities.candidate_media import CandidateMedia
+from backend.domain.services.document_time import time_of
 from backend.domain.value_objects.content_type import ContentType
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.media_extractor import MediaExtractor
     from backend.domain.ports.source_repository import SourceRepository
-    from backend.domain.ports.structured_srt_parser import StructuredSrtParser
     from backend.domain.ports.video_path_resolver import VideoPathResolver
 
 logger = logging.getLogger(__name__)
 
 
 class RegenerateCandidateMediaUseCase:
-    """Regenerates screenshot and audio for a single candidate, recomputing
-    timecodes from the current `context_fragment`."""
+    """Regenerates screenshot and audio for a single candidate, taking the time
+    from the document lines its phrase takes now."""
 
     def __init__(
         self,
         candidate_repo: CandidateRepository,
         media_repo: CandidateMediaRepository,
         source_repo: SourceRepository,
-        structured_srt_parser: StructuredSrtParser,
+        document_repo: DocumentRepository,
         media_extractor: MediaExtractor,
         media_root: str,
         video_path_resolver: VideoPathResolver,
@@ -37,7 +37,7 @@ class RegenerateCandidateMediaUseCase:
         self._candidate_repo = candidate_repo
         self._media_repo = media_repo
         self._source_repo = source_repo
-        self._parser = structured_srt_parser
+        self._document_repo = document_repo
         self._media_extractor = media_extractor
         self._media_root = media_root
         self._video_path_resolver = video_path_resolver
@@ -60,8 +60,9 @@ class RegenerateCandidateMediaUseCase:
         if not os.path.exists(resolved_video_path):
             raise ValueError(f"Video file missing for source {source.id}")
 
-        parsed = self._parser.parse_structured(source.raw_text)
-        timecodes = find_timecodes(candidate.context_fragment, parsed)
+        document = self._document_repo.get(candidate.source_id)
+        position = candidate.phrase_position
+        timecodes = time_of(document, position) if document and position else None
         if timecodes is None:
             raise ValueError("Fragment not found in subtitles")
         start_ms, end_ms = timecodes

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import pytest
-from backend.infrastructure.adapters.regex_markdown_parser import RegexMarkdownParser
+from backend.infrastructure.adapters.markdown_blocks import MarkdownBlockParser
 
 pytestmark = pytest.mark.unit
 
 
 def parse(markdown: str) -> list[str]:
-    return RegexMarkdownParser().parse(markdown).split("\n\n")
+    return [block.text for block in MarkdownBlockParser().parse(markdown)]
 
 
 def test_headings_become_paragraphs_of_their_own() -> None:

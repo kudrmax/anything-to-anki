@@ -40,6 +40,7 @@ from backend.infrastructure.persistence.sqla_enrichment_cache_repository import 
 from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
 )
+from sqlalchemy import text
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -555,3 +556,41 @@ def test_meaning_image_survives_reprocess(db_session: Session) -> None:
     assert restored.meaning_image == CandidateMeaningImage(
         candidate_id=new.id, image_path=image_path,
     )
+
+
+@pytest.mark.integration
+def test_restore_matches_a_phrase_that_differs_only_in_whitespace(db_session: Session) -> None:
+    """Lines of an old phrase were joined by line breaks; cut out again, by spaces."""
+    source_id = _create_source_with_enriched_candidates(db_session)
+    cache_repo = SqlaEnrichmentCacheRepository(db_session)
+    candidate_repo = SqlaCandidateRepository(db_session)
+    meaning_repo = SqlaCandidateMeaningRepository(db_session)
+    db_session.execute(
+        text(
+            "UPDATE candidates SET context_fragment ="
+            " 'She tends to\nprocrastinate  when facing deadlines.' WHERE source_id = :id"
+        ),
+        {"id": source_id},
+    )
+    cache_repo.save_from_source(source_id)
+    candidate_repo.delete_by_source(source_id)
+
+    (recreated,) = candidate_repo.create_batch([
+        StoredCandidate(
+            source_id=source_id,
+            lemma="procrastinate",
+            pos="VERB",
+            cefr_level="C1",
+            zipf_frequency=3.2,
+            context_fragment="She tends to procrastinate when facing deadlines.",
+            fragment_purity="pure",
+            occurrences=1,
+            status=CandidateStatus.PENDING,
+        ),
+    ])
+
+    assert cache_repo.restore_to_candidates(source_id) == 1
+    assert recreated.id is not None
+    meaning = meaning_repo.get_by_candidate_id(recreated.id)
+    assert meaning is not None
+    assert meaning.meaning == "meaning of procrastinate"

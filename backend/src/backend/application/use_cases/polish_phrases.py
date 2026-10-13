@@ -14,8 +14,10 @@ if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.ai_service import AIService
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.value_objects.document import Document
     from backend.domain.value_objects.prompts_config import PromptsConfig
 
 logger = logging.getLogger(__name__)
@@ -39,6 +41,7 @@ class PhrasePolishUseCase:
         self,
         candidate_repo: CandidateRepository,
         source_repo: SourceRepository,
+        document_repo: DocumentRepository,
         settings_repo: SettingsRepository,
         enrichment_reset: PhraseEnrichmentReset,
         ai_service: AIService,
@@ -46,6 +49,7 @@ class PhrasePolishUseCase:
     ) -> None:
         self._candidate_repo = candidate_repo
         self._source_repo = source_repo
+        self._document_repo = document_repo
         self._settings_repo = settings_repo
         self._enrichment_reset = enrichment_reset
         self._ai_service = ai_service
@@ -73,8 +77,12 @@ class PhrasePolishUseCase:
         if not polishable:
             return []
 
+        documents = {
+            source_id: self._document_repo.get(source_id)
+            for source_id in {c.source_id for c in polishable}
+        }
         batch_prompt = "\n\n".join(
-            f"Phrase {i}:\n{self._phrase_prompt(c, sources[c.source_id])}"
+            f"Phrase {i}:\n{self._phrase_prompt(c, documents[c.source_id])}"
             for i, c in enumerate(polishable, 1)
         )
         # Errors propagate -> worker marks the jobs failed for retry
@@ -109,11 +117,9 @@ class PhrasePolishUseCase:
         )
         return self._prompts_config.polish_phrase_system.format(cefr_level=cefr_level)
 
-    def _phrase_prompt(self, candidate: StoredCandidate, source: Source | None) -> str:
-        text = source.searchable_text if source else None
-        around = (
-            FragmentSurroundings.find(text, candidate.context_fragment, POLISH_CONTEXT_CHARS)
-            if text else None
+    def _phrase_prompt(self, candidate: StoredCandidate, document: Document | None) -> str:
+        around = FragmentSurroundings.around(
+            document, candidate.phrase_position, POLISH_CONTEXT_CHARS,
         )
         context = (
             f"{around.before}{candidate.context_fragment}{around.after}"

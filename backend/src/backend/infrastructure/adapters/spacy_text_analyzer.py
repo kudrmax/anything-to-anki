@@ -13,14 +13,22 @@ if TYPE_CHECKING:
 
 PARAGRAPH_BOUNDARIES = "paragraph_boundaries"
 PARAGRAPH_BREAK = "\n\n"
+SENTENCE_STARTS = "sentence_starts"
 
 
 @Language.component(PARAGRAPH_BOUNDARIES)
 def paragraph_boundaries(doc: Doc) -> Doc:
-    """A sentence never runs past a blank line: a heading or a list item stands alone."""
+    """A sentence never runs past a blank line: a heading or a list item stands alone.
+
+    It also starts wherever the caller said one starts.
+    """
+    starts: frozenset[int] = doc.user_data.get(SENTENCE_STARTS, frozenset())
     for token in doc[:-1]:
         if token.is_space and PARAGRAPH_BREAK in token.text:
             doc[token.i + 1].is_sent_start = True
+    for token in doc[1:]:
+        if token.idx in starts:
+            token.is_sent_start = True
     return doc
 
 
@@ -31,8 +39,10 @@ class SpaCyTextAnalyzer(TextAnalyzer):
         self._nlp: Language = spacy.load(model_name)
         self._nlp.add_pipe(PARAGRAPH_BOUNDARIES, before="parser")
 
-    def analyze(self, text: str) -> list[TokenData]:
-        doc = self._nlp(text)
+    def analyze(self, text: str, sentence_starts: frozenset[int] = frozenset()) -> list[TokenData]:
+        doc = self._nlp.make_doc(text)
+        doc.user_data[SENTENCE_STARTS] = sentence_starts
+        doc = self._nlp(doc)
         tokens: list[TokenData] = []
 
         # Build sent_index mapping
@@ -59,6 +69,7 @@ class SpaCyTextAnalyzer(TextAnalyzer):
                     sent_index=sent_indices.get(token.i, 0),
                     dep=token.dep_,
                     whitespace_after=token.whitespace_,
+                    char_start=token.idx,
                 )
             )
 

@@ -4,13 +4,20 @@ from dataclasses import replace
 from unittest.mock import MagicMock
 
 import pytest
-from backend.application.dto.analysis_dtos import AnalyzeTextRequest, WordCandidateDTO
+from backend.application.dto.analysis_dtos import (
+    AnalyzeTextRequest,
+    AnalyzeTextResponse,
+    WordCandidateDTO,
+)
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.domain.entities.token_data import TokenData
-from backend.domain.exceptions import TextTooShortError
+from backend.domain.ports.document_analyzer import AnalyzedDocument, DocumentAnalyzer
+from backend.domain.services.document_layout import DocumentLayout
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbMatch
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
+from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.frequency_band import FrequencyBand
 
 
@@ -43,20 +50,40 @@ def _make_token(
     )
 
 
+class _LaidOutTokens(DocumentAnalyzer):
+    """A one-paragraph document of the tokens, each placed where its text stands."""
+
+    def __init__(self, tokens: list[TokenData]) -> None:
+        placed: list[TokenData] = []
+        text = ""
+        for token in tokens:
+            placed.append(replace(token, char_start=len(text)))
+            text += token.text + (token.whitespace_after or " ")
+        self.tokens = placed
+        self.document = Document((
+            Paragraph(lines=(Line(text.strip() or "-"),), mode=ParagraphMode.FLOW),
+        ))
+
+    def analyze(self, document: Document) -> AnalyzedDocument:
+        return AnalyzedDocument(tokens=self.tokens, layout=DocumentLayout(document))
+
+
+class _Analysis:
+    def __init__(self, use_case: AnalyzeTextUseCase, analyzer: _LaidOutTokens) -> None:
+        self._use_case = use_case
+        self._phrasal_verb_detector = use_case._phrasal_verb_detector
+        self.document = analyzer.document
+
+    def execute(self, request: AnalyzeTextRequest) -> AnalyzeTextResponse:
+        return self._use_case.execute(self.document, request)
+
+
 def _create_use_case(
-    cleaned_text: str = "test text",
     tokens: list[TokenData] | None = None,
     cefr_map: dict[str, CEFRLevel] | None = None,
     freq_map: dict[str, float] | None = None,
-) -> AnalyzeTextUseCase:
-    text_cleaner = MagicMock()
-    text_cleaner.clean.return_value = cleaned_text
-
-    text_normalizer = MagicMock()
-    text_normalizer.normalize.side_effect = lambda t: t  # passthrough
-
-    text_analyzer = MagicMock()
-    text_analyzer.analyze.return_value = tokens or []
+) -> _Analysis:
+    analyzer = _LaidOutTokens(tokens or [])
 
     cefr_classifier = MagicMock()
     _cefr = cefr_map or {}
@@ -80,27 +107,20 @@ def _create_use_case(
     phrasal_verb_detector = MagicMock()
     phrasal_verb_detector.detect.return_value = []
 
-    return AnalyzeTextUseCase(
-        text_cleaner=text_cleaner,
-        text_normalizer=text_normalizer,
-        text_analyzer=text_analyzer,
+    use_case = AnalyzeTextUseCase(
+        document_analyzer=analyzer,
         cefr_classifier=cefr_classifier,
         frequency_provider=frequency_provider,
         phrasal_verb_detector=phrasal_verb_detector,
     )
+    return _Analysis(use_case, analyzer)
 
 
 @pytest.mark.unit
 class TestAnalyzeTextUseCase:
-    def test_empty_text_raises(self) -> None:
-        use_case = _create_use_case(cleaned_text="")
-        request = AnalyzeTextRequest(raw_text="...", user_level="B1")
-        with pytest.raises(TextTooShortError):
-            use_case.execute(request)
-
     def test_no_tokens_returns_empty(self) -> None:
-        use_case = _create_use_case(cleaned_text="hello", tokens=[])
-        request = AnalyzeTextRequest(raw_text="hello", user_level="B1")
+        use_case = _create_use_case(tokens=[])
+        request = AnalyzeTextRequest(user_level="B1")
         response = use_case.execute(request)
         assert response.candidates == []
         assert response.total_tokens == 0
@@ -108,23 +128,21 @@ class TestAnalyzeTextUseCase:
     def test_filters_below_user_level(self) -> None:
         tokens = [_make_token(0, "happy", "happy")]
         use_case = _create_use_case(
-            cleaned_text="happy",
             tokens=tokens,
             cefr_map={"happy": CEFRLevel.A1},
         )
-        request = AnalyzeTextRequest(raw_text="happy", user_level="B1")
+        request = AnalyzeTextRequest(user_level="B1")
         response = use_case.execute(request)
         assert len(response.candidates) == 0
 
     def test_includes_above_user_level(self) -> None:
         tokens = [_make_token(0, "relentless", "relentless")]
         use_case = _create_use_case(
-            cleaned_text="relentless",
             tokens=tokens,
             cefr_map={"relentless": CEFRLevel.C1},
             freq_map={"relentless": 3.5},
         )
-        request = AnalyzeTextRequest(raw_text="relentless", user_level="B1")
+        request = AnalyzeTextRequest(user_level="B1")
         response = use_case.execute(request)
         assert len(response.candidates) == 1
         assert response.candidates[0].lemma == "relentless"
@@ -136,12 +154,11 @@ class TestAnalyzeTextUseCase:
             _make_token(1, "pursuing", "pursue", tag="VBG"),
         ]
         use_case = _create_use_case(
-            cleaned_text="pursue pursuing",
             tokens=tokens,
             cefr_map={"pursue": CEFRLevel.B2},
             freq_map={"pursue": 4.0},
         )
-        request = AnalyzeTextRequest(raw_text="pursue pursuing", user_level="B1")
+        request = AnalyzeTextRequest(user_level="B1")
         response = use_case.execute(request)
         # Both have same (lemma, pos) = ("pursue", "NOUN"), should deduplicate
         assert len(response.candidates) == 1
@@ -153,7 +170,6 @@ class TestAnalyzeTextUseCase:
             _make_token(1, "pursuit", "pursuit"),
         ]
         use_case = _create_use_case(
-            cleaned_text="ubiquitous pursuit",
             tokens=tokens,
             cefr_map={
                 "ubiquitous": CEFRLevel.C2,
@@ -164,7 +180,7 @@ class TestAnalyzeTextUseCase:
                 "pursuit": 4.0,
             },
         )
-        request = AnalyzeTextRequest(raw_text="ubiquitous pursuit", user_level="B1")
+        request = AnalyzeTextRequest(user_level="B1")
         response = use_case.execute(request)
         assert len(response.candidates) == 2
         lemmas = {c.lemma for c in response.candidates}
@@ -173,23 +189,21 @@ class TestAnalyzeTextUseCase:
     def test_filters_stop_words(self) -> None:
         tokens = [_make_token(0, "the", "the", is_stop=True)]
         use_case = _create_use_case(
-            cleaned_text="the",
             tokens=tokens,
             cefr_map={"the": CEFRLevel.C1},
         )
-        request = AnalyzeTextRequest(raw_text="the", user_level="B1")
+        request = AnalyzeTextRequest(user_level="B1")
         response = use_case.execute(request)
         assert len(response.candidates) == 0
 
     def test_fragment_purity(self) -> None:
         tokens = [_make_token(0, "relentless", "relentless")]
         use_case = _create_use_case(
-            cleaned_text="relentless",
             tokens=tokens,
             cefr_map={"relentless": CEFRLevel.C1},
             freq_map={"relentless": 3.5},
         )
-        request = AnalyzeTextRequest(raw_text="relentless", user_level="B1")
+        request = AnalyzeTextRequest(user_level="B1")
         response = use_case.execute(request)
         assert response.candidates[0].fragment_purity in ("clean", "dirty")
 
@@ -209,13 +223,12 @@ def _run(
     frequent_zipf: float | None = 4.5,
 ) -> list[WordCandidateDTO]:
     use_case = _create_use_case(
-        cleaned_text=" ".join(t.text for t in tokens),
         tokens=tokens,
         cefr_map=cefr_map,
         freq_map=freq_map or {},
     )
     request = AnalyzeTextRequest(
-        raw_text="text", user_level="B1", known_lemmas=known,
+        user_level="B1", known_lemmas=known,
         frequent_word_zipf=frequent_zipf,
     )
     return use_case.execute(request).candidates
@@ -236,14 +249,14 @@ class TestAnalyzeTextKnownWords:
             _make_token(0, "made", "make", pos="VERB", tag="VBD"),
             _make_token(1, "up", "up", pos="ADP", tag="RP"),
         ]
-        use_case = _create_use_case(cleaned_text="made up", tokens=tokens)
+        use_case = _create_use_case(tokens=tokens)
         use_case._phrasal_verb_detector.detect.return_value = [  # type: ignore[attr-defined]
             PhrasalVerbMatch(
                 verb_index=0, component_indices=(1,), lemma="make up", surface_form="made up",
             ),
         ]
         request = AnalyzeTextRequest(
-            raw_text="made up", user_level="B1", known_lemmas=frozenset({"make up"}),
+            user_level="B1", known_lemmas=frozenset({"make up"}),
         )
         assert use_case.execute(request).candidates == []
 
@@ -321,38 +334,6 @@ class TestAnalyzeTextPhraseChoice:
 
 
 @pytest.mark.unit
-class TestAnalyzeTextSlangNormalization:
-    def test_normalizer_called_with_cleaned_text(self) -> None:
-        text_cleaner = MagicMock()
-        text_cleaner.clean.return_value = "I wanna go"
-
-        text_normalizer = MagicMock()
-        text_normalizer.normalize.return_value = "I want to go"
-
-        text_analyzer = MagicMock()
-        text_analyzer.analyze.return_value = []
-
-        cefr_classifier = MagicMock()
-        frequency_provider = MagicMock()
-        phrasal_verb_detector = MagicMock()
-
-        use_case = AnalyzeTextUseCase(
-            text_cleaner=text_cleaner,
-            text_normalizer=text_normalizer,
-            text_analyzer=text_analyzer,
-            cefr_classifier=cefr_classifier,
-            frequency_provider=frequency_provider,
-            phrasal_verb_detector=phrasal_verb_detector,
-        )
-
-        request = AnalyzeTextRequest(raw_text="I wanna go", user_level="A1")
-        use_case.execute(request)
-
-        text_normalizer.normalize.assert_called_once_with("I wanna go")
-        text_analyzer.analyze.assert_called_once_with("I want to go")
-
-
-@pytest.mark.unit
 class TestAnalyzeTextLemmaFixes:
     def test_lost_silent_e_is_restored(self) -> None:
         tokens = [_make_token(0, "hoping", "hop", pos="VERB", tag="VBG")]
@@ -388,3 +369,28 @@ class TestAnalyzeTextLemmaFixes:
         tokens = [_make_token(0, "glasses", "glass", tag="NNS")]
         candidates = _run(tokens, {"glass": CEFRLevel.B2}, {"glass": 4.85, "glasses": 4.34})
         assert [c.lemma for c in candidates] == ["glass"]
+
+
+@pytest.mark.unit
+class TestAnalyzeTextPositions:
+    def test_phrase_and_split_target_are_placed_in_the_document(self) -> None:
+        tokens = [
+            replace(_make_token(0, "She", "she", pos="PRON"), whitespace_after=" "),
+            replace(_make_token(1, "gave", "give", pos="VERB", tag="VBD"), whitespace_after=" "),
+            replace(_make_token(2, "it", "it", pos="PRON"), whitespace_after=" "),
+            replace(_make_token(3, "up", "up", pos="ADP", tag="RP"), whitespace_after=""),
+        ]
+        analysis = _create_use_case(tokens=tokens, freq_map={"give up": 3.0})
+        analysis._phrasal_verb_detector.detect.return_value = [  # type: ignore[attr-defined]
+            PhrasalVerbMatch(
+                verb_index=1, component_indices=(3,), lemma="give up", surface_form="gave up",
+            ),
+        ]
+        candidates = analysis.execute(AnalyzeTextRequest(user_level="B1")).candidates
+        give_up = next(c for c in candidates if c.lemma == "give up")
+        assert give_up.target_position is not None
+        assert give_up.target_position.to_position() == DocumentPosition(0, 0, 4, 0, 14)
+        assert give_up.phrase_position is not None
+        assert give_up.context_fragment == "She gave it up"[
+            give_up.phrase_position.start_char : give_up.phrase_position.end_char
+        ]

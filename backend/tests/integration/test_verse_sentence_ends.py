@@ -1,12 +1,26 @@
 import pytest
-from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
+from backend.infrastructure.adapters.verse_sentence_ends import VerseSentenceEnds
+
+
+class _MarkedEnds:
+    """Marks every line that ends its sentence with a period, to read the result at a glance."""
+
+    def __init__(self) -> None:
+        self._verse = VerseSentenceEnds(SpaCyTextAnalyzer())
+
+    def parse(self, text: str) -> str:
+        lines = text.splitlines()
+        return "\n".join(
+            line + "." if ends else line
+            for line, ends in zip(lines, self._verse.ends(lines), strict=True)
+        )
 
 
 @pytest.mark.integration
-class TestRegexLyricsParser:
+class TestVerseSentenceEnds:
     def setup_method(self) -> None:
-        self.parser = RegexLyricsParser(SpaCyTextAnalyzer())
+        self.parser = _MarkedEnds()
 
     def test_lyrics_adds_period_to_bare_lines(self) -> None:
         text = "I'll tell you my story\nDon't call me typical\nInto a genius."

@@ -9,8 +9,8 @@ from backend.application.use_cases.regenerate_candidate_media import (
 )
 from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
 from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.parsed_srt import ParsedSrt
-from backend.domain.value_objects.subtitle_block import SubtitleBlock
+from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
+from backend.domain.value_objects.document_position import DocumentPosition
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -18,23 +18,32 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
 
 
-def _make_parsed_srt() -> ParsedSrt:
-    return ParsedSrt(
-        text="Hello world. How are you?",
-        blocks=(
-            SubtitleBlock(start_ms=1000, end_ms=2000, char_start=0, char_end=12),
-            SubtitleBlock(start_ms=3000, end_ms=4000, char_start=13, char_end=25),
+HOW_ARE_YOU = DocumentPosition(block=0, start_line=1, start_char=0, end_line=1, end_char=12)
+
+
+def _document() -> Document:
+    return Document((
+        Paragraph(
+            lines=(Line("Hello world.", 1000, 2000), Line("How are you?", 3000, 4000)),
+            mode=ParagraphMode.FLOW,
         ),
-    )
+    ))
+
+
+def _documents() -> MagicMock:
+    document_repo = MagicMock()
+    document_repo.get.return_value = _document()
+    return document_repo
 
 
 @pytest.mark.unit
 class TestRegenerateCandidateMedia:
-    def test_recomputes_timecodes_from_current_fragment(self) -> None:
+    def test_takes_the_time_of_the_lines_the_phrase_takes(self) -> None:
         candidate = MagicMock()
         candidate.id = 10
         candidate.source_id = 42
         candidate.context_fragment = "How are you?"
+        candidate.phrase_position = HOW_ARE_YOU
         candidate.media = None
 
         source = MagicMock()
@@ -51,8 +60,6 @@ class TestRegenerateCandidateMedia:
         candidate_repo.get_by_id.return_value = candidate
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = source
-        parser = MagicMock()
-        parser.parse_structured.return_value = _make_parsed_srt()
         media_extractor = MagicMock()
         media_repo = MagicMock()
         video_path_resolver = MagicMock()
@@ -62,7 +69,7 @@ class TestRegenerateCandidateMedia:
             candidate_repo=candidate_repo,
             media_repo=media_repo,
             source_repo=source_repo,
-            structured_srt_parser=parser,
+            document_repo=_documents(),
             media_extractor=media_extractor,
             media_root="/tmp/media",
             video_path_resolver=video_path_resolver,
@@ -103,6 +110,7 @@ class TestRegenerateCandidateMedia:
         candidate.id = 10
         candidate.source_id = 42
         candidate.context_fragment = "How are you?"
+        candidate.phrase_position = HOW_ARE_YOU
         candidate.media = None
 
         source = MagicMock()
@@ -116,8 +124,6 @@ class TestRegenerateCandidateMedia:
         candidate_repo.get_by_id.return_value = candidate
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = source
-        parser = MagicMock()
-        parser.parse_structured.return_value = _make_parsed_srt()
         media_extractor = MagicMock()
         media_repo = MagicMock()
         video_path_resolver = MagicMock()
@@ -127,7 +133,7 @@ class TestRegenerateCandidateMedia:
             candidate_repo=candidate_repo,
             media_repo=media_repo,
             source_repo=source_repo,
-            structured_srt_parser=parser,
+            document_repo=_documents(),
             media_extractor=media_extractor,
             media_root="/tmp/media",
             video_path_resolver=video_path_resolver,
@@ -154,6 +160,7 @@ class TestRegenerateCandidateMedia:
         candidate.id = 10
         candidate.source_id = 42
         candidate.context_fragment = "How are you?"
+        candidate.phrase_position = HOW_ARE_YOU
         candidate.media = None
         candidate.meaning_image = CandidateMeaningImage(candidate_id=10, image_path=str(picked))
         source = MagicMock()
@@ -165,8 +172,6 @@ class TestRegenerateCandidateMedia:
         candidate_repo.get_by_id.return_value = candidate
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = source
-        parser = MagicMock()
-        parser.parse_structured.return_value = _make_parsed_srt()
         video_path_resolver = MagicMock()
         video_path_resolver.resolve.side_effect = lambda path, _method: path
 
@@ -174,7 +179,7 @@ class TestRegenerateCandidateMedia:
             candidate_repo=candidate_repo,
             media_repo=MagicMock(),
             source_repo=source_repo,
-            structured_srt_parser=parser,
+            document_repo=_documents(),
             media_extractor=MagicMock(),
             media_root=str(tmp_path),
             video_path_resolver=video_path_resolver,
@@ -190,7 +195,7 @@ class TestRegenerateCandidateMedia:
             candidate_repo=candidate_repo,
             media_repo=MagicMock(),
             source_repo=MagicMock(),
-            structured_srt_parser=MagicMock(),
+            document_repo=_documents(),
             media_extractor=MagicMock(),
             media_root="/tmp/media",
             video_path_resolver=MagicMock(),
@@ -215,7 +220,7 @@ class TestRegenerateCandidateMedia:
             candidate_repo=candidate_repo,
             media_repo=MagicMock(),
             source_repo=source_repo,
-            structured_srt_parser=MagicMock(),
+            document_repo=_documents(),
             media_extractor=MagicMock(),
             media_root="/tmp/media",
             video_path_resolver=MagicMock(),
@@ -245,7 +250,7 @@ class TestRegenerateCandidateMedia:
             candidate_repo=candidate_repo,
             media_repo=MagicMock(),
             source_repo=source_repo,
-            structured_srt_parser=MagicMock(),
+            document_repo=_documents(),
             media_extractor=MagicMock(),
             media_root="/tmp/media",
             video_path_resolver=video_path_resolver,
@@ -258,11 +263,12 @@ class TestRegenerateCandidateMedia:
         ):
             uc.execute(candidate_id=10)
 
-    def test_raises_if_fragment_not_in_srt(self) -> None:
+    def test_raises_if_phrase_has_no_place_in_the_document(self) -> None:
         candidate = MagicMock()
         candidate.id = 10
         candidate.source_id = 42
         candidate.context_fragment = "This text is not in SRT at all."
+        candidate.phrase_position = None
 
         source = MagicMock()
         source.id = 42
@@ -275,8 +281,6 @@ class TestRegenerateCandidateMedia:
         candidate_repo.get_by_id.return_value = candidate
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = source
-        parser = MagicMock()
-        parser.parse_structured.return_value = _make_parsed_srt()
 
         video_path_resolver = MagicMock()
         video_path_resolver.resolve.side_effect = lambda path, _method: path
@@ -285,7 +289,7 @@ class TestRegenerateCandidateMedia:
             candidate_repo=candidate_repo,
             media_repo=MagicMock(),
             source_repo=source_repo,
-            structured_srt_parser=parser,
+            document_repo=_documents(),
             media_extractor=MagicMock(),
             media_root="/tmp/media",
             video_path_resolver=video_path_resolver,

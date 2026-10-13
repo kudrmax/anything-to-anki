@@ -66,7 +66,6 @@ from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.fragment_selection_config import (
     FragmentSelectionConfig,
 )
-from backend.domain.value_objects.input_method import InputMethod
 from backend.infrastructure.adapters.ai_model_mapping import model_id_for
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
 from backend.infrastructure.adapters.bing_image_source import BingImageSource
@@ -89,11 +88,9 @@ from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
 from backend.infrastructure.adapters.local_file_reader import LocalFileReader
 from backend.infrastructure.adapters.pillow_card_picture_encoder import PillowCardPictureEncoder
 from backend.infrastructure.adapters.regex_format_detector import RegexFormatDetector
-from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
-from backend.infrastructure.adapters.regex_markdown_parser import RegexMarkdownParser
-from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.slang_normalizer import SlangNormalizer
+from backend.infrastructure.adapters.spacy_document_analyzer import SpacyDocumentAnalyzer
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
 from backend.infrastructure.adapters.throttled_http_file_downloader import (
     ThrottledHttpFileDownloader,
@@ -224,11 +221,9 @@ class Container:
         )
 
         self._text_analyzer = SpaCyTextAnalyzer()
+        self._document_analyzer = SpacyDocumentAnalyzer(self._text_analyzer)
         self._text_cleaner = RegexTextCleaner()
         self._text_normalizer = SlangNormalizer()
-        self._lyrics_parser = RegexLyricsParser(self._text_analyzer)
-        self._markdown_parser = RegexMarkdownParser()
-        self._srt_parser = RegexSrtParser()
         project_root = Path(__file__).resolve().parents[4]
 
         # Dictionary cache — DICTIONARIES_DIR is required
@@ -369,9 +364,7 @@ class Container:
 
     def analyze_text_use_case(self) -> AnalyzeTextUseCase:
         return AnalyzeTextUseCase(
-            text_cleaner=self._text_cleaner,
-            text_normalizer=self._text_normalizer,
-            text_analyzer=self._text_analyzer,
+            document_analyzer=self._document_analyzer,
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
@@ -487,12 +480,7 @@ class Container:
             settings_repo=SqlaSettingsRepository(session),
             threshold_resolver=self._threshold_resolver(session),
             analyze_text_use_case=self.analyze_text_use_case(),
-            source_parsers={
-                InputMethod.LYRICS_PASTED: self._lyrics_parser,
-                InputMethod.SUBTITLES_FILE: self._srt_parser,
-                InputMethod.MARKDOWN_FILE: self._markdown_parser,
-            },
-            structured_srt_parser=self._srt_parser,
+            document_repo=SqlaDocumentRepository(session),
             media_repo=SqlaCandidateMediaRepository(session),
             topic_phrase_collector=self._topic_phrase_collector(session),
         )
@@ -509,6 +497,7 @@ class Container:
         return TopicPhraseCollector(
             topic_target_repo=SqlaTopicTargetRepository(session),
             source_repo=SqlaSourceRepository(session),
+            document_repo=SqlaDocumentRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             known_word_repo=SqlaKnownWordRepository(session),
             candidate_factory=self._candidate_factory(),
@@ -591,6 +580,7 @@ class Container:
         return ReportCandidateUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
+            document_repo=SqlaDocumentRepository(session),
             report_repo=SqlaCardReportRepository(session),
         )
 
@@ -710,6 +700,7 @@ class Container:
         return PhrasePolishUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
+            document_repo=SqlaDocumentRepository(session),
             settings_repo=settings_repo,
             enrichment_reset=self._phrase_enrichment_reset(session),
             ai_service=self._ai_service(settings_repo),
@@ -837,7 +828,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             media_repo=SqlaCandidateMediaRepository(session),
             source_repo=SqlaSourceRepository(session),
-            structured_srt_parser=self._srt_parser,
+            document_repo=SqlaDocumentRepository(session),
             media_extractor=self._media_extractor,
             media_root=self._media_root,
             video_path_resolver=self._video_path_resolver,

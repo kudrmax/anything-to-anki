@@ -5,14 +5,15 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest, dto_to_usage_distribution
 from backend.application.dto.cefr_dtos import dto_to_breakdown
-from backend.application.utils.timecode_mapping import find_timecodes
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import (
     SourceAlreadyProcessedError,
+    SourceHasNoDocumentError,
     SourceNotFoundError,
     TopicTargetsMissingError,
 )
+from backend.domain.services.document_time import time_of
 from backend.domain.services.known_word_filter import KnownWordFilter
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content_type import ContentType
@@ -30,13 +31,10 @@ if TYPE_CHECKING:
     from backend.domain.entities.source import Source
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.settings_repository import SettingsRepository
-    from backend.domain.ports.source_parser import SourceParser
     from backend.domain.ports.source_repository import SourceRepository
-    from backend.domain.ports.structured_srt_parser import StructuredSrtParser
-    from backend.domain.value_objects.input_method import InputMethod
-    from backend.domain.value_objects.parsed_srt import ParsedSrt
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +52,7 @@ class ProcessSourceUseCase:
         settings_repo: SettingsRepository,
         threshold_resolver: FrequentWordThresholdResolver,
         analyze_text_use_case: AnalyzeTextUseCase,
-        source_parsers: dict[InputMethod, SourceParser] | None = None,
-        structured_srt_parser: StructuredSrtParser | None = None,
+        document_repo: DocumentRepository,
         media_repo: CandidateMediaRepository | None = None,
         topic_phrase_collector: TopicPhraseCollector | None = None,
     ) -> None:
@@ -65,8 +62,7 @@ class ProcessSourceUseCase:
         self._settings_repo = settings_repo
         self._threshold_resolver = threshold_resolver
         self._analyze_text = analyze_text_use_case
-        self._source_parsers: dict[InputMethod, SourceParser] = source_parsers or {}
-        self._structured_srt_parser = structured_srt_parser
+        self._document_repo = document_repo
         self._media_repo = media_repo
         self._topic_phrase_collector = topic_phrase_collector
 
@@ -118,44 +114,22 @@ class ProcessSourceUseCase:
             self._process_topic(source, on_stage_commit)
             return
 
-        # Stage 1: source-specific cleaning (subtitles/lyrics parsing)
-        self._notify_stage(source_id, ProcessingStage.CLEANING_SOURCE, on_stage_commit)
-        cefr_level = self._settings_repo.get("cefr_level", "B1") or "B1"
+        document = self._document_repo.get(source_id)
+        if document is None:
+            raise SourceHasNoDocumentError(source_id)
 
-        parsed_srt: ParsedSrt | None = None
-
-        if source.content_type == ContentType.VIDEO and self._structured_srt_parser:
-            parsed_srt = self._structured_srt_parser.parse_structured(source.raw_text)
-            raw_text = parsed_srt.text
-        else:
-            parser = self._source_parsers.get(source.input_method)
-            raw_text = parser.parse(source.raw_text) if parser else source.raw_text
-
-        # Stage 2: text analysis (cleaning + tokenization + filtering)
         self._notify_stage(source_id, ProcessingStage.ANALYZING_TEXT, on_stage_commit)
+        cefr_level = self._settings_repo.get("cefr_level", "B1") or "B1"
         known_filter = KnownWordFilter(self._known_word_repo.get_all_pairs())
         request = AnalyzeTextRequest(
-            raw_text=raw_text,
             user_level=cefr_level,
             known_lemmas=known_filter.known_lemmas,
             frequent_word_zipf=self._threshold_resolver.resolve().zipf,
         )
-        result = self._analyze_text.execute(request)
-        filtered = result.candidates
-
-        if parsed_srt is not None:
-            self._notify_stage(source_id, ProcessingStage.MAPPING_TIMECODES, on_stage_commit)
-
-        # Map context fragments to timecodes if we have a parsed SRT
-        timecode_map: dict[str, tuple[int, int]] = {}
-        if parsed_srt is not None:
-            for c in filtered:
-                result_tc = find_timecodes(c.context_fragment, parsed_srt)
-                if result_tc is not None:
-                    timecode_map[c.context_fragment] = result_tc
+        result = self._analyze_text.execute(document, request)
 
         stored: list[StoredCandidate] = []
-        for c in filtered:
+        for c in result.candidates:
             bd = dto_to_breakdown(c.cefr_breakdown) if c.cefr_breakdown else None
             ud = dto_to_usage_distribution(c.usage_distribution)
             stored.append(StoredCandidate(
@@ -173,29 +147,32 @@ class ProcessSourceUseCase:
                 status=CandidateStatus.PENDING,
                 cefr_breakdown=bd,
                 usage_distribution=ud,
+                phrase_position=c.phrase_position.to_position() if c.phrase_position else None,
+                target_position=c.target_position.to_position() if c.target_position else None,
             ))
         created = self._candidate_repo.create_batch(stored)
 
-        # Persist timecodes into candidate_media table if we have them
-        if timecode_map and self._media_repo is not None:
-            for sc in created:
-                if sc.id is not None and sc.context_fragment in timecode_map:
-                    start_ms, end_ms = timecode_map[sc.context_fragment]
-                    self._media_repo.upsert(CandidateMedia(
-                        candidate_id=sc.id,
-                        screenshot_path=None,
-                        audio_path=None,
-                        start_ms=start_ms,
-                        end_ms=end_ms,
-                        generated_at=None,
-                    ))
-        self._source_repo.update_status(
-            source_id, SourceStatus.DONE, cleaned_text=result.cleaned_text,
-        )
+        # A phrase of timed lines gets their time: the clip of its card
+        timed = 0
+        for candidate in created:
+            if candidate.id is None or candidate.phrase_position is None:
+                continue
+            time = time_of(document, candidate.phrase_position)
+            if time is None or self._media_repo is None:
+                continue
+            self._media_repo.upsert(CandidateMedia(
+                candidate_id=candidate.id,
+                screenshot_path=None,
+                audio_path=None,
+                start_ms=time[0],
+                end_ms=time[1],
+                generated_at=None,
+            ))
+            timed += 1
+        self._source_repo.update_status(source_id, SourceStatus.DONE, cleaned_text=result.text)
         logger.info(
-            "process_source: done (source_id=%d, candidates_created=%d, "
-            "with_timecodes=%d)",
-            source_id, len(created), len(timecode_map),
+            "process_source: done (source_id=%d, candidates_created=%d, with_timecodes=%d)",
+            source_id, len(created), timed,
         )
 
     def _process_topic(

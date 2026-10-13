@@ -30,6 +30,7 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
@@ -43,6 +44,32 @@ from backend.infrastructure.persistence.utc_datetime import UTCDateTime
 
 if TYPE_CHECKING:
     from backend.domain.entities.job import Job
+
+
+def dump_position(position: DocumentPosition | None) -> str | None:
+    """A position is stored as `[block, start_line, start_char, end_line, end_char]`."""
+    if position is None:
+        return None
+    return json.dumps([
+        position.block,
+        position.start_line,
+        position.start_char,
+        position.end_line,
+        position.end_char,
+    ])
+
+
+def load_position(stored: str | None) -> DocumentPosition | None:
+    if stored is None:
+        return None
+    block, start_line, start_char, end_line, end_char = json.loads(stored)
+    return DocumentPosition(
+        block=block,
+        start_line=start_line,
+        start_char=start_char,
+        end_line=end_line,
+        end_char=end_char,
+    )
 
 
 class CollectionModel(Base):
@@ -292,6 +319,8 @@ class StoredCandidateModel(Base):
     polish_reverted: Mapped[bool] = mapped_column(
         nullable=False, default=False, server_default="0"
     )
+    phrase_position: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_position: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     cefr_breakdown: Mapped[CEFRBreakdownModel | None] = relationship(
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
@@ -334,6 +363,8 @@ class StoredCandidateModel(Base):
             origin=self._origin(),
             polished_fragment=self.polished_fragment,
             polish_reverted=self.polish_reverted,
+            phrase_position=load_position(self.phrase_position),
+            target_position=load_position(self.target_position),
         )
 
     def _origin(self) -> PhraseOrigin | None:
@@ -363,6 +394,8 @@ class StoredCandidateModel(Base):
             origin_title=candidate.origin.source_title if candidate.origin else None,
             polished_fragment=candidate.polished_fragment,
             polish_reverted=candidate.polish_reverted,
+            phrase_position=dump_position(candidate.phrase_position),
+            target_position=dump_position(candidate.target_position),
         )
         if candidate.cefr_breakdown is not None:
             model.cefr_breakdown = _breakdown_to_model(candidate.cefr_breakdown)

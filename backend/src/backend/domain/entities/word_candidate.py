@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.cefr_level import CEFRLevel
+    from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.frequency_band import FrequencyBand
     from backend.domain.value_objects.usage_distribution import UsageDistribution
 
@@ -26,3 +27,5 @@ class WordCandidate:
     surface_form: str | None = None  # Actual form in text, e.g. "gave up" for lemma "give up"
     cefr_breakdown: CEFRBreakdown | None = None
     usage_distribution: UsageDistribution | None = None
+    phrase_position: DocumentPosition | None = None
+    target_position: DocumentPosition | None = None

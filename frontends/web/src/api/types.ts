@@ -10,7 +10,7 @@ export type InputMethod = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file' | '
 export type ContentType = 'text' | 'lyrics' | 'video' | 'topic' | 'phrases'
 export type SourceType = InputMethod
 
-export type ProcessingStage = 'cleaning_source' | 'analyzing_text' | 'mapping_timecodes' | 'collecting_phrases'
+export type ProcessingStage = 'analyzing_text' | 'collecting_phrases'
 
 export type CandidateStatus = 'pending' | 'learn' | 'known' | 'skip'
 

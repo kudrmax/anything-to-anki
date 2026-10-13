@@ -3,11 +3,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from backend.domain.ports.source_parser import SourceParser
-from backend.domain.ports.structured_srt_parser import StructuredSrtParser
-from backend.domain.value_objects.parsed_srt import ParsedSrt
-from backend.domain.value_objects.subtitle_block import SubtitleBlock
-
 # Block separator (both Unix and Windows line endings)
 _BLOCK_SEP_RE = re.compile(r"\r?\n\r?\n")
 
@@ -60,40 +55,8 @@ def _srt_time_to_ms(time_str: str) -> int:
     return int(h) * 3_600_000 + int(m) * 60_000 + int(s) * 1_000 + int(ms_part)
 
 
-class RegexSrtParser(SourceParser, StructuredSrtParser):
-    """Parses SRT subtitle format into plain text."""
-
-    def parse(self, raw_text: str) -> str:
-        """Convert SRT format to plain text (backward-compatible)."""
-        return self.parse_structured(raw_text).text
-
-    def parse_structured(self, raw_text: str) -> ParsedSrt:
-        """Parse SRT into cleaned text + per-block char offsets and timecodes."""
-        cleaned_text = ""
-        blocks: list[SubtitleBlock] = []
-
-        for cue in self.parse_cues(raw_text):
-            cleaned_block = "\n".join(cue.lines)
-            char_start = len(cleaned_text)
-            cleaned_text += cleaned_block + "\n"
-            char_end = len(cleaned_text)
-            blocks.append(SubtitleBlock(
-                start_ms=cue.start_ms,
-                end_ms=cue.end_ms,
-                char_start=char_start,
-                char_end=char_end,
-            ))
-
-        final_text = cleaned_text.rstrip("\n")
-        if blocks:
-            last = blocks[-1]
-            blocks[-1] = SubtitleBlock(
-                start_ms=last.start_ms,
-                end_ms=last.end_ms,
-                char_start=last.char_start,
-                char_end=min(last.char_end, len(final_text)),
-            )
-        return ParsedSrt(text=final_text, blocks=tuple(blocks))
+class RegexSrtParser:
+    """Reads the subtitles of an SRT file."""
 
     def parse_cues(self, raw_text: str) -> list[SrtCue]:
         """Subtitles with something to read, without annotations, speakers and credits."""

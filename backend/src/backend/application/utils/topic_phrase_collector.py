@@ -10,6 +10,7 @@ from backend.domain.services.topic_phrase_selection import (
     parse_marked_phrase,
     pick_best_candidate_phrase,
 )
+from backend.domain.value_objects.document import block_text
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
 
 if TYPE_CHECKING:
@@ -18,9 +19,11 @@ if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.entities.topic_target import TopicTarget
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.topic_target_repository import TopicTargetRepository
+    from backend.domain.value_objects.document import Document
 
 logger = logging.getLogger(__name__)
 
@@ -49,20 +52,22 @@ class TopicPhraseCollector:
 
     For every target it looks for a real phrase among the sources the user has
     added: first a phrase the pipeline already cut out for the same lemma,
-    then any sentence that contains the target verbatim. Only when neither
-    exists does the candidate keep the example AI generated with the target.
+    then any sentence of their documents that contains the target verbatim.
+    Only when neither exists does the candidate keep the example AI generated.
     """
 
     def __init__(
         self,
         topic_target_repo: TopicTargetRepository,
         source_repo: SourceRepository,
+        document_repo: DocumentRepository,
         candidate_repo: CandidateRepository,
         known_word_repo: KnownWordRepository,
         candidate_factory: CandidateFactory,
     ) -> None:
         self._topic_target_repo = topic_target_repo
         self._source_repo = source_repo
+        self._document_repo = document_repo
         self._candidate_repo = candidate_repo
         self._known_word_repo = known_word_repo
         self._candidate_factory = candidate_factory
@@ -74,8 +79,8 @@ class TopicPhraseCollector:
         targets = self._topic_target_repo.get_by_source(source_id)
         known = KnownWordFilter(self._known_word_repo.get_all_pairs())
         library = {
-            s.id: s for s in self._source_repo.list_all()
-            if s.id is not None and s.searchable_text
+            s.id: (s, document) for s in self._source_repo.list_all()
+            if s.id is not None and (document := self._document_repo.get(s.id)) is not None
         }
 
         candidates: list[StoredCandidate] = []
@@ -128,7 +133,10 @@ class TopicPhraseCollector:
         )
 
     def _real_phrase(
-        self, generated: StoredCandidate, target: TopicTarget, library: dict[int, Source],
+        self,
+        generated: StoredCandidate,
+        target: TopicTarget,
+        library: dict[int, tuple[Source, Document]],
     ) -> _Phrase | None:
         same_lemma = [
             c for c in self._candidate_repo.get_by_lemma(generated.lemma)
@@ -139,14 +147,16 @@ class TopicPhraseCollector:
             return _Phrase(
                 text=best.context_fragment,
                 target=best.surface_form or best.lemma,
-                origin=PhraseOrigin.from_source(_title(library[best.source_id])),
+                origin=PhraseOrigin.from_source(_title(library[best.source_id][0])),
             )
 
         variants = {target.phrase, generated.surface_form or generated.lemma}
+        # A sentence never runs across blocks: a heading or a list item stands alone.
         found = [
             (sentence, source)
-            for source in library.values()
-            if (sentence := find_shortest_sentence(source.searchable_text or "", variants))
+            for source, document in library.values()
+            for block in document.blocks
+            if (sentence := find_shortest_sentence(block_text(block), variants))
         ]
         if not found:
             return None
