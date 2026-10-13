@@ -31,6 +31,10 @@ def test_unprocessed_plain_text_is_searchable() -> None:
     assert _source(InputMethod.TEXT_PASTED).searchable_text == "raw text"
 
 
+def test_unprocessed_book_is_searchable() -> None:
+    assert _source(InputMethod.BOOK_FILE).searchable_text == "raw text"
+
+
 def test_unprocessed_subtitles_are_not_searchable() -> None:
     assert _source(InputMethod.SUBTITLES_FILE).searchable_text is None
 
