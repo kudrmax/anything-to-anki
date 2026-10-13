@@ -700,6 +700,20 @@ class CandidateMeaningImageModel(Base):
         )
 
 
+class SourceDocumentModel(Base):
+    """SQLAlchemy model for the document of a source (1:1), stored as JSON."""
+
+    __tablename__ = "source_documents"
+
+    source_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    document: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class EnrichmentCacheModel(Base):
     """Temporary cache for enrichment data during source reprocessing."""
 
