@@ -55,6 +55,7 @@ const stop = (e: MouseEvent) => e.stopPropagation()
 /** Подпись под шкалой прогресса: что известно о фразах источника. */
 function progressCaption(source: SourceSummary): string {
   if (source.candidate_count === 0) return 'Nothing to learn'
+  if (source.ready_count === 0) return 'Nothing ready'
   if (source.status === 'reviewed') return `${source.learn_count} to learn`
   if (source.ready_decided_count > 0) return `${source.ready_decided_count} of ${source.ready_count} decided`
   return `${source.ready_count} phrases`
