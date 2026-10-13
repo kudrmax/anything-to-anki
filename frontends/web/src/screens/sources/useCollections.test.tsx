@@ -14,7 +14,7 @@ const onError = vi.fn<(message: string) => void>()
 const onSourcesMoved = vi.fn<() => void>()
 
 function Probe({ onRender }: { onRender: (result: ReturnType<typeof useCollections>) => void }) {
-  onRender(useCollections({ onUndo, onError, onSourcesMoved }))
+  onRender(useCollections({ onUndo: o => onUndo(o), onError: m => onError(m), onSourcesMoved: () => onSourcesMoved() }))
   return null
 }
 
@@ -77,5 +77,14 @@ describe('useCollections', () => {
     await act(async () => onUndo.mock.calls[0][0].undo())
 
     expect(onError).toHaveBeenCalled()
+  })
+
+  it('fresh inline callbacks on every render do not refetch the tree', async () => {
+    const getTree = vi.spyOn(api, 'getCollectionTree')
+    getTree.mockClear()
+    await act(async () => root.render(<Probe onRender={result => { latest = result }} />))
+    await act(async () => root.render(<Probe onRender={result => { latest = result }} />))
+
+    expect(getTree).not.toHaveBeenCalled()
   })
 })

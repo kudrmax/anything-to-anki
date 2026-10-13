@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api } from '@/api/client'
 import type { Collection, CollectionTree } from '@/api/types'
 import { messageOf } from '@/lib/apiError'
@@ -13,16 +13,20 @@ interface Callbacks {
 
 const sourcesWord = (n: number) => (n === 1 ? '1 source' : `${n} sources`)
 
-export function useCollections({ onUndo, onError, onSourcesMoved }: Callbacks) {
+export function useCollections(props: Callbacks) {
   const [tree, setTree] = useState<CollectionTree | null>(null)
+  const callbacks = useRef(props)
+  useLayoutEffect(() => {
+    callbacks.current = props
+  })
 
   const reload = useCallback(async () => {
     try {
       setTree(await api.getCollectionTree())
     } catch (e) {
-      onError(messageOf(e))
+      callbacks.current.onError(messageOf(e))
     }
-  }, [onError])
+  }, [])
 
   useEffect(() => { void reload() }, [reload])
 
@@ -30,19 +34,19 @@ export function useCollections({ onUndo, onError, onSourcesMoved }: Callbacks) {
     try {
       return await action()
     } catch (e) {
-      onError(messageOf(e))
+      callbacks.current.onError(messageOf(e))
       return null
     } finally {
       await reload()
     }
-  }, [onError, reload])
+  }, [reload])
 
   const create = (name: string, parentId: number | null = null): Promise<Collection | null> =>
     guarded(() => api.createCollection(name, parentId))
 
   const rename = async (id: number, name: string) => {
     const renamed = await guarded(() => api.renameCollection(id, name))
-    if (renamed && renamed.previous_name !== renamed.name) onUndo({
+    if (renamed && renamed.previous_name !== renamed.name) callbacks.current.onUndo({
       message: `Renamed to ${renamed.name}`,
       undo: async () => { await guarded(() => api.renameCollection(id, renamed.previous_name)) },
     })
@@ -50,7 +54,7 @@ export function useCollections({ onUndo, onError, onSourcesMoved }: Callbacks) {
 
   const move = async (id: number, parentId: number | null, position: number) => {
     const moved = await guarded(() => api.moveCollection(id, parentId, position))
-    if (moved) onUndo({
+    if (moved) callbacks.current.onUndo({
       message: 'Collection moved',
       undo: async () => { await guarded(() => api.moveCollection(id, moved.previous_parent_id, moved.previous_position)) },
     })
@@ -59,10 +63,10 @@ export function useCollections({ onUndo, onError, onSourcesMoved }: Callbacks) {
   const remove = async (id: number): Promise<boolean> => {
     const deleted = await guarded(() => api.deleteCollection(id))
     if (!deleted) return false
-    onSourcesMoved()
-    onUndo({
+    callbacks.current.onSourcesMoved()
+    callbacks.current.onUndo({
       message: deleted.evicted_source_count ? `Deleted ${deleted.name} · ${sourcesWord(deleted.evicted_source_count)} kept` : `Deleted ${deleted.name}`,
-      undo: async () => { await guarded(() => api.restoreCollection(id)); onSourcesMoved() },
+      undo: async () => { await guarded(() => api.restoreCollection(id)); callbacks.current.onSourcesMoved() },
     })
     return true
   }
@@ -70,10 +74,10 @@ export function useCollections({ onUndo, onError, onSourcesMoved }: Callbacks) {
   const place = async (sourceIds: number[], collectionId: number | null, targetName: string) => {
     const placed = await guarded(() => api.placeSources(sourceIds.map(source_id => ({ source_id, collection_id: collectionId }))))
     if (!placed) return
-    onSourcesMoved()
-    onUndo({
+    callbacks.current.onSourcesMoved()
+    callbacks.current.onUndo({
       message: `Moved ${sourcesWord(sourceIds.length)} to ${targetName}`,
-      undo: async () => { await guarded(() => api.placeSources(placed.previous)); onSourcesMoved() },
+      undo: async () => { await guarded(() => api.placeSources(placed.previous)); callbacks.current.onSourcesMoved() },
     })
   }
 
