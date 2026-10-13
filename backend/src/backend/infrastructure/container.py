@@ -16,7 +16,6 @@ from backend.application.use_cases.add_manual_candidate import AddManualCandidat
 from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
 from backend.application.use_cases.add_source import AddSourceUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
-from backend.application.use_cases.assign_source_collection import AssignSourceToCollectionUseCase
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
 from backend.application.use_cases.create_collection import CreateCollectionUseCase
 from backend.application.use_cases.create_topic import CreateTopicUseCase
@@ -36,6 +35,7 @@ from backend.application.use_cases.list_collections import ListCollectionsUseCas
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
+from backend.application.use_cases.place_sources import PlaceSourcesUseCase
 from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.rename_collection import RenameCollectionUseCase
@@ -457,10 +457,8 @@ class Container:
             source_repo=SqlaSourceRepository(session),
         )
 
-    def assign_source_collection_use_case(
-        self, session: Session,
-    ) -> AssignSourceToCollectionUseCase:
-        return AssignSourceToCollectionUseCase(
+    def place_sources_use_case(self, session: Session) -> PlaceSourcesUseCase:
+        return PlaceSourcesUseCase(
             source_repo=SqlaSourceRepository(session),
             collection_repo=SqlaCollectionRepository(session),
         )

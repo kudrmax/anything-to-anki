@@ -25,12 +25,6 @@ class MoveCollectionRequest(BaseModel):
     position: int
 
 
-class AssignCollectionRequest(BaseModel):
-    """Input for assigning a source to a collection."""
-
-    collection_id: int | None = None
-
-
 class CollectionDTO(BaseModel):
     id: int
     name: str

@@ -18,7 +18,6 @@ from backend.application.dto.candidate_dtos import (  # noqa: TC001
     AddManualCandidateRequest,
     AddSavedPhraseRequest,
 )
-from backend.application.dto.collection_dtos import AssignCollectionRequest  # noqa: TC001
 from backend.application.dto.document_dtos import SourceDocumentDTO  # noqa: TC001
 from backend.application.dto.source_dtos import (  # noqa: TC001
     SourceDetailDTO,
@@ -29,7 +28,6 @@ from backend.application.dto.source_dtos import (  # noqa: TC001
 from backend.application.source_intake.typed_input import typed_input
 from backend.domain.exceptions import (
     BookReadError,
-    CollectionNotFoundError,
     InvalidAnswerError,
     InvalidPhraseError,
     InvalidSourceInputError,
@@ -183,24 +181,6 @@ def rename_source(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@router.patch("/{source_id}/collection")
-def assign_source_collection(
-    source_id: int,
-    request: AssignCollectionRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, Any]:
-    try:
-        use_case = container.assign_source_collection_use_case(session)
-        use_case.execute(source_id, request.collection_id)
-        session.commit()
-        return {"source_id": source_id, "collection_id": request.collection_id}
-    except SourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except CollectionNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/{source_id}/process", status_code=202)
