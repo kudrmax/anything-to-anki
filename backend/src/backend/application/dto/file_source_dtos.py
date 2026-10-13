@@ -11,3 +11,4 @@ class FileSourceRequest(BaseModel):
     title: str | None = None
     subtitle_track_index: int | None = None
     audio_track_index: int | None = None
+    split_book: bool | None = None

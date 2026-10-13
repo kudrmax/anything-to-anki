@@ -4,12 +4,15 @@ import logging
 from typing import TYPE_CHECKING
 
 from backend.application.dto.video_dtos import TrackSelectionRequired, VideoSourceCreated
+from backend.application.utils.typed_path import normalize_typed_path
 from backend.domain.entities.source import Source
 from backend.domain.value_objects.content_type import ContentType, resolve_content_type
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
+    from backend.application.dto.book_dtos import BookSourcesCreated, BookSplitRequired
+    from backend.application.use_cases.create_book_sources import CreateBookSourcesUseCase
     from backend.domain.ports.audio_track_lister import AudioTrackLister
     from backend.domain.ports.file_reader import FileReader
     from backend.domain.ports.source_repository import SourceRepository
@@ -20,11 +23,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+type FileSourceResult = (
+    Source | VideoSourceCreated | TrackSelectionRequired | BookSplitRequired | BookSourcesCreated
+)
+
 
 class CreateSourceUseCase:
     """Creates a new text source for processing."""
 
     _VIDEO_EXTENSIONS = frozenset({".mp4", ".mkv", ".avi", ".mov"})
+    _BOOK_EXTENSIONS = frozenset({".epub"})
 
     def __init__(
         self,
@@ -33,12 +41,14 @@ class CreateSourceUseCase:
         audio_track_lister: AudioTrackLister | None = None,
         file_reader: FileReader | None = None,
         video_path_resolver: VideoPathResolver | None = None,
+        book_sources: CreateBookSourcesUseCase | None = None,
     ) -> None:
         self._source_repo = source_repo
         self._subtitle_extractor = subtitle_extractor
         self._audio_track_lister = audio_track_lister
         self._file_reader = file_reader
         self._video_path_resolver = video_path_resolver
+        self._book_sources = book_sources
 
     def execute(
         self,
@@ -154,14 +164,21 @@ class CreateSourceUseCase:
         title: str | None = None,
         subtitle_track_index: int | None = None,
         audio_track_index: int | None = None,
-    ) -> Source | VideoSourceCreated | TrackSelectionRequired:
+        split_book: bool | None = None,
+    ) -> FileSourceResult:
         """Create source from a local file path. Determines type by extension."""
         assert self._file_reader is not None
+        file_path = normalize_typed_path(file_path)
+        srt_path = normalize_typed_path(srt_path) if srt_path else None
         if not self._file_reader.exists(file_path):
             msg = f"File not found: {file_path}"
             raise FileNotFoundError(msg)
 
         ext = file_path.rsplit(".", 1)[-1].lower() if "." in file_path else ""
+
+        if f".{ext}" in self._BOOK_EXTENSIONS:
+            assert self._book_sources is not None
+            return self._book_sources.execute(file_path, title, split_book)
 
         if f".{ext}" in self._VIDEO_EXTENSIONS:
             srt_text: str | None = None

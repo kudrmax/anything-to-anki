@@ -14,6 +14,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests.unit.infrastructure.epub.epub_builder import EpubBuilder, TocLink, page, prose
+
 
 @pytest.fixture()
 def _db_engine() -> Generator[object, None, None]:
@@ -217,3 +219,56 @@ class TestSavedPhrasesAPI:
 
         assert client.delete(f"/sources/{source_id}").status_code == 409
         assert client.post(f"/sources/{source_id}/reprocess").status_code == 409
+
+
+@pytest.mark.integration
+class TestBookFileSourceAPI:
+    def _book(self, tmp_path: Path) -> Path:
+        book = EpubBuilder(title="Dune")
+        for n in (1, 2):
+            book.add(f"ch{n}.xhtml", page(f"<h1>Chapter {n}</h1><p>{prose(200)}</p>"))
+        book.nav = [TocLink(f"Chapter {n}", f"ch{n}.xhtml") for n in (1, 2)]
+        return book.write(tmp_path / "dune.epub")
+
+    def test_book_asks_whether_to_split(self, client: TestClient, tmp_path: Path) -> None:
+        resp = client.post("/sources/file", json={"file_path": str(self._book(tmp_path))})
+
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["status"] == "book_split_required"
+        assert data["book_name"] == "Dune"
+        assert data["chapters"] == [
+            {"title": "Dune ch1", "word_count": 201},
+            {"title": "Dune ch2", "word_count": 201},
+        ]
+        assert client.get("/sources").json() == []
+
+    def test_split_book_becomes_a_collection_of_chapters(
+        self, client: TestClient, tmp_path: Path,
+    ) -> None:
+        resp = client.post(
+            "/sources/file", json={"file_path": str(self._book(tmp_path)), "split_book": True},
+        )
+
+        assert resp.status_code == 201
+        assert len(resp.json()["source_ids"]) == 2
+        sources = client.get("/sources").json()
+        assert [s["title"] for s in sources] == ["Dune ch1", "Dune ch2"]
+        assert {s["collection_name"] for s in sources} == {"Dune"}
+        assert {s["source_type"] for s in sources} == {"book_file"}
+
+    def test_path_copied_from_a_shell_is_accepted(
+        self, client: TestClient, tmp_path: Path,
+    ) -> None:
+        resp = client.post("/sources/file", json={"file_path": f"'{self._book(tmp_path)}'"})
+
+        assert resp.status_code == 201
+        assert resp.json()["status"] == "book_split_required"
+
+    def test_broken_book_is_rejected(self, client: TestClient, tmp_path: Path) -> None:
+        path = tmp_path / "broken.epub"
+        path.write_text("not a book")
+
+        resp = client.post("/sources/file", json={"file_path": str(path)})
+
+        assert resp.status_code == 400

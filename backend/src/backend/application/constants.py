@@ -28,3 +28,6 @@ INITIALLY_SHOWN_CANDIDATES: int = 15
 # Which hint a new cloze card gets until the user picks another one.
 CLOZE_DEFAULT_HINT_SETTING: str = "cloze_default_hint"
 DEFAULT_CLOZE_HINT: str = "none"
+
+# How a source made from one chapter of a book is titled.
+BOOK_CHAPTER_TITLE_SETTING: str = "book_chapter_title_template"

@@ -212,6 +212,10 @@ class CollectionNameExistsError(DomainError):
         self.name = name
 
 
+class BookReadError(DomainError):
+    """Raised when a book file can't be read."""
+
+
 class SourceNotTopicError(DomainError):
     """Raised when a topic-only operation is requested for a regular source."""
 

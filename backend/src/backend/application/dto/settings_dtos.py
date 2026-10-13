@@ -4,6 +4,7 @@ from pydantic import BaseModel, field_validator, model_validator
 
 from backend.application.constants import MAX_IMAGES_PER_SOURCE, MIN_IMAGES_PER_SOURCE
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.chapter_title_template import ChapterTitleTemplate
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
 
@@ -42,6 +43,7 @@ class SettingsDTO(BaseModel):
     anki_field_audio_tts: str
     images_per_source: int
     cloze_default_hint: str
+    book_chapter_title_template: str
 
 
 class UpdateSettingsRequest(BaseModel):
@@ -73,6 +75,7 @@ class UpdateSettingsRequest(BaseModel):
     anki_field_audio_tts: str | None = None
     images_per_source: int | None = None
     cloze_default_hint: str | None = None
+    book_chapter_title_template: str | None = None
 
     @field_validator("cefr_level")
     @classmethod
@@ -105,6 +108,13 @@ class UpdateSettingsRequest(BaseModel):
             raise ValueError(
                 f"cloze_default_hint must be one of {', '.join(sorted(CLOZE_DEFAULT_HINTS))}",
             )
+        return v
+
+    @field_validator("book_chapter_title_template")
+    @classmethod
+    def validate_book_chapter_title_template(cls, v: str | None) -> str | None:
+        if v is not None:
+            return ChapterTitleTemplate(v.strip()).pattern
         return v
 
     @model_validator(mode="after")

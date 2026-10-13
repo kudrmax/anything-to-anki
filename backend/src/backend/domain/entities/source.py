@@ -74,7 +74,7 @@ class Source:
             return None
         if self.cleaned_text:
             return self.cleaned_text
-        if self.input_method == InputMethod.TEXT_PASTED:
+        if self.input_method in (InputMethod.TEXT_PASTED, InputMethod.BOOK_FILE):
             return self.raw_text
         return None
 
