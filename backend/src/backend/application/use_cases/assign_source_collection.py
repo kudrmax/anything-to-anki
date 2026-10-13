@@ -30,4 +30,4 @@ class AssignSourceToCollectionUseCase:
             if collection is None:
                 raise CollectionNotFoundError(collection_id)
 
-        self._source_repo.update_collection(source_id, collection_id)
+        self._source_repo.set_collections({source_id: collection_id})

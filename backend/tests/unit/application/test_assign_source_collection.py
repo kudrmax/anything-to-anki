@@ -29,12 +29,12 @@ class TestAssignSourceToCollectionUseCase:
         self.source_repo.get_by_id.return_value = self._make_source()
         self.collection_repo.get_by_id.return_value = Collection(id=5, name="BB")
         self.use_case.execute(1, 5)
-        self.source_repo.update_collection.assert_called_once_with(1, 5)
+        self.source_repo.set_collections.assert_called_once_with({1: 5})
 
     def test_removes_collection_from_source(self) -> None:
         self.source_repo.get_by_id.return_value = self._make_source()
         self.use_case.execute(1, None)
-        self.source_repo.update_collection.assert_called_once_with(1, None)
+        self.source_repo.set_collections.assert_called_once_with({1: None})
         self.collection_repo.get_by_id.assert_not_called()
 
     def test_source_not_found_raises(self) -> None:
