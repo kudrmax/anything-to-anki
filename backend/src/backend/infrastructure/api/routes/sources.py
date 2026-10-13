@@ -143,12 +143,11 @@ def add_saved_phrase(
 
 @router.get("")
 def list_sources(
-    collection_id: int | None = None,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> list[SourceDTO]:
     use_case = container.get_sources_use_case(session)
-    return use_case.list_all(collection_id=collection_id)
+    return use_case.list_all()
 
 
 @router.get("/{source_id}")

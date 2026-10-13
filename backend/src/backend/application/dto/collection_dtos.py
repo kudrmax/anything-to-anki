@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime  # noqa: TC003
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
@@ -30,15 +29,6 @@ class CollectionDTO(BaseModel):
     name: str
     parent_id: int | None
     position: int
-
-
-class CollectionSummaryDTO(BaseModel):
-    """Flat list entry with a source count; replaced by the tree DTOs."""
-
-    id: int
-    name: str
-    source_count: int
-    created_at: datetime
 
 
 class RenamedCollectionDTO(BaseModel):

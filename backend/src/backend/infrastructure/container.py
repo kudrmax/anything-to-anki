@@ -55,6 +55,7 @@ from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
+from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.application.utils.topic_generation import TopicGenerationProbe
 from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
 from backend.domain.ports.cefr_source import (
@@ -430,7 +431,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
-            collection_repo=SqlaCollectionRepository(session),
+            scope_resolver=self._scope_resolver(session),
             generation_probe=self._generation_probe(session),
             report_repo=SqlaCardReportRepository(session),
             anki_sync_repo=SqlaAnkiSyncRepository(session),
@@ -445,6 +446,7 @@ class Container:
         return ListCollectionsUseCase(
             collection_repo=SqlaCollectionRepository(session),
             source_repo=SqlaSourceRepository(session),
+            generation_probe=self._generation_probe(session),
         )
 
     def rename_collection_use_case(self, session: Session) -> RenameCollectionUseCase:
@@ -626,6 +628,12 @@ class Container:
         return TopicGenerationProbe(
             job_repo=SqlaJobRepository(session),
             topic_target_repo=SqlaTopicTargetRepository(session),
+        )
+
+    def _scope_resolver(self, session: Session) -> SourceScopeResolver:
+        return SourceScopeResolver(
+            source_repo=SqlaSourceRepository(session),
+            collection_repo=SqlaCollectionRepository(session),
         )
 
     def _review_status_updater(self, session: Session) -> ReviewStatusUpdater:

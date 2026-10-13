@@ -31,6 +31,7 @@ class SourceDTO(BaseModel):
     id: int
     title: str
     status: str
+    stage: str  # 'in_progress' | 'preparing' | 'ready' | 'reviewed'
     kind: str | None  # 'text' | 'book' | 'subtitles' | 'song'; none for a topic or saved phrases
     role: str  # 'content' | 'topic' | 'saved_phrases'
     has_video: bool = False
@@ -42,12 +43,24 @@ class SourceDTO(BaseModel):
     decided_count: int = 0
     processing_stage: str | None = None
     collection_id: int | None = None
-    collection_name: str | None = None
+    collection_path: list[str] = []  # e.g. ["Friends", "Season 1"]; empty in Unsorted
     awaiting_generation: bool = False
     generation_status: str | None = None  # 'queued' | 'running' | 'failed'
     generation_error: str | None = None
     # Built-in source: it can't be deleted or reprocessed.
     is_permanent: bool = False
+
+
+class SourceGroupDTO(BaseModel):
+    stage: str
+    sources: list[SourceDTO]
+
+
+class SourceBoardDTO(BaseModel):
+    """Sources of one scope, grouped by what to do with them next."""
+
+    title: str
+    groups: list[SourceGroupDTO]
 
 
 class PhraseOriginDTO(BaseModel):

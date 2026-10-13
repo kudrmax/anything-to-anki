@@ -312,7 +312,7 @@ class TestBookFileSourceAPI:
         assert len(resp.json()["source_ids"]) == 2
         sources = client.get("/sources").json()
         assert [s["title"] for s in sources] == ["Dune ch1", "Dune ch2"]
-        assert {s["collection_name"] for s in sources} == {"Dune"}
+        assert {tuple(s["collection_path"]) for s in sources} == {("Dune",)}
         assert {s["kind"] for s in sources} == {"book"}
 
     def test_path_copied_from_a_shell_is_accepted(

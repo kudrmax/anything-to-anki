@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.collection_dtos import (  # noqa: TC001
     CollectionDTO,
-    CollectionSummaryDTO,
+    CollectionTreeDTO,
     CreateCollectionRequest,
     DeletedCollectionDTO,
     RenameCollectionRequest,
@@ -55,7 +55,7 @@ def create_collection(
 def list_collections(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> list[CollectionSummaryDTO]:
+) -> CollectionTreeDTO:
     use_case = container.list_collections_use_case(session)
     return use_case.execute()
 
