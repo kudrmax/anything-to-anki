@@ -189,23 +189,18 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
         </Stack>
         {entered && (
           <>
+            {mode !== 'phrase' && (
+              <Field value={title} placeholder="Title (optional)" onChange={e => setTitle(e.target.value)} />
+            )}
             <div className={css.modeRow}>
               <Segmented value={mode} options={MODES} onChange={setMode} />
               {mode === 'source' && (detecting ? <Spinner /> : detected && <Text tone="muted" size="s">{detected.label}</Text>)}
             </div>
-            {mode === 'source' && (
-              <Stack>
-                {isVideo && !detecting && (
-                  <PathField value={srtPath} placeholder="/path/to/subtitles.srt (optional)" extensions={SUBTITLE_EXTENSIONS} onChange={setSrtPath} onError={setError} />
-                )}
-                <Field value={title} placeholder="Title (optional)" onChange={e => setTitle(e.target.value)} />
-              </Stack>
+            {mode === 'source' && isVideo && !detecting && (
+              <PathField value={srtPath} placeholder="/path/to/subtitles.srt (optional)" extensions={SUBTITLE_EXTENSIONS} onChange={setSrtPath} onError={setError} />
             )}
             {mode === 'topic' && (
-              <Stack>
-                <Text tone="muted" size="s">{TOPIC_HINT}</Text>
-                <Field value={title} placeholder="Title (optional)" onChange={e => setTitle(e.target.value)} />
-              </Stack>
+              <Text tone="muted" size="s">{TOPIC_HINT}</Text>
             )}
             {mode === 'phrase' && (
               <Stack>
