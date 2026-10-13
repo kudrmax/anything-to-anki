@@ -6,15 +6,13 @@ from dataclasses import dataclass
 from backend.domain.exceptions import InvalidPhraseError
 from backend.domain.value_objects.document import (
     BLOCK_SEPARATOR,
-    FLOW_LINE_SEPARATOR,
-    LINES_LINE_SEPARATOR,
+    LINE_SEPARATOR,
     Block,
     Document,
     Heading,
     Line,
     ListItem,
     Paragraph,
-    ParagraphMode,
 )
 from backend.domain.value_objects.document_position import DocumentPosition
 
@@ -43,11 +41,10 @@ class DocumentLayout:
             if block_index:
                 parts.append(BLOCK_SEPARATOR)
                 offset += len(BLOCK_SEPARATOR)
-            texts, separator = _line_texts(block)
-            for line_index, text in enumerate(texts):
+            for line_index, text in enumerate(_line_texts(block)):
                 if line_index:
-                    parts.append(separator)
-                    offset += len(separator)
+                    parts.append(LINE_SEPARATOR)
+                    offset += len(LINE_SEPARATOR)
                 placed.append(_PlacedLine(block_index, line_index, offset, offset + len(text)))
                 parts.append(text)
                 offset += len(text)
@@ -129,11 +126,9 @@ class DocumentLayout:
         return placed
 
 
-def _line_texts(block: Block) -> tuple[list[str], str]:
+def _line_texts(block: Block) -> list[str]:
     match block:
         case Heading():
-            return [block.text], FLOW_LINE_SEPARATOR
-        case Paragraph(mode=ParagraphMode.LINES):
-            return [line.text for line in block.lines], LINES_LINE_SEPARATOR
+            return [block.text]
         case Paragraph() | ListItem():
-            return [line.text for line in block.lines], FLOW_LINE_SEPARATOR
+            return [line.text for line in block.lines]

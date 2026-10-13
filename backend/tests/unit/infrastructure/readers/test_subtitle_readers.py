@@ -32,14 +32,15 @@ def subtitles(*lines: Line) -> Document:
 
 @pytest.mark.unit
 class TestSrtReader:
-    def test_a_line_per_subtitle_with_its_time(self) -> None:
+    def test_lines_of_a_subtitle_keep_its_time(self) -> None:
         text = srt((1, "I told him"), (3, "[sighs]\nthat we were\nbewildered."))
         content = SrtReader(FILES).read(PastedText(text), NO_ANSWERS)
         assert content == SubtitlesContent(
             title=None,
             document=subtitles(
                 Line("I told him", 1000, 2000),
-                Line("that we were bewildered.", 3000, 4000),
+                Line("that we were", 3000, 4000),
+                Line("bewildered.", 3000, 4000),
             ),
         )
 

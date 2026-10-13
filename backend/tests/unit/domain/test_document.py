@@ -66,7 +66,7 @@ class TestQuestion:
 
 
 @pytest.mark.unit
-def test_document_text_joins_blocks_and_lines_by_mode() -> None:
+def test_document_text_keeps_blocks_and_lines_apart() -> None:
     from backend.domain.value_objects.document import Paragraph, ParagraphMode
 
     document = Document((
@@ -75,4 +75,4 @@ def test_document_text_joins_blocks_and_lines_by_mode() -> None:
         Paragraph((Line("La la"), Line("na na")), ParagraphMode.LINES),
         ListItem(lines=(Line("Item"), Line("goes on")), ordered=False, depth=0),
     ))
-    assert document.text == "Title\n\nOne two.\n\nLa la\nna na\n\nItem goes on"
+    assert document.text == "Title\n\nOne\ntwo.\n\nLa la\nna na\n\nItem\ngoes on"

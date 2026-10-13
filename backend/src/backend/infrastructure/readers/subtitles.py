@@ -1,4 +1,4 @@
-"""Subtitles as a document: one flowing paragraph, a line per subtitle with its time."""
+"""Subtitles as a document: one flowing paragraph of their lines, each with its subtitle's time."""
 
 from __future__ import annotations
 
@@ -11,13 +11,11 @@ from backend.infrastructure.adapters.regex_srt_parser import SrtCue
 if TYPE_CHECKING:
     from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 
-CUE_LINE_SEPARATOR = " "
-
-
 def subtitles_document(srt_text: str, parser: RegexSrtParser) -> Document:
     lines = tuple(
-        Line(CUE_LINE_SEPARATOR.join(cue.lines), start_ms=cue.start_ms, end_ms=cue.end_ms)
+        Line(text, start_ms=cue.start_ms, end_ms=cue.end_ms)
         for cue in _without_rolling_repeats(parser.parse_cues(srt_text))
+        for text in cue.lines
     )
     if not lines:
         msg = "No subtitles to read"

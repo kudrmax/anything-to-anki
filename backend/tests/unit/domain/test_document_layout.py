@@ -26,7 +26,7 @@ LAYOUT = DocumentLayout(DOCUMENT)
 class TestDocumentLayout:
     def test_text_is_the_document_text(self) -> None:
         assert LAYOUT.text == DOCUMENT.text == (
-            "Title\n\nI told him nothing.\n\nLa la\nna na\n\nItem"
+            "Title\n\nI told him\nnothing.\n\nLa la\nna na\n\nItem"
         )
 
     def test_offsets_become_a_position_and_back(self) -> None:
@@ -35,7 +35,7 @@ class TestDocumentLayout:
         position = LAYOUT.position(start, end)
         assert position == DocumentPosition(1, 0, 7, 1, 7)
         assert LAYOUT.span(position) == (start, end)
-        assert LAYOUT.fragment(position) == "him nothing"
+        assert LAYOUT.fragment(position) == "him\nnothing"
 
     def test_heading_is_line_zero(self) -> None:
         assert LAYOUT.position(0, 5) == DocumentPosition(0, 0, 0, 0, 5)
