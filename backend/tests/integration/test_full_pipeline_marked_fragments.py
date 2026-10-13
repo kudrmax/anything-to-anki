@@ -99,7 +99,8 @@ def lyrics_fragments(use_case: AnalyzeTextUseCase) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 WAVE_1_HPMOR: list[tuple[str, str, str]] = [
-    ("45_look_at", "look at", "you just have to look at the world"),
+    # Lines of a paragraph reach the parser joined by a space, as the screen shows them.
+    ("45_look_at", "look at", "two of them stopped and looked at Harry"),
     (
         "86_disclaimer",
         "disclaimer",

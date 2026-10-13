@@ -6,9 +6,8 @@ from enum import StrEnum
 MIN_HEADING_LEVEL = 1
 MAX_HEADING_LEVEL = 6
 BLOCK_SEPARATOR = "\n\n"
-# Lines stay apart as they were in the source; whether a sentence runs on across them
-# is up to the parser, unless the paragraph keeps its lines apart.
-LINE_SEPARATOR = "\n"
+FLOW_LINE_SEPARATOR = " "
+LINES_LINE_SEPARATOR = "\n"
 
 
 class ParagraphMode(StrEnum):
@@ -79,7 +78,8 @@ class Document:
 
     @property
     def text(self) -> str:
-        """The document as plain text: blocks apart by a blank line, lines by a line break."""
+        """The document as plain text: blocks apart by a blank line, a flowing paragraph's
+        lines joined by a space, a paragraph of separate lines kept line by line."""
         return BLOCK_SEPARATOR.join(block_text(block) for block in self.blocks)
 
 
@@ -87,5 +87,7 @@ def block_text(block: Block) -> str:
     match block:
         case Heading():
             return block.text
+        case Paragraph(mode=ParagraphMode.LINES):
+            return LINES_LINE_SEPARATOR.join(line.text for line in block.lines)
         case Paragraph() | ListItem():
-            return LINE_SEPARATOR.join(line.text for line in block.lines)
+            return FLOW_LINE_SEPARATOR.join(line.text for line in block.lines)

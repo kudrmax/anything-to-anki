@@ -77,7 +77,7 @@ def test_selected_phrase_replaces_the_old_one(db_session: Session, source_id: in
         start_block=1, start_line=0, start_char=14, end_block=1, end_line=1, end_char=13,
     ))
 
-    assert phrase == "relentless pursuit\nof happiness."
+    assert phrase == "relentless pursuit of happiness."
     updated = SqlaCandidateRepository(db_session).get_by_id(candidate.id)
     assert updated is not None
     assert updated.context_fragment == phrase

@@ -23,7 +23,7 @@ class TestFragmentSurroundings:
         phrase = DocumentPosition(1, 0, start, 0, len(TEXT))
         found = FragmentSurroundings.around(DOCUMENT, phrase, width=21)
         assert found == FragmentSurroundings(
-            before="guys sure have a lot ", after="\nWell, you know.",
+            before="guys sure have a lot ", after=" Well, you know.",
         )
 
     def test_reaches_into_the_blocks_around(self) -> None:

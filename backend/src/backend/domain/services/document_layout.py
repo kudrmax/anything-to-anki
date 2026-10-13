@@ -6,13 +6,15 @@ from dataclasses import dataclass
 from backend.domain.exceptions import InvalidPhraseError
 from backend.domain.value_objects.document import (
     BLOCK_SEPARATOR,
-    LINE_SEPARATOR,
+    FLOW_LINE_SEPARATOR,
+    LINES_LINE_SEPARATOR,
     Block,
     Document,
     Heading,
     Line,
     ListItem,
     Paragraph,
+    ParagraphMode,
 )
 from backend.domain.value_objects.document_position import DocumentPosition
 
@@ -41,10 +43,11 @@ class DocumentLayout:
             if block_index:
                 parts.append(BLOCK_SEPARATOR)
                 offset += len(BLOCK_SEPARATOR)
+            separator = _line_separator(block)
             for line_index, text in enumerate(_line_texts(block)):
                 if line_index:
-                    parts.append(LINE_SEPARATOR)
-                    offset += len(LINE_SEPARATOR)
+                    parts.append(separator)
+                    offset += len(separator)
                 placed.append(_PlacedLine(block_index, line_index, offset, offset + len(text)))
                 parts.append(text)
                 offset += len(text)
@@ -124,6 +127,12 @@ class DocumentLayout:
             msg = f"No line {line} in block {block}"
             raise ValueError(msg)
         return placed
+
+
+def _line_separator(block: Block) -> str:
+    if isinstance(block, Paragraph) and block.mode is ParagraphMode.LINES:
+        return LINES_LINE_SEPARATOR
+    return FLOW_LINE_SEPARATOR
 
 
 def _line_texts(block: Block) -> list[str]:
