@@ -28,10 +28,13 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
+from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
 from backend.domain.value_objects.processing_stage import ProcessingStage
+from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.token_usage import TokenUsage
 from backend.domain.value_objects.usage_distribution import UsageDistribution
@@ -91,6 +94,12 @@ class SourceModel(Base):
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
+    format: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    role: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="content", server_default="content"
+    )
+    topic_query: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     def to_entity(self) -> Source:
         return Source(
@@ -110,6 +119,10 @@ class SourceModel(Base):
             audio_track_index=self.audio_track_index,
             collection_id=self.collection_id,
             created_at=self.created_at,
+            format=Format(self.format) if self.format else None,
+            kind=Kind(self.kind) if self.kind else None,
+            role=SourceRole(self.role),
+            topic_query=self.topic_query,
         )
 
     @staticmethod
@@ -125,6 +138,10 @@ class SourceModel(Base):
             audio_track_index=source.audio_track_index,
             collection_id=source.collection_id,
             created_at=source.created_at,
+            format=source.format.value if source.format else None,
+            kind=source.kind.value if source.kind else None,
+            role=source.role.value,
+            topic_query=source.topic_query,
         )
 
 

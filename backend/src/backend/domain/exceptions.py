@@ -224,6 +224,14 @@ class NotATextFileError(DomainError):
         self.path = path
 
 
+class InvalidSourceInputError(DomainError):
+    """Raised when an input can't become a source: nothing to read, or a wrong combination."""
+
+
+class InvalidAnswerError(DomainError):
+    """Raised when an answer names a question that wasn't asked or an option it doesn't have."""
+
+
 class SourceNotTopicError(DomainError):
     """Raised when a topic-only operation is requested for a regular source."""
 

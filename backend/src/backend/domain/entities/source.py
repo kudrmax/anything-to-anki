@@ -4,8 +4,12 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from backend.domain.value_objects.source_role import SourceRole
+
 if TYPE_CHECKING:
+    from backend.domain.value_objects.content import Kind
     from backend.domain.value_objects.content_type import ContentType
+    from backend.domain.value_objects.format import Format
     from backend.domain.value_objects.input_method import InputMethod
     from backend.domain.value_objects.processing_stage import ProcessingStage
     from backend.domain.value_objects.source_status import SourceStatus
@@ -32,6 +36,10 @@ class Source:
     collection_id: int | None = None
     processing_stage: ProcessingStage | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
+    format: Format | None = None
+    kind: Kind | None = None
+    role: SourceRole = SourceRole.CONTENT
+    topic_query: str | None = None
 
     @classmethod
     def saved_phrases(cls) -> Source:
@@ -46,6 +54,7 @@ class Source:
             input_method=InputMethod.PHRASE_ADDED,
             content_type=ContentType.PHRASES,
             title=SAVED_PHRASES_TITLE,
+            role=SourceRole.SAVED_PHRASES,
         )
 
     @property
@@ -102,6 +111,10 @@ class Source:
             audio_track_index=self.audio_track_index,
             collection_id=self.collection_id,
             created_at=self.created_at,
+            format=self.format,
+            kind=self.kind,
+            role=self.role,
+            topic_query=self.topic_query,
             status=SourceStatus.NEW,
         )
 
@@ -109,6 +122,7 @@ class Source:
 _SOURCE_INPUT_FIELDS: frozenset[str] = frozenset({
     "id", "raw_text", "title", "input_method", "content_type",
     "source_url", "video_path", "audio_track_index", "collection_id", "created_at",
+    "format", "kind", "role", "topic_query",
 })
 
 _SOURCE_DERIVED_FIELDS: frozenset[str] = frozenset({
