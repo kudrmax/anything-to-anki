@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 from backend.domain.ports.source_parser import SourceParser
 from backend.domain.ports.structured_srt_parser import StructuredSrtParser
@@ -42,6 +43,15 @@ _CREDITS_RE = re.compile(
 )
 
 
+@dataclass(frozen=True)
+class SrtCue:
+    """One subtitle: its time and the lines left to read."""
+
+    start_ms: int
+    end_ms: int
+    lines: tuple[str, ...]
+
+
 def _srt_time_to_ms(time_str: str) -> int:
     """Convert SRT timestamp "HH:MM:SS,mmm" to milliseconds."""
     time_str = time_str.strip()
@@ -59,11 +69,36 @@ class RegexSrtParser(SourceParser, StructuredSrtParser):
 
     def parse_structured(self, raw_text: str) -> ParsedSrt:
         """Parse SRT into cleaned text + per-block char offsets and timecodes."""
-        blocks_raw = _BLOCK_SEP_RE.split(raw_text)
         cleaned_text = ""
         blocks: list[SubtitleBlock] = []
 
-        for block in blocks_raw:
+        for cue in self.parse_cues(raw_text):
+            cleaned_block = "\n".join(cue.lines)
+            char_start = len(cleaned_text)
+            cleaned_text += cleaned_block + "\n"
+            char_end = len(cleaned_text)
+            blocks.append(SubtitleBlock(
+                start_ms=cue.start_ms,
+                end_ms=cue.end_ms,
+                char_start=char_start,
+                char_end=char_end,
+            ))
+
+        final_text = cleaned_text.rstrip("\n")
+        if blocks:
+            last = blocks[-1]
+            blocks[-1] = SubtitleBlock(
+                start_ms=last.start_ms,
+                end_ms=last.end_ms,
+                char_start=last.char_start,
+                char_end=min(last.char_end, len(final_text)),
+            )
+        return ParsedSrt(text=final_text, blocks=tuple(blocks))
+
+    def parse_cues(self, raw_text: str) -> list[SrtCue]:
+        """Subtitles with something to read, without annotations, speakers and credits."""
+        cues: list[SrtCue] = []
+        for block in _BLOCK_SEP_RE.split(raw_text):
             lines = block.splitlines()
             start_ms: int | None = None
             end_ms: int | None = None
@@ -93,28 +128,8 @@ class RegexSrtParser(SourceParser, StructuredSrtParser):
 
             if skip_block or not block_lines or start_ms is None or end_ms is None:
                 continue
-
-            cleaned_block = "\n".join(block_lines)
-            char_start = len(cleaned_text)
-            cleaned_text += cleaned_block + "\n"
-            char_end = len(cleaned_text)
-            blocks.append(SubtitleBlock(
-                start_ms=start_ms,
-                end_ms=end_ms,
-                char_start=char_start,
-                char_end=char_end,
-            ))
-
-        final_text = cleaned_text.rstrip("\n")
-        if blocks:
-            last = blocks[-1]
-            blocks[-1] = SubtitleBlock(
-                start_ms=last.start_ms,
-                end_ms=last.end_ms,
-                char_start=last.char_start,
-                char_end=min(last.char_end, len(final_text)),
-            )
-        return ParsedSrt(text=final_text, blocks=tuple(blocks))
+            cues.append(SrtCue(start_ms=start_ms, end_ms=end_ms, lines=tuple(block_lines)))
+        return cues
 
     @staticmethod
     def _strip_annotations(text_lines: list[str]) -> list[str]:

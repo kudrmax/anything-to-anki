@@ -64,3 +64,41 @@ class TestXhtmlTextExtractor:
             page('<p><a href="a.xhtml">abcd</a></p><p>efgh</p>')
         )
         assert document.link_ratio == 0.5
+
+
+def shapes(body: str) -> list[tuple[str, str, int, int, bool, bool]]:
+    return [
+        (b.text, b.role.value, b.heading_level, b.list_depth, b.ordered, b.continues)
+        for b in XhtmlTextExtractor().extract(page(body)).blocks
+    ]
+
+
+@pytest.mark.unit
+class TestBlockRoles:
+    def test_headings_keep_their_level(self) -> None:
+        assert shapes("<h1>Part</h1><h3>Chapter <em>one</em></h3><p>Text</p>") == [
+            ("Part", "heading", 1, 0, False, False),
+            ("Chapter one", "heading", 3, 0, False, False),
+            ("Text", "paragraph", 0, 0, False, False),
+        ]
+
+    def test_list_items_know_their_list_and_depth(self) -> None:
+        body = "<ol><li>First<ul><li>Inner</li></ul></li><li>Second</li></ol><p>After</p>"
+        assert shapes(body) == [
+            ("First", "list_item", 0, 0, True, False),
+            ("Inner", "list_item", 0, 1, False, False),
+            ("Second", "list_item", 0, 0, True, False),
+            ("After", "paragraph", 0, 0, False, False),
+        ]
+
+    def test_lines_after_a_break_continue_the_paragraph(self) -> None:
+        assert shapes("<p><br/>Roses are red,<br/>violets are blue</p><p>Next</p>") == [
+            ("Roses are red,", "paragraph", 0, 0, False, False),
+            ("violets are blue", "paragraph", 0, 0, False, True),
+            ("Next", "paragraph", 0, 0, False, False),
+        ]
+
+    def test_text_closed_by_its_block_belongs_to_it(self) -> None:
+        assert shapes("<li>Item <a href='x.html'>link</li><p>Text</p>")[0] == (
+            "Item link", "list_item", 0, 0, False, False,
+        )

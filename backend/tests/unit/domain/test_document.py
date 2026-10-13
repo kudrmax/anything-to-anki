@@ -63,3 +63,16 @@ class TestQuestion:
         assert answers.has("text.kind")
         assert answers.get("book.split") is None
         assert not answers.has("book.split")
+
+
+@pytest.mark.unit
+def test_document_text_joins_blocks_and_lines_by_mode() -> None:
+    from backend.domain.value_objects.document import Paragraph, ParagraphMode
+
+    document = Document((
+        Heading(1, "Title"),
+        Paragraph((Line("One"), Line("two.")), ParagraphMode.FLOW),
+        Paragraph((Line("La la"), Line("na na")), ParagraphMode.LINES),
+        ListItem(lines=(Line("Item"), Line("goes on")), ordered=False, depth=0),
+    ))
+    assert document.text == "Title\n\nOne two.\n\nLa la\nna na\n\nItem goes on"

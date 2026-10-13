@@ -8,10 +8,24 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
+class DetailItem:
+    text: str
+    note: str | None = None
+
+
+@dataclass(frozen=True)
+class OptionDetails:
+    """What choosing an option leads to, e.g. the chapters a book is split into."""
+
+    title: str
+    items: tuple[DetailItem, ...]
+
+
+@dataclass(frozen=True)
 class QuestionOption:
     id: str
     label: str
-    details: tuple[str, ...] = ()
+    details: OptionDetails | None = None
 
 
 @dataclass(frozen=True)
