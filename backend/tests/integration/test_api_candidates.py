@@ -31,7 +31,7 @@ def client() -> Generator[TestClient, None, None]:
     # Seed test data
     session = test_session_factory()
     text = "It was always the pursuit of happiness, he said."
-    source = SourceModel(raw_text="Test", status="done", cleaned_text=text)
+    source = SourceModel(title="Test", status="done")
     session.add(source)
     session.flush()
     SqlaDocumentRepository(session).save(

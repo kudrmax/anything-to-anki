@@ -214,7 +214,7 @@ class TestRegularWordPath:
         assert dto.is_sweet_spot is True  # 3.0 ≤ 3.7 ≤ 4.5
         assert dto.surface_form == "procrastinate"
         assert dto.is_phrasal_verb is False
-        assert dto.occurrences == 2  # two occurrences in raw_text
+        assert dto.occurrences == 2  # two occurrences in the document
         assert dto.fragment_purity == "clean"
         assert dto.status == CandidateStatus.PENDING.value
         cefr_classifier.classify.assert_called_once_with("procrastinate", "VB")
@@ -324,7 +324,7 @@ class TestRegularWordPath:
         )
         assert dto.occurrences == 1  # raw text doesn't contain it → max(0, 1) = 1
 
-    def test_uses_cleaned_text_when_available(self) -> None:
+    def test_counts_occurrences_in_the_document(self) -> None:
         source_repo = MagicMock()
         text = "hello hello world"
         source_repo.get_by_id.return_value = _source()
@@ -353,7 +353,6 @@ class TestRegularWordPath:
         dto = use_case.execute(
             source_id=1, surface_form="hello", selection=_select(text, "hello world")
         )
-        # "hello" appears twice in cleaned_text, 0 times in raw → should see 2.
         assert dto.occurrences == 2
 
 

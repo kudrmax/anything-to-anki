@@ -70,7 +70,7 @@ def _seed_source_with_candidate(
     status: str = "learn",
 ) -> tuple[int, int]:
     """Insert a source + one candidate directly into the DB. Returns (source_id, candidate_id)."""
-    source = SourceModel(raw_text="test text", status=SourceStatus.DONE.value)
+    source = SourceModel(title="test text", status=SourceStatus.DONE.value)
     session.add(source)
     session.flush()
 

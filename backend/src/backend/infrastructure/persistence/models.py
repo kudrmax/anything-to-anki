@@ -102,14 +102,8 @@ class SourceModel(Base):
     __tablename__ = "sources"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    # raw_text, cleaned_text, input_method and content_type are what sources were before
-    # documents; they are read once, to move old sources onto documents, and then dropped.
-    raw_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    cleaned_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="new")
-    input_method: Mapped[str] = mapped_column(String(20), nullable=False, default="text_pasted")
-    content_type: Mapped[str] = mapped_column(String(10), nullable=False, default="text")
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     processing_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)

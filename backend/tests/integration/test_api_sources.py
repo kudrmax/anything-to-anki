@@ -150,7 +150,7 @@ class TestSourcesAPI:
     def test_get_source_candidates_include_frequency_band_and_usage(
         self, client: TestClient, db_session: Session,
     ) -> None:
-        source = SourceModel(raw_text="Test text", status="done")
+        source = SourceModel(title="Test text", status="done")
         db_session.add(source)
         db_session.flush()
 

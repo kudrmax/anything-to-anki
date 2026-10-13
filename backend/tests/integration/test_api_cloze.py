@@ -32,7 +32,7 @@ def client() -> Generator[TestClient, None, None]:
     session_factory = sessionmaker(bind=engine)
 
     session = session_factory()
-    source = SourceModel(raw_text=GIVE_UP, status="done", cleaned_text=GIVE_UP)
+    source = SourceModel(title=GIVE_UP, status="done")
     session.add(source)
     session.flush()
     SqlaCandidateRepository(session).create_batch([

@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 
 def _insert_source(session: Session, source_id: int) -> None:
     session.execute(text(
-        "INSERT INTO sources (id, raw_text, status, input_method, content_type, created_at) "
-        "VALUES (:id, 'text', 'new', 'text_pasted', 'text', '2026-01-01 00:00:00')"
+        "INSERT INTO sources (id, status, created_at) "
+        "VALUES (:id, 'new', '2026-01-01 00:00:00')"
     ), {"id": source_id})
     session.flush()
 

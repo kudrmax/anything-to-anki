@@ -100,9 +100,8 @@ def factory(tmp_path: Path) -> Generator[sessionmaker[Session], None, None]:
     session_factory = sessionmaker(bind=engine)
     with session_factory() as session:
         session.execute(text(
-            "INSERT INTO sources (id, raw_text, title, status, input_method, content_type,"
-            " created_at) VALUES (:id, 'text', 'original', 'done', 'text_pasted', 'text',"
-            " '2026-01-01 00:00:00')"
+            "INSERT INTO sources (id, title, status, created_at)"
+            " VALUES (:id, 'original', 'done', '2026-01-01 00:00:00')"
         ), {"id": SOURCE_ID})
         for cid in range(1, 10):
             session.execute(text(
