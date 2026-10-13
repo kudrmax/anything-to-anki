@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { Clapperboard, Ellipsis, FileText, Folder, Globe, Music, Pencil, RefreshCw, Sparkles, Trash2, Upload, type LucideIcon } from 'lucide-react'
-import type { Collection, ContentType, GenerationStatus, ProcessingStage, SourceSummary } from '@/api/types'
+import { BookOpen, Clapperboard, Ellipsis, FileText, Folder, Globe, Music, Pencil, RefreshCw, Sparkles, Trash2, Upload, type LucideIcon } from 'lucide-react'
+import type { Collection, GenerationStatus, ProcessingStage, SourceSummary } from '@/api/types'
 import { formatDate } from '@/lib/text/format'
 import { Button, Field, Icon, IconButton, Menu, Progress, Spinner, Text, type MenuItem } from '@/ui'
 import css from './sources.module.css'
@@ -22,13 +22,21 @@ interface SourceRowProps {
   onAssignCollection: (sourceId: number, collectionId: number | null) => void
 }
 
-const TYPE_ICON: Record<ContentType, LucideIcon> = { text: FileText, lyrics: Music, video: Clapperboard, topic: Sparkles, phrases: Globe }
-const TYPE_LABEL: Record<ContentType, string> = { text: 'Text', lyrics: 'Lyrics', video: 'Video', topic: 'Topic', phrases: 'Phrases' }
+type SourceLook = 'text' | 'book' | 'lyrics' | 'video' | 'topic' | 'phrases'
+
+const TYPE_ICON: Record<SourceLook, LucideIcon> = { text: FileText, book: BookOpen, lyrics: Music, video: Clapperboard, topic: Sparkles, phrases: Globe }
+const TYPE_LABEL: Record<SourceLook, string> = { text: 'Text', book: 'Book', lyrics: 'Lyrics', video: 'Video', topic: 'Topic', phrases: 'Phrases' }
+
+const lookOf = (source: SourceSummary): SourceLook => {
+  if (source.role === 'topic') return 'topic'
+  if (source.role === 'saved_phrases') return 'phrases'
+  if (source.has_video) return 'video'
+  if (source.kind === 'book') return 'book'
+  return source.kind === 'song' ? 'lyrics' : 'text'
+}
 
 const STAGE_LABEL: Record<ProcessingStage, string> = {
-  cleaning_source: 'Cleaning source format…',
   analyzing_text: 'Analyzing text…',
-  mapping_timecodes: 'Mapping timecodes…',
   collecting_phrases: 'Collecting phrases…',
 }
 const STAGE_DEFAULT = 'Starting…'
@@ -128,11 +136,12 @@ export function SourceRow({ source, collections, primary, onProcess, onGenerate,
   })()
 
   const classes = [css.row, isReviewable && !editing && css.clickable, source.status === 'reviewed' && css.done].filter(Boolean).join(' ')
-  const tooltip = `${TYPE_LABEL[source.content_type]} · added ${formatDate(source.created_at)}${source.collection_name ? ` · ${source.collection_name}` : ''}`
+  const look = lookOf(source)
+  const tooltip = `${TYPE_LABEL[look]} · added ${formatDate(source.created_at)}${source.collection_name ? ` · ${source.collection_name}` : ''}`
 
   return (
     <div className={classes} title={tooltip} onClick={isReviewable && !editing ? () => onReview(source.id) : undefined}>
-      <span className={css.type}><Icon as={TYPE_ICON[source.content_type]} /></span>
+      <span className={css.type}><Icon as={TYPE_ICON[look]} /></span>
       <div className={css.name}>
         {editing
           ? <Field autoFocus value={draft} onChange={e => setDraft(e.target.value)} onBlur={save} onKeyDown={onKeyDown} onClick={stop} />

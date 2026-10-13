@@ -12,8 +12,8 @@ from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.persistence.models import EnrichmentCacheModel
 from backend.infrastructure.persistence.sqla_candidate_meaning_image_repository import (
@@ -40,6 +40,7 @@ from backend.infrastructure.persistence.sqla_enrichment_cache_repository import 
 from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
 )
+from sqlalchemy import text
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -56,12 +57,8 @@ def _create_source_with_enriched_candidates(db_session: Session) -> int:
 
     source = source_repo.create(
         Source(
-            raw_text="She tends to procrastinate when facing deadlines.",
-            status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED,
-            content_type=ContentType.TEXT,
-            cleaned_text="She tends to procrastinate when facing deadlines.",
-        )
+            status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
     )
     assert source.id is not None
 
@@ -149,12 +146,8 @@ def _create_source_with_enriched_candidates_v2(
 
     source = source_repo.create(
         Source(
-            raw_text=text,
-            status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED,
-            content_type=ContentType.TEXT,
-            cleaned_text=text,
-        )
+            status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
     )
     assert source.id is not None
 
@@ -555,3 +548,41 @@ def test_meaning_image_survives_reprocess(db_session: Session) -> None:
     assert restored.meaning_image == CandidateMeaningImage(
         candidate_id=new.id, image_path=image_path,
     )
+
+
+@pytest.mark.integration
+def test_restore_matches_a_phrase_that_differs_only_in_whitespace(db_session: Session) -> None:
+    """Lines of an old phrase were joined by line breaks; cut out again, by spaces."""
+    source_id = _create_source_with_enriched_candidates(db_session)
+    cache_repo = SqlaEnrichmentCacheRepository(db_session)
+    candidate_repo = SqlaCandidateRepository(db_session)
+    meaning_repo = SqlaCandidateMeaningRepository(db_session)
+    db_session.execute(
+        text(
+            "UPDATE candidates SET context_fragment ="
+            " 'She tends to\nprocrastinate  when facing deadlines.' WHERE source_id = :id"
+        ),
+        {"id": source_id},
+    )
+    cache_repo.save_from_source(source_id)
+    candidate_repo.delete_by_source(source_id)
+
+    (recreated,) = candidate_repo.create_batch([
+        StoredCandidate(
+            source_id=source_id,
+            lemma="procrastinate",
+            pos="VERB",
+            cefr_level="C1",
+            zipf_frequency=3.2,
+            context_fragment="She tends to procrastinate when facing deadlines.",
+            fragment_purity="pure",
+            occurrences=1,
+            status=CandidateStatus.PENDING,
+        ),
+    ])
+
+    assert cache_repo.restore_to_candidates(source_id) == 1
+    assert recreated.id is not None
+    meaning = meaning_repo.get_by_candidate_id(recreated.id)
+    assert meaning is not None
+    assert meaning.meaning == "meaning of procrastinate"

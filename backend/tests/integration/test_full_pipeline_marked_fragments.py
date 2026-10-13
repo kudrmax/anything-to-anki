@@ -18,22 +18,34 @@ self-contained — no DB dependency.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest
+from backend.application.source_intake.document_normalizer import DocumentNormalizer
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
+from backend.domain.value_objects.content import BookContent
+from backend.domain.value_objects.question import Answers
+from backend.domain.value_objects.source_input import PastedText
 from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
 )
+from backend.infrastructure.adapters.local_file_reader import LocalFileReader
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.slang_normalizer import SlangNormalizer
+from backend.infrastructure.adapters.spacy_document_analyzer import SpacyDocumentAnalyzer
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
 from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
 )
+from backend.infrastructure.readers.plain_reader import PlainReader
+from backend.infrastructure.readers.text_input import TEXT_KIND_QUESTION_ID
 
 from tests.integration.dict_cache_support import make_voting_classifier
+
+if TYPE_CHECKING:
+    from backend.domain.value_objects.document import Document
 
 FIXTURES = Path(__file__).parent / "fixtures"
 HPMOR = (FIXTURES / "hpmor_excerpt.txt").read_text()
@@ -46,12 +58,20 @@ pytestmark = pytest.mark.integration
 
 
 
+def _document(text: str, kind: str) -> Document:
+    """The document a pasted text gets when the user adds it as a text or a song."""
+    content = PlainReader(LocalFileReader()).read(
+        PastedText(text), Answers({TEXT_KIND_QUESTION_ID: kind}),
+    )
+    normalized = DocumentNormalizer(RegexTextCleaner(), SlangNormalizer()).normalize(content)
+    assert not isinstance(normalized, BookContent)
+    return normalized.document
+
+
 @pytest.fixture(scope="module")
 def use_case() -> AnalyzeTextUseCase:
     return AnalyzeTextUseCase(
-        text_cleaner=RegexTextCleaner(),
-        text_normalizer=SlangNormalizer(),
-        text_analyzer=SpaCyTextAnalyzer(),
+        document_analyzer=SpacyDocumentAnalyzer(SpaCyTextAnalyzer()),
         cefr_classifier=make_voting_classifier(),
         frequency_provider=WordfreqFrequencyProvider(),
         phrasal_verb_detector=PhrasalVerbDetector(JsonPhrasalVerbDictionary()),
@@ -61,14 +81,14 @@ def use_case() -> AnalyzeTextUseCase:
 @pytest.fixture(scope="module")
 def hpmor_fragments(use_case: AnalyzeTextUseCase) -> dict[str, str]:
     """lemma → context_fragment mapping for the full HPMOR excerpt."""
-    resp = use_case.execute(AnalyzeTextRequest(raw_text=HPMOR, user_level=USER_LEVEL))
+    resp = use_case.execute(_document(HPMOR, "text"), AnalyzeTextRequest(user_level=USER_LEVEL))
     return {c.lemma.lower(): c.context_fragment for c in resp.candidates}
 
 
 @pytest.fixture(scope="module")
 def lyrics_fragments(use_case: AnalyzeTextUseCase) -> dict[str, str]:
     """lemma → context_fragment mapping for the full Evil Morty lyrics."""
-    resp = use_case.execute(AnalyzeTextRequest(raw_text=LYRICS, user_level=USER_LEVEL))
+    resp = use_case.execute(_document(LYRICS, "song"), AnalyzeTextRequest(user_level=USER_LEVEL))
     return {c.lemma.lower(): c.context_fragment for c in resp.candidates}
 
 
@@ -79,7 +99,8 @@ def lyrics_fragments(use_case: AnalyzeTextUseCase) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 WAVE_1_HPMOR: list[tuple[str, str, str]] = [
-    ("45_look_at", "look at", "you just have to look at the world"),
+    # Lines of a paragraph reach the parser joined by a space, as the screen shows them.
+    ("45_look_at", "look at", "two of them stopped and looked at Harry"),
     (
         "86_disclaimer",
         "disclaimer",

@@ -13,10 +13,9 @@ from backend.domain.exceptions import (
     SourceNotTopicError,
     TopicTargetsAlreadyGeneratedError,
 )
-from backend.domain.value_objects.content_type import resolve_content_type
-from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
+from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 
 pytestmark = pytest.mark.unit
@@ -24,13 +23,12 @@ pytestmark = pytest.mark.unit
 SOURCE_ID = 7
 
 
-def _source(input_method: InputMethod = InputMethod.TOPIC_QUERY) -> Source:
+def _source(role: SourceRole = SourceRole.TOPIC) -> Source:
     return Source(
         id=SOURCE_ID,
-        raw_text="negotiating a salary",
         status=SourceStatus.NEW,
-        input_method=input_method,
-        content_type=resolve_content_type(input_method),
+        role=role,
+        topic_query="negotiating a salary" if role is SourceRole.TOPIC else None,
     )
 
 
@@ -64,7 +62,7 @@ class TestEnqueueTopicGeneration:
             self.use_case.execute(SOURCE_ID)
 
     def test_regular_source_is_rejected(self) -> None:
-        self.source_repo.get_by_id.return_value = _source(InputMethod.TEXT_PASTED)
+        self.source_repo.get_by_id.return_value = _source(SourceRole.CONTENT)
         with pytest.raises(SourceNotTopicError):
             self.use_case.execute(SOURCE_ID)
         self.job_repo.enqueue.assert_not_called()

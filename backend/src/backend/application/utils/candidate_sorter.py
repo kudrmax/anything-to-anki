@@ -37,9 +37,7 @@ class CandidateSorter:
         order: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
     ) -> list[StoredCandidate]:
         if order == CandidateSortOrder.CHRONOLOGICAL:
-            return candidate_sorting.sort_chronologically(
-                candidates, source_text=source.cleaned_text or source.raw_text,
-            )
+            return candidate_sorting.sort_chronologically(candidates)
         if order == CandidateSortOrder.KEY_WORDS:
             return candidate_sorting.sort_by_key_words(
                 candidates, frequent_threshold=self._threshold_resolver.resolve(),

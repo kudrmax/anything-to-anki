@@ -9,8 +9,8 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.source import Source
-    from backend.domain.value_objects.content_type import ContentType
     from backend.domain.value_objects.processing_stage import ProcessingStage
+    from backend.domain.value_objects.source_role import SourceRole
     from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -38,10 +38,10 @@ class SqlaSourceRepository(SourceRepository):
         )
         return [m.to_entity() for m in models]
 
-    def get_first_by_content_type(self, content_type: ContentType) -> Source | None:
+    def get_first_by_role(self, role: SourceRole) -> Source | None:
         model = (
             self._session.query(SourceModel)
-            .filter(SourceModel.content_type == content_type.value)
+            .filter(SourceModel.role == role.value)
             .order_by(SourceModel.id)
             .first()
         )
@@ -54,11 +54,9 @@ class SqlaSourceRepository(SourceRepository):
         if model is None:
             return
         model.status = source.status.value
-        model.cleaned_text = source.cleaned_text
         model.error_message = source.error_message
         model.processing_stage = source.processing_stage.value if source.processing_stage else None
         model.title = source.title
-        model.raw_text = source.raw_text
         model.source_url = source.source_url
         model.video_path = source.video_path
         model.audio_track_index = source.audio_track_index
@@ -108,7 +106,6 @@ class SqlaSourceRepository(SourceRepository):
         source_id: int,
         status: SourceStatus,
         *,
-        cleaned_text: str | None = None,
         error_message: str | None = None,
         processing_stage: ProcessingStage | None = None,
     ) -> None:
@@ -117,8 +114,6 @@ class SqlaSourceRepository(SourceRepository):
             return
         model.status = status.value
         model.processing_stage = processing_stage.value if processing_stage else None
-        if cleaned_text is not None:
-            model.cleaned_text = cleaned_text
         if error_message is not None:
             model.error_message = error_message
         self._session.flush()

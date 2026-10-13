@@ -16,7 +16,7 @@ from backend.domain.exceptions import InvalidPhraseError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
-from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.source_role import SourceRole
 
 pytestmark = pytest.mark.unit
 
@@ -47,7 +47,7 @@ def _saved(candidates: list[StoredCandidate]) -> list[StoredCandidate]:
 class _Setup:
     def __init__(self, existing: Source | None) -> None:
         self.source_repo = MagicMock()
-        self.source_repo.get_first_by_content_type.return_value = existing
+        self.source_repo.get_first_by_role.return_value = existing
         self.source_repo.create.side_effect = lambda s: _saved_phrases(SAVED_PHRASES_ID + 1)
         self.candidate_repo = MagicMock()
         self.candidate_repo.create_batch.side_effect = _saved
@@ -90,7 +90,7 @@ def test_phrase_is_saved_to_saved_phrases_source_marked_to_learn() -> None:
     assert candidate.context_fragment == "Stop procrastinating, please."
     assert candidate.occurrences == 1
     assert result.status == "learn"
-    setup.source_repo.get_first_by_content_type.assert_called_once_with(ContentType.PHRASES)
+    setup.source_repo.get_first_by_role.assert_called_once_with(SourceRole.SAVED_PHRASES)
     setup.source_repo.create.assert_not_called()
     setup.review_status.refresh.assert_called_once_with(SAVED_PHRASES_ID)
 
@@ -101,7 +101,7 @@ def test_saved_phrases_source_is_created_when_missing() -> None:
     setup.use_case.execute(PHRASE, "procrastinating")
 
     created: Source = setup.source_repo.create.call_args.args[0]
-    assert created.content_type == ContentType.PHRASES
+    assert created.role is SourceRole.SAVED_PHRASES
     assert setup.saved_candidate().source_id == SAVED_PHRASES_ID + 1
 
 

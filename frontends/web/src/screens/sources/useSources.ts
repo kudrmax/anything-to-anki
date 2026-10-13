@@ -157,13 +157,12 @@ export function useSources() {
     }
   }
 
-  const prepend = (source: SourceSummary) => setSources(prev => [source, ...prev])
   const pendingCount = sources.filter(isPending).length
   const vpnBlocked = sources.some(s => s.generation_status === 'failed' && isVpnErrorText(s.generation_error))
 
   return {
     sources, stats, collections, error, clearError: () => setError(null), pendingCount, processingAll, vpnBlocked,
-    reload, prepend, process, processAll, generate, cancelGeneration, retryGeneration, remove, rename, assignCollection, reprocess,
+    reload, process, processAll, generate, cancelGeneration, retryGeneration, remove, rename, assignCollection, reprocess,
     createCollection, renameCollection, deleteCollection,
   }
 }

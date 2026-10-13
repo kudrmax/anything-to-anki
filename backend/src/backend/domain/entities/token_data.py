@@ -25,3 +25,8 @@ class TokenData:
     sent_index: int
     dep: str = ""  # Dependency relation label (e.g. "prt", "prep", "ROOT")
     whitespace_after: str = ""  # Trailing whitespace as it appears in original text
+    char_start: int = 0  # Offset of the token in the analysed text
+
+    @property
+    def char_end(self) -> int:
+        return self.char_start + len(self.text)

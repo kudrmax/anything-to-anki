@@ -4,7 +4,6 @@ import os
 from typing import TYPE_CHECKING
 
 from backend.application.dto.media_dtos import SourceMediaStats
-from backend.domain.value_objects.content_type import ContentType
 
 if TYPE_CHECKING:
     from backend.domain.ports.source_repository import SourceRepository
@@ -26,7 +25,7 @@ class GetMediaStorageStatsUseCase:
     def execute(self) -> list[SourceMediaStats]:
         stats: list[SourceMediaStats] = []
         for source in self._source_repo.list_all():
-            if source.content_type != ContentType.VIDEO:
+            if not source.has_video:
                 continue
             assert source.id is not None
 

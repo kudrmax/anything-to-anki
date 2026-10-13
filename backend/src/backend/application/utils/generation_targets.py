@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.card_generation_state import CardGenerationState
-from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_kind import GenerationKind
 from backend.domain.value_objects.job_status import JobStatus
@@ -100,7 +99,7 @@ class MediaTarget(InPlaceGenerationTarget):
     kind = GenerationKind.MEDIA
 
     def applies_to(self, source: Source) -> bool:
-        return source.content_type == ContentType.VIDEO
+        return source.has_video
 
     def covers(self, candidate: StoredCandidate) -> bool:
         media = candidate.media
@@ -137,7 +136,7 @@ class TTSTarget(InPlaceGenerationTarget):
     kind = GenerationKind.TTS
 
     def applies_to(self, source: Source) -> bool:
-        return source.content_type != ContentType.VIDEO
+        return not source.has_video
 
     def is_done(self, candidate: StoredCandidate) -> bool:
         return candidate.tts is not None and candidate.tts.audio_path is not None

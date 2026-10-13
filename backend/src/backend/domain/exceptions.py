@@ -2,14 +2,6 @@ class DomainError(Exception):
     """Base class for domain exceptions."""
 
 
-class TextTooShortError(DomainError):
-    """Raised when the input text is too short to analyze."""
-
-    def __init__(self, min_length: int = 1) -> None:
-        super().__init__(f"Text must contain at least {min_length} character(s)")
-        self.min_length = min_length
-
-
 class SourceNotFoundError(DomainError):
     """Raised when a source is not found by ID."""
 
@@ -222,6 +214,22 @@ class NotATextFileError(DomainError):
     def __init__(self, path: str) -> None:
         super().__init__(f"Not a text file: {path}")
         self.path = path
+
+
+class SourceHasNoDocumentError(DomainError):
+    """Raised when a source that should have a document has none."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Source {source_id} has no document")
+        self.source_id = source_id
+
+
+class InvalidSourceInputError(DomainError):
+    """Raised when an input can't become a source: nothing to read, or a wrong combination."""
+
+
+class InvalidAnswerError(DomainError):
+    """Raised when an answer names a question that wasn't asked or an option it doesn't have."""
 
 
 class SourceNotTopicError(DomainError):

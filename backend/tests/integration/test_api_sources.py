@@ -60,22 +60,56 @@ def client(_db_engine: object) -> Generator[TestClient, None, None]:
     app.dependency_overrides.clear()
 
 
+TEXT_ANSWER = {"text.kind": "text"}
+TEXT_REQUEST = {"text": "Hello world", "answers": TEXT_ANSWER}
+
+
 @pytest.mark.integration
 class TestSourcesAPI:
+    def test_pasted_text_asks_text_or_song_first(self, client: TestClient) -> None:
+        response = client.post("/sources/add", json={"text": "Hello world"})
+        assert response.status_code == 200
+        (question,) = response.json()["questions"]
+        assert question["id"] == "text.kind"
+        assert question["default"] == "text"
+        assert [o["label"] for o in question["options"]] == ["Text", "Song"]
+        assert client.get("/sources").json() == []
+
     def test_create_source(self, client: TestClient) -> None:
-        response = client.post("/sources", json={"raw_text": "Hello world"})
+        response = client.post("/sources/add", json=TEXT_REQUEST)
         assert response.status_code == 201
-        data = response.json()
-        assert data["id"] is not None
-        assert data["status"] == "new"
+        assert len(response.json()["source_ids"]) == 1
+        (source,) = client.get("/sources").json()
+        assert (source["status"], source["kind"], source["role"]) == ("new", "text", "content")
 
     def test_create_empty_source(self, client: TestClient) -> None:
-        response = client.post("/sources", json={"raw_text": ""})
+        response = client.post("/sources/add", json={"text": "", "answers": TEXT_ANSWER})
         assert response.status_code == 400
 
+    def test_unknown_answer_is_rejected(self, client: TestClient) -> None:
+        response = client.post(
+            "/sources/add", json={"text": "Hello", "answers": {"text.kind": "poem"}},
+        )
+        assert response.status_code == 400
+
+    def test_detect_format_hints_how_input_will_be_read(self, client: TestClient) -> None:
+        response = client.post("/sources/detect-format", json={"text": "/tmp/notes.md"})
+        assert response.json() == {"format": "markdown", "label": "Text · markdown"}
+
+    def test_source_document_with_marks(self, client: TestClient) -> None:
+        source_id = client.post("/sources/add", json=TEXT_REQUEST).json()["source_ids"][0]
+        document = client.get(f"/sources/{source_id}/document").json()
+        assert document == {
+            "blocks": [{
+                "type": "paragraph", "lines": [{"text": "Hello world"}], "mode": "flow",
+                "level": None, "ordered": None, "depth": None,
+            }],
+            "highlights": [],
+        }
+
     def test_list_sources(self, client: TestClient) -> None:
-        client.post("/sources", json={"raw_text": "Text one"})
-        client.post("/sources", json={"raw_text": "Text two"})
+        client.post("/sources/add", json={"text": "Text one", "answers": TEXT_ANSWER})
+        client.post("/sources/add", json={"text": "Text two", "answers": TEXT_ANSWER})
         response = client.get("/sources")
         assert response.status_code == 200
         assert len(response.json()) == 2
@@ -83,7 +117,7 @@ class TestSourcesAPI:
     def test_created_at_is_returned_with_utc_offset(self, client: TestClient) -> None:
         """Clients render times in the viewer's zone; they need the offset to do so."""
         before = datetime.now(tz=UTC)
-        client.post("/sources", json={"raw_text": "Hello"})
+        client.post("/sources/add", json={"text": "Hello", "answers": TEXT_ANSWER})
 
         created_at = datetime.fromisoformat(client.get("/sources").json()[0]["created_at"])
 
@@ -91,19 +125,21 @@ class TestSourcesAPI:
         assert abs(created_at - before) < timedelta(minutes=1)
 
     def test_get_source(self, client: TestClient) -> None:
-        create = client.post("/sources", json={"raw_text": "Hello"})
-        source_id = create.json()["id"]
+        create = client.post("/sources/add", json={"text": "Hello", "answers": TEXT_ANSWER})
+        source_id = create.json()["source_ids"][0]
         response = client.get(f"/sources/{source_id}")
         assert response.status_code == 200
-        assert response.json()["raw_text"] == "Hello"
+        assert response.json()["title"] == "Hello"
 
     def test_get_source_not_found(self, client: TestClient) -> None:
         response = client.get("/sources/999")
         assert response.status_code == 404
 
     def test_process_returns_202(self, client: TestClient) -> None:
-        create = client.post("/sources", json={"raw_text": "The quick brown fox"})
-        source_id = create.json()["id"]
+        create = client.post(
+            "/sources/add", json={"text": "The quick brown fox", "answers": TEXT_ANSWER},
+        )
+        source_id = create.json()["source_ids"][0]
         response = client.post(f"/sources/{source_id}/process")
         assert response.status_code == 202
 
@@ -114,7 +150,7 @@ class TestSourcesAPI:
     def test_get_source_candidates_include_frequency_band_and_usage(
         self, client: TestClient, db_session: Session,
     ) -> None:
-        source = SourceModel(raw_text="Test text", status="done")
+        source = SourceModel(title="Test text", status="done")
         db_session.add(source)
         db_session.flush()
 
@@ -150,15 +186,13 @@ class TestCreateFileSource:
         txt_file = tmp_path / "article.txt"
         txt_file.write_text("Hello world, this is a test article.", encoding="utf-8")
 
-        resp = client.post("/sources/file", json={
-            "file_path": str(txt_file),
-            "title": "Test Article",
+        resp = client.post("/sources/add", json={
+            "text": str(txt_file), "title": "Test Article", "answers": TEXT_ANSWER,
         })
 
         assert resp.status_code == 201
-        data = resp.json()
-        assert "id" in data
-        assert data["status"] == "new"
+        (source,) = client.get("/sources").json()
+        assert (source["title"], source["status"]) == ("Test Article", "new")
 
     def test_markdown_file_is_text_without_markup(
         self, client: TestClient, tmp_path: Path,
@@ -166,27 +200,27 @@ class TestCreateFileSource:
         md_file = tmp_path / "digest.md"
         md_file.write_text("# Preface\n\n**In short:** a *cautious* scientist.", encoding="utf-8")
 
-        resp = client.post("/sources/file", json={"file_path": str(md_file)})
+        resp = client.post("/sources/add", json={"text": str(md_file), "answers": TEXT_ANSWER})
 
         assert resp.status_code == 201
         source = client.get("/sources").json()[0]
-        assert source["source_type"] == "markdown_file"
-        assert source["content_type"] == "text"
-        assert source["title"] == "digest"
+        assert (source["kind"], source["title"]) == ("text", "digest")
+        blocks = client.get(f"/sources/{source['id']}/document").json()["blocks"]
+        assert [(b["type"], b["lines"][0]["text"]) for b in blocks] == [
+            ("heading", "Preface"), ("paragraph", "In short: a cautious scientist."),
+        ]
 
     def test_binary_file_is_rejected(self, client: TestClient, tmp_path: Path) -> None:
         pdf = tmp_path / "book.pdf"
         pdf.write_bytes(b"%PDF-1.7\x00\x01")
 
-        resp = client.post("/sources/file", json={"file_path": str(pdf)})
+        resp = client.post("/sources/add", json={"text": str(pdf), "answers": TEXT_ANSWER})
 
         assert resp.status_code == 400
         assert "not a text file" in resp.json()["detail"].lower()
 
     def test_missing_file_returns_404(self, client: TestClient) -> None:
-        resp = client.post("/sources/file", json={
-            "file_path": "/nonexistent/file.txt",
-        })
+        resp = client.post("/sources/add", json={"text": "/nonexistent/file.txt"})
 
         assert resp.status_code == 404
         assert "not found" in resp.json()["detail"].lower()
@@ -208,7 +242,7 @@ class TestSavedPhrasesAPI:
         assert len(sources) == 1
         saved_source = sources[0]
         assert saved_source["title"] == "Saved phrases"
-        assert saved_source["content_type"] == "phrases"
+        assert saved_source["role"] == "saved_phrases"
         assert saved_source["is_permanent"] is True
         assert saved_source["learn_count"] == 1
         detail = client.get(f"/sources/{saved_source['id']}").json()
@@ -254,15 +288,15 @@ class TestBookFileSourceAPI:
         return book.write(tmp_path / "dune.epub")
 
     def test_book_asks_whether_to_split(self, client: TestClient, tmp_path: Path) -> None:
-        resp = client.post("/sources/file", json={"file_path": str(self._book(tmp_path))})
+        resp = client.post("/sources/add", json={"text": str(self._book(tmp_path))})
 
-        assert resp.status_code == 201
-        data = resp.json()
-        assert data["status"] == "book_split_required"
-        assert data["book_name"] == "Dune"
-        assert data["chapters"] == [
-            {"title": "Dune ch1", "word_count": 201},
-            {"title": "Dune ch2", "word_count": 201},
+        assert resp.status_code == 200
+        (question,) = resp.json()["questions"]
+        assert (question["id"], question["prompt"]) == ("book.split", "Add «Dune» as")
+        split = question["options"][0]
+        assert split["details"]["items"] == [
+            {"text": "Dune ch1", "note": "201 words"},
+            {"text": "Dune ch2", "note": "201 words"},
         ]
         assert client.get("/sources").json() == []
 
@@ -270,7 +304,8 @@ class TestBookFileSourceAPI:
         self, client: TestClient, tmp_path: Path,
     ) -> None:
         resp = client.post(
-            "/sources/file", json={"file_path": str(self._book(tmp_path)), "split_book": True},
+            "/sources/add",
+            json={"text": str(self._book(tmp_path)), "answers": {"book.split": "split"}},
         )
 
         assert resp.status_code == 201
@@ -278,20 +313,20 @@ class TestBookFileSourceAPI:
         sources = client.get("/sources").json()
         assert [s["title"] for s in sources] == ["Dune ch1", "Dune ch2"]
         assert {s["collection_name"] for s in sources} == {"Dune"}
-        assert {s["source_type"] for s in sources} == {"book_file"}
+        assert {s["kind"] for s in sources} == {"book"}
 
     def test_path_copied_from_a_shell_is_accepted(
         self, client: TestClient, tmp_path: Path,
     ) -> None:
-        resp = client.post("/sources/file", json={"file_path": f"'{self._book(tmp_path)}'"})
+        resp = client.post("/sources/add", json={"text": f"'{self._book(tmp_path)}'"})
 
-        assert resp.status_code == 201
-        assert resp.json()["status"] == "book_split_required"
+        assert resp.status_code == 200
+        assert resp.json()["questions"][0]["id"] == "book.split"
 
     def test_broken_book_is_rejected(self, client: TestClient, tmp_path: Path) -> None:
         path = tmp_path / "broken.epub"
         path.write_text("not a book")
 
-        resp = client.post("/sources/file", json={"file_path": str(path)})
+        resp = client.post("/sources/add", json={"text": str(path)})
 
         assert resp.status_code == 400

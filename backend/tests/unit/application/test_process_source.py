@@ -7,12 +7,19 @@ from backend.application.dto.analysis_dtos import (
 )
 from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.domain.entities.source import Source
-from backend.domain.exceptions import SourceAlreadyProcessedError, SourceNotFoundError
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.exceptions import (
+    SourceAlreadyProcessedError,
+    SourceHasNoDocumentError,
+    SourceNotFoundError,
+)
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.candidate_sorter_support import threshold_resolver
+
+DOCUMENT = Document((Paragraph(lines=(Line("Hello world"),), mode=ParagraphMode.FLOW),))
 
 
 def _make_use_case() -> tuple[ProcessSourceUseCase, dict[str, MagicMock]]:
@@ -22,7 +29,9 @@ def _make_use_case() -> tuple[ProcessSourceUseCase, dict[str, MagicMock]]:
         "known_word_repo": MagicMock(),
         "settings_repo": MagicMock(),
         "analyze_text": MagicMock(),
+        "document_repo": MagicMock(),
     }
+    mocks["document_repo"].get.return_value = DOCUMENT
     uc = ProcessSourceUseCase(
         source_repo=mocks["source_repo"],
         candidate_repo=mocks["candidate_repo"],
@@ -30,6 +39,7 @@ def _make_use_case() -> tuple[ProcessSourceUseCase, dict[str, MagicMock]]:
         settings_repo=mocks["settings_repo"],
         threshold_resolver=threshold_resolver(mocks["settings_repo"]),
         analyze_text_use_case=mocks["analyze_text"],
+        document_repo=mocks["document_repo"],
     )
     return uc, mocks
 
@@ -39,9 +49,8 @@ class TestProcessSourceStart:
     def test_start_sets_processing(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="Text", status=SourceStatus.NEW,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.NEW, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         uc.start(1)
         mocks["source_repo"].update_status.assert_called_once_with(
             1, SourceStatus.PROCESSING,
@@ -56,18 +65,16 @@ class TestProcessSourceStart:
     def test_start_already_done(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="Text", status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         with pytest.raises(SourceAlreadyProcessedError):
             uc.start(1)
 
     def test_start_allows_error_retry(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="Text", status=SourceStatus.ERROR,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.ERROR, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         uc.start(1)
         mocks["source_repo"].update_status.assert_called_once()
 
@@ -77,13 +84,12 @@ class TestProcessSourceExecute:
     def test_execute_saves_candidates(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="Hello world", status=SourceStatus.PROCESSING,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.PROCESSING, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         mocks["settings_repo"].get.return_value = "B1"
         mocks["known_word_repo"].get_all_pairs.return_value = set()
         mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
-            cleaned_text="Hello world",
+            text="Hello world",
             candidates=[
                 WordCandidateDTO(
                     lemma="ubiquitous", pos="ADJ", cefr_level="C1",
@@ -97,21 +103,20 @@ class TestProcessSourceExecute:
         )
         uc.execute(1)
         mocks["candidate_repo"].create_batch.assert_called_once()
-        # 2 stage updates + 1 final DONE update
-        assert mocks["source_repo"].update_status.call_count == 3
+        # 1 stage update + 1 final DONE update
+        assert mocks["source_repo"].update_status.call_count == 2
         final_call = mocks["source_repo"].update_status.call_args_list[-1]
         assert final_call[0][1] == SourceStatus.DONE
 
     def test_execute_passes_usage_distribution(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="dodgy deal", status=SourceStatus.PROCESSING,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.PROCESSING, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         mocks["settings_repo"].get.return_value = "B1"
         mocks["known_word_repo"].get_all_pairs.return_value = set()
         mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
-            cleaned_text="dodgy deal",
+            text="dodgy deal",
             candidates=[
                 WordCandidateDTO(
                     lemma="dodgy", pos="ADJ", cefr_level="B2",
@@ -133,9 +138,8 @@ class TestProcessSourceExecute:
     def test_execute_passes_known_words_and_threshold_to_analysis(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="Hello", status=SourceStatus.PROCESSING,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.PROCESSING, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         settings = {"cefr_level": "B1", "frequent_word_threshold": "5.0"}
         mocks["settings_repo"].get.side_effect = lambda key, default=None: settings.get(
             key, default,
@@ -144,23 +148,23 @@ class TestProcessSourceExecute:
             ("Pursuit", "NOUN"), ("divorce", None),
         }
         mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
-            cleaned_text="Hello", candidates=[], total_tokens=1, unique_lemmas=1,
+            text="Hello", candidates=[], total_tokens=1, unique_lemmas=1,
         )
         uc.execute(1)
-        request = mocks["analyze_text"].execute.call_args[0][0]
+        document, request = mocks["analyze_text"].execute.call_args[0]
+        assert document == DOCUMENT
         assert request.known_lemmas == frozenset({"pursuit", "divorce"})
         assert request.frequent_word_zipf == 5.0
 
     def test_execute_saves_fragment_unknown_count(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="Hello", status=SourceStatus.PROCESSING,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.PROCESSING, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         mocks["settings_repo"].get.return_value = "B1"
         mocks["known_word_repo"].get_all_pairs.return_value = set()
         mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
-            cleaned_text="Hello",
+            text="Hello",
             candidates=[
                 WordCandidateDTO(
                     lemma="paleontology", pos="NOUN", cefr_level="C1",
@@ -183,81 +187,14 @@ class TestProcessSourceExecute:
             uc.execute(999)
 
 
-def _make_use_case_with_parsers() -> tuple[ProcessSourceUseCase, dict[str, MagicMock]]:
-    """Create use case with mock source parsers."""
-    lyrics_parser = MagicMock()
-    subtitles_parser = MagicMock()
-    mocks = {
-        "source_repo": MagicMock(),
-        "candidate_repo": MagicMock(),
-        "known_word_repo": MagicMock(),
-        "settings_repo": MagicMock(),
-        "analyze_text": MagicMock(),
-        "lyrics_parser": lyrics_parser,
-        "subtitles_parser": subtitles_parser,
-    }
-    mocks["settings_repo"].get.return_value = "B1"
-    mocks["known_word_repo"].get_all_pairs.return_value = set()
-    mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
-        cleaned_text="parsed text",
-        candidates=[],
-        total_tokens=2,
-        unique_lemmas=1,
-    )
-    uc = ProcessSourceUseCase(
-        source_repo=mocks["source_repo"],
-        candidate_repo=mocks["candidate_repo"],
-        known_word_repo=mocks["known_word_repo"],
-        settings_repo=mocks["settings_repo"],
-        threshold_resolver=threshold_resolver(mocks["settings_repo"]),
-        analyze_text_use_case=mocks["analyze_text"],
-        source_parsers={
-            InputMethod.LYRICS_PASTED: lyrics_parser,
-            InputMethod.SUBTITLES_FILE: subtitles_parser,
-        },
-    )
-    return uc, mocks
-
-
 @pytest.mark.unit
-class TestProcessSourceParsers:
-    def test_execute_calls_parser_for_lyrics(self) -> None:
-        uc, mocks = _make_use_case_with_parsers()
-        raw = "I was born to run\nShe was made to fly"
-        parsed = "I was born to run. She was made to fly."
-        mocks["lyrics_parser"].parse.return_value = parsed
+class TestProcessSourceDocument:
+    def test_source_without_a_document_is_an_error(self) -> None:
+        uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text=raw, status=SourceStatus.PROCESSING,
-            input_method=InputMethod.LYRICS_PASTED, content_type=ContentType.LYRICS,
-        )
-        uc.execute(1)
-        mocks["lyrics_parser"].parse.assert_called_once_with(raw)
-        call_args = mocks["analyze_text"].execute.call_args[0][0]
-        assert call_args.raw_text == parsed
-
-    def test_execute_calls_parser_for_subtitles(self) -> None:
-        uc, mocks = _make_use_case_with_parsers()
-        raw = "1\n00:00:01,000 --> 00:00:03,000\nHello world"
-        parsed = "Hello world"
-        mocks["subtitles_parser"].parse.return_value = parsed
-        mocks["source_repo"].get_by_id.return_value = Source(
-            id=2, raw_text=raw, status=SourceStatus.PROCESSING,
-            input_method=InputMethod.SUBTITLES_FILE, content_type=ContentType.TEXT,
-        )
-        uc.execute(2)
-        mocks["subtitles_parser"].parse.assert_called_once_with(raw)
-        call_args = mocks["analyze_text"].execute.call_args[0][0]
-        assert call_args.raw_text == parsed
-
-    def test_execute_no_parser_for_text(self) -> None:
-        uc, mocks = _make_use_case_with_parsers()
-        raw = "Plain text content here."
-        mocks["source_repo"].get_by_id.return_value = Source(
-            id=3, raw_text=raw, status=SourceStatus.PROCESSING,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
-        uc.execute(3)
-        mocks["lyrics_parser"].parse.assert_not_called()
-        mocks["subtitles_parser"].parse.assert_not_called()
-        call_args = mocks["analyze_text"].execute.call_args[0][0]
-        assert call_args.raw_text == raw
+            id=1, status=SourceStatus.PROCESSING, format=Format.PLAIN, kind=Kind.TEXT,
+            )
+        mocks["document_repo"].get.return_value = None
+        with pytest.raises(SourceHasNoDocumentError):
+            uc.execute(1)
+        mocks["analyze_text"].execute.assert_not_called()

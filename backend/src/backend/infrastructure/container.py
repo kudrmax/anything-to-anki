@@ -8,22 +8,28 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from backend.application.source_intake.book_handler import BookHandler
+from backend.application.source_intake.document_normalizer import DocumentNormalizer
+from backend.application.source_intake.single_source_handler import SingleSourceHandler
+from backend.application.source_intake.source_writer import SourceWriter
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
 from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
+from backend.application.use_cases.add_source import AddSourceUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.assign_source_collection import AssignSourceToCollectionUseCase
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
-from backend.application.use_cases.create_book_sources import CreateBookSourcesUseCase
 from backend.application.use_cases.create_collection import CreateCollectionUseCase
-from backend.application.use_cases.create_source import CreateSourceUseCase
+from backend.application.use_cases.create_topic import CreateTopicUseCase
 from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
+from backend.application.use_cases.detect_format import DetectFormatUseCase
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.use_cases.get_reprocess_stats import GetReprocessStatsUseCase
+from backend.application.use_cases.get_source_document import GetSourceDocumentUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.list_collections import ListCollectionsUseCase
@@ -39,6 +45,7 @@ from backend.application.use_cases.report_candidate import ReportCandidateUseCas
 from backend.application.use_cases.reprocess_source import ReprocessSourceUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.save_cloze import SaveClozeUseCase
+from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.application.utils.candidate_factory import CandidateFactory
@@ -55,10 +62,10 @@ from backend.domain.ports.cefr_source import (
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
 from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
+from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.fragment_selection_config import (
     FragmentSelectionConfig,
 )
-from backend.domain.value_objects.input_method import InputMethod
 from backend.infrastructure.adapters.ai_model_mapping import model_id_for
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
 from backend.infrastructure.adapters.bing_image_source import BingImageSource
@@ -72,7 +79,6 @@ from backend.infrastructure.adapters.dict_cache.usage_source import DictCacheUsa
 from backend.infrastructure.adapters.dict_cache.word_corpus_provider import (
     DictCacheWordCorpusProvider,
 )
-from backend.infrastructure.adapters.epub_book_reader import EpubBookReader
 from backend.infrastructure.adapters.http_ai_service import HttpAIService
 from backend.infrastructure.adapters.http_fetch import APP_USER_AGENT, http_get
 from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
@@ -80,11 +86,10 @@ from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
 )
 from backend.infrastructure.adapters.local_file_reader import LocalFileReader
 from backend.infrastructure.adapters.pillow_card_picture_encoder import PillowCardPictureEncoder
-from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
-from backend.infrastructure.adapters.regex_markdown_parser import RegexMarkdownParser
-from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
+from backend.infrastructure.adapters.regex_format_detector import RegexFormatDetector
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.slang_normalizer import SlangNormalizer
+from backend.infrastructure.adapters.spacy_document_analyzer import SpacyDocumentAnalyzer
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
 from backend.infrastructure.adapters.throttled_http_file_downloader import (
     ThrottledHttpFileDownloader,
@@ -129,6 +134,7 @@ from backend.infrastructure.persistence.sqla_card_report_repository import (
 from backend.infrastructure.persistence.sqla_collection_repository import (
     SqlaCollectionRepository,
 )
+from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
@@ -145,6 +151,13 @@ from backend.infrastructure.persistence.sqla_topic_target_repository import (
 from backend.infrastructure.persistence.sqla_word_decision_repository import (
     SqlaWordDecisionRepository,
 )
+from backend.infrastructure.readers.epub_format_reader import EpubFormatReader
+from backend.infrastructure.readers.html_reader import HtmlReader
+from backend.infrastructure.readers.markdown_reader import MarkdownReader
+from backend.infrastructure.readers.plain_reader import PlainReader
+from backend.infrastructure.readers.srt_reader import SrtReader
+from backend.infrastructure.readers.video_file_reader import VideoFileReader
+from backend.infrastructure.readers.youtube_reader import YouTubeReader
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 
 if TYPE_CHECKING:
@@ -154,7 +167,6 @@ if TYPE_CHECKING:
     from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
     from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
     from backend.application.use_cases.cleanup_youtube_video import CleanupYoutubeVideoUseCase
-    from backend.application.use_cases.create_source_from_url import CreateSourceFromUrlUseCase
     from backend.application.use_cases.download_pronunciation import DownloadPronunciationUseCase
     from backend.application.use_cases.download_video import DownloadVideoUseCase
     from backend.application.use_cases.edit_card_phrase import EditCardPhraseUseCase
@@ -187,6 +199,7 @@ if TYPE_CHECKING:
     from backend.application.utils.generation_targets import GenerationTarget
     from backend.application.utils.meaning_image_placer import MeaningImagePlacer
     from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
+    from backend.domain.ports.format_reader import FormatReader
     from backend.domain.ports.target_image_source import TargetImageSource
     from backend.domain.ports.url_source_fetcher import UrlSourceFetcher
     from backend.domain.value_objects.prompts_config import PromptsConfig
@@ -206,11 +219,9 @@ class Container:
         )
 
         self._text_analyzer = SpaCyTextAnalyzer()
+        self._document_analyzer = SpacyDocumentAnalyzer(self._text_analyzer)
         self._text_cleaner = RegexTextCleaner()
         self._text_normalizer = SlangNormalizer()
-        self._lyrics_parser = RegexLyricsParser(self._text_analyzer)
-        self._markdown_parser = RegexMarkdownParser()
-        self._srt_parser = RegexSrtParser()
         project_root = Path(__file__).resolve().parents[4]
 
         # Dictionary cache — DICTIONARIES_DIR is required
@@ -265,7 +276,6 @@ class Container:
         self._picture_encoder = PillowCardPictureEncoder()
         self._media_extractor = FfmpegMediaExtractor(self._picture_encoder)
         self._file_reader = LocalFileReader()
-        self._book_reader = EpubBookReader()
 
         from backend.infrastructure.adapters.ytdlp_subtitle_fetcher import YtDlpSubtitleFetcher
         from backend.infrastructure.adapters.ytdlp_video_downloader import YtDlpVideoDownloader
@@ -274,6 +284,18 @@ class Container:
         self._video_downloader = YtDlpVideoDownloader()
         data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
         self._video_path_resolver = VideoPathResolverImpl(data_dir=data_dir)
+        youtube_fetcher = self._url_fetchers[0]
+        self._format_detector = RegexFormatDetector(youtube_fetcher)
+        self._format_readers: tuple[FormatReader, ...] = (
+            PlainReader(self._file_reader),
+            MarkdownReader(self._file_reader),
+            HtmlReader(self._file_reader),
+            EpubFormatReader(),
+            SrtReader(self._file_reader),
+            VideoFileReader(self._file_reader, self._subtitle_extractor, self._subtitle_extractor),
+            YouTubeReader(youtube_fetcher),
+        )
+        self._document_normalizer = DocumentNormalizer(self._text_cleaner, self._text_normalizer)
 
         self._media_root = os.environ.get(
             "MEDIA_ROOT",
@@ -318,12 +340,25 @@ class Container:
     def add_manual_candidate_use_case(self, session: Session) -> AddManualCandidateUseCase:
         return AddManualCandidateUseCase(
             source_repo=SqlaSourceRepository(session),
+            document_repo=SqlaDocumentRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             text_analyzer=self._text_analyzer,
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
             review_status=self._review_status_updater(session),
+        )
+
+    def set_phrase_boundary_use_case(self, session: Session) -> SetPhraseBoundaryUseCase:
+        return SetPhraseBoundaryUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            document_repo=SqlaDocumentRepository(session),
+        )
+
+    def get_source_document_use_case(self, session: Session) -> GetSourceDocumentUseCase:
+        return GetSourceDocumentUseCase(
+            document_repo=SqlaDocumentRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
         )
 
     def add_saved_phrase_use_case(self, session: Session) -> AddSavedPhraseUseCase:
@@ -339,9 +374,7 @@ class Container:
 
     def analyze_text_use_case(self) -> AnalyzeTextUseCase:
         return AnalyzeTextUseCase(
-            text_cleaner=self._text_cleaner,
-            text_normalizer=self._text_normalizer,
-            text_analyzer=self._text_analyzer,
+            document_analyzer=self._document_analyzer,
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
@@ -349,23 +382,34 @@ class Container:
             usage_lookup=self._usage_source,
         )
 
-    def create_source_use_case(self, session: Session) -> CreateSourceUseCase:
-        return CreateSourceUseCase(
+    def add_source_use_case(self, session: Session) -> AddSourceUseCase:
+        writer = SourceWriter(
             source_repo=SqlaSourceRepository(session),
-            subtitle_extractor=self._subtitle_extractor,
-            audio_track_lister=self._subtitle_extractor,
-            file_reader=self._file_reader,
+            document_repo=SqlaDocumentRepository(session),
             video_path_resolver=self._video_path_resolver,
-            book_sources=self.create_book_sources_use_case(session),
+        )
+        return AddSourceUseCase(
+            detector=self._format_detector,
+            readers=self._format_readers,
+            handlers=(
+                SingleSourceHandler(Kind.TEXT, writer),
+                SingleSourceHandler(Kind.SONG, writer),
+                SingleSourceHandler(Kind.SUBTITLES, writer),
+                BookHandler(
+                    writer=writer,
+                    collection_repo=SqlaCollectionRepository(session),
+                    settings_repo=SqlaSettingsRepository(session),
+                ),
+            ),
+            normalizer=self._document_normalizer,
+            file_reader=self._file_reader,
         )
 
-    def create_book_sources_use_case(self, session: Session) -> CreateBookSourcesUseCase:
-        return CreateBookSourcesUseCase(
-            source_repo=SqlaSourceRepository(session),
-            collection_repo=SqlaCollectionRepository(session),
-            settings_repo=SqlaSettingsRepository(session),
-            book_reader=self._book_reader,
-        )
+    def detect_format_use_case(self) -> DetectFormatUseCase:
+        return DetectFormatUseCase(detector=self._format_detector)
+
+    def create_topic_use_case(self, session: Session) -> CreateTopicUseCase:
+        return CreateTopicUseCase(source_repo=SqlaSourceRepository(session))
 
     def rename_source_use_case(self, session: Session) -> RenameSourceUseCase:
         return RenameSourceUseCase(
@@ -428,12 +472,7 @@ class Container:
             settings_repo=SqlaSettingsRepository(session),
             threshold_resolver=self._threshold_resolver(session),
             analyze_text_use_case=self.analyze_text_use_case(),
-            source_parsers={
-                InputMethod.LYRICS_PASTED: self._lyrics_parser,
-                InputMethod.SUBTITLES_FILE: self._srt_parser,
-                InputMethod.MARKDOWN_FILE: self._markdown_parser,
-            },
-            structured_srt_parser=self._srt_parser,
+            document_repo=SqlaDocumentRepository(session),
             media_repo=SqlaCandidateMediaRepository(session),
             topic_phrase_collector=self._topic_phrase_collector(session),
         )
@@ -450,6 +489,7 @@ class Container:
         return TopicPhraseCollector(
             topic_target_repo=SqlaTopicTargetRepository(session),
             source_repo=SqlaSourceRepository(session),
+            document_repo=SqlaDocumentRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             known_word_repo=SqlaKnownWordRepository(session),
             candidate_factory=self._candidate_factory(),
@@ -532,6 +572,7 @@ class Container:
         return ReportCandidateUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
+            document_repo=SqlaDocumentRepository(session),
             report_repo=SqlaCardReportRepository(session),
         )
 
@@ -651,6 +692,7 @@ class Container:
         return PhrasePolishUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             source_repo=SqlaSourceRepository(session),
+            document_repo=SqlaDocumentRepository(session),
             settings_repo=settings_repo,
             enrichment_reset=self._phrase_enrichment_reset(session),
             ai_service=self._ai_service(settings_repo),
@@ -715,10 +757,6 @@ class Container:
         return self._media_root
 
     @property
-    def video_path_resolver(self) -> VideoPathResolverImpl:
-        return self._video_path_resolver
-
-    @property
     def tts_generator(self) -> KokoroTTSGenerator:
         if self._tts_generator is None:
             from backend.infrastructure.adapters.kokoro_tts_generator import KokoroTTSGenerator
@@ -778,17 +816,10 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             media_repo=SqlaCandidateMediaRepository(session),
             source_repo=SqlaSourceRepository(session),
-            structured_srt_parser=self._srt_parser,
+            document_repo=SqlaDocumentRepository(session),
             media_extractor=self._media_extractor,
             media_root=self._media_root,
             video_path_resolver=self._video_path_resolver,
-        )
-
-    def create_source_from_url_use_case(self, session: Session) -> CreateSourceFromUrlUseCase:
-        from backend.application.use_cases.create_source_from_url import CreateSourceFromUrlUseCase
-        return CreateSourceFromUrlUseCase(
-            source_repo=SqlaSourceRepository(session),
-            fetchers=self._url_fetchers,
         )
 
     def download_video_use_case(self, session: Session) -> DownloadVideoUseCase:

@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 from backend.domain.exceptions import SubtitlesNotAvailableError
 from backend.domain.ports.url_source_fetcher import UrlSourceFetcher
 from backend.domain.value_objects.fetched_subtitles import FetchedSubtitles
-from backend.domain.value_objects.input_method import InputMethod
 
 logger = logging.getLogger(__name__)
 
@@ -73,5 +72,4 @@ class YtDlpSubtitleFetcher(UrlSourceFetcher):
             return FetchedSubtitles(
                 srt_text=srt_text,
                 title=str(title),
-                input_method=InputMethod.YOUTUBE_URL,
             )

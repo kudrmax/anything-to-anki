@@ -5,11 +5,14 @@ from collections.abc import Generator  # noqa: TC003
 import pytest
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
+from backend.domain.value_objects.document_position import DocumentPosition
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import SourceModel
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -27,12 +30,14 @@ def client() -> Generator[TestClient, None, None]:
 
     # Seed test data
     session = test_session_factory()
-    source = SourceModel(
-        raw_text="Test", status="done",
-        cleaned_text="It was always the pursuit of happiness, he said.",
-    )
+    text = "It was always the pursuit of happiness, he said."
+    source = SourceModel(title="Test", status="done")
     session.add(source)
     session.flush()
+    SqlaDocumentRepository(session).save(
+        source.id, Document((Paragraph(lines=(Line(text),), mode=ParagraphMode.FLOW),)),
+    )
+    phrase_start = text.index("the pursuit of")
     repo = SqlaCandidateRepository(session)
     repo.create_batch([
         StoredCandidate(
@@ -40,6 +45,7 @@ def client() -> Generator[TestClient, None, None]:
             cefr_level="B2", zipf_frequency=3.5,
             context_fragment="the pursuit of", fragment_purity="clean",
             occurrences=1, status=CandidateStatus.PENDING,
+            phrase_position=DocumentPosition(0, 0, phrase_start, 0, phrase_start + 14),
         ),
     ])
     session.commit()

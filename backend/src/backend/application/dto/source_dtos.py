@@ -9,22 +9,14 @@ from backend.application.dto.cefr_dtos import (
     CEFRBreakdownDTO,  # noqa: TC001 — Pydantic needs this at runtime
 )
 from backend.application.dto.cloze_dtos import CandidateClozeDTO
+from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
     from backend.domain.entities.job import Job
     from backend.domain.entities.stored_candidate import StoredCandidate
-
-
-class CreateSourceRequest(BaseModel):
-    """Input for creating a new text source."""
-
-    raw_text: str
-    input_method: InputMethod = InputMethod.TEXT_PASTED
-    title: str | None = None
 
 
 class UpdateTitleRequest(BaseModel):
@@ -38,10 +30,10 @@ class SourceDTO(BaseModel):
 
     id: int
     title: str
-    raw_text_preview: str
     status: str
-    source_type: str
-    content_type: str
+    kind: str | None  # 'text' | 'book' | 'subtitles' | 'song'; none for a topic or saved phrases
+    role: str  # 'content' | 'topic' | 'saved_phrases'
+    has_video: bool = False
     source_url: str | None = None
     video_downloaded: bool = False
     created_at: datetime
@@ -146,6 +138,9 @@ class StoredCandidateDTO(BaseModel):
     cloze: CandidateClozeDTO | None = None
     # False once the card is in Anki: its note type can no longer change.
     can_cloze: bool = True
+    # Where the phrase and the target stand in the source's document; none for an example
+    phrase_position: DocumentPositionDTO | None = None
+    target_position: DocumentPositionDTO | None = None
 
 
 class SourceDetailDTO(BaseModel):
@@ -153,11 +148,10 @@ class SourceDetailDTO(BaseModel):
 
     id: int
     title: str
-    raw_text: str
-    cleaned_text: str | None
     status: str
-    source_type: str
-    content_type: str
+    kind: str | None
+    role: str
+    has_video: bool = False
     can_polish_phrases: bool = False
     has_source_text: bool = True
     source_url: str | None = None
@@ -405,6 +399,12 @@ def stored_candidate_to_dto(
         ),
         cloze=_cloze_dto(c),
         can_cloze=synced_ids is None or c.id not in synced_ids,
+        phrase_position=(
+            DocumentPositionDTO.from_position(c.phrase_position) if c.phrase_position else None
+        ),
+        target_position=(
+            DocumentPositionDTO.from_position(c.target_position) if c.target_position else None
+        ),
     )
 
 

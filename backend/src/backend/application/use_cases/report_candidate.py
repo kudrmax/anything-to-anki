@@ -14,6 +14,7 @@ from backend.domain.value_objects.fragment_surroundings import FragmentSurroundi
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.card_report_repository import CardReportRepository
+    from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.source_repository import SourceRepository
 
 # Quick reasons offered next to the free-text comment.
@@ -35,9 +36,11 @@ class ReportCandidateUseCase:
         self,
         candidate_repo: CandidateRepository,
         source_repo: SourceRepository,
+        document_repo: DocumentRepository,
         report_repo: CardReportRepository,
     ) -> None:
         self._candidate_repo = candidate_repo
+        self._document_repo = document_repo
         self._source_repo = source_repo
         self._report_repo = report_repo
 
@@ -53,8 +56,9 @@ class ReportCandidateUseCase:
         if candidate is None or candidate.id is None:
             raise CandidateNotFoundError(candidate_id)
         source = self._source_repo.get_by_id(candidate.source_id)
-        text = source.searchable_text if source else None
-        around = FragmentSurroundings.find(text, candidate.context_fragment) if text else None
+        around = FragmentSurroundings.around(
+            self._document_repo.get(candidate.source_id), candidate.phrase_position,
+        )
         saved = self._report_repo.add(CardReport(
             source_id=candidate.source_id,
             source_title=(source.title or "") if source else "",

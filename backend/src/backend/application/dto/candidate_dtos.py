@@ -5,11 +5,30 @@ from pydantic import BaseModel, field_validator
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 
+class SelectionDTO(BaseModel):
+    """Text the user selected on the source screen; characters in code points, end exclusive."""
+
+    start_block: int
+    start_line: int
+    start_char: int
+    end_block: int
+    end_line: int
+    end_char: int
+
+    @property
+    def start(self) -> tuple[int, int, int]:
+        return (self.start_block, self.start_line, self.start_char)
+
+    @property
+    def end(self) -> tuple[int, int, int]:
+        return (self.end_block, self.end_line, self.end_char)
+
+
 class AddManualCandidateRequest(BaseModel):
-    """Input for manually adding a candidate during review."""
+    """A word the user picked in a phrase they selected on the source screen."""
 
     surface_form: str
-    context_fragment: str
+    selection: SelectionDTO
 
 
 class AddSavedPhraseRequest(BaseModel):
@@ -19,10 +38,10 @@ class AddSavedPhraseRequest(BaseModel):
     target: str
 
 
-class UpdateContextFragmentRequest(BaseModel):
-    """Input for updating context_fragment of a candidate."""
+class SetPhraseBoundaryRequest(BaseModel):
+    """The phrase of a candidate, selected anew on the source screen."""
 
-    context_fragment: str
+    selection: SelectionDTO
 
 
 class ReplaceWithExampleRequest(BaseModel):

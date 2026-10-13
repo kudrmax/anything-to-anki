@@ -55,7 +55,7 @@ class GenerateTopicTargetsUseCase:
             self._settings_repo.get("cefr_level", DEFAULT_CEFR_LEVEL) or DEFAULT_CEFR_LEVEL
         )
         user_prompt = self._prompts_config.generate_topic_targets_user_template.format(
-            query=source.raw_text.strip(),
+            query=(source.topic_query or "").strip(),
             cefr_level=cefr_level,
             count=TOPIC_TARGET_COUNT,
         )

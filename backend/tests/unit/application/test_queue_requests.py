@@ -14,8 +14,8 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     VideoAlreadyDownloadedError,
 )
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_status import SourceStatus
@@ -25,12 +25,9 @@ SOURCE_ID = 42
 
 def _youtube_source(source_url: str | None = "https://youtube.com/watch?v=abc") -> Source:
     return Source(
-        raw_text="subtitles",
         status=SourceStatus.DONE,
-        input_method=InputMethod.YOUTUBE_URL,
-        content_type=ContentType.VIDEO,
         source_url=source_url,
-        id=SOURCE_ID,
+        id=SOURCE_ID, format=Format.YOUTUBE, kind=Kind.SUBTITLES,
     )
 
 

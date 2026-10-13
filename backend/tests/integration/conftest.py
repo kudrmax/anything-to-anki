@@ -25,10 +25,8 @@ def insert_source(session: Session, source_id: int) -> None:
     """Insert a minimal source row: candidates reference sources by FK."""
     session.execute(
         text(
-            "INSERT INTO sources (id, raw_text, title, status, input_method,"
-            " content_type, created_at)"
-            " VALUES (:id, 'text', 'title', 'done', 'text_pasted', 'text',"
-            " '2026-01-01 00:00:00')"
+            "INSERT INTO sources (id, title, status, created_at)"
+            " VALUES (:id, 'title', 'done', '2026-01-01 00:00:00')"
         ),
         {"id": source_id},
     )

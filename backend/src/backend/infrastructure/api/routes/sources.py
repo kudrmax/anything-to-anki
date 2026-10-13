@@ -4,37 +4,51 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 
+from backend.application.dto.add_source_dtos import (
+    AddSourceRequest,
+    CreateTopicRequest,
+    DetectedFormatDTO,
+    DetectFormatRequest,
+    QuestionsRequired,
+    SourcesCreated,
+)
 from backend.application.dto.candidate_dtos import (  # noqa: TC001
     AddManualCandidateRequest,
     AddSavedPhraseRequest,
 )
 from backend.application.dto.collection_dtos import AssignCollectionRequest  # noqa: TC001
-from backend.application.dto.file_source_dtos import FileSourceRequest  # noqa: TC001
+from backend.application.dto.document_dtos import SourceDocumentDTO  # noqa: TC001
 from backend.application.dto.source_dtos import (  # noqa: TC001
-    CreateSourceRequest,
     SourceDetailDTO,
     SourceDTO,
     StoredCandidateDTO,
     UpdateTitleRequest,
 )
+from backend.application.source_intake.typed_input import typed_input
 from backend.domain.exceptions import (
     BookReadError,
     CollectionNotFoundError,
+    InvalidAnswerError,
     InvalidPhraseError,
+    InvalidSourceInputError,
     NotATextFileError,
     PermanentSourceError,
     SourceAlreadyProcessedError,
     SourceHasActiveJobsError,
+    SourceHasNoDocumentError,
     SourceHasNoUrlError,
     SourceIsProcessingError,
     SourceNotFoundError,
     SourceNotReprocessableError,
+    SubtitlesNotAvailableError,
     TopicTargetsMissingError,
+    UnsupportedUrlError,
     VideoAlreadyDownloadedError,
 )
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+from backend.domain.value_objects.question import Answers
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.dependencies import (
     get_container,
@@ -52,46 +66,66 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sources", tags=["sources"])
 
 
-@router.post("", status_code=201)
-def create_source(
-    request: CreateSourceRequest,
+@router.post("/add", status_code=201)
+def add_source(
+    request: AddSourceRequest,
+    response: Response,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, Any]:
+) -> QuestionsRequired | SourcesCreated:
+    """Pasted text, a file path or a link. Questions come back until every one is answered."""
     try:
-        use_case = container.create_source_use_case(session)
-        source = use_case.execute(request.raw_text, request.input_method, request.title)
-        session.commit()
-        return {"id": source.id, "status": source.status.value}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@router.post("/url", status_code=201)
-def create_url_source(
-    body: dict[str, Any],
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, Any]:
-    from backend.domain.exceptions import SubtitlesNotAvailableError, UnsupportedUrlError
-
-    url = body.get("url", "").strip()
-    if not url:
-        raise HTTPException(status_code=400, detail="URL is required")
-    title = body.get("title")
-
-    use_case = container.create_source_from_url_use_case(session)
-    try:
-        source = use_case.execute(url, title_override=title)
-        session.commit()
-        return {"id": source.id, "status": source.status.value}
+        result = container.add_source_use_case(session).execute(
+            typed_input(request.text, request.subtitles_path),
+            request.title,
+            Answers(request.answers),
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except SubtitlesNotAvailableError as e:
         raise HTTPException(
             status_code=422,
             detail={"error": "subtitles_not_available", "message": str(e)},
         ) from e
-    except UnsupportedUrlError as e:
+    except (
+        InvalidSourceInputError,
+        InvalidAnswerError,
+        BookReadError,
+        NotATextFileError,
+        UnsupportedUrlError,
+    ) as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    if isinstance(result, QuestionsRequired):
+        response.status_code = 200
+        return result
+    session.commit()
+    return result
+
+
+@router.post("/detect-format")
+def detect_format(
+    request: DetectFormatRequest,
+    container: Container = Depends(get_container),  # noqa: B008
+) -> DetectedFormatDTO:
+    """The hint under the input field: how what the user put there will be read."""
+    try:
+        return container.detect_format_use_case().execute(typed_input(request.text))
+    except InvalidSourceInputError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/topic", status_code=201)
+def create_topic(
+    request: CreateTopicRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, Any]:
+    try:
+        source = container.create_topic_use_case(session).execute(request.query, request.title)
+    except InvalidSourceInputError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    session.commit()
+    return {"id": source.id, "status": source.status.value}
 
 
 @router.post("/saved-phrases", status_code=201)
@@ -268,91 +302,26 @@ def add_manual_candidate(
 ) -> StoredCandidateDTO:
     try:
         use_case = container.add_manual_candidate_use_case(session)
-        result = use_case.execute(source_id, request.surface_form, request.context_fragment)
+        result = use_case.execute(source_id, request.surface_form, request.selection)
         session.commit()
         return result
-    except SourceNotFoundError as e:
+    except (SourceNotFoundError, SourceHasNoDocumentError) as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-
-
-@router.post("/file", status_code=201)
-def create_file_source(
-    request: FileSourceRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, Any]:
-    from backend.application.dto.book_dtos import BookSourcesCreated, BookSplitRequired
-    from backend.application.dto.video_dtos import TrackSelectionRequired, VideoSourceCreated
-    from backend.domain.value_objects.input_method import InputMethod
-
-    resolver = container.video_path_resolver
-    resolved_file_path = resolver.resolve(
-        resolver.to_storage_path(request.file_path, InputMethod.VIDEO_FILE),
-        InputMethod.VIDEO_FILE,
-    )
-    resolved_srt_path: str | None = None
-    if request.srt_path:
-        resolved_srt_path = resolver.resolve(
-            resolver.to_storage_path(request.srt_path, InputMethod.VIDEO_FILE),
-            InputMethod.VIDEO_FILE,
-        )
-
-    use_case = container.create_source_use_case(session)
-    try:
-        result = use_case.execute_from_file(
-            file_path=resolved_file_path,
-            srt_path=resolved_srt_path,
-            title=request.title,
-            subtitle_track_index=request.subtitle_track_index,
-            audio_track_index=request.audio_track_index,
-            split_book=request.split_book,
-        )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except (ValueError, BookReadError, NotATextFileError) as e:
+    except InvalidPhraseError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
-    if isinstance(result, TrackSelectionRequired):
-        return {
-            "status": "track_selection_required",
-            "file_path": request.file_path,
-            "srt_path": request.srt_path,
-            "subtitle_tracks": [
-                {
-                    "index": t.index,
-                    "language": t.language,
-                    "title": t.title,
-                    "codec": t.codec,
-                }
-                for t in result.subtitle_tracks
-            ],
-            "audio_tracks": [
-                {
-                    "index": t.index,
-                    "language": t.language,
-                    "title": t.title,
-                    "codec": t.codec,
-                    "channels": t.channels,
-                }
-                for t in result.audio_tracks
-            ],
-        }
-    if isinstance(result, BookSplitRequired):
-        return {
-            "status": "book_split_required",
-            "file_path": request.file_path,
-            **result.model_dump(),
-        }
 
-    session.commit()
-    if isinstance(result, BookSourcesCreated):
-        return {
-            "id": result.source_ids[0],
-            "status": "new",
-            **result.model_dump(),
-        }
-    source_id = result.source_id if isinstance(result, VideoSourceCreated) else result.id
-    return {"id": source_id, "status": "new"}
+@router.get("/{source_id}/document")
+def get_source_document(
+    source_id: int,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> SourceDocumentDTO:
+    """The text of the source as its screen shows it, with the targets to mark."""
+    try:
+        return container.get_source_document_use_case(session).execute(source_id)
+    except SourceHasNoDocumentError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.get("/{source_id}/reprocess-stats")

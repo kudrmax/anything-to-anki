@@ -1,1 +1,2 @@
 .dropZone { display: grid; place-items: center; min-height: var(--h); padding: var(--s4); border: var(--dash-bw) dashed var(--ac); border-radius: var(--r); background: var(--soft); color: var(--ac); font-size: var(--fs-s); }
+.hintRow { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); min-height: var(--h); }

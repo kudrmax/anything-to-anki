@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 from backend.domain.ports.video_path_resolver import VideoPathResolver
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.format import Format
 
 
 class VideoPathResolverImpl(VideoPathResolver):
@@ -16,14 +16,14 @@ class VideoPathResolverImpl(VideoPathResolver):
     def __init__(self, data_dir: str) -> None:
         self._youtube_base = os.path.join(data_dir, "videos")
 
-    def resolve(self, stored_path: str, input_method: InputMethod) -> str:
-        if input_method == InputMethod.YOUTUBE_URL:
+    def resolve(self, stored_path: str, source_format: Format | None) -> str:
+        if source_format is Format.YOUTUBE:
             return os.path.join(self._youtube_base, stored_path)
         # Local video: absolute path stored directly
         return stored_path
 
-    def to_storage_path(self, absolute_path: str, input_method: InputMethod) -> str:
-        if input_method == InputMethod.YOUTUBE_URL:
+    def to_storage_path(self, absolute_path: str, source_format: Format) -> str:
+        if source_format is Format.YOUTUBE:
             prefix = self._youtube_base + "/"
             if absolute_path.startswith(prefix):
                 return absolute_path[len(prefix):]

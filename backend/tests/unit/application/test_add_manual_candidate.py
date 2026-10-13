@@ -9,8 +9,8 @@ is always saved. The branches that matter:
 - regular-word path with in-context token match
 - fallback: surface form doesn't appear in context → re-analyse surface form alone
 - final fallback: no token found anywhere → pos=X, tag=NN, lemma=surface_lower
-- occurrence counting (case-insensitive, ≥1)
-- cleaned_text vs raw_text preference
+- occurrence counting in the document (case-insensitive, ≥1)
+- the phrase is the selected piece of the document, the target the picked words in it
 - CEFR UNKNOWN → cefr_level DTO field is None
 """
 from __future__ import annotations
@@ -18,19 +18,22 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from backend.application.dto.candidate_dtos import SelectionDTO
 from backend.application.use_cases.add_manual_candidate import (
     AddManualCandidateUseCase,
 )
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.token_data import TokenData
-from backend.domain.exceptions import SourceNotFoundError
+from backend.domain.exceptions import InvalidPhraseError, SourceNotFoundError
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbMatch
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
+from backend.domain.value_objects.document_position import DocumentPosition
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -58,18 +61,22 @@ def _token(
     )
 
 
-def _source(
-    *,
-    raw: str = "procrastinate procrastinate today",
-    cleaned: str | None = None,
-) -> Source:
-    return Source(
-        id=1,
-        raw_text=raw,
-        cleaned_text=cleaned,
-        status=SourceStatus.DONE,
-        input_method=InputMethod.TEXT_PASTED,
-        content_type=ContentType.TEXT,
+def _source() -> Source:
+    return Source(id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT)
+
+
+def _documents(text: str) -> MagicMock:
+    """A source whose document is one paragraph of `text`."""
+    repo = MagicMock()
+    repo.get.return_value = Document((Paragraph((Line(text),), ParagraphMode.FLOW),))
+    return repo
+
+
+def _select(text: str, phrase: str) -> SelectionDTO:
+    start = text.index(phrase)
+    return SelectionDTO(
+        start_block=0, start_line=0, start_char=start,
+        end_block=0, end_line=0, end_char=start + len(phrase),
     )
 
 
@@ -93,6 +100,7 @@ def _patch_classify_detailed(mock: MagicMock) -> MagicMock:
 def _make_use_case(
     *,
     source_repo: MagicMock | None = None,
+    document_text: str = "word in context",
     candidate_repo: MagicMock | None = None,
     text_analyzer: MagicMock | None = None,
     cefr_classifier: MagicMock | None = None,
@@ -104,6 +112,7 @@ def _make_use_case(
     _patch_classify_detailed(classifier)
     return AddManualCandidateUseCase(
         source_repo=source_repo or MagicMock(),
+        document_repo=_documents(document_text),
         candidate_repo=candidate_repo or MagicMock(),
         text_analyzer=text_analyzer or MagicMock(),
         cefr_classifier=classifier,
@@ -156,7 +165,7 @@ class TestGuards:
             use_case.execute(
                 source_id=42,
                 surface_form="word",
-                context_fragment="word in context",
+                selection=_select("word in context", "word in context"),
             )
 
 
@@ -164,9 +173,8 @@ class TestGuards:
 class TestRegularWordPath:
     def test_creates_candidate_with_in_context_token_match(self) -> None:
         source_repo = MagicMock()
-        source_repo.get_by_id.return_value = _source(
-            raw="I procrastinate procrastinate today"
-        )
+        text = "I procrastinate today. Procrastinate!"
+        source_repo.get_by_id.return_value = _source()
         candidate_repo = _mock_repo_save()
         text_analyzer = MagicMock()
         text_analyzer.analyze.return_value = [
@@ -184,6 +192,7 @@ class TestRegularWordPath:
         review_status = MagicMock()
         use_case = _make_use_case(
             source_repo=source_repo,
+            document_text=text,
             candidate_repo=candidate_repo,
             text_analyzer=text_analyzer,
             phrasal_verb_detector=phrasal_verb_detector,
@@ -194,7 +203,7 @@ class TestRegularWordPath:
         dto = use_case.execute(
             source_id=1,
             surface_form="procrastinate",
-            context_fragment="I procrastinate today",
+            selection=_select(text, "I procrastinate today"),
         )
 
         review_status.refresh.assert_called_once_with(1)
@@ -205,7 +214,7 @@ class TestRegularWordPath:
         assert dto.is_sweet_spot is True  # 3.0 ≤ 3.7 ≤ 4.5
         assert dto.surface_form == "procrastinate"
         assert dto.is_phrasal_verb is False
-        assert dto.occurrences == 2  # two occurrences in raw_text
+        assert dto.occurrences == 2  # two occurrences in the document
         assert dto.fragment_purity == "clean"
         assert dto.status == CandidateStatus.PENDING.value
         cefr_classifier.classify.assert_called_once_with("procrastinate", "VB")
@@ -213,7 +222,8 @@ class TestRegularWordPath:
 
     def test_case_insensitive_match_and_lowercase_lemma(self) -> None:
         source_repo = MagicMock()
-        source_repo.get_by_id.return_value = _source(raw="Dolor sit dolor amet")
+        text = "Dolor sit dolor amet"
+        source_repo.get_by_id.return_value = _source()
         candidate_repo = _mock_repo_save()
         text_analyzer = MagicMock()
         text_analyzer.analyze.return_value = [
@@ -229,6 +239,7 @@ class TestRegularWordPath:
 
         use_case = _make_use_case(
             source_repo=source_repo,
+            document_text=text,
             candidate_repo=candidate_repo,
             text_analyzer=text_analyzer,
             phrasal_verb_detector=phrasal_verb_detector,
@@ -238,7 +249,7 @@ class TestRegularWordPath:
         dto = use_case.execute(
             source_id=1,
             surface_form="dolor",
-            context_fragment="Dolor sit",
+            selection=_select(text, "Dolor sit"),
         )
 
         assert dto.lemma == "dolor"  # lowercased
@@ -246,7 +257,8 @@ class TestRegularWordPath:
 
     def test_unknown_cefr_results_in_none_cefr_level(self) -> None:
         source_repo = MagicMock()
-        source_repo.get_by_id.return_value = _source(raw="word")
+        text = "word"
+        source_repo.get_by_id.return_value = _source()
         candidate_repo = _mock_repo_save()
         text_analyzer = MagicMock()
         text_analyzer.analyze.return_value = [
@@ -261,6 +273,7 @@ class TestRegularWordPath:
 
         use_case = _make_use_case(
             source_repo=source_repo,
+            document_text=text,
             candidate_repo=candidate_repo,
             text_analyzer=text_analyzer,
             phrasal_verb_detector=phrasal_verb_detector,
@@ -268,14 +281,15 @@ class TestRegularWordPath:
             frequency_provider=frequency_provider,
         )
         dto = use_case.execute(
-            source_id=1, surface_form="word", context_fragment="word"
+            source_id=1, surface_form="word", selection=_select(text, "word")
         )
         assert dto.cefr_level is None
         assert dto.is_sweet_spot is False  # 5.5 > 4.5
 
     def test_occurrences_at_least_one_when_not_in_source(self) -> None:
         source_repo = MagicMock()
-        source_repo.get_by_id.return_value = _source(raw="lorem ipsum")
+        text = "lorem ipsum unknownword xyz"
+        source_repo.get_by_id.return_value = _source()
         candidate_repo = _mock_repo_save()
         text_analyzer = MagicMock()
         text_analyzer.analyze.side_effect = [
@@ -296,6 +310,7 @@ class TestRegularWordPath:
 
         use_case = _make_use_case(
             source_repo=source_repo,
+            document_text=text,
             candidate_repo=candidate_repo,
             text_analyzer=text_analyzer,
             phrasal_verb_detector=phrasal_verb_detector,
@@ -305,15 +320,14 @@ class TestRegularWordPath:
         dto = use_case.execute(
             source_id=1,
             surface_form="unknownword",
-            context_fragment="unknownword xyz",
+            selection=_select(text, "unknownword xyz"),
         )
         assert dto.occurrences == 1  # raw text doesn't contain it → max(0, 1) = 1
 
-    def test_uses_cleaned_text_when_available(self) -> None:
+    def test_counts_occurrences_in_the_document(self) -> None:
         source_repo = MagicMock()
-        source_repo.get_by_id.return_value = _source(
-            raw="raw raw raw", cleaned="hello hello world"
-        )
+        text = "hello hello world"
+        source_repo.get_by_id.return_value = _source()
         candidate_repo = _mock_repo_save()
         text_analyzer = MagicMock()
         text_analyzer.analyze.return_value = [
@@ -329,6 +343,7 @@ class TestRegularWordPath:
 
         use_case = _make_use_case(
             source_repo=source_repo,
+            document_text=text,
             candidate_repo=candidate_repo,
             text_analyzer=text_analyzer,
             phrasal_verb_detector=phrasal_verb_detector,
@@ -336,17 +351,62 @@ class TestRegularWordPath:
             frequency_provider=frequency_provider,
         )
         dto = use_case.execute(
-            source_id=1, surface_form="hello", context_fragment="hello world"
+            source_id=1, surface_form="hello", selection=_select(text, "hello world")
         )
-        # "hello" appears twice in cleaned_text, 0 times in raw → should see 2.
         assert dto.occurrences == 2
+
+
+@pytest.mark.unit
+class TestSelection:
+    def test_target_outside_the_selected_phrase_is_rejected(self) -> None:
+        source_repo = MagicMock()
+        source_repo.get_by_id.return_value = _source()
+        use_case = _make_use_case(source_repo=source_repo, document_text="lorem ipsum dolor")
+
+        with pytest.raises(InvalidPhraseError):
+            use_case.execute(
+                source_id=1,
+                surface_form="dolor",
+                selection=_select("lorem ipsum dolor", "lorem ipsum"),
+            )
+
+    def test_phrase_and_target_are_placed_in_the_document(self) -> None:
+        source_repo = MagicMock()
+        source_repo.get_by_id.return_value = _source()
+        candidate_repo = _mock_repo_save()
+        text_analyzer = MagicMock()
+        text_analyzer.analyze.return_value = [_token(0, "Dolor", "dolor")]
+        cefr_classifier = MagicMock()
+        cefr_classifier.classify.return_value = CEFRLevel.B2
+        frequency_provider = MagicMock()
+        frequency_provider.get_zipf_value.return_value = 3.0
+        use_case = _make_use_case(
+            source_repo=source_repo,
+            document_text="It was Dolor  sit amet.",
+            candidate_repo=candidate_repo,
+            text_analyzer=text_analyzer,
+            cefr_classifier=cefr_classifier,
+            frequency_provider=frequency_provider,
+        )
+
+        use_case.execute(
+            source_id=1,
+            surface_form="dolor sit",
+            selection=_select("It was Dolor  sit amet.", " Dolor  sit amet. "[:-1]),
+        )
+
+        (saved,) = candidate_repo.create_batch.call_args[0][0]
+        assert saved.context_fragment == "Dolor  sit amet."
+        assert saved.phrase_position == DocumentPosition(0, 0, 7, 0, 23)
+        assert saved.target_position == DocumentPosition(0, 0, 7, 0, 17)
 
 
 @pytest.mark.unit
 class TestFallbackToSurfaceFormAnalysis:
     def test_analyses_surface_form_alone_when_not_found_in_context(self) -> None:
         source_repo = MagicMock()
-        source_repo.get_by_id.return_value = _source(raw="lorem ipsum dolor")
+        text = "lorem ipsum dolor"
+        source_repo.get_by_id.return_value = _source()
         candidate_repo = _mock_repo_save()
         text_analyzer = MagicMock()
         # 1st analyze (context): no token matching "dolor"
@@ -367,6 +427,7 @@ class TestFallbackToSurfaceFormAnalysis:
 
         use_case = _make_use_case(
             source_repo=source_repo,
+            document_text=text,
             candidate_repo=candidate_repo,
             text_analyzer=text_analyzer,
             phrasal_verb_detector=phrasal_verb_detector,
@@ -376,7 +437,7 @@ class TestFallbackToSurfaceFormAnalysis:
         dto = use_case.execute(
             source_id=1,
             surface_form="dolor",
-            context_fragment="lorem ipsum",
+            selection=_select(text, "lorem ipsum dolor"),
         )
         assert dto.lemma == "dolor"
         assert dto.pos == "NOUN"
@@ -384,7 +445,8 @@ class TestFallbackToSurfaceFormAnalysis:
 
     def test_falls_back_to_defaults_when_no_token_anywhere(self) -> None:
         source_repo = MagicMock()
-        source_repo.get_by_id.return_value = _source(raw="something else")
+        text = "say ??? in context"
+        source_repo.get_by_id.return_value = _source()
         candidate_repo = _mock_repo_save()
         text_analyzer = MagicMock()
         # Both calls return empty (e.g. punctuation-only input).
@@ -398,6 +460,7 @@ class TestFallbackToSurfaceFormAnalysis:
 
         use_case = _make_use_case(
             source_repo=source_repo,
+            document_text=text,
             candidate_repo=candidate_repo,
             text_analyzer=text_analyzer,
             phrasal_verb_detector=phrasal_verb_detector,
@@ -405,7 +468,7 @@ class TestFallbackToSurfaceFormAnalysis:
             frequency_provider=frequency_provider,
         )
         dto = use_case.execute(
-            source_id=1, surface_form="???", context_fragment="context"
+            source_id=1, surface_form="???", selection=_select(text, "??? in context")
         )
         assert dto.lemma == "???"  # surface_lower fallback
         assert dto.pos == "X"
@@ -416,9 +479,8 @@ class TestFallbackToSurfaceFormAnalysis:
 class TestPhrasalVerbPath:
     def test_match_uses_verb_token_tag_when_present(self) -> None:
         source_repo = MagicMock()
-        source_repo.get_by_id.return_value = _source(
-            raw="I give up today give up"
-        )
+        text = "I give up today give up"
+        source_repo.get_by_id.return_value = _source()
         candidate_repo = _mock_repo_save()
         text_analyzer = MagicMock()
         tokens = [
@@ -443,6 +505,7 @@ class TestPhrasalVerbPath:
 
         use_case = _make_use_case(
             source_repo=source_repo,
+            document_text=text,
             candidate_repo=candidate_repo,
             text_analyzer=text_analyzer,
             phrasal_verb_detector=phrasal_verb_detector,
@@ -452,7 +515,7 @@ class TestPhrasalVerbPath:
         dto = use_case.execute(
             source_id=1,
             surface_form="give up",
-            context_fragment="I give up today",
+            selection=_select(text, "I give up today"),
         )
         assert dto.lemma == "give up"
         assert dto.pos == "VERB"
@@ -463,7 +526,8 @@ class TestPhrasalVerbPath:
 
     def test_match_falls_back_to_vb_tag_when_verb_token_missing(self) -> None:
         source_repo = MagicMock()
-        source_repo.get_by_id.return_value = _source(raw="x")
+        text = "never give UP"
+        source_repo.get_by_id.return_value = _source()
         candidate_repo = _mock_repo_save()
         text_analyzer = MagicMock()
         tokens = [
@@ -485,6 +549,7 @@ class TestPhrasalVerbPath:
 
         use_case = _make_use_case(
             source_repo=source_repo,
+            document_text=text,
             candidate_repo=candidate_repo,
             text_analyzer=text_analyzer,
             phrasal_verb_detector=phrasal_verb_detector,
@@ -494,7 +559,7 @@ class TestPhrasalVerbPath:
         use_case.execute(
             source_id=1,
             surface_form="give up",
-            context_fragment="give up",
+            selection=_select(text, "give UP"),
         )
         cefr_classifier.classify.assert_called_once_with("give up", "VB")
 
@@ -502,7 +567,8 @@ class TestPhrasalVerbPath:
         """The match list is filtered by surface_form.lower() == surface_lower.
         We verify the lookup is case-insensitive."""
         source_repo = MagicMock()
-        source_repo.get_by_id.return_value = _source(raw="x")
+        text = "never give UP"
+        source_repo.get_by_id.return_value = _source()
         candidate_repo = _mock_repo_save()
         text_analyzer = MagicMock()
         text_analyzer.analyze.return_value = [
@@ -524,6 +590,7 @@ class TestPhrasalVerbPath:
 
         use_case = _make_use_case(
             source_repo=source_repo,
+            document_text=text,
             candidate_repo=candidate_repo,
             text_analyzer=text_analyzer,
             phrasal_verb_detector=phrasal_verb_detector,
@@ -533,6 +600,6 @@ class TestPhrasalVerbPath:
         dto = use_case.execute(
             source_id=1,
             surface_form="give up",  # lowercase query
-            context_fragment="give UP",
+            selection=_select(text, "give UP"),
         )
         assert dto.is_phrasal_verb is True

@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 
-from backend.infrastructure.epub.models import DocumentText, TextBlock
+from backend.infrastructure.epub.models import BlockRole, DocumentText, TextBlock
 
 BLOCK_TAGS: frozenset[str] = frozenset(
     {
@@ -78,6 +78,9 @@ SKIPPED_TAGS: frozenset[str] = frozenset(
     }
 )
 HEADING_TAGS: frozenset[str] = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
+LIST_TAGS: frozenset[str] = frozenset({"ol", "ul"})
+ORDERED_LIST_TAG = "ol"
+LIST_ITEM_TAG = "li"
 DOCUMENT_TYPE_TAGS: frozenset[str] = frozenset({"article", "body", "div", "section"})
 # Footnote markers and the notes themselves interrupt the prose, so they never reach the text.
 SKIPPED_SEMANTIC_TYPES: frozenset[str] = frozenset(
@@ -118,6 +121,14 @@ def normalized(text: str) -> str:
     return _WHITESPACE_RE.sub(" ", _INVISIBLE_RE.sub("", text)).strip()
 
 
+@dataclass(frozen=True)
+class _BlockShape:
+    role: BlockRole = BlockRole.PARAGRAPH
+    heading_level: int = 0
+    list_depth: int = 0
+    ordered: bool = False
+
+
 @dataclass
 class _Piece:
     text: str
@@ -149,12 +160,14 @@ class _XhtmlTextParser(HTMLParser):
         self._skip_depth = 0
         self._link_depth = 0
         self._heading_depth = 0
+        self._continues = False
 
     def result(self) -> DocumentText:
         self.close()
+        shape = self._shape()
         while self._stack:
             self._close_element(self._stack.pop())
-        self._flush()
+        self._flush(shape)
         return DocumentText(
             blocks=tuple(self._blocks),
             anchors=self._anchors,
@@ -164,8 +177,10 @@ class _XhtmlTextParser(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = {name.lower(): value or "" for name, value in attrs}
-        if tag in BLOCK_TAGS or tag in LINE_BREAK_TAGS:
-            self._flush()
+        if tag in BLOCK_TAGS:
+            self._flush(self._shape())
+        elif tag in LINE_BREAK_TAGS:
+            self._flush(self._shape(), line_break=True)
         if self._skip_depth == 0:
             self._remember_anchor(tag, values)
         types = semantic_types(values)
@@ -183,13 +198,15 @@ class _XhtmlTextParser(HTMLParser):
         self._open_element(element)
 
     def handle_endtag(self, tag: str) -> None:
+        # The text before the closing tag belongs to the element being closed.
+        shape = self._shape()
         for depth in range(len(self._stack) - 1, -1, -1):
             if self._stack[depth].tag == tag:
                 while len(self._stack) > depth:
                     self._close_element(self._stack.pop())
                 break
         if tag in BLOCK_TAGS:
-            self._flush()
+            self._flush(shape)
 
     def handle_data(self, data: str) -> None:
         if self._skip_depth > 0 or not data:
@@ -248,14 +265,41 @@ class _XhtmlTextParser(HTMLParser):
                 return element
         return None
 
-    def _flush(self) -> None:
-        if not self._pieces:
-            return
-        text = normalized("".join(piece.text for piece in self._pieces))
-        link_text = normalized("".join(piece.text for piece in self._pieces if piece.linked))
-        self._pieces = []
-        if text:
-            self._blocks.append(TextBlock(text=text, link_chars=len(link_text)))
+    def _shape(self) -> _BlockShape:
+        tags = [element.tag for element in self._stack]
+        for tag in reversed(tags):
+            if tag in HEADING_TAGS:
+                return _BlockShape(role=BlockRole.HEADING, heading_level=int(tag[1]))
+        if LIST_ITEM_TAG not in tags:
+            return _BlockShape()
+        lists = [tag for tag in tags if tag in LIST_TAGS]
+        return _BlockShape(
+            role=BlockRole.LIST_ITEM,
+            list_depth=max(len(lists) - 1, 0),
+            ordered=bool(lists) and lists[-1] == ORDERED_LIST_TAG,
+        )
+
+    def _flush(self, shape: _BlockShape, *, line_break: bool = False) -> None:
+        emitted = False
+        if self._pieces:
+            text = normalized("".join(piece.text for piece in self._pieces))
+            link_text = normalized("".join(piece.text for piece in self._pieces if piece.linked))
+            self._pieces = []
+            if text:
+                self._blocks.append(
+                    TextBlock(
+                        text=text,
+                        link_chars=len(link_text),
+                        role=shape.role,
+                        heading_level=shape.heading_level,
+                        list_depth=shape.list_depth,
+                        ordered=shape.ordered,
+                        continues=self._continues,
+                    )
+                )
+                emitted = True
+        # A line after <br> goes on the paragraph, unless nothing came before it.
+        self._continues = (self._continues or emitted) if line_break else False
 
 
 class XhtmlTextExtractor:

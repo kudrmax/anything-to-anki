@@ -60,7 +60,7 @@ class MediaExtractionUseCase:
         if source.video_path is None:
             raise BadVideoFormatError(f"Video missing for source {source.id}")
         resolved_video_path = self._video_path_resolver.resolve(
-            source.video_path, source.input_method,
+            source.video_path, source.format,
         )
         if not os.path.exists(resolved_video_path):
             raise BadVideoFormatError(f"Video missing for source {source.id}")

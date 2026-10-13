@@ -9,9 +9,8 @@ from backend.application.use_cases.generate_topic_targets import (
 )
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import PermanentAIError, SourceNotFoundError
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.prompts_config import PromptsConfig
+from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.topic_target_draft import TopicTargetDraft
 
@@ -33,11 +32,8 @@ class TestGenerateTopicTargets:
         self.source_repo = MagicMock()
         self.source_repo.get_by_id.return_value = Source(
             id=SOURCE_ID,
-            raw_text="  negotiating a salary ",
-            status=SourceStatus.NEW,
-            input_method=InputMethod.TOPIC_QUERY,
-            content_type=ContentType.TOPIC,
-        )
+            status=SourceStatus.NEW, role=SourceRole.TOPIC, topic_query="  negotiating a salary ",
+            )
         self.topic_target_repo = MagicMock()
         self.topic_target_repo.has_targets.return_value = False
         self.settings_repo = MagicMock()

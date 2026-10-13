@@ -9,6 +9,7 @@ from backend.domain.services.candidate_sorting import (
     sort_chronologically,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
 from backend.domain.value_objects.usage_distribution import UsageDistribution
 
@@ -24,9 +25,11 @@ def _make(
     usage_distribution: UsageDistribution | None = None,
     pos: str = "NOUN",
     unknowns: int = 0,
+    position: DocumentPosition | None = None,
 ) -> StoredCandidate:
     return StoredCandidate(
         source_id=1,
+        phrase_position=position,
         lemma=lemma,
         pos=pos,
         cefr_level=cefr,
@@ -131,42 +134,43 @@ class TestSortByRelevance:
         assert [c.lemma for c in result] == ["ultra", "common", "mid", "low", "rare"]
 
 
+def _at(block: int, line: int, char: int) -> DocumentPosition:
+    return DocumentPosition(block, line, char, line, char + 1)
+
+
 @pytest.mark.unit
 class TestSortChronologically:
-    def test_by_position_in_text(self) -> None:
-        c1 = _make("first", 4.0, context_fragment="first word")
-        c2 = _make("second", 4.0, context_fragment="second word")
-        c3 = _make("third", 4.0, context_fragment="third word")
-        text = "the first word then second word finally third word"
-        result = sort_chronologically([c3, c1, c2], source_text=text)
+    def test_by_position_in_the_document(self) -> None:
+        c1 = _make("first", 4.0, position=_at(0, 3, 0))
+        c2 = _make("second", 4.0, position=_at(1, 0, 5))
+        c3 = _make("third", 4.0, position=_at(1, 0, 9))
+        result = sort_chronologically([c3, c1, c2])
         assert [c.lemma for c in result] == ["first", "second", "third"]
 
-    def test_fragment_not_found_goes_last(self) -> None:
-        found = _make("found", 4.0, context_fragment="found here")
-        missing = _make("missing", 4.0, context_fragment="not in text")
-        text = "found here is the content"
-        result = sort_chronologically([missing, found], source_text=text)
-        assert result[0].lemma == "found"
+    def test_phrase_without_a_place_goes_last(self) -> None:
+        placed = _make("placed", 4.0, position=_at(5, 0, 0))
+        example = _make("example", 4.0)
+        result = sort_chronologically([example, placed])
+        assert [c.lemma for c in result] == ["placed", "example"]
 
     def test_tiebreaker_by_id(self) -> None:
-        c1 = _make("a", 4.0, context_fragment="same")
+        c1 = _make("a", 4.0, position=_at(0, 0, 0))
         c1.id = 10
-        c2 = _make("b", 4.0, context_fragment="same")
+        c2 = _make("b", 4.0, position=_at(0, 0, 0))
         c2.id = 5
-        text = "same text"
-        result = sort_chronologically([c1, c2], source_text=text)
+        result = sort_chronologically([c1, c2])
         assert [c.lemma for c in result] == ["b", "a"]
 
     def test_empty_list(self) -> None:
-        assert sort_chronologically([], source_text="anything") == []
+        assert sort_chronologically([]) == []
 
-    def test_empty_source_text(self) -> None:
-        """All fragments not found in empty text, sort by id."""
-        c1 = _make("alpha", 4.0, context_fragment="alpha ctx")
+    def test_phrases_without_places_keep_the_order_they_were_added(self) -> None:
+        """A topic's phrases have no document: they stay as collected."""
+        c1 = _make("alpha", 4.0)
         c1.id = 20
-        c2 = _make("beta", 4.0, context_fragment="beta ctx")
+        c2 = _make("beta", 4.0)
         c2.id = 10
-        result = sort_chronologically([c1, c2], source_text="")
+        result = sort_chronologically([c1, c2])
         assert [c.lemma for c in result] == ["beta", "alpha"]
 
 

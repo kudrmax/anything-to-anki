@@ -19,6 +19,8 @@ from sqlalchemy.orm import Session, sessionmaker
 if TYPE_CHECKING:
     from collections.abc import Generator
 
+    from httpx import Response
+
 
 @pytest.fixture()
 def client() -> Generator[TestClient, None, None]:
@@ -68,7 +70,7 @@ def _seed_source_with_candidate(
     status: str = "learn",
 ) -> tuple[int, int]:
     """Insert a source + one candidate directly into the DB. Returns (source_id, candidate_id)."""
-    source = SourceModel(raw_text="test text", status=SourceStatus.DONE.value)
+    source = SourceModel(title="test text", status=SourceStatus.DONE.value)
     session.add(source)
     session.flush()
 
@@ -156,8 +158,8 @@ class TestAnkiStatusAPI:
 class TestGetExportCardsAPI:
     def test_returns_cards_for_source(self, client: TestClient) -> None:
         # Seed via API
-        post = client.post("/sources", json={"raw_text": "burnout is common"})
-        source_id = post.json()["id"]
+        post = _add_text(client, "burnout is common")
+        source_id = post.json()["source_ids"][0]
 
         response = client.get(f"/export/cards/{source_id}")
         assert response.status_code == 200
@@ -166,7 +168,7 @@ class TestGetExportCardsAPI:
         assert isinstance(data["incomplete"], list)
 
     def test_returns_all_export_cards(self, client: TestClient) -> None:
-        client.post("/sources", json={"raw_text": "burnout is common"})
+        _add_text(client, "burnout is common")
 
         response = client.get("/export/cards")
         assert response.status_code == 200
@@ -178,8 +180,8 @@ class TestGetExportCardsAPI:
 @pytest.mark.integration
 class TestSyncToAnkiAPI:
     def test_returns_503_when_anki_unavailable(self, client: TestClient) -> None:
-        post = client.post("/sources", json={"raw_text": "some text here for testing"})
-        source_id = post.json()["id"]
+        post = _add_text(client, "some text here for testing")
+        source_id = post.json()["source_ids"][0]
 
         with patch(
             "backend.infrastructure.adapters.anki_connect_connector.AnkiConnectConnector.is_available",
@@ -192,8 +194,8 @@ class TestSyncToAnkiAPI:
         assert response.json()["total"] == 0
 
     def test_returns_zero_for_source_with_no_learn_candidates(self, client: TestClient) -> None:
-        post = client.post("/sources", json={"raw_text": "test text"})
-        source_id = post.json()["id"]
+        post = _add_text(client, "test text")
+        source_id = post.json()["source_ids"][0]
 
         response = client.post(f"/export/sync-to-anki/{source_id}?group=incomplete")
         assert response.status_code == 200
@@ -202,8 +204,8 @@ class TestSyncToAnkiAPI:
         assert data["added"] == 0
 
     def test_sync_adds_cards_successfully(self, client: TestClient) -> None:
-        post = client.post("/sources", json={"raw_text": "burnout is exhausting"})
-        source_id = post.json()["id"]
+        post = _add_text(client, "burnout is exhausting")
+        source_id = post.json()["source_ids"][0]
 
         # Mark first candidate as learn via mock on candidate repo
         with (
@@ -250,15 +252,15 @@ class TestSyncToAnkiAPI:
         assert data["skipped"] == 0
 
     def test_requires_export_group(self, client: TestClient) -> None:
-        post = client.post("/sources", json={"raw_text": "test text"})
-        source_id = post.json()["id"]
+        post = _add_text(client, "test text")
+        source_id = post.json()["source_ids"][0]
 
         assert client.post(f"/export/sync-to-anki/{source_id}").status_code == 422
         assert client.post("/export/sync-to-anki").status_code == 422
 
     def test_ready_group_leaves_incomplete_cards_out(self, client: TestClient) -> None:
-        post = client.post("/sources", json={"raw_text": "burnout is exhausting"})
-        source_id = post.json()["id"]
+        post = _add_text(client, "burnout is exhausting")
+        source_id = post.json()["source_ids"][0]
 
         with patch(
             "backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository.get_by_source",
@@ -275,3 +277,7 @@ class TestSyncToAnkiAPI:
 
         assert response.status_code == 200
         assert response.json()["total"] == 0
+
+
+def _add_text(client: TestClient, text: str) -> Response:
+    return client.post("/sources/add", json={"text": text, "answers": {"text.kind": "text"}})

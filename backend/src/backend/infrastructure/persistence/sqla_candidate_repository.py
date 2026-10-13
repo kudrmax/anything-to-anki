@@ -14,6 +14,7 @@ from backend.infrastructure.persistence.models import (
     CandidatePronunciationModel,
     CandidateTTSModel,
     StoredCandidateModel,
+    dump_position,
 )
 
 if TYPE_CHECKING:
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
 
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.candidate_status import CandidateStatus
+    from backend.domain.value_objects.document_position import DocumentPosition
 
 
 class SqlaCandidateRepository(CandidateRepository):
@@ -73,10 +75,13 @@ class SqlaCandidateRepository(CandidateRepository):
         result = self._session.query(func.count(StoredCandidateModel.id)).scalar()
         return result or 0
 
-    def update_context_fragment(self, candidate_id: int, context_fragment: str) -> None:
+    def update_phrase(
+        self, candidate_id: int, context_fragment: str, phrase_position: DocumentPosition,
+    ) -> None:
         model = self._session.get(StoredCandidateModel, candidate_id)
         if model is not None:
             model.context_fragment = context_fragment
+            model.phrase_position = dump_position(phrase_position)
             model.polished_fragment = None
             model.polish_reverted = False
             self._session.flush()

@@ -1,10 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from backend.domain.value_objects.input_method import InputMethod
 
 
 @dataclass(frozen=True)
@@ -13,4 +9,3 @@ class FetchedSubtitles:
 
     srt_text: str
     title: str
-    input_method: InputMethod

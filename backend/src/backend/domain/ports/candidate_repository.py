@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.candidate_status import CandidateStatus
+    from backend.domain.value_objects.document_position import DocumentPosition
 
 
 class CandidateRepository(ABC):
@@ -31,7 +32,9 @@ class CandidateRepository(ABC):
     def count_all(self) -> int: ...
 
     @abstractmethod
-    def update_context_fragment(self, candidate_id: int, context_fragment: str) -> None:
+    def update_phrase(
+        self, candidate_id: int, context_fragment: str, phrase_position: DocumentPosition,
+    ) -> None:
         """Set a new source phrase. Its polished version no longer applies and is dropped."""
 
     @abstractmethod

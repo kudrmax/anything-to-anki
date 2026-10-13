@@ -4,7 +4,7 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
@@ -35,7 +35,7 @@ class CleanupYoutubeVideoUseCase:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             return
-        if source.input_method != InputMethod.YOUTUBE_URL:
+        if source.format is not Format.YOUTUBE:
             return
         if source.video_path is None:
             return
@@ -52,7 +52,7 @@ class CleanupYoutubeVideoUseCase:
         if not all(m.screenshot_path is not None for m in all_media):
             return
 
-        resolved_path = self._video_path_resolver.resolve(source.video_path, source.input_method)
+        resolved_path = self._video_path_resolver.resolve(source.video_path, source.format)
         if os.path.exists(resolved_path):
             os.remove(resolved_path)
             logger.info("Cleaned up YouTube video: %s (source %d)", resolved_path, source_id)

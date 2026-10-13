@@ -8,11 +8,11 @@ from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
-from backend.domain.value_objects.parsed_srt import ParsedSrt
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
+from backend.domain.value_objects.document_position import DocumentPosition
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
-from backend.domain.value_objects.subtitle_block import SubtitleBlock
 
 from tests.candidate_sorter_support import threshold_resolver
 
@@ -20,25 +20,28 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
 
 
-def _make_source(input_method: InputMethod, raw_text: str = "") -> Source:
-    is_video = input_method == InputMethod.VIDEO_FILE
+def _make_source(source_format: Format) -> Source:
+    is_video = source_format is Format.VIDEO_FILE
     return Source(
         id=1,
-        raw_text=raw_text,
         status=SourceStatus.PROCESSING,
-        input_method=input_method,
-        content_type=ContentType.VIDEO if is_video else ContentType.TEXT,
+        format=source_format,
+        kind=Kind.SUBTITLES if is_video else Kind.TEXT,
         video_path="/tmp/movie.mp4" if is_video else None,
     )
 
 
-def _make_candidate(fragment: str) -> StoredCandidate:
+def _make_candidate(fragment: str, position: DocumentPosition) -> StoredCandidate:
     return StoredCandidate(
         id=1, source_id=1, lemma="test", pos="NOUN",
         cefr_level="B1", zipf_frequency=3.5,
         context_fragment=fragment, fragment_purity="clean",
-        occurrences=1, status=CandidateStatus.PENDING,
+        occurrences=1, status=CandidateStatus.PENDING, phrase_position=position,
     )
+
+
+def _paragraph(*lines: Line) -> Document:
+    return Document((Paragraph(lines=lines, mode=ParagraphMode.FLOW),))
 
 
 @pytest.mark.unit
@@ -47,6 +50,7 @@ class TestProcessVideoSource:
         self,
         source: Source,
         candidates: list[StoredCandidate],
+        document: Document,
     ) -> ProcessSourceUseCase:
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = source
@@ -57,7 +61,7 @@ class TestProcessVideoSource:
             cefr_level=c.cefr_level, zipf_frequency=c.zipf_frequency,
             context_fragment=c.context_fragment,
             fragment_purity=c.fragment_purity, occurrences=c.occurrences,
-            status=c.status,
+            status=c.status, phrase_position=c.phrase_position,
         ) for i, c in enumerate(candidates)]
         candidate_repo.create_batch.return_value = returned
         known_word_repo = MagicMock()
@@ -65,19 +69,12 @@ class TestProcessVideoSource:
         settings_repo = MagicMock()
         settings_repo.get.return_value = "B1"
         analyze_result = MagicMock()
-        analyze_result.candidates = candidates
-        analyze_result.cleaned_text = "some text"
+        analyze_result.candidates = []
+        analyze_result.text = "some text"
         analyze_text = MagicMock()
         analyze_text.execute.return_value = analyze_result
-        structured_parser = MagicMock()
-        parsed_srt = ParsedSrt(
-            text="I think you should\ngo back to school.",
-            blocks=(
-                SubtitleBlock(start_ms=1200, end_ms=2500, char_start=0, char_end=19),
-                SubtitleBlock(start_ms=2500, end_ms=4000, char_start=19, char_end=38),
-            ),
-        )
-        structured_parser.parse_structured.return_value = parsed_srt
+        document_repo = MagicMock()
+        document_repo.get.return_value = document
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
         self._media_repo = MagicMock()
@@ -88,15 +85,17 @@ class TestProcessVideoSource:
             settings_repo=settings_repo,
             threshold_resolver=threshold_resolver(settings_repo),
             analyze_text_use_case=analyze_text,
-            structured_srt_parser=structured_parser,
+            document_repo=document_repo,
             media_repo=self._media_repo,
         )
 
-    def test_video_source_sets_timecodes_on_candidates(self) -> None:
-        fragment = "you should\ngo back"  # spans both blocks
-        source = _make_source(InputMethod.VIDEO_FILE, raw_text="")
-        candidate = _make_candidate(fragment)
-        uc = self._make_use_case(source, [candidate])
+    def test_phrase_gets_the_time_of_the_lines_it_takes(self) -> None:
+        document = _paragraph(
+            Line("I think you should", 1200, 2500), Line("go back to school.", 2500, 4000),
+        )
+        source = _make_source(Format.VIDEO_FILE)
+        candidate = _make_candidate("you should go back", DocumentPosition(0, 0, 8, 1, 7))
+        uc = self._make_use_case(source, [candidate], document)
         uc.execute(source_id=1)
 
         # media_repo.upsert called with CandidateMedia having correct timecodes
@@ -107,10 +106,10 @@ class TestProcessVideoSource:
         assert upserted.screenshot_path is None
         assert upserted.audio_path is None
 
-    def test_non_video_source_no_timecodes(self) -> None:
-        source = _make_source(InputMethod.TEXT_PASTED, raw_text="plain text")
-        candidate = _make_candidate("plain text")
-        uc = self._make_use_case(source, [candidate])
+    def test_untimed_lines_give_no_time(self) -> None:
+        source = _make_source(Format.PLAIN)
+        candidate = _make_candidate("plain text", DocumentPosition(0, 0, 0, 0, 10))
+        uc = self._make_use_case(source, [candidate], _paragraph(Line("plain text")))
         uc.execute(source_id=1)
 
         # No media rows created for non-video source

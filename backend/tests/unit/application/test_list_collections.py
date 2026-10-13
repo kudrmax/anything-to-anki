@@ -4,8 +4,8 @@ import pytest
 from backend.application.use_cases.list_collections import ListCollectionsUseCase
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -31,17 +31,14 @@ class TestListCollectionsUseCase:
             Collection(id=2, name="HP"),
         ]
         self.source_repo.list_all.return_value = [
-            Source(id=10, raw_text="t", status=SourceStatus.NEW,
-                   input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-                   collection_id=1),
-            Source(id=11, raw_text="t", status=SourceStatus.NEW,
-                   input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-                   collection_id=1),
-            Source(id=12, raw_text="t", status=SourceStatus.NEW,
-                   input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-                   collection_id=2),
-            Source(id=13, raw_text="t", status=SourceStatus.NEW,
-                   input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT),
+            Source(id=10, status=SourceStatus.NEW,
+                   collection_id=1, format=Format.PLAIN, kind=Kind.TEXT),
+            Source(id=11, status=SourceStatus.NEW,
+                   collection_id=1, format=Format.PLAIN, kind=Kind.TEXT),
+            Source(id=12, status=SourceStatus.NEW,
+                   collection_id=2, format=Format.PLAIN, kind=Kind.TEXT),
+            Source(id=13, status=SourceStatus.NEW, format=Format.PLAIN, kind=Kind.TEXT,
+                   ),
         ]
         result = self.use_case.execute()
         assert len(result) == 2

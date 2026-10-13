@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_tts import CandidateTTS
     from backend.domain.value_objects.candidate_status import CandidateStatus
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
+    from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.frequency_band import FrequencyBand
     from backend.domain.value_objects.phrase_origin import PhraseOrigin
     from backend.domain.value_objects.usage_distribution import UsageDistribution
@@ -39,6 +40,10 @@ class StoredCandidate:
 
     `meaning_image` is a picture of the target the user picked; the video
     frame of the phrase is in `media`.
+
+    `phrase_position` and `target_position` place the phrase and the target in
+    the source's document. A phrase that isn't there (an example, a topic's
+    or a saved phrase) has none.
     """
 
     source_id: int
@@ -66,6 +71,8 @@ class StoredCandidate:
     fragment_unknown_count: int = 0
     polished_fragment: str | None = None
     polish_reverted: bool = False
+    phrase_position: DocumentPosition | None = None
+    target_position: DocumentPosition | None = None
 
     @property
     def is_polished(self) -> bool:

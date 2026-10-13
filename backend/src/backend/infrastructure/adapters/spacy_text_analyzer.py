@@ -59,6 +59,7 @@ class SpaCyTextAnalyzer(TextAnalyzer):
                     sent_index=sent_indices.get(token.i, 0),
                     dep=token.dep_,
                     whitespace_after=token.whitespace_,
+                    char_start=token.idx,
                 )
             )
 

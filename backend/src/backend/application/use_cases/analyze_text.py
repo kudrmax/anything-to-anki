@@ -9,36 +9,36 @@ from backend.application.dto.analysis_dtos import (
     AnalyzeTextResponse,
     WordCandidateDTO,
 )
+from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.application.utils.word_knowledge import WordKnowledge
 from backend.domain.entities.word_candidate import WordCandidate
-from backend.domain.exceptions import TextTooShortError
 from backend.domain.services.candidate_filter import CandidateFilter
 from backend.domain.services.fragment_selection import (
     FragmentSelectionConfig,
     FragmentSelector,
 )
-from backend.domain.services.fragment_selection.rendering import render_fragment
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.frequency_band import FrequencyBand
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
 
     from backend.domain.entities.token_data import TokenData
     from backend.domain.ports.cefr_classifier import CEFRClassifier
+    from backend.domain.ports.document_analyzer import DocumentAnalyzer
     from backend.domain.ports.frequency_provider import FrequencyProvider
-    from backend.domain.ports.text_analyzer import TextAnalyzer
-    from backend.domain.ports.text_cleaner import TextCleaner
-    from backend.domain.ports.text_normalizer import TextNormalizer
     from backend.domain.ports.usage_source import UsageSource
+    from backend.domain.services.document_layout import DocumentLayout
     from backend.domain.services.fragment_selection import SelectedFragment
     from backend.domain.services.fragment_selection.scoring.scorer import (
         UnknownCounter,
     )
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
+    from backend.domain.value_objects.document import Document
+    from backend.domain.value_objects.document_position import DocumentPosition
 
 CLEAN_PURITY = "clean"
 DIRTY_PURITY = "dirty"
@@ -60,26 +60,23 @@ class _Occurrence:
 
 
 class AnalyzeTextUseCase:
-    """Orchestrates the full text analysis pipeline (layers 2-3).
+    """Finds the words worth learning in a document, each with its phrase.
 
     One candidate per word: its phrase is the best one among the places
     where the word occurs. Words the user already knows are not candidates.
+    The phrase and the target are kept as positions in the document.
     """
 
     def __init__(
         self,
-        text_cleaner: TextCleaner,
-        text_normalizer: TextNormalizer,
-        text_analyzer: TextAnalyzer,
+        document_analyzer: DocumentAnalyzer,
         cefr_classifier: CEFRClassifier,
         frequency_provider: FrequencyProvider,
         phrasal_verb_detector: PhrasalVerbDetector,
         fragment_selection_config: FragmentSelectionConfig | None = None,
         usage_lookup: UsageSource | None = None,
     ) -> None:
-        self._text_cleaner = text_cleaner
-        self._text_normalizer = text_normalizer
-        self._text_analyzer = text_analyzer
+        self._document_analyzer = document_analyzer
         self._cefr_classifier = cefr_classifier
         self._frequency_provider = frequency_provider
         self._phrasal_verb_detector = phrasal_verb_detector
@@ -90,39 +87,19 @@ class AnalyzeTextUseCase:
         self._selector = FragmentSelector(config=self._fragment_config)
         self._usage_lookup = usage_lookup
 
-    def execute(self, request: AnalyzeTextRequest) -> AnalyzeTextResponse:
+    def execute(self, document: Document, request: AnalyzeTextRequest) -> AnalyzeTextResponse:
         user_level = CEFRLevel.from_str(request.user_level)
+        analyzed = self._document_analyzer.analyze(document)
+        tokens, layout = analyzed.tokens, analyzed.layout
         logger.info(
-            "analyze_text: start (raw_text_len=%d, user_level=%s, known_words=%d, "
+            "analyze_text: start (text_len=%d, user_level=%s, known_words=%d, "
             "frequent_word_zipf=%s)",
-            len(request.raw_text or ""), user_level.name, len(request.known_lemmas),
+            len(layout.text), user_level.name, len(request.known_lemmas),
             request.frequent_word_zipf,
         )
-
-        # Layer 2: clean text
-        cleaned = self._text_cleaner.clean(request.raw_text)
-        if not cleaned.strip():
-            logger.warning(
-                "analyze_text: cleaned text is empty (raw_text_len=%d)",
-                len(request.raw_text or ""),
-            )
-            raise TextTooShortError()
-
-        # Layer 2.5: normalize slang contractions
-        normalized = self._text_normalizer.normalize(cleaned)
-
-        # Layer 3: analyze
-        tokens = self._text_analyzer.analyze(normalized)
         if not tokens:
-            logger.info(
-                "analyze_text: no tokens after analysis (cleaned_len=%d)",
-                len(normalized),
-            )
             return AnalyzeTextResponse(
-                cleaned_text=normalized,
-                candidates=[],
-                total_tokens=0,
-                unique_lemmas=0,
+                text=layout.text, candidates=[], total_tokens=0, unique_lemmas=0,
             )
 
         knowledge = WordKnowledge(
@@ -136,10 +113,14 @@ class AnalyzeTextUseCase:
         phrasal_verbs = self._collect_phrasal_verbs(tokens, knowledge)
 
         candidates = [
-            self._build_candidate(lemma, occurrences, tokens, knowledge, is_phrasal_verb=False)
+            self._build_candidate(
+                lemma, occurrences, tokens, layout, knowledge, is_phrasal_verb=False,
+            )
             for lemma, occurrences in words.items()
         ] + [
-            self._build_candidate(lemma, occurrences, tokens, knowledge, is_phrasal_verb=True)
+            self._build_candidate(
+                lemma, occurrences, tokens, layout, knowledge, is_phrasal_verb=True,
+            )
             for lemma, occurrences in phrasal_verbs.items()
         ]
 
@@ -150,7 +131,7 @@ class AnalyzeTextUseCase:
             len(tokens), unique_lemmas, len(candidates),
         )
         return AnalyzeTextResponse(
-            cleaned_text=normalized,
+            text=layout.text,
             candidates=[self._to_dto(c) for c in candidates],
             total_tokens=len(tokens),
             unique_lemmas=unique_lemmas,
@@ -209,11 +190,13 @@ class AnalyzeTextUseCase:
         lemma: str,
         occurrences: list[_Occurrence],
         tokens: list[TokenData],
+        layout: DocumentLayout,
         knowledge: WordKnowledge,
         *,
         is_phrasal_verb: bool,
     ) -> WordCandidate:
         fragment, occurrence = self._best_fragment(occurrences, tokens, knowledge)
+        phrase_position = _position(layout, tokens, fragment.indices)
         zipf = knowledge.zipf(lemma)
         breakdown = occurrence.cefr_breakdown
         return WordCandidate(
@@ -222,7 +205,7 @@ class AnalyzeTextUseCase:
             cefr_level=breakdown.final_level if breakdown else None,
             frequency_band=FrequencyBand.from_zipf(zipf),
             zipf_frequency=zipf,
-            context_fragment=render_fragment(tokens, fragment.indices),
+            context_fragment=layout.fragment(phrase_position),
             fragment_unknown_count=knowledge.count_unknowns(
                 fragment.indices, tokens, occurrence.protected_indices,
             ),
@@ -235,6 +218,8 @@ class AnalyzeTextUseCase:
                 if self._usage_lookup is not None
                 else None
             ),
+            phrase_position=phrase_position,
+            target_position=_position(layout, tokens, occurrence.protected_indices),
         )
 
     def _best_fragment(
@@ -290,4 +275,27 @@ class AnalyzeTextUseCase:
                 if candidate.usage_distribution
                 else None
             ),
+            phrase_position=(
+                DocumentPositionDTO.from_position(candidate.phrase_position)
+                if candidate.phrase_position
+                else None
+            ),
+            target_position=(
+                DocumentPositionDTO.from_position(candidate.target_position)
+                if candidate.target_position
+                else None
+            ),
         )
+
+
+def _position(
+    layout: DocumentLayout, tokens: list[TokenData], indices: Iterable[int],
+) -> DocumentPosition:
+    """From the first word to the last: a phrase, or a target split by other words.
+
+    Line breaks the parser keeps as tokens, and tokens without text, are not part of it.
+    """
+    chosen = [tokens[i] for i in indices if tokens[i].text.strip()]
+    return layout.position(
+        min(token.char_start for token in chosen), max(token.char_end for token in chosen),
+    )

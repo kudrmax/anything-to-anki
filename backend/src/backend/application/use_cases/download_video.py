@@ -5,6 +5,8 @@ import os
 import uuid
 from typing import TYPE_CHECKING
 
+from backend.domain.value_objects.format import Format
+
 if TYPE_CHECKING:
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.video_downloader import VideoDownloader
@@ -30,8 +32,6 @@ class DownloadVideoUseCase:
         self._video_path_resolver = video_path_resolver
 
     def execute(self, source_id: int) -> None:
-        from backend.domain.value_objects.input_method import InputMethod
-
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise ValueError(f"Source {source_id} not found")
@@ -42,7 +42,7 @@ class DownloadVideoUseCase:
             return
 
         filename = f"{uuid.uuid4()}.mp4"
-        absolute_path = self._video_path_resolver.resolve(filename, InputMethod.YOUTUBE_URL)
+        absolute_path = self._video_path_resolver.resolve(filename, Format.YOUTUBE)
         os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
 
         self._video_downloader.download(source.source_url, absolute_path)

@@ -9,7 +9,7 @@ from backend.domain.entities.source import Source
 from backend.domain.exceptions import InvalidPhraseError
 from backend.domain.services.phrase_target import normalize_target, phrase_contains_target
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.source_role import SourceRole
 
 if TYPE_CHECKING:
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
@@ -71,7 +71,7 @@ class AddSavedPhraseUseCase:
         return stored_candidate_to_dto(saved)
 
     def _saved_phrases_source_id(self) -> int:
-        source = self._source_repo.get_first_by_content_type(ContentType.PHRASES)
+        source = self._source_repo.get_first_by_role(SourceRole.SAVED_PHRASES)
         if source is None:
             source = self._source_repo.create(Source.saved_phrases())
         assert source.id is not None

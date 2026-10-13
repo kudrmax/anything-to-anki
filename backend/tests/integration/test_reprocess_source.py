@@ -13,8 +13,8 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceHasActiveJobsError
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
@@ -44,12 +44,8 @@ def _create_processed_source(db_session: Session) -> int:
 
     source = source_repo.create(
         Source(
-            raw_text="She tends to procrastinate when facing deadlines.",
-            status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED,
-            content_type=ContentType.TEXT,
-            cleaned_text="She tends to procrastinate when facing deadlines.",
-        )
+            status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
     )
     assert source.id is not None
 
@@ -151,8 +147,6 @@ def test_full_reprocess_cycle(db_session: Session) -> None:
     assert source is not None
     assert source.status == SourceStatus.NEW
 
-    # Source cleaned_text is None
-    assert source.cleaned_text is None
 
     # process_source_uc.start called with source_id
     process_source_uc.start.assert_called_once_with(source_id)
@@ -196,11 +190,8 @@ def test_reprocess_error_source_no_candidates(db_session: Session) -> None:
     # Create source directly in ERROR state (no candidates)
     source = source_repo.create(
         Source(
-            raw_text="Some raw text that failed processing.",
             status=SourceStatus.ERROR,
-            input_method=InputMethod.TEXT_PASTED,
-            content_type=ContentType.TEXT,
-            error_message="Processing failed: timeout",
+            error_message="Processing failed: timeout", format=Format.PLAIN, kind=Kind.TEXT,
         )
     )
     assert source.id is not None

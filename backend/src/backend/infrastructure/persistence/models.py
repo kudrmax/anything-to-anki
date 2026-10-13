@@ -28,10 +28,12 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.document_position import DocumentPosition
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
 from backend.domain.value_objects.processing_stage import ProcessingStage
+from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.token_usage import TokenUsage
 from backend.domain.value_objects.usage_distribution import UsageDistribution
@@ -40,6 +42,32 @@ from backend.infrastructure.persistence.utc_datetime import UTCDateTime
 
 if TYPE_CHECKING:
     from backend.domain.entities.job import Job
+
+
+def dump_position(position: DocumentPosition | None) -> str | None:
+    """A position is stored as `[block, start_line, start_char, end_line, end_char]`."""
+    if position is None:
+        return None
+    return json.dumps([
+        position.block,
+        position.start_line,
+        position.start_char,
+        position.end_line,
+        position.end_char,
+    ])
+
+
+def load_position(stored: str | None) -> DocumentPosition | None:
+    if stored is None:
+        return None
+    block, start_line, start_char, end_line, end_char = json.loads(stored)
+    return DocumentPosition(
+        block=block,
+        start_line=start_line,
+        start_char=start_char,
+        end_line=end_line,
+        end_char=end_char,
+    )
 
 
 class CollectionModel(Base):
@@ -74,12 +102,8 @@ class SourceModel(Base):
     __tablename__ = "sources"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    raw_text: Mapped[str] = mapped_column(Text, nullable=False)
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    cleaned_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="new")
-    input_method: Mapped[str] = mapped_column(String(20), nullable=False, default="text_pasted")
-    content_type: Mapped[str] = mapped_column(String(10), nullable=False, default="text")
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     processing_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
@@ -91,16 +115,18 @@ class SourceModel(Base):
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
+    format: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    role: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="content", server_default="content"
+    )
+    topic_query: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     def to_entity(self) -> Source:
         return Source(
             id=self.id,
-            raw_text=self.raw_text,
             title=self.title,
-            cleaned_text=self.cleaned_text,
             status=SourceStatus(self.status),
-            input_method=InputMethod(self.input_method),
-            content_type=ContentType(self.content_type),
             source_url=self.source_url,
             error_message=self.error_message,
             processing_stage=(
@@ -110,21 +136,26 @@ class SourceModel(Base):
             audio_track_index=self.audio_track_index,
             collection_id=self.collection_id,
             created_at=self.created_at,
+            format=Format(self.format) if self.format else None,
+            kind=Kind(self.kind) if self.kind else None,
+            role=SourceRole(self.role),
+            topic_query=self.topic_query,
         )
 
     @staticmethod
     def from_entity(source: Source) -> SourceModel:
         return SourceModel(
-            raw_text=source.raw_text,
             title=source.title,
             status=source.status.value,
-            input_method=source.input_method.value,
-            content_type=source.content_type.value,
             source_url=source.source_url,
             video_path=source.video_path,
             audio_track_index=source.audio_track_index,
             collection_id=source.collection_id,
             created_at=source.created_at,
+            format=source.format.value if source.format else None,
+            kind=source.kind.value if source.kind else None,
+            role=source.role.value,
+            topic_query=source.topic_query,
         )
 
 
@@ -275,6 +306,8 @@ class StoredCandidateModel(Base):
     polish_reverted: Mapped[bool] = mapped_column(
         nullable=False, default=False, server_default="0"
     )
+    phrase_position: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_position: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     cefr_breakdown: Mapped[CEFRBreakdownModel | None] = relationship(
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
@@ -317,6 +350,8 @@ class StoredCandidateModel(Base):
             origin=self._origin(),
             polished_fragment=self.polished_fragment,
             polish_reverted=self.polish_reverted,
+            phrase_position=load_position(self.phrase_position),
+            target_position=load_position(self.target_position),
         )
 
     def _origin(self) -> PhraseOrigin | None:
@@ -346,6 +381,8 @@ class StoredCandidateModel(Base):
             origin_title=candidate.origin.source_title if candidate.origin else None,
             polished_fragment=candidate.polished_fragment,
             polish_reverted=candidate.polish_reverted,
+            phrase_position=dump_position(candidate.phrase_position),
+            target_position=dump_position(candidate.target_position),
         )
         if candidate.cefr_breakdown is not None:
             model.cefr_breakdown = _breakdown_to_model(candidate.cefr_breakdown)
@@ -698,6 +735,20 @@ class CandidateMeaningImageModel(Base):
         return CandidateMeaningImageModel(
             candidate_id=entity.candidate_id, image_path=entity.image_path,
         )
+
+
+class SourceDocumentModel(Base):
+    """SQLAlchemy model for the document of a source (1:1), stored as JSON."""
+
+    __tablename__ = "source_documents"
+
+    source_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    document: Mapped[str] = mapped_column(Text, nullable=False)
 
 
 class EnrichmentCacheModel(Base):

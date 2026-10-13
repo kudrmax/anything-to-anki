@@ -10,8 +10,8 @@ from backend.domain.exceptions import (
     SourceNotTopicError,
     TopicTargetsAlreadyGeneratedError,
 )
-from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.job_type import JobType
+from backend.domain.value_objects.source_role import SourceRole
 
 if TYPE_CHECKING:
     from backend.domain.ports.job_repository import JobRepository
@@ -40,7 +40,7 @@ class EnqueueTopicGenerationUseCase:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
-        if source.content_type != ContentType.TOPIC:
+        if source.role is not SourceRole.TOPIC:
             raise SourceNotTopicError(source_id)
         if self._topic_target_repo.has_targets(source_id):
             raise TopicTargetsAlreadyGeneratedError(source_id)

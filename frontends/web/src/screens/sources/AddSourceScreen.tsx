@@ -19,7 +19,7 @@ export function AddSourceScreen() {
   return (
     <Page wide header={<PageHeader title="Add" />}>
       <section className={css.add}>
-        <AddSourceForm onCreated={() => void added()} onReload={added} onToast={showWarning} />
+        <AddSourceForm onReload={added} onToast={showWarning} />
       </section>
       <Toast message={notice} />
       <Toast message={warning} tone="warn" />
