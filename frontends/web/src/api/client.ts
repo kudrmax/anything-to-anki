@@ -315,12 +315,12 @@ export const api = {
     }),
 
   processPending: (scope: Scope) =>
-    req<{ started: number[] }>(`/sources/process-pending?${new URLSearchParams({ scope: String(scope) })}`, {
+    req<{ started: number[]; skipped: number[] }>(`/sources/process-pending?${new URLSearchParams({ scope: String(scope) })}`, {
       method: 'POST',
     }),
 
   processSources: (sourceIds: number[]) =>
-    req<{ started: number[] }>('/sources/process-batch', {
+    req<{ started: number[]; skipped: number[] }>('/sources/process-batch', {
       method: 'POST',
       body: JSON.stringify({ source_ids: sourceIds }),
     }),

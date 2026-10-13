@@ -9,6 +9,8 @@ const SEARCH_DELAY_MS = 200
 const TOPIC_JOB_TYPE = 'topic_targets'
 const NOT_FOUND = '404:'
 
+const sourcesWord = (n: number) => (n === 1 ? '1 source' : `${n} sources`)
+
 interface Callbacks {
   onMissingScope: () => void
   onError: (message: string) => void
@@ -70,12 +72,17 @@ export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
     await reload()
   }
 
+  const start = (call: () => Promise<{ skipped: number[] }>) => act(async () => {
+    const { skipped } = await call()
+    if (skipped.length) callbacks.current.onError(`${sourcesWord(skipped.length)} can't be processed right now`)
+  })
+
   return {
     board,
     reload,
     process: (id: number) => act(() => api.processSource(id)),
-    processPending: () => act(() => api.processPending(scope)),
-    processSelected: (ids: number[]) => act(() => api.processSources(ids)),
+    processPending: () => start(() => api.processPending(scope)),
+    processSelected: (ids: number[]) => start(() => api.processSources(ids)),
     deleteSelected: (ids: number[]) => act(async () => {
       const { skipped } = await api.deleteSources(ids)
       if (skipped.length) callbacks.current.onError(`${skipped.length} source(s) can't be deleted while processing or built in`)

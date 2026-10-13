@@ -83,4 +83,26 @@ describe('useSourceBoard', () => {
 
     expect(latest.board?.title).toBe('B')
   })
+
+  it('says how many sources a batch process could not start', async () => {
+    vi.spyOn(api, 'getSourceBoard').mockResolvedValue(board('A'))
+    vi.spyOn(api, 'processSources').mockResolvedValue({ started: [1], skipped: [2, 3] })
+
+    await render('all')
+    await flush()
+    await act(async () => latest.processSelected([1, 2, 3]))
+
+    expect(callbacks.onError).toHaveBeenCalledWith("2 sources can't be processed right now")
+  })
+
+  it('stays quiet when every source started', async () => {
+    vi.spyOn(api, 'getSourceBoard').mockResolvedValue(board('A'))
+    vi.spyOn(api, 'processPending').mockResolvedValue({ started: [1], skipped: [] })
+
+    await render('all')
+    await flush()
+    await act(async () => latest.processPending())
+
+    expect(callbacks.onError).not.toHaveBeenCalled()
+  })
 })
