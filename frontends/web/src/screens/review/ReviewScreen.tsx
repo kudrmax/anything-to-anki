@@ -12,7 +12,7 @@ import { PhraseCard } from './PhraseCard'
 import { PhraseRow } from './PhraseRow'
 import { SelectionPopover } from './SelectionPopover'
 import { SortMenu } from './SortMenu'
-import { SourceText, type SelectionPoint } from './SourceText'
+import { SourceText, type SelectedText, type SelectionPoint } from './SourceText'
 import { audioUrlForCandidate, useReview } from './useReview'
 import { useShownCandidates } from './useShownCandidates'
 import css from './review.module.css'
@@ -31,7 +31,7 @@ export function ReviewScreen() {
   const requestedCandidate = searchParams.get(CANDIDATE_PARAM)
   const review = useReview(Number(id), requestedCandidate === null ? null : Number(requestedCandidate))
   const listRef = useRef<HTMLDivElement>(null)
-  const [selection, setSelection] = useState<{ phrase: string; point: SelectionPoint } | null>(null)
+  const [selection, setSelection] = useState<{ selected: SelectedText; point: SelectionPoint } | null>(null)
   const [sourceTextShown, setSourceTextShown] = useState(() => sourceTextShownPref.read())
   const toggleSourceText = () => {
     sourceTextShownPref.write(!sourceTextShown)
@@ -194,13 +194,13 @@ export function ReviewScreen() {
   // Правка границ фразы идёт по тексту источника — на телефоне показываем его.
   const view: PhoneView = editing ? 'text' : phoneView
 
-  const sourceText = (onWordClick: (id: number) => void) => (
+  const sourceText = (onWordClick: (id: number) => void) => review.document && (
     <SourceText
-      text={source.cleaned_text ?? source.raw_text}
+      document={review.document}
       candidates={candidates}
       focusId={editing?.candidateId ?? currentId}
       onWordClick={onWordClick}
-      onTextSelected={(phrase, point) => setSelection({ phrase, point })}
+      onTextSelected={(selected, point) => setSelection({ selected, point })}
     />
   )
 
@@ -249,11 +249,11 @@ export function ReviewScreen() {
       </div>
       {selection && (
         <SelectionPopover
-          phrase={selection.phrase}
+          phrase={selection.selected.text}
           point={selection.point}
           editing={editing}
-          onSetBoundary={async phrase => { if (await review.setBoundary(phrase)) setSelection(null) }}
-          onAddWord={async (target, context) => { if (await review.addWord(target, context)) setSelection(null) }}
+          onSetBoundary={async () => { if (await review.setBoundary(selection.selected.selection)) setSelection(null) }}
+          onAddWord={async target => { if (await review.addWord(target, selection.selected.selection)) setSelection(null) }}
           onCancel={closeSelection}
         />
       )}

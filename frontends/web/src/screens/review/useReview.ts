@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { CandidateStatus, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, SaveClozeRequest, SourceDetail, StoredCandidate } from '@/api/types'
+import type { CandidateStatus, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, SaveClozeRequest, SourceDetail, SourceDocument, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
@@ -32,6 +32,7 @@ export const audioUrlForCandidate = candidateAudioUrl
 
 export function useReview(sourceId: number, requestedId: number | null = null) {
   const [source, setSource] = useState<SourceDetail | null>(null)
+  const [document, setDocument] = useState<SourceDocument | null>(null)
   const [candidates, setCandidates] = useState<StoredCandidate[]>([])
   const [loading, setLoading] = useState(true)
   const [currentId, setCurrentId] = useState<number | null>(null)
@@ -62,9 +63,15 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     if (hasCandidateVpnErrors(cands)) setVpnBlocked(true)
   }, [])
 
+  const loadDocument = useCallback(async (hasText: boolean) => {
+    // Подсветки на экране источника следуют за кандидатами: после правок их надо перечитать.
+    setDocument(hasText ? await api.getSourceDocument(sourceId).catch(() => null) : null)
+  }, [sourceId])
+
   const loadCandidates = useCallback(async () => {
     applyCandidates(await fetchCandidates())
-  }, [fetchCandidates, applyCandidates])
+    await loadDocument(source?.has_source_text ?? false)
+  }, [fetchCandidates, applyCandidates, loadDocument, source])
 
   const loadGeneration = useCallback(async () => {
     try {
@@ -80,6 +87,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
         const src = await api.getSource(sourceId, sortOrder)
         setSource(src)
         setCandidates(src.candidates)
+        await loadDocument(src.has_source_text)
         setCurrentId(prev => prev ?? initialFocusId(src.candidates, requestedId))
         await loadGeneration()
       } catch {
@@ -89,7 +97,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
       }
     }
     void load()
-  }, [sourceId, sortOrder, loadGeneration, requestedId])
+  }, [sourceId, sortOrder, loadGeneration, loadDocument, requestedId])
 
   const inProgress = generation?.in_progress ?? false
   useEffect(() => {
@@ -296,10 +304,10 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   }, [])
 
   /** true — граница сохранена; при ошибке показывает её и оставляет попап открытым. */
-  const setBoundary = async (phrase: string): Promise<boolean> => {
+  const setBoundary = async (selection: DocumentSelection): Promise<boolean> => {
     if (!editing) return false
     try {
-      await api.updateCandidateFragment(editing.candidateId, phrase)
+      await api.setPhraseBoundary(editing.candidateId, selection)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to save the boundary')
       return false
@@ -310,9 +318,9 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   }
 
   /** true — слово добавлено; при ошибке показывает её и оставляет попап открытым. */
-  const addWord = async (target: string, context: string): Promise<boolean> => {
+  const addWord = async (target: string, selection: DocumentSelection): Promise<boolean> => {
     try {
-      const result = await api.addManualCandidate(sourceId, target, context)
+      const result = await api.addManualCandidate(sourceId, target, selection)
       window.getSelection()?.removeAllRanges()
       await loadCandidates()
       setCurrentId(result.id)
@@ -376,7 +384,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   const learnCount = candidates.filter(c => c.status === 'learn').length
 
   return {
-    sourceId, source, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,
+    sourceId, source, document, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,
     counts: { marked: markedCount, total: candidates.length, learn: learnCount, progress: candidates.length > 0 ? markedCount / candidates.length : 0 },
     generation, generationActions,
     mark, generate, replaceWithExample,

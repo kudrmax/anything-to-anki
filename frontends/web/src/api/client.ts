@@ -29,13 +29,13 @@ import type {
   SourceDetail,
   SourceMediaStats,
   SourceSummary,
-  SourceType,
   Stats,
   StoredCandidate,
-  SubtitleTrack,
-  BookChapterPreview,
-  AudioTrack,
   SyncResult,
+  AddSourceResult,
+  DetectedFormat,
+  DocumentSelection,
+  SourceDocument,
   UsagePeriod,
   NoteTypeCheck,
   NoteTypeKind,
@@ -68,17 +68,27 @@ function queueAction(action: 'cancel' | 'retry' | 'dismiss', selection: QueueSel
 }
 
 export const api = {
-  createSource: (raw_text: string, input_method: SourceType, title?: string) =>
-    req<{ id: number; status: string }>('/sources', {
+  addSource: (text: string, subtitlesPath: string, title: string, answers: Record<string, string>) =>
+    req<AddSourceResult>('/sources/add', {
       method: 'POST',
-      body: JSON.stringify({ raw_text, input_method, ...(title ? { title } : {}) }),
+      body: JSON.stringify({
+        text,
+        answers,
+        ...(subtitlesPath ? { subtitles_path: subtitlesPath } : {}),
+        ...(title ? { title } : {}),
+      }),
     }),
 
-  createUrlSource: (url: string, title?: string) =>
-    req<{ id: number; status: string }>('/sources/url', {
+  detectFormat: (text: string, signal?: AbortSignal) =>
+    req<DetectedFormat>('/sources/detect-format', { method: 'POST', body: JSON.stringify({ text }), signal }),
+
+  createTopic: (query: string, title?: string) =>
+    req<{ id: number; status: string }>('/sources/topic', {
       method: 'POST',
-      body: JSON.stringify({ url, ...(title ? { title } : {}) }),
+      body: JSON.stringify({ query, ...(title ? { title } : {}) }),
     }),
+
+  getSourceDocument: (sourceId: number) => req<SourceDocument>(`/sources/${sourceId}/document`),
 
   renameSource: (id: number, title: string) =>
     req<{ id: number; title: string }>(`/sources/${id}/title`, {
@@ -215,10 +225,10 @@ export const api = {
   fixNoteType: (kind: NoteTypeKind) =>
     req<NoteTypeCheck>(`/anki/note-types/${kind}/fix`, { method: 'POST' }),
 
-  updateCandidateFragment: (candidateId: number, contextFragment: string) =>
-    req<{ id: number; context_fragment: string }>(`/candidates/${candidateId}/context-fragment`, {
-      method: 'PATCH',
-      body: JSON.stringify({ context_fragment: contextFragment }),
+  setPhraseBoundary: (candidateId: number, selection: DocumentSelection) =>
+    req<{ id: number; context_fragment: string }>(`/candidates/${candidateId}/phrase-boundary`, {
+      method: 'PUT',
+      body: JSON.stringify({ selection }),
     }),
 
   reportCandidate: (candidateId: number, reasons: string[], comment: string) =>
@@ -241,10 +251,10 @@ export const api = {
       body: JSON.stringify({ phrase, target }),
     }),
 
-  addManualCandidate: (sourceId: number, surfaceForm: string, contextFragment: string) =>
+  addManualCandidate: (sourceId: number, surfaceForm: string, selection: DocumentSelection) =>
     req<StoredCandidate>(`/sources/${sourceId}/candidates/manual`, {
       method: 'POST',
-      body: JSON.stringify({ surface_form: surfaceForm, context_fragment: contextFragment }),
+      body: JSON.stringify({ surface_form: surfaceForm, selection }),
     }),
 
   getMediaStats: () => req<SourceMediaStats[]>('/api/settings/media-stats'),
@@ -254,42 +264,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ source_id: sourceId, kind }),
     }),
-
-  createFileSource: async (
-    filePath: string,
-    srtPath: string | undefined,
-    title: string | undefined,
-    subtitleTrackIndex: number | undefined,
-    audioTrackIndex: number | undefined,
-    splitBook?: boolean,
-  ): Promise<{
-    id?: number
-    status: string
-    subtitle_tracks?: SubtitleTrack[]
-    audio_tracks?: AudioTrack[]
-    file_path?: string
-    srt_path?: string
-    book_name?: string
-    word_count?: number
-    chapters?: BookChapterPreview[]
-  }> => {
-    const body: Record<string, unknown> = { file_path: filePath }
-    if (srtPath) body.srt_path = srtPath
-    if (title) body.title = title
-    if (subtitleTrackIndex !== undefined) body.subtitle_track_index = subtitleTrackIndex
-    if (audioTrackIndex !== undefined) body.audio_track_index = audioTrackIndex
-    if (splitBook !== undefined) body.split_book = splitBook
-    const res = await fetch(`${BASE}/sources/file`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => null)
-      throw new Error(err?.detail ?? res.statusText)
-    }
-    return res.json()
-  },
 
   getAnkiTemplates: () => req<AnkiTemplates>('/anki/templates'),
 

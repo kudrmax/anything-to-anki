@@ -57,6 +57,11 @@
 
 /* текст источника */
 .source { position: relative; margin-top: var(--source-leading-trim); mask-image: var(--source-mask); max-height: var(--source-max); overflow: auto; font-size: var(--fs-source); line-height: var(--lh-loose); color: var(--tx3); white-space: pre-line; }
+.block, .heading, .listItem { margin-bottom: var(--s3); }
+.block:last-child, .heading:last-child, .listItem:last-child { margin-bottom: 0; }
+.heading { color: var(--tx2); font-weight: var(--fw-m); }
+.listItem { display: flex; gap: var(--s2); margin-inline-start: calc(var(--s4) * var(--depth)); }
+.listMarker { flex: none; user-select: none; }
 .fragment { color: var(--tx); background: var(--ac-tint); padding: var(--s1) 0; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .mark { background: none; color: inherit; cursor: pointer; }
 .markPending { color: var(--tx2); text-decoration: underline; text-decoration-color: var(--ac-underline); text-underline-offset: var(--s2); }

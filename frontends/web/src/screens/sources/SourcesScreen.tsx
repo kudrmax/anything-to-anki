@@ -71,7 +71,7 @@ export function SourcesScreen() {
   const aside = (
     <>
       <section className={`${css.add} ${css.desktopOnly}`}>
-        <AddSourceForm onCreated={store.prepend} onReload={store.reload} onToast={showToast} />
+        <AddSourceForm onReload={store.reload} onToast={showToast} />
       </section>
       <StatGrid>
         <Stat value={stats?.learn_count ?? 0} label="to learn" />

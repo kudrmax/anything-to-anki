@@ -1,36 +1,23 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { AudioTrack, BookChapterPreview, SourceSummary, SourceType, SubtitleTrack } from '@/api/types'
+import type { DetectedFormat, Question } from '@/api/types'
 import { nativeHost } from '@/lib/nativeHost'
-import { detectedFileType, detectedUrlType, isVideoPath, withDroppedPaths } from '@/lib/text/sourceInput'
+import { withDroppedPaths } from '@/lib/text/sourceInput'
 import { pickedWords, toggled } from '@/lib/text/words'
-import { Button, Field, Label, Segmented, Stack, Tabs, Text, TextArea, WordPicker } from '@/ui'
+import { Button, Field, Stack, Tabs, Text, TextArea, WordPicker } from '@/ui'
 import css from './AddSourceForm.module.css'
-import { BookSplitModal } from './BookSplitModal'
 import { PathField } from './PathField'
-import { TrackSelectionModal } from './TrackSelectionModal'
+import { QuestionsModal } from './QuestionsModal'
 import { useFileDrag } from './useFileDrag'
 
-type Tab = 'text' | 'url' | 'file' | 'topic' | 'phrase'
-type TextType = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file'
+type Tab = 'source' | 'topic' | 'phrase'
 
 const TABS: { value: Tab; label: string }[] = [
-  { value: 'text', label: 'Text' },
-  { value: 'url', label: 'URL' },
-  { value: 'file', label: 'File' },
+  { value: 'source', label: 'Source' },
   { value: 'topic', label: 'Topic' },
   { value: 'phrase', label: 'Phrase' },
 ]
-const TEXT_TYPES: { value: TextType; label: string }[] = [
-  { value: 'text_pasted', label: 'Text' },
-  { value: 'lyrics_pasted', label: 'Lyrics' },
-  { value: 'subtitles_file', label: 'Subtitles' },
-]
-const TEXT_PLACEHOLDER: Record<TextType, string> = {
-  text_pasted: 'Paste text here…',
-  lyrics_pasted: 'Paste song lyrics here…',
-  subtitles_file: 'Paste .srt subtitle content here…',
-}
+const SOURCE_PLACEHOLDER = 'Paste text, a file path or a link…'
 const TOPIC_PLACEHOLDER = 'Negotiating a salary, phrasal verbs with get…'
 const TOPIC_HINT = 'Targets come from AI, phrases from your sources'
 const PHRASE_PLACEHOLDER = 'Paste a phrase you came across…'
@@ -38,54 +25,38 @@ const PHRASE_HINT = 'Tap words to select target'
 const PHRASE_SAVED = 'Phrase saved'
 const SUBTITLE_EXTENSIONS = ['srt']
 const NO_SUBTITLES_ERROR = 'subtitles_not_available'
-const PREVIEW_LENGTH = 100
 const DROP_HINT = 'Drop the file here'
 const DRAG_HINT = 'or drag a file here'
 const BROWSER_DROP_ERROR = 'Dropped files reach the app only in the macOS app — enter the path instead'
-
-interface PendingTracks {
-  filePath: string
-  srtPath: string
-  subtitleTracks: SubtitleTrack[]
-  audioTracks: AudioTrack[]
-}
-
-interface PendingBook {
-  filePath: string
-  bookName: string
-  wordCount: number
-  chapters: BookChapterPreview[]
-}
+const DETECT_DELAY_MS = 300
 
 interface AddSourceFormProps {
-  onCreated: (source: SourceSummary) => void
   onReload: () => Promise<void>
   onToast: (message: string) => void
 }
 
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
-export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormProps) {
-  const [tab, setTab] = useState<Tab>('text')
+export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
+  const [tab, setTab] = useState<Tab>('source')
   const [title, setTitle] = useState('')
-  const [text, setText] = useState('')
-  const [textType, setTextType] = useState<TextType | null>(null)
-  const [url, setUrl] = useState('')
-  const [filePath, setFilePath] = useState('')
+  const [input, setInput] = useState('')
   const [srtPath, setSrtPath] = useState('')
+  const [detected, setDetected] = useState<DetectedFormat | null>(null)
   const [topic, setTopic] = useState('')
   const [phrase, setPhrase] = useState('')
   const [phraseTarget, setPhraseTarget] = useState<Set<number>>(new Set())
   const [phraseSaved, setPhraseSaved] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [picking, setPicking] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [pendingTracks, setPendingTracks] = useState<PendingTracks | null>(null)
-  const [pendingBook, setPendingBook] = useState<PendingBook | null>(null)
+  const [questions, setQuestions] = useState<Question[] | null>(null)
+  const [answers, setAnswers] = useState<Record<string, string>>({})
   const [host] = useState(() => nativeHost())
 
   const fileDrag = useFileDrag({
     onEnter: () => {
-      setTab('file')
+      setTab('source')
       setError(null)
     },
     onBrowserDrop: () => setError(BROWSER_DROP_ERROR),
@@ -94,21 +65,58 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
 
   useEffect(() => host?.onFileDrop(paths => {
     resetFileDrag()
-    setTab('file')
+    setTab('source')
     setError(null)
-    const chosen = withDroppedPaths({ filePath, srtPath }, paths)
-    setFilePath(chosen.filePath)
+    const chosen = withDroppedPaths({ filePath: input, srtPath }, paths)
+    setInput(chosen.filePath)
     setSrtPath(chosen.srtPath)
-  }), [host, filePath, srtPath, resetFileDrag])
+  }), [host, input, srtPath, resetFileDrag])
 
-  const addUrl = async () => {
-    if (!url.trim()) { setError('Please enter a URL'); return }
+  // Подсказку под полем считает backend: как он прочитает то, что вставлено.
+  useEffect(() => {
+    if (!input.trim()) { setDetected(null); return }
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      api.detectFormat(input, controller.signal).then(setDetected).catch(() => {})
+    }, DETECT_DELAY_MS)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [input])
+
+  const isVideo = detected?.format === 'video_file'
+
+  const pickFile = async () => {
+    if (!host) return
+    setPicking(true)
+    try {
+      const path = await host.pickFile()
+      if (path) {
+        setInput(path)
+        setSrtPath('')
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not open the file picker')
+    } finally {
+      setPicking(false)
+    }
+  }
+
+  const submitSource = async (given: Record<string, string>) => {
     setAdding(true)
     try {
-      await api.createUrlSource(url.trim(), title.trim() || undefined)
-      await onReload()
-      setUrl('')
+      const result = await api.addSource(input, isVideo ? srtPath.trim() : '', title.trim(), given)
+      if ('questions' in result) {
+        setAnswers(given)
+        setQuestions(result.questions)
+        return
+      }
+      setInput('')
+      setSrtPath('')
       setTitle('')
+      setAnswers({})
+      await onReload()
     } catch (e) {
       const message = messageOf(e)
       if (message.includes(NO_SUBTITLES_ERROR)) onToast('Subtitles are not available for this video')
@@ -118,119 +126,16 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
     }
   }
 
-  const addFile = async () => {
-    if (!filePath.trim()) { setError('Enter file path'); return }
-    setAdding(true)
-    try {
-      const result = await api.createFileSource(filePath.trim(), srtPath.trim() || undefined, title.trim() || undefined, undefined, undefined)
-      if (result.status === 'track_selection_required') {
-        setPendingTracks({
-          filePath: result.file_path ?? filePath.trim(),
-          srtPath: result.srt_path ?? srtPath.trim(),
-          subtitleTracks: result.subtitle_tracks ?? [],
-          audioTracks: result.audio_tracks ?? [],
-        })
-      } else if (result.status === 'book_split_required') {
-        setPendingBook({
-          filePath: result.file_path ?? filePath.trim(),
-          bookName: result.book_name ?? '',
-          wordCount: result.word_count ?? 0,
-          chapters: result.chapters ?? [],
-        })
-      } else if (result.id) {
-        setFilePath('')
-        setSrtPath('')
-        setTitle('')
-        await onReload()
-      }
-    } catch (e) {
-      setError(messageOf(e))
-    } finally {
-      setAdding(false)
-    }
-  }
-
-  const confirmTracks = async (subtitleIndex: number | undefined, audioIndex: number | undefined) => {
-    if (!pendingTracks) return
-    const pending = pendingTracks
-    setPendingTracks(null)
-    setAdding(true)
-    try {
-      const result = await api.createFileSource(pending.filePath, pending.srtPath || undefined, title.trim() || undefined, subtitleIndex, audioIndex)
-      if (result.id) {
-        setFilePath('')
-        setSrtPath('')
-        setTitle('')
-        await onReload()
-      }
-    } catch (e) {
-      onToast(messageOf(e))
-    } finally {
-      setAdding(false)
-    }
-  }
-
-  const confirmBook = async (split: boolean) => {
-    if (!pendingBook) return
-    const pending = pendingBook
-    setPendingBook(null)
-    setAdding(true)
-    try {
-      const result = await api.createFileSource(pending.filePath, undefined, title.trim() || undefined, undefined, undefined, split)
-      if (result.id) {
-        setFilePath('')
-        setTitle('')
-        await onReload()
-      }
-    } catch (e) {
-      onToast(messageOf(e))
-    } finally {
-      setAdding(false)
-    }
-  }
-
-  const addText = async () => {
-    if (!text.trim()) return
-    if (!textType) { setError('Select source type'); return }
-    setAdding(true)
-    try {
-      const created = await api.createSource(text.trim(), textType as SourceType, title.trim() || undefined)
-      onCreated({
-        id: created.id,
-        title: title.trim() || text.trim().slice(0, PREVIEW_LENGTH),
-        raw_text_preview: text.trim().slice(0, PREVIEW_LENGTH),
-        status: 'new',
-        source_type: textType,
-        content_type: textType === 'lyrics_pasted' ? 'lyrics' : 'text',
-        source_url: null,
-        video_downloaded: false,
-        created_at: new Date().toISOString(),
-        candidate_count: 0,
-        learn_count: 0,
-        decided_count: 0,
-        processing_stage: null,
-        collection_id: null,
-        collection_name: null,
-        awaiting_generation: false,
-        generation_status: null,
-        generation_error: null,
-        is_permanent: false,
-      })
-      setText('')
-      setTextType(null)
-      setTitle('')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to add source')
-    } finally {
-      setAdding(false)
-    }
+  const answer = (given: Record<string, string>) => {
+    setQuestions(null)
+    void submitSource({ ...answers, ...given })
   }
 
   const addTopic = async () => {
     if (!topic.trim()) { setError('Describe what you want to learn'); return }
     setAdding(true)
     try {
-      await api.createSource(topic.trim(), 'topic_query', title.trim() || undefined)
+      await api.createTopic(topic.trim(), title.trim() || undefined)
       await onReload()
       setTopic('')
       setTitle('')
@@ -266,11 +171,10 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
 
   const add = () => {
     setError(null)
-    if (tab === 'url') void addUrl()
-    else if (tab === 'file') void addFile()
-    else if (tab === 'topic') void addTopic()
+    if (tab === 'topic') void addTopic()
     else if (tab === 'phrase') void addPhrase()
-    else void addText()
+    else if (!input.trim()) setError('Paste text, a file path or a link')
+    else void submitSource({})
   }
 
   return (
@@ -279,25 +183,19 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
       <Stack gap="m">
         <Stack>
           {tab !== 'phrase' && <Field value={title} placeholder="Title (optional)" onChange={e => setTitle(e.target.value)} />}
-          {tab === 'text' && (
-            <TextArea value={text} placeholder={TEXT_PLACEHOLDER[textType ?? 'text_pasted']} onChange={e => setText(e.target.value)} />
-          )}
-          {tab === 'url' && (
-            <>
-              <Field value={url} placeholder="https://genius.com/… or youtube.com/…" onChange={e => setUrl(e.target.value)} />
-              {url.trim() && <Text tone="muted" size="s">{detectedUrlType(url)}</Text>}
-            </>
-          )}
-          {tab === 'file' && (
+          {tab === 'source' && (
             <>
               {fileDrag.dragging && <div className={css.dropZone}>{DROP_HINT}</div>}
-              <PathField value={filePath} placeholder="/path/to/movie.mkv, book.epub, notes.md…" onChange={setFilePath} onError={setError} />
-              {isVideoPath(filePath) && (
+              <TextArea value={input} placeholder={SOURCE_PLACEHOLDER} onChange={e => setInput(e.target.value)} />
+              {isVideo && (
                 <PathField value={srtPath} placeholder="/path/to/subtitles.srt (optional)" extensions={SUBTITLE_EXTENSIONS} onChange={setSrtPath} onError={setError} />
               )}
-              {filePath.trim()
-                ? <Text tone="muted" size="s">{detectedFileType(filePath)}</Text>
-                : host && !fileDrag.dragging && <Text tone="muted" size="s">{DRAG_HINT}</Text>}
+              <div className={css.hintRow}>
+                {detected
+                  ? <Text tone="muted" size="s">{detected.label}</Text>
+                  : host && !fileDrag.dragging && <Text tone="muted" size="s">{DRAG_HINT}</Text>}
+                {host && <Button busy={picking} onClick={pickFile}>Choose…</Button>}
+              </div>
             </>
           )}
           {tab === 'topic' && (
@@ -318,31 +216,11 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
             </>
           )}
         </Stack>
-        {tab === 'text' && (
-          <div>
-            <Label flush>Source type</Label>
-            <Segmented value={textType ?? ('' as TextType)} options={TEXT_TYPES} onChange={setTextType} />
-          </div>
-        )}
         {error && <Text tone="err" size="s">{error}</Text>}
         <Button variant="fill" wide busy={adding} onClick={add}>{tab === 'phrase' ? 'Add phrase' : 'Add source'}</Button>
       </Stack>
-      {pendingTracks && (
-        <TrackSelectionModal
-          subtitleTracks={pendingTracks.subtitleTracks}
-          audioTracks={pendingTracks.audioTracks}
-          onCancel={() => setPendingTracks(null)}
-          onConfirm={confirmTracks}
-        />
-      )}
-      {pendingBook && (
-        <BookSplitModal
-          bookName={pendingBook.bookName}
-          wordCount={pendingBook.wordCount}
-          chapters={pendingBook.chapters}
-          onCancel={() => setPendingBook(null)}
-          onConfirm={confirmBook}
-        />
+      {questions && (
+        <QuestionsModal questions={questions} onCancel={() => setQuestions(null)} onConfirm={answer} />
       )}
     </>
   )

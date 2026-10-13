@@ -84,7 +84,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   const [pickingImage, setPickingImage] = useState(false)
   const id = candidate.id
   const isRated = candidate.status !== 'pending'
-  const isVideo = review.source?.content_type === 'video'
+  const isVideo = review.source?.has_video ?? false
   const isEditing = review.editing?.candidateId === id
   const hasMeaning = Boolean(candidate.meaning?.meaning)
   const polishing = candidate.polish_status === 'queued' || candidate.polish_status === 'running'

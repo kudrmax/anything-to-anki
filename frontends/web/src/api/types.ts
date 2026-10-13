@@ -6,9 +6,10 @@ export type SourceStatus =
   | 'partially_reviewed'
   | 'reviewed'
 
-export type InputMethod = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file' | 'video_file' | 'book_file' | 'markdown_file' | 'youtube_url' | 'topic_query' | 'phrase_added'
-export type ContentType = 'text' | 'lyrics' | 'video' | 'topic' | 'phrases'
-export type SourceType = InputMethod
+/** Что это за контент: текст, книга, субтитры, песня. У Topic и Saved phrases вида нет. */
+export type SourceKind = 'text' | 'book' | 'subtitles' | 'song'
+export type SourceRole = 'content' | 'topic' | 'saved_phrases'
+export type SourceFormat = 'plain' | 'markdown' | 'html' | 'epub' | 'srt' | 'video_file' | 'youtube'
 
 export type ProcessingStage = 'analyzing_text' | 'collecting_phrases'
 
@@ -26,10 +27,11 @@ export interface Collection {
 export interface SourceSummary {
   id: number
   title: string
-  raw_text_preview: string
   status: SourceStatus
-  source_type: SourceType
-  content_type: ContentType
+  kind: SourceKind | null
+  role: SourceRole
+  /** Субтитры видеофайла или YouTube: кадры и аудио на карточках. */
+  has_video: boolean
   source_url: string | null
   video_downloaded: boolean
   created_at: string
@@ -190,6 +192,9 @@ export interface StoredCandidate {
   surface_form: string | null
   is_phrasal_verb: boolean
   has_custom_context_fragment: boolean
+  /** Где фраза и target стоят в документе источника; у замены примером их нет. */
+  phrase_position: DocumentPosition | null
+  target_position: DocumentPosition | null
   meaning: CandidateMeaning | null
   media: CandidateMedia | null
   /** Картинка-значение target'а: идёт на оборот карточки, кадр из видео — в media. */
@@ -209,11 +214,10 @@ export interface StoredCandidate {
 export interface SourceDetail {
   id: number
   title: string
-  raw_text: string
-  cleaned_text: string | null
   status: SourceStatus
-  source_type: SourceType
-  content_type: ContentType
+  kind: SourceKind | null
+  role: SourceRole
+  has_video: boolean
   can_polish_phrases: boolean
   /** Есть ли у источника свой текст, который показывает ревью. */
   has_source_text: boolean
@@ -386,25 +390,78 @@ export interface ReprocessStats {
   has_active_jobs: boolean
 }
 
-export interface BookChapterPreview {
-  /** Название источника, которым станет глава. */
-  title: string
-  word_count: number
+/** Кусок одного блока документа источника; символы — code points, конец не включается. */
+export interface DocumentPosition {
+  block: number
+  start_line: number
+  start_char: number
+  end_line: number
+  end_char: number
 }
 
-export interface SubtitleTrack {
-  index: number
-  language: string | null
-  title: string | null
-  codec: string
+/** Выделение на экране источника; может задеть несколько блоков — backend это отклонит. */
+export interface DocumentSelection {
+  start_block: number
+  start_line: number
+  start_char: number
+  end_block: number
+  end_line: number
+  end_char: number
 }
 
-export interface AudioTrack {
-  index: number
-  language: string | null
-  title: string | null
-  codec: string
-  channels: number | null
+export interface DocumentLine {
+  text: string
+}
+
+export interface DocumentBlock {
+  type: 'heading' | 'paragraph' | 'list_item'
+  lines: DocumentLine[]
+  level: number | null
+  /** flow — предложение продолжается со строки на строку; lines — каждая строка сама по себе. */
+  mode: 'flow' | 'lines' | null
+  ordered: boolean | null
+  depth: number | null
+}
+
+export interface Highlight {
+  candidate_id: number
+  position: DocumentPosition
+  cefr_level: string | null
+  is_phrasal_verb: boolean
+}
+
+export interface SourceDocument {
+  blocks: DocumentBlock[]
+  /** Target'ы, которые не пересекаются, в порядке чтения. */
+  highlights: Highlight[]
+}
+
+export interface DetailItem {
+  text: string
+  note: string | null
+}
+
+export interface QuestionOption {
+  id: string
+  label: string
+  /** К чему приведёт выбор, например главы, на которые разделится книга. */
+  details: { title: string; items: DetailItem[] } | null
+}
+
+export interface Question {
+  id: string
+  prompt: string
+  options: QuestionOption[]
+  default: string
+}
+
+export type AddSourceResult =
+  | { questions: Question[] }
+  | { source_ids: number[]; collection_id: number | null }
+
+export interface DetectedFormat {
+  format: SourceFormat | null
+  label: string
 }
 
 export interface SourceMediaStats {
