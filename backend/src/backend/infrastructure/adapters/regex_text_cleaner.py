@@ -26,6 +26,9 @@ _INVISIBLE_RE = re.compile(r"[\ufeff\u200b\u200c\u200d\u00ad\u2060]")
 # Multiple blank lines → single newline
 _MULTI_NEWLINES_RE = re.compile(r"\n{3,}")
 
+# Blank lines between paragraphs, however many → one
+_PARAGRAPH_BREAK_RE = re.compile(r"\n{2,}")
+
 # Multiple spaces → single space
 _MULTI_SPACES_RE = re.compile(r"[ \t]{2,}")
 
@@ -58,10 +61,10 @@ class RegexTextCleaner(TextCleaner):
         text = _MULTI_SPACES_RE.sub(" ", text)
         text = _MULTI_NEWLINES_RE.sub("\n\n", text)
 
-        # Strip each line and remove empty lines
+        # Strip each line; a blank line between paragraphs stays, so a heading never joins
+        # the sentence after it
         lines = [line.strip() for line in text.splitlines()]
-        lines = [line for line in lines if line]
-        text = "\n".join(lines)
+        text = _PARAGRAPH_BREAK_RE.sub("\n\n", "\n".join(lines))
 
         return text.strip()
 

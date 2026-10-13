@@ -19,6 +19,7 @@ _MAPPING: dict[InputMethod, ContentType] = {
     InputMethod.SUBTITLES_FILE: ContentType.TEXT,
     InputMethod.VIDEO_FILE: ContentType.VIDEO,
     InputMethod.BOOK_FILE: ContentType.TEXT,
+    InputMethod.MARKDOWN_FILE: ContentType.TEXT,
     InputMethod.YOUTUBE_URL: ContentType.VIDEO,
     InputMethod.TOPIC_QUERY: ContentType.TOPIC,
     InputMethod.PHRASE_ADDED: ContentType.PHRASES,

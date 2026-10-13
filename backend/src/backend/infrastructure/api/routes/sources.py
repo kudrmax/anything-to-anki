@@ -23,6 +23,7 @@ from backend.domain.exceptions import (
     BookReadError,
     CollectionNotFoundError,
     InvalidPhraseError,
+    NotATextFileError,
     PermanentSourceError,
     SourceAlreadyProcessedError,
     SourceHasActiveJobsError,
@@ -308,7 +309,7 @@ def create_file_source(
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except (ValueError, BookReadError) as e:
+    except (ValueError, BookReadError, NotATextFileError) as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     if isinstance(result, TrackSelectionRequired):

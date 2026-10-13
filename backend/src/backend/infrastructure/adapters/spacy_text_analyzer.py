@@ -3,12 +3,25 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import spacy
+from spacy.language import Language
 
 from backend.domain.entities.token_data import TokenData
 from backend.domain.ports.text_analyzer import TextAnalyzer
 
 if TYPE_CHECKING:
-    from spacy.language import Language
+    from spacy.tokens import Doc
+
+PARAGRAPH_BOUNDARIES = "paragraph_boundaries"
+PARAGRAPH_BREAK = "\n\n"
+
+
+@Language.component(PARAGRAPH_BOUNDARIES)
+def paragraph_boundaries(doc: Doc) -> Doc:
+    """A sentence never runs past a blank line: a heading or a list item stands alone."""
+    for token in doc[:-1]:
+        if token.is_space and PARAGRAPH_BREAK in token.text:
+            doc[token.i + 1].is_sent_start = True
+    return doc
 
 
 class SpaCyTextAnalyzer(TextAnalyzer):
@@ -16,6 +29,7 @@ class SpaCyTextAnalyzer(TextAnalyzer):
 
     def __init__(self, model_name: str = "en_core_web_sm") -> None:
         self._nlp: Language = spacy.load(model_name)
+        self._nlp.add_pipe(PARAGRAPH_BOUNDARIES, before="parser")
 
     def analyze(self, text: str) -> list[TokenData]:
         doc = self._nlp(text)

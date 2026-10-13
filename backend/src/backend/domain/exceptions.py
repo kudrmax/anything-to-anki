@@ -216,6 +216,14 @@ class BookReadError(DomainError):
     """Raised when a book file can't be read."""
 
 
+class NotATextFileError(DomainError):
+    """Raised when a file meant to be read as text is binary."""
+
+    def __init__(self, path: str) -> None:
+        super().__init__(f"Not a text file: {path}")
+        self.path = path
+
+
 class SourceNotTopicError(DomainError):
     """Raised when a topic-only operation is requested for a regular source."""
 

@@ -291,7 +291,7 @@ export function AddSourceForm({ onCreated, onReload, onToast }: AddSourceFormPro
           {tab === 'file' && (
             <>
               {fileDrag.dragging && <div className={css.dropZone}>{DROP_HINT}</div>}
-              <PathField value={filePath} placeholder="/path/to/movie.mkv or book.epub" onChange={setFilePath} onError={setError} />
+              <PathField value={filePath} placeholder="/path/to/movie.mkv, book.epub, notes.md…" onChange={setFilePath} onError={setError} />
               {isVideoPath(filePath) && (
                 <PathField value={srtPath} placeholder="/path/to/subtitles.srt (optional)" extensions={SUBTITLE_EXTENSIONS} onChange={setSrtPath} onError={setError} />
               )}

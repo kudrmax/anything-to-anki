@@ -53,3 +53,14 @@ class TestSpaCyTextAnalyzer:
     def test_empty_text(self) -> None:
         tokens = self.analyzer.analyze("")
         assert tokens == []
+
+    def test_blank_line_ends_a_sentence(self) -> None:
+        tokens = self.analyzer.analyze("The Birth of a Theory\n\nIt started in secret.")
+        heading = {t.sent_index for t in tokens if t.text in ("Birth", "Theory")}
+        body = {t.sent_index for t in tokens if t.text in ("started", "secret")}
+        assert len(heading) == len(body) == 1
+        assert heading != body
+
+    def test_single_line_break_does_not_end_a_sentence(self) -> None:
+        tokens = self.analyzer.analyze("I told him that\nwe would come back tomorrow.")
+        assert len({t.sent_index for t in tokens}) == 1
