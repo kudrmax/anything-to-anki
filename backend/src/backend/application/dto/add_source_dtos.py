@@ -74,3 +74,21 @@ class DetectedFormatDTO(BaseModel):
 
     format: Format | None
     label: str
+
+
+class AddSourceRequest(BaseModel):
+    """What the user put in the input field, with every answer given so far."""
+
+    text: str
+    subtitles_path: str | None = None
+    title: str | None = None
+    answers: dict[str, str] = {}
+
+
+class DetectFormatRequest(BaseModel):
+    text: str
+
+
+class CreateTopicRequest(BaseModel):
+    query: str
+    title: str | None = None

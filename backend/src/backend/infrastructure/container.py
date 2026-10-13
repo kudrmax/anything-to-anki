@@ -18,9 +18,7 @@ from backend.application.use_cases.add_source import AddSourceUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.assign_source_collection import AssignSourceToCollectionUseCase
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
-from backend.application.use_cases.create_book_sources import CreateBookSourcesUseCase
 from backend.application.use_cases.create_collection import CreateCollectionUseCase
-from backend.application.use_cases.create_source import CreateSourceUseCase
 from backend.application.use_cases.create_topic import CreateTopicUseCase
 from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
@@ -31,6 +29,7 @@ from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsU
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.use_cases.get_reprocess_stats import GetReprocessStatsUseCase
+from backend.application.use_cases.get_source_document import GetSourceDocumentUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.list_collections import ListCollectionsUseCase
@@ -46,6 +45,7 @@ from backend.application.use_cases.report_candidate import ReportCandidateUseCas
 from backend.application.use_cases.reprocess_source import ReprocessSourceUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.save_cloze import SaveClozeUseCase
+from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.application.utils.candidate_factory import CandidateFactory
@@ -79,7 +79,6 @@ from backend.infrastructure.adapters.dict_cache.usage_source import DictCacheUsa
 from backend.infrastructure.adapters.dict_cache.word_corpus_provider import (
     DictCacheWordCorpusProvider,
 )
-from backend.infrastructure.adapters.epub_book_reader import EpubBookReader
 from backend.infrastructure.adapters.http_ai_service import HttpAIService
 from backend.infrastructure.adapters.http_fetch import APP_USER_AGENT, http_get
 from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
@@ -168,7 +167,6 @@ if TYPE_CHECKING:
     from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
     from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
     from backend.application.use_cases.cleanup_youtube_video import CleanupYoutubeVideoUseCase
-    from backend.application.use_cases.create_source_from_url import CreateSourceFromUrlUseCase
     from backend.application.use_cases.download_pronunciation import DownloadPronunciationUseCase
     from backend.application.use_cases.download_video import DownloadVideoUseCase
     from backend.application.use_cases.edit_card_phrase import EditCardPhraseUseCase
@@ -278,7 +276,6 @@ class Container:
         self._picture_encoder = PillowCardPictureEncoder()
         self._media_extractor = FfmpegMediaExtractor(self._picture_encoder)
         self._file_reader = LocalFileReader()
-        self._book_reader = EpubBookReader()
 
         from backend.infrastructure.adapters.ytdlp_subtitle_fetcher import YtDlpSubtitleFetcher
         from backend.infrastructure.adapters.ytdlp_video_downloader import YtDlpVideoDownloader
@@ -343,12 +340,25 @@ class Container:
     def add_manual_candidate_use_case(self, session: Session) -> AddManualCandidateUseCase:
         return AddManualCandidateUseCase(
             source_repo=SqlaSourceRepository(session),
+            document_repo=SqlaDocumentRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             text_analyzer=self._text_analyzer,
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
             review_status=self._review_status_updater(session),
+        )
+
+    def set_phrase_boundary_use_case(self, session: Session) -> SetPhraseBoundaryUseCase:
+        return SetPhraseBoundaryUseCase(
+            candidate_repo=SqlaCandidateRepository(session),
+            document_repo=SqlaDocumentRepository(session),
+        )
+
+    def get_source_document_use_case(self, session: Session) -> GetSourceDocumentUseCase:
+        return GetSourceDocumentUseCase(
+            document_repo=SqlaDocumentRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
         )
 
     def add_saved_phrase_use_case(self, session: Session) -> AddSavedPhraseUseCase:
@@ -400,24 +410,6 @@ class Container:
 
     def create_topic_use_case(self, session: Session) -> CreateTopicUseCase:
         return CreateTopicUseCase(source_repo=SqlaSourceRepository(session))
-
-    def create_source_use_case(self, session: Session) -> CreateSourceUseCase:
-        return CreateSourceUseCase(
-            source_repo=SqlaSourceRepository(session),
-            subtitle_extractor=self._subtitle_extractor,
-            audio_track_lister=self._subtitle_extractor,
-            file_reader=self._file_reader,
-            video_path_resolver=self._video_path_resolver,
-            book_sources=self.create_book_sources_use_case(session),
-        )
-
-    def create_book_sources_use_case(self, session: Session) -> CreateBookSourcesUseCase:
-        return CreateBookSourcesUseCase(
-            source_repo=SqlaSourceRepository(session),
-            collection_repo=SqlaCollectionRepository(session),
-            settings_repo=SqlaSettingsRepository(session),
-            book_reader=self._book_reader,
-        )
 
     def rename_source_use_case(self, session: Session) -> RenameSourceUseCase:
         return RenameSourceUseCase(
@@ -765,10 +757,6 @@ class Container:
         return self._media_root
 
     @property
-    def video_path_resolver(self) -> VideoPathResolverImpl:
-        return self._video_path_resolver
-
-    @property
     def tts_generator(self) -> KokoroTTSGenerator:
         if self._tts_generator is None:
             from backend.infrastructure.adapters.kokoro_tts_generator import KokoroTTSGenerator
@@ -832,13 +820,6 @@ class Container:
             media_extractor=self._media_extractor,
             media_root=self._media_root,
             video_path_resolver=self._video_path_resolver,
-        )
-
-    def create_source_from_url_use_case(self, session: Session) -> CreateSourceFromUrlUseCase:
-        from backend.application.use_cases.create_source_from_url import CreateSourceFromUrlUseCase
-        return CreateSourceFromUrlUseCase(
-            source_repo=SqlaSourceRepository(session),
-            fetchers=self._url_fetchers,
         )
 
     def download_video_use_case(self, session: Session) -> DownloadVideoUseCase:

@@ -8,7 +8,6 @@ from backend.application.use_cases.regenerate_candidate_media import (
     RegenerateCandidateMediaUseCase,
 )
 from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
-from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
 
@@ -48,12 +47,8 @@ class TestRegenerateCandidateMedia:
 
         source = MagicMock()
         source.id = 42
-        source.content_type = ContentType.VIDEO
+        source.has_video = True
         source.video_path = "/videos/movie.mkv"
-        source.raw_text = (
-            "1\n00:00:01,000 --> 00:00:02,000\nHello world.\n\n"
-            "2\n00:00:03,000 --> 00:00:04,000\nHow are you?\n"
-        )
         source.audio_track_index = None
 
         candidate_repo = MagicMock()
@@ -115,9 +110,8 @@ class TestRegenerateCandidateMedia:
 
         source = MagicMock()
         source.id = 42
-        source.content_type = ContentType.VIDEO
+        source.has_video = True
         source.video_path = "/videos/movie.mkv"
-        source.raw_text = "irrelevant — parser is mocked"
         source.audio_track_index = 2
 
         candidate_repo = MagicMock()
@@ -165,7 +159,7 @@ class TestRegenerateCandidateMedia:
         candidate.meaning_image = CandidateMeaningImage(candidate_id=10, image_path=str(picked))
         source = MagicMock()
         source.id = 42
-        source.content_type = ContentType.VIDEO
+        source.has_video = True
         source.video_path = str(video)
         source.audio_track_index = None
         candidate_repo = MagicMock()
@@ -209,7 +203,7 @@ class TestRegenerateCandidateMedia:
         candidate.id = 10
         candidate.source_id = 42
         source = MagicMock()
-        source.content_type = ContentType.TEXT
+        source.has_video = False
 
         candidate_repo = MagicMock()
         candidate_repo.get_by_id.return_value = candidate
@@ -235,7 +229,7 @@ class TestRegenerateCandidateMedia:
         candidate.source_id = 42
         source = MagicMock()
         source.id = 42
-        source.content_type = ContentType.VIDEO
+        source.has_video = True
         source.video_path = "/videos/missing.mkv"
 
         candidate_repo = MagicMock()
@@ -272,9 +266,8 @@ class TestRegenerateCandidateMedia:
 
         source = MagicMock()
         source.id = 42
-        source.content_type = ContentType.VIDEO
+        source.has_video = True
         source.video_path = "/videos/movie.mkv"
-        source.raw_text = "irrelevant"
         source.audio_track_index = None
 
         candidate_repo = MagicMock()

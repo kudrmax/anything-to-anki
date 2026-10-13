@@ -5,20 +5,17 @@ from unittest.mock import MagicMock, patch
 import pytest
 from backend.application.use_cases.download_video import DownloadVideoUseCase
 from backend.domain.entities.source import Source
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.adapters.video_path_resolver import VideoPathResolverImpl
 
 
 def _make_youtube_source(source_url: str = "https://youtube.com/watch?v=abc") -> Source:
     return Source(
-        raw_text="1\n00:00:01,000 --> 00:00:02,000\nHello\n",
         status=SourceStatus.DONE,
-        input_method=InputMethod.YOUTUBE_URL,
-        content_type=ContentType.VIDEO,
         source_url=source_url,
-        id=42,
+        id=42, format=Format.YOUTUBE, kind=Kind.SUBTITLES,
     )
 
 

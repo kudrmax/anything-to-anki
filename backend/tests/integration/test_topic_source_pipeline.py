@@ -13,10 +13,10 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.topic_target import TopicTarget
 from backend.domain.exceptions import TopicTargetsMissingError
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import resolve_content_type
+from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
-from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.phrase_origin import PhraseOrigin
+from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.sqla_candidate_repository import (
@@ -44,34 +44,32 @@ LATER_ARTICLE = "The company answered with a counter-offer the next morning."
 def _add_source(
     session: Session,
     title: str,
-    input_method: InputMethod,
-    raw_text: str,
+    kind: Kind | None,
+    text: str,
     status: SourceStatus = SourceStatus.DONE,
-    cleaned_text: str | None = None,
 ) -> int:
+    """Content with a one-paragraph document, or a topic (no kind) asking for `text`."""
     source = SqlaSourceRepository(session).create(
         Source(
-            raw_text=raw_text,
             title=title,
             status=status,
-            input_method=input_method,
-            content_type=resolve_content_type(input_method),
-            cleaned_text=cleaned_text,
+            kind=kind,
+            role=SourceRole.CONTENT if kind else SourceRole.TOPIC,
+            topic_query=None if kind else text,
         ),
     )
     assert source.id is not None
-    if input_method is not InputMethod.TOPIC_QUERY:
+    if kind is not None:
         SqlaDocumentRepository(session).save(
             source.id,
-            Document((Paragraph(lines=(Line(raw_text),), mode=ParagraphMode.FLOW),)),
+            Document((Paragraph(lines=(Line(text),), mode=ParagraphMode.FLOW),)),
         )
     return source.id
 
 
 def _add_memoir_with_candidate(session: Session) -> None:
     memoir_id = _add_source(
-        session, "Memoir", InputMethod.TEXT_PASTED, MEMOIR_FRAGMENT,
-        cleaned_text=MEMOIR_FRAGMENT,
+        session, "Memoir", Kind.TEXT, MEMOIR_FRAGMENT,
     )
     SqlaCandidateRepository(session).create_batch([
         StoredCandidate(
@@ -91,7 +89,7 @@ def _add_memoir_with_candidate(session: Session) -> None:
 
 def _add_topic(session: Session) -> int:
     topic_id = _add_source(
-        session, "Salary talk", InputMethod.TOPIC_QUERY, "negotiating a salary",
+        session, "Salary talk", None, "negotiating a salary",
         status=SourceStatus.NEW,
     )
     examples = [
@@ -120,12 +118,12 @@ def test_topic_borrows_phrases_and_falls_back_to_generated(
     db_session: Session, container: Container,
 ) -> None:
     _add_source(
-        db_session, "Novel", InputMethod.TEXT_PASTED, NOVEL_TEXT, status=SourceStatus.NEW,
+        db_session, "Novel", Kind.TEXT, NOVEL_TEXT, status=SourceStatus.NEW,
     )
     _add_memoir_with_candidate(db_session)
     # Not processed yet: its document is read already, so the topic finds it too
     _add_source(
-        db_session, "Subtitles", InputMethod.SUBTITLES_FILE, LATER_ARTICLE,
+        db_session, "Subtitles", Kind.SUBTITLES, LATER_ARTICLE,
         status=SourceStatus.NEW,
     )
     SqlaKnownWordRepository(db_session).add("salary", "NOUN")
@@ -153,10 +151,6 @@ def test_topic_borrows_phrases_and_falls_back_to_generated(
     topic = SqlaSourceRepository(db_session).get_by_id(topic_id)
     assert topic is not None
     assert topic.status == SourceStatus.DONE
-    assert topic.cleaned_text is not None
-    assert set(topic.cleaned_text.split("\n")) == {
-        c.context_fragment for c in candidates.values()
-    }
 
 
 def test_reprocessing_picks_up_a_newly_added_source(
@@ -168,7 +162,7 @@ def test_reprocessing_picks_up_a_newly_added_source(
     process.execute(topic_id)
     assert _by_lemma(db_session, topic_id)["counter-offer"].origin == PhraseOrigin.generated()
 
-    _add_source(db_session, "Article", InputMethod.TEXT_PASTED, LATER_ARTICLE)
+    _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
     container.reprocess_source_use_case(db_session).execute(topic_id)
     process.execute(topic_id)
 
@@ -181,7 +175,7 @@ def test_topic_cannot_be_processed_before_targets_exist(
     db_session: Session, container: Container,
 ) -> None:
     topic_id = _add_source(
-        db_session, "Empty topic", InputMethod.TOPIC_QUERY, "phrasal verbs with get",
+        db_session, "Empty topic", None, "phrasal verbs with get",
         status=SourceStatus.NEW,
     )
     with pytest.raises(TopicTargetsMissingError):

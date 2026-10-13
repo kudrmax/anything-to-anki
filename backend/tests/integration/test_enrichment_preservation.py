@@ -12,8 +12,8 @@ from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.persistence.models import EnrichmentCacheModel
 from backend.infrastructure.persistence.sqla_candidate_meaning_image_repository import (
@@ -57,12 +57,8 @@ def _create_source_with_enriched_candidates(db_session: Session) -> int:
 
     source = source_repo.create(
         Source(
-            raw_text="She tends to procrastinate when facing deadlines.",
-            status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED,
-            content_type=ContentType.TEXT,
-            cleaned_text="She tends to procrastinate when facing deadlines.",
-        )
+            status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
     )
     assert source.id is not None
 
@@ -150,12 +146,8 @@ def _create_source_with_enriched_candidates_v2(
 
     source = source_repo.create(
         Source(
-            raw_text=text,
-            status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED,
-            content_type=ContentType.TEXT,
-            cleaned_text=text,
-        )
+            status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
     )
     assert source.id is not None
 

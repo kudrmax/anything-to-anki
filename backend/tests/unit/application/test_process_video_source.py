@@ -8,10 +8,10 @@ from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.candidate_sorter_support import threshold_resolver
@@ -20,14 +20,13 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
 
 
-def _make_source(input_method: InputMethod, raw_text: str = "") -> Source:
-    is_video = input_method == InputMethod.VIDEO_FILE
+def _make_source(source_format: Format) -> Source:
+    is_video = source_format is Format.VIDEO_FILE
     return Source(
         id=1,
-        raw_text=raw_text,
         status=SourceStatus.PROCESSING,
-        input_method=input_method,
-        content_type=ContentType.VIDEO if is_video else ContentType.TEXT,
+        format=source_format,
+        kind=Kind.SUBTITLES if is_video else Kind.TEXT,
         video_path="/tmp/movie.mp4" if is_video else None,
     )
 
@@ -94,7 +93,7 @@ class TestProcessVideoSource:
         document = _paragraph(
             Line("I think you should", 1200, 2500), Line("go back to school.", 2500, 4000),
         )
-        source = _make_source(InputMethod.VIDEO_FILE, raw_text="")
+        source = _make_source(Format.VIDEO_FILE)
         candidate = _make_candidate("you should go back", DocumentPosition(0, 0, 8, 1, 7))
         uc = self._make_use_case(source, [candidate], document)
         uc.execute(source_id=1)
@@ -108,7 +107,7 @@ class TestProcessVideoSource:
         assert upserted.audio_path is None
 
     def test_untimed_lines_give_no_time(self) -> None:
-        source = _make_source(InputMethod.TEXT_PASTED, raw_text="plain text")
+        source = _make_source(Format.PLAIN)
         candidate = _make_candidate("plain text", DocumentPosition(0, 0, 0, 0, 10))
         uc = self._make_use_case(source, [candidate], _paragraph(Line("plain text")))
         uc.execute(source_id=1)

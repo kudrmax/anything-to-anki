@@ -23,11 +23,11 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import GenerationBlockedError, GenerationNotSupportedError
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_kind import GenerationKind
 from backend.domain.value_objects.generation_scope import GenerationScope
-from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
@@ -77,10 +77,10 @@ def _job(cid: int, status: JobStatus, job_type: JobType = JobType.MEANING) -> Jo
     )
 
 
-def _source(content_type: ContentType = ContentType.TEXT, video_path: str | None = None) -> Source:
+def _source(source_format: Format = Format.PLAIN, video_path: str | None = None) -> Source:
     return Source(
-        id=SOURCE_ID, raw_text="t", status=SourceStatus.DONE,
-        input_method=InputMethod.TEXT_PASTED, content_type=content_type, video_path=video_path,
+        id=SOURCE_ID, status=SourceStatus.DONE,
+        video_path=video_path, format=source_format, kind=Kind.TEXT,
     )
 
 
@@ -189,7 +189,7 @@ class TestRunGeneration:
         assert setup.queued_ids() == []
 
     def test_kind_the_source_has_no_use_for_is_refused(self) -> None:
-        setup = _Setup([_candidate(1)], source=_source(ContentType.VIDEO, video_path="v.mp4"))
+        setup = _Setup([_candidate(1)], source=_source(Format.VIDEO_FILE, video_path="v.mp4"))
 
         with pytest.raises(GenerationNotSupportedError):
             setup.run.execute(SOURCE_ID, GenerationKind.TTS, GenerationScope.MISSING)
@@ -199,7 +199,7 @@ class TestRunGeneration:
             candidate_id=1, screenshot_path=None, audio_path=None,
             start_ms=0, end_ms=1000, generated_at=None,
         )
-        setup = _Setup([_candidate(1, media=media)], source=_source(ContentType.VIDEO))
+        setup = _Setup([_candidate(1, media=media)], source=_source(Format.VIDEO_FILE))
 
         with pytest.raises(GenerationBlockedError):
             setup.run.execute(SOURCE_ID, GenerationKind.MEDIA, GenerationScope.MISSING)
@@ -238,7 +238,7 @@ class TestGetGenerationStatus:
 
     def test_video_source_gets_media_instead_of_speech(self) -> None:
         setup = _Setup(
-            [_candidate(1)], source=_source(ContentType.VIDEO), video_downloading=True,
+            [_candidate(1)], source=_source(Format.VIDEO_FILE), video_downloading=True,
         )
 
         status = setup.status.execute(SOURCE_ID)

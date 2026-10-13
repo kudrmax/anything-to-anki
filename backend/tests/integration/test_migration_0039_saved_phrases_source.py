@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.source_role import SourceRole
 from backend.infrastructure.persistence import database
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
@@ -42,7 +41,7 @@ def test_saved_phrases_source_is_created_once(tmp_path: Path) -> None:
     # The repository maps the current schema.
     command.upgrade(cfg, "head")
     with Session(engine) as session:
-        source = SqlaSourceRepository(session).get_first_by_content_type(ContentType.PHRASES)
+        source = SqlaSourceRepository(session).get_first_by_role(SourceRole.SAVED_PHRASES)
     assert source is not None
     assert source.title == "Saved phrases"
     assert source.is_permanent

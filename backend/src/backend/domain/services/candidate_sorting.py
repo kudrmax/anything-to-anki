@@ -116,18 +116,14 @@ def _is_junk(candidate: StoredCandidate) -> bool:
     return is_single_word and candidate.zipf_frequency <= _MISSING_FROM_DICTIONARY_ZIPF
 
 
-def sort_chronologically(
-    candidates: list[StoredCandidate],
-    source_text: str,
-) -> list[StoredCandidate]:
-    """Sort candidates by position of context_fragment in source text."""
-    text_len = len(source_text)
+def sort_chronologically(candidates: list[StoredCandidate]) -> list[StoredCandidate]:
+    """In the order their phrases stand in the document; phrases without a place go last."""
 
-    def _position_key(c: StoredCandidate) -> tuple[int, int]:
-        pos = source_text.find(c.context_fragment)
-        if pos < 0:
-            pos = text_len
-        return (pos, c.id or 0)
+    def _position_key(c: StoredCandidate) -> tuple[bool, int, int, int, int]:
+        place = c.phrase_position
+        if place is None:
+            return (True, 0, 0, 0, c.id or 0)
+        return (False, place.block, place.start_line, place.start_char, c.id or 0)
 
     return sorted(candidates, key=_position_key)
 

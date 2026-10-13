@@ -12,9 +12,9 @@ from backend.application.dto.source_dtos import (
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
+from backend.domain.value_objects.source_role import SourceRole
 
 if TYPE_CHECKING:
     from backend.application.utils.candidate_sorter import CandidateSorter
@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.topic_target_repository import TopicTargetRepository
 
-_PREVIEW_LENGTH: int = 100
 _PENDING_JOB_STATUSES = [JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.FAILED]
 
 
@@ -84,11 +83,11 @@ class GetSourcesUseCase:
             result.append(
                 SourceDTO(
                     id=source.id,
-                    title=source.title or source.raw_text[:_PREVIEW_LENGTH],
-                    raw_text_preview=source.raw_text[:_PREVIEW_LENGTH],
+                    title=source.title or "",
                     status=source.status.value,
-                    source_type=source.input_method.value,
-                    content_type=source.content_type.value,
+                    kind=source.kind.value if source.kind else None,
+                    role=source.role.value,
+                    has_video=source.has_video,
                     source_url=source.source_url,
                     video_downloaded=source.video_path is not None,
                     created_at=source.created_at,
@@ -114,7 +113,7 @@ class GetSourcesUseCase:
 
     def _generation_of(self, source: Source) -> _TopicGeneration:
         assert source.id is not None
-        if source.content_type != ContentType.TOPIC or self._topic_target_repo.has_targets(
+        if source.role is not SourceRole.TOPIC or self._topic_target_repo.has_targets(
             source.id,
         ):
             return _TopicGeneration()
@@ -152,12 +151,11 @@ class GetSourcesUseCase:
         synced_ids = self._anki_sync_repo.get_synced_candidate_ids(candidate_ids)
         return SourceDetailDTO(
             id=source.id,
-            title=source.title or source.raw_text[:_PREVIEW_LENGTH],
-            raw_text=source.raw_text,
-            cleaned_text=source.cleaned_text,
+            title=source.title or "",
             status=source.status.value,
-            source_type=source.input_method.value,
-            content_type=source.content_type.value,
+            kind=source.kind.value if source.kind else None,
+            role=source.role.value,
+            has_video=source.has_video,
             can_polish_phrases=source.can_polish_phrases,
             has_source_text=source.has_text,
             source_url=source.source_url,

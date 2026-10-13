@@ -11,7 +11,7 @@ from backend.application.dto.candidate_dtos import (  # noqa: TC001
     MarkCandidateRequest,
     ReplaceWithExampleRequest,
     RevertPolishRequest,
-    UpdateContextFragmentRequest,
+    SetPhraseBoundaryRequest,
 )
 from backend.application.dto.card_report_dtos import (  # noqa: TC001
     CardReportDTO,
@@ -39,6 +39,7 @@ from backend.domain.exceptions import (
     InvalidClozeError,
     InvalidPhraseError,
     PhrasePolishNotSupportedError,
+    SourceHasNoDocumentError,
     UnknownImageUrlError,
     UnknownReportReasonError,
 )
@@ -130,23 +131,24 @@ def report_candidate(
         raise HTTPException(status_code=422, detail=str(e)) from e
 
 
-@router.patch("/{candidate_id}/context-fragment")
-def update_context_fragment(
+@router.put("/{candidate_id}/phrase-boundary")
+def set_phrase_boundary(
     candidate_id: int,
-    request: UpdateContextFragmentRequest,
+    request: SetPhraseBoundaryRequest,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, Any]:
-    from backend.infrastructure.persistence.sqla_candidate_repository import (
-        SqlaCandidateRepository,
-    )
-    repo = SqlaCandidateRepository(session)
-    candidate = repo.get_by_id(candidate_id)
-    if candidate is None:
-        raise HTTPException(status_code=404, detail=f"Candidate not found: {candidate_id}")
-    repo.update_context_fragment(candidate_id, request.context_fragment)
+    """The phrase of a card, selected anew on the source screen."""
+    try:
+        phrase = container.set_phrase_boundary_use_case(session).execute(
+            candidate_id, request.selection,
+        )
+    except (CandidateNotFoundError, SourceHasNoDocumentError) as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except InvalidPhraseError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     session.commit()
-    return {"id": candidate_id, "context_fragment": request.context_fragment}
+    return {"id": candidate_id, "context_fragment": phrase}
 
 
 @router.post("/{candidate_id}/polish", status_code=202)

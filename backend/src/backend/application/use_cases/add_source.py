@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.add_source_dtos import QuestionDTO, QuestionsRequired
 from backend.application.source_intake.document_normalizer import EMPTY_SOURCE_MESSAGE
+from backend.application.source_intake.typed_input import SUBTITLES_NEED_VIDEO_MESSAGE
 from backend.application.utils.typed_path import normalize_typed_path
 from backend.domain.exceptions import InvalidAnswerError, InvalidSourceInputError
 from backend.domain.value_objects.format import Format
@@ -27,7 +28,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-SUBTITLES_NEED_VIDEO_MESSAGE = "A .srt file can only be attached to a video"
 
 
 class AddSourceUseCase:

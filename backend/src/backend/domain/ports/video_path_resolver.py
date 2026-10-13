@@ -4,16 +4,16 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from backend.domain.value_objects.input_method import InputMethod
+    from backend.domain.value_objects.format import Format
 
 
 class VideoPathResolver(ABC):
     """Resolves video paths between storage (DB) and filesystem representations."""
 
     @abstractmethod
-    def resolve(self, stored_path: str, input_method: InputMethod) -> str:
+    def resolve(self, stored_path: str, source_format: Format | None) -> str:
         """Convert a stored relative video path to an absolute filesystem path."""
 
     @abstractmethod
-    def to_storage_path(self, absolute_path: str, input_method: InputMethod) -> str:
+    def to_storage_path(self, absolute_path: str, source_format: Format) -> str:
         """Convert an absolute/host path to a relative path for DB storage."""

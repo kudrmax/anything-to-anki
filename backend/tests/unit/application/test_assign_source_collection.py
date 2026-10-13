@@ -5,8 +5,8 @@ from backend.application.use_cases.assign_source_collection import AssignSourceT
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import CollectionNotFoundError, SourceNotFoundError
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -22,9 +22,8 @@ class TestAssignSourceToCollectionUseCase:
 
     def _make_source(self, source_id: int = 1) -> Source:
         return Source(
-            id=source_id, raw_text="test", status=SourceStatus.NEW,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=source_id, status=SourceStatus.NEW, format=Format.PLAIN, kind=Kind.TEXT,
+            )
 
     def test_assigns_source_to_collection(self) -> None:
         self.source_repo.get_by_id.return_value = self._make_source()

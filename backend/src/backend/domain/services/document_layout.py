@@ -3,6 +3,7 @@ from __future__ import annotations
 import bisect
 from dataclasses import dataclass
 
+from backend.domain.exceptions import InvalidPhraseError
 from backend.domain.value_objects.document import (
     BLOCK_SEPARATOR,
     FLOW_LINE_SEPARATOR,
@@ -16,6 +17,9 @@ from backend.domain.value_objects.document import (
     ParagraphMode,
 )
 from backend.domain.value_objects.document_position import DocumentPosition
+
+ONE_BLOCK_MESSAGE = "A phrase must stay within one paragraph"
+EMPTY_SELECTION_MESSAGE = "Select some text"
 
 
 @dataclass(frozen=True)
@@ -77,6 +81,23 @@ class DocumentLayout:
             self._placed(position.block, position.start_line).start + position.start_char,
             self._placed(position.block, position.end_line).start + position.end_char,
         )
+
+    def selected(
+        self, start: tuple[int, int, int], end: tuple[int, int, int],
+    ) -> DocumentPosition:
+        """What the user selected, from (block, line, char) to (block, line, char), without
+        the whitespace at its edges. A selection stays within one block."""
+        if start[0] != end[0]:
+            raise InvalidPhraseError(ONE_BLOCK_MESSAGE)
+        first = self.line_offset(start[0], start[1]) + start[2]
+        last = self.line_offset(end[0], end[1]) + end[2]
+        while first < last and self.text[first].isspace():
+            first += 1
+        while last > first and self.text[last - 1].isspace():
+            last -= 1
+        if first >= last:
+            raise InvalidPhraseError(EMPTY_SELECTION_MESSAGE)
+        return self.position(first, last)
 
     def line_offset(self, block: int, line: int) -> int:
         """Where a line starts in the text."""

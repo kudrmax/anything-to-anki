@@ -6,7 +6,6 @@ import pytest
 from backend.application.use_cases.create_topic import CreateTopicUseCase
 from backend.application.use_cases.detect_format import DetectFormatUseCase
 from backend.domain.exceptions import InvalidSourceInputError
-from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_input import LocalFile, PastedText, SourceInput, Url
 from backend.domain.value_objects.source_role import SourceRole
@@ -50,8 +49,8 @@ def test_topic_keeps_its_query(db_session: Session) -> None:
     assert topic.id is not None
     stored = SqlaSourceRepository(db_session).get_by_id(topic.id)
     assert stored is not None
-    assert (stored.role, stored.topic_query, stored.title, stored.content_type) == (
-        SourceRole.TOPIC, "job interviews", "job interviews", ContentType.TOPIC,
+    assert (stored.role, stored.topic_query, stored.title) == (
+        SourceRole.TOPIC, "job interviews", "job interviews",
     )
 
 

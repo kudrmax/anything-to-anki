@@ -13,6 +13,7 @@ from backend.domain.exceptions import (
     InvalidAnswerError,
     InvalidSourceInputError,
     NotATextFileError,
+    SubtitlesNotAvailableError,
 )
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import (
@@ -23,7 +24,6 @@ from backend.domain.value_objects.document import (
     ParagraphMode,
 )
 from backend.domain.value_objects.format import Format
-from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.question import Answers
 from backend.domain.value_objects.source_input import LocalFile, PastedText, Url
 from backend.infrastructure.adapters.local_file_reader import LocalFileReader
@@ -56,6 +56,7 @@ from tests.unit.infrastructure.readers.fakes import (
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from backend.domain.value_objects.fetched_subtitles import FetchedSubtitles
     from sqlalchemy.orm import Session
 
 pytestmark = pytest.mark.integration
@@ -128,9 +129,7 @@ class TestText:
         (source_id,) = created.source_ids
         source = SqlaSourceRepository(db_session).get_by_id(source_id)
         assert source is not None
-        assert (source.format, source.kind, source.input_method) == (
-            Format.PLAIN, Kind.TEXT, InputMethod.TEXT_PASTED,
-        )
+        assert (source.format, source.kind) == (Format.PLAIN, Kind.TEXT)
         assert source.title == "I want to go.\n\nNow."
         assert SqlaDocumentRepository(db_session).get(source_id) == Document((
             Paragraph((Line("I want to go."),), ParagraphMode.FLOW),
@@ -144,7 +143,7 @@ class TestText:
         (source_id,) = _created(add_source.execute(PastedText(text), answers=SONG)).source_ids
         source = SqlaSourceRepository(db_session).get_by_id(source_id)
         assert source is not None
-        assert (source.kind, source.input_method) == (Kind.SONG, InputMethod.LYRICS_PASTED)
+        assert source.kind is Kind.SONG
         assert SqlaDocumentRepository(db_session).get(source_id) == Document((
             Paragraph((Line("Hello darkness"), Line("my old friend")), ParagraphMode.LINES),
         ))
@@ -294,3 +293,62 @@ class TestVideo:
             Format.YOUTUBE, Kind.SUBTITLES, "A talk", YOUTUBE_URL,
         )
         assert source.video_path is None
+
+
+class TestTitles:
+    def test_untitled_text_is_named_by_its_start(
+        self, add_source: AddSourceUseCase, db_session: Session,
+    ) -> None:
+        text = "word " * 40
+        result = add_source.execute(PastedText(text), title="   ", answers=TEXT)
+        source = SqlaSourceRepository(db_session).get_by_id(_created(result).source_ids[0])
+        assert source is not None
+        assert source.title == ("word " * 20)[:100]
+
+    def test_chapters_are_named_by_the_template_setting(
+        self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
+    ) -> None:
+        SqlaSettingsRepository(db_session).set(
+            "book_chapter_title_template", "{{n}}. {{chapter_title}} ({{book_name}})",
+        )
+        result = add_source.execute(
+            LocalFile(_book(tmp_path, 2)), answers=Answers({"book.split": "split"}),
+        )
+        titles = [
+            source.title
+            for source_id in _created(result).source_ids
+            if (source := SqlaSourceRepository(db_session).get_by_id(source_id))
+        ]
+        assert titles == ["1. Chapter 1 (Flourish)", "2. Chapter 2 (Flourish)"]
+
+    def test_html_file_is_text_named_after_the_file(
+        self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
+    ) -> None:
+        path = tmp_path / "Article.html"
+        path.write_text("<html><body><h1>News</h1><p>Text.</p></body></html>")
+        result = add_source.execute(LocalFile(str(path)), answers=TEXT)
+        source = SqlaSourceRepository(db_session).get_by_id(_created(result).source_ids[0])
+        assert source is not None
+        assert (source.title, source.format, source.kind) == ("Article", Format.HTML, Kind.TEXT)
+
+
+def test_youtube_without_subtitles_is_reported(db_session: Session, tmp_path: Path) -> None:
+    class _NoSubtitles(FakeYouTube):
+        def fetch_subtitles(self, url: str, language: str = "en") -> FetchedSubtitles:
+            raise SubtitlesNotAvailableError("No subtitles")
+
+    youtube = _NoSubtitles()
+    writer = SourceWriter(
+        SqlaSourceRepository(db_session),
+        SqlaDocumentRepository(db_session),
+        VideoPathResolverImpl(data_dir=str(tmp_path)),
+    )
+    use_case = AddSourceUseCase(
+        detector=RegexFormatDetector(youtube),
+        readers=(YouTubeReader(youtube),),
+        handlers=(SingleSourceHandler(Kind.SUBTITLES, writer),),
+        normalizer=DocumentNormalizer(RegexTextCleaner(), SlangNormalizer()),
+        file_reader=LocalFileReader(),
+    )
+    with pytest.raises(SubtitlesNotAvailableError):
+        use_case.execute(Url(YOUTUBE_URL))

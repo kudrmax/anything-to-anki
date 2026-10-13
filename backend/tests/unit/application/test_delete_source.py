@@ -11,8 +11,8 @@ from backend.domain.exceptions import (
     SourceIsProcessingError,
     SourceNotFoundError,
 )
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
@@ -32,9 +32,8 @@ class TestDeleteSourceUseCase:
 
     def test_deletes_candidates_then_source(self) -> None:
         self.source_repo.get_by_id.return_value = Source(
-            id=1, raw_text="Hello", status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         manager = MagicMock()
         manager.attach_mock(self.candidate_repo.delete_by_source, "delete_by_source")
         manager.attach_mock(self.source_repo.delete, "delete")
@@ -65,9 +64,8 @@ class TestDeleteSourceUseCase:
 
     def test_processing_raises(self) -> None:
         self.source_repo.get_by_id.return_value = Source(
-            id=1, raw_text="Hello", status=SourceStatus.PROCESSING,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.PROCESSING, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         with pytest.raises(SourceIsProcessingError):
             self.use_case.execute(1)
         self.candidate_repo.delete_by_source.assert_not_called()
@@ -85,9 +83,8 @@ class TestDeleteSourceUseCase:
         source_repo = MagicMock()
         candidate_repo = MagicMock()
         source_repo.get_by_id.return_value = Source(
-            id=42, raw_text="video srt", status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=42, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         uc = DeleteSourceUseCase(
             source_repo=source_repo,
             candidate_repo=candidate_repo,
@@ -107,9 +104,8 @@ class TestDeleteSourceUseCase:
         source_repo = MagicMock()
         candidate_repo = MagicMock()
         source_repo.get_by_id.return_value = Source(
-            id=42, raw_text="text", status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=42, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         uc = DeleteSourceUseCase(
             source_repo=source_repo,
             candidate_repo=candidate_repo,

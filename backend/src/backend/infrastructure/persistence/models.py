@@ -29,10 +29,8 @@ from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVot
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.content import Kind
-from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.format import Format
-from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_role import SourceRole
@@ -104,7 +102,9 @@ class SourceModel(Base):
     __tablename__ = "sources"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    raw_text: Mapped[str] = mapped_column(Text, nullable=False)
+    # raw_text, cleaned_text, input_method and content_type are what sources were before
+    # documents; they are read once, to move old sources onto documents, and then dropped.
+    raw_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     cleaned_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="new")
@@ -131,12 +131,8 @@ class SourceModel(Base):
     def to_entity(self) -> Source:
         return Source(
             id=self.id,
-            raw_text=self.raw_text,
             title=self.title,
-            cleaned_text=self.cleaned_text,
             status=SourceStatus(self.status),
-            input_method=InputMethod(self.input_method),
-            content_type=ContentType(self.content_type),
             source_url=self.source_url,
             error_message=self.error_message,
             processing_stage=(
@@ -155,11 +151,8 @@ class SourceModel(Base):
     @staticmethod
     def from_entity(source: Source) -> SourceModel:
         return SourceModel(
-            raw_text=source.raw_text,
             title=source.title,
             status=source.status.value,
-            input_method=source.input_method.value,
-            content_type=source.content_type.value,
             source_url=source.source_url,
             video_path=source.video_path,
             audio_track_index=source.audio_track_index,

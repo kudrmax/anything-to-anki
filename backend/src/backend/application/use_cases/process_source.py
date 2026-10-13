@@ -16,8 +16,8 @@ from backend.domain.exceptions import (
 from backend.domain.services.document_time import time_of
 from backend.domain.services.known_word_filter import KnownWordFilter
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import ContentType
 from backend.domain.value_objects.processing_stage import ProcessingStage
+from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
@@ -73,7 +73,7 @@ class ProcessSourceUseCase:
             raise SourceNotFoundError(source_id)
         if source.status not in _ALLOWED_START_STATUSES:
             raise SourceAlreadyProcessedError(source_id)
-        if source.content_type == ContentType.TOPIC and not self._topic_ready(source_id):
+        if source.role is SourceRole.TOPIC and not self._topic_ready(source_id):
             raise TopicTargetsMissingError(source_id)
         self._source_repo.update_status(source_id, SourceStatus.PROCESSING)
 
@@ -110,7 +110,7 @@ class ProcessSourceUseCase:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
-        if source.content_type == ContentType.TOPIC:
+        if source.role is SourceRole.TOPIC:
             self._process_topic(source, on_stage_commit)
             return
 
@@ -169,7 +169,7 @@ class ProcessSourceUseCase:
                 generated_at=None,
             ))
             timed += 1
-        self._source_repo.update_status(source_id, SourceStatus.DONE, cleaned_text=result.text)
+        self._source_repo.update_status(source_id, SourceStatus.DONE)
         logger.info(
             "process_source: done (source_id=%d, candidates_created=%d, with_timecodes=%d)",
             source_id, len(created), timed,
@@ -187,7 +187,7 @@ class ProcessSourceUseCase:
         self._notify_stage(source.id, ProcessingStage.COLLECTING_PHRASES, on_stage_commit)
         collected = self._topic_phrase_collector.collect(source.id)
         created = self._candidate_repo.create_batch(collected.candidates)
-        self._source_repo.update_status(source.id, SourceStatus.DONE, cleaned_text=collected.text)
+        self._source_repo.update_status(source.id, SourceStatus.DONE)
         logger.info(
             "process_source: topic done (source_id=%d, candidates_created=%d)",
             source.id, len(created),

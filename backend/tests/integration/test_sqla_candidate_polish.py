@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 import pytest
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_tts import CandidateTTS
+from backend.domain.value_objects.document_position import DocumentPosition
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
@@ -73,7 +74,9 @@ class TestCandidatePolishPersistence:
             repo = SqlaCandidateRepository(s)
             repo.set_polished_fragment(1, "The stale air.")
             repo.set_polish_reverted(1, True)
-            repo.update_context_fragment(1, "The air around us was stale")
+            repo.update_phrase(
+                1, "The air around us was stale", DocumentPosition(0, 0, 0, 0, 27),
+            )
             s.commit()
             candidate = repo.get_by_id(1)
             assert candidate is not None

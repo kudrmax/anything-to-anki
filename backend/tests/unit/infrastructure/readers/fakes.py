@@ -5,7 +5,6 @@ from backend.domain.ports.subtitle_extractor import SubtitleExtractor
 from backend.domain.ports.url_source_fetcher import UrlSourceFetcher
 from backend.domain.value_objects.audio_track_info import AudioTrackInfo
 from backend.domain.value_objects.fetched_subtitles import FetchedSubtitles
-from backend.domain.value_objects.input_method import InputMethod
 from backend.domain.value_objects.subtitle_track_info import SubtitleTrackInfo
 
 YOUTUBE_URL = "https://www.youtube.com/watch?v=abc"
@@ -49,5 +48,5 @@ class FakeYouTube(UrlSourceFetcher):
 
     def fetch_subtitles(self, url: str, language: str = "en") -> FetchedSubtitles:
         return FetchedSubtitles(
-            srt_text=self._srt_text, title="A talk", input_method=InputMethod.YOUTUBE_URL,
+            srt_text=self._srt_text, title="A talk",
         )

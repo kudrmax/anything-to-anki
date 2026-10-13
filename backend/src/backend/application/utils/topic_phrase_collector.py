@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 SINGLE_OCCURRENCE = 1
 PHRASE_SEPARATOR = "\n"
-TITLE_PREVIEW_LENGTH = 100
 
 
 @dataclass(frozen=True)
@@ -169,4 +168,4 @@ class TopicPhraseCollector:
 
 
 def _title(source: Source) -> str:
-    return source.title or source.raw_text[:TITLE_PREVIEW_LENGTH]
+    return source.title or ""

@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from backend.domain.exceptions import SubtitlesNotAvailableError
-from backend.domain.value_objects.input_method import InputMethod
 from backend.infrastructure.adapters.ytdlp_subtitle_fetcher import YtDlpSubtitleFetcher
 
 
@@ -65,7 +64,6 @@ class TestYtDlpSubtitleFetcherFetch:
 
         assert result.srt_text == srt_content
         assert result.title == "Test Video"
-        assert result.input_method == InputMethod.YOUTUBE_URL
 
     def test_fetch_no_srt_raises(self) -> None:
         """No SRT file created → SubtitlesNotAvailableError."""

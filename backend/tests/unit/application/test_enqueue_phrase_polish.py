@@ -8,8 +8,8 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import PhrasePolishNotSupportedError
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -30,16 +30,15 @@ def _candidate(cid: int, status: CandidateStatus, polished: str | None = None) -
 
 
 def _use_case(
-    candidates: list[StoredCandidate], content_type: ContentType = ContentType.TEXT,
+    candidates: list[StoredCandidate], source_format: Format = Format.PLAIN,
 ) -> tuple[EnqueuePhrasePolishUseCase, MagicMock, MagicMock]:
     candidate_repo = MagicMock()
     candidate_repo.get_by_source.return_value = candidates
     candidate_repo.get_by_id.side_effect = lambda cid: next(c for c in candidates if c.id == cid)
     source_repo = MagicMock()
     source_repo.get_by_id.return_value = Source(
-        id=9, raw_text="t", status=SourceStatus.DONE,
-        input_method=InputMethod.TEXT_PASTED, content_type=content_type,
-    )
+        id=9, status=SourceStatus.DONE, format=source_format, kind=Kind.TEXT,
+        )
     job_repo = MagicMock()
     use_case = EnqueuePhrasePolishUseCase(
         candidate_repo=candidate_repo, source_repo=source_repo, job_repo=job_repo,
@@ -49,7 +48,7 @@ def _use_case(
 
 @pytest.mark.unit
 def test_video_source_is_refused() -> None:
-    use_case, _, job_repo = _use_case([_candidate(1, CandidateStatus.PENDING)], ContentType.VIDEO)
+    use_case, _, job_repo = _use_case([_candidate(1, CandidateStatus.PENDING)], Format.VIDEO_FILE)
 
     with pytest.raises(PhrasePolishNotSupportedError):
         use_case.execute_one(1)

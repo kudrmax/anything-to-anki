@@ -9,24 +9,24 @@ from backend.domain.entities.source import (
     _SOURCE_INPUT_FIELDS,
     Source,
 )
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
+from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 
 
 def _make_source(**kwargs: object) -> Source:
     defaults: dict[str, object] = {
         "id": 42,
-        "raw_text": "Hello world",
         "title": "My source",
-        "input_method": InputMethod.TEXT_PASTED,
-        "content_type": ContentType.TEXT,
+        "format": Format.VIDEO_FILE,
+        "kind": Kind.SUBTITLES,
+        "role": SourceRole.CONTENT,
         "source_url": "https://example.com",
         "video_path": "/tmp/video.mp4",
         "audio_track_index": 1,
         "created_at": datetime(2024, 1, 1, tzinfo=UTC),
         "status": SourceStatus.DONE,
-        "cleaned_text": "Hello world cleaned",
         "error_message": "some error",
         "processing_stage": None,
     }
@@ -57,10 +57,10 @@ class TestSourceResetToInitialState:
         reset = source.reset_to_initial_state()
 
         assert reset.id == 42
-        assert reset.raw_text == "Hello world"
         assert reset.title == "My source"
-        assert reset.input_method == InputMethod.TEXT_PASTED
-        assert reset.content_type == ContentType.TEXT
+        assert (reset.format, reset.kind, reset.role) == (
+            Format.VIDEO_FILE, Kind.SUBTITLES, SourceRole.CONTENT,
+        )
         assert reset.source_url == "https://example.com"
         assert reset.video_path == "/tmp/video.mp4"
         assert reset.audio_track_index == 1
@@ -69,14 +69,12 @@ class TestSourceResetToInitialState:
     def test_resets_derived_fields(self) -> None:
         source = _make_source(
             status=SourceStatus.DONE,
-            cleaned_text="cleaned",
             error_message="oops",
             processing_stage=None,
         )
         reset = source.reset_to_initial_state()
 
         assert reset.status == SourceStatus.NEW
-        assert reset.cleaned_text is None
         assert reset.error_message is None
         assert reset.processing_stage is None
 

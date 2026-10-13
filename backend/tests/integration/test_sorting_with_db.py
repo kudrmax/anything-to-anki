@@ -7,6 +7,7 @@ import pytest
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.candidate_sorting import sort_by_relevance, sort_chronologically
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.document_position import DocumentPosition
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 
 if TYPE_CHECKING:
@@ -23,9 +24,11 @@ def _make_candidate(
     is_phrasal_verb: bool = False,
     context_fragment: str = "",
     unknowns: int = 0,
+    position: DocumentPosition | None = None,
 ) -> StoredCandidate:
     return StoredCandidate(
         source_id=source_id,
+        phrase_position=position,
         lemma=lemma,
         pos="NN",
         cefr_level=cefr,
@@ -67,13 +70,12 @@ class TestSortingWithDb:
     def test_chronological_sort_after_db_roundtrip(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
         repo.create_batch([
-            _make_candidate(1, "third", 4.0, context_fragment="third thing"),
-            _make_candidate(1, "first", 4.0, context_fragment="first thing"),
-            _make_candidate(1, "second", 4.0, context_fragment="second thing"),
+            _make_candidate(1, "third", 4.0, position=DocumentPosition(2, 0, 0, 0, 5)),
+            _make_candidate(1, "first", 4.0, position=DocumentPosition(0, 1, 4, 1, 9)),
+            _make_candidate(1, "second", 4.0, position=DocumentPosition(0, 2, 0, 2, 5)),
         ])
         loaded = repo.get_by_source(1)
-        text = "the first thing then second thing finally third thing"
-        sorted_candidates = sort_chronologically(loaded, source_text=text)
+        sorted_candidates = sort_chronologically(loaded)
         assert [c.lemma for c in sorted_candidates] == ["first", "second", "third"]
 
     def test_is_sweet_spot_computed_after_load(self, db_session: Session) -> None:

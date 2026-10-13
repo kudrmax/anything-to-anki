@@ -12,9 +12,9 @@ from backend.domain.exceptions import (
     SourceHasNoDocumentError,
     SourceNotFoundError,
 )
-from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.candidate_sorter_support import threshold_resolver
@@ -49,9 +49,8 @@ class TestProcessSourceStart:
     def test_start_sets_processing(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="Text", status=SourceStatus.NEW,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.NEW, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         uc.start(1)
         mocks["source_repo"].update_status.assert_called_once_with(
             1, SourceStatus.PROCESSING,
@@ -66,18 +65,16 @@ class TestProcessSourceStart:
     def test_start_already_done(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="Text", status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         with pytest.raises(SourceAlreadyProcessedError):
             uc.start(1)
 
     def test_start_allows_error_retry(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="Text", status=SourceStatus.ERROR,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.ERROR, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         uc.start(1)
         mocks["source_repo"].update_status.assert_called_once()
 
@@ -87,9 +84,8 @@ class TestProcessSourceExecute:
     def test_execute_saves_candidates(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="Hello world", status=SourceStatus.PROCESSING,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.PROCESSING, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         mocks["settings_repo"].get.return_value = "B1"
         mocks["known_word_repo"].get_all_pairs.return_value = set()
         mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
@@ -115,9 +111,8 @@ class TestProcessSourceExecute:
     def test_execute_passes_usage_distribution(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="dodgy deal", status=SourceStatus.PROCESSING,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.PROCESSING, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         mocks["settings_repo"].get.return_value = "B1"
         mocks["known_word_repo"].get_all_pairs.return_value = set()
         mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
@@ -143,9 +138,8 @@ class TestProcessSourceExecute:
     def test_execute_passes_known_words_and_threshold_to_analysis(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="Hello", status=SourceStatus.PROCESSING,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.PROCESSING, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         settings = {"cefr_level": "B1", "frequent_word_threshold": "5.0"}
         mocks["settings_repo"].get.side_effect = lambda key, default=None: settings.get(
             key, default,
@@ -165,9 +159,8 @@ class TestProcessSourceExecute:
     def test_execute_saves_fragment_unknown_count(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="Hello", status=SourceStatus.PROCESSING,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.PROCESSING, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         mocks["settings_repo"].get.return_value = "B1"
         mocks["known_word_repo"].get_all_pairs.return_value = set()
         mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
@@ -199,9 +192,8 @@ class TestProcessSourceDocument:
     def test_source_without_a_document_is_an_error(self) -> None:
         uc, mocks = _make_use_case()
         mocks["source_repo"].get_by_id.return_value = Source(
-            id=1, raw_text="Text", status=SourceStatus.PROCESSING,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.PROCESSING, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         mocks["document_repo"].get.return_value = None
         with pytest.raises(SourceHasNoDocumentError):
             uc.execute(1)

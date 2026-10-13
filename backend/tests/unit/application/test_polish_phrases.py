@@ -7,10 +7,10 @@ from backend.application.use_cases.polish_phrases import PhrasePolishUseCase
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import ContentType
+from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.polished_phrase import PolishedPhrase
 from backend.domain.value_objects.prompts_config import PromptsConfig
 from backend.domain.value_objects.source_status import SourceStatus
@@ -55,14 +55,11 @@ def _candidate(
     )
 
 
-def _source(content_type: ContentType = ContentType.TEXT) -> Source:
+def _source(source_format: Format = Format.PLAIN) -> Source:
     return Source(
         id=9,
-        raw_text=_TEXT,
-        status=SourceStatus.DONE,
-        input_method=InputMethod.TEXT_PASTED,
-        content_type=content_type,
-    )
+        status=SourceStatus.DONE, format=source_format, kind=Kind.TEXT,
+        )
 
 
 def _use_case(
@@ -167,7 +164,7 @@ def test_skips_decided_and_already_polished_cards() -> None:
 
 @pytest.mark.unit
 def test_video_cards_are_not_polished() -> None:
-    use_case, _, ai, _ = _use_case([_candidate()], [], source=_source(ContentType.VIDEO))
+    use_case, _, ai, _ = _use_case([_candidate()], [], source=_source(Format.VIDEO_FILE))
 
     use_case.execute_batch([1])
 

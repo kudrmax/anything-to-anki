@@ -64,7 +64,7 @@ def client(_db_engine: object) -> Generator[TestClient, None, None]:
 
 
 def _create_topic(client: TestClient, query: str = "negotiating a salary") -> int:
-    response = client.post("/sources", json={"raw_text": query, "input_method": "topic_query"})
+    response = client.post("/sources/topic", json={"query": query})
     assert response.status_code == 201
     source_id: int = response.json()["id"]
     return source_id
@@ -88,7 +88,7 @@ def test_new_topic_awaits_generation(client: TestClient) -> None:
     source_id = _create_topic(client)
 
     summary = _summary(client, source_id)
-    assert summary["content_type"] == "topic"
+    assert summary["role"] == "topic"
     assert summary["title"] == "negotiating a salary"
     assert summary["awaiting_generation"] is True
     assert summary["generation_status"] is None
@@ -111,9 +111,9 @@ def test_generation_is_queued_once(client: TestClient) -> None:
 
 def test_generation_is_only_for_topics(client: TestClient) -> None:
     created = client.post(
-        "/sources", json={"raw_text": "Some text.", "input_method": "text_pasted"},
+        "/sources/add", json={"text": "Some text.", "answers": {"text.kind": "text"}},
     )
-    response = client.post(f"/sources/{created.json()['id']}/topic-targets/generate")
+    response = client.post(f"/sources/{created.json()['source_ids'][0]}/topic-targets/generate")
     assert response.status_code == 400
 
 

@@ -6,8 +6,9 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
+from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.candidate_sorter_support import candidate_sorter
@@ -43,10 +44,10 @@ class TestGetSourcesUseCase:
 
     def test_list_all(self) -> None:
         self.source_repo.list_all.return_value = [
-            Source(id=1, raw_text="Text one", status=SourceStatus.NEW,
-                   input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT),
-            Source(id=2, raw_text="Text two", status=SourceStatus.DONE,
-                   input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT),
+            Source(id=1, status=SourceStatus.NEW, format=Format.PLAIN, kind=Kind.TEXT,
+                   ),
+            Source(id=2, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+                   ),
         ]
         self.candidate_repo.get_by_source.return_value = []
         result = self.use_case.list_all()
@@ -61,8 +62,8 @@ class TestGetSourcesUseCase:
         from backend.domain.value_objects.job_type import JobType
 
         self.source_repo.list_all.return_value = [
-            Source(id=5, raw_text="salary talk", status=SourceStatus.NEW,
-                   input_method=InputMethod.TOPIC_QUERY, content_type=ContentType.TOPIC),
+            Source(id=5, status=SourceStatus.NEW, role=SourceRole.TOPIC, topic_query="salary talk",
+                   ),
         ]
         self.candidate_repo.get_by_source.return_value = []
         self.job_repo.get_jobs_by_status.return_value = [
@@ -79,10 +80,10 @@ class TestGetSourcesUseCase:
 
     def test_topic_with_targets_and_regular_sources_need_no_generation(self) -> None:
         self.source_repo.list_all.return_value = [
-            Source(id=5, raw_text="salary talk", status=SourceStatus.NEW,
-                   input_method=InputMethod.TOPIC_QUERY, content_type=ContentType.TOPIC),
-            Source(id=6, raw_text="Text", status=SourceStatus.NEW,
-                   input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT),
+            Source(id=5, status=SourceStatus.NEW, role=SourceRole.TOPIC, topic_query="salary talk",
+                   ),
+            Source(id=6, status=SourceStatus.NEW, format=Format.PLAIN, kind=Kind.TEXT,
+                   ),
         ]
         self.candidate_repo.get_by_source.return_value = []
         self.topic_target_repo.has_targets.return_value = True
@@ -95,8 +96,8 @@ class TestGetSourcesUseCase:
 
     def test_list_all_learn_count(self) -> None:
         self.source_repo.list_all.return_value = [
-            Source(id=1, raw_text="Text one", status=SourceStatus.DONE,
-                   input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT),
+            Source(id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+                   ),
         ]
         make_candidate = lambda status: StoredCandidate(  # noqa: E731
             id=1, source_id=1, lemma="word", pos="NOUN", cefr_level="B2",
@@ -116,18 +117,16 @@ class TestGetSourcesUseCase:
 
     def test_get_by_id_found(self) -> None:
         self.source_repo.get_by_id.return_value = Source(
-            id=1, raw_text="Hello", status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         self.candidate_repo.get_by_source.return_value = []
         result = self.use_case.get_by_id(1)
         assert result.id == 1
 
     def test_get_by_id_shows_first_fifteen_candidates_by_relevance(self) -> None:
         self.source_repo.get_by_id.return_value = Source(
-            id=1, raw_text="Hello", status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         self.candidate_repo.get_by_source.return_value = []
         assert self.use_case.get_by_id(1).initially_shown_candidates == 15
 
@@ -135,9 +134,8 @@ class TestGetSourcesUseCase:
         from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
         self.source_repo.get_by_id.return_value = Source(
-            id=1, raw_text="Hello", status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         self.candidate_repo.get_by_source.return_value = []
         result = self.use_case.get_by_id(1, sort_order=CandidateSortOrder.CHRONOLOGICAL)
         assert result.initially_shown_candidates is None
@@ -146,18 +144,16 @@ class TestGetSourcesUseCase:
         from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
         self.source_repo.get_by_id.return_value = Source(
-            id=1, raw_text="Hello", status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         self.candidate_repo.get_by_source.return_value = []
         result = self.use_case.get_by_id(1, sort_order=CandidateSortOrder.KEY_WORDS)
         assert result.initially_shown_candidates == 15
 
     def test_get_by_id_forbids_cloze_for_synced_candidates(self) -> None:
         self.source_repo.get_by_id.return_value = Source(
-            id=1, raw_text="Hello", status=SourceStatus.DONE,
-            input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-        )
+            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
+            )
         self.candidate_repo.get_by_source.return_value = [
             StoredCandidate(
                 id=cid, source_id=1, lemma=lemma, pos="NOUN", cefr_level="B2",

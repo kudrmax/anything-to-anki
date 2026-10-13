@@ -5,8 +5,9 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.document_position import DocumentPosition
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.candidate_sorter_support import candidate_sorter
@@ -15,15 +16,15 @@ SOURCE_TEXT = "The scythe was sharp. The feast was long. A scythe again."
 
 
 def _source() -> Source:
-    return Source(
-        id=1, raw_text=SOURCE_TEXT, status=SourceStatus.DONE,
-        input_method=InputMethod.TEXT_PASTED, content_type=ContentType.TEXT,
-    )
+    return Source(id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT)
 
 
-def _make(lemma: str, zipf: float, occurrences: int, fragment: str) -> StoredCandidate:
+def _make(
+    lemma: str, zipf: float, occurrences: int, fragment: str, block: int,
+) -> StoredCandidate:
     return StoredCandidate(
         source_id=1,
+        phrase_position=DocumentPosition(block, 0, 0, 0, len(fragment)),
         lemma=lemma,
         pos="NOUN",
         cefr_level="B2",
@@ -42,8 +43,8 @@ class TestCandidateSorter:
         settings_repo = MagicMock()
         settings_repo.get.return_value = None
         self.sorter = candidate_sorter(settings_repo)
-        self.feast = _make("feast", 3.95, occurrences=1, fragment="The feast was long.")
-        self.scythe = _make("scythe", 2.6, occurrences=2, fragment="A scythe again.")
+        self.feast = _make("feast", 3.95, occurrences=1, fragment="The feast was long.", block=0)
+        self.scythe = _make("scythe", 2.6, occurrences=2, fragment="A scythe again.", block=1)
 
     def _lemmas(self, order: CandidateSortOrder) -> list[str]:
         result = self.sorter.sort([self.scythe, self.feast], _source(), order)
@@ -55,5 +56,5 @@ class TestCandidateSorter:
     def test_key_words_puts_repeated_word_first(self) -> None:
         assert self._lemmas(CandidateSortOrder.KEY_WORDS) == ["scythe", "feast"]
 
-    def test_chronological_follows_source_text(self) -> None:
+    def test_chronological_follows_the_document(self) -> None:
         assert self._lemmas(CandidateSortOrder.CHRONOLOGICAL) == ["feast", "scythe"]

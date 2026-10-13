@@ -7,7 +7,6 @@ import pytest
 from backend.application.use_cases.get_media_storage_stats import (
     GetMediaStorageStatsUseCase,
 )
-from backend.domain.value_objects.content_type import ContentType
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -30,11 +29,11 @@ class TestGetMediaStorageStats:
         source1 = MagicMock()
         source1.id = 1
         source1.title = "Movie A"
-        source1.content_type = ContentType.VIDEO
+        source1.has_video = True
         source2 = MagicMock()
         source2.id = 2
         source2.title = "Movie B"
-        source2.content_type = ContentType.VIDEO
+        source2.has_video = True
 
         source_repo = MagicMock()
         source_repo.list_all.return_value = [source1, source2]
@@ -64,7 +63,7 @@ class TestGetMediaStorageStats:
 
         text_source = MagicMock()
         text_source.id = 1
-        text_source.content_type = ContentType.TEXT
+        text_source.has_video = False
 
         source_repo = MagicMock()
         source_repo.list_all.return_value = [text_source]
@@ -85,7 +84,7 @@ class TestGetMediaStorageStats:
         video_source = MagicMock()
         video_source.id = 7
         video_source.title = "Empty"
-        video_source.content_type = ContentType.VIDEO
+        video_source.has_video = True
 
         source_repo = MagicMock()
         source_repo.list_all.return_value = [video_source]
@@ -110,7 +109,7 @@ class TestGetMediaStorageStats:
         video_source = MagicMock()
         video_source.id = 99
         video_source.title = None
-        video_source.content_type = ContentType.VIDEO
+        video_source.has_video = True
 
         source_repo = MagicMock()
         source_repo.list_all.return_value = [video_source]

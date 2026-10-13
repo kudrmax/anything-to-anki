@@ -11,8 +11,8 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     SourceNotReprocessableError,
 )
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -34,12 +34,8 @@ def _make_use_case() -> tuple[ReprocessSourceUseCase, MagicMock, MagicMock, Magi
 def _source(status: SourceStatus) -> Source:
     return Source(
         id=1,
-        raw_text="Hello world",
-        status=status,
-        input_method=InputMethod.TEXT_PASTED,
-        content_type=ContentType.TEXT,
-        cleaned_text="hello world",
-    )
+        status=status, format=Format.PLAIN, kind=Kind.TEXT,
+        )
 
 
 @pytest.mark.unit
@@ -54,7 +50,7 @@ class TestReprocessSourceUseCase:
         candidate_repo.delete_by_source.assert_called_once_with(1)
         updated: Source = source_repo.update_source.call_args[0][0]
         assert updated.status == SourceStatus.NEW
-        assert updated.cleaned_text is None
+        assert updated.error_message is None
         process_source_uc.start.assert_called_once_with(1)
 
     def test_reprocess_error_source(self) -> None:
@@ -67,7 +63,7 @@ class TestReprocessSourceUseCase:
         candidate_repo.delete_by_source.assert_called_once_with(1)
         updated: Source = source_repo.update_source.call_args[0][0]
         assert updated.status == SourceStatus.NEW
-        assert updated.cleaned_text is None
+        assert updated.error_message is None
         process_source_uc.start.assert_called_once_with(1)
 
     def test_reprocess_reviewed_source(self) -> None:

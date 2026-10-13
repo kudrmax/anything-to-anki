@@ -8,9 +8,7 @@ from backend.domain.value_objects.source_role import SourceRole
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.content import Kind
-    from backend.domain.value_objects.content_type import ContentType
     from backend.domain.value_objects.format import Format
-    from backend.domain.value_objects.input_method import InputMethod
     from backend.domain.value_objects.processing_stage import ProcessingStage
     from backend.domain.value_objects.source_status import SourceStatus
 
@@ -20,15 +18,12 @@ SAVED_PHRASES_TITLE = "Saved phrases"
 
 @dataclass
 class Source:
-    """A text source submitted for vocabulary analysis."""
+    """Something the user added to learn from: content with a document, a topic,
+    or the saved phrases."""
 
-    raw_text: str
     status: SourceStatus
-    input_method: InputMethod
-    content_type: ContentType
     id: int | None = None
     title: str | None = None
-    cleaned_text: str | None = None
     error_message: str | None = None
     source_url: str | None = None
     video_path: str | None = None
@@ -44,15 +39,10 @@ class Source:
     @classmethod
     def saved_phrases(cls) -> Source:
         """The built-in source of phrases met anywhere and added one by one by hand."""
-        from backend.domain.value_objects.content_type import ContentType
-        from backend.domain.value_objects.input_method import InputMethod
         from backend.domain.value_objects.source_status import SourceStatus
 
         return cls(
-            raw_text="",
             status=SourceStatus.DONE,
-            input_method=InputMethod.PHRASE_ADDED,
-            content_type=ContentType.PHRASES,
             title=SAVED_PHRASES_TITLE,
             role=SourceRole.SAVED_PHRASES,
         )
@@ -60,16 +50,20 @@ class Source:
     @property
     def is_permanent(self) -> bool:
         """The app always keeps it: it can't be deleted, and there is nothing to reprocess."""
-        from backend.domain.value_objects.content_type import ContentType
-
-        return self.content_type == ContentType.PHRASES
+        return self.role is SourceRole.SAVED_PHRASES
 
     @property
     def has_text(self) -> bool:
         """Topics and hand-added phrases have no text of their own to show."""
-        from backend.domain.value_objects.content_type import ContentType
+        return self.role is SourceRole.CONTENT
 
-        return self.content_type not in (ContentType.TOPIC, ContentType.PHRASES)
+    @property
+    def has_video(self) -> bool:
+        """Subtitles of a video file or of YouTube. A YouTube video is a video from the start,
+        though its file is downloaded only later, on request."""
+        from backend.domain.value_objects.format import Format
+
+        return self.format in (Format.VIDEO_FILE, Format.YOUTUBE)
 
     @property
     def can_polish_phrases(self) -> bool:
@@ -77,19 +71,14 @@ class Source:
 
         A hand-added phrase is kept exactly as the user met it.
         """
-        from backend.domain.value_objects.content_type import ContentType
-
-        return self.content_type not in (ContentType.VIDEO, ContentType.PHRASES)
+        return not self.has_video and self.role is not SourceRole.SAVED_PHRASES
 
     def reset_to_initial_state(self) -> Source:
         from backend.domain.value_objects.source_status import SourceStatus
 
         return Source(
             id=self.id,
-            raw_text=self.raw_text,
             title=self.title,
-            input_method=self.input_method,
-            content_type=self.content_type,
             source_url=self.source_url,
             video_path=self.video_path,
             audio_track_index=self.audio_track_index,
@@ -104,11 +93,11 @@ class Source:
 
 
 _SOURCE_INPUT_FIELDS: frozenset[str] = frozenset({
-    "id", "raw_text", "title", "input_method", "content_type",
+    "id", "title",
     "source_url", "video_path", "audio_track_index", "collection_id", "created_at",
     "format", "kind", "role", "topic_query",
 })
 
 _SOURCE_DERIVED_FIELDS: frozenset[str] = frozenset({
-    "status", "cleaned_text", "error_message", "processing_stage",
+    "status", "error_message", "processing_stage",
 })

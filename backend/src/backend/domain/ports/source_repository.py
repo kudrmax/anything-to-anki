@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.domain.entities.source import Source
-    from backend.domain.value_objects.content_type import ContentType
     from backend.domain.value_objects.processing_stage import ProcessingStage
+    from backend.domain.value_objects.source_role import SourceRole
     from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -23,7 +23,7 @@ class SourceRepository(ABC):
     def list_all(self) -> list[Source]: ...
 
     @abstractmethod
-    def get_first_by_content_type(self, content_type: ContentType) -> Source | None: ...
+    def get_first_by_role(self, role: SourceRole) -> Source | None: ...
 
     @abstractmethod
     def update_status(
@@ -31,7 +31,6 @@ class SourceRepository(ABC):
         source_id: int,
         status: SourceStatus,
         *,
-        cleaned_text: str | None = None,
         error_message: str | None = None,
         processing_stage: ProcessingStage | None = None,
     ) -> None: ...

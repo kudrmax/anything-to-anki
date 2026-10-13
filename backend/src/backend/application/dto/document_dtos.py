@@ -32,3 +32,34 @@ class DocumentPositionDTO(BaseModel):
             end_line=self.end_line,
             end_char=self.end_char,
         )
+
+
+class LineDTO(BaseModel):
+    text: str
+
+
+class BlockDTO(BaseModel):
+    """A heading, a paragraph (`flow` — sentences run across lines, `lines` — each line apart)
+    or a list item. A heading has one line."""
+
+    type: str  # 'heading' | 'paragraph' | 'list_item'
+    lines: list[LineDTO]
+    level: int | None = None
+    mode: str | None = None
+    ordered: bool | None = None
+    depth: int | None = None
+
+
+class HighlightDTO(BaseModel):
+    """A target to mark on the source screen."""
+
+    candidate_id: int
+    position: DocumentPositionDTO
+    cefr_level: str | None
+    is_phrasal_verb: bool
+
+
+class SourceDocumentDTO(BaseModel):
+    blocks: list[BlockDTO]
+    # Targets that don't overlap, in reading order
+    highlights: list[HighlightDTO]

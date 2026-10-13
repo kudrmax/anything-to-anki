@@ -7,17 +7,16 @@ from unittest.mock import MagicMock
 from backend.application.use_cases.cleanup_youtube_video import CleanupYoutubeVideoUseCase
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.source import Source
-from backend.domain.value_objects.content_type import ContentType
-from backend.domain.value_objects.input_method import InputMethod
+from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
 
-def _make_source(input_method: InputMethod = InputMethod.YOUTUBE_URL) -> Source:
+def _make_source(source_format: Format = Format.YOUTUBE) -> Source:
     return Source(
-        raw_text="srt content",
         status=SourceStatus.DONE,
-        input_method=input_method,
-        content_type=ContentType.VIDEO,
+        format=source_format,
+        kind=Kind.SUBTITLES,
         id=1,
         video_path="/tmp/test_video.mp4",
     )
@@ -64,7 +63,7 @@ class TestCleanupYoutubeVideo:
         self.source_repo.update_video_path.assert_called_once_with(1, None)
 
     def test_skips_if_not_youtube(self) -> None:
-        source = _make_source(InputMethod.VIDEO_FILE)
+        source = _make_source(Format.VIDEO_FILE)
         self.source_repo.get_by_id.return_value = source
         self.use_case.execute(1)
         self.source_repo.update_video_path.assert_not_called()
