@@ -71,14 +71,15 @@ export function useCollections(props: Callbacks) {
     return true
   }
 
-  const place = async (sourceIds: number[], collectionId: number | null, targetName: string) => {
+  const place = async (sourceIds: number[], collectionId: number | null, targetName: string): Promise<boolean> => {
     const placed = await guarded(() => api.placeSources(sourceIds.map(source_id => ({ source_id, collection_id: collectionId }))))
-    if (!placed) return
+    if (!placed) return false
     callbacks.current.onSourcesMoved()
     callbacks.current.onUndo({
       message: `Moved ${sourcesWord(sourceIds.length)} to ${targetName}`,
       undo: async () => { await guarded(() => api.placeSources(placed.previous)); callbacks.current.onSourcesMoved() },
     })
+    return true
   }
 
   return { tree, reload, create, rename, move, remove, place }

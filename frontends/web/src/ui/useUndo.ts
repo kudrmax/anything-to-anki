@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { OVERLAY } from '../lib/hotkeys'
 import { typingIn } from '../lib/typing'
 
 const UNDO_MS = 6000
@@ -37,7 +38,7 @@ export function useUndo() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() !== 'z' || !(event.metaKey || event.ctrlKey) || event.shiftKey || typingIn(event.target)) return
-      if (!current.current) return
+      if (!current.current || document.querySelector(OVERLAY)) return
       event.preventDefault()
       void run()
     }

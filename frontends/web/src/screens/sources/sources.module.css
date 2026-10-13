@@ -5,7 +5,7 @@
 /* строка источника: тип | название | прогресс | действие | меню */
 .row { -webkit-touch-callout: none; display: grid; grid-template-columns: var(--source-row-cols); grid-template-areas: var(--source-row-areas); align-items: center; gap: var(--source-row-gap); padding: var(--s4); margin: 0 calc(var(--s4) * -1); border-radius: var(--r); transition: background var(--t); }
 .row:hover { background: var(--hover); }
-.selected, .selected:hover { background: var(--soft); }
+.selected, .selected:hover { background: var(--ac-wash); }
 .row[draggable="true"]:active { cursor: grabbing; }
 .clickable { cursor: pointer; }
 .type { grid-area: type; width: var(--h-word); height: var(--h-word); display: grid; place-items: center; border-radius: var(--rc); background: var(--soft); color: var(--tx2); }

@@ -164,8 +164,15 @@ export function SourcesScreen() {
     void collections.remove(id).then(deleted => { if (deleted && scope === id) setScope('all', { replace: true }) })
   }
   const placeSources = (ids: number[], collectionId: number | null) => {
-    clearSelection()
-    void collections.place(ids, collectionId, nameOf(collectionId))
+    const moved = new Set(ids)
+    void collections.place(ids, collectionId, nameOf(collectionId)).then(placed => {
+      if (!placed) return
+      // Перенесли одну невыбранную строку — чужой выбор остаётся.
+      setSelection(current => {
+        const { ids: shown } = pruned(current, order)
+        return shown.size === moved.size && [...shown].every(id => moved.has(id)) ? EMPTY_SELECTION : current
+      })
+    })
   }
   const pickMoveTarget = (collectionId: number | null) => {
     if (moveTarget?.kind === 'sources') placeSources(moveTarget.ids, collectionId)
@@ -206,10 +213,10 @@ export function SourcesScreen() {
 
   const groups = board.board?.groups.filter(g => g.sources.length > 0) ?? []
   const empty = (() => {
-    if (!board.board || groups.length > 0) return null
+    if (!board.board || !tree || groups.length > 0) return null
     if (query.trim()) return <Empty flush>Nothing matches “{query.trim()}”</Empty>
-    if (node) return <Empty flush>Drag sources here or use Move to…</Empty>
-    if (tree && tree.all.total === 0) {
+    if (node) return <Empty flush>{isPhone ? 'Use Move to… to add sources' : 'Drag sources here or use Move to…'}</Empty>
+    if (tree.all.total === 0) {
       return (
         <Empty flush>
           <div className={css.emptyStart}>

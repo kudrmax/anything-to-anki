@@ -96,12 +96,22 @@ describe('MoveToModal', () => {
     expect(podcasts.disabled).toBe(true)
     press('ArrowDown')
     press('Enter')
-    expect(onPick).toHaveBeenCalledWith(null, 'Top level')
+    expect(onPick).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('Escape closes', () => {
     render()
     press('Escape')
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('picking the current parent of a collection just closes', () => {
+    render({ excludeId: 11, collectionsOnly: true })
+    const current = options().find(o => o.textContent?.includes('Current'))!
+    expect(current.textContent).toContain('Friends')
+    act(() => current.click())
+    expect(onPick).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

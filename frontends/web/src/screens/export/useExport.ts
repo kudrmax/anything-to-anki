@@ -3,6 +3,7 @@ import { api } from '@/api/client'
 import type { ExportGroup, ExportSection, GlobalExport, Scope, Settings, SyncResult } from '@/api/types'
 import { useAnkiStatus } from '@/hooks/useAnkiStatus'
 import { statsStore } from '@/hooks/useStats'
+import { messageOf } from '@/lib/apiError'
 
 const countCards = (sections: ExportSection[]): number =>
   sections.reduce((sum, section) => sum + section.cards.length, 0)
@@ -30,7 +31,7 @@ export function useExport(sourceId?: number, scope: Scope = 'all') {
       try {
         applyExport(await api.getExportCards(sourceId, scope))
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to load')
+        setError(messageOf(e))
       } finally {
         setLoading(false)
       }
@@ -47,7 +48,7 @@ export function useExport(sourceId?: number, scope: Scope = 'all') {
       applyExport(await api.getExportCards(sourceId, scope))
       void statsStore.refresh()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Sync failed')
+      setError(messageOf(e))
     } finally {
       setSyncing(null)
     }

@@ -33,6 +33,18 @@ describe('useUndo', () => {
     expect(latest.offer).toBeNull()
   })
 
+  it('Cmd-Z leaves the offer alone while a dialog is open', async () => {
+    const undo = vi.fn(() => Promise.resolve())
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'dialog')
+    document.body.appendChild(dialog)
+    act(() => latest.show({ message: 'Moved', undo }))
+    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true })) })
+    dialog.remove()
+    expect(undo).not.toHaveBeenCalled()
+    expect(latest.offer).not.toBeNull()
+  })
+
   it('expires', () => {
     act(() => latest.show({ message: 'Moved', undo: () => Promise.resolve() }))
     act(() => { vi.advanceTimersByTime(6000) })

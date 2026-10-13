@@ -76,7 +76,9 @@ export function MoveToModal({ tree, title, excludeId, collectionsOnly = false, o
   }, [cursor])
 
   const pick = (target: Target | undefined) => {
-    if (target && !target.disabled) onPick(target.id, target.name)
+    if (!target || target.disabled) return
+    if (target.current) onClose()
+    else onPick(target.id, target.name)
   }
 
   const step = (direction: 1 | -1) => {

@@ -183,4 +183,56 @@ describe('SourcesScreen', () => {
     expect(seen.location).toBe('/?scope=unsorted')
     expect(host.querySelector('[role="toolbar"]')).toBeNull()
   })
+
+  it('moving one unselected row keeps the selection of other rows', async () => {
+    vi.spyOn(api, 'placeSources').mockResolvedValue({ previous: [{ source_id: 3, collection_id: null }] })
+    await render()
+    act(() => row('Pilot').dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })))
+    act(() => row('Second').dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })))
+
+    act(() => button('More', row('Finale')).click())
+    act(() => [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(i => i.textContent?.includes('Move to'))!.click())
+    const dialog = document.body.querySelector('[role="dialog"]')!
+    act(() => [...dialog.querySelectorAll<HTMLButtonElement>('[role="option"]')].find(o => o.textContent?.includes('Season 1'))!.click())
+    await settle()
+
+    expect(api.placeSources).toHaveBeenCalledWith([{ source_id: 3, collection_id: 11 }])
+    expect(host.textContent).toContain('2 selected')
+  })
+
+  it('keeps the selection when a move fails', async () => {
+    vi.spyOn(api, 'placeSources').mockRejectedValue(new Error('500: boom'))
+    await render()
+    act(() => row('Second').dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })))
+
+    act(() => button('Move to…', host.querySelector('[role="toolbar"]')!).click())
+    const dialog = document.body.querySelector('[role="dialog"]')!
+    act(() => [...dialog.querySelectorAll<HTMLButtonElement>('[role="option"]')].find(o => o.textContent?.includes('Season 1'))!.click())
+    await settle()
+
+    expect(host.textContent).toContain('1 selected')
+  })
+
+  it('shows no empty state until the tree has loaded', async () => {
+    let resolveTree: (t: CollectionTree) => void = () => {}
+    vi.mocked(api.getCollectionTree).mockReturnValue(new Promise(resolve => { resolveTree = resolve }))
+    vi.mocked(api.getSourceBoard).mockResolvedValue({ title: 'Season 1', groups: [] })
+    await render('/?scope=11')
+    expect(host.textContent).not.toContain('No sources here')
+    await act(async () => resolveTree(tree))
+    await settle()
+    expect(host.textContent).toContain('Drag sources here or use Move to…')
+  })
+
+  it('on a phone an empty collection points to Move to only', async () => {
+    document.documentElement.style.setProperty('--desktop-display', 'none')
+    try {
+      vi.mocked(api.getSourceBoard).mockResolvedValue({ title: 'Season 1', groups: [] })
+      await render('/?scope=11')
+      expect(host.textContent).toContain('Use Move to… to add sources')
+      expect(host.textContent).not.toContain('Drag sources here')
+    } finally {
+      document.documentElement.style.removeProperty('--desktop-display')
+    }
+  })
 })

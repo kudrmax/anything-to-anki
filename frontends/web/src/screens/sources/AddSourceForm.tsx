@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '@/api/client'
 import type { DetectedFormat, Question } from '@/api/types'
 import { droppedPathsIn, nativeHost } from '@/lib/nativeHost'
@@ -38,9 +38,15 @@ interface AddSourceFormProps {
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
 export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
-  const { state: navigationState } = useLocation()
+  const { state: navigationState, pathname, search } = useLocation()
+  const navigate = useNavigate()
   // Файл бросили на экран Sources: он открыл Add и передал пути сюда.
   const [dropped] = useState(() => withDroppedPaths({ filePath: '', srtPath: '' }, droppedPathsIn(navigationState)))
+  // Пути забраны в поле: в истории им не место, иначе «назад-вперёд» или перезагрузка вставят их снова.
+  const carriesPaths = droppedPathsIn(navigationState).length > 0
+  useEffect(() => {
+    if (carriesPaths) navigate(pathname + search, { replace: true, state: null })
+  }, [carriesPaths, navigate, pathname, search])
   const [mode, setMode] = useState<Mode>('source')
   const [input, setInput] = useState(dropped.filePath)
   const [title, setTitle] = useState('')
