@@ -1,15 +1,44 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
+
+PARAGRAPH_SEPARATOR = "\n\n"
+
+
+class BlockRole(StrEnum):
+    PARAGRAPH = "paragraph"
+    HEADING = "heading"
+    LIST_ITEM = "list_item"
+
+
+@dataclass(frozen=True)
+class TextBlock:
+    """One paragraph-like piece of a document's text.
+
+    A line after a `<br>` is a block of its own that `continues` the one before it.
+    """
+
+    text: str
+    link_chars: int
+    role: BlockRole = BlockRole.PARAGRAPH
+    heading_level: int = 0
+    list_depth: int = 0
+    ordered: bool = False
+    continues: bool = False
 
 
 @dataclass(frozen=True)
 class EpubChapter:
-    """A chapter of readable prose: paragraphs separated by blank lines."""
+    """A chapter of readable prose."""
 
     title: str | None
-    text: str
+    blocks: tuple[TextBlock, ...]
     word_count: int
+
+    @property
+    def text(self) -> str:
+        return PARAGRAPH_SEPARATOR.join(block.text for block in self.blocks)
 
 
 @dataclass(frozen=True)
@@ -26,14 +55,6 @@ class TocEntry:
     document: str
     fragment: str | None
     depth: int
-
-
-@dataclass(frozen=True)
-class TextBlock:
-    """One paragraph-like piece of a document's text."""
-
-    text: str
-    link_chars: int
 
 
 @dataclass(frozen=True)

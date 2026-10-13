@@ -62,7 +62,6 @@ _NON_WORD_RE = re.compile(r"\W+")
 # Contents nest parts, chapters and sections; the shallowest level with no piece longer
 # than a long chapter is the chapter level: parts are cut further, chapters are not.
 LONG_CHAPTER_WORDS = 25000
-PARAGRAPH_SEPARATOR = "\n\n"
 _TITLE_PUNCTUATION = " .:"
 
 
@@ -191,11 +190,9 @@ class ChapterAssembler:
         )
 
     def _chapter(self, layout: _Layout, boundary: _Boundary, end: int) -> EpubChapter:
-        blocks = layout.blocks[boundary.position : end]
-        text = PARAGRAPH_SEPARATOR.join(block.text for block in blocks)
         return EpubChapter(
             title=boundary.label or self._heading_at(layout, boundary.position),
-            text=text,
+            blocks=layout.blocks[boundary.position : end],
             word_count=layout.words_between(boundary.position, end),
         )
 
