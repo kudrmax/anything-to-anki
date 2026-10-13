@@ -293,9 +293,9 @@ def _position(
 ) -> DocumentPosition:
     """From the first word to the last: a phrase, or a target split by other words.
 
-    Line breaks the parser keeps as tokens are not part of it.
+    Line breaks the parser keeps as tokens, and tokens without text, are not part of it.
     """
-    chosen = [tokens[i] for i in indices if not tokens[i].text.isspace()]
+    chosen = [tokens[i] for i in indices if tokens[i].text.strip()]
     return layout.position(
         min(token.char_start for token in chosen), max(token.char_end for token in chosen),
     )
