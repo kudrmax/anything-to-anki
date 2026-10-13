@@ -29,6 +29,9 @@ _SPEAKER_LABEL_RE = re.compile(r"^([-–]\s*)?[A-Z][A-Z0-9'.]+(?: [A-Z0-9'.]+){0
 
 _MULTI_SPACES_RE = re.compile(r"[ \t]{2,}")
 
+# A dash that marks who speaks in a dialogue: "-Look out!" — not part of the words
+_DIALOGUE_DASH_RE = re.compile(r"^[-–—]+\s*")
+
 # A line with nothing to read left, e.g. a dialogue dash whose annotation was removed
 _NO_WORDS_RE = re.compile(r"^[^\w]*$")
 
@@ -99,7 +102,8 @@ class RegexSrtParser:
         text = _ANNOTATION_RE.sub("", "\n".join(text_lines))
         result: list[str] = []
         for line in text.splitlines():
-            line = _SPEAKER_LABEL_RE.sub(r"\1", line.strip())
+            line = _SPEAKER_LABEL_RE.sub("", line.strip())
+            line = _DIALOGUE_DASH_RE.sub("", line)
             line = _MULTI_SPACES_RE.sub(" ", line).strip()
             if not _NO_WORDS_RE.match(line):
                 result.append(line)

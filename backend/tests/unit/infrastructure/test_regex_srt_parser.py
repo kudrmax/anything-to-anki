@@ -145,6 +145,10 @@ class TestRegexSrtParser:
         srt = "1\n00:00:01,000 --> 00:00:03,000\nBLACK SAMSON: Get down!"
         assert self.parser.parse(srt) == "Get down!"
 
-    def test_keeps_dialogue_dash_lines(self) -> None:
-        srt = "1\n00:00:01,000 --> 00:00:03,000\n- [gasps] Hi.\n- Hello."
-        assert self.parser.parse(srt) == "- Hi.\n- Hello."
+    def test_drops_dialogue_dashes(self) -> None:
+        srt = "1\n00:00:01,000 --> 00:00:03,000\n- [gasps] Hi.\n-Look out!\n– JOE: Run."
+        assert self.parser.parse(srt) == "Hi.\nLook out!\nRun."
+
+    def test_keeps_dashes_inside_a_line(self) -> None:
+        srt = "1\n00:00:01,000 --> 00:00:03,000\nWell - maybe. A well-known fact."
+        assert self.parser.parse(srt) == "Well - maybe. A well-known fact."
