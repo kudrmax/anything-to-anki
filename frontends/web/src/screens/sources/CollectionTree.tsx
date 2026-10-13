@@ -29,7 +29,7 @@ interface CollectionTreeProps {
 
 export function CollectionTree(props: CollectionTreeProps) {
   const { tree, scope, onSelect, draggable } = props
-  const { isCollapsed, toggle } = useCollapsed()
+  const { isCollapsed, toggle, expand } = useCollapsed()
   const [editing, setEditing] = useState<Editing>(null)
   const [draft, setDraft] = useState('')
   const [hover, setHover] = useState<Hover>(null)
@@ -43,7 +43,10 @@ export function CollectionTree(props: CollectionTreeProps) {
     setDraft(initial)
     setEditing(next)
   }
-  const startCreate = (parentId: number | null) => startEditing({ kind: 'create', parentId }, '')
+  const startCreate = (parentId: number | null) => {
+    if (parentId !== null) expand(parentId)
+    startEditing({ kind: 'create', parentId }, '')
+  }
   const startRename = (node: CollectionNode) => startEditing({ kind: 'rename', id: node.id }, node.name)
   const finish = (commit: boolean) => {
     if (settled.current) return
@@ -67,11 +70,21 @@ export function CollectionTree(props: CollectionTreeProps) {
   }
   const carries = (e: DragEvent, mime: string) => e.dataTransfer.types.includes(mime)
 
+  /** Зона считается по самому событию: состояние hover могло не успеть обновиться. */
+  const zoneOf = (e: DragEvent, node: CollectionNode): DropZone => {
+    const box = e.currentTarget.getBoundingClientRect()
+    return zoneAt(e.clientY - box.top, box.height, node.accepts_collections)
+  }
+  // Переход курсора на дочерний элемент строки — не уход со строки.
+  const leave = (e: DragEvent) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+    setHover(null)
+  }
+
   const overNode = (e: DragEvent, node: CollectionNode) => {
     if (carries(e, SOURCES_MIME)) { e.preventDefault(); setHover({ id: node.id, zone: 'inside' }); return }
     if (!carries(e, COLLECTION_MIME) || draggedId === null) return
-    const box = e.currentTarget.getBoundingClientRect()
-    const zone = zoneAt(e.clientY - box.top, box.height, node.accepts_collections)
+    const zone = zoneOf(e, node)
     if (!collectionDrop(tree.collections, draggedId, node.id, zone)) { setHover(null); return }
     e.preventDefault()
     setHover({ id: node.id, zone })
@@ -81,8 +94,8 @@ export function CollectionTree(props: CollectionTreeProps) {
     e.preventDefault()
     const sources = sourcesIn(e)
     if (sources) props.onDropSources(sources, node.id)
-    else if (draggedId !== null && hover?.id === node.id) {
-      const target = collectionDrop(tree.collections, draggedId, node.id, hover.zone)
+    else if (draggedId !== null) {
+      const target = collectionDrop(tree.collections, draggedId, node.id, zoneOf(e, node))
       if (target) props.onMove(draggedId, target.parentId, target.position)
     }
     setHover(null)
@@ -118,11 +131,18 @@ export function CollectionTree(props: CollectionTreeProps) {
               onDragStart={e => { e.dataTransfer.setData(COLLECTION_MIME, String(node.id)); setDraggedId(node.id) }}
               onDragEnd={() => { setDraggedId(null); setHover(null) }}
               onDragOver={e => overNode(e, node)}
-              onDragLeave={() => setHover(null)}
+              onDragLeave={leave}
               onDrop={e => dropOnNode(e, node)}
             >
               {node.children.length > 0
-                ? <button type="button" className={css.twisty} aria-label={collapsed ? 'Expand' : 'Collapse'} onClick={e => { e.stopPropagation(); toggle(node.id) }}><Icon as={collapsed ? ChevronRight : ChevronDown} /></button>
+                ? <button
+                    type="button"
+                    className={css.twisty}
+                    aria-label={collapsed ? 'Expand' : 'Collapse'}
+                    onClick={e => { e.stopPropagation(); toggle(node.id) }}
+                    onDoubleClick={e => e.stopPropagation()}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation() }}
+                  ><Icon as={collapsed ? ChevronRight : ChevronDown} /></button>
                 : <span className={css.twisty} />}
               <span className={css.name}>{node.name}</span>
               <span className={css.count}>{node.counts.total}</span>
@@ -144,7 +164,7 @@ export function CollectionTree(props: CollectionTreeProps) {
       onClick={() => onSelect(key)}
       onKeyDown={e => { if (e.key === 'Enter') onSelect(key) }}
       onDragOver={key === 'unsorted' ? e => { if (carries(e, SOURCES_MIME)) { e.preventDefault(); setHover({ id: 'unsorted', zone: 'inside' }) } } : undefined}
-      onDragLeave={() => setHover(null)}
+      onDragLeave={leave}
       onDrop={key === 'unsorted' ? e => { e.preventDefault(); const s = sourcesIn(e); if (s) props.onDropSources(s, null); setHover(null) } : undefined}
     >
       <span className={css.twisty}><Icon as={icon} /></span>

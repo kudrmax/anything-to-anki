@@ -30,5 +30,14 @@ export function useCollapsed() {
       return next
     })
   }, [])
-  return { isCollapsed: (id: number) => collapsed.has(id), toggle }
+  const expand = useCallback((id: number) => {
+    setCollapsed(prev => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      store(next)
+      return next
+    })
+  }, [])
+  return { isCollapsed: (id: number) => collapsed.has(id), toggle, expand }
 }
