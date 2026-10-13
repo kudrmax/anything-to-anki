@@ -8,6 +8,7 @@ from backend.application.constants import BOOK_CHAPTER_TITLE_SETTING
 from backend.application.dto.add_source_dtos import SourcesCreated
 from backend.application.source_intake.kind_handler import KindHandler
 from backend.domain.entities.collection import Collection
+from backend.domain.services.collection_tree import CollectionTree
 from backend.domain.services.word_count import count_words
 from backend.domain.value_objects.chapter_title_template import (
     DEFAULT_CHAPTER_TITLE_TEMPLATE,
@@ -124,9 +125,12 @@ class BookHandler(KindHandler):
         return SourcesCreated(source_ids=[source_id])
 
     def _collection_id(self, name: str) -> int:
-        """A book added again joins its existing collection."""
-        existing = next((c for c in self._collection_repo.list_all() if c.name == name), None)
-        collection = existing or self._collection_repo.create(Collection(name=name))
+        """A book added again joins its existing top-level collection; a new one goes last."""
+        tree = CollectionTree(self._collection_repo.list_all())
+        existing = tree.find_top_level(name)
+        collection = existing or self._collection_repo.create(
+            Collection(name=name.strip(), position=tree.next_position(None)),
+        )
         assert collection.id is not None
         return collection.id
 
