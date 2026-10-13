@@ -21,6 +21,7 @@ from backend.application.use_cases.create_collection import CreateCollectionUseC
 from backend.application.use_cases.create_topic import CreateTopicUseCase
 from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
+from backend.application.use_cases.delete_sources import DeleteSourcesUseCase
 from backend.application.use_cases.detect_format import DetectFormatUseCase
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
@@ -38,6 +39,7 @@ from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
 from backend.application.use_cases.place_sources import PlaceSourcesUseCase
 from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
+from backend.application.use_cases.process_sources import ProcessSourcesUseCase
 from backend.application.use_cases.rename_collection import RenameCollectionUseCase
 from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
@@ -425,6 +427,9 @@ class Container:
             media_root=self._media_root,
         )
 
+    def delete_sources_use_case(self, session: Session) -> DeleteSourcesUseCase:
+        return DeleteSourcesUseCase(delete_source=self.delete_source_use_case(session))
+
     def get_sources_use_case(self, session: Session) -> GetSourcesUseCase:
         return GetSourcesUseCase(
             source_repo=SqlaSourceRepository(session),
@@ -477,6 +482,13 @@ class Container:
             document_repo=SqlaDocumentRepository(session),
             media_repo=SqlaCandidateMediaRepository(session),
             topic_phrase_collector=self._topic_phrase_collector(session),
+        )
+
+    def process_sources_use_case(self, session: Session) -> ProcessSourcesUseCase:
+        return ProcessSourcesUseCase(
+            scope_resolver=self._scope_resolver(session),
+            generation_probe=self._generation_probe(session),
+            process_source=self.process_source_use_case(session),
         )
 
     def _candidate_factory(self) -> CandidateFactory:
