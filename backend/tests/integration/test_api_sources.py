@@ -257,6 +257,14 @@ class TestBookFileSourceAPI:
         assert {s["collection_name"] for s in sources} == {"Dune"}
         assert {s["source_type"] for s in sources} == {"book_file"}
 
+    def test_path_copied_from_a_shell_is_accepted(
+        self, client: TestClient, tmp_path: Path,
+    ) -> None:
+        resp = client.post("/sources/file", json={"file_path": f"'{self._book(tmp_path)}'"})
+
+        assert resp.status_code == 201
+        assert resp.json()["status"] == "book_split_required"
+
     def test_broken_book_is_rejected(self, client: TestClient, tmp_path: Path) -> None:
         path = tmp_path / "broken.epub"
         path.write_text("not a book")

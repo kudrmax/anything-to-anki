@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from backend.application.dto.video_dtos import TrackSelectionRequired, VideoSourceCreated
+from backend.application.utils.typed_path import normalize_typed_path
 from backend.domain.entities.source import Source
 from backend.domain.value_objects.content_type import ContentType, resolve_content_type
 from backend.domain.value_objects.input_method import InputMethod
@@ -167,6 +168,8 @@ class CreateSourceUseCase:
     ) -> FileSourceResult:
         """Create source from a local file path. Determines type by extension."""
         assert self._file_reader is not None
+        file_path = normalize_typed_path(file_path)
+        srt_path = normalize_typed_path(srt_path) if srt_path else None
         if not self._file_reader.exists(file_path):
             msg = f"File not found: {file_path}"
             raise FileNotFoundError(msg)
