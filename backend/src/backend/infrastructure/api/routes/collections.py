@@ -37,12 +37,7 @@ _STATUS_BY_ERROR: tuple[tuple[type[Exception], int], ...] = (
     (CollectionMoveNotAllowedError, 409),
     (ValueError, 400),
 )
-_HANDLED = (
-    CollectionNotFoundError,
-    CollectionNameExistsError,
-    CollectionMoveNotAllowedError,
-    ValueError,
-)
+_HANDLED = tuple(kind for kind, _ in _STATUS_BY_ERROR)
 
 
 def _http_error(error: Exception) -> HTTPException:

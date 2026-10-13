@@ -8,6 +8,7 @@ from pathlib import Path  # noqa: TC003
 import pytest
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
+from backend.infrastructure.api.routes import sources as sources_routes
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import SourceModel, StoredCandidateModel
 from fastapi.testclient import TestClient
@@ -58,6 +59,18 @@ def client(_db_engine: object) -> Generator[TestClient, None, None]:
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def launched(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Ids handed to the background worker; the worker itself is replaced by a no-op."""
+    ids: list[int] = []
+
+    async def record(source_id: int, *_: object) -> None:
+        ids.append(source_id)
+
+    monkeypatch.setattr(sources_routes, "_process_background", record)
+    return ids
 
 
 TEXT_ANSWER = {"text.kind": "text"}
@@ -115,7 +128,7 @@ class TestSourcesAPI:
         assert len(response.json()) == 2
 
     def test_process_pending_starts_only_scope(
-        self, client: TestClient, db_session: Session,
+        self, client: TestClient, db_session: Session, launched: list[int],
     ) -> None:
         ielts = client.post("/collections", json={"name": "IELTS"}).json()
         db_session.add_all([
@@ -127,9 +140,10 @@ class TestSourcesAPI:
         assert started.status_code == 202
         titles = {s["id"]: s["title"] for s in client.get("/sources").json()}
         assert [titles[i] for i in started.json()["started"]] == ["in"]
+        assert launched == started.json()["started"]
 
     def test_process_batch_ignores_repeated_ids(
-        self, client: TestClient, db_session: Session,
+        self, client: TestClient, db_session: Session, launched: list[int],
     ) -> None:
         db_session.add(SourceModel(title="one", status="new"))
         db_session.commit()
@@ -139,6 +153,7 @@ class TestSourcesAPI:
         )
         assert response.status_code == 202
         assert response.json() == {"started": [source_id]}
+        assert launched == [source_id]
 
     def test_created_at_is_returned_with_utc_offset(self, client: TestClient) -> None:
         """Clients render times in the viewer's zone; they need the offset to do so."""
