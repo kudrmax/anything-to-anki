@@ -6,15 +6,24 @@ import pytest
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import NoteTemplates
 from backend.application.utils.export_queue import ExportQueue
+from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_tts import CandidateTTS
+from backend.domain.entities.collection import Collection
+from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import AnkiNotAvailableError, AnkiNoteTypeIncompleteError
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.export_group import ExportGroup
+from backend.domain.value_objects.source_scope import SourceScope
+from backend.domain.value_objects.source_status import SourceStatus
+
+from tests.unit.application.collection_fakes import InMemoryCollectionRepository
+from tests.unit.application.scope_fakes import empty_scope_resolver
+from tests.unit.application.source_fakes import InMemorySourceRepository
 
 
 class _EveryField(list[str]):
@@ -87,6 +96,7 @@ class TestSyncToAnkiUseCase:
             template_renderer=self.template_renderer,
             known_word_repo=self.known_word_repo,
             cloze_builder=ClozeBuilder(),
+            scope_resolver=empty_scope_resolver(),
         )
 
     def test_returns_zero_when_no_learn_candidates(self) -> None:
@@ -371,46 +381,39 @@ class TestSyncToAnkiUseCase:
         assert "Audio" not in note[0]
         self.anki_connector.store_media_file.assert_not_called()
 
-    def test_execute_all_aggregates_results(self) -> None:
-        """execute_all iterates over sources with learn candidates and aggregates."""
+    def test_all_scope_aggregates_results(self) -> None:
+        """The all scope pushes the learn candidates of every source in one go."""
         candidate1 = _make_candidate(10, "burnout", CandidateStatus.LEARN, source_id=1)
         candidate2 = _make_candidate(20, "pursuit", CandidateStatus.LEARN, source_id=2)
 
         self.candidate_repo.get_all_by_status.return_value = [candidate1, candidate2]
-        self.candidate_repo.get_by_source.side_effect = lambda sid: {
-            1: [candidate1],
-            2: [candidate2],
-        }[sid]
         self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        result = self.use_case.execute_all(ExportGroup.INCOMPLETE)
+        result = self.use_case.execute_scope(SourceScope.all(), ExportGroup.INCOMPLETE)
 
         assert result.total == 2
         assert result.added == 2
         assert result.errors == 0
 
-    def test_execute_all_skips_sources_with_everything_exported(self) -> None:
+    def test_all_scope_skips_sources_with_everything_exported(self) -> None:
         exported = _make_candidate(10, "burnout", CandidateStatus.LEARN, source_id=1)
         fresh = _make_candidate(20, "pursuit", CandidateStatus.LEARN, source_id=2)
 
         self.candidate_repo.get_all_by_status.return_value = [exported, fresh]
-        self.candidate_repo.get_by_source.side_effect = lambda sid: {
-            1: [exported],
-            2: [fresh],
-        }[sid]
         self.anki_sync_repo.get_synced_candidate_ids.side_effect = (
             lambda ids: {10} & set(ids)
         )
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        result = self.use_case.execute_all(ExportGroup.INCOMPLETE)
+        result = self.use_case.execute_scope(SourceScope.all(), ExportGroup.INCOMPLETE)
 
         assert result.total == 1
         assert result.added == 1
-        self.candidate_repo.get_by_source.assert_called_once_with(2)
+        notes = [c.kwargs["notes"][0]["Target"] for c in self._added_note_calls()]
+        assert notes == ["pursuit"]
 
     def _added_note_calls(self) -> list[Any]:
         return list(self.anki_connector.add_notes.call_args_list)
@@ -435,9 +438,9 @@ class TestSyncToAnkiUseCase:
         assert incomplete.total == 2
         assert notes == ["no_meaning", "no_audio"]
 
-    def test_execute_all_empty_when_no_learn(self) -> None:
+    def test_all_scope_empty_when_no_learn(self) -> None:
         self.candidate_repo.get_all_by_status.return_value = []
-        result = self.use_case.execute_all(ExportGroup.READY)
+        result = self.use_case.execute_scope(SourceScope.all(), ExportGroup.READY)
         assert result.total == 0
         assert result.added == 0
 
@@ -591,6 +594,7 @@ class TestSyncRefusesIncompleteNoteType:
             template_renderer=MagicMock(),
             known_word_repo=MagicMock(),
             cloze_builder=ClozeBuilder(),
+            scope_resolver=empty_scope_resolver(),
         )
         return use_case, connector
 
@@ -611,3 +615,44 @@ class TestSyncRefusesIncompleteNoteType:
         with pytest.raises(AnkiNoteTypeIncompleteError, match="is not in Anki"):
             use_case.execute(source_id=1, group=ExportGroup.READY)
         connector.add_notes.assert_not_called()
+
+
+@pytest.mark.unit
+class TestSyncCollectionScope:
+    def test_sync_scope_pushes_only_scope_cards(self) -> None:
+        candidate_repo = MagicMock()
+        candidate_repo.get_all_by_status.return_value = [
+            _make_candidate(1, "burnout", CandidateStatus.LEARN, meaning="done", source_id=1),
+            _make_candidate(2, "pursuit", CandidateStatus.LEARN, meaning="done", source_id=2),
+        ]
+        anki_sync_repo = MagicMock()
+        anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        connector = MagicMock()
+        connector.is_available.return_value = True
+        connector.get_model_field_names.return_value = _EveryField()
+        connector.add_notes.return_value = [12345]
+        sources = [
+            Source(id=1, status=SourceStatus.DONE, collection_id=5),
+            Source(id=2, status=SourceStatus.DONE),
+        ]
+        use_case = SyncToAnkiUseCase(
+            export_queue=ExportQueue(candidate_repo, anki_sync_repo),
+            anki_connector=connector,
+            settings_repo=MagicMock(get=MagicMock(return_value=None)),
+            anki_sync_repo=anki_sync_repo,
+            template_renderer=MagicMock(
+                render_recognition=MagicMock(return_value=NoteTemplates("F", "B", "")),
+            ),
+            known_word_repo=MagicMock(),
+            cloze_builder=ClozeBuilder(),
+            scope_resolver=SourceScopeResolver(
+                InMemorySourceRepository(sources),
+                InMemoryCollectionRepository([Collection(id=5, name="IELTS")]),
+            ),
+        )
+
+        result = use_case.execute_scope(SourceScope.collection(5), ExportGroup.READY)
+
+        pushed = [c.kwargs["notes"][0]["Target"] for c in connector.add_notes.call_args_list]
+        assert result.total == 1
+        assert pushed == ["burnout"]

@@ -74,6 +74,7 @@ class GlobalExportDTO(BaseModel):
     ready: list[ExportSectionDTO]
     incomplete: list[ExportSectionDTO]
     exported_count: int = 0  # 'learn' cards in scope that are already in Anki
+    title: str | None = None  # name of the scope the cards were collected for
 
 
 class SyncResultDTO(BaseModel):

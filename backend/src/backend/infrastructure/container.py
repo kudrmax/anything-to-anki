@@ -681,6 +681,7 @@ class Container:
             template_renderer=self._anki_template_renderer,
             known_word_repo=SqlaKnownWordRepository(session),
             cloze_builder=ClozeBuilder(),
+            scope_resolver=self._scope_resolver(session),
         )
 
     def get_export_cards_use_case(self, session: Session) -> GetExportCardsUseCase:
@@ -688,6 +689,7 @@ class Container:
             export_queue=self._export_queue(session),
             source_repo=SqlaSourceRepository(session),
             cloze_builder=ClozeBuilder(),
+            scope_resolver=self._scope_resolver(session),
         )
 
     def _export_queue(self, session: Session) -> ExportQueue:

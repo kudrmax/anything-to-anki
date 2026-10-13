@@ -7,12 +7,15 @@ from backend.application.dto.anki_dtos import CardPreviewDTO, ExportSectionDTO, 
 from backend.application.utils.highlight import highlight_all_forms
 from backend.domain.services.export_readiness import missing_parts
 from backend.domain.value_objects.export_group import ExportGroup
+from backend.domain.value_objects.source_scope import ScopeKind
 
 if TYPE_CHECKING:
     from backend.application.utils.export_queue import ExportBatch, ExportQueue
+    from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.services.cloze_builder import ClozeBuilder
+    from backend.domain.value_objects.source_scope import SourceScope
 
 
 class GetExportCardsUseCase:
@@ -23,18 +26,25 @@ class GetExportCardsUseCase:
         export_queue: ExportQueue,
         source_repo: SourceRepository,
         cloze_builder: ClozeBuilder,
+        scope_resolver: SourceScopeResolver,
         media_base_url: str = "/media",
     ) -> None:
         self._export_queue = export_queue
         self._source_repo = source_repo
         self._cloze_builder = cloze_builder
+        self._scope_resolver = scope_resolver
         self._media_base_url = media_base_url
 
     def execute(self, source_id: int) -> GlobalExportDTO:
         return self._build(self._export_queue.for_source(source_id))
 
-    def execute_all(self) -> GlobalExportDTO:
-        return self._build(self._export_queue.for_all())
+    def execute_scope(self, scope: SourceScope) -> GlobalExportDTO:
+        if scope.kind is ScopeKind.ALL:
+            batch = self._export_queue.for_all()
+        else:
+            ids = {s.id for s in self._scope_resolver.sources(scope) if s.id is not None}
+            batch = self._export_queue.for_sources(ids)
+        return self._build(batch).model_copy(update={"title": self._scope_resolver.title(scope)})
 
     def _build(self, batch: ExportBatch) -> GlobalExportDTO:
         return GlobalExportDTO(
