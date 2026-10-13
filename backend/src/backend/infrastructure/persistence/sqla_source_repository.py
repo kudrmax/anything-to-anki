@@ -31,7 +31,11 @@ class SqlaSourceRepository(SourceRepository):
         return model.to_entity() if model else None
 
     def list_all(self) -> list[Source]:
-        models = self._session.query(SourceModel).order_by(SourceModel.created_at.desc()).all()
+        models = (
+            self._session.query(SourceModel)
+            .order_by(SourceModel.created_at.desc(), SourceModel.id)
+            .all()
+        )
         return [m.to_entity() for m in models]
 
     def get_first_by_content_type(self, content_type: ContentType) -> Source | None:

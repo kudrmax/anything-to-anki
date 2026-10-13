@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from pathlib import PurePath
 from typing import TYPE_CHECKING
 
@@ -82,11 +83,14 @@ class CreateBookSourcesUseCase:
     def _create_chapters(self, book: Book, book_name: str) -> BookSourcesCreated:
         template = self._title_template()
         collection_id = self._collection_id(book_name)
+        # Added at one moment, the chapters keep their reading order in the newest-first list.
+        added_at = datetime.now(tz=UTC)
         source_ids = [
             self._create_source(
                 chapter.text,
                 template.render(book_name, number, chapter.title),
                 collection_id,
+                added_at,
             )
             for number, chapter in enumerate(book.chapters, start=1)
         ]
@@ -99,11 +103,13 @@ class CreateBookSourcesUseCase:
         return BookSourcesCreated(source_ids=source_ids, collection_id=collection_id)
 
     def _create_whole(self, book: Book, book_name: str) -> BookSourcesCreated:
-        source_id = self._create_source(book.text, book_name, None)
+        source_id = self._create_source(book.text, book_name, None, datetime.now(tz=UTC))
         logger.info("Created book source id=%s title=%r", source_id, book_name)
         return BookSourcesCreated(source_ids=[source_id], collection_id=None)
 
-    def _create_source(self, text: str, title: str, collection_id: int | None) -> int:
+    def _create_source(
+        self, text: str, title: str, collection_id: int | None, added_at: datetime,
+    ) -> int:
         source = self._source_repo.create(
             Source(
                 raw_text=text,
@@ -112,6 +118,7 @@ class CreateBookSourcesUseCase:
                 content_type=resolve_content_type(InputMethod.BOOK_FILE),
                 title=title,
                 collection_id=collection_id,
+                created_at=added_at,
             )
         )
         assert source.id is not None

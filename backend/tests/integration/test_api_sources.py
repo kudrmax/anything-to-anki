@@ -253,7 +253,7 @@ class TestBookFileSourceAPI:
         assert resp.status_code == 201
         assert len(resp.json()["source_ids"]) == 2
         sources = client.get("/sources").json()
-        assert sorted(s["title"] for s in sources) == ["Dune ch1", "Dune ch2"]
+        assert [s["title"] for s in sources] == ["Dune ch1", "Dune ch2"]
         assert {s["collection_name"] for s in sources} == {"Dune"}
         assert {s["source_type"] for s in sources} == {"book_file"}
 

@@ -67,6 +67,7 @@ class TestCreateBookSourcesUseCase:
             ("My Dune ch1", "First chapter.", 7), ("My Dune ch2", "Second chapter.", 7),
         ]
         assert all(s.input_method == InputMethod.BOOK_FILE for s in self.created)
+        assert len({s.created_at for s in self.created}) == 1
         assert all(s.content_type == ContentType.TEXT for s in self.created)
 
     def test_book_added_again_joins_its_collection(self) -> None:
