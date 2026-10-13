@@ -150,7 +150,7 @@ export function ReviewScreen() {
   // Позиция и ‹ › — в ряду телефона и в шапке десктопа без списка.
   const stepper = (
     <>
-      <span className={css.position}>{currentIndex + 1} / {candidates.length}</span>
+      <span className={css.position}>{currentIndex + 1} / {visible.length}</span>
       <IconButton icon={ChevronLeft} label="Previous phrase" disabled={prevId === null} onClick={() => prevId !== null && showCard(prevId)} />
       <IconButton icon={ChevronRight} label="Next phrase" disabled={nextId === null} onClick={() => nextId !== null && showCard(nextId)} />
     </>
