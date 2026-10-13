@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import PurePath
 from typing import TYPE_CHECKING
 
 from backend.application.dto.video_dtos import TrackSelectionRequired, VideoSourceCreated
@@ -26,6 +27,14 @@ logger = logging.getLogger(__name__)
 type FileSourceResult = (
     Source | VideoSourceCreated | TrackSelectionRequired | BookSplitRequired | BookSourcesCreated
 )
+
+
+# Text files whose extension names a format; any other text file is plain text.
+TEXT_FILE_FORMATS: dict[str, InputMethod] = {
+    ".srt": InputMethod.SUBTITLES_FILE,
+    ".md": InputMethod.MARKDOWN_FILE,
+    ".markdown": InputMethod.MARKDOWN_FILE,
+}
 
 
 class CreateSourceUseCase:
@@ -192,7 +201,8 @@ class CreateSourceUseCase:
                 audio_track_index=audio_track_index,
             )
 
-        # Text file — read content, determine input method
+        # Any other file is text: plain unless its extension names a format
         content = self._file_reader.read_text(file_path)
-        input_method = InputMethod.SUBTITLES_FILE if ext == "srt" else InputMethod.TEXT_PASTED
-        return self.execute(raw_text=content, input_method=input_method, title=title)
+        input_method = TEXT_FILE_FORMATS.get(f".{ext}", InputMethod.TEXT_PASTED)
+        resolved_title = (title or "").strip() or PurePath(file_path).stem
+        return self.execute(raw_text=content, input_method=input_method, title=resolved_title)

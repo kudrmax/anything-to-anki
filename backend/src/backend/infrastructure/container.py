@@ -81,6 +81,7 @@ from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
 from backend.infrastructure.adapters.local_file_reader import LocalFileReader
 from backend.infrastructure.adapters.pillow_card_picture_encoder import PillowCardPictureEncoder
 from backend.infrastructure.adapters.regex_lyrics_parser import RegexLyricsParser
+from backend.infrastructure.adapters.regex_markdown_parser import RegexMarkdownParser
 from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.slang_normalizer import SlangNormalizer
@@ -208,6 +209,7 @@ class Container:
         self._text_cleaner = RegexTextCleaner()
         self._text_normalizer = SlangNormalizer()
         self._lyrics_parser = RegexLyricsParser(self._text_analyzer)
+        self._markdown_parser = RegexMarkdownParser()
         self._srt_parser = RegexSrtParser()
         project_root = Path(__file__).resolve().parents[4]
 
@@ -429,6 +431,7 @@ class Container:
             source_parsers={
                 InputMethod.LYRICS_PASTED: self._lyrics_parser,
                 InputMethod.SUBTITLES_FILE: self._srt_parser,
+                InputMethod.MARKDOWN_FILE: self._markdown_parser,
             },
             structured_srt_parser=self._srt_parser,
             media_repo=SqlaCandidateMediaRepository(session),

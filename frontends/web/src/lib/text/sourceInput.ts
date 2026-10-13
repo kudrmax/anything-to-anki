@@ -8,6 +8,7 @@ export function detectedFileType(path: string): string {
   if (ext === 'epub') return 'Book · epub'
   if (VIDEO_EXTENSIONS.includes(ext)) return 'Video · ' + ext
   if (ext === SUBTITLE_EXTENSION) return 'Subtitles · srt'
+  if (ext === 'md' || ext === 'markdown') return 'Text · markdown'
   if (ext === 'html') return 'Article · html'
   return 'Text · ' + (ext || 'txt')
 }

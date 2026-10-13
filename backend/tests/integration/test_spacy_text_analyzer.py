@@ -55,9 +55,9 @@ class TestSpaCyTextAnalyzer:
         assert tokens == []
 
     def test_blank_line_ends_a_sentence(self) -> None:
-        tokens = self.analyzer.analyze("The Birth of a New Theory\n\nThe real way it started was secret.")
+        tokens = self.analyzer.analyze("The Birth of a Theory\n\nIt started in secret.")
         heading = {t.sent_index for t in tokens if t.text in ("Birth", "Theory")}
-        body = {t.sent_index for t in tokens if t.text in ("real", "secret")}
+        body = {t.sent_index for t in tokens if t.text in ("started", "secret")}
         assert len(heading) == len(body) == 1
         assert heading != body
 

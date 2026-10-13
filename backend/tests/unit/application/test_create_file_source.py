@@ -55,6 +55,34 @@ class TestExecuteFromFile:
         assert result.id == 1
         reader.read_text.assert_called_once_with("/home/user/doc.txt")
 
+    @pytest.mark.parametrize(
+        ("path", "input_method"),
+        [
+            ("/notes/digest.md", InputMethod.MARKDOWN_FILE),
+            ("/notes/digest.markdown", InputMethod.MARKDOWN_FILE),
+            ("/notes/story.txt", InputMethod.TEXT_PASTED),
+            ("/notes/README", InputMethod.TEXT_PASTED),
+            ("/notes/notes.org", InputMethod.TEXT_PASTED),
+        ],
+    )
+    def test_text_file_format_comes_from_extension(
+        self, path: str, input_method: InputMethod,
+    ) -> None:
+        repo = _make_source_repo()
+        uc = CreateSourceUseCase(source_repo=repo, file_reader=_make_file_reader())
+
+        uc.execute_from_file(file_path=path)
+
+        assert repo.create.call_args[0][0].input_method == input_method
+
+    def test_text_file_is_titled_by_file_name(self) -> None:
+        repo = _make_source_repo()
+        uc = CreateSourceUseCase(source_repo=repo, file_reader=_make_file_reader())
+
+        uc.execute_from_file(file_path="/notes/Flourish — digest.md")
+
+        assert repo.create.call_args[0][0].title == "Flourish — digest"
+
     def test_srt_file_creates_source_with_subtitles_input_method(self) -> None:
         repo = _make_source_repo()
         repo.create.return_value = Source(

@@ -12,4 +12,7 @@ class FileReader(ABC):
 
     @abstractmethod
     def read_text(self, path: str) -> str:
-        """Read file content as text. Raises FileNotFoundError if missing."""
+        """Read file content as text.
+
+        Raises FileNotFoundError if missing, NotATextFileError if the file is binary.
+        """

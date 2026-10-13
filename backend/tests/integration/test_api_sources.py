@@ -160,6 +160,29 @@ class TestCreateFileSource:
         assert "id" in data
         assert data["status"] == "new"
 
+    def test_markdown_file_is_text_without_markup(
+        self, client: TestClient, tmp_path: Path,
+    ) -> None:
+        md_file = tmp_path / "digest.md"
+        md_file.write_text("# Preface\n\n**In short:** a *cautious* scientist.", encoding="utf-8")
+
+        resp = client.post("/sources/file", json={"file_path": str(md_file)})
+
+        assert resp.status_code == 201
+        source = client.get("/sources").json()[0]
+        assert source["source_type"] == "markdown_file"
+        assert source["content_type"] == "text"
+        assert source["title"] == "digest"
+
+    def test_binary_file_is_rejected(self, client: TestClient, tmp_path: Path) -> None:
+        pdf = tmp_path / "book.pdf"
+        pdf.write_bytes(b"%PDF-1.7\x00\x01")
+
+        resp = client.post("/sources/file", json={"file_path": str(pdf)})
+
+        assert resp.status_code == 400
+        assert "not a text file" in resp.json()["detail"].lower()
+
     def test_missing_file_returns_404(self, client: TestClient) -> None:
         resp = client.post("/sources/file", json={
             "file_path": "/nonexistent/file.txt",

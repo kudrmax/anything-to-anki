@@ -6,7 +6,7 @@ export type SourceStatus =
   | 'partially_reviewed'
   | 'reviewed'
 
-export type InputMethod = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file' | 'video_file' | 'book_file' | 'youtube_url' | 'topic_query' | 'phrase_added'
+export type InputMethod = 'text_pasted' | 'lyrics_pasted' | 'subtitles_file' | 'video_file' | 'book_file' | 'markdown_file' | 'youtube_url' | 'topic_query' | 'phrase_added'
 export type ContentType = 'text' | 'lyrics' | 'video' | 'topic' | 'phrases'
 export type SourceType = InputMethod
 
