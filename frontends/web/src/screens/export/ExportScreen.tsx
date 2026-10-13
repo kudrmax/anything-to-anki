@@ -1,5 +1,6 @@
-import { useParams } from 'react-router-dom'
-import type { ExportGroup, ExportSection } from '@/api/types'
+import { useParams, useSearchParams } from 'react-router-dom'
+import type { ExportGroup, ExportSection, Scope } from '@/api/types'
+import { parseScope, scopeQuery } from '@/lib/scope'
 import { useAudioPlayer, type AudioPlayer } from '@/lib/useAudioPlayer'
 import { Page, PageHeader } from '@/shell'
 import { Banner, Button, Empty, Spinner, Stat, StatGrid, StatusDot, Text } from '@/ui'
@@ -17,16 +18,22 @@ const cardsLabel = (count: number) => `${count} ${count === 1 ? 'card' : 'cards'
 /** Общий экспорт и экспорт источника — разные экземпляры: состояние одного не переходит в другой. */
 export function ExportScreen() {
   const { id } = useParams<{ id: string }>()
-  return <ExportView key={id ?? 'all'} sourceId={id === undefined ? undefined : Number(id)} />
+  const [params] = useSearchParams()
+  const scope = parseScope(params.get('scope'))
+  const sourceId = id === undefined ? undefined : Number(id)
+  return <ExportView key={`${id ?? 'scope'}-${String(scope)}`} sourceId={sourceId} scope={scope} />
 }
 
-function ExportView({ sourceId }: { sourceId: number | undefined }) {
-  const exporter = useExport(sourceId)
+function ExportView({ sourceId, scope }: { sourceId: number | undefined; scope: Scope }) {
+  const exporter = useExport(sourceId, scope)
   const player = useAudioPlayer()
-  const back = sourceId === undefined ? undefined : `/sources/${sourceId}/review`
+  const back = sourceId !== undefined
+    ? `/sources/${sourceId}/review`
+    : scope === 'all' ? undefined : `/${scopeQuery(scope)}`
+  const title = scope !== 'all' && exporter.title ? exporter.title : 'Export'
 
   if (exporter.loading) {
-    return <Page wide header={<PageHeader title="Export" back={back} />}><Empty><Spinner /></Empty></Page>
+    return <Page wide header={<PageHeader title={title} back={back} />}><Empty><Spinner /></Empty></Page>
   }
 
   const { ankiStatus, groups, counts, totalCards, exportedCount, settings, result } = exporter
@@ -37,7 +44,7 @@ function ExportView({ sourceId }: { sourceId: number | undefined }) {
 
   const header = (
     <PageHeader
-      title="Export"
+      title={title}
       back={back}
       meta={<><StatusDot tone={ankiStatus === null ? 'idle' : ankiStatus.available ? 'ok' : 'err'} />{ankiLabel}</>}
     />
