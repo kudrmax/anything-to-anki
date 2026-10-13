@@ -1,0 +1,14 @@
+.tree { display: flex; flex-direction: column; gap: var(--s1); width: 100%; }
+.heading { display: flex; align-items: center; justify-content: space-between; margin-top: var(--s5); padding-left: var(--s4); font-size: var(--fs-xs); font-weight: var(--fw-m); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--tx3); }
+.cell > span, .cell > span > span { display: flex; width: 100%; }
+.row { display: grid; grid-template-columns: var(--tree-twisty) minmax(0, 1fr) auto; align-items: center; gap: var(--s3); width: 100%; height: var(--h); padding: 0 var(--s4); border-radius: var(--r); color: var(--tx2); font-size: var(--fs-c); cursor: pointer; transition: background var(--t), color var(--t); }
+.row:hover { background: var(--hover); }
+.on, .on:hover { background: var(--soft); color: var(--tx); font-weight: var(--fw-m); }
+.sub { margin-left: var(--tree-indent); width: calc(100% - var(--tree-indent)); }
+.before { box-shadow: inset 0 var(--tree-drop-line) 0 var(--ac); }
+.after { box-shadow: inset 0 calc(var(--tree-drop-line) * -1) 0 var(--ac); }
+.inside { background: var(--soft); }
+.twisty { display: grid; place-items: center; width: var(--tree-twisty); color: var(--tx3); }
+.name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.count { font-size: var(--fs-xs); color: var(--tx3); }
+.empty { padding: var(--s3) var(--s4); font-size: var(--fs-s); color: var(--tx3); }
