@@ -63,13 +63,13 @@ def client(_db_engine: object) -> Generator[TestClient, None, None]:
 
 @pytest.fixture()
 def launched(monkeypatch: pytest.MonkeyPatch) -> list[int]:
-    """Ids handed to the background worker; the worker itself is replaced by a no-op."""
+    """Ids handed to the background launch; nothing is actually launched."""
     ids: list[int] = []
 
-    async def record(source_id: int, *_: object) -> None:
-        ids.append(source_id)
+    def record(source_ids: list[int], *_: object) -> None:
+        ids.extend(source_ids)
 
-    monkeypatch.setattr(sources_routes, "_process_background", record)
+    monkeypatch.setattr(sources_routes, "_launch", record)
     return ids
 
 
@@ -152,8 +152,24 @@ class TestSourcesAPI:
             "/sources/process-batch", json={"source_ids": [source_id, source_id]},
         )
         assert response.status_code == 202
-        assert response.json() == {"started": [source_id]}
+        assert response.json() == {"started": [source_id], "skipped": []}
         assert launched == [source_id]
+
+    def test_process_batch_reports_sources_that_cannot_start(
+        self, client: TestClient, db_session: Session, launched: list[int],
+    ) -> None:
+        db_session.add_all([
+            SourceModel(title="new", status="new"),
+            SourceModel(title="done", status="done"),
+        ])
+        db_session.commit()
+        ids = {s["title"]: s["id"] for s in client.get("/sources").json()}
+        response = client.post(
+            "/sources/process-batch", json={"source_ids": [ids["new"], ids["done"]]},
+        )
+        assert response.status_code == 202
+        assert response.json() == {"started": [ids["new"]], "skipped": [ids["done"]]}
+        assert launched == [ids["new"]]
 
     def test_created_at_is_returned_with_utc_offset(self, client: TestClient) -> None:
         """Clients render times in the viewer's zone; they need the offset to do so."""

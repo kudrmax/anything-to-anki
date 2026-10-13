@@ -19,7 +19,9 @@ from backend.domain.value_objects.question import Answers
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 
 if TYPE_CHECKING:
-    from backend.domain.value_objects.content import Kind
+    from datetime import datetime
+
+    from backend.domain.value_objects.content import Kind, VideoRef
 
 pytestmark = pytest.mark.unit
 
@@ -38,9 +40,16 @@ class _RecordingWriter(SourceWriter):
     def __init__(self) -> None:
         self.collection_ids: list[int | None] = []
 
-    def write(  # type: ignore[override]
-        self, *, document: Document, title: str | None, source_format: Format, kind: Kind,
-        collection_id: int | None = None, **_: object,
+    def write(
+        self,
+        *,
+        document: Document,
+        title: str | None,
+        source_format: Format,
+        kind: Kind,
+        video: VideoRef | None = None,
+        collection_id: int | None = None,
+        created_at: datetime | None = None,
     ) -> int:
         self.collection_ids.append(collection_id)
         return len(self.collection_ids)

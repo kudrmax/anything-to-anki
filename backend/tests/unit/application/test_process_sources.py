@@ -49,4 +49,6 @@ class TestProcessSources:
 
     def test_start_skips_sources_that_cannot_start(self) -> None:
         self.process.start.side_effect = [SourceAlreadyProcessedError(1), None]
-        assert self.use_case.start([1, 2]).started == [2]
+        result = self.use_case.start([1, 2])
+        assert result.started == [2]
+        assert result.skipped == [1]

@@ -91,6 +91,7 @@ class SourceIdsRequest(BaseModel):
 
 class StartedSourcesDTO(BaseModel):
     started: list[int]
+    skipped: list[int]
 
 
 class DeletedSourcesDTO(BaseModel):

@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class ProcessSourcesUseCase:
     """Starts processing of several sources: the chosen ones, or every pending one of a scope.
-    A source that can't start any more (already started elsewhere) is skipped."""
+    A source that can't start (missing, already started, no topic targets) is skipped."""
 
     def __init__(
         self,
@@ -45,6 +45,7 @@ class ProcessSourcesUseCase:
 
     def start(self, source_ids: Sequence[int]) -> StartedSourcesDTO:
         started: list[int] = []
+        skipped: list[int] = []
         for source_id in source_ids:
             try:
                 self._process_source.start(source_id)
@@ -54,6 +55,7 @@ class ProcessSourcesUseCase:
                 TopicTargetsMissingError,
             ) as e:
                 logger.info("Skipped processing of source %d: %s", source_id, e)
+                skipped.append(source_id)
                 continue
             started.append(source_id)
-        return StartedSourcesDTO(started=started)
+        return StartedSourcesDTO(started=started, skipped=skipped)

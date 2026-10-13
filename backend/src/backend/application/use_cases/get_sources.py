@@ -78,7 +78,12 @@ class GetSourcesUseCase:
         assert source.id is not None
         candidates = self._candidate_repo.get_by_source(source.id)
         generation = self._generation_probe.of(source)
-        in_tree = source.collection_id is not None and tree.has(source.collection_id)
+        collection_id = source.collection_id
+        collection_path = (
+            tree.path(collection_id)
+            if collection_id is not None and tree.has(collection_id)
+            else []
+        )
         return SourceDTO(
             id=source.id,
             title=source.title or "",
@@ -94,8 +99,8 @@ class GetSourcesUseCase:
             learn_count=sum(1 for c in candidates if c.status == CandidateStatus.LEARN),
             decided_count=sum(1 for c in candidates if c.status != CandidateStatus.PENDING),
             processing_stage=source.processing_stage.value if source.processing_stage else None,
-            collection_id=source.collection_id,
-            collection_path=tree.path(source.collection_id) if in_tree else [],  # type: ignore[arg-type]
+            collection_id=collection_id,
+            collection_path=collection_path,
             awaiting_generation=generation.awaiting,
             generation_status=generation.status,
             generation_error=generation.error,
