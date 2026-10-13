@@ -439,6 +439,7 @@ class Container:
             topic_target_repo=SqlaTopicTargetRepository(session),
             report_repo=SqlaCardReportRepository(session),
             anki_sync_repo=SqlaAnkiSyncRepository(session),
+            review_status=self._review_status_updater(session),
         )
 
     def create_collection_use_case(self, session: Session) -> CreateCollectionUseCase:

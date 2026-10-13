@@ -328,6 +328,24 @@ export interface FrequentWordThresholdOption {
   examples: string[]
 }
 
+/** A quick reason to report a card; picks_words — choosing it lets the user pick the words they don't know. */
+export interface ReportReason {
+  label: string
+  picks_words: boolean
+}
+
+/** Characters [start, end) of a card's phrase. */
+export interface PhraseSpan {
+  start: number
+  end: number
+}
+
+export interface UnknownWord {
+  id: number
+  lemma: string
+  created_at: string
+}
+
 export interface KnownWord {
   id: number
   lemma: string

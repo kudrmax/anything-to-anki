@@ -3,7 +3,8 @@ import { ArrowRight, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, M
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { decisionChange, learnConvertsCloze, type Decision } from '@/lib/decision'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
-import { Button, Field, Icon, IconButton, Menu, Spinner, type MenuItem, type MenuPage } from '@/ui'
+import { pickedSpans, toggled } from '@/lib/text/words'
+import { Button, Field, Icon, IconButton, Menu, Spinner, Text, WordPicker, type MenuItem, type MenuPage } from '@/ui'
 import { ImagePicker } from './ImagePicker'
 import { PolishComparison } from './PolishComparison'
 import type { ClozeEditor } from './useClozeEditor'
@@ -16,6 +17,8 @@ const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string; icon: LucideIc
   { action: 'explain_simpler', label: 'Explain simpler', icon: Feather },
   { action: 'how_to_say', label: 'How to say it', icon: MessageCircle },
 ]
+
+const UNKNOWN_WORDS_HINT = 'Tap the words you don\'t know'
 
 const LEARN = { status: 'learn', label: 'Learn', kbd: '1' } as const
 const CLOZE = { label: 'Cloze', kbd: '2' } as const
@@ -81,6 +84,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   const [question, setQuestion] = useState('')
   const [complaint, setComplaint] = useState('')
   const [reasons, setReasons] = useState<string[]>([])
+  const [unknownWords, setUnknownWords] = useState<Set<number>>(new Set())
   const [pickingImage, setPickingImage] = useState(false)
   const id = candidate.id
   const isRated = candidate.status !== 'pending'
@@ -119,24 +123,34 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
 
   const toggleReason = (reason: string) =>
     setReasons(prev => (prev.includes(reason) ? prev.filter(r => r !== reason) : [...prev, reason]))
+  // Причина, под которой отмечают незнакомые слова фразы: слова выбираются, только пока она выбрана.
+  const picksWords = review.reportReasons.some(reason => reason.picks_words && reasons.includes(reason.label))
+  const pickedUnknown = picksWords ? pickedSpans(candidate.phrase, unknownWords) : []
   const canSend = reasons.length > 0 || complaint.trim().length > 0
   const sendReport = async (close: () => void) => {
     if (!canSend) return
-    if (await review.report(id, reasons, complaint.trim())) {
+    if (await review.report(id, reasons, complaint.trim(), pickedUnknown)) {
       setReasons([])
       setComplaint('')
+      setUnknownWords(new Set())
       close()
     }
   }
   const report: MenuPage = {
     items: review.reportReasons.map(reason => ({
-      label: reason,
-      selected: reasons.includes(reason),
+      label: reason.label,
+      selected: reasons.includes(reason.label),
       keepOpen: true,
-      onSelect: () => toggleReason(reason),
+      onSelect: () => toggleReason(reason.label),
     })),
     footer: close => (
       <div className={css.reportFooter}>
+        {picksWords && (
+          <>
+            <Text tone="muted" size="s">{UNKNOWN_WORDS_HINT}</Text>
+            <WordPicker phrase={candidate.phrase} selected={unknownWords} onToggle={i => setUnknownWords(prev => toggled(prev, i))} />
+          </>
+        )}
         <Field
           value={complaint}
           placeholder="Describe the problem…"

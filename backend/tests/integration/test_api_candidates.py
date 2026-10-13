@@ -169,7 +169,8 @@ class TestCardReportsAPI:
 
     def test_reasons(self, client: TestClient) -> None:
         reasons = client.get("/api/card-reports/reasons").json()
-        assert "Wrong phrase boundary" in reasons
+        assert {"label": "Wrong phrase boundary", "picks_words": False} in reasons
+        assert [r["label"] for r in reasons if r["picks_words"]] == ["More than one unknown word"]
 
 
 @pytest.mark.integration

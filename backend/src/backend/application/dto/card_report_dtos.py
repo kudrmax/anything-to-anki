@@ -25,6 +25,13 @@ class ReportCandidateRequest(BaseModel):
     unknown_words: list[PhraseSpan] = Field(default_factory=list)
 
 
+class ReportReasonDTO(BaseModel):
+    """A quick reason; `picks_words` — choosing it lets the user pick the words they don't know."""
+
+    label: str
+    picks_words: bool = False
+
+
 class CardReportDTO(BaseModel):
     """A complaint about a card with the card as it was."""
 

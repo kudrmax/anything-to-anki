@@ -4,7 +4,10 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends
 
-from backend.application.dto.card_report_dtos import CardReportDTO  # noqa: TC001
+from backend.application.dto.card_report_dtos import (  # noqa: TC001
+    CardReportDTO,
+    ReportReasonDTO,
+)
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
 if TYPE_CHECKING:
@@ -28,5 +31,5 @@ def list_card_reports(
 def list_report_reasons(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> list[str]:
+) -> list[ReportReasonDTO]:
     return container.report_candidate_use_case(session).reasons()

@@ -337,32 +337,45 @@ export function Pictures({ store, form }: SectionProps) {
   )
 }
 
-const KNOWN_WORDS_PREVIEW = 60
+const WORDS_PREVIEW = 60
 
-export function KnownWords({ store }: { store: SettingsStore }) {
+interface ListedWord {
+  id: number
+  label: string
+}
+
+interface WordListProps {
+  words: ListedWord[]
+  hint: string
+  empty: string
+  deletingId: number | null
+  onRemove: (id: number) => void
+}
+
+function WordList({ words, hint, empty, deletingId, onRemove }: WordListProps) {
   const [query, setQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
-  if (store.knownWords.length === 0) return <Empty>No known words yet. They won't be suggested when processing new sources.</Empty>
+  if (words.length === 0) return <Empty>{empty}</Empty>
 
   const needle = query.trim().toLowerCase()
-  const matches = needle ? store.knownWords.filter(word => word.lemma.toLowerCase().includes(needle)) : store.knownWords
-  const shown = showAll || needle ? matches : matches.slice(0, KNOWN_WORDS_PREVIEW)
+  const matches = needle ? words.filter(word => word.label.toLowerCase().includes(needle)) : words
+  const shown = showAll || needle ? matches : matches.slice(0, WORDS_PREVIEW)
   const hidden = matches.length - shown.length
 
   return (
     <>
-      <p className={css.hint}>Known words won't be suggested when processing new sources.</p>
+      <p className={css.hint}>{hint}</p>
       <div className={css.wordsBar}>
-        <Field value={query} placeholder={`Search ${store.knownWords.length} words…`} onChange={e => setQuery(e.target.value)} />
+        <Field value={query} placeholder={`Search ${words.length} words…`} onChange={e => setQuery(e.target.value)} />
       </div>
       {matches.length === 0 ? <Empty>Nothing found.</Empty> : (
         <div className={css.words}>
           {shown.map(word => (
             <RemovableChip
               key={word.id}
-              label={word.pos ? `${word.lemma} · ${word.pos}` : word.lemma}
-              disabled={store.deletingId === word.id}
-              onRemove={() => void store.deleteWord(word.id)}
+              label={word.label}
+              disabled={deletingId === word.id}
+              onRemove={() => onRemove(word.id)}
             />
           ))}
         </div>
@@ -373,6 +386,33 @@ export function KnownWords({ store }: { store: SettingsStore }) {
         </div>
       )}
     </>
+  )
+}
+
+const KNOWN_WORDS_HINT = "Known words won't be suggested when processing new sources."
+const UNKNOWN_WORDS_HINT = 'Phrases with these words never count as ready: only their target should be new.'
+
+export function KnownWords({ store }: { store: SettingsStore }) {
+  return (
+    <WordList
+      words={store.knownWords.map(word => ({ id: word.id, label: word.pos ? `${word.lemma} · ${word.pos}` : word.lemma }))}
+      hint={KNOWN_WORDS_HINT}
+      empty={`No known words yet. ${KNOWN_WORDS_HINT}`}
+      deletingId={store.deletingId}
+      onRemove={id => void store.deleteWord(id)}
+    />
+  )
+}
+
+export function UnknownWords({ store }: { store: SettingsStore }) {
+  return (
+    <WordList
+      words={store.unknownWords.map(word => ({ id: word.id, label: word.lemma }))}
+      hint={UNKNOWN_WORDS_HINT}
+      empty="No unknown words yet. Mark them from a card: Report → More than one unknown word."
+      deletingId={store.deletingId}
+      onRemove={id => void store.deleteUnknownWord(id)}
+    />
   )
 }
 

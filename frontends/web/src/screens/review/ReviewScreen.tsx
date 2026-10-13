@@ -15,12 +15,16 @@ import { SortMenu } from './SortMenu'
 import { SourceText, type SelectedText, type SelectionPoint } from './SourceText'
 import { audioUrlForCandidate, useReview } from './useReview'
 import { useShownCandidates } from './useShownCandidates'
+import { countIn, SECTION_LABEL, withSectionLabels, type ListItem } from './sections'
+import type { CandidateSection } from '@/api/types'
 import css from './review.module.css'
 
 const DECISION: Partial<Record<ReviewAction, Decision>> = { learn: 'learn', known: 'known', skip: 'skip' }
 type PhoneView = 'card' | 'text' | 'list'
 
 const SOURCES_PATH = '/'
+/** Все карточки Ready разобраны: остальное — по желанию. */
+const DONE = 'Done'
 /** Ссылка на конкретную карточку: с ней ревью открывается сразу на ней. */
 const CANDIDATE_PARAM = 'candidate'
 
@@ -48,8 +52,14 @@ export function ReviewScreen() {
   const [phoneView, setPhoneView] = useState<PhoneView>('card')
   const togglePhoneView = (view: PhoneView) => setPhoneView(prev => (prev === view ? 'card' : view))
   const current = candidates.find(c => c.id === currentId) ?? null
+  // Разделы есть во всех сортировках, кроме порядка текста; Probably known свёрнут, пока его не открыли.
+  const sectioned = review.sortOrder !== 'chronological'
+  const [knownShown, setKnownShown] = useState(false)
+  const knownCount = sectioned ? countIn(candidates, 'probably_known') : 0
+  const knownOpen = knownShown || current?.section === 'probably_known'
+  const visible = sectioned && !knownOpen ? candidates.filter(c => c.section !== 'probably_known') : candidates
   const list = useShownCandidates(
-    candidates,
+    visible,
     source?.initially_shown_candidates ?? null,
     currentId,
     `${id}:${review.sortOrder}`,
@@ -57,9 +67,9 @@ export function ReviewScreen() {
 
   // Держим карточку в поле зрения: и когда список только появился (ревью открыли ссылкой на карточку),
   // и когда фоновое обновление переставило её в списке.
-  const currentIndex = candidates.findIndex(c => c.id === currentId)
-  const prevId = candidates[currentIndex - 1]?.id ?? null
-  const nextId = currentIndex >= 0 ? candidates[currentIndex + 1]?.id ?? null : null
+  const currentIndex = visible.findIndex(c => c.id === currentId)
+  const prevId = visible[currentIndex - 1]?.id ?? null
+  const nextId = currentIndex >= 0 ? visible[currentIndex + 1]?.id ?? null : null
   const { loading } = review
   useEffect(() => {
     if (loading) return
@@ -132,6 +142,11 @@ export function ReviewScreen() {
     setPhoneView('card')
   }
 
+  const sectionLabel = (section: CandidateSection) => `${SECTION_LABEL[section]} · ${countIn(candidates, section)}`
+  const listItems: ListItem[] = sectioned
+    ? withSectionLabels(list.shown)
+    : list.shown.map(candidate => ({ kind: 'candidate', candidate }))
+
   // Позиция и ‹ › — в ряду телефона и в шапке десктопа без списка.
   const stepper = (
     <>
@@ -146,10 +161,10 @@ export function ReviewScreen() {
       title={source.title}
       back={SOURCES_PATH}
       metaWithActions
-      meta={candidates.length > 0 && (
+      meta={counts.total > 0 && (
         <>
           <Progress inline value={counts.progress} />
-          {counts.marked} / {counts.total}
+          {counts.reviewed === counts.total ? DONE : `${counts.reviewed} / ${counts.total}`}
         </>
       )}
     >
@@ -222,18 +237,22 @@ export function ReviewScreen() {
         {view === 'text' && hasSourceText && <div className={css.textPanel}>{sourceText(showCard)}</div>}
         {view === 'list' && (
           <div className={css.listPanel}>
-            {list.shown.map(candidate => (
-              <PhraseRow key={candidate.id} candidate={candidate} current={candidate.id === currentId} onSelect={showCard} />
-            ))}
+            {listItems.map(item => item.kind === 'section'
+              ? <div key={item.section} className={css.sectionLabel}>{sectionLabel(item.section)}</div>
+              : <PhraseRow key={item.candidate.id} candidate={item.candidate} current={item.candidate.id === currentId} onSelect={showCard} />)}
             {list.hiddenCount > 0 && (
               <Button variant="link" onClick={list.showMore}>Show {list.nextPageCount} more · {list.hiddenCount} left</Button>
             )}
           </div>
         )}
         <div className={view === 'card' ? css.queue : `${css.queue} ${css.away}`}>
-          {list.shown.map(candidate => candidate.id === currentId
-            ? <PhraseCard key={candidate.id} candidate={candidate} review={review} />
-            : <PhraseRow key={candidate.id} candidate={candidate} onSelect={setCurrentId} />)}
+          {listItems.map(item => {
+            if (item.kind === 'section') return <div key={item.section} className={css.sectionLabel}>{sectionLabel(item.section)}</div>
+            const { candidate } = item
+            return candidate.id === currentId
+              ? <PhraseCard key={candidate.id} candidate={candidate} review={review} />
+              : <PhraseRow key={candidate.id} candidate={candidate} onSelect={setCurrentId} />
+          })}
         </div>
         {list.hiddenCount > 0 && (
           <div className={css.showMore}>
@@ -242,7 +261,13 @@ export function ReviewScreen() {
             </Button>
           </div>
         )}
-        {candidates.length > 0 && counts.marked === counts.total && <Empty>All candidates reviewed.</Empty>}
+        {knownCount > 0 && list.hiddenCount === 0 && (
+          <div className={css.knownToggle}>
+            <Button variant="link" onClick={() => setKnownShown(!knownOpen)}>
+              {knownOpen ? `Hide ${SECTION_LABEL.probably_known.toLowerCase()}` : sectionLabel('probably_known')}
+            </Button>
+          </div>
+        )}
         {candidates.length > 0 && (
           <div className={css.hint}>↑ ↓ — next phrase · 1 Learn · 2 Cloze · 3 Know · 4 Skip · Space — play audio · ⌘V — paste picture</div>
         )}

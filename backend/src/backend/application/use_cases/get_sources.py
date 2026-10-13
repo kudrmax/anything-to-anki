@@ -18,6 +18,7 @@ from backend.domain.value_objects.source_role import SourceRole
 
 if TYPE_CHECKING:
     from backend.application.utils.candidate_sorter import CandidateSorter
+    from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.entities.source import Source
     from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
@@ -52,6 +53,7 @@ class GetSourcesUseCase:
         topic_target_repo: TopicTargetRepository,
         report_repo: CardReportRepository,
         anki_sync_repo: AnkiSyncRepository,
+        review_status: ReviewStatusUpdater,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
@@ -61,6 +63,7 @@ class GetSourcesUseCase:
         self._topic_target_repo = topic_target_repo
         self._report_repo = report_repo
         self._anki_sync_repo = anki_sync_repo
+        self._review_status = review_status
 
     def list_all(self, *, collection_id: int | None = None) -> list[SourceDTO]:
         sources = self._source_repo.list_all()
@@ -79,12 +82,14 @@ class GetSourcesUseCase:
             candidates = self._candidate_repo.get_by_source(source.id)
             learn_count = sum(1 for c in candidates if c.status == CandidateStatus.LEARN)
             ready = self._candidate_sorter.arrange(candidates).ready()
+            # What the user knows changes which cards are ready, and with them the status.
+            status = self._review_status.settle(source, ready)
             generation = self._generation_of(source)
             result.append(
                 SourceDTO(
                     id=source.id,
                     title=source.title or "",
-                    status=source.status.value,
+                    status=status.value,
                     kind=source.kind.value if source.kind else None,
                     role=source.role.value,
                     has_video=source.has_video,

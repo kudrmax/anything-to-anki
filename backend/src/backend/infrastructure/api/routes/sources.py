@@ -150,7 +150,10 @@ def list_sources(
     container: Container = Depends(get_container),  # noqa: B008
 ) -> list[SourceDTO]:
     use_case = container.get_sources_use_case(session)
-    return use_case.list_all(collection_id=collection_id)
+    sources = use_case.list_all(collection_id=collection_id)
+    # Reading saves the words of phrases that changed since they were last read.
+    session.commit()
+    return sources
 
 
 @router.get("/{source_id}")
@@ -162,7 +165,10 @@ def get_source(
 ) -> SourceDetailDTO:
     try:
         use_case = container.get_sources_use_case(session)
-        return use_case.get_by_id(source_id, sort_order=sort)
+        source = use_case.get_by_id(source_id, sort_order=sort)
+        # Reading saves the words of phrases that changed since they were last read.
+        session.commit()
+        return source
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
@@ -376,6 +382,8 @@ def get_candidates(
     try:
         use_case = container.get_candidates_use_case(session)
         candidates = use_case.execute(source_id, sort_order=sort)
+        # Reading saves the words of phrases that changed since they were last read.
+        session.commit()
         return [c.model_dump() for c in candidates]
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

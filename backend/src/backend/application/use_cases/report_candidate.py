@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.application.dto.card_report_dtos import CardReportDTO
+from backend.application.dto.card_report_dtos import CardReportDTO, ReportReasonDTO
 from backend.domain.entities.card_report import CardReport
 from backend.domain.exceptions import (
     CandidateNotFoundError,
@@ -22,11 +22,13 @@ if TYPE_CHECKING:
     from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.source_repository import SourceRepository
 
+# The reason under which the user picks the words of the phrase they don't know.
+UNKNOWN_WORDS_REASON = "More than one unknown word"
 # Quick reasons offered next to the free-text comment.
 REPORT_REASONS: tuple[str, ...] = (
     "Phrase too long",
     "Wrong phrase boundary",
-    "More than one unknown word",
+    UNKNOWN_WORDS_REASON,
     "I know this word",
     "Not a real word",
     "Wrong word form",
@@ -104,8 +106,11 @@ class ReportCandidateUseCase:
             self._review_status.refresh_all()
 
     @staticmethod
-    def reasons() -> list[str]:
-        return list(REPORT_REASONS)
+    def reasons() -> list[ReportReasonDTO]:
+        return [
+            ReportReasonDTO(label=reason, picks_words=reason == UNKNOWN_WORDS_REASON)
+            for reason in REPORT_REASONS
+        ]
 
     def list_all(self) -> list[CardReportDTO]:
         return [to_dto(r) for r in self._report_repo.list_all()]

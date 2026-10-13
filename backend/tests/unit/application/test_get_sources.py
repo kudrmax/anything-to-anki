@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.get_sources import GetSourcesUseCase
+from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceNotFoundError
@@ -31,15 +32,17 @@ class TestGetSourcesUseCase:
         self.collection_repo.list_all.return_value = []
         self.topic_target_repo = MagicMock()
         self.topic_target_repo.has_targets.return_value = False
+        sorter = candidate_sorter(self.settings_repo)
         self.use_case = GetSourcesUseCase(
             source_repo=self.source_repo,
             candidate_repo=self.candidate_repo,
-            candidate_sorter=candidate_sorter(self.settings_repo),
+            candidate_sorter=sorter,
             job_repo=self.job_repo,
             collection_repo=self.collection_repo,
             topic_target_repo=self.topic_target_repo,
             report_repo=self.report_repo,
             anki_sync_repo=self.anki_sync_repo,
+            review_status=ReviewStatusUpdater(self.source_repo, self.candidate_repo, sorter),
         )
 
     def test_list_all(self) -> None:
@@ -115,6 +118,8 @@ class TestGetSourcesUseCase:
         assert result[0].learn_count == 2
         assert result[0].ready_count == 4
         assert result[0].ready_decided_count == 3
+        assert result[0].status == SourceStatus.PARTIALLY_REVIEWED.value
+        self.source_repo.update_status.assert_called_once_with(1, SourceStatus.PARTIALLY_REVIEWED)
 
     def test_get_by_id_found(self) -> None:
         self.source_repo.get_by_id.return_value = Source(
