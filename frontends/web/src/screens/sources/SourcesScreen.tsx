@@ -234,6 +234,7 @@ export function SourcesScreen() {
   return (
     <Page
       wide
+      fill
       header={
         <ScopePicker title={title} open={pickerOpen} onOpen={() => setPickerOpen(true)} onClose={() => setPickerOpen(false)}>
           {side}
