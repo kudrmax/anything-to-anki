@@ -44,7 +44,6 @@ type Naming = { kind: 'rename'; node: CollectionNode } | { kind: 'create'; paren
 
 const sourcesWord = (n: number) => (n === 1 ? '1 source' : `${n} sources`)
 
-/** Путь узла для хлебных крошек: родитель, затем сам узел. */
 /** Путь к узлу для шапки: от корня к родителю. */
 function ancestorsOf(collections: CollectionNode[], node: CollectionNode): CollectionNode[] {
   const parentOf = (child: CollectionNode) => child.parent_id === null ? null : findNode(collections, child.parent_id)
