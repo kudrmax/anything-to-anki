@@ -7,11 +7,11 @@ from sqlalchemy import select
 from backend.domain.ports.candidate_pronunciation_repository import (
     CandidatePronunciationRepository,
 )
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.models import (
     CandidatePronunciationModel,
     StoredCandidateModel,
 )
+from backend.infrastructure.persistence.primary_phrase import word_is_active
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -20,20 +20,23 @@ if TYPE_CHECKING:
 
 
 class SqlaCandidatePronunciationRepository(CandidatePronunciationRepository):
-    """SQLAlchemy implementation of CandidatePronunciationRepository."""
+    """SQLAlchemy implementation of CandidatePronunciationRepository.
+
+    The row of a word also keeps its IPA; a row with only the IPA is not a pronunciation.
+    """
 
     def __init__(self, session: Session) -> None:
         self._session = session
 
     def get_by_candidate_id(self, candidate_id: int) -> CandidatePronunciation | None:
-        model = self._session.get(CandidatePronunciationModel, candidate_id)
-        return model.to_entity() if model else None
+        return self.get_by_candidate_ids([candidate_id]).get(candidate_id)
 
     def get_by_candidate_ids(self, candidate_ids: list[int]) -> dict[int, CandidatePronunciation]:
         if not candidate_ids:
             return {}
         stmt = select(CandidatePronunciationModel).where(
-            CandidatePronunciationModel.candidate_id.in_(candidate_ids)
+            CandidatePronunciationModel.candidate_id.in_(candidate_ids),
+            CandidatePronunciationModel.is_generated(),
         )
         rows = self._session.execute(stmt).scalars().all()
         return {row.candidate_id: row.to_entity() for row in rows}
@@ -49,17 +52,12 @@ class SqlaCandidatePronunciationRepository(CandidatePronunciationRepository):
         self._session.flush()
 
     def get_eligible_candidate_ids(self, source_id: int) -> list[int]:
-        has_pron = select(CandidatePronunciationModel.candidate_id).subquery()
-        stmt = (
-            select(StoredCandidateModel.id)
-            .outerjoin(has_pron, StoredCandidateModel.id == has_pron.c.candidate_id)
-            .where(
-                StoredCandidateModel.source_id == source_id,
-                StoredCandidateModel.status.in_(
-                    [CandidateStatus.PENDING.value, CandidateStatus.LEARN.value]
-                ),
-                has_pron.c.candidate_id.is_(None),
-            )
+        generated = select(CandidatePronunciationModel.candidate_id).where(
+            CandidatePronunciationModel.is_generated(),
         )
-        rows = self._session.execute(stmt).all()
-        return [row[0] for row in rows]
+        stmt = select(StoredCandidateModel.id).where(
+            StoredCandidateModel.source_id == source_id,
+            word_is_active(),
+            StoredCandidateModel.id.not_in(generated),
+        )
+        return [row[0] for row in self._session.execute(stmt).all()]

@@ -31,5 +31,7 @@ class CardReport:
     # Source text around the phrase; None when the phrase is not in the source.
     text_before: str | None = None
     text_after: str | None = None
+    # The phrase the card showed; the report outlives it.
+    phrase_id: int | None = None
     id: int | None = None
     created_at: datetime | None = None

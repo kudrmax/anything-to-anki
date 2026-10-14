@@ -3,134 +3,170 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 
+from backend.domain.entities.occurrence import Occurrence
 from backend.domain.ports.candidate_repository import CandidateRepository
+from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.phrase_origin_kind import (
+    DecisionKind,
+    OccurrenceOrigin,
+    ShownBy,
+)
 from backend.infrastructure.persistence.models import (
     CandidateClozeModel,
     CandidateMeaningImageModel,
-    CandidateMeaningModel,
-    CandidateMediaModel,
     CandidatePronunciationModel,
-    CandidateTTSModel,
+    PhraseModel,
     StoredCandidateModel,
-    dump_phrase,
-    dump_position,
+    load_phrase,
+    load_position,
+)
+from backend.infrastructure.persistence.primary_phrase import (
+    PrimaryPhrases,
+    primary_phrase_id,
+    status_of,
+)
+from backend.infrastructure.persistence.sqla_occurrence_repository import (
+    PhraseResultsReader,
+    SqlaOccurrenceRepository,
 )
 
 if TYPE_CHECKING:
+    from sqlalchemy import ColumnElement
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.stored_candidate import StoredCandidate
-    from backend.domain.value_objects.candidate_status import CandidateStatus
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
 
+DECIDED_STATUSES = (CandidateStatus.LEARN, CandidateStatus.KNOWN)
+
 
 class SqlaCandidateRepository(CandidateRepository):
-    """SQLAlchemy implementation of CandidateRepository.
+    """SQLAlchemy implementation of CandidateRepository: the words of sources.
 
-    On read methods, attaches `meaning` and `media` from sibling tables in a
-    single follow-up query (one per kind, by candidate_id IN (...)).
+    A word is read through its primary phrase (see primary_phrase), with the results of
+    that phrase and the word's pronunciation and picture attached.
     """
 
     def __init__(self, session: Session) -> None:
         self._session = session
+        self._occurrences = SqlaOccurrenceRepository(session)
+        self._primary = PrimaryPhrases(session)
+        self._results = PhraseResultsReader(session)
 
+    # TRANSITIONAL(words-phrases): removed in Task 10
     def create_batch(self, candidates: list[StoredCandidate]) -> list[StoredCandidate]:
-        models = [StoredCandidateModel.from_entity(c) for c in candidates]
-        self._session.add_all(models)
-        self._session.flush()
-        # Fresh candidates never have enrichments yet — skip the lookup.
-        return [m.to_entity() for m in models]
+        """Each candidate becomes a phrase of its word; the word is created if it is new."""
+        created: list[StoredCandidate] = []
+        for candidate in candidates:
+            word = self._word_of(candidate)
+            is_new_word = word is None
+            if word is None:
+                word = StoredCandidateModel.from_entity(candidate)
+                if candidate.status is CandidateStatus.SKIP:
+                    word.status = CandidateStatus.PENDING.value
+                self._session.add(word)
+                self._session.flush()
+            origin = _origin_of(candidate, is_new_word=is_new_word)
+            decided = is_new_word and candidate.status in DECIDED_STATUSES
+            self._occurrences.add(Occurrence(
+                candidate_id=word.id,
+                origin=origin,
+                source_phrase=candidate.source_phrase,
+                phrase_position=candidate.phrase_position,
+                key=None,
+                fragment_score=None,
+                shown_by=ShownBy.SELECTION if origin is OccurrenceOrigin.AUTO else ShownBy.USER,
+                skipped=candidate.status is CandidateStatus.SKIP,
+                is_decision=decided,
+                decision_kind=DecisionKind.LEARN if decided else None,
+                polished_phrase=candidate.polished_phrase,
+                polish_reverted=candidate.polish_reverted,
+            ))
+            created.append(self._view([word])[0])
+        return created
 
     def get_by_source(self, source_id: int) -> list[StoredCandidate]:
-        models = (
-            self._session.query(StoredCandidateModel)
-            .filter(StoredCandidateModel.source_id == source_id)
-            .all()
-        )
-        entities = [m.to_entity() for m in models]
-        return self._bulk_attach(entities)
+        return self._read(StoredCandidateModel.source_id == source_id)
 
     def get_by_id(self, candidate_id: int) -> StoredCandidate | None:
-        model = self._session.get(StoredCandidateModel, candidate_id)
-        if model is None:
-            return None
-        return self._attach_enrichments(model.to_entity())
+        found = self._read(StoredCandidateModel.id == candidate_id)
+        return found[0] if found else None
 
+    # TRANSITIONAL(words-phrases): removed in Task 10
     def update_status(self, candidate_id: int, status: CandidateStatus) -> None:
-        model = self._session.get(StoredCandidateModel, candidate_id)
-        if model is not None:
-            model.status = status.value
-            self._session.flush()
+        """SKIP skips the primary phrase; LEARN and KNOWN make it the phrase of the decision."""
+        word = self._session.get(StoredCandidateModel, candidate_id)
+        primary = self._primary.id(candidate_id)
+        if word is None or primary is None:
+            return
+        if status in DECIDED_STATUSES:
+            word.status = status.value
+            self._occurrences.set_skipped(primary, False)
+            self._occurrences.set_decision(candidate_id, primary, self._decision_kind(primary))
+        else:
+            word.status = CandidateStatus.PENDING.value
+            self._occurrences.set_decision(candidate_id, None, None)
+            self._occurrences.set_skipped(primary, status is CandidateStatus.SKIP)
+        self._session.flush()
 
+    # TRANSITIONAL(words-phrases): removed in Task 10
     def count_by_status(self, status: CandidateStatus) -> int:
-        result = (
-            self._session.query(func.count(StoredCandidateModel.id))
-            .filter(StoredCandidateModel.status == status.value)
-            .scalar()
+        stmt = (
+            select(func.count(StoredCandidateModel.id))
+            .join(PhraseModel, PhraseModel.id == primary_phrase_id(StoredCandidateModel.id))
+            .where(*_has_status(status))
         )
-        return result or 0
+        return self._session.execute(stmt).scalar() or 0
 
     def count_all(self) -> int:
         result = self._session.query(func.count(StoredCandidateModel.id)).scalar()
         return result or 0
 
+    # TRANSITIONAL(words-phrases): removed in Task 10
     def set_source_phrase(
         self, candidate_id: int, phrase: Phrase, position: DocumentPosition,
     ) -> None:
-        model = self._session.get(StoredCandidateModel, candidate_id)
-        if model is not None:
-            model.source_phrase = _dumped(phrase)
-            model.phrase_position = dump_position(position)
-            model.polished_phrase = None
-            model.polish_reverted = False
-            self._session.flush()
+        primary = self._primary_model(candidate_id)
+        if primary is not None:
+            self._occurrences.write_text(primary.id, phrase, position)
 
+    # TRANSITIONAL(words-phrases): removed in Task 10
     def set_polished_phrase(self, candidate_id: int, phrase: Phrase | None) -> None:
-        model = self._session.get(StoredCandidateModel, candidate_id)
-        if model is not None:
-            model.polished_phrase = dump_phrase(phrase)
-            model.polish_reverted = False
-            self._session.flush()
+        primary = self._primary_model(candidate_id)
+        if primary is not None:
+            self._occurrences.write_text(
+                primary.id, _required(primary.source_phrase),
+                load_position(primary.phrase_position), polished=phrase,
+            )
 
+    # TRANSITIONAL(words-phrases): removed in Task 10
     def set_polish_reverted(self, candidate_id: int, reverted: bool) -> None:
-        model = self._session.get(StoredCandidateModel, candidate_id)
-        if model is not None:
-            model.polish_reverted = reverted
-            self._session.flush()
+        primary = self._primary_model(candidate_id)
+        if primary is not None:
+            self._occurrences.write_text(
+                primary.id, _required(primary.source_phrase),
+                load_position(primary.phrase_position),
+                polished=load_phrase(primary.polished_phrase), polish_reverted=reverted,
+            )
 
     def get_by_ids(self, candidate_ids: list[int]) -> list[StoredCandidate]:
         if not candidate_ids:
             return []
-        models = (
-            self._session.query(StoredCandidateModel)
-            .filter(StoredCandidateModel.id.in_(candidate_ids))
-            .all()
-        )
+        found = self._read(StoredCandidateModel.id.in_(candidate_ids))
         order_map = {cid: idx for idx, cid in enumerate(candidate_ids)}
-        models.sort(key=lambda m: order_map.get(m.id, 999999))
-        entities = [m.to_entity() for m in models]
-        return self._bulk_attach(entities)
+        found.sort(key=lambda c: order_map.get(c.id or 0, len(order_map)))
+        return found
 
     def get_by_lemma(self, lemma: str) -> list[StoredCandidate]:
-        models = (
-            self._session.query(StoredCandidateModel)
-            .filter(func.lower(StoredCandidateModel.lemma) == lemma.lower())
-            .all()
-        )
-        return [m.to_entity() for m in models]
+        return self._read(func.lower(StoredCandidateModel.lemma) == lemma.lower())
 
+    # TRANSITIONAL(words-phrases): removed in Task 10
     def get_all_by_status(self, status: CandidateStatus) -> list[StoredCandidate]:
-        models = (
-            self._session.query(StoredCandidateModel)
-            .filter(StoredCandidateModel.status == status.value)
-            .order_by(StoredCandidateModel.source_id)
-            .all()
-        )
-        entities = [m.to_entity() for m in models]
-        return self._bulk_attach(entities)
+        found = self._read(*_has_status(status), join_primary=True)
+        return sorted(found, key=lambda c: c.source_id)
 
     def get_lemma_map(self, candidate_ids: list[int]) -> dict[int, str]:
         if not candidate_ids:
@@ -143,12 +179,10 @@ class SqlaCandidateRepository(CandidateRepository):
         return {row.id: row.lemma for row in rows}
 
     def delete_by_source(self, source_id: int) -> None:
-        """Delete all candidates for a source.
+        """Delete all words of a source.
 
-        Related rows (meanings, media, pronunciation, cefr_breakdowns,
-        anki_synced_cards) are removed automatically by DB-level
-        ON DELETE CASCADE — no need to enumerate tables here.
-        Requires PRAGMA foreign_keys = ON (set in database.py).
+        Their phrases, results, jobs and export records go by DB-level
+        ON DELETE CASCADE. Requires PRAGMA foreign_keys = ON (set in database.py).
         """
         models = (
             self._session.query(StoredCandidateModel)
@@ -161,75 +195,93 @@ class SqlaCandidateRepository(CandidateRepository):
 
     # ── private helpers ────────────────────────────────────────────────
 
-    def _attach_enrichments(self, entity: StoredCandidate) -> StoredCandidate:
-        if entity.id is None:
-            return entity
-        meaning_model = self._session.get(CandidateMeaningModel, entity.id)
-        media_model = self._session.get(CandidateMediaModel, entity.id)
-        pron_model = self._session.get(CandidatePronunciationModel, entity.id)
-        tts_model = self._session.get(CandidateTTSModel, entity.id)
-        entity.meaning = meaning_model.to_entity() if meaning_model else None
-        entity.media = media_model.to_entity() if media_model else None
-        entity.pronunciation = pron_model.to_entity() if pron_model else None
-        entity.tts = tts_model.to_entity() if tts_model else None
-        cloze_model = self._session.get(CandidateClozeModel, entity.id)
-        entity.cloze = cloze_model.to_entity() if cloze_model else None
-        image_model = self._session.get(CandidateMeaningImageModel, entity.id)
-        entity.meaning_image = image_model.to_entity() if image_model else None
-        return entity
+    def _word_of(self, candidate: StoredCandidate) -> StoredCandidateModel | None:
+        return self._session.scalars(
+            select(StoredCandidateModel).where(
+                StoredCandidateModel.source_id == candidate.source_id,
+                func.lower(StoredCandidateModel.lemma) == candidate.lemma.lower(),
+                StoredCandidateModel.is_phrasal_verb == candidate.is_phrasal_verb,
+            )
+        ).first()
 
-    def _bulk_attach(self, entities: list[StoredCandidate]) -> list[StoredCandidate]:
-        ids = [e.id for e in entities if e.id is not None]
-        if not ids:
-            return entities
-        meaning_rows = (
-            self._session.query(CandidateMeaningModel)
-            .filter(CandidateMeaningModel.candidate_id.in_(ids))
-            .all()
-        )
-        media_rows = (
-            self._session.query(CandidateMediaModel)
-            .filter(CandidateMediaModel.candidate_id.in_(ids))
-            .all()
-        )
-        pron_rows = (
-            self._session.query(CandidatePronunciationModel)
-            .filter(CandidatePronunciationModel.candidate_id.in_(ids))
-            .all()
-        )
-        tts_rows = (
-            self._session.query(CandidateTTSModel)
-            .filter(CandidateTTSModel.candidate_id.in_(ids))
-            .all()
-        )
-        cloze_rows = (
-            self._session.query(CandidateClozeModel)
-            .filter(CandidateClozeModel.candidate_id.in_(ids))
-            .all()
-        )
-        image_rows = (
-            self._session.query(CandidateMeaningImageModel)
-            .filter(CandidateMeaningImageModel.candidate_id.in_(ids))
-            .all()
-        )
-        meanings = {r.candidate_id: r.to_entity() for r in meaning_rows}
-        medias = {r.candidate_id: r.to_entity() for r in media_rows}
-        prons = {r.candidate_id: r.to_entity() for r in pron_rows}
-        ttses = {r.candidate_id: r.to_entity() for r in tts_rows}
-        clozes = {r.candidate_id: r.to_entity() for r in cloze_rows}
-        images = {r.candidate_id: r.to_entity() for r in image_rows}
-        for e in entities:
-            if e.id is not None:
-                e.meaning = meanings.get(e.id)
-                e.media = medias.get(e.id)
-                e.pronunciation = prons.get(e.id)
-                e.tts = ttses.get(e.id)
-                e.cloze = clozes.get(e.id)
-                e.meaning_image = images.get(e.id)
-        return entities
+    def _primary_model(self, candidate_id: int) -> PhraseModel | None:
+        return self._primary.models([candidate_id]).get(candidate_id)
+
+    def _decision_kind(self, phrase_id: int) -> DecisionKind:
+        has_cloze = self._session.get(CandidateClozeModel, phrase_id) is not None
+        return DecisionKind.CLOZE if has_cloze else DecisionKind.LEARN
+
+    def _read(
+        self, *where: ColumnElement[bool], join_primary: bool = False,
+    ) -> list[StoredCandidate]:
+        stmt = select(StoredCandidateModel).where(*where).order_by(StoredCandidateModel.id)
+        if join_primary:
+            stmt = stmt.join(
+                PhraseModel, PhraseModel.id == primary_phrase_id(StoredCandidateModel.id),
+            )
+        return self._view(list(self._session.scalars(stmt).unique()))
+
+    # TRANSITIONAL(words-phrases): removed in Task 10
+    def _view(self, words: list[StoredCandidateModel]) -> list[StoredCandidate]:
+        """Words as cards: each seen through its primary phrase, results attached."""
+        ids = [w.id for w in words]
+        primaries = self._primary.models(ids)
+        results = self._results.by_phrase({p.id: word_id for word_id, p in primaries.items()})
+        prons = {
+            r.candidate_id: r.to_entity()
+            for r in self._session.scalars(
+                select(CandidatePronunciationModel)
+                .where(
+                    CandidatePronunciationModel.candidate_id.in_(ids),
+                    CandidatePronunciationModel.is_generated(),
+                )
+            )
+        }
+        images = {
+            r.candidate_id: r.to_entity()
+            for r in self._session.scalars(
+                select(CandidateMeaningImageModel)
+                .where(CandidateMeaningImageModel.candidate_id.in_(ids))
+            )
+        }
+        viewed: list[StoredCandidate] = []
+        for word in words:
+            primary = primaries.get(word.id)
+            if primary is None:
+                continue
+            entity = word.to_entity(primary, status_of(word, primary))
+            made = results[primary.id]
+            entity.meaning = made.meaning
+            entity.media = made.media
+            entity.tts = made.tts
+            entity.cloze = made.cloze
+            entity.pronunciation = prons.get(word.id)
+            entity.meaning_image = images.get(word.id)
+            viewed.append(entity)
+        return viewed
 
 
-def _dumped(phrase: Phrase) -> str:
-    stored = dump_phrase(phrase)
-    assert stored is not None
-    return stored
+# TRANSITIONAL(words-phrases): removed in Task 10
+def _origin_of(candidate: StoredCandidate, *, is_new_word: bool) -> OccurrenceOrigin:
+    """A collected phrase (topic), an example (no place in the text), the analyzer's phrase
+    of a new word, or a phrase the user added to a word that already has one."""
+    if candidate.origin is not None:
+        return OccurrenceOrigin.COLLECTED
+    if candidate.phrase_position is None:
+        return OccurrenceOrigin.EXAMPLE
+    return OccurrenceOrigin.AUTO if is_new_word else OccurrenceOrigin.MANUAL
+
+
+# TRANSITIONAL(words-phrases): removed in Task 10
+def _has_status(status: CandidateStatus) -> list[ColumnElement[bool]]:
+    """Conditions on a word joined with its primary phrase (as PhraseModel)."""
+    if status is CandidateStatus.SKIP:
+        return [PhraseModel.skipped.is_(True)]
+    return [StoredCandidateModel.status == status.value, PhraseModel.skipped.is_(False)]
+
+
+def _required(stored: str) -> Phrase:
+    phrase = load_phrase(stored)
+    assert phrase is not None
+    return phrase
+

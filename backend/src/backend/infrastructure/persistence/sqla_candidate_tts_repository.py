@@ -5,10 +5,15 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 
 from backend.domain.ports.candidate_tts_repository import CandidateTTSRepository
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.models import (
     CandidateTTSModel,
+    PhraseModel,
     StoredCandidateModel,
+)
+from backend.infrastructure.persistence.primary_phrase import (
+    PrimaryPhrases,
+    primary_phrase_id,
+    word_is_active,
 )
 
 if TYPE_CHECKING:
@@ -18,53 +23,77 @@ if TYPE_CHECKING:
 
 
 class SqlaCandidateTTSRepository(CandidateTTSRepository):
-    """SQLAlchemy implementation of CandidateTTSRepository."""
+    """SQLAlchemy implementation of CandidateTTSRepository: the speech of phrases."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
+        self._primary = PrimaryPhrases(session)
 
-    def get_by_candidate_id(self, candidate_id: int) -> CandidateTTS | None:
-        model = self._session.get(CandidateTTSModel, candidate_id)
-        return model.to_entity() if model else None
+    # ── by phrase ──────────────────────────────────────────────────────
 
-    def get_by_candidate_ids(
-        self, candidate_ids: list[int],
-    ) -> dict[int, CandidateTTS]:
-        if not candidate_ids:
+    def get_by_phrase_id(self, phrase_id: int) -> CandidateTTS | None:
+        return self.get_by_phrase_ids([phrase_id]).get(phrase_id)
+
+    def get_by_phrase_ids(self, phrase_ids: list[int]) -> dict[int, CandidateTTS]:
+        words = self._primary.word_ids(phrase_ids)
+        if not words:
             return {}
-        stmt = select(CandidateTTSModel).where(
-            CandidateTTSModel.candidate_id.in_(candidate_ids),
+        rows = self._session.scalars(
+            select(CandidateTTSModel).where(CandidateTTSModel.phrase_id.in_(list(words)))
         )
-        rows = self._session.execute(stmt).scalars().all()
-        return {row.candidate_id: row.to_entity() for row in rows}
+        return {row.phrase_id: row.to_entity(words[row.phrase_id]) for row in rows}
 
-    def upsert(self, tts: CandidateTTS) -> None:
-        existing = self._session.get(CandidateTTSModel, tts.candidate_id)
+    def upsert_for_phrase(self, phrase_id: int, tts: CandidateTTS) -> None:
+        existing = self._session.get(CandidateTTSModel, phrase_id)
         if existing is None:
-            self._session.add(CandidateTTSModel.from_entity(tts))
+            self._session.add(CandidateTTSModel.from_entity(phrase_id, tts))
         else:
             existing.audio_path = tts.audio_path
             existing.generated_at = tts.generated_at
         self._session.flush()
 
-    def delete_by_candidate_id(self, candidate_id: int) -> None:
-        model = self._session.get(CandidateTTSModel, candidate_id)
+    def delete_by_phrase_id(self, phrase_id: int) -> None:
+        model = self._session.get(CandidateTTSModel, phrase_id)
         if model is not None:
             self._session.delete(model)
             self._session.flush()
 
+    # ── by word, through its primary phrase ────────────────────────────
+    # TRANSITIONAL(words-phrases): removed in Task 10
+
+    def get_by_candidate_id(self, candidate_id: int) -> CandidateTTS | None:
+        return self.get_by_candidate_ids([candidate_id]).get(candidate_id)
+
+    def get_by_candidate_ids(
+        self, candidate_ids: list[int],
+    ) -> dict[int, CandidateTTS]:
+        primaries = self._primary.ids(candidate_ids)
+        by_phrase = self.get_by_phrase_ids(list(primaries.values()))
+        return {
+            word_id: by_phrase[phrase_id]
+            for word_id, phrase_id in primaries.items()
+            if phrase_id in by_phrase
+        }
+
+    def upsert(self, tts: CandidateTTS) -> None:
+        phrase_id = self._primary.id(tts.candidate_id)
+        if phrase_id is not None:
+            self.upsert_for_phrase(phrase_id, tts)
+
+    def delete_by_candidate_id(self, candidate_id: int) -> None:
+        phrase_id = self._primary.id(candidate_id)
+        if phrase_id is not None:
+            self.delete_by_phrase_id(phrase_id)
+
     def get_eligible_candidate_ids(self, source_id: int) -> list[int]:
-        has_tts = select(CandidateTTSModel.candidate_id).subquery()
         stmt = (
             select(StoredCandidateModel.id)
-            .outerjoin(has_tts, StoredCandidateModel.id == has_tts.c.candidate_id)
+            .join(PhraseModel, PhraseModel.id == primary_phrase_id(StoredCandidateModel.id))
+            .outerjoin(CandidateTTSModel, CandidateTTSModel.phrase_id == PhraseModel.id)
             .where(
                 StoredCandidateModel.source_id == source_id,
-                StoredCandidateModel.status.in_(
-                    [CandidateStatus.PENDING.value, CandidateStatus.LEARN.value],
-                ),
-                has_tts.c.candidate_id.is_(None),
+                word_is_active(),
+                CandidateTTSModel.phrase_id.is_(None),
             )
         )
-        rows = self._session.execute(stmt).all()
-        return [row[0] for row in rows]
+        return [row[0] for row in self._session.execute(stmt).all()]
