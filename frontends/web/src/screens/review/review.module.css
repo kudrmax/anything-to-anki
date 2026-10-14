@@ -46,7 +46,8 @@
 /* очередь */
 /* без списка карточка занимает высоту окна и сжимается под неё; со списком окно прокручивается */
 .body { display: flex; flex-direction: column; flex: 1; min-height: 100%; }
-.focus .queue > .card { flex: 1 1 auto; }
+/* Отступы карточки отделяют её от строк списка; без списка строки скрыты, но в DOM остаются — :first-child не спасает. */
+.focus .queue > .card { flex: 1 1 auto; margin: 0; }
 .queue { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .queue > .queueItem, .queue > .sectionToggle { display: var(--queue-row-display); }
 .queue > .card { order: var(--current-card-order); margin: var(--wide-lead) 0; scroll-margin-bottom: var(--dock-reserve); }
