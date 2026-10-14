@@ -2,41 +2,67 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.application.dto.collection_dtos import CollectionDTO
+from backend.application.dto.collection_dtos import (
+    CollectionNodeDTO,
+    CollectionTreeDTO,
+    ScopeCountsDTO,
+)
+from backend.domain.services.collection_tree import CollectionTree
+from backend.domain.services.source_stage import is_pending
+from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
+    from backend.application.utils.topic_generation import TopicGenerationProbe
+    from backend.domain.entities.collection import Collection
+    from backend.domain.entities.source import Source
     from backend.domain.ports.collection_repository import CollectionRepository
     from backend.domain.ports.source_repository import SourceRepository
 
 
 class ListCollectionsUseCase:
-    """Lists all collections with source counts."""
+    """The collection tree in manual order, each node counting its whole subtree."""
 
     def __init__(
         self,
         collection_repo: CollectionRepository,
         source_repo: SourceRepository,
+        generation_probe: TopicGenerationProbe,
     ) -> None:
         self._collection_repo = collection_repo
         self._source_repo = source_repo
+        self._generation_probe = generation_probe
 
-    def execute(self) -> list[CollectionDTO]:
-        collections = self._collection_repo.list_all()
-        all_sources = self._source_repo.list_all()
+    def execute(self) -> CollectionTreeDTO:
+        tree = CollectionTree(self._collection_repo.list_all())
+        sources = self._source_repo.list_all()
+        pending = {
+            s.id for s in sources
+            if is_pending(s.status, awaiting_generation=self._generation_probe.of(s).awaiting)
+        }
 
-        counts: dict[int, int] = {}
-        for source in all_sources:
-            if source.collection_id is not None:
-                counts[source.collection_id] = counts.get(source.collection_id, 0) + 1
-
-        result: list[CollectionDTO] = []
-        for c in sorted(collections, key=lambda x: x.name.lower()):
-            result.append(
-                CollectionDTO(
-                    id=c.id,  # type: ignore[arg-type]
-                    name=c.name,
-                    source_count=counts.get(c.id, 0),  # type: ignore[arg-type]
-                    created_at=c.created_at,
-                )
+        def counts(selected: list[Source]) -> ScopeCountsDTO:
+            return ScopeCountsDTO(
+                total=len(selected),
+                reviewed=sum(1 for s in selected if s.status is SourceStatus.REVIEWED),
+                pending=sum(1 for s in selected if s.id in pending),
             )
-        return result
+
+        def node(collection: Collection) -> CollectionNodeDTO:
+            assert collection.id is not None
+            subtree = tree.subtree_ids(collection.id)
+            children = tree.children(collection.id)
+            return CollectionNodeDTO(
+                id=collection.id,
+                name=collection.name,
+                parent_id=collection.parent_id,
+                counts=counts([s for s in sources if s.collection_id in subtree]),
+                accepts_collections=collection.is_top_level,
+                can_be_nested=not children,
+                children=[node(child) for child in children],
+            )
+
+        return CollectionTreeDTO(
+            all=counts(sources),
+            unsorted=counts([s for s in sources if s.collection_id is None]),
+            collections=[node(c) for c in tree.children(None)],
+        )

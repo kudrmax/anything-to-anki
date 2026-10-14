@@ -4,3 +4,5 @@
 .title { font-size: var(--fs-h2); font-weight: var(--fw-b); letter-spacing: var(--ls-tight); margin-bottom: var(--s5); }
 .content { display: flex; flex-direction: column; gap: var(--s4); }
 .footer { display: flex; justify-content: flex-end; align-items: center; gap: var(--gap); margin-top: var(--s6); }
+.sheet { place-items: end stretch; padding: 0; }
+.sheet > .modal { max-width: 100%; max-height: var(--sheet-max-h); border-radius: var(--r) var(--r) 0 0; }

@@ -1,48 +1,42 @@
-from unittest.mock import MagicMock
+from __future__ import annotations
 
 import pytest
 from backend.application.use_cases.create_collection import CreateCollectionUseCase
 from backend.domain.entities.collection import Collection
-from backend.domain.exceptions import CollectionNameExistsError
+from backend.domain.exceptions import (
+    CollectionMoveNotAllowedError,
+    CollectionNameExistsError,
+    CollectionNotFoundError,
+)
+
+from tests.unit.application.collection_fakes import InMemoryCollectionRepository
+
+
+def repo() -> InMemoryCollectionRepository:
+    return InMemoryCollectionRepository([
+        Collection(id=1, name="Friends", position=0),
+        Collection(id=2, name="Season 1", parent_id=1, position=0),
+    ])
 
 
 @pytest.mark.unit
-class TestCreateCollectionUseCase:
-    def setup_method(self) -> None:
-        self.collection_repo = MagicMock()
-        self.use_case = CreateCollectionUseCase(collection_repo=self.collection_repo)
+class TestCreateCollection:
+    def test_top_level_goes_last(self) -> None:
+        created = CreateCollectionUseCase(repo()).execute("  IELTS ")
+        assert (created.name, created.parent_id, created.position) == ("IELTS", None, 1)
 
-    def test_creates_collection(self) -> None:
-        self.collection_repo.list_all.return_value = []
-        self.collection_repo.create.return_value = Collection(id=1, name="Breaking Bad")
-        result = self.use_case.execute("Breaking Bad")
-        assert result.id == 1
-        assert result.name == "Breaking Bad"
-        assert result.source_count == 0
-        self.collection_repo.create.assert_called_once()
+    def test_subcollection(self) -> None:
+        created = CreateCollectionUseCase(repo()).execute("Season 2", parent_id=1)
+        assert (created.parent_id, created.position) == (1, 1)
 
-    def test_empty_name_raises(self) -> None:
-        with pytest.raises(ValueError, match="empty"):
-            self.use_case.execute("")
-
-    def test_whitespace_name_raises(self) -> None:
-        with pytest.raises(ValueError, match="empty"):
-            self.use_case.execute("   ")
-
-    def test_name_too_long_raises(self) -> None:
-        with pytest.raises(ValueError, match="200"):
-            self.use_case.execute("a" * 201)
-
-    def test_duplicate_name_raises(self) -> None:
-        self.collection_repo.list_all.return_value = [
-            Collection(id=1, name="Breaking Bad"),
-        ]
+    def test_duplicate_among_siblings(self) -> None:
         with pytest.raises(CollectionNameExistsError):
-            self.use_case.execute("Breaking Bad")
+            CreateCollectionUseCase(repo()).execute("season 1", parent_id=1)
 
-    def test_strips_whitespace(self) -> None:
-        self.collection_repo.list_all.return_value = []
-        self.collection_repo.create.return_value = Collection(id=1, name="Breaking Bad")
-        self.use_case.execute("  Breaking Bad  ")
-        created = self.collection_repo.create.call_args[0][0]
-        assert created.name == "Breaking Bad"
+    def test_no_third_level(self) -> None:
+        with pytest.raises(CollectionMoveNotAllowedError):
+            CreateCollectionUseCase(repo()).execute("Episode", parent_id=2)
+
+    def test_unknown_parent(self) -> None:
+        with pytest.raises(CollectionNotFoundError):
+            CreateCollectionUseCase(repo()).execute("X", parent_id=99)

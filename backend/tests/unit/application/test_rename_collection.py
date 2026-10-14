@@ -1,46 +1,33 @@
-from unittest.mock import MagicMock
+from __future__ import annotations
 
 import pytest
 from backend.application.use_cases.rename_collection import RenameCollectionUseCase
 from backend.domain.entities.collection import Collection
 from backend.domain.exceptions import CollectionNameExistsError, CollectionNotFoundError
 
+from tests.unit.application.collection_fakes import InMemoryCollectionRepository
+
 
 @pytest.mark.unit
-class TestRenameCollectionUseCase:
+class TestRenameCollection:
     def setup_method(self) -> None:
-        self.collection_repo = MagicMock()
-        self.use_case = RenameCollectionUseCase(collection_repo=self.collection_repo)
+        self.repo = InMemoryCollectionRepository([
+            Collection(id=1, name="Friends"),
+            Collection(id=2, name="Lost", position=1),
+        ])
 
-    def test_renames_collection(self) -> None:
-        self.collection_repo.get_by_id.return_value = Collection(id=1, name="Old Name")
-        self.collection_repo.list_all.return_value = [Collection(id=1, name="Old Name")]
-        self.collection_repo.rename.return_value = Collection(id=1, name="New Name")
-        result = self.use_case.execute(1, "New Name")
-        assert result.name == "New Name"
-        self.collection_repo.rename.assert_called_once_with(1, "New Name")
+    def test_returns_previous_name_for_undo(self) -> None:
+        renamed = RenameCollectionUseCase(self.repo).execute(1, " Friends (US) ")
+        assert (renamed.name, renamed.previous_name) == ("Friends (US)", "Friends")
+        assert self.repo.items[1].name == "Friends (US)"
 
-    def test_not_found_raises(self) -> None:
-        self.collection_repo.get_by_id.return_value = None
-        with pytest.raises(CollectionNotFoundError):
-            self.use_case.execute(999, "New Name")
+    def test_case_change_of_own_name(self) -> None:
+        assert RenameCollectionUseCase(self.repo).execute(1, "FRIENDS").name == "FRIENDS"
 
-    def test_duplicate_name_raises(self) -> None:
-        self.collection_repo.get_by_id.return_value = Collection(id=1, name="Old")
-        self.collection_repo.list_all.return_value = [
-            Collection(id=1, name="Old"),
-            Collection(id=2, name="Taken"),
-        ]
+    def test_sibling_name_taken(self) -> None:
         with pytest.raises(CollectionNameExistsError):
-            self.use_case.execute(1, "Taken")
+            RenameCollectionUseCase(self.repo).execute(1, "lost")
 
-    def test_same_name_as_self_allowed(self) -> None:
-        self.collection_repo.get_by_id.return_value = Collection(id=1, name="Same")
-        self.collection_repo.list_all.return_value = [Collection(id=1, name="Same")]
-        self.collection_repo.rename.return_value = Collection(id=1, name="Same")
-        result = self.use_case.execute(1, "Same")
-        assert result.name == "Same"
-
-    def test_empty_name_raises(self) -> None:
-        with pytest.raises(ValueError, match="empty"):
-            self.use_case.execute(1, "")
+    def test_not_found(self) -> None:
+        with pytest.raises(CollectionNotFoundError):
+            RenameCollectionUseCase(self.repo).execute(9, "X")

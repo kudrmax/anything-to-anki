@@ -11,6 +11,13 @@ import type {
   ClozePreview,
   SaveClozeRequest,
   Collection,
+  CollectionTree,
+  DeletedCollection,
+  MovedCollection,
+  RenamedCollection,
+  Scope,
+  SourceBoard,
+  SourcePlacement,
   ExportGroup,
   FollowUpAction,
   FrequentWordThresholdOption,
@@ -96,10 +103,7 @@ export const api = {
       body: JSON.stringify({ title }),
     }),
 
-  listSources: (collectionId?: number) =>
-    req<SourceSummary[]>(
-      collectionId != null ? `/sources?collection_id=${collectionId}` : '/sources',
-    ),
+  listSources: () => req<SourceSummary[]>('/sources'),
 
   getSource: (id: number, sort: CandidateSortOrder = 'relevance') =>
     req<SourceDetail>(`/sources/${id}?sort=${sort}`),
@@ -125,12 +129,16 @@ export const api = {
 
   getAnkiStatus: () => req<AnkiStatus>('/anki/status'),
 
-  getExportCards: (sourceId?: number) =>
-    req<GlobalExport>(sourceId != null ? `/export/cards/${sourceId}` : '/export/cards'),
+  getExportCards: (sourceId?: number, scope: Scope = 'all') =>
+    req<GlobalExport>(
+      sourceId != null ? `/export/cards/${sourceId}` : `/export/cards?${new URLSearchParams({ scope: String(scope) })}`,
+    ),
 
-  syncToAnki: (group: ExportGroup, sourceId?: number) =>
+  syncToAnki: (group: ExportGroup, sourceId?: number, scope: Scope = 'all') =>
     req<SyncResult>(
-      `${sourceId != null ? `/export/sync-to-anki/${sourceId}` : '/export/sync-to-anki'}?group=${group}`,
+      sourceId != null
+        ? `/export/sync-to-anki/${sourceId}?${new URLSearchParams({ group })}`
+        : `/export/sync-to-anki?${new URLSearchParams({ group, scope: String(scope) })}`,
       { method: 'POST' },
     ),
 
@@ -279,31 +287,49 @@ export const api = {
 
   dismissQueue: (selection: QueueSelection) => queueAction('dismiss', selection),
 
-  listCollections: () => req<Collection[]>('/collections'),
+  getCollectionTree: () => req<CollectionTree>('/collections'),
 
-  createCollection: (name: string) =>
-    req<Collection>('/collections', {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    }),
+  createCollection: (name: string, parentId: number | null = null) =>
+    req<Collection>('/collections', { method: 'POST', body: JSON.stringify({ name, parent_id: parentId }) }),
 
   renameCollection: (id: number, name: string) =>
-    req<Collection>(`/collections/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ name }),
+    req<RenamedCollection>(`/collections/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+
+  moveCollection: (id: number, parentId: number | null, position: number) =>
+    req<MovedCollection>(`/collections/${id}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ parent_id: parentId, position }),
     }),
 
-  deleteCollection: (id: number) =>
-    reqVoid(`/collections/${id}`, { method: 'DELETE' }),
+  deleteCollection: (id: number) => req<DeletedCollection>(`/collections/${id}`, { method: 'DELETE' }),
 
-  assignSourceCollection: (sourceId: number, collectionId: number | null) =>
-    req<{ source_id: number; collection_id: number | null }>(
-      `/sources/${sourceId}/collection`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({ collection_id: collectionId }),
-      },
-    ),
+  restoreCollection: (id: number) => req<Collection>(`/collections/${id}/restore`, { method: 'POST' }),
+
+  getSourceBoard: (scope: Scope, query: string, signal?: AbortSignal) =>
+    req<SourceBoard>(`/sources/board?${new URLSearchParams({ scope: String(scope), query })}`, { signal }),
+
+  placeSources: (placements: SourcePlacement[]) =>
+    req<{ previous: SourcePlacement[] }>('/sources/placements', {
+      method: 'POST',
+      body: JSON.stringify({ placements }),
+    }),
+
+  processPending: (scope: Scope) =>
+    req<{ started: number[]; skipped: number[] }>(`/sources/process-pending?${new URLSearchParams({ scope: String(scope) })}`, {
+      method: 'POST',
+    }),
+
+  processSources: (sourceIds: number[]) =>
+    req<{ started: number[]; skipped: number[] }>('/sources/process-batch', {
+      method: 'POST',
+      body: JSON.stringify({ source_ids: sourceIds }),
+    }),
+
+  deleteSources: (sourceIds: number[]) =>
+    req<{ deleted: number[]; skipped: number[] }>('/sources/delete-batch', {
+      method: 'POST',
+      body: JSON.stringify({ source_ids: sourceIds }),
+    }),
 
   getBootstrapStatus: () => req<BootstrapStatus>('/api/bootstrap/status'),
 

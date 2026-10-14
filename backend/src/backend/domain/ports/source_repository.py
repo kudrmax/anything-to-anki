@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from backend.domain.entities.source import Source
     from backend.domain.value_objects.processing_stage import ProcessingStage
     from backend.domain.value_objects.source_role import SourceRole
@@ -49,7 +51,8 @@ class SourceRepository(ABC):
     def delete(self, source_id: int) -> None: ...
 
     @abstractmethod
-    def update_collection(self, source_id: int, collection_id: int | None) -> None: ...
+    def set_collections(self, placements: Mapping[int, int | None]) -> None:
+        """Put each source (key) into a collection (value; None for Unsorted)."""
 
     @abstractmethod
     def get_title_map(self, source_ids: list[int]) -> dict[int, str]:

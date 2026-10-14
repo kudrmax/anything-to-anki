@@ -197,11 +197,18 @@ class CollectionNotFoundError(DomainError):
 
 
 class CollectionNameExistsError(DomainError):
-    """Raised when a collection name is already taken."""
+    """Raised when a sibling collection already has this name."""
 
     def __init__(self, name: str) -> None:
-        super().__init__(f"Collection name already exists: {name}")
+        super().__init__(f'Collection "{name}" already exists here')
         self.name = name
+
+
+class CollectionMoveNotAllowedError(DomainError):
+    """Raised when a collection would end up deeper than two levels or inside itself."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
 
 
 class BookReadError(DomainError):

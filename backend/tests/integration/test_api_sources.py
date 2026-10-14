@@ -8,6 +8,7 @@ from pathlib import Path  # noqa: TC003
 import pytest
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
+from backend.infrastructure.api.routes import sources as sources_routes
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import SourceModel, StoredCandidateModel
 from fastapi.testclient import TestClient
@@ -58,6 +59,18 @@ def client(_db_engine: object) -> Generator[TestClient, None, None]:
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def launched(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Ids handed to the background launch; nothing is actually launched."""
+    ids: list[int] = []
+
+    def record(source_ids: list[int], *_: object) -> None:
+        ids.extend(source_ids)
+
+    monkeypatch.setattr(sources_routes, "_launch", record)
+    return ids
 
 
 TEXT_ANSWER = {"text.kind": "text"}
@@ -113,6 +126,50 @@ class TestSourcesAPI:
         response = client.get("/sources")
         assert response.status_code == 200
         assert len(response.json()) == 2
+
+    def test_process_pending_starts_only_scope(
+        self, client: TestClient, db_session: Session, launched: list[int],
+    ) -> None:
+        ielts = client.post("/collections", json={"name": "IELTS"}).json()
+        db_session.add_all([
+            SourceModel(title="in", status="new", collection_id=ielts["id"]),
+            SourceModel(title="out", status="new"),
+        ])
+        db_session.commit()
+        started = client.post("/sources/process-pending", params={"scope": ielts["id"]})
+        assert started.status_code == 202
+        titles = {s["id"]: s["title"] for s in client.get("/sources").json()}
+        assert [titles[i] for i in started.json()["started"]] == ["in"]
+        assert launched == started.json()["started"]
+
+    def test_process_batch_ignores_repeated_ids(
+        self, client: TestClient, db_session: Session, launched: list[int],
+    ) -> None:
+        db_session.add(SourceModel(title="one", status="new"))
+        db_session.commit()
+        source_id = client.get("/sources").json()[0]["id"]
+        response = client.post(
+            "/sources/process-batch", json={"source_ids": [source_id, source_id]},
+        )
+        assert response.status_code == 202
+        assert response.json() == {"started": [source_id], "skipped": []}
+        assert launched == [source_id]
+
+    def test_process_batch_reports_sources_that_cannot_start(
+        self, client: TestClient, db_session: Session, launched: list[int],
+    ) -> None:
+        db_session.add_all([
+            SourceModel(title="new", status="new"),
+            SourceModel(title="done", status="done"),
+        ])
+        db_session.commit()
+        ids = {s["title"]: s["id"] for s in client.get("/sources").json()}
+        response = client.post(
+            "/sources/process-batch", json={"source_ids": [ids["new"], ids["done"]]},
+        )
+        assert response.status_code == 202
+        assert response.json() == {"started": [ids["new"]], "skipped": [ids["done"]]}
+        assert launched == [ids["new"]]
 
     def test_created_at_is_returned_with_utc_offset(self, client: TestClient) -> None:
         """Clients render times in the viewer's zone; they need the offset to do so."""
@@ -312,7 +369,7 @@ class TestBookFileSourceAPI:
         assert len(resp.json()["source_ids"]) == 2
         sources = client.get("/sources").json()
         assert [s["title"] for s in sources] == ["Dune ch1", "Dune ch2"]
-        assert {s["collection_name"] for s in sources} == {"Dune"}
+        assert {tuple(s["collection_path"]) for s in sources} == {("Dune",)}
         assert {s["kind"] for s in sources} == {"book"}
 
     def test_path_copied_from_a_shell_is_accepted(

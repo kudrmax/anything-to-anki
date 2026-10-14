@@ -11,6 +11,8 @@ from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.export_group import ExportGroup
 
+from tests.unit.application.scope_fakes import empty_scope_resolver
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -72,6 +74,7 @@ class TestSyncToAnkiTemplates:
             template_renderer=renderer,
             known_word_repo=known_word_repo,
             cloze_builder=ClozeBuilder(),
+            scope_resolver=empty_scope_resolver(),
         )
         use_case.execute(source_id=1, group=ExportGroup.READY)
 

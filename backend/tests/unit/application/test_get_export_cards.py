@@ -5,14 +5,23 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.utils.export_queue import ExportQueue
+from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_tts import CandidateTTS
+from backend.domain.entities.collection import Collection
+from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
+from backend.domain.value_objects.source_scope import SourceScope
+from backend.domain.value_objects.source_status import SourceStatus
+
+from tests.unit.application.collection_fakes import InMemoryCollectionRepository
+from tests.unit.application.scope_fakes import empty_scope_resolver
+from tests.unit.application.source_fakes import InMemorySourceRepository
 
 
 def _make_candidate(
@@ -85,6 +94,7 @@ class TestGetExportCardsExecute:
             export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
+            scope_resolver=empty_scope_resolver(),
         )
 
     def test_returns_only_learn_candidates(self) -> None:
@@ -260,6 +270,7 @@ class TestGetExportCardsExecute:
             export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
+            scope_resolver=empty_scope_resolver(),
             media_base_url="/custom/media",
         )
         self.candidate_repo.get_by_source.return_value = [
@@ -358,7 +369,7 @@ class TestGetExportCardsExecute:
 
 
 @pytest.mark.unit
-class TestGetExportCardsExecuteAll:
+class TestGetExportCardsAllScope:
     def setup_method(self) -> None:
         self.candidate_repo = MagicMock()
         self.anki_sync_repo = MagicMock()
@@ -368,6 +379,7 @@ class TestGetExportCardsExecuteAll:
             export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
+            scope_resolver=empty_scope_resolver(),
         )
 
     def test_groups_by_source(self) -> None:
@@ -380,7 +392,7 @@ class TestGetExportCardsExecuteAll:
             sid, f"Source {sid} Title"
         )
 
-        result = self.use_case.execute_all()
+        result = self.use_case.execute_scope(SourceScope.all())
 
         assert len(result.incomplete) == 2
         assert result.incomplete[0].source_id == 1
@@ -398,7 +410,7 @@ class TestGetExportCardsExecuteAll:
         self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}
         self.source_repo.get_by_id.side_effect = lambda sid: _make_source_mock(sid, f"S{sid}")
 
-        result = self.use_case.execute_all()
+        result = self.use_case.execute_scope(SourceScope.all())
 
         assert [section.source_id for section in result.incomplete] == [2]
         assert result.exported_count == 1
@@ -406,7 +418,7 @@ class TestGetExportCardsExecuteAll:
     def test_empty_when_no_learn_candidates(self) -> None:
         self.candidate_repo.get_all_by_status.return_value = []
 
-        result = self.use_case.execute_all()
+        result = self.use_case.execute_scope(SourceScope.all())
 
         assert result.ready == []
         assert result.incomplete == []
@@ -417,7 +429,49 @@ class TestGetExportCardsExecuteAll:
         ]
         self.source_repo.get_by_id.return_value = None
 
-        result = self.use_case.execute_all()
+        result = self.use_case.execute_scope(SourceScope.all())
 
         assert len(result.incomplete) == 1
         assert result.incomplete[0].source_title == "Source #99"
+
+
+@pytest.mark.unit
+class TestGetExportCardsCollectionScope:
+    def setup_method(self) -> None:
+        self.candidate_repo = MagicMock()
+        self.anki_sync_repo = MagicMock()
+        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        self.candidate_repo.get_all_by_status.return_value = [
+            _make_candidate("burnout", CandidateStatus.LEARN, source_id=1, candidate_id=1),
+            _make_candidate("pursuit", CandidateStatus.LEARN, source_id=2, candidate_id=2),
+        ]
+        sources = [
+            Source(id=1, status=SourceStatus.DONE, title="Cam 18", collection_id=5),
+            Source(id=2, status=SourceStatus.DONE, title="Loose"),
+        ]
+        self.use_case = GetExportCardsUseCase(
+            export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
+            source_repo=InMemorySourceRepository(sources),
+            cloze_builder=ClozeBuilder(),
+            scope_resolver=SourceScopeResolver(
+                InMemorySourceRepository(sources),
+                InMemoryCollectionRepository([Collection(id=5, name="IELTS")]),
+            ),
+        )
+
+    def test_scope_limits_cards_and_names_the_scope(self) -> None:
+        result = self.use_case.execute_scope(SourceScope.collection(5))
+
+        assert result.title == "IELTS"
+        assert [section.source_id for section in result.ready + result.incomplete] == [1]
+
+    def test_all_scope_keeps_everything(self) -> None:
+        result = self.use_case.execute_scope(SourceScope.all())
+
+        assert result.title == "All sources"
+        assert {s.source_id for s in result.ready + result.incomplete} == {1, 2}
+
+    def test_unsorted_scope_keeps_only_sources_without_collection(self) -> None:
+        result = self.use_case.execute_scope(SourceScope.unsorted())
+
+        assert [section.source_id for section in result.ready + result.incomplete] == [2]

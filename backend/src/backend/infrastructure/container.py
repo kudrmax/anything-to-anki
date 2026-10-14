@@ -16,12 +16,12 @@ from backend.application.use_cases.add_manual_candidate import AddManualCandidat
 from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
 from backend.application.use_cases.add_source import AddSourceUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
-from backend.application.use_cases.assign_source_collection import AssignSourceToCollectionUseCase
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
 from backend.application.use_cases.create_collection import CreateCollectionUseCase
 from backend.application.use_cases.create_topic import CreateTopicUseCase
 from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
+from backend.application.use_cases.delete_sources import DeleteSourcesUseCase
 from backend.application.use_cases.detect_format import DetectFormatUseCase
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
@@ -36,13 +36,17 @@ from backend.application.use_cases.list_collections import ListCollectionsUseCas
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
+from backend.application.use_cases.move_collection import MoveCollectionUseCase
+from backend.application.use_cases.place_sources import PlaceSourcesUseCase
 from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
+from backend.application.use_cases.process_sources import ProcessSourcesUseCase
 from backend.application.use_cases.rename_collection import RenameCollectionUseCase
 from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
 from backend.application.use_cases.report_candidate import ReportCandidateUseCase
 from backend.application.use_cases.reprocess_source import ReprocessSourceUseCase
+from backend.application.use_cases.restore_collection import RestoreCollectionUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.save_cloze import SaveClozeUseCase
 from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
@@ -55,6 +59,8 @@ from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
+from backend.application.utils.source_scope_resolver import SourceScopeResolver
+from backend.application.utils.topic_generation import TopicGenerationProbe
 from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
 from backend.domain.ports.cefr_source import (
     CEFRSource,  # noqa: TC001 — used at runtime in list[CEFRSource]
@@ -423,14 +429,17 @@ class Container:
             media_root=self._media_root,
         )
 
+    def delete_sources_use_case(self, session: Session) -> DeleteSourcesUseCase:
+        return DeleteSourcesUseCase(delete_source=self.delete_source_use_case(session))
+
     def get_sources_use_case(self, session: Session) -> GetSourcesUseCase:
         return GetSourcesUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
-            collection_repo=SqlaCollectionRepository(session),
-            topic_target_repo=SqlaTopicTargetRepository(session),
+            scope_resolver=self._scope_resolver(session),
+            generation_probe=self._generation_probe(session),
             report_repo=SqlaCardReportRepository(session),
             anki_sync_repo=SqlaAnkiSyncRepository(session),
         )
@@ -444,6 +453,7 @@ class Container:
         return ListCollectionsUseCase(
             collection_repo=SqlaCollectionRepository(session),
             source_repo=SqlaSourceRepository(session),
+            generation_probe=self._generation_probe(session),
         )
 
     def rename_collection_use_case(self, session: Session) -> RenameCollectionUseCase:
@@ -454,12 +464,20 @@ class Container:
     def delete_collection_use_case(self, session: Session) -> DeleteCollectionUseCase:
         return DeleteCollectionUseCase(
             collection_repo=SqlaCollectionRepository(session),
+            source_repo=SqlaSourceRepository(session),
         )
 
-    def assign_source_collection_use_case(
-        self, session: Session,
-    ) -> AssignSourceToCollectionUseCase:
-        return AssignSourceToCollectionUseCase(
+    def move_collection_use_case(self, session: Session) -> MoveCollectionUseCase:
+        return MoveCollectionUseCase(collection_repo=SqlaCollectionRepository(session))
+
+    def restore_collection_use_case(self, session: Session) -> RestoreCollectionUseCase:
+        return RestoreCollectionUseCase(
+            collection_repo=SqlaCollectionRepository(session),
+            source_repo=SqlaSourceRepository(session),
+        )
+
+    def place_sources_use_case(self, session: Session) -> PlaceSourcesUseCase:
+        return PlaceSourcesUseCase(
             source_repo=SqlaSourceRepository(session),
             collection_repo=SqlaCollectionRepository(session),
         )
@@ -475,6 +493,13 @@ class Container:
             document_repo=SqlaDocumentRepository(session),
             media_repo=SqlaCandidateMediaRepository(session),
             topic_phrase_collector=self._topic_phrase_collector(session),
+        )
+
+    def process_sources_use_case(self, session: Session) -> ProcessSourcesUseCase:
+        return ProcessSourcesUseCase(
+            scope_resolver=self._scope_resolver(session),
+            generation_probe=self._generation_probe(session),
+            process_source=self.process_source_use_case(session),
         )
 
     def _candidate_factory(self) -> CandidateFactory:
@@ -622,6 +647,18 @@ class Container:
             threshold_resolver=self._threshold_resolver(session),
         )
 
+    def _generation_probe(self, session: Session) -> TopicGenerationProbe:
+        return TopicGenerationProbe(
+            job_repo=SqlaJobRepository(session),
+            topic_target_repo=SqlaTopicTargetRepository(session),
+        )
+
+    def _scope_resolver(self, session: Session) -> SourceScopeResolver:
+        return SourceScopeResolver(
+            source_repo=SqlaSourceRepository(session),
+            collection_repo=SqlaCollectionRepository(session),
+        )
+
     def _review_status_updater(self, session: Session) -> ReviewStatusUpdater:
         return ReviewStatusUpdater(
             source_repo=SqlaSourceRepository(session),
@@ -655,6 +692,7 @@ class Container:
             template_renderer=self._anki_template_renderer,
             known_word_repo=SqlaKnownWordRepository(session),
             cloze_builder=ClozeBuilder(),
+            scope_resolver=self._scope_resolver(session),
         )
 
     def get_export_cards_use_case(self, session: Session) -> GetExportCardsUseCase:
@@ -662,6 +700,7 @@ class Container:
             export_queue=self._export_queue(session),
             source_repo=SqlaSourceRepository(session),
             cloze_builder=ClozeBuilder(),
+            scope_resolver=self._scope_resolver(session),
         )
 
     def _export_queue(self, session: Session) -> ExportQueue:
