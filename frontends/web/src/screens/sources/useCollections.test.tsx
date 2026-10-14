@@ -7,7 +7,7 @@ import type { UndoOffer } from '@/ui'
 import { useCollections } from './useCollections'
 
 const counts = { total: 0, reviewed: 0, pending: 0 }
-const emptyTree: CollectionTree = { all: counts, unsorted: counts, collections: [] }
+const emptyTree: CollectionTree = { all: counts, unsorted: counts, max_depth: 5, collections: [] }
 
 const onUndo = vi.fn<(offer: UndoOffer) => void>()
 const onError = vi.fn<(message: string) => void>()

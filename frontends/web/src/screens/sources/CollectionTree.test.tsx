@@ -5,13 +5,14 @@ import type { CollectionNode, CollectionTree as Tree } from '@/api/types'
 import { COLLECTION_MIME, CollectionTree } from './CollectionTree'
 
 const counts = { total: 1, reviewed: 0, pending: 1 }
-const node = (id: number, name: string, accepts: boolean): CollectionNode => ({
-  id, name, parent_id: null, counts, accepts_collections: accepts, can_be_nested: !accepts, children: [],
+const node = (id: number, name: string, accepts: boolean, moveTargets: (number | null)[] = [null]): CollectionNode => ({
+  id, name, parent_id: null, counts, depth: 1, accepts_collections: accepts, move_targets: moveTargets, children: [],
 })
 const tree: Tree = {
   all: counts,
   unsorted: counts,
-  collections: [node(1, 'Top', true), node(2, 'Nested', false)],
+  max_depth: 5,
+  collections: [node(1, 'Top', true), node(2, 'Nested', false, [null, 1])],
 }
 
 describe('CollectionTree', () => {
@@ -86,7 +87,7 @@ describe('CollectionTree', () => {
   })
 
   const remountWithChild = (collapsed: boolean) => {
-    const child = { ...node(3, 'Child', false), parent_id: 1 }
+    const child = { ...node(3, 'Child', false, [null, 1]), parent_id: 1, depth: 2 }
     const parent = { ...node(1, 'Top', true), children: [child] }
     localStorage.setItem('sources.collapsedCollections', JSON.stringify(collapsed ? [1] : []))
     act(() => root.unmount())
@@ -154,6 +155,51 @@ describe('CollectionTree', () => {
     expect(handlers.onRename).not.toHaveBeenCalled()
     expect(host.querySelector('input')).toBeNull()
     localStorage.clear()
+  })
+
+  it('renders every level of a deep tree with a guide and its aria-level', () => {
+    const level4 = { ...node(4, 'Level 4', false), parent_id: 3, depth: 4 }
+    const level3 = { ...node(3, 'Level 3', true), parent_id: 2, depth: 3, children: [level4] }
+    const level2 = { ...node(2, 'Level 2', true), parent_id: 1, depth: 2, children: [level3] }
+    const level1 = { ...node(1, 'Level 1', true), children: [level2] }
+    act(() => root.render(<CollectionTree tree={{ ...tree, collections: [level1] }} scope="all" draggable {...handlers} />))
+    expect([1, 2, 3, 4].map(n => item(`Level ${n}`).getAttribute('aria-level'))).toEqual(['1', '2', '3', '4'])
+    const groups = [...host.querySelectorAll('[role="group"]')]
+    expect(groups).toHaveLength(3)
+    expect(groups[0].contains(groups[1]) && groups[1].contains(groups[2])).toBe(true)
+    expect(groups[2].contains(item('Level 4'))).toBe(true)
+    expect(item('Level 3').querySelector('[aria-label="Collapse"]')).not.toBeNull()
+    expect(item('Level 4').querySelector('[aria-label="Collapse"]')).toBeNull()
+  })
+
+  it('creates a subcollection deep in the tree', () => {
+    const level3 = { ...node(3, 'Level 3', true), parent_id: 2, depth: 3 }
+    const level2 = { ...node(2, 'Level 2', true), parent_id: 1, depth: 2, children: [level3] }
+    act(() => root.render(<CollectionTree tree={{ ...tree, collections: [{ ...node(1, 'Level 1', true), children: [level2] }] }} scope="all" draggable {...handlers} />))
+    act(() => item('Level 3').querySelector<HTMLButtonElement>('[aria-label="New subcollection"]')!.click())
+    const input = host.querySelector('input')!
+    expect(host.querySelectorAll('[role="group"]')).toHaveLength(3)
+    typeInto(input, 'Level 4')
+    press(input, 'Enter')
+    expect(handlers.onCreate).toHaveBeenCalledWith('Level 4', 3)
+  })
+
+  it('shows the hover + only on nodes that accept collections', () => {
+    expect(item('Top').querySelector('[aria-label="New subcollection"]')).not.toBeNull()
+    expect(item('Nested').querySelector('[aria-label="New subcollection"]')).toBeNull()
+  })
+
+  it('refuses a drop on a parent the backend did not list', () => {
+    const child = { ...node(3, 'Child', false, [1]), parent_id: 1, depth: 2 }
+    act(() => root.render(<CollectionTree tree={{ ...tree, collections: [{ ...node(1, 'Top', true), children: [child] }, node(2, 'Nested', true)] }} scope="all" draggable {...handlers} />))
+    const data = transfer()
+    drag(item('Child'), 'dragstart', data)
+    for (const clientY of [1, ROW_HEIGHT / 2, ROW_HEIGHT - 1]) {
+      drag(item('Nested'), 'dragover', data, { clientY })
+      expect(item('Nested').className).not.toMatch(/inside|before|after/)
+    }
+    drag(item('Nested'), 'drop', data)
+    expect(handlers.onMove).not.toHaveBeenCalled()
   })
 
   it('offers New subcollection only for nodes that accept collections', () => {

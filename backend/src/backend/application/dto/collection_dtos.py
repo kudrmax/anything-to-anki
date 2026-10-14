@@ -60,15 +60,17 @@ class CollectionNodeDTO(BaseModel):
     name: str
     parent_id: int | None
     counts: ScopeCountsDTO
-    # Drag & drop hints: may hold subcollections; may itself become a subcollection.
+    depth: int
+    # May hold subcollections; the parents it may move under, None being the top level.
     accepts_collections: bool
-    can_be_nested: bool
+    move_targets: list[int | None]
     children: list[CollectionNodeDTO]
 
 
 class CollectionTreeDTO(BaseModel):
     all: ScopeCountsDTO
     unsorted: ScopeCountsDTO
+    max_depth: int
     collections: list[CollectionNodeDTO]
 
 
