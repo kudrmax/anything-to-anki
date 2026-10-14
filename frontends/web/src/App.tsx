@@ -9,6 +9,9 @@ import { UsageScreen } from '@/screens/usage/UsageScreen'
 import { SettingsScreen } from '@/screens/settings/SettingsScreen'
 import { CalibrateScreen } from '@/screens/calibrate/CalibrateScreen'
 import { QUICK_ADD_PATH, QuickAddScreen } from '@/screens/quickAdd/QuickAddScreen'
+import { PrototypeProvider } from '@/prototype/sourceParts/PrototypeProvider'
+import { PrototypeReviewScreen } from '@/prototype/sourceParts/PrototypeReviewScreen'
+import { PrototypeSourcesScreen } from '@/prototype/sourceParts/PrototypeSourcesScreen'
 
 export function App() {
   return (
@@ -25,6 +28,10 @@ export function App() {
           <Route path="/export" element={<ErrorBoundary><ExportScreen /></ErrorBoundary>} />
           <Route path="/sources/:id/review" element={<ErrorBoundary><ReviewScreen /></ErrorBoundary>} />
           <Route path="/" element={<ErrorBoundary><SourcesScreen /></ErrorBoundary>} />
+          <Route path="/prototype/source-parts" element={<ErrorBoundary><PrototypeProvider /></ErrorBoundary>}>
+            <Route index element={<PrototypeSourcesScreen />} />
+            <Route path=":id" element={<PrototypeReviewScreen />} />
+          </Route>
         </Route>
       </Routes>
     </BrowserRouter>
