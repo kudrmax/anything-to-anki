@@ -27,6 +27,7 @@ from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.word_status import WordStatus
 
+from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 
 pytestmark = pytest.mark.unit
@@ -76,6 +77,7 @@ class TestSaveCloze:
             report_repo=self.report_repo,
             decide_phrase=self.decide,
             builder=ClozeBuilder(),
+            lock=free_lock(),
         )
 
     def test_save_decides_cloze_and_stores_markup(self) -> None:

@@ -40,6 +40,7 @@ from backend.infrastructure.persistence.sqla_unknown_word_repository import (
 )
 from sqlalchemy import text
 
+from tests.lock_support import free_lock
 from tests.word_support import insert_word
 
 if TYPE_CHECKING:
@@ -93,6 +94,7 @@ class Bench:
             review_status=self.review_status,
             cloze_repo=SqlaCandidateClozeRepository(self.session),
             decided_elsewhere=DecidedElsewhere(self.vocabulary),
+            lock=free_lock(),
         ).execute(phrase_id, action)
 
     def export(self, word_id: int, lemma: str, note_id: int) -> None:

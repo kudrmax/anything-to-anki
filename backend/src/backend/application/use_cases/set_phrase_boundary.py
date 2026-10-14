@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from backend.application.utils.source_free import ensure_source_free
 from backend.domain.exceptions import (
     InvalidPhraseError,
     PhraseNotFoundError,
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
 
 logger = logging.getLogger(__name__)
 
@@ -39,17 +41,20 @@ class SetPhraseBoundaryUseCase:
         candidate_repo: CandidateRepository,
         document_repo: DocumentRepository,
         phrase_reader: PhraseReader,
+        lock: SourceOperationLock,
     ) -> None:
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
         self._document_repo = document_repo
         self._phrase_reader = phrase_reader
+        self._lock = lock
 
     def execute(self, occurrence_id: int, selection: SelectionDTO) -> str:
         occ = self._occurrences.get(occurrence_id)
         word = self._candidate_repo.get_by_id(occ.candidate_id) if occ is not None else None
         if occ is None or word is None:
             raise PhraseNotFoundError(occurrence_id)
+        ensure_source_free(self._lock, word.source_id)
         document = self._document_repo.get(word.source_id)
         if document is None:
             raise SourceHasNoDocumentError(word.source_id)

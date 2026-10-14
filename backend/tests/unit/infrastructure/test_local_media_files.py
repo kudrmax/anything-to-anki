@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
+from backend.infrastructure.adapters.local_media_files import DRAFT_PATTERN, LocalMediaFiles
 
 pytestmark = pytest.mark.unit
 
@@ -49,3 +49,11 @@ def test_discarding_a_draft_never_written_is_fine(tmp_path: Path) -> None:
     files.discard(files.draft(3, 17, "audio.m4a"))
 
     assert list((tmp_path / "3").iterdir()) == []
+
+
+@pytest.mark.parametrize("name", ["tts.m4a", "screenshot.webp", "audio.m4a"])
+def test_every_draft_is_known_as_one_and_no_final_file_is(tmp_path: Path, name: str) -> None:
+    draft = LocalMediaFiles(str(tmp_path)).draft(3, 17, name)
+
+    assert DRAFT_PATTERN.match(Path(draft.path).name)
+    assert not DRAFT_PATTERN.match(Path(draft.final_path).name)

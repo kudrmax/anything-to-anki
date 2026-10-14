@@ -394,6 +394,8 @@ def add_manual_candidate(
         return result
     except (SourceNotFoundError, SourceHasNoDocumentError) as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except SourceOperationBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidPhraseError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 

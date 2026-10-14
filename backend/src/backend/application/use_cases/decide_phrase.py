@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.word_decision import WordDecision
 from backend.domain.exceptions import PhraseNotFoundError
 from backend.domain.services.card_decision import decide, word_status_of
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_cloze_repository import CandidateClozeRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.word_decision_repository import WordDecisionRepository
     from backend.domain.services.card_decision import DecisionAction, DecisionOutcome
 
@@ -52,7 +54,9 @@ class DecidePhraseUseCase:
         review_status: ReviewStatusUpdater,
         cloze_repo: CandidateClozeRepository,
         decided_elsewhere: DecidedElsewhere,
+        lock: SourceOperationLock,
     ) -> None:
+        self._lock = lock
         self._occurrences = occurrence_repo
         self._candidates = candidate_repo
         self._vocabulary = vocabulary
@@ -68,6 +72,7 @@ class DecidePhraseUseCase:
         word = self._candidates.get_by_id(occ.candidate_id)
         if word is None:
             raise PhraseNotFoundError(occurrence_id)
+        ensure_source_free(self._lock, word.source_id)
         before = word_status_of(word)
         elsewhere = (
             self._decided_elsewhere.of(word.lemma) if before is WordStatus.PENDING else None

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import re
 import uuid
 
 from backend.application.utils.media_names import PHRASE_FILE_PREFIX
@@ -9,6 +10,11 @@ from backend.domain.ports.media_files import MediaFiles
 from backend.domain.value_objects.media_file_draft import MediaFileDraft
 
 DRAFT_MARKER = ".part-"
+DRAFT_ID_LENGTH = 8
+# The name of a draft: nothing else in a media folder looks like it.
+DRAFT_PATTERN = re.compile(
+    rf"^p\d+_(screenshot|audio|tts){re.escape(DRAFT_MARKER)}[0-9a-f]{{{DRAFT_ID_LENGTH}}}\.",
+)
 
 
 class LocalMediaFiles(MediaFiles):
@@ -26,7 +32,7 @@ class LocalMediaFiles(MediaFiles):
         os.makedirs(folder, exist_ok=True)
         final = f"{PHRASE_FILE_PREFIX}{phrase_id}_{name}"
         stem, extension = os.path.splitext(final)
-        draft = f"{stem}{DRAFT_MARKER}{uuid.uuid4().hex[:8]}{extension}"
+        draft = f"{stem}{DRAFT_MARKER}{uuid.uuid4().hex[:DRAFT_ID_LENGTH]}{extension}"
         return MediaFileDraft(
             path=os.path.join(folder, draft), final_path=os.path.join(folder, final),
         )

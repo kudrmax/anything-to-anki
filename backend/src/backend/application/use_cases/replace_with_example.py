@@ -5,6 +5,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
+from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.exceptions import AlreadyInAnkiError, PhraseNotFoundError
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
 
 
 class ReplaceWithExampleUseCase:
@@ -42,7 +44,9 @@ class ReplaceWithExampleUseCase:
         review_status: ReviewStatusUpdater,
         phrase_reader: PhraseReader,
         job_repo: JobRepository,
+        lock: SourceOperationLock,
     ) -> None:
+        self._lock = lock
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
         self._review_status = review_status
@@ -62,6 +66,7 @@ class ReplaceWithExampleUseCase:
         )
         if replaced is None or word is None:
             raise PhraseNotFoundError(occurrence_id)
+        ensure_source_free(self._lock, word.source_id)
         if replaced.is_decision and replaced.exported:
             raise AlreadyInAnkiError(occurrence_id)
         marked = parse_marked_phrase(stripped)

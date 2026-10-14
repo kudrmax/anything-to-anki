@@ -5,6 +5,7 @@ import asyncio
 from typing import TYPE_CHECKING
 
 import pytest
+from backend.infrastructure.adapters.local_media_files import DRAFT_MARKER
 from backend.infrastructure.persistence.database import (
     create_session_factory,
     reconcile_media_files,
@@ -139,3 +140,27 @@ async def test_a_missing_file_clears_only_the_rows_pointing_at_it(tmp_path: Path
             for row in session.scalars(select(CandidateMediaModel))
         }
     assert rows == {WORD: (str(kept), None), OTHER_PHRASE: (None, None)}
+
+
+def test_drafts_left_by_a_crash_are_dropped_at_startup(tmp_path: Path) -> None:
+    factory = create_session_factory(f"sqlite:///{tmp_path / 'app.db'}")
+    Base.metadata.create_all(factory.kw["bind"])
+    media_dir = tmp_path / "media" / str(SOURCE)
+    media_dir.mkdir(parents=True)
+    made = media_dir / f"p{WORD}_tts.m4a"
+    drafts = [
+        media_dir / f"p{WORD}_tts{DRAFT_MARKER}1a2b3c4d.m4a",
+        media_dir / f"p{WORD}_screenshot{DRAFT_MARKER}5e6f7a8b.webp",
+    ]
+    users_file = media_dir / "notes.part-of-my-list.txt"
+    for path in (made, *drafts, users_file):
+        path.write_bytes(b"x")
+    with factory() as session:
+        insert_source(session, SOURCE)
+        insert_word(session, WORD, source_id=SOURCE)
+        session.add(CandidateTTSModel(phrase_id=WORD, audio_path=str(made)))
+        session.commit()
+
+    reconcile_media_files(factory, str(tmp_path / "media"))
+
+    assert sorted(p.name for p in media_dir.iterdir()) == sorted([made.name, users_file.name])

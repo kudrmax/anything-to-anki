@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
 from backend.application.utils.candidate_factory import CandidateFactory
+from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundError
 from backend.domain.services.document_layout import DocumentLayout
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.frequency_provider import FrequencyProvider
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.text_analyzer import TextAnalyzer
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
@@ -50,7 +52,9 @@ class AddManualCandidateUseCase:
         phrasal_verb_detector: PhrasalVerbDetector,
         review_status: ReviewStatusUpdater,
         phrase_reader: PhraseReader,
+        lock: SourceOperationLock,
     ) -> None:
+        self._lock = lock
         self._source_repo = source_repo
         self._document_repo = document_repo
         self._candidate_repo = candidate_repo
@@ -73,6 +77,7 @@ class AddManualCandidateUseCase:
         """The phrase is the selected piece of the document; the target, the picked words in it."""
         if self._source_repo.get_by_id(source_id) is None:
             raise SourceNotFoundError(source_id)
+        ensure_source_free(self._lock, source_id)
         document = self._document_repo.get(source_id)
         if document is None:
             raise SourceHasNoDocumentError(source_id)

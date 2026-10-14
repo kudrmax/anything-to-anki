@@ -26,6 +26,7 @@ from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
 )
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 
+from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 from tests.source_rebuild_support import LINES, SOURCE, Bench, at, word
 from tests.vocabulary_support import user_vocabulary
@@ -84,6 +85,7 @@ class Manual:
             phrasal_verb_detector=detector,
             review_status=MagicMock(),
             phrase_reader=reader,
+            lock=free_lock(),
         )
 
     def add(self, line: int, word_index: int) -> None:
@@ -239,6 +241,7 @@ def test_learn_on_a_manual_card_closes_the_word_and_exports_one_phrase(bench: Be
         vocabulary=vocabulary, decision_repo=MagicMock(), review_status=MagicMock(),
         cloze_repo=SqlaCandidateClozeRepository(bench.session),
         decided_elsewhere=DecidedElsewhere(vocabulary),
+        lock=free_lock(),
     )
 
     decide.execute(manual.id, DecisionAction.LEARN)

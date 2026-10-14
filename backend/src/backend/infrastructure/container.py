@@ -389,6 +389,7 @@ class Container:
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
             review_status=self._review_status_updater(session),
             phrase_reader=self._phrase_reader,
+            lock=SqlaSourceOperationLock(session),
         )
 
     def set_phrase_boundary_use_case(self, session: Session) -> SetPhraseBoundaryUseCase:
@@ -397,6 +398,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             document_repo=SqlaDocumentRepository(session),
             phrase_reader=self._phrase_reader,
+            lock=SqlaSourceOperationLock(session),
         )
 
     def get_source_document_use_case(self, session: Session) -> GetSourceDocumentUseCase:
@@ -673,6 +675,7 @@ class Container:
             review_status=self._review_status_updater(session),
             cloze_repo=SqlaCandidateClozeRepository(session),
             decided_elsewhere=DecidedElsewhere(vocabulary),
+            lock=SqlaSourceOperationLock(session),
         )
 
     def save_cloze_use_case(self, session: Session) -> SaveClozeUseCase:
@@ -684,6 +687,7 @@ class Container:
             report_repo=SqlaCardReportRepository(session),
             decide_phrase=self.decide_phrase_use_case(session),
             builder=ClozeBuilder(),
+            lock=SqlaSourceOperationLock(session),
         )
 
     def preview_cloze_use_case(self, session: Session) -> PreviewClozeUseCase:
@@ -700,6 +704,7 @@ class Container:
             review_status=self._review_status_updater(session),
             phrase_reader=self._phrase_reader,
             job_repo=SqlaJobRepository(session),
+            lock=SqlaSourceOperationLock(session),
         )
 
     def _threshold_resolver(self, session: Session) -> FrequentWordThresholdResolver:

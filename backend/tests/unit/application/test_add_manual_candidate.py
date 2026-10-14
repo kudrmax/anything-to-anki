@@ -44,6 +44,7 @@ from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
@@ -171,6 +172,7 @@ def _make_use_case(
         phrasal_verb_detector=phrasal_verb_detector or MagicMock(),
         review_status=review_status or MagicMock(),
         phrase_reader=_phrase_reader(),
+        lock=free_lock(),
     )
 
 

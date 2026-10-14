@@ -185,6 +185,8 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
              only if no path column of the DB points at it and its phrase (or card) is gone.
              Files are never renamed: a word merged from several cards keeps the media of
              the others under their old ids, and the DB still points at them.
+             A draft of a file being made is an orphan of a crash — no job runs at
+             startup — and is removed.
 
     Orphan DB paths (file missing but DB still has path) are handled by the
     runtime lazy reconciler, not here.
@@ -193,6 +195,7 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
     import shutil
 
     from backend.application.utils.media_names import PHRASE_FILE_PREFIX
+    from backend.infrastructure.adapters.local_media_files import DRAFT_PATTERN
     from backend.infrastructure.persistence.models import PhraseModel
     from backend.infrastructure.persistence.sqla_candidate_repository import (
         SqlaCandidateRepository,
@@ -221,6 +224,17 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
                 return session.get(PhraseModel, owner_id) is not None
             return candidate_repo.get_by_id(owner_id) is not None
 
+        def is_orphan(fname: str, fpath: str) -> bool:
+            if DRAFT_PATTERN.match(fname):
+                return True  # a draft left by a crash
+            m = file_pattern.match(fname)
+            if not m:
+                return False  # unknown file, leave it
+            return (
+                os.path.realpath(fpath) not in referenced
+                and not owner_exists(m.group(1), int(m.group(2)))
+            )
+
         for entry in numeric_dirs:
             source_id = int(entry)
             source_dir = os.path.join(media_root, entry)
@@ -232,14 +246,8 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
 
             # Phase 2: check each file in the valid source directory
             for fname in os.listdir(source_dir):
-                m = file_pattern.match(fname)
-                if not m:
-                    continue  # unknown file, leave it
                 fpath = os.path.join(source_dir, fname)
-                if (
-                    os.path.realpath(fpath) in referenced
-                    or owner_exists(m.group(1), int(m.group(2)))
-                ):
+                if not is_orphan(fname, fpath):
                     continue
                 try:
                     os.remove(fpath)

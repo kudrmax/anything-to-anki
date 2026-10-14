@@ -41,8 +41,10 @@ if TYPE_CHECKING:
 
 router = APIRouter(prefix="/phrases", tags=["phrases"])
 
+# A Rebuild or a refresh holds the source: no card changes by hand meanwhile.
 REFUSED_DECISIONS = (
     AlreadyInAnkiError, CardDecisionLockedError, DecidedElsewhereError, ClozeNotAllowedError,
+    SourceOperationBusyError,
 )
 # The source is busy with a long operation, or one changed the phrase meanwhile.
 REFUSED_GENERATION = (SourceOperationBusyError, PhraseChangedError)
@@ -106,6 +108,8 @@ def set_phrase_boundary(
         )
     except (PhraseNotFoundError, SourceHasNoDocumentError) as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except SourceOperationBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidPhraseError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     session.commit()
@@ -125,7 +129,7 @@ def replace_with_example(
         )
     except PhraseNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except AlreadyInAnkiError as e:
+    except (AlreadyInAnkiError, SourceOperationBusyError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidPhraseError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e

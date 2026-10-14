@@ -29,6 +29,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 )
 from sqlalchemy import select
 
+from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
@@ -119,7 +120,7 @@ def test_an_example_put_in_the_document_gets_its_key(db_session: Session, source
 def _set_boundary(db_session: Session) -> SetPhraseBoundaryUseCase:
     return SetPhraseBoundaryUseCase(
         SqlaOccurrenceRepository(db_session), SqlaCandidateRepository(db_session),
-        SqlaDocumentRepository(db_session), Container().phrase_reader,
+        SqlaDocumentRepository(db_session), Container().phrase_reader, free_lock(),
     )
 
 

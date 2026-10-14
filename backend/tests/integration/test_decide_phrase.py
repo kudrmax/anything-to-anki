@@ -35,6 +35,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
 
+from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 from tests.vocabulary_support import user_vocabulary
 from tests.word_support import insert_word
@@ -91,6 +92,7 @@ class Bench:
             review_status=self.review_status,
             cloze_repo=self.clozes,
             decided_elsewhere=DecidedElsewhere(vocabulary),
+            lock=free_lock(),
         )
 
     def decide(self, phrase_id: int, action: DecisionAction) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
+from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.exceptions import (
     ClozeNotAllowedError,
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.card_report_repository import CardReportRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.services.cloze_builder import ClozeBuilder
 
 
@@ -35,7 +37,9 @@ class SaveClozeUseCase:
         report_repo: CardReportRepository,
         decide_phrase: DecidePhraseUseCase,
         builder: ClozeBuilder,
+        lock: SourceOperationLock,
     ) -> None:
+        self._lock = lock
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
         self._cloze_repo = cloze_repo
@@ -57,8 +61,10 @@ class SaveClozeUseCase:
         `phrase` is the card phrase the user picked the words in: if the card shows another
         one by now (polish landed or was reverted), the indices point at other words."""
         occ = self._occurrences.get(occurrence_id)
-        if occ is None:
+        word = self._candidate_repo.get_by_id(occ.candidate_id) if occ is not None else None
+        if occ is None or word is None:
             raise PhraseNotFoundError(occurrence_id)
+        ensure_source_free(self._lock, word.source_id)
         if occ.exported:
             raise ClozeNotAllowedError(f"Phrase {occurrence_id} is already in Anki")
 

@@ -40,6 +40,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 )
 from sqlalchemy import select, text
 
+from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 from tests.word_support import insert_word
 
@@ -89,6 +90,7 @@ class Bench:
             review_status=self.review_status,
             phrase_reader=reader,
             job_repo=SqlaJobRepository(session),
+            lock=free_lock(),
         )
 
     def replace(self, phrase_id: int, example: str = "She runs every morning.") -> Occurrence:

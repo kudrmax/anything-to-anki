@@ -118,6 +118,12 @@ def seeded(db_session: Session) -> None:
     db_session.commit()
 
 
+_SELECTION = {
+    "start_block": 0, "start_line": 0, "start_char": 0,
+    "end_block": 0, "end_line": 0, "end_char": 5,
+}
+
+
 def _meaning_status(client: TestClient) -> dict[str, object]:
     status = client.get("/sources/1/generation").json()
     return next(k for k in status["kinds"] if k["kind"] == "meaning")
@@ -185,3 +191,31 @@ class TestGenerationApi:
         assert client.post("/sources/1/generation/meaning?scope=missing").status_code == 409
         assert client.post("/phrases/2/generate-tts").status_code == 409
         assert _meaning_status(client)["missing"] == 1
+
+    @pytest.mark.parametrize(("method", "path", "body"), [
+        ("put", "/phrases/2/decision", {"status": "learn"}),
+        ("put", "/phrases/2/phrase-boundary", {"selection": _SELECTION}),
+        ("post", "/phrases/2/replace-with-example", {"example_text": "A word2 here."}),
+        ("put", "/phrases/2/cloze", {
+            "phrase": "word2", "hidden_word_indices": [0], "hint_kind": "none",
+        }),
+        ("post", "/sources/1/candidates/manual", {"target_words": [0], "selection": _SELECTION}),
+    ])
+    def test_manual_phrase_changes_wait_for_the_rebuild(
+        self, client: TestClient, db_session: Session, method: str, path: str,
+        body: dict[str, object],
+    ) -> None:
+        db_session.execute(text(
+            "INSERT INTO source_operations (source_id, kind, started_at)"
+            " VALUES (1, 'rebuild', '2026-01-01 00:00:00')"
+        ))
+        db_session.commit()
+
+        response = client.request(method, path, json=body)
+
+        assert response.status_code == 409, response.text
+        phrase = db_session.execute(text(
+            "SELECT is_decision, edited_by_user FROM phrases WHERE id = 2"
+        )).one()
+        assert tuple(phrase) == (0, 0)
+        assert db_session.execute(text("SELECT COUNT(*) FROM phrases")).scalar_one() == 4
