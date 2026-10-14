@@ -29,7 +29,6 @@ if TYPE_CHECKING:
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.services.collection_tree import CollectionTree
-    from backend.domain.value_objects.source_operation_kind import SourceOperationKind
     from backend.domain.value_objects.source_scope import SourceScope
 
 
@@ -109,7 +108,7 @@ class GetSourcesUseCase:
             generation_status=generation.status,
             generation_error=generation.error,
             is_permanent=source.is_permanent,
-            available_operation=_value(available_operation(source)),
+            available_operation=available_operation(source),
         )
 
     def get_by_id(
@@ -157,6 +156,3 @@ class GetSourcesUseCase:
             initially_shown_candidates=initially_shown,
         )
 
-
-def _value(kind: SourceOperationKind | None) -> str | None:
-    return kind.value if kind is not None else None

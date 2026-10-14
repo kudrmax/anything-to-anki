@@ -139,8 +139,9 @@ class RebuildPlanWriter:
         phrases only by their id."""
         if not inserts:
             return []
-        # The table, not the mapped class: one multi-row statement per batch, where the
-        # ORM's bulk path compiles a statement per row for an upsert with RETURNING.
+        # The table, not the mapped class: the statement is compiled once and run for every
+        # row, where the ORM's bulk path compiles it again for each row of an upsert with
+        # RETURNING.
         table = cast("Table", PhraseModel.__table__)
         phrases = table.c
         upsert = sqlite_insert(table).on_conflict_do_update(

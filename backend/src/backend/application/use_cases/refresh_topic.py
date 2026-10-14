@@ -104,6 +104,7 @@ class RefreshTopicUseCase:
         texts = {key: {r.text_hash for r in rows[w.id]} for key, w in words.items()}
         missing: list[StoredCandidate] = []
         replaced: list[int] = []
+        handled: set[int] = set()
         for candidate in collected:
             key = WordKey.of(candidate.lemma, candidate.is_phrasal_verb)
             text = OccurrenceRow.hash_text(candidate.source_phrase.text)
@@ -112,8 +113,12 @@ class RefreshTopicUseCase:
             texts.setdefault(key, set()).add(text)
             missing.append(candidate)
             word = words.get(key)
-            if word is not None and _replaces_generated(candidate, word, rows[word.id], origins):
-                replaced.extend(r.id for r in rows[word.id])
+            if word is None or word.id in handled:
+                continue
+            example = _generated_example(candidate, word, rows[word.id], origins)
+            if example is not None:
+                handled.add(word.id)
+                replaced.append(example)
                 self._candidate_repo.set_origin(word.id, candidate.origin)
         if replaced:
             self._occurrence_repo.apply_plan(
@@ -128,20 +133,27 @@ class RefreshTopicUseCase:
         )
 
 
-def _replaces_generated(
+def _generated_example(
     candidate: StoredCandidate,
     word: WordRow,
     phrases: list[OccurrenceRow],
     origins: dict[int | None, PhraseOrigin | None],
-) -> bool:
-    """A real phrase takes the place of the generated example, unless the user did
-    anything with the word or that example: then both stay."""
+) -> int | None:
+    """The id of the generated example a real phrase takes the place of, if any.
+
+    Only a word still as processing left it qualifies: its one phrase is the generated
+    example and nobody did anything with the word or that phrase. Once a word has a real
+    phrase, refreshing only adds to it.
+    """
     origin = origins.get(word.id)
-    return (
-        candidate.origin is not None
-        and candidate.origin.kind is PhraseOriginKind.SOURCE
-        and origin is not None
-        and origin.kind is PhraseOriginKind.GENERATED
-        and not word.decided
-        and not any(has_user_work(p, word.decided) for p in phrases)
-    )
+    if (
+        candidate.origin is None
+        or candidate.origin.kind is not PhraseOriginKind.SOURCE
+        or origin is None
+        or origin.kind is not PhraseOriginKind.GENERATED
+        or word.decided
+        or len(phrases) != 1
+    ):
+        return None
+    [example] = phrases
+    return None if has_user_work(example, word.decided) else example.id

@@ -13,6 +13,7 @@ from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.job_type import JobType
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
 
 if TYPE_CHECKING:
     from backend.domain.entities.job import Job
@@ -65,7 +66,7 @@ class SourceDTO(BaseModel):
     # Built-in source: it can't be deleted.
     is_permanent: bool = False
     # How the source is brought up to date: 'rebuild' | 'refresh', or nothing to offer.
-    available_operation: str | None = None
+    available_operation: SourceOperationKind | None = None
 
 
 class SourceGroupDTO(BaseModel):

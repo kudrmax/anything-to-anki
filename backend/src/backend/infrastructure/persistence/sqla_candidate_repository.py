@@ -110,6 +110,7 @@ class SqlaCandidateRepository(CandidateRepository):
         word.origin_title = origin.source_title if origin is not None else None
         self._session.flush()
 
+    # TRANSITIONAL(words-phrases): removed in Task 10
     def update_status(self, candidate_id: int, status: CandidateStatus) -> None:
         """SKIP skips the primary phrase; LEARN and KNOWN make it the phrase of the decision."""
         word = self._session.get(StoredCandidateModel, candidate_id)

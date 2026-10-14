@@ -6,9 +6,13 @@ adds the phrases later sources give their targets, and changes nothing the topic
 """
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
+from backend.application.use_cases.refresh_topic import RefreshTopicUseCase
+from backend.application.utils.topic_phrase_collector import CollectedTopic
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -49,6 +53,7 @@ from sqlalchemy import text
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
+    from backend.application.dto.rebuild_dtos import TopicRefreshSummaryDTO
     from sqlalchemy.orm import Session
 
 pytestmark = pytest.mark.integration
@@ -56,6 +61,7 @@ pytestmark = pytest.mark.integration
 NOVEL_TEXT = "It was late. In the end we agreed to meet halfway on the price."
 MEMOIR_FRAGMENT = "He refused to negotiate with them."
 LATER_ARTICLE = "The company answered with a counter-offer the next morning."
+ANOTHER_ARTICLE = "Their rivals made a counter-offer within the hour."
 
 
 def _add_source(
@@ -270,6 +276,97 @@ def test_refreshing_keeps_decisions_and_results(
     assert {i: after[i] for i in before} == before
     [word] = [w for w in occurrences.word_rows(topic_id) if w.lemma == "counter-offer"]
     assert word.status is WordStatus.LEARN
+
+
+def test_a_real_phrase_added_beside_a_generated_one_is_never_replaced(
+    db_session: Session, container: Container,
+) -> None:
+    topic_id = _processed_topic(db_session, container)
+    occurrences = SqlaOccurrenceRepository(db_session)
+    word_ids = {w.lemma: w.id for w in occurrences.word_rows(topic_id)}
+    [generated] = [
+        o for o in occurrences.by_source(topic_id) if o.candidate_id == word_ids["counter-offer"]
+    ]
+    _give_meaning(db_session, generated.id, generated.candidate_id)
+    _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
+    db_session.commit()
+    container.refresh_topic_use_case(db_session).execute(topic_id)
+    occurrences.reset_results(generated.id)
+    db_session.commit()
+    _add_source(db_session, "Reply", Kind.TEXT, ANOTHER_ARTICLE)
+    db_session.commit()
+
+    summary = _refresh_finding(db_session, container, topic_id, ANOTHER_ARTICLE, "Reply")
+
+    assert (summary.phrases_added, summary.phrases_replaced) == (1, 0)
+    assert _texts(db_session, topic_id, "counter-offer") == [
+        generated.source_phrase.text, LATER_ARTICLE, ANOTHER_ARTICLE,
+    ]
+
+
+def test_two_real_phrases_replace_the_generated_one_once(
+    db_session: Session, container: Container,
+) -> None:
+    topic_id = _processed_topic(db_session, container)
+    _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
+    _add_source(db_session, "Reply", Kind.TEXT, ANOTHER_ARTICLE)
+    db_session.commit()
+    found = _collected(db_session, container, topic_id, "counter-offer")
+    first, second = (
+        dataclasses.replace(
+            found,
+            source_phrase=phrase(text_, "counter-offer"),
+            origin=PhraseOrigin.from_source(title),
+        )
+        for text_, title in ((LATER_ARTICLE, "Article"), (ANOTHER_ARTICLE, "Reply"))
+    )
+
+    summary = _refresh_use_case(db_session, container, [first, second]).execute(topic_id)
+
+    assert (summary.phrases_added, summary.phrases_replaced) == (2, 1)
+    assert _texts(db_session, topic_id, "counter-offer") == [LATER_ARTICLE, ANOTHER_ARTICLE]
+    assert _by_lemma(db_session, topic_id)["counter-offer"].origin == PhraseOrigin.from_source(
+        "Article",
+    )
+
+
+def _collected(
+    db_session: Session, container: Container, topic_id: int, lemma: str,
+) -> StoredCandidate:
+    return next(
+        c for c in container.refresh_topic_use_case(db_session)._collector.collect(topic_id)
+        .candidates
+        if c.lemma == lemma
+    )
+
+
+def _refresh_finding(
+    db_session: Session, container: Container, topic_id: int, text_: str, title: str,
+) -> TopicRefreshSummaryDTO:
+    """Refresh as if the collector now found `text_` in `title` for counter-offer."""
+    found = dataclasses.replace(
+        _collected(db_session, container, topic_id, "counter-offer"),
+        source_phrase=phrase(text_, "counter-offer"),
+        origin=PhraseOrigin.from_source(title),
+    )
+    return _refresh_use_case(db_session, container, [found]).execute(topic_id)
+
+
+def _refresh_use_case(
+    db_session: Session, container: Container, collected: list[StoredCandidate],
+) -> RefreshTopicUseCase:
+    collector = MagicMock()
+    collector.collect.return_value = CollectedTopic(candidates=collected, text="")
+    use_case = container.refresh_topic_use_case(db_session)
+    return RefreshTopicUseCase(
+        source_repo=SqlaSourceRepository(db_session),
+        candidate_repo=SqlaCandidateRepository(db_session),
+        occurrence_repo=SqlaOccurrenceRepository(db_session),
+        lock=use_case._lock,
+        unit_of_work=use_case._unit_of_work,
+        collector=collector,
+        review_status=use_case._review_status,
+    )
 
 
 def test_a_second_refresh_adds_nothing(db_session: Session, container: Container) -> None:
