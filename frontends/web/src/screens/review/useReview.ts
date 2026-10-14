@@ -217,7 +217,13 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   const replaceWithExample = useCallback(async (candidateId: number, exampleText: string) => {
     try {
       const newCandidate = await api.replaceWithExample(candidateId, exampleText)
-      setCandidates(prev => [...prev.map(c => (c.id === candidateId ? { ...c, status: 'skip' as const } : c)), newCandidate])
+      setCandidates(prev => {
+        const rest = prev.map(c => (c.id === candidateId ? { ...c, status: 'skip' as const } : c))
+        // TRANSITIONAL(words-phrases): removed in Task 10 — the example is a phrase of the same word, so it comes back with the word's id
+        return rest.some(c => c.id === newCandidate.id)
+          ? rest.map(c => (c.id === newCandidate.id ? newCandidate : c))
+          : [...rest, newCandidate]
+      })
       setCurrentId(newCandidate.id)
       void generate(newCandidate.id)
       showToast('Phrase replaced — generating meaning...')

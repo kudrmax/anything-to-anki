@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import replace
 from datetime import UTC, datetime
 from itertools import takewhile
 from typing import TYPE_CHECKING
@@ -11,8 +12,9 @@ from backend.domain.ports.job_repository import DEFAULT_RUN_LIMIT, JobRepository
 from backend.domain.value_objects.failed_job_group import FailedJobGroup
 from backend.domain.value_objects.job_selection import UNKNOWN_JOB_ERROR
 from backend.domain.value_objects.job_status import JobStatus
-from backend.domain.value_objects.job_type import JobType
-from backend.infrastructure.persistence.models import JobModel
+from backend.domain.value_objects.job_type import PHRASE_JOB_TYPES, JobType
+from backend.infrastructure.persistence.models import JobModel, PhraseModel
+from backend.infrastructure.persistence.primary_phrase import PrimaryPhrases
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -74,7 +76,7 @@ class SqlaJobRepository(JobRepository):
                     _same_key(*key), JobModel.status == JobStatus.FAILED.value,
                 )
             )
-            model = JobModel.from_entity(job)
+            model = JobModel.from_entity(self._with_phrase(job))
             model.status = JobStatus.QUEUED.value
             model.error = None
             model.started_at = None
@@ -82,6 +84,21 @@ class SqlaJobRepository(JobRepository):
         self._session.add_all(models)
         self._session.flush()
         return [m.to_entity() for m in models]
+
+    # TRANSITIONAL(words-phrases): removed in Task 10
+    def _with_phrase(self, job: Job) -> Job:
+        """A phrase job queued by its word works on the word's primary phrase."""
+        if (
+            job.job_type not in PHRASE_JOB_TYPES
+            or job.candidate_id is None
+            or job.phrase_id is not None
+        ):
+            return job
+        phrase_id = PrimaryPhrases(self._session).id(job.candidate_id)
+        phrase = self._session.get(PhraseModel, phrase_id) if phrase_id is not None else None
+        if phrase is None:
+            return job
+        return replace(job, phrase_id=phrase.id, phrase_revision=phrase.revision)
 
     def claim_next_run(
         self,

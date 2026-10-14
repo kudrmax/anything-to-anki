@@ -13,6 +13,21 @@ class CandidateMediaRepository(ABC):
     1:1 with candidates. `None` from get methods means no row exists for this
     candidate (extraction has never been attempted)."""
 
+    # ── by phrase ──────────────────────────────────────────────────────
+
+    @abstractmethod
+    def get_by_phrase_id(self, phrase_id: int) -> CandidateMedia | None: ...
+
+    @abstractmethod
+    def get_by_phrase_ids(self, phrase_ids: list[int]) -> dict[int, CandidateMedia]:
+        """Keyed by phrase id; phrases without a row are left out."""
+
+    @abstractmethod
+    def upsert_for_phrase(self, phrase_id: int, media: CandidateMedia) -> None: ...
+
+    # ── by word, through its primary phrase ────────────────────────────
+    # TRANSITIONAL(words-phrases): removed in Task 10
+
     @abstractmethod
     def get_by_candidate_id(self, candidate_id: int) -> CandidateMedia | None: ...
 

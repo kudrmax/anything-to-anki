@@ -758,3 +758,41 @@ class TestSqlaJobRepository:
         assert groups[0].count == 3
         assert groups[1].error == "rare"
         assert groups[1].count == 1
+
+
+@pytest.mark.integration
+class TestJobsOfPhrases:
+    """TRANSITIONAL(words-phrases): removed in Task 10 — callers still queue by word."""
+
+    def test_a_phrase_job_queued_by_word_works_on_its_primary_phrase(
+        self, db_session: Session,
+    ) -> None:
+        _insert_source(db_session, 1)
+        _insert_candidate(db_session, 1, 1)
+        db_session.execute(text("UPDATE phrases SET revision = 3 WHERE id = 1"))
+        repo = SqlaJobRepository(db_session)
+
+        [queued] = repo.enqueue([Job.queued(JobType.MEANING, 1, 1)])
+
+        assert (queued.phrase_id, queued.phrase_revision) == (1, 3)
+
+    def test_a_word_job_has_no_phrase(self, db_session: Session) -> None:
+        _insert_source(db_session, 1)
+        _insert_candidate(db_session, 1, 1)
+        repo = SqlaJobRepository(db_session)
+
+        [queued] = repo.enqueue([Job.queued(JobType.PRONUNCIATION, 1, 1)])
+
+        assert (queued.phrase_id, queued.phrase_revision) == (None, None)
+
+    def test_a_job_naming_its_phrase_keeps_it(self, db_session: Session) -> None:
+        _insert_source(db_session, 1)
+        _insert_candidate(db_session, 1, 1)
+        _insert_candidate(db_session, 2, 1)
+        repo = SqlaJobRepository(db_session)
+
+        [queued] = repo.enqueue([
+            Job.queued(JobType.TTS, 1, 1, phrase_id=2, phrase_revision=0),
+        ])
+
+        assert (queued.phrase_id, queued.phrase_revision) == (2, 0)

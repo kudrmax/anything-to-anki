@@ -11,3 +11,7 @@ class JobType(Enum):
     TTS = "tts"
     TOPIC_TARGETS = "topic_targets"
     POLISH = "polish"
+
+
+# The jobs that make something for one phrase; the others work on a word or a source.
+PHRASE_JOB_TYPES = frozenset({JobType.POLISH, JobType.MEANING, JobType.MEDIA, JobType.TTS})

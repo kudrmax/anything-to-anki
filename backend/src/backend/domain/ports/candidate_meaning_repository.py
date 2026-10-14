@@ -14,6 +14,24 @@ class CandidateMeaningRepository(ABC):
     candidate (i.e., generation has never been attempted).
     """
 
+    # ── by phrase ──────────────────────────────────────────────────────
+
+    @abstractmethod
+    def get_by_phrase_id(self, phrase_id: int) -> CandidateMeaning | None: ...
+
+    @abstractmethod
+    def get_by_phrase_ids(self, phrase_ids: list[int]) -> dict[int, CandidateMeaning]:
+        """Keyed by phrase id; phrases without a row are left out."""
+
+    @abstractmethod
+    def upsert_for_phrase(self, phrase_id: int, meaning: CandidateMeaning) -> None: ...
+
+    @abstractmethod
+    def delete_by_phrase_id(self, phrase_id: int) -> None: ...
+
+    # ── by word, through its primary phrase ────────────────────────────
+    # TRANSITIONAL(words-phrases): removed in Task 10
+
     @abstractmethod
     def get_by_candidate_id(self, candidate_id: int) -> CandidateMeaning | None: ...
 
