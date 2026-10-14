@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { CLOSE_QUICK_ADD_HANDLER, droppedFiles, droppedPathsIn, FILE_DROP_EVENT, nativeHost, PICK_FILE_HANDLER, quickAddPanel } from './nativeHost'
+import { CLOSE_QUICK_ADD_HANDLER, FILE_DROP_EVENT, nativeHost, PICK_FILE_HANDLER, quickAddPanel } from './nativeHost'
 
 const hostWindow = (reply: unknown) => {
   const postMessage = vi.fn().mockResolvedValue(reply)
@@ -56,14 +56,3 @@ describe('quickAddPanel', () => {
   })
 })
 
-describe('droppedPathsIn', () => {
-  it('reads the paths a screen passed on', () => {
-    expect(droppedPathsIn(droppedFiles(['/a.mp4', '/a.srt']))).toEqual(['/a.mp4', '/a.srt'])
-  })
-
-  it('ignores any other navigation state', () => {
-    expect(droppedPathsIn(null)).toEqual([])
-    expect(droppedPathsIn({ back: '/' })).toEqual([])
-    expect(droppedPathsIn({ droppedPaths: [1, '/b.txt'] })).toEqual(['/b.txt'])
-  })
-})

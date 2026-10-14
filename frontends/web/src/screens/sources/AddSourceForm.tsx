@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '@/api/client'
 import type { InputDescription, InputKind, Question } from '@/api/types'
-import { droppedPathsIn, nativeHost } from '@/lib/nativeHost'
+import { Plus } from 'lucide-react'
+import { nativeHost } from '@/lib/nativeHost'
 import { withDroppedPaths } from '@/lib/text/sourceInput'
 import { phraseWords, pickedIndices, toggled } from '@/lib/text/words'
-import { Button, Field, Segmented, Spinner, Stack, Text, TextArea, WordPicker } from '@/ui'
+import { Button, Field, Icon, Segmented, Spinner, Text, TextArea, WordPicker } from '@/ui'
 import css from './AddSourceForm.module.css'
 import { PathField } from './PathField'
 import { QuestionsModal } from './QuestionsModal'
@@ -19,7 +19,7 @@ const MODES: { value: Mode; label: string }[] = [
   { value: 'topic', label: 'Topic' },
   { value: 'phrase', label: 'Phrase' },
 ]
-const INPUT_PLACEHOLDER = 'Paste text, a file path, a link — or a topic, a phrase…'
+const INPUT_PLACEHOLDER = 'Paste a link or text, type a topic or a phrase — or drop a file'
 const TOPIC_HINT = 'AI picks targets, phrases come from your sources'
 const PHRASE_HINT = 'Tap the words you want to learn'
 const PHRASE_SAVED = 'Phrase saved'
@@ -38,20 +38,11 @@ interface AddSourceFormProps {
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
 export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
-  const { state: navigationState, pathname, search } = useLocation()
-  const navigate = useNavigate()
-  // Файл бросили на экран Sources: он открыл Add и передал пути сюда.
-  const [dropped] = useState(() => withDroppedPaths({ filePath: '', srtPath: '' }, droppedPathsIn(navigationState)))
-  // Пути забраны в поле: в истории им не место, иначе «назад-вперёд» или перезагрузка вставят их снова.
-  const carriesPaths = droppedPathsIn(navigationState).length > 0
-  useEffect(() => {
-    if (carriesPaths) navigate(pathname + search, { replace: true, state: null })
-  }, [carriesPaths, navigate, pathname, search])
   // Режим, который пользователь переключил руками; пока его нет — режим, предложенный backend.
   const [chosen, setChosen] = useState<Mode | null>(null)
-  const [input, setInput] = useState(dropped.filePath)
+  const [input, setInput] = useState('')
   const [title, setTitle] = useState('')
-  const [srtPath, setSrtPath] = useState(dropped.srtPath)
+  const [srtPath, setSrtPath] = useState('')
   const [described, setDescribed] = useState<InputDescription | null>(null)
   const [describing, setDescribing] = useState(false)
   const [phraseTarget, setPhraseTarget] = useState<Set<number>>(new Set())
@@ -195,24 +186,22 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
 
   return (
     <>
-      <Stack gap="m">
-        <Stack>
-          {fileDrag.dragging && <div className={css.dropZone}>{DROP_HINT}</div>}
+      <section className={css.card} aria-label="Add">
+        <div className={css.head}>
+          <span className={css.plus}><Icon as={Plus} size="s" /></span>
+          <span className={css.headTitle}>Add</span>
+          {host && <Button variant="link" className={css.choose} busy={picking} onClick={pickFile}>Choose file…</Button>}
+        </div>
+        {fileDrag.dragging ? <div className={css.dropZone}>{DROP_HINT}</div> : (
           <TextArea
-            className={problem ? css.problemField : undefined}
+            className={problem ? `${css.area} ${css.problemField}` : css.area}
             value={input}
             placeholder={INPUT_PLACEHOLDER}
             onPaste={() => setChosen(null)}
             onChange={e => edit(e.target.value)}
           />
-          {!entered && host && !fileDrag.dragging && (
-            <div className={css.hintRow}>
-              <Text tone="muted" size="s">or drag a file here</Text>
-              <Button variant="link" busy={picking} onClick={pickFile}>Choose…</Button>
-            </div>
-          )}
-          {!entered && phraseSaved && <Text tone="muted" size="s">{PHRASE_SAVED}</Text>}
-        </Stack>
+        )}
+        {!entered && phraseSaved && <Text tone="muted" size="s">{PHRASE_SAVED}</Text>}
         {entered && problem && (
           <>
             <div className={css.problem}>
@@ -243,7 +232,7 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
         )}
         {entered && !described && describing && <Spinner />}
         {!entered && error && <Text tone="err" size="s">{error}</Text>}
-      </Stack>
+      </section>
       {questions && (
         <QuestionsModal questions={questions} onCancel={() => setQuestions(null)} onConfirm={answer} />
       )}
