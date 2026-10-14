@@ -1,3 +1,9 @@
+from __future__ import annotations
+
+from backend.domain.value_objects.elsewhere import Elsewhere
+from backend.domain.value_objects.word_status import WordStatus
+
+
 class DomainError(Exception):
     """Base class for domain exceptions."""
 
@@ -366,3 +372,39 @@ class ClozePhraseChangedError(DomainError):
     def __init__(self, candidate_id: int) -> None:
         super().__init__(f"Phrase of candidate {candidate_id} changed, mark the words again")
         self.candidate_id = candidate_id
+
+
+class PhraseNotFoundError(DomainError):
+    """Raised when a phrase (an occurrence of a word) does not exist."""
+
+    def __init__(self, phrase_id: int) -> None:
+        super().__init__(f"Phrase {phrase_id} not found")
+        self.phrase_id = phrase_id
+
+
+class CardDecisionLockedError(DomainError):
+    """Raised when a card of a decided word is decided on: only its decision card may be."""
+
+    def __init__(self, phrase_id: int, word_status: WordStatus) -> None:
+        verb = "Learned" if word_status is WordStatus.LEARN else "Known"
+        super().__init__(f"{verb} via another phrase: change it on that card")
+        self.phrase_id = phrase_id
+        self.word_status = word_status
+
+
+class AlreadyInAnkiError(DomainError):
+    """Raised when an exported decision is undone, skipped, moved or turned into a cloze."""
+
+    def __init__(self, phrase_id: int) -> None:
+        super().__init__("Already in Anki")
+        self.phrase_id = phrase_id
+
+
+class DecidedElsewhereError(DomainError):
+    """Raised when a word known or being learned via another source is marked to learn."""
+
+    def __init__(self, phrase_id: int, elsewhere: Elsewhere) -> None:
+        reason = "Known" if elsewhere is Elsewhere.KNOWN else "Learning from another source"
+        super().__init__(reason)
+        self.phrase_id = phrase_id
+        self.elsewhere = elsewhere
