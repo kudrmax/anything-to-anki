@@ -22,11 +22,10 @@ from backend.domain.services.card_decision import (
     decide,
     wants_generation,
 )
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind, ShownBy
 from backend.domain.value_objects.word_status import WordStatus
 
-from tests.phrase_support import make_occurrence, phrase
+from tests.phrase_support import make_occurrence
 
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import Occurrence
@@ -45,10 +44,10 @@ def _decision(kind: DecisionKind | None = DecisionKind.LEARN, **changes: object)
     return _phrase(is_decision=True, decision_kind=kind, **changes)
 
 
-def _word(status: CandidateStatus) -> StoredCandidate:
+def _word(status: WordStatus) -> StoredCandidate:
     return StoredCandidate(
         id=1, source_id=1, lemma="glare", pos="VERB", cefr_level="B2", zipf_frequency=3.0,
-        source_phrase=phrase("He glared at me.", "glared"), occurrences=2, status=status,
+        occurrences=2, status=status,
     )
 
 
@@ -210,7 +209,7 @@ def _actions(state: CardState) -> dict[DecisionButton, DecisionAction | None]:
 
 
 def test_an_open_card_offers_every_decision() -> None:
-    state = card_state(_phrase(), _word(CandidateStatus.PENDING), None)
+    state = card_state(_phrase(), _word(WordStatus.PENDING), None)
 
     assert not state.decided_here
     assert state.decided_elsewhere is None
@@ -222,14 +221,14 @@ def test_an_open_card_offers_every_decision() -> None:
 
 
 def test_a_skipped_card_can_be_unskipped_or_decided() -> None:
-    state = card_state(_phrase(skipped=True), _word(CandidateStatus.SKIP), None)
+    state = card_state(_phrase(skipped=True), _word(WordStatus.PENDING), None)
 
     assert _actions(state)[DecisionButton.SKIP] is UNSKIP
     assert _actions(state)[DecisionButton.LEARN] is LEARN
 
 
 def test_the_decision_card_can_be_undone_and_changed() -> None:
-    state = card_state(_decision(), _word(CandidateStatus.LEARN), None)
+    state = card_state(_decision(), _word(WordStatus.LEARN), None)
 
     assert state.decided_here
     assert state.decided_elsewhere is None
@@ -240,7 +239,7 @@ def test_the_decision_card_can_be_undone_and_changed() -> None:
 
 
 def test_an_exported_decision_card_only_switches_learn_and_known() -> None:
-    state = card_state(_decision(exported=True), _word(CandidateStatus.LEARN), None)
+    state = card_state(_decision(exported=True), _word(WordStatus.LEARN), None)
 
     assert _actions(state) == {
         DecisionButton.LEARN: None, DecisionButton.CLOZE: None,
@@ -249,7 +248,7 @@ def test_an_exported_decision_card_only_switches_learn_and_known() -> None:
 
 
 def test_a_sibling_card_shows_the_decision_with_its_buttons_inactive() -> None:
-    state = card_state(_phrase(), _word(CandidateStatus.KNOWN), None)
+    state = card_state(_phrase(), _word(WordStatus.KNOWN), None)
 
     assert not state.decided_here
     assert state.decided_elsewhere is WordStatus.KNOWN
@@ -257,7 +256,7 @@ def test_a_sibling_card_shows_the_decision_with_its_buttons_inactive() -> None:
 
 
 def test_a_skipped_sibling_shows_the_decision_and_may_be_unskipped() -> None:
-    state = card_state(_phrase(skipped=True), _word(CandidateStatus.LEARN), None)
+    state = card_state(_phrase(skipped=True), _word(WordStatus.LEARN), None)
 
     assert state.decided_elsewhere is WordStatus.LEARN
     assert _actions(state) == {
@@ -268,7 +267,7 @@ def test_a_skipped_sibling_shows_the_decision_and_may_be_unskipped() -> None:
 
 @pytest.mark.parametrize("elsewhere", [Elsewhere.KNOWN, Elsewhere.LEARNING])
 def test_a_card_known_elsewhere_is_done_and_cannot_be_learned(elsewhere: Elsewhere) -> None:
-    state = card_state(_phrase(), _word(CandidateStatus.PENDING), elsewhere)
+    state = card_state(_phrase(), _word(WordStatus.PENDING), elsewhere)
 
     assert state.elsewhere is elsewhere
     assert _actions(state)[DecisionButton.LEARN] is None
@@ -277,7 +276,7 @@ def test_a_card_known_elsewhere_is_done_and_cannot_be_learned(elsewhere: Elsewhe
 
 
 def test_a_decided_word_is_not_known_elsewhere() -> None:
-    state = card_state(_decision(), _word(CandidateStatus.LEARN), Elsewhere.LEARNING)
+    state = card_state(_decision(), _word(WordStatus.LEARN), Elsewhere.LEARNING)
 
     assert state.elsewhere is None
 
@@ -286,30 +285,30 @@ def test_a_decided_word_is_not_known_elsewhere() -> None:
 
 
 def test_an_open_card_of_a_pending_word_wants_generation() -> None:
-    assert wants_generation(_phrase(), _word(CandidateStatus.PENDING), None)
+    assert wants_generation(_phrase(), _word(WordStatus.PENDING), None)
 
 
 @pytest.mark.parametrize("kind", [DecisionKind.LEARN, DecisionKind.CLOZE])
 def test_the_learn_decision_card_wants_generation(kind: DecisionKind) -> None:
-    assert wants_generation(_decision(kind), _word(CandidateStatus.LEARN), None)
+    assert wants_generation(_decision(kind), _word(WordStatus.LEARN), None)
 
 
-@pytest.mark.parametrize("status", [CandidateStatus.LEARN, CandidateStatus.KNOWN])
-def test_a_sibling_of_a_decided_word_wants_none(status: CandidateStatus) -> None:
+@pytest.mark.parametrize("status", [WordStatus.LEARN, WordStatus.KNOWN])
+def test_a_sibling_of_a_decided_word_wants_none(status: WordStatus) -> None:
     assert not wants_generation(_phrase(), _word(status), None)
 
 
 def test_the_known_decision_card_wants_none() -> None:
-    assert not wants_generation(_decision(None), _word(CandidateStatus.KNOWN), None)
+    assert not wants_generation(_decision(None), _word(WordStatus.KNOWN), None)
 
 
 @pytest.mark.parametrize("elsewhere", [Elsewhere.KNOWN, Elsewhere.LEARNING])
 def test_a_card_decided_elsewhere_wants_none(elsewhere: Elsewhere) -> None:
-    assert not wants_generation(_phrase(), _word(CandidateStatus.PENDING), elsewhere)
+    assert not wants_generation(_phrase(), _word(WordStatus.PENDING), elsewhere)
 
 
 def test_a_skipped_card_wants_none() -> None:
-    assert not wants_generation(_phrase(skipped=True), _word(CandidateStatus.PENDING), None)
+    assert not wants_generation(_phrase(skipped=True), _word(WordStatus.PENDING), None)
 
 
 # ── card_state: what each button sends ────────────────────────────────
@@ -320,7 +319,7 @@ def _buttons(occ: Occurrence, word: StoredCandidate) -> dict[DecisionButton, tup
 
 
 def test_an_open_card_sends_each_decision_and_shows_none_pressed() -> None:
-    assert _buttons(_phrase(), _word(CandidateStatus.PENDING)) == {
+    assert _buttons(_phrase(), _word(WordStatus.PENDING)) == {
         DecisionButton.LEARN: (LEARN, False),
         DecisionButton.CLOZE: (CLOZE, False),
         DecisionButton.KNOWN: (KNOWN, False),
@@ -329,14 +328,14 @@ def test_an_open_card_sends_each_decision_and_shows_none_pressed() -> None:
 
 
 def test_the_pressed_button_of_the_decision_card_undoes_it() -> None:
-    buttons = _buttons(_decision(), _word(CandidateStatus.LEARN))
+    buttons = _buttons(_decision(), _word(WordStatus.LEARN))
     assert buttons[DecisionButton.LEARN] == (PENDING, True)
     assert buttons[DecisionButton.KNOWN] == (KNOWN, False)
     assert buttons[DecisionButton.SKIP] == (SKIP, False)
 
 
 def test_the_skipped_sibling_of_a_decided_word_unskips_and_nothing_else() -> None:
-    buttons = _buttons(_phrase(skipped=True), _word(CandidateStatus.LEARN))
+    buttons = _buttons(_phrase(skipped=True), _word(WordStatus.LEARN))
     assert buttons == {
         DecisionButton.LEARN: (None, True),
         DecisionButton.CLOZE: (None, False),
@@ -347,19 +346,19 @@ def test_the_skipped_sibling_of_a_decided_word_unskips_and_nothing_else() -> Non
 
 def test_learn_on_a_cloze_card_makes_it_a_plain_card() -> None:
     cloze = _decision(DecisionKind.CLOZE, cloze=_cloze())
-    buttons = _buttons(cloze, _word(CandidateStatus.LEARN))
+    buttons = _buttons(cloze, _word(WordStatus.LEARN))
     assert buttons[DecisionButton.LEARN] == (LEARN, False)
     assert buttons[DecisionButton.CLOZE] == (CLOZE, True)
 
 
 def test_skip_on_a_skipped_open_card_unskips_it_and_shows_pressed() -> None:
-    buttons = _buttons(_phrase(skipped=True), _word(CandidateStatus.PENDING))
+    buttons = _buttons(_phrase(skipped=True), _word(WordStatus.PENDING))
     assert buttons[DecisionButton.SKIP] == (UNSKIP, True)
 
 
 def test_a_phrase_in_anki_keeps_its_note_type() -> None:
     exported = _decision(exported=True)
-    buttons = _buttons(exported, _word(CandidateStatus.LEARN))
+    buttons = _buttons(exported, _word(WordStatus.LEARN))
     assert buttons[DecisionButton.LEARN] == (None, True)
     assert buttons[DecisionButton.CLOZE] == (None, False)
 

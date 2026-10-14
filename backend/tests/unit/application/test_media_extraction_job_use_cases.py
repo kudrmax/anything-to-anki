@@ -14,11 +14,11 @@ from backend.domain.exceptions import (
     InvalidTimecodesError,
     PermanentMediaError,
 )
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.phrase_ref import PhraseRef
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
 
-from tests.phrase_support import make_occurrence, phrase
+from tests.phrase_support import make_occurrence
 
 WORD_ID = 10
 PHRASE_ID = 17
@@ -35,9 +35,8 @@ def _media(start_ms: int | None = 1000, end_ms: int | None = 2000) -> CandidateM
 def _card(media: CandidateMedia | None) -> GenerationCard:
     word = StoredCandidate(
         id=WORD_ID, source_id=1, lemma="test", pos="NOUN",
-        cefr_level="B1", zipf_frequency=3.5,
-        source_phrase=phrase("hello world"), occurrences=1,
-        status=CandidateStatus.LEARN,
+        cefr_level="B1", zipf_frequency=3.5, occurrences=1,
+        status=WordStatus.LEARN,
     )
     shown = replace(make_occurrence("hello world", candidate_id=WORD_ID), id=PHRASE_ID)
     return GenerationCard.of(word, replace(shown, media=media), None)

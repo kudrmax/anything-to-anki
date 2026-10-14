@@ -9,9 +9,7 @@ from backend.application.dto.candidate_dtos import SelectionDTO
 from backend.application.use_cases.get_source_document import GetSourceDocumentUseCase
 from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
 from backend.domain.entities.occurrence import OccurrenceKey
-from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import InvalidPhraseError
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.document import (
     Document,
     Heading,
@@ -20,6 +18,7 @@ from backend.domain.value_objects.document import (
     ParagraphMode,
 )
 from backend.domain.value_objects.document_position import DocumentPosition
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.models import PhraseWordModel
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
@@ -32,6 +31,7 @@ from sqlalchemy import select
 
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
+from tests.word_support import SeedWord, store_cards
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -49,18 +49,18 @@ DOCUMENT = Document((
 PHRASE = "He gave up the relentless pursuit of happiness."
 
 
-def _candidate(source_id: int, lemma: str, target: str) -> StoredCandidate:
-    return StoredCandidate(
+def _candidate(source_id: int, lemma: str, target: str) -> SeedWord:
+    return SeedWord(
         source_id=source_id, lemma=lemma, pos="NOUN", cefr_level="B2", zipf_frequency=3.0,
         source_phrase=phrase(PHRASE, target),
-        occurrences=1, status=CandidateStatus.PENDING,
+        occurrences=1, status=WordStatus.PENDING,
         phrase_position=DocumentPosition(1, 0, 0, 1, 13),
     )
 
 
 def test_marks_that_would_overlap_keep_the_first(db_session: Session, source_id: int) -> None:
     SqlaDocumentRepository(db_session).save(source_id, DOCUMENT)
-    give_up, give, pursuit = SqlaCandidateRepository(db_session).create_batch([
+    give_up, give, pursuit = store_cards(db_session, [
         _candidate(source_id, "give up", "gave up"),
         _candidate(source_id, "give", "gave"),
         _candidate(source_id, "pursuit", "pursuit"),
@@ -80,7 +80,7 @@ def test_marks_that_would_overlap_keep_the_first(db_session: Session, source_id:
 
 def test_selected_phrase_replaces_the_old_one(db_session: Session, source_id: int) -> None:
     SqlaDocumentRepository(db_session).save(source_id, DOCUMENT)
-    (candidate,) = SqlaCandidateRepository(db_session).create_batch([
+    (candidate,) = store_cards(db_session, [
         _candidate(source_id, "pursuit", "pursuit"),
     ])
     assert candidate.phrase_id is not None
@@ -104,7 +104,7 @@ def test_selected_phrase_replaces_the_old_one(db_session: Session, source_id: in
 
 def test_an_example_put_in_the_document_gets_its_key(db_session: Session, source_id: int) -> None:
     SqlaDocumentRepository(db_session).save(source_id, DOCUMENT)
-    (candidate,) = SqlaCandidateRepository(db_session).create_batch([
+    (candidate,) = store_cards(db_session, [
         replace(_candidate(source_id, "pursuit", "pursuit"), phrase_position=None),
     ])
     assert candidate.phrase_id is not None
@@ -127,7 +127,7 @@ def _set_boundary(db_session: Session) -> SetPhraseBoundaryUseCase:
 
 def test_selection_across_blocks_is_rejected(db_session: Session, source_id: int) -> None:
     SqlaDocumentRepository(db_session).save(source_id, DOCUMENT)
-    (candidate,) = SqlaCandidateRepository(db_session).create_batch([
+    (candidate,) = store_cards(db_session, [
         _candidate(source_id, "pursuit", "pursuit"),
     ])
     assert candidate.phrase_id is not None

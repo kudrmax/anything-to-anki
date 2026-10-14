@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.domain.services.card_decision import word_status_of
 from backend.domain.value_objects.review_card import ReviewCard
 from backend.domain.value_objects.word_status import WordStatus
 
@@ -31,16 +30,13 @@ class ReviewCards:
     def of_source(self, source_id: int) -> list[ReviewCard]:
         words = {w.id: w for w in self._candidate_repo.get_by_source(source_id)}
         shown = self._occurrence_repo.shown_by_word(source_id)
-        statuses = {word_id: word_status_of(word) for word_id, word in words.items()}
         elsewhere = self._decided_elsewhere.of_lemmas(
-            word.lemma for word_id, word in words.items()
-            if statuses[word_id] is WordStatus.PENDING
+            word.lemma for word in words.values() if word.status is WordStatus.PENDING
         )
         return [
             ReviewCard(
                 word=words[word_id],
                 occurrence=occurrence,
-                word_status=statuses[word_id],
                 elsewhere=elsewhere.get(words[word_id].lemma),
             )
             for word_id, occurrences in shown.items() if word_id in words
@@ -58,12 +54,11 @@ class ReviewCards:
         return self.card(word, occurrence)
 
     def card(self, word: StoredCandidate, occurrence: Occurrence) -> ReviewCard:
-        status = word_status_of(word)
         return ReviewCard(
             word=word,
             occurrence=occurrence,
-            word_status=status,
             elsewhere=(
-                self._decided_elsewhere.of(word.lemma) if status is WordStatus.PENDING else None
+                self._decided_elsewhere.of(word.lemma)
+                if word.status is WordStatus.PENDING else None
             ),
         )

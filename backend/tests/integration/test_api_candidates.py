@@ -4,11 +4,10 @@ from collections.abc import Generator  # noqa: TC003
 
 import pytest
 from backend.domain.entities.occurrence import Occurrence
-from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
@@ -26,6 +25,7 @@ from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
+from tests.word_support import SeedWord, store_cards
 
 
 @pytest.fixture()
@@ -49,12 +49,12 @@ def client() -> Generator[TestClient, None, None]:
     )
     phrase_start = text.index("the pursuit of")
     repo = SqlaCandidateRepository(session)
-    repo.create_batch([
-        StoredCandidate(
+    store_cards(repo._session, [
+        SeedWord(
             source_id=source.id, lemma="pursuit", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,
             source_phrase=phrase("the pursuit of", "pursuit"),
-            occurrences=1, status=CandidateStatus.PENDING,
+            occurrences=1, status=WordStatus.PENDING,
             phrase_position=DocumentPosition(0, 0, phrase_start, 0, phrase_start + 14),
         ),
     ])

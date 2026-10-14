@@ -9,11 +9,9 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import CandidateNotFoundError, ImageSearchError
 from backend.domain.ports.settings_repository import SettingsRepository
 from backend.domain.ports.target_image_source import TargetImageSource
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.image_option import ImageOption
 from backend.domain.value_objects.image_provider import ImageProvider
-
-from tests.phrase_support import phrase
+from backend.domain.value_objects.word_status import WordStatus
 
 pytestmark = pytest.mark.unit
 
@@ -23,8 +21,8 @@ CANDIDATE_ID = 7
 def _candidate(pos: str = "NOUN") -> StoredCandidate:
     return StoredCandidate(
         id=CANDIDATE_ID, source_id=1, lemma="ladder", pos=pos, cefr_level="B1",
-        zipf_frequency=3.5, source_phrase=phrase("climb the ladder", "ladder"),
-        occurrences=1, status=CandidateStatus.PENDING,
+        zipf_frequency=3.5,
+        occurrences=1, status=WordStatus.PENDING,
     )
 
 

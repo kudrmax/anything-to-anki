@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import dataclasses
 from typing import TYPE_CHECKING
 
 from backend.application.utils.candidate_factory import CandidateFactory
+from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import InvalidPhraseError
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.source_role import SourceRole
 
 if TYPE_CHECKING:
@@ -28,8 +27,8 @@ SINGLE_OCCURRENCE = 1
 class AddSavedPhraseUseCase:
     """Saves a phrase met anywhere, with the target the user picked in it.
 
-    The phrase goes to the built-in "Saved phrases" source as a candidate
-    already marked to learn: the user chose it, there is nothing to review.
+    The phrase goes to the built-in "Saved phrases" source; a word new there is already
+    marked to learn: the user chose it, there is nothing to review.
     """
 
     def __init__(
@@ -46,9 +45,8 @@ class AddSavedPhraseUseCase:
         card_views: CardViews,
     ) -> None:
         self._source_repo = source_repo
-        self._occurrence_repo = occurrence_repo
         self._card_views = card_views
-        self._candidate_repo = candidate_repo
+        self._collected = CollectedPhrases(candidate_repo, occurrence_repo)
         self._candidate_factory = CandidateFactory(
             text_analyzer=text_analyzer,
             cefr_classifier=cefr_classifier,
@@ -66,16 +64,12 @@ class AddSavedPhraseUseCase:
         read = self._phrase_reader.read_picked(text, target_words)
 
         source_id = self._saved_phrases_source_id()
-        candidate = self._candidate_factory.build(
+        card = self._candidate_factory.build(
             source_id=source_id, phrase=read, occurrences=SINGLE_OCCURRENCE,
         )
-        learned = dataclasses.replace(candidate, status=CandidateStatus.LEARN)
-        word = self._candidate_repo.create_batch([learned])[0]
-        assert word.id is not None
-        added = self._occurrence_repo.of_word(word.id)[-1]
-        assert added.id is not None
+        [phrase_id] = self._collected.add(source_id, [card], learn=True)
         self._review_status.refresh(source_id)
-        return self._card_views.one(added.id)
+        return self._card_views.one(phrase_id)
 
     def _saved_phrases_source_id(self) -> int:
         source = self._source_repo.get_first_by_role(SourceRole.SAVED_PHRASES)

@@ -51,9 +51,7 @@ def _use_case(
     candidates.get_by_id.return_value = word(1, "stale")
     reader = MagicMock()
     reader.read_for.side_effect = _read_for
-    rewrite = RewritePhrase(
-        candidate_repo=candidates, phrase_reader=reader, occurrence_repo=occurrences,
-    )
+    rewrite = RewritePhrase(phrase_reader=reader, occurrence_repo=occurrences)
     use_case = EditCardPhraseUseCase(
         occurrence_repo=occurrences, candidate_repo=candidates, rewrite_phrase=rewrite,
         lock=lock or free_lock(),

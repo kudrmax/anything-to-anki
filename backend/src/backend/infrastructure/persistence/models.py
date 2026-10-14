@@ -66,6 +66,7 @@ from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.token_usage import TokenUsage
 from backend.domain.value_objects.usage_distribution import UsageDistribution
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.utc_datetime import UTCDateTime
 
@@ -73,7 +74,6 @@ if TYPE_CHECKING:
     from sqlalchemy import ColumnElement
 
     from backend.domain.entities.job import Job
-    from backend.domain.value_objects.candidate_status import CandidateStatus
 
 
 def dump_position(position: DocumentPosition | None) -> str | None:
@@ -386,51 +386,27 @@ class StoredCandidateModel(Base):
     usage_distribution_json: Mapped[str | None] = mapped_column(
         "usage_distribution", Text, nullable=True
     )
-    origin_kind: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    origin_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
-
     cefr_breakdown: Mapped[CEFRBreakdownModel | None] = relationship(
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
     )
 
-    # TRANSITIONAL(words-phrases): removed in Task 10
-    def to_entity(self, primary: PhraseModel, status: CandidateStatus) -> StoredCandidate:
-        """The word seen through its primary phrase, WITHOUT results — the repository
-        attaches those."""
-        bd: CEFRBreakdown | None = None
-        if self.cefr_breakdown is not None:
-            bd = _model_to_breakdown(self.cefr_breakdown)
-
-        cefr_level: str | None = None
-        if bd is not None and bd.final_level is not CEFRLevel.UNKNOWN:
-            cefr_level = bd.final_level.name
-
-        ud: UsageDistribution | None = None
-        if self.usage_distribution_json is not None:
-            ud = UsageDistribution(json.loads(self.usage_distribution_json))
-
+    def to_entity(self) -> StoredCandidate:
+        """The word, WITHOUT its pronunciation and picture — the repository attaches those."""
+        data = self.word_data()
         return StoredCandidate(
             id=self.id,
             source_id=self.source_id,
             lemma=self.lemma,
-            pos=self.pos,
-            cefr_level=cefr_level,
-            zipf_frequency=self.zipf_frequency,
-            source_phrase=_required_phrase(primary.source_phrase),
-            occurrences=self.occurrences,
+            pos=data.pos,
+            cefr_level=data.cefr_level,
+            zipf_frequency=data.zipf_frequency,
+            occurrences=data.occurrence_count,
             is_phrasal_verb=self.is_phrasal_verb,
-            status=status,
+            status=WordStatus(self.status),
             known_added=self.known_added,
             was_unknown=self.was_unknown,
-            meaning=None,
-            media=None,
-            cefr_breakdown=bd,
-            usage_distribution=ud,
-            origin=self._origin(),
-            polished_phrase=load_phrase(primary.polished_phrase),
-            polish_reverted=primary.polish_reverted,
-            phrase_position=load_position(primary.phrase_position),
-            phrase_id=primary.id,
+            cefr_breakdown=data.cefr_breakdown,
+            usage_distribution=data.usage_distribution,
         )
 
     def word_data(self) -> WordData:
@@ -462,16 +438,10 @@ class StoredCandidateModel(Base):
             _breakdown_to_model(data.cefr_breakdown) if data.cefr_breakdown is not None else None
         )
 
-    def _origin(self) -> PhraseOrigin | None:
-        if self.origin_kind is None:
-            return None
-        return PhraseOrigin(
-            kind=PhraseOriginKind(self.origin_kind), source_title=self.origin_title,
-        )
 
     @staticmethod
     def from_entity(candidate: StoredCandidate) -> StoredCandidateModel:
-        """The word of a candidate; its phrase is stored separately."""
+        """The word; its phrases are stored separately."""
         model = StoredCandidateModel(
             source_id=candidate.source_id,
             lemma=candidate.lemma,
@@ -481,8 +451,6 @@ class StoredCandidateModel(Base):
             occurrences=candidate.occurrences,
             is_phrasal_verb=candidate.is_phrasal_verb,
             status=candidate.status.value,
-            origin_kind=candidate.origin.kind.value if candidate.origin else None,
-            origin_title=candidate.origin.source_title if candidate.origin else None,
         )
         if candidate.cefr_breakdown is not None:
             model.cefr_breakdown = _breakdown_to_model(candidate.cefr_breakdown)

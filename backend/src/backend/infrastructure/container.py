@@ -58,6 +58,7 @@ from backend.application.utils.anki_template_renderer import AnkiTemplateRendere
 from backend.application.utils.candidate_factory import CandidateFactory
 from backend.application.utils.candidate_sorter import CandidateSorter
 from backend.application.utils.card_views import CardViews
+from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.application.utils.decided_elsewhere import DecidedElsewhere
 from backend.application.utils.export_queue import ExportQueue
 from backend.application.utils.frequent_word_threshold_resolver import (
@@ -538,7 +539,7 @@ class Container:
     def process_source_use_case(self, session: Session) -> ProcessSourceUseCase:
         return ProcessSourceUseCase(
             source_repo=SqlaSourceRepository(session),
-            candidate_repo=SqlaCandidateRepository(session),
+            collected_phrases=self._collected_phrases(session),
             lock=SqlaSourceOperationLock(session),
             unit_of_work=SqlaUnitOfWork(session),
             rebuilder=self._source_rebuilder(session),
@@ -556,8 +557,8 @@ class Container:
     def refresh_topic_use_case(self, session: Session) -> RefreshTopicUseCase:
         return RefreshTopicUseCase(
             source_repo=SqlaSourceRepository(session),
-            candidate_repo=SqlaCandidateRepository(session),
             occurrence_repo=SqlaOccurrenceRepository(session),
+            collected_phrases=self._collected_phrases(session),
             lock=SqlaSourceOperationLock(session),
             unit_of_work=SqlaUnitOfWork(session),
             collector=self._topic_phrase_collector(session),
@@ -596,12 +597,19 @@ class Container:
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
         )
 
+    def _collected_phrases(self, session: Session) -> CollectedPhrases:
+        return CollectedPhrases(
+            candidate_repo=SqlaCandidateRepository(session),
+            occurrence_repo=SqlaOccurrenceRepository(session),
+        )
+
     def _topic_phrase_collector(self, session: Session) -> TopicPhraseCollector:
         return TopicPhraseCollector(
             topic_target_repo=SqlaTopicTargetRepository(session),
             source_repo=SqlaSourceRepository(session),
             document_repo=SqlaDocumentRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            occurrence_repo=SqlaOccurrenceRepository(session),
             knowledge=self._user_knowledge(session),
             candidate_factory=self._candidate_factory(),
             phrase_reader=self._phrase_reader,
@@ -783,7 +791,6 @@ class Container:
 
     def _rewrite_phrase(self, session: Session) -> RewritePhrase:
         return RewritePhrase(
-            candidate_repo=SqlaCandidateRepository(session),
             phrase_reader=self._phrase_reader,
             occurrence_repo=SqlaOccurrenceRepository(session),
         )

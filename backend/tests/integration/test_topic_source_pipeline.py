@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.refresh_topic import RefreshTopicUseCase
-from backend.application.utils.topic_phrase_collector import CollectedTopic
+from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -22,7 +22,6 @@ from backend.domain.exceptions import (
     RefreshNotSupportedError,
     TopicTargetsMissingError,
 )
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.phrase_origin import PhraseOrigin
@@ -51,9 +50,12 @@ from backend.infrastructure.persistence.sqla_topic_target_repository import (
 from sqlalchemy import text
 
 from tests.phrase_support import phrase
+from tests.word_support import store_card
 
 if TYPE_CHECKING:
     from backend.application.dto.rebuild_dtos import TopicRefreshSummaryDTO
+    from backend.domain.entities.occurrence import Occurrence
+    from backend.domain.value_objects.new_card import NewCard
     from sqlalchemy.orm import Session
 
 pytestmark = pytest.mark.integration
@@ -94,18 +96,15 @@ def _add_memoir_with_candidate(session: Session) -> None:
     memoir_id = _add_source(
         session, "Memoir", Kind.TEXT, MEMOIR_FRAGMENT,
     )
-    SqlaCandidateRepository(session).create_batch([
-        StoredCandidate(
-            source_id=memoir_id,
-            lemma="negotiate",
-            pos="VERB",
-            cefr_level="B2",
-            zipf_frequency=3.6,
-            source_phrase=phrase(MEMOIR_FRAGMENT, "negotiate"),
-            occurrences=1,
-            status=CandidateStatus.PENDING,
-        ),
-    ])
+    store_card(session, StoredCandidate(
+        source_id=memoir_id,
+        lemma="negotiate",
+        pos="VERB",
+        cefr_level="B2",
+        zipf_frequency=3.6,
+        occurrences=1,
+        status=WordStatus.PENDING,
+    ), phrase(MEMOIR_FRAGMENT, "negotiate"))
 
 
 def _add_topic(session: Session) -> int:
@@ -126,8 +125,15 @@ def _add_topic(session: Session) -> int:
     return topic_id
 
 
-def _by_lemma(session: Session, source_id: int) -> dict[str, StoredCandidate]:
-    return {c.lemma: c for c in SqlaCandidateRepository(session).get_by_source(source_id)}
+def _by_lemma(session: Session, source_id: int) -> dict[str, Occurrence]:
+    """The first shown phrase of each word of the source."""
+    occurrences = SqlaOccurrenceRepository(session)
+    lemmas = {w.id: w.lemma for w in occurrences.word_rows(source_id)}
+    shown: dict[str, Occurrence] = {}
+    for occ in occurrences.by_source(source_id):
+        if occ.is_shown:
+            shown.setdefault(lemmas[occ.candidate_id], occ)
+    return shown
 
 
 @pytest.fixture()
@@ -160,17 +166,17 @@ def test_topic_borrows_phrases_and_falls_back_to_generated(
     negotiate = candidates["negotiate"]
     assert negotiate.source_phrase.text == MEMOIR_FRAGMENT
     assert negotiate.source_phrase.target_text() == "negotiate"
-    assert negotiate.origin == PhraseOrigin.from_source("Memoir")
+    assert negotiate.collected_from == PhraseOrigin.from_source("Memoir")
 
     meet_halfway = candidates["meet halfway"]
     assert meet_halfway.source_phrase.text == "In the end we agreed to meet halfway on the price."
     assert meet_halfway.source_phrase.target_text() == "meet halfway"
-    assert meet_halfway.origin == PhraseOrigin.from_source("Novel")
+    assert meet_halfway.collected_from == PhraseOrigin.from_source("Novel")
 
     counter_offer = candidates["counter-offer"]
     assert counter_offer.source_phrase.text == LATER_ARTICLE
     assert counter_offer.source_phrase.target_text() == "counter-offer"
-    assert counter_offer.origin == PhraseOrigin.from_source("Subtitles")
+    assert counter_offer.collected_from == PhraseOrigin.from_source("Subtitles")
 
     topic = SqlaSourceRepository(db_session).get_by_id(topic_id)
     assert topic is not None
@@ -199,7 +205,9 @@ def test_a_real_phrase_replaces_an_untouched_generated_one(
     db_session: Session, container: Container,
 ) -> None:
     topic_id = _processed_topic(db_session, container)
-    assert _by_lemma(db_session, topic_id)["counter-offer"].origin == PhraseOrigin.generated()
+    assert _by_lemma(db_session, topic_id)["counter-offer"].collected_from == (
+        PhraseOrigin.generated()
+    )
 
     _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
     db_session.commit()
@@ -209,7 +217,7 @@ def test_a_real_phrase_replaces_an_untouched_generated_one(
     assert _texts(db_session, topic_id, "counter-offer") == [LATER_ARTICLE]
     card = _by_lemma(db_session, topic_id)["counter-offer"]
     assert card.source_phrase.text == LATER_ARTICLE
-    assert card.origin == PhraseOrigin.from_source("Article")
+    assert card.collected_from == PhraseOrigin.from_source("Article")
     [added] = [
         o for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)
         if o.source_phrase.text == LATER_ARTICLE
@@ -315,7 +323,7 @@ def test_two_real_phrases_replace_the_generated_one_once(
     first, second = (
         dataclasses.replace(
             found,
-            source_phrase=phrase(text_, "counter-offer"),
+            phrase=phrase(text_, "counter-offer"),
             origin=PhraseOrigin.from_source(title),
         )
         for text_, title in ((LATER_ARTICLE, "Article"), (ANOTHER_ARTICLE, "Reply"))
@@ -325,18 +333,17 @@ def test_two_real_phrases_replace_the_generated_one_once(
 
     assert (summary.phrases_added, summary.phrases_replaced) == (2, 1)
     assert _texts(db_session, topic_id, "counter-offer") == [LATER_ARTICLE, ANOTHER_ARTICLE]
-    assert _by_lemma(db_session, topic_id)["counter-offer"].origin == PhraseOrigin.from_source(
-        "Article",
+    assert _by_lemma(db_session, topic_id)["counter-offer"].collected_from == (
+        PhraseOrigin.from_source("Article")
     )
 
 
 def _collected(
     db_session: Session, container: Container, topic_id: int, lemma: str,
-) -> StoredCandidate:
+) -> NewCard:
     return next(
         c for c in container.refresh_topic_use_case(db_session)._collector.collect(topic_id)
-        .candidates
-        if c.lemma == lemma
+        if c.word.lemma == lemma
     )
 
 
@@ -346,22 +353,24 @@ def _refresh_finding(
     """Refresh as if the collector now found `text_` in `title` for counter-offer."""
     found = dataclasses.replace(
         _collected(db_session, container, topic_id, "counter-offer"),
-        source_phrase=phrase(text_, "counter-offer"),
+        phrase=phrase(text_, "counter-offer"),
         origin=PhraseOrigin.from_source(title),
     )
     return _refresh_use_case(db_session, container, [found]).execute(topic_id)
 
 
 def _refresh_use_case(
-    db_session: Session, container: Container, collected: list[StoredCandidate],
+    db_session: Session, container: Container, collected: list[NewCard],
 ) -> RefreshTopicUseCase:
     collector = MagicMock()
-    collector.collect.return_value = CollectedTopic(candidates=collected, text="")
+    collector.collect.return_value = collected
     use_case = container.refresh_topic_use_case(db_session)
     return RefreshTopicUseCase(
         source_repo=SqlaSourceRepository(db_session),
-        candidate_repo=SqlaCandidateRepository(db_session),
         occurrence_repo=SqlaOccurrenceRepository(db_session),
+        collected_phrases=CollectedPhrases(
+            SqlaCandidateRepository(db_session), SqlaOccurrenceRepository(db_session),
+        ),
         lock=use_case._lock,
         unit_of_work=use_case._unit_of_work,
         collector=collector,

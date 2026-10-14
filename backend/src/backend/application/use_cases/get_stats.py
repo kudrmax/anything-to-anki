@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.application.dto.stats_dtos import StatsDTO
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.job_status import JobStatus
+from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
     from backend.application.utils.export_queue import ExportQueue
@@ -29,7 +29,7 @@ class GetStatsUseCase:
         self._job_repo = job_repo
 
     def execute(self) -> StatsDTO:
-        learn_count = self._candidate_repo.count_by_status(CandidateStatus.LEARN)
+        learn_count = self._candidate_repo.count_by_status(WordStatus.LEARN)
         export_pending_count = len(self._export_queue.for_all().pending)
         queue_active_count = self._count_active_jobs()
         candidate_count = self._candidate_repo.count_all()

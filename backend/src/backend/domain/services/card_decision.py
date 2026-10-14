@@ -16,7 +16,6 @@ from backend.domain.exceptions import (
     DecidedElsewhereError,
     DomainError,
 )
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.elsewhere import Elsewhere
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 from backend.domain.value_objects.word_status import WordStatus
@@ -35,7 +34,6 @@ __all__ = [
     "card_state",
     "decide",
     "wants_generation",
-    "word_status_of",
 ]
 
 
@@ -112,19 +110,6 @@ class CardState:
     buttons: tuple[ButtonState, ...]
 
 
-def word_status_of(word: StoredCandidate) -> WordStatus:
-    """The decision on the word.
-
-    TRANSITIONAL(words-phrases): removed in Task 10 — the card-shaped word reads SKIP when
-    its primary phrase is skipped; the word itself is pending then.
-    """
-    if word.status is CandidateStatus.LEARN:
-        return WordStatus.LEARN
-    if word.status is CandidateStatus.KNOWN:
-        return WordStatus.KNOWN
-    return WordStatus.PENDING
-
-
 def decide(
     occ: Occurrence, word_status: WordStatus, action: DecisionAction, elsewhere: Elsewhere | None,
 ) -> DecisionOutcome:
@@ -170,7 +155,7 @@ def card_state(
 ) -> CardState:
     """`learning_or_known_elsewhere`: why the word is done via another source, if it is;
     a word decided in this source shows its own decision instead."""
-    status = word_status_of(word)
+    status = word.status
     decided = status is not WordStatus.PENDING
     decided_here = decided and occ.is_decision
     elsewhere = None if decided else learning_or_known_elsewhere
@@ -229,7 +214,7 @@ def wants_generation(
         return False
     state = card_state(occ, word, learning_or_known_elsewhere)
     if state.decided_here:
-        return word_status_of(word) is WordStatus.LEARN
+        return word.status is WordStatus.LEARN
     return state.decided_elsewhere is None and state.elsewhere is None
 
 

@@ -8,11 +8,11 @@ import pytest
 from backend.application.use_cases.generate_tts import ALL_VOICES, GenerateTTSUseCase
 from backend.application.utils.generation_targets import GenerationCard
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.phrase_ref import PhraseRef
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
 
-from tests.phrase_support import make_occurrence, phrase
+from tests.phrase_support import make_occurrence
 
 
 @pytest.fixture()
@@ -45,8 +45,7 @@ def _make_candidate(
         source_id=source_id,
         lemma="procrastinate",
         pos="VERB",
-        status=CandidateStatus.LEARN,
-        source_phrase=phrase(context_fragment, "procrastinate"),
+        status=WordStatus.LEARN,
         cefr_level=None,
         zipf_frequency=4.0,
         occurrences=1,

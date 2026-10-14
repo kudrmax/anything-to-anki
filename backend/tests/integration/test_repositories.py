@@ -1,7 +1,6 @@
 import pytest
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.source import Source
-from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
@@ -25,6 +24,7 @@ from backend.infrastructure.persistence.sqla_source_repository import (
 from sqlalchemy.orm import Session
 
 from tests.phrase_support import phrase
+from tests.word_support import SeedWord, store_cards
 
 
 @pytest.mark.integration
@@ -89,11 +89,11 @@ class TestCandidateRepository:
         repo: SqlaCandidateRepository,
         source_id: int,
         lemma: str,
-        status: CandidateStatus,
+        status: WordStatus,
         meaning: str | None = None,
     ) -> None:
-        created = repo.create_batch([
-            StoredCandidate(
+        created = store_cards(repo._session, [
+            SeedWord(
                 source_id=source_id, lemma=lemma, pos="NOUN",
                 cefr_level="B2", zipf_frequency=3.5,
                 source_phrase=phrase(f"context {lemma}", lemma),
@@ -115,20 +115,20 @@ class TestCandidateRepository:
         source_id = self._create_source(db_session)
         repo = SqlaCandidateRepository(db_session)
         candidates = [
-            StoredCandidate(
+            SeedWord(
                 source_id=source_id, lemma="pursuit", pos="NOUN",
                 cefr_level="B2", zipf_frequency=3.5,
                 source_phrase=phrase("the pursuit of", "pursuit"),
-                occurrences=2, status=CandidateStatus.PENDING,
+                occurrences=2, status=WordStatus.PENDING,
             ),
-            StoredCandidate(
+            SeedWord(
                 source_id=source_id, lemma="burnout", pos="NOUN",
                 cefr_level="C2", zipf_frequency=2.1,
                 source_phrase=phrase("leads to burnout", "burnout"),
-                occurrences=1, status=CandidateStatus.PENDING,
+                occurrences=1, status=WordStatus.PENDING,
             ),
         ]
-        created = repo.create_batch(candidates)
+        created = store_cards(repo._session, candidates)
         assert len(created) == 2
         assert all(c.id is not None for c in created)
 
@@ -138,19 +138,19 @@ class TestCandidateRepository:
     def test_update_status(self, db_session: Session) -> None:
         source_id = self._create_source(db_session)
         repo = SqlaCandidateRepository(db_session)
-        created = repo.create_batch([
-            StoredCandidate(
+        created = store_cards(repo._session, [
+            SeedWord(
                 source_id=source_id, lemma="test", pos="NOUN",
                 cefr_level="B1", zipf_frequency=4.0,
                 source_phrase=phrase("a test", "test"),
-                occurrences=1, status=CandidateStatus.PENDING,
+                occurrences=1, status=WordStatus.PENDING,
             ),
         ])
         assert created[0].id is not None
         repo.set_word_status(created[0].id, WordStatus.LEARN)
         updated = repo.get_by_id(created[0].id)
         assert updated is not None
-        assert updated.status == CandidateStatus.LEARN
+        assert updated.status == WordStatus.LEARN
 
     def test_get_nonexistent(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
@@ -159,8 +159,8 @@ class TestCandidateRepository:
     def test_count_all_counts_every_status(self, db_session: Session) -> None:
         source_id = self._create_source(db_session)
         repo = SqlaCandidateRepository(db_session)
-        self._create_candidate(repo, source_id, "one", CandidateStatus.PENDING)
-        self._create_candidate(repo, source_id, "two", CandidateStatus.LEARN)
+        self._create_candidate(repo, source_id, "one", WordStatus.PENDING)
+        self._create_candidate(repo, source_id, "two", WordStatus.LEARN)
         self._create_candidate(repo, source_id, "three", CandidateStatus.SKIP)
         assert repo.count_all() == 3
 

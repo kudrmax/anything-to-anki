@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from backend.application.utils.candidate_factory import CandidateFactory
@@ -28,6 +27,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.text_analyzer import TextAnalyzer
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
+    from backend.domain.value_objects.new_card import NewCard
 
 
 class AddManualCandidateUseCase:
@@ -90,30 +90,28 @@ class AddManualCandidateUseCase:
         phrase = self._phrase_reader.read_picked(layout.fragment(phrase_position), target_words)
         occurrences = max(layout.text.lower().count(phrase.target_text().lower()), 1)
 
-        candidate = replace(
-            self._candidate_factory.build(
-                source_id=source_id, phrase=phrase, occurrences=occurrences,
-            ),
-            phrase_position=phrase_position,
+        card = self._candidate_factory.build(
+            source_id=source_id, phrase=phrase, occurrences=occurrences,
+            position=phrase_position,
         )
         key = layout.target_key(phrase_position, phrase)
-        word_id = self._word_of(candidate)
+        word_id = self._word_of(card.word)
         if word_id is None:
-            word_id = self._candidate_repo.add_word(candidate)
-            phrase_id = self._add_phrase(word_id, candidate, key)
+            word_id = self._candidate_repo.add_word(card.word)
+            phrase_id = self._add_phrase(word_id, card, key)
         else:
-            phrase_id = self._show_at(word_id, candidate, key)
+            phrase_id = self._show_at(word_id, card, key)
         self._review_status.refresh(source_id)
         return self._card_views.one(phrase_id)
 
-    def _word_of(self, candidate: StoredCandidate) -> int | None:
-        key = WordKey.of(candidate.lemma, candidate.is_phrasal_verb)
+    def _word_of(self, word: StoredCandidate) -> int | None:
+        key = WordKey.of(word.lemma, word.is_phrasal_verb)
         return next(
-            (w.id for w in self._occurrences.word_rows(candidate.source_id) if w.key == key),
+            (w.id for w in self._occurrences.word_rows(word.source_id) if w.key == key),
             None,
         )
 
-    def _show_at(self, word_id: int, candidate: StoredCandidate, key: OccurrenceKey) -> int:
+    def _show_at(self, word_id: int, card: NewCard, key: OccurrenceKey) -> int:
         existing = next(
             (
                 o for o in self._occurrences.of_word(word_id)
@@ -121,14 +119,14 @@ class AddManualCandidateUseCase:
                     o.origin is OccurrenceOrigin.AUTO
                     or (
                         o.origin is OccurrenceOrigin.MANUAL
-                        and o.source_phrase.text == candidate.source_phrase.text
+                        and o.source_phrase.text == card.phrase.text
                     )
                 )
             ),
             None,
         )
         if existing is None:
-            return self._add_phrase(word_id, candidate, key)
+            return self._add_phrase(word_id, card, key)
         assert existing.id is not None
         if existing.shown_by is ShownBy.SELECTION:
             self._occurrences.set_replaces_selection(existing.id, True)
@@ -137,12 +135,12 @@ class AddManualCandidateUseCase:
             self._occurrences.set_skipped(existing.id, False)
         return existing.id
 
-    def _add_phrase(self, word_id: int, candidate: StoredCandidate, key: OccurrenceKey) -> int:
+    def _add_phrase(self, word_id: int, card: NewCard, key: OccurrenceKey) -> int:
         added = self._occurrences.add(Occurrence(
             candidate_id=word_id,
             origin=OccurrenceOrigin.MANUAL,
-            source_phrase=candidate.source_phrase,
-            phrase_position=candidate.phrase_position,
+            source_phrase=card.phrase,
+            phrase_position=card.position,
             key=key,
             fragment_score=None,
             shown_by=ShownBy.USER,

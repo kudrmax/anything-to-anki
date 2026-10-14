@@ -9,26 +9,19 @@ import pytest
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.usage_distribution import UsageDistribution
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
-    PhraseModel,
     StoredCandidateModel,
-    dump_phrase,
 )
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
 )
 
 from tests.candidate_sorter_support import threshold_resolver
-from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
-
-
-def _phrase_of(candidate: StoredCandidate) -> PhraseModel:
-    return PhraseModel(source_phrase=dump_phrase(candidate.source_phrase), origin="auto")
 
 
 @pytest.mark.integration
@@ -68,15 +61,14 @@ class TestUsageSortingPipeline:
             pos="JJ",
             cefr_level="B1",
             zipf_frequency=4.5,
-            source_phrase=phrase("that's cool", "cool"),
             occurrences=1,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.PENDING,
             usage_distribution=UsageDistribution({"neutral": 0.6, "informal": 0.4}),
         )
         model = StoredCandidateModel.from_entity(candidate)
         assert model.usage_distribution_json is not None
 
-        restored = model.to_entity(_phrase_of(candidate), candidate.status)
+        restored = model.to_entity()
         assert restored.usage_distribution is not None
         assert restored.usage_distribution.groups == {"neutral": 0.6, "informal": 0.4}
 
@@ -88,13 +80,12 @@ class TestUsageSortingPipeline:
             pos="NN",
             cefr_level="B1",
             zipf_frequency=3.0,
-            source_phrase=phrase("some context"),
             occurrences=1,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.PENDING,
             usage_distribution=None,
         )
         model = StoredCandidateModel.from_entity(candidate)
         assert model.usage_distribution_json is None
 
-        restored = model.to_entity(_phrase_of(candidate), candidate.status)
+        restored = model.to_entity()
         assert restored.usage_distribution is None

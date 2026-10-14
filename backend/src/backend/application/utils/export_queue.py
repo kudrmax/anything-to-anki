@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING
 
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.services.export_readiness import export_group
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind
+from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
     from collections.abc import Collection
@@ -84,13 +84,13 @@ class ExportQueue:
 
     def for_source(self, source_id: int) -> ExportBatch:
         words = self._candidate_repo.get_by_source(source_id)
-        return self._split([w for w in words if w.status == CandidateStatus.LEARN])
+        return self._split([w for w in words if w.status is WordStatus.LEARN])
 
     def for_all(self) -> ExportBatch:
-        return self._split(self._candidate_repo.get_all_by_status(CandidateStatus.LEARN))
+        return self._split(self._candidate_repo.get_all_by_status(WordStatus.LEARN))
 
     def for_sources(self, source_ids: Collection[int]) -> ExportBatch:
-        learn = self._candidate_repo.get_all_by_status(CandidateStatus.LEARN)
+        learn = self._candidate_repo.get_all_by_status(WordStatus.LEARN)
         return self._split([w for w in learn if w.source_id in source_ids])
 
     def _split(self, learn: list[StoredCandidate]) -> ExportBatch:

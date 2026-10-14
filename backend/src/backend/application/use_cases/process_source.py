@@ -15,10 +15,10 @@ from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
+    from backend.application.utils.collected_phrases import CollectedPhrases
     from backend.application.utils.source_rebuilder import SourceRebuilder
     from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
     from backend.domain.entities.source import Source
-    from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.unit_of_work import UnitOfWork
@@ -39,14 +39,14 @@ class ProcessSourceUseCase:
     def __init__(
         self,
         source_repo: SourceRepository,
-        candidate_repo: CandidateRepository,
+        collected_phrases: CollectedPhrases,
         lock: SourceOperationLock,
         unit_of_work: UnitOfWork,
         rebuilder: SourceRebuilder,
         topic_phrase_collector: TopicPhraseCollector | None = None,
     ) -> None:
         self._source_repo = source_repo
-        self._candidate_repo = candidate_repo
+        self._collected_phrases = collected_phrases
         self._lock = lock
         self._unit_of_work = unit_of_work
         self._rebuilder = rebuilder
@@ -109,9 +109,9 @@ class ProcessSourceUseCase:
             raise TopicTargetsMissingError(source.id)
         self._notify_stage(source.id, ProcessingStage.COLLECTING_PHRASES)
         collected = self._topic_phrase_collector.collect(source.id)
-        created = self._candidate_repo.create_batch(collected.candidates)
+        created = self._collected_phrases.add(source.id, collected)
         self._source_repo.update_status(source.id, SourceStatus.DONE)
         logger.info(
-            "process_source: topic done (source_id=%d, candidates_created=%d)",
+            "process_source: topic done (source_id=%d, phrases_created=%d)",
             source.id, len(created),
         )

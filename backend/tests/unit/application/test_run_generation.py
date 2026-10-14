@@ -31,7 +31,6 @@ from backend.domain.exceptions import (
     GenerationNotSupportedError,
     SourceOperationBusyError,
 )
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.elsewhere import Elsewhere
 from backend.domain.value_objects.format import Format
@@ -48,6 +47,7 @@ from backend.domain.value_objects.phrase_origin_kind import (
 )
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.word_status import WordStatus
 
 from tests.phrase_support import phrase
 
@@ -67,7 +67,7 @@ def _meaning(cid: int) -> CandidateMeaning:
     )
 
 
-def _word(cid: int, status: CandidateStatus = CandidateStatus.PENDING) -> StoredCandidate:
+def _word(cid: int, status: WordStatus = WordStatus.PENDING) -> StoredCandidate:
     return StoredCandidate(
         id=cid,
         source_id=SOURCE_ID,
@@ -75,7 +75,6 @@ def _word(cid: int, status: CandidateStatus = CandidateStatus.PENDING) -> Stored
         pos="ADJ",
         cefr_level="B2",
         zipf_frequency=3.5,
-        source_phrase=phrase("The air was stale", "stale"),
         occurrences=1,
         status=status,
     )
@@ -209,7 +208,7 @@ def _words_reversed(cards: list[ReviewCard]) -> list[ReviewCard]:
 
 def _one(
     cid: int,
-    status: CandidateStatus = CandidateStatus.PENDING,
+    status: WordStatus = WordStatus.PENDING,
     *,
     meaning: bool = False,
     media: CandidateMedia | None = None,
@@ -225,7 +224,7 @@ def _mixed_meanings() -> _Setup:
             _one(2),
             _one(3),
             _one(4),
-            _one(5, CandidateStatus.KNOWN),
+            _one(5, WordStatus.KNOWN),
         ],
         jobs=[_job(30, JobStatus.QUEUED), _job(40, JobStatus.FAILED)],
     )
@@ -358,7 +357,7 @@ class TestGenerationByPhrase:
 class TestCardsNobodyDecidesOn:
     def _learned_with_a_sibling(self) -> _Setup:
         return _Setup([(
-            _word(1, CandidateStatus.LEARN),
+            _word(1, WordStatus.LEARN),
             [_phrase(1, 0, decision=DecisionKind.LEARN), _phrase(1, 1)],
         )])
 
@@ -376,7 +375,7 @@ class TestCardsNobodyDecidesOn:
 
     def test_a_cloze_decision_card_gets_generation(self) -> None:
         setup = _Setup([
-            (_word(1, CandidateStatus.LEARN), [_phrase(1, decision=DecisionKind.CLOZE)]),
+            (_word(1, WordStatus.LEARN), [_phrase(1, decision=DecisionKind.CLOZE)]),
         ])
 
         setup.run.execute(SOURCE_ID, GenerationKind.MEANING, GenerationScope.MISSING)

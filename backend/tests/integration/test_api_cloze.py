@@ -4,18 +4,17 @@ from collections.abc import Generator  # noqa: TC003
 from typing import Any
 
 import pytest
-from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import AnkiSyncedCardModel, SourceModel
-from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
+from tests.word_support import SeedWord, store_cards
 
 GIVE_UP = "She finally gave up smoking last year."
 SOURCE_ID = 1
@@ -37,12 +36,12 @@ def client() -> Generator[TestClient, None, None]:
     source = SourceModel(title=GIVE_UP, status="done")
     session.add(source)
     session.flush()
-    SqlaCandidateRepository(session).create_batch([
-        StoredCandidate(
+    store_cards(session, [
+        SeedWord(
             source_id=source.id, lemma=lemma, pos="VERB", cefr_level="B1",
             zipf_frequency=4.0,
             source_phrase=phrase(GIVE_UP, lemma, lemmas={"gave": "give", "smoking": "smoke"}),
-            occurrences=1, status=CandidateStatus.PENDING,
+            occurrences=1, status=WordStatus.PENDING,
             is_phrasal_verb=" " in lemma,
         )
         for lemma in ["give up", "smoke"]

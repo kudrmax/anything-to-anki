@@ -6,19 +6,19 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.utils.review_cards import ReviewCards
-from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.candidate_sorting import sort_by_relevance, sort_chronologically
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.user_knowledge import UserKnowledge
 from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
 
 from tests.phrase_support import phrase
+from tests.word_support import SeedWord, store_cards
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.review_card import ReviewCard
@@ -38,9 +38,9 @@ def _make_candidate(
     context_fragment: str = "",
     unknowns: int = 0,
     position: DocumentPosition | None = None,
-) -> StoredCandidate:
+) -> SeedWord:
     strange = [f"strange{i}" for i in range(unknowns)]
-    return StoredCandidate(
+    return SeedWord(
         source_id=source_id,
         phrase_position=position,
         lemma=lemma,
@@ -51,7 +51,7 @@ def _make_candidate(
             " ".join([context_fragment or f"context for {lemma}", *strange]), lemma, new=strange,
         ),
         occurrences=occurrences,
-        status=CandidateStatus.PENDING,
+        status=WordStatus.PENDING,
         is_phrasal_verb=is_phrasal_verb,
     )
 
@@ -75,7 +75,7 @@ class TestSortingWithDb:
 
     def test_relevance_sort_after_db_roundtrip(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
-        repo.create_batch([
+        store_cards(repo._session, [
             _make_candidate(1, "dirty_word", 4.0, unknowns=2),
             _make_candidate(1, "rare_word", 2.0, cefr="C1"),
             _make_candidate(1, "common_word", 5.0, cefr="A2"),
@@ -91,7 +91,7 @@ class TestSortingWithDb:
 
     def test_chronological_sort_after_db_roundtrip(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
-        repo.create_batch([
+        store_cards(repo._session, [
             _make_candidate(1, "third", 4.0, position=DocumentPosition(2, 0, 0, 0, 5)),
             _make_candidate(1, "first", 4.0, position=DocumentPosition(0, 1, 4, 1, 9)),
             _make_candidate(1, "second", 4.0, position=DocumentPosition(0, 2, 0, 2, 5)),
@@ -102,7 +102,7 @@ class TestSortingWithDb:
     def test_is_sweet_spot_computed_after_load(self, db_session: Session) -> None:
         """is_sweet_spot is computed from zipf, not read from DB column."""
         repo = SqlaCandidateRepository(db_session)
-        repo.create_batch([
+        store_cards(repo._session, [
             _make_candidate(1, "mid_word", 4.0),      # MID -> sweet spot
             _make_candidate(1, "common_word", 5.0),    # COMMON -> not sweet spot
         ])

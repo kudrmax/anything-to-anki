@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import pytest
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.frequency_band import FrequencyBand
-
-from tests.phrase_support import phrase
+from backend.domain.value_objects.word_status import WordStatus
 
 
 def _make(zipf: float) -> StoredCandidate:
@@ -15,9 +13,8 @@ def _make(zipf: float) -> StoredCandidate:
         pos="NN",
         cefr_level="B1",
         zipf_frequency=zipf,
-        source_phrase=phrase("test context", "test"),
         occurrences=1,
-        status=CandidateStatus.PENDING,
+        status=WordStatus.PENDING,
     )
 
 

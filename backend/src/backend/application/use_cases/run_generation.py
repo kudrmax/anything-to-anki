@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from backend.application.utils.generation_targets import CardJobs, target_for
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.exceptions import GenerationBlockedError, SourceNotFoundError
-from backend.domain.services.card_decision import word_status_of
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.card_generation_state import CardGenerationState
 from backend.domain.value_objects.generation_scope import GenerationScope
@@ -101,12 +100,7 @@ class RunGenerationUseCase:
         a word together."""
         by_phrase = {card.phrase_id: card for card in cards}
         arranged = self._candidate_sorter.arrange(
-            [
-                ReviewCard(
-                    word=card.word, occurrence=card.phrase, word_status=word_status_of(card.word),
-                )
-                for card in cards
-            ],
+            [ReviewCard(word=card.word, occurrence=card.phrase) for card in cards],
             sort_order,
         )
         return [by_phrase[card.phrase_id] for card in arranged.cards]

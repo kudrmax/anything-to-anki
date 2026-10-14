@@ -10,9 +10,6 @@ from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
-from backend.infrastructure.persistence.sqla_candidate_repository import (
-    SqlaCandidateRepository,
-)
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -80,18 +77,3 @@ class TestCandidateClozeRepository:
 
     def test_delete_missing_is_noop(self, session: Session) -> None:
         SqlaCandidateClozeRepository(session).delete_by_phrase_id(999)
-
-    def test_candidate_repository_attaches_cloze(self, session: Session) -> None:
-        SqlaCandidateClozeRepository(session).upsert_for_phrase(PHRASE_ID, _cloze())
-        candidate_repo = SqlaCandidateRepository(session)
-        by_id = candidate_repo.get_by_id(CANDIDATE_ID)
-        assert by_id is not None
-        assert by_id.cloze is not None
-        assert candidate_repo.get_by_source(SOURCE_ID)[0].cloze is not None
-
-    def test_candidate_without_cloze_has_none(self, session: Session) -> None:
-        candidate_repo = SqlaCandidateRepository(session)
-        by_id = candidate_repo.get_by_id(CANDIDATE_ID)
-        assert by_id is not None
-        assert by_id.cloze is None
-        assert candidate_repo.get_by_source(SOURCE_ID)[0].cloze is None

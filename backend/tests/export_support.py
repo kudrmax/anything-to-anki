@@ -1,9 +1,11 @@
-"""Decision phrases for export tests that seed card-shaped words into repository mocks."""
+"""Words with the phrase of their decision, for export tests that seed repository mocks."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.occurrence import Occurrence
+from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.phrase_origin_kind import (
     DecisionKind,
     OccurrenceOrigin,
@@ -13,13 +15,35 @@ from backend.domain.value_objects.phrase_origin_kind import (
 if TYPE_CHECKING:
     from unittest.mock import MagicMock
 
-    from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.entities.candidate_cloze import CandidateCloze
+    from backend.domain.entities.candidate_meaning import CandidateMeaning
+    from backend.domain.entities.candidate_media import CandidateMedia
+    from backend.domain.entities.candidate_tts import CandidateTTS
+    from backend.domain.value_objects.document_position import DocumentPosition
+    from backend.domain.value_objects.phrase import Phrase
+
+
+@dataclass
+class ExportWord(StoredCandidate):
+    """A word as the code under test sees it, carrying the phrase of its decision and what
+    was made for that phrase, for `decision_of`."""
+
+    source_phrase: Phrase | None = None
+    polished_phrase: Phrase | None = None
+    polish_reverted: bool = False
+    phrase_position: DocumentPosition | None = None
+    meaning: CandidateMeaning | None = None
+    media: CandidateMedia | None = None
+    tts: CandidateTTS | None = None
+    cloze: CandidateCloze | None = None
 
 
 def decision_of(candidate: StoredCandidate) -> Occurrence:
-    """The phrase of a word's decision as the card-shaped word shows it; a word with cloze
-    markup was decided as a cloze. The phrase id is the word id."""
+    """The phrase of the word's decision; a word with cloze markup was decided as a cloze.
+    The phrase id is the word id."""
+    assert isinstance(candidate, ExportWord)
     assert candidate.id is not None
+    assert candidate.source_phrase is not None
     return Occurrence(
         id=candidate.id,
         candidate_id=candidate.id,

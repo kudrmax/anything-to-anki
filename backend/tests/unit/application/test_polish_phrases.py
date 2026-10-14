@@ -12,7 +12,6 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import TargetNotInPhraseError
 from backend.domain.services.phrase_building import target_by_lemma
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
@@ -21,6 +20,7 @@ from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.polished_phrase import PolishedPhrase
 from backend.domain.value_objects.prompts_config import PromptsConfig
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.word_status import WordStatus
 
 from tests.phrase_support import make_occurrence, phrase
 
@@ -62,7 +62,7 @@ def _polished(repo: MagicMock) -> list[tuple[int, str]]:
 def _candidate(
     cid: int = 1,
     *,
-    status: CandidateStatus = CandidateStatus.PENDING,
+    status: WordStatus = WordStatus.PENDING,
     polished: str | None = None,
 ) -> GenerationCard:
     """Word `cid` and its phrase, whose id is the word's."""
@@ -73,11 +73,8 @@ def _candidate(
         pos="VERB",
         cefr_level="B1",
         zipf_frequency=4.0,
-        source_phrase=phrase(_SOURCE_PHRASE, "abandoned"),
         occurrences=1,
         status=status,
-        polished_phrase=phrase(polished, "abandoned") if polished is not None else None,
-        phrase_position=_PHRASE,
     )
     shown = replace(
         make_occurrence(_SOURCE_PHRASE, candidate_id=cid),
@@ -131,7 +128,7 @@ def _use_case(
         enrichment_reset=reset,
         ai_service=ai_service,
         prompts_config=_CONFIG,
-        rewrite_phrase=RewritePhrase(MagicMock(), reader, occurrence_repo),
+        rewrite_phrase=RewritePhrase(reader, occurrence_repo),
     )
     return use_case, occurrence_repo, ai_service, reset
 
@@ -198,7 +195,7 @@ def test_answer_is_cleaned_of_bold_and_quotes() -> None:
 @pytest.mark.unit
 def test_skips_decided_and_already_polished_cards() -> None:
     use_case, repo, ai, _ = _use_case(
-        [_candidate(1, status=CandidateStatus.KNOWN), _candidate(2, polished="x abandoned")],
+        [_candidate(1, status=WordStatus.KNOWN), _candidate(2, polished="x abandoned")],
         [],
     )
 

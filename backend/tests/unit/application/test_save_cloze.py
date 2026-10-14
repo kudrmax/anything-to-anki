@@ -22,7 +22,6 @@ from backend.domain.exceptions import (
 )
 from backend.domain.services.card_decision import DecisionAction
 from backend.domain.services.cloze_builder import ClozeBuilder
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
@@ -42,8 +41,8 @@ PHRASE_ID = 11
 def _word() -> StoredCandidate:
     return StoredCandidate(
         id=1, source_id=5, lemma="give up", pos="VERB", cefr_level="B1",
-        zipf_frequency=4.0, source_phrase=phrase(GIVE_UP, "gave up"),
-        occurrences=1, status=CandidateStatus.PENDING,
+        zipf_frequency=4.0,
+        occurrences=1, status=WordStatus.PENDING,
         is_phrasal_verb=True,
     )
 

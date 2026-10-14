@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.review_card import ReviewCard
 from backend.domain.value_objects.word_status import WordStatus
@@ -24,11 +23,10 @@ def word(
     word_id: int = 1, lemma: str = "test", *, status: WordStatus = WordStatus.PENDING,
     **changes: object,
 ) -> StoredCandidate:
-    """A pending word of source 10; its card-shaped phrase fields are not read by cards."""
+    """A word of source 10, pending unless `status` says otherwise."""
     made = StoredCandidate(
         id=word_id, source_id=10, lemma=lemma, pos="NOUN", cefr_level="B2",
-        zipf_frequency=3.5, source_phrase=phrase(f"a {lemma}", lemma), occurrences=1,
-        status=CandidateStatus(status.value),
+        zipf_frequency=3.5, occurrences=1, status=status,
     )
     return replace(made, **changes)  # type: ignore[arg-type]
 
@@ -54,12 +52,7 @@ def card(
     w = the_word or word()
     assert w.id is not None
     occ = the_occurrence or occurrence(word_id=w.id)
-    return ReviewCard(
-        word=w, occurrence=occ, word_status=WordStatus(
-            w.status.value if w.status is not CandidateStatus.SKIP else "pending",
-        ),
-        elsewhere=elsewhere,
-    )
+    return ReviewCard(word=w, occurrence=occ, elsewhere=elsewhere)
 
 
 def card_views(session: Session) -> CardViews:

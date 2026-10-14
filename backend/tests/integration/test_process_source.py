@@ -15,6 +15,7 @@ from backend.domain.value_objects.source_operation_kind import SourceOperationKi
 from tests.source_rebuild_support import LINES, SOURCE, Bench, at, time_of_line, word
 
 if TYPE_CHECKING:
+    from backend.domain.entities.stored_candidate import StoredCandidate
     from sqlalchemy.orm import Session
 
 pytestmark = pytest.mark.integration
@@ -46,12 +47,18 @@ def test_selection_shows_the_best_phrase_ties_to_the_first(bench: Bench) -> None
 def test_the_card_of_a_word_is_its_selection_phrase(bench: Bench) -> None:
     bench.processed(word("glare", at(0, 5.0), at(1, 2.0)), word("linger", at(3), at(4, 0.1)))
 
-    cards = {c.lemma: c for c in bench.candidates.get_by_source(SOURCE)}
+    words = {w.lemma: w for w in bench.candidates.get_by_source(SOURCE)}
+    shown = bench.occurrences.shown_by_word(SOURCE)
 
-    assert set(cards) == {"glare", "linger"}
-    assert cards["glare"].source_phrase.text == LINES[1]
-    assert cards["linger"].source_phrase.text == LINES[4]
-    assert cards["glare"].occurrences == 2
+    assert set(words) == {"glare", "linger"}
+    assert [o.source_phrase.text for o in shown[_id(words["glare"])]] == [LINES[1]]
+    assert [o.source_phrase.text for o in shown[_id(words["linger"])]] == [LINES[4]]
+    assert words["glare"].occurrences == 2
+
+
+def _id(word: StoredCandidate) -> int:
+    assert word.id is not None
+    return word.id
 
 
 def test_processing_marks_the_source_done_and_frees_it(bench: Bench) -> None:

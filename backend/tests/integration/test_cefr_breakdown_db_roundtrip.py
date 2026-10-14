@@ -7,15 +7,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
 
 from tests.phrase_support import phrase
+from tests.word_support import SeedWord, store_cards
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -64,7 +64,7 @@ def _existing_source(source_id: int) -> int:
 class TestCEFRBreakdownDBRoundtrip:
     def test_breakdown_saved_and_loaded(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
-        candidate = StoredCandidate(
+        candidate = SeedWord(
             source_id=1,
             lemma="happy",
             pos="JJ",
@@ -72,10 +72,10 @@ class TestCEFRBreakdownDBRoundtrip:
             zipf_frequency=5.0,
             source_phrase=phrase("I am happy"),
             occurrences=1,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
         )
-        created = repo.create_batch([candidate])
+        created = store_cards(repo._session, [candidate])
         assert len(created) == 1
 
         loaded = repo.get_by_source(1)
@@ -88,7 +88,7 @@ class TestCEFRBreakdownDBRoundtrip:
 
     def test_breakdown_priority_votes_restored(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
-        candidate = StoredCandidate(
+        candidate = SeedWord(
             source_id=1,
             lemma="test",
             pos="NN",
@@ -96,10 +96,10 @@ class TestCEFRBreakdownDBRoundtrip:
             zipf_frequency=4.0,
             source_phrase=phrase("a test"),
             occurrences=1,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
         )
-        repo.create_batch([candidate])
+        store_cards(repo._session, [candidate])
 
         loaded = repo.get_by_source(1)[0]
         assert loaded.cefr_breakdown is not None
@@ -112,7 +112,7 @@ class TestCEFRBreakdownDBRoundtrip:
 
     def test_voting_sources_restored(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
-        candidate = StoredCandidate(
+        candidate = SeedWord(
             source_id=1,
             lemma="word",
             pos="NN",
@@ -120,10 +120,10 @@ class TestCEFRBreakdownDBRoundtrip:
             zipf_frequency=4.0,
             source_phrase=phrase("a word"),
             occurrences=1,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
         )
-        repo.create_batch([candidate])
+        store_cards(repo._session, [candidate])
 
         loaded = repo.get_by_source(1)[0]
         bd = loaded.cefr_breakdown
@@ -137,7 +137,7 @@ class TestCEFRBreakdownDBRoundtrip:
     def test_efllex_distribution_survives_db(self, db_session: Session) -> None:
         """EFLLex distribution (JSON) must survive write → read."""
         repo = SqlaCandidateRepository(db_session)
-        candidate = StoredCandidate(
+        candidate = SeedWord(
             source_id=1,
             lemma="run",
             pos="VB",
@@ -145,10 +145,10 @@ class TestCEFRBreakdownDBRoundtrip:
             zipf_frequency=5.5,
             source_phrase=phrase("run fast"),
             occurrences=2,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
         )
-        repo.create_batch([candidate])
+        store_cards(repo._session, [candidate])
 
         loaded = repo.get_by_source(1)[0]
         bd = loaded.cefr_breakdown
@@ -161,7 +161,7 @@ class TestCEFRBreakdownDBRoundtrip:
     def test_no_breakdown_stays_none(self, db_session: Session) -> None:
         """Candidates without breakdown should have cefr_breakdown=None after load."""
         repo = SqlaCandidateRepository(db_session)
-        candidate = StoredCandidate(
+        candidate = SeedWord(
             source_id=1,
             lemma="old",
             pos="JJ",
@@ -169,10 +169,10 @@ class TestCEFRBreakdownDBRoundtrip:
             zipf_frequency=5.0,
             source_phrase=phrase("old candidate"),
             occurrences=1,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.PENDING,
             cefr_breakdown=None,
         )
-        repo.create_batch([candidate])
+        store_cards(repo._session, [candidate])
 
         loaded = repo.get_by_source(1)[0]
         assert loaded.cefr_breakdown is None
@@ -185,7 +185,7 @@ class TestCEFRBreakdownDBRoundtrip:
         )
 
         repo = SqlaCandidateRepository(db_session)
-        candidate = StoredCandidate(
+        candidate = SeedWord(
             source_id=1,
             lemma="gone",
             pos="VB",
@@ -193,10 +193,10 @@ class TestCEFRBreakdownDBRoundtrip:
             zipf_frequency=4.0,
             source_phrase=phrase("it is gone"),
             occurrences=1,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
         )
-        created = repo.create_batch([candidate])
+        created = store_cards(repo._session, [candidate])
         cid = created[0].id
 
         # Verify breakdown exists
@@ -219,7 +219,7 @@ class TestCEFRBreakdownDBRoundtrip:
         (Cambridge priority). After load, cefr_level must be B1 (runtime), not C2.
         """
         repo = SqlaCandidateRepository(db_session)
-        candidate = StoredCandidate(
+        candidate = SeedWord(
             source_id=1,
             lemma="mismatch",
             pos="NN",
@@ -227,10 +227,10 @@ class TestCEFRBreakdownDBRoundtrip:
             zipf_frequency=4.0,
             source_phrase=phrase("a mismatch"),
             occurrences=1,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.PENDING,
             cefr_breakdown=_make_breakdown(),  # Cambridge knows B1
         )
-        repo.create_batch([candidate])
+        store_cards(repo._session, [candidate])
 
         loaded = repo.get_by_source(1)[0]
         # Runtime resolver sees Cambridge=B1 → final_level=B1, NOT stored "C2"

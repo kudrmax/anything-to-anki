@@ -8,11 +8,11 @@ from backend.application.use_cases.run_generation_job import MeaningGenerationUs
 from backend.application.utils.generation_targets import GenerationCard
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.prompts_config import PromptsConfig
+from backend.domain.value_objects.word_status import WordStatus
 
-from tests.phrase_support import make_occurrence, phrase
+from tests.phrase_support import make_occurrence
 
 _CONFIG = PromptsConfig(
     generate_meaning_user_template='Word: "{lemma}" ({pos})\nContext: "{context}"',
@@ -29,7 +29,7 @@ def _card(
     lemma: str,
     *,
     with_meaning: bool = False,
-    status: CandidateStatus = CandidateStatus.PENDING,
+    status: WordStatus = WordStatus.PENDING,
     skipped: bool = False,
 ) -> GenerationCard:
     """Word `cid` and its phrase cid * 10."""
@@ -38,7 +38,6 @@ def _card(
         source_id=1,
         lemma=lemma,
         pos="VERB",
-        source_phrase=phrase(f"Could you {lemma} on that?", lemma),
         status=status,
         cefr_level=None,
         zipf_frequency=4.5,
@@ -131,7 +130,7 @@ def test_execute_batch_skips_phrases_with_meaning() -> None:
 @pytest.mark.unit
 def test_execute_batch_returns_early_when_all_phrases_filtered() -> None:
     """Done, known and skipped cards need no meaning: AI is not asked at all."""
-    known = _card(2, "known", status=CandidateStatus.KNOWN)
+    known = _card(2, "known", status=WordStatus.KNOWN)
     skipped = _card(3, "skipped", skipped=True)
     setup = _Setup([_card(1, "done", with_meaning=True), known, skipped])
 

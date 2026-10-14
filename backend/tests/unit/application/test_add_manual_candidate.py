@@ -45,7 +45,6 @@ from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.review_card import ReviewCard
 from backend.domain.value_objects.source_status import SourceStatus
-from backend.domain.value_objects.word_status import WordStatus
 
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
@@ -122,15 +121,17 @@ def _phrase_reader() -> MagicMock:
 
 
 def _saved(candidate_repo: MagicMock) -> StoredCandidate:
-    """The new word as the card shows it: the word stored, seen through its manual phrase."""
+    """The new word as stored, with the id its phrase points at."""
     (word,) = candidate_repo.add_word.call_args[0]
-    (occurrence,) = candidate_repo.occurrences.add.call_args[0]
     assert isinstance(word, StoredCandidate)
+    return replace(word, id=_added(candidate_repo).candidate_id)
+
+
+def _added(candidate_repo: MagicMock) -> Occurrence:
+    """The phrase the use case added."""
+    (occurrence,) = candidate_repo.occurrences.add.call_args[0]
     assert isinstance(occurrence, Occurrence)
-    return replace(
-        word, id=occurrence.candidate_id, source_phrase=occurrence.source_phrase,
-        phrase_position=occurrence.phrase_position,
-    )
+    return occurrence
 
 
 def _patch_classify_detailed(mock: MagicMock) -> MagicMock:
@@ -192,7 +193,6 @@ def _card_views(repo: MagicMock) -> MagicMock:
         (added,) = repo.occurrences.add.call_args[0]
         return card_to_dto(ReviewCard(
             word=_saved(repo), occurrence=replace(added, id=phrase_id),
-            word_status=WordStatus.PENDING,
         ))
 
     views.one.side_effect = one
@@ -270,7 +270,7 @@ class TestRegularWordPath:
         assert dto.cefr_level == "C1"
         assert dto.zipf_frequency == 3.7
         assert dto.is_sweet_spot is True  # 3.0 ≤ 3.7 ≤ 4.5
-        assert _saved(candidate_repo).phrase.target_text() == "procrastinate"
+        assert _added(candidate_repo).phrase.target_text() == "procrastinate"
         assert dto.is_phrasal_verb is False
         assert dto.occurrences == 2  # two occurrences in the document
         assert dto.status == CandidateStatus.PENDING.value
@@ -462,7 +462,7 @@ class TestSelection:
             selection=_select("It was Dolor  sit amet.", " Dolor  sit amet. "[:-1]),
         )
 
-        saved = _saved(candidate_repo)
+        saved = _added(candidate_repo)
         assert saved.source_phrase.text == "Dolor  sit amet."
         assert saved.phrase_position == DocumentPosition(0, 0, 7, 0, 23)
         assert saved.source_phrase.target == (0, 1)

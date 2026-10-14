@@ -1,6 +1,8 @@
 """Cards of the review list: sections, progress and order by shown phrase."""
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -11,7 +13,6 @@ from backend.domain.services.candidate_sorting import (
     sort_chronologically,
 )
 from backend.domain.value_objects.candidate_section import CandidateSection
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.document_position import DocumentPosition
@@ -32,7 +33,7 @@ KNOWLEDGE = UserKnowledge(Vocabulary.of(set(), set()), CEFRLevel.B1, 4.5)
 def _word(word_id: int, lemma: str, zipf: float = 3.0, occurrences: int = 1) -> StoredCandidate:
     return StoredCandidate(
         source_id=1, lemma=lemma, pos="NOUN", cefr_level="B1", zipf_frequency=zipf,
-        source_phrase=phrase(lemma), occurrences=occurrences, status=CandidateStatus.PENDING,
+        occurrences=occurrences, status=WordStatus.PENDING,
         id=word_id,
     )
 
@@ -50,7 +51,7 @@ def _card(
 ) -> ReviewCard:
     assert word.id is not None
     return ReviewCard(
-        word=word,
+        word=replace(word, status=status),
         occurrence=Occurrence(
             id=phrase_id, candidate_id=word.id, origin=OccurrenceOrigin.AUTO,
             source_phrase=phrase(text or f"a {word.lemma} here {' '.join(new)}".strip(),
@@ -58,7 +59,6 @@ def _card(
             phrase_position=DocumentPosition(0, 0, at, 0, at + 1) if at is not None else None,
             key=None, fragment_score=None, shown_by=ShownBy.SELECTION, skipped=skipped,
         ),
-        word_status=status,
         elsewhere=elsewhere,
     )
 

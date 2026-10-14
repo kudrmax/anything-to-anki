@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.word_decision import WordDecision
 from backend.domain.exceptions import PhraseNotFoundError
-from backend.domain.services.card_decision import decide, word_status_of
+from backend.domain.services.card_decision import decide
 from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
@@ -73,7 +73,7 @@ class DecidePhraseUseCase:
         if word is None:
             raise PhraseNotFoundError(occurrence_id)
         ensure_source_free(self._lock, word.source_id)
-        before = word_status_of(word)
+        before = word.status
         elsewhere = (
             self._decided_elsewhere.of(word.lemma) if before is WordStatus.PENDING else None
         )

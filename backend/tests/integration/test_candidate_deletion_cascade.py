@@ -9,8 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
@@ -18,6 +17,7 @@ from sqlalchemy import text
 
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.word_support import SeedWord, store_cards
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -30,8 +30,8 @@ PHRASE_TABLES = ("candidate_meanings", "candidate_media", "candidate_tts", "phra
 
 
 def _create_candidate(repo: SqlaCandidateRepository, lemma: str) -> int:
-    created = repo.create_batch([
-        StoredCandidate(
+    created = store_cards(repo._session, [
+        SeedWord(
             source_id=SOURCE_ID,
             lemma=lemma,
             pos="NOUN",
@@ -39,7 +39,7 @@ def _create_candidate(repo: SqlaCandidateRepository, lemma: str) -> int:
             zipf_frequency=4.0,
             source_phrase=phrase(f"a {lemma}", lemma),
             occurrences=1,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.PENDING,
         )
     ])[0]
     assert created.id is not None

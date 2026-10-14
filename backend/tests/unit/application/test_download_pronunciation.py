@@ -13,9 +13,7 @@ from backend.application.use_cases.download_pronunciation import (
     DownloadPronunciationUseCase,
 )
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
-
-from tests.phrase_support import phrase
+from backend.domain.value_objects.word_status import WordStatus
 
 
 def _make_candidate(cid: int = 1, source_id: int = 10) -> StoredCandidate:
@@ -24,14 +22,11 @@ def _make_candidate(cid: int = 1, source_id: int = 10) -> StoredCandidate:
         source_id=source_id,
         lemma="elaborate",
         pos="VERB",
-        source_phrase=phrase("Could you elaborate on that?", "elaborate"),
-        status=CandidateStatus.PENDING,
+        status=WordStatus.PENDING,
         cefr_level=None,
         zipf_frequency=4.5,
         occurrences=1,
         is_phrasal_verb=False,
-        meaning=None,
-        media=None,
     )
 
 

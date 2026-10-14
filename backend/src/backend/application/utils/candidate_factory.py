@@ -4,8 +4,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.new_card import NewCard
+from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
         PhrasalVerbDetector,
         PhrasalVerbMatch,
     )
+    from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.phrase_origin import PhraseOrigin
 
@@ -39,7 +41,7 @@ class _Lexeme:
 
 
 class CandidateFactory:
-    """Builds a candidate for a target the user (or a topic) picked explicitly.
+    """Builds the word of a target the user (or a topic) picked explicitly, with its phrase.
 
     Runs the same enrichment as automatic processing — lemma, POS, CEFR,
     frequency — but bypasses the CEFR level gate: the target is always kept.
@@ -63,24 +65,25 @@ class CandidateFactory:
         phrase: Phrase,
         occurrences: int,
         origin: PhraseOrigin | None = None,
-    ) -> StoredCandidate:
-        """The card for the phrase's target; what it is comes from the target as written."""
+        position: DocumentPosition | None = None,
+    ) -> NewCard:
+        """The phrase and the pending word of its target; what the word is comes from the
+        target as written."""
         lexeme = self._resolve_lexeme(phrase.target_text(), phrase.text)
         breakdown = self._cefr_classifier.classify_detailed(lexeme.lemma, lexeme.tag)
         cefr = breakdown.final_level
-        return StoredCandidate(
+        word = StoredCandidate(
             source_id=source_id,
             lemma=lexeme.lemma,
             pos=lexeme.pos,
             cefr_level=cefr.name if cefr != CEFRLevel.UNKNOWN else None,
             zipf_frequency=self._frequency_provider.get_zipf_value(lexeme.lemma),
-            source_phrase=phrase,
             occurrences=occurrences,
             is_phrasal_verb=lexeme.is_phrasal_verb,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.PENDING,
             cefr_breakdown=breakdown,
-            origin=origin,
         )
+        return NewCard(word=word, phrase=phrase, origin=origin, position=position)
 
     def _resolve_lexeme(self, surface_form: str, context_fragment: str) -> _Lexeme:
         tokens = self._text_analyzer.analyze(context_fragment)

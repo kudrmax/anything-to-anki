@@ -7,11 +7,13 @@ import pytest
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.application.utils.export_queue import ExportQueue
+from backend.domain.entities.candidate_meaning import CandidateMeaning
+from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.services.cloze_builder import ClozeBuilder
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.export_group import ExportGroup
+from backend.domain.value_objects.word_status import WordStatus
 
-from tests.export_support import DecisionsOf
+from tests.export_support import DecisionsOf, ExportWord
 from tests.phrase_support import phrase
 from tests.unit.application.scope_fakes import empty_scope_resolver
 
@@ -46,19 +48,16 @@ class TestSyncToAnkiTemplates:
 
         settings_repo.get.side_effect = lambda key, default: default
 
-        candidate = MagicMock()
-        candidate.id = 1
-        candidate.status = CandidateStatus.LEARN
-        candidate.lemma = "test"
-        candidate.phrase = phrase("This is a test", "test")
-        candidate.meaning = MagicMock()
-        candidate.meaning.meaning = "a trial"
-        candidate.meaning.ipa = "/tɛst/"
-        candidate.meaning.translation = None
-        candidate.meaning.synonyms = None
-        candidate.meaning.examples = None
-        candidate.media = None
-        candidate.cloze = None
+        candidate = ExportWord(
+            id=1, source_id=1, lemma="test", pos="NOUN", cefr_level="B2", zipf_frequency=3.5,
+            occurrences=1, status=WordStatus.LEARN,
+            source_phrase=phrase("This is a test", "test"),
+            meaning=CandidateMeaning(
+                candidate_id=1, meaning="a trial", translation=None, synonyms=None,
+                examples=None, ipa="/tɛst/", generated_at=None,
+            ),
+            tts=CandidateTTS(candidate_id=1, audio_path="/tmp/test.m4a", generated_at=None),
+        )
         candidate_repo.get_by_source.return_value = [candidate]
 
         anki_connector.is_available.return_value = True

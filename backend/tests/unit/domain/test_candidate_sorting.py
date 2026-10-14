@@ -14,7 +14,6 @@ from backend.domain.services.candidate_sorting import (
     sort_chronologically,
 )
 from backend.domain.value_objects.candidate_section import CandidateSection
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
@@ -65,9 +64,8 @@ def _make(
             pos=pos,
             cefr_level=cefr,
             zipf_frequency=zipf,
-            source_phrase=text,
             occurrences=occurrences,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.PENDING,
             is_phrasal_verb=is_phrasal_verb,
             usage_distribution=usage_distribution,
         ),
@@ -76,7 +74,6 @@ def _make(
             source_phrase=text, phrase_position=position, key=None, fragment_score=None,
             shown_by=ShownBy.SELECTION,
         ),
-        word_status=WordStatus.PENDING,
     )
 
 
@@ -87,12 +84,11 @@ def _with_id(card: ReviewCard, card_id: int) -> ReviewCard:
     return ReviewCard(
         word=replace(card.word, id=card_id),
         occurrence=replace(card.occurrence, id=card_id, candidate_id=card_id),
-        word_status=card.word_status,
     )
 
 
 def _decided(card: ReviewCard, status: WordStatus) -> ReviewCard:
-    return replace(card, word_status=status)
+    return replace(card, word=replace(card.word, status=status))
 
 
 def _skipped(card: ReviewCard) -> ReviewCard:

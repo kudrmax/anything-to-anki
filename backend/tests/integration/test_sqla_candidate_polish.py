@@ -10,7 +10,6 @@ from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
-from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
 )
@@ -28,7 +27,7 @@ SOURCE_TEXT = "The air was stale"
 
 
 @pytest.mark.integration
-class TestCandidatePolishPersistence:
+class TestPhrasePolishPersistence:
     def setup_method(self) -> None:
         engine = create_engine("sqlite:///:memory:")
         Base.metadata.create_all(engine)
@@ -37,52 +36,48 @@ class TestCandidatePolishPersistence:
             insert_word(s, 1, lemma="stale", pos="ADJ", phrase_text=SOURCE_TEXT)
             s.commit()
 
-    def test_new_candidate_is_not_polished(self) -> None:
+    def test_new_phrase_is_not_polished(self) -> None:
         with self._Session() as s:
-            candidate = SqlaCandidateRepository(s).get_by_id(1)
-            assert candidate is not None
-            assert candidate.polished_phrase is None
-            assert not candidate.polish_reverted
+            occ = SqlaOccurrenceRepository(s).get(1)
+            assert occ is not None
+            assert occ.polished_phrase is None
+            assert not occ.polish_reverted
 
     def test_polish_and_revert_round_trip(self) -> None:
+        polished = phrase("The air was not fresh, stale.", "stale")
         with self._Session() as s:
-            repo = SqlaCandidateRepository(s)
-            repo.set_polished_phrase(1, phrase("The air was not fresh, stale.", "stale"))
-            repo.set_polish_reverted(1, True)
+            occurrences = SqlaOccurrenceRepository(s)
+            occ = occurrences.get(1)
+            assert occ is not None
+            occurrences.write_text(
+                1, occ.source_phrase, occ.phrase_position, polished=polished,
+                polish_reverted=True,
+            )
             s.commit()
         with self._Session() as s:
-            candidate = SqlaCandidateRepository(s).get_by_id(1)
-            assert candidate is not None
-            assert candidate.polished_phrase == phrase("The air was not fresh, stale.", "stale")
-            assert candidate.polish_reverted
-            assert candidate.phrase.text == SOURCE_TEXT
-
-    def test_new_polish_clears_revert(self) -> None:
-        with self._Session() as s:
-            repo = SqlaCandidateRepository(s)
-            repo.set_polished_phrase(1, phrase("Old stale air.", "stale"))
-            repo.set_polish_reverted(1, True)
-            repo.set_polished_phrase(1, phrase("The stale air.", "stale"))
-            s.commit()
-            candidate = repo.get_by_id(1)
-            assert candidate is not None
-            assert not candidate.polish_reverted
+            occ = SqlaOccurrenceRepository(s).get(1)
+            assert occ is not None
+            assert occ.polished_phrase == polished
+            assert occ.polish_reverted
+            assert occ.phrase.text == SOURCE_TEXT
 
     def test_new_source_phrase_drops_polish(self) -> None:
         with self._Session() as s:
-            repo = SqlaCandidateRepository(s)
-            repo.set_polished_phrase(1, phrase("The stale air.", "stale"))
-            repo.set_polish_reverted(1, True)
-            new_phrase = phrase("The air around us was stale", "stale")
-            SqlaOccurrenceRepository(s).write_text(
-                1, new_phrase, DocumentPosition(0, 0, 0, 0, 27),
+            occurrences = SqlaOccurrenceRepository(s)
+            occ = occurrences.get(1)
+            assert occ is not None
+            occurrences.write_text(
+                1, occ.source_phrase, occ.phrase_position,
+                polished=phrase("The stale air.", "stale"), polish_reverted=True,
             )
+            new_phrase = phrase("The air around us was stale", "stale")
+            occurrences.write_text(1, new_phrase, DocumentPosition(0, 0, 0, 0, 27))
             s.commit()
-            candidate = repo.get_by_id(1)
-            assert candidate is not None
-            assert candidate.source_phrase == new_phrase
-            assert candidate.polished_phrase is None
-            assert not candidate.polish_reverted
+            occ = occurrences.get(1)
+            assert occ is not None
+            assert occ.source_phrase == new_phrase
+            assert occ.polished_phrase is None
+            assert not occ.polish_reverted
 
     def test_meaning_and_tts_can_be_dropped(self) -> None:
         with self._Session() as s:

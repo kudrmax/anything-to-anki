@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.utils.export_queue import ExportBatch
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.word_status import WordStatus
 
 from tests.vocabulary_support import user_vocabulary
 
@@ -32,7 +32,7 @@ class TestGetStatsUseCase:
         assert result.learn_count == 7
         assert result.candidate_count == 120
         assert result.known_word_count == 43
-        self.candidate_repo.count_by_status.assert_called_once_with(CandidateStatus.LEARN)
+        self.candidate_repo.count_by_status.assert_called_once_with(WordStatus.LEARN)
         self.known_word_repo.count.assert_called_once()
 
     def test_returns_zeros_when_empty(self) -> None:

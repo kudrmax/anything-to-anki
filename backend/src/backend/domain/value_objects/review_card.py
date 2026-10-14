@@ -24,14 +24,17 @@ def card_is_done(word_status: WordStatus, skipped: bool, elsewhere: Elsewhere | 
 class ReviewCard:
     """A card of the review list: one shown phrase of a word, with everything made for it.
 
-    `word_status`: the decision on the word. `elsewhere`: why the word, still open here,
-    counts as done via another source.
+    `elsewhere`: why the word, still open here, counts as done via another source.
     """
 
     word: StoredCandidate
     occurrence: Occurrence
-    word_status: WordStatus
     elsewhere: Elsewhere | None = None
+
+    @property
+    def word_status(self) -> WordStatus:
+        """The decision on the word."""
+        return self.word.status
 
     @property
     def word_id(self) -> int:

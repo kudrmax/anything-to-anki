@@ -17,6 +17,7 @@ from backend.application.dto.analysis_dtos import (
 from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.rebuild_source import RebuildSourceUseCase
+from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.application.utils.decided_elsewhere import DecidedElsewhere
 from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
@@ -169,7 +170,7 @@ class Bench:
     def process(self) -> ProcessSourceUseCase:
         return ProcessSourceUseCase(
             source_repo=self.sources,
-            candidate_repo=self.candidates,
+            collected_phrases=CollectedPhrases(self.candidates, self.occurrences),
             lock=self.lock,
             unit_of_work=SqlaUnitOfWork(self.session),
             rebuilder=self.rebuilder(),

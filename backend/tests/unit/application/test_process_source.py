@@ -30,7 +30,7 @@ class TestProcessSourceStart:
         self.collector = MagicMock()
         self.use_case = ProcessSourceUseCase(
             source_repo=self.source_repo,
-            candidate_repo=MagicMock(),
+            collected_phrases=MagicMock(),
             lock=self.lock,
             unit_of_work=MagicMock(),
             rebuilder=self.rebuilder,

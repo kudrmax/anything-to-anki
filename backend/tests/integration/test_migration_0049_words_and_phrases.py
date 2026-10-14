@@ -454,6 +454,7 @@ def test_new_tables_exist(db_url: str) -> None:
     }
     assert not candidate_columns & {
         "source_phrase", "polished_phrase", "polish_reverted", "phrase_position",
+        "origin_kind", "origin_title",
     }
 
 

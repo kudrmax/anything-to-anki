@@ -11,19 +11,19 @@ from backend.application.utils.anki_template_renderer import NoteTemplates
 from backend.application.utils.export_queue import ExportQueue
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
-from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.cloze_builder import ClozeBuilder
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind
+from backend.domain.value_objects.word_status import WordStatus
 
-from tests.export_support import DecisionsOf, decision_of
+from tests.export_support import DecisionsOf, ExportWord, decision_of
 from tests.phrase_support import phrase
 from tests.unit.application.scope_fakes import empty_scope_resolver
 
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import Occurrence
+    from backend.domain.entities.stored_candidate import StoredCandidate
 
 pytestmark = pytest.mark.unit
 
@@ -55,8 +55,8 @@ def _candidate(
     text: str,
     surface: str | None = None,
     cloze: CandidateCloze | None = None,
-) -> StoredCandidate:
-    return StoredCandidate(
+) -> ExportWord:
+    return ExportWord(
         id=candidate_id,
         source_id=1,
         lemma=lemma,
@@ -65,7 +65,7 @@ def _candidate(
         zipf_frequency=4.0,
         source_phrase=phrase(text, surface or lemma),
         occurrences=1,
-        status=CandidateStatus.LEARN,
+        status=WordStatus.LEARN,
         meaning=CandidateMeaning(
             candidate_id=candidate_id,
             meaning="To stop doing something.",
@@ -79,11 +79,11 @@ def _candidate(
     )
 
 
-def _give_up(cloze: CandidateCloze | None) -> StoredCandidate:
+def _give_up(cloze: CandidateCloze | None) -> ExportWord:
     return _candidate(1, "give up", GIVE_UP, surface="gave up", cloze=cloze)
 
 
-def _burnout() -> StoredCandidate:
+def _burnout() -> ExportWord:
     return _candidate(2, "burnout", "Burnout is real.")
 
 

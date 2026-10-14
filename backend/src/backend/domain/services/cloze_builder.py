@@ -12,7 +12,6 @@ if TYPE_CHECKING:
 
     from backend.domain.entities.candidate_cloze import CandidateCloze
     from backend.domain.entities.candidate_meaning import CandidateMeaning
-    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.phrase import Phrase
 
 GAP = "[…]"
@@ -171,10 +170,6 @@ class ClozeBuilder:
             if text and not _leaks(text, hidden):
                 usable.add(kind)
         return [kind for kind in HINT_ORDER if kind in usable]
-
-    def effective(self, candidate: StoredCandidate) -> CandidateCloze | None:
-        """The markup for the phrase the card shows; for another phrase it is the target."""
-        return self.effective_for(candidate.phrase, candidate.cloze)
 
     def effective_for(self, phrase: Phrase, cloze: CandidateCloze | None) -> CandidateCloze | None:
         """The markup for `phrase`; markup made for another phrase hides its target."""

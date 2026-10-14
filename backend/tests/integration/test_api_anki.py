@@ -6,8 +6,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 from backend.application.utils.anki_note_settings import AnkiFieldNames
-from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
@@ -15,7 +14,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from tests.export_support import decision_of
+from tests.export_support import ExportWord, decision_of
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
@@ -202,11 +201,11 @@ class TestSyncToAnkiAPI:
     def test_sync_adds_cards_successfully(self, client: TestClient) -> None:
         post = _add_text(client, "burnout is exhausting")
         source_id = post.json()["source_ids"][0]
-        burnout = StoredCandidate(
+        burnout = ExportWord(
             id=1, source_id=source_id, lemma="burnout", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,
             source_phrase=phrase("burnout is exhausting", "burnout"),
-            occurrences=1, status=CandidateStatus.LEARN,
+            occurrences=1, status=WordStatus.LEARN,
         )
 
         # Mark first candidate as learn via mock on candidate repo
@@ -264,11 +263,11 @@ class TestSyncToAnkiAPI:
         with patch(
             "backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository.get_by_source",
             return_value=[
-                StoredCandidate(
+                ExportWord(
                     id=1, source_id=source_id, lemma="burnout", pos="NOUN",
                     cefr_level="B2", zipf_frequency=3.5,
                     source_phrase=phrase("burnout is exhausting", "burnout"),
-                    occurrences=1, status=CandidateStatus.LEARN,
+                    occurrences=1, status=WordStatus.LEARN,
                 )
             ],
         ):

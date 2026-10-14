@@ -18,9 +18,10 @@ of the domain's DocumentLayout.
 `enrichment_cache` goes with Reprocess, its only user: Rebuild keeps everything in place.
 
 A collected phrase keeps where its card came from (another source, or AI) on itself, so a
-real phrase beside a generated one is labelled as what it is. A source's status becomes an
-outcome only: one left processing is new again, and the stage of a running process lives
-with its operation in `source_operations`. Known words learn whether Anki matured them.
+real phrase beside a generated one is labelled as what it is; the word no longer holds it.
+A source's status becomes an outcome only: one left processing is new again, and the stage
+of a running process lives with its operation in `source_operations`. Known words learn
+whether Anki matured them.
 
 One-way: merged words and re-keyed results cannot be split back into cards.
 """
@@ -55,6 +56,8 @@ DECISION_LEARN = "learn"
 DECISION_CLOZE = "cloze"
 LINE_SEPARATOR_LENGTH = 1
 PHRASE_COLUMNS = ("source_phrase", "polished_phrase", "polish_reverted", "phrase_position")
+# Where a collected phrase came from: now `phrases.collected_kind/collected_title`.
+WORD_ORIGIN_COLUMNS = ("origin_kind", "origin_title")
 WORD_INDEX_START = 0
 WORD_INDEX_LEMMA = 2
 
@@ -549,7 +552,7 @@ def _drop_card_columns() -> None:
     with op.batch_alter_table(
         "candidates", recreate="always", table_kwargs={"sqlite_autoincrement": True},
     ) as batch:
-        for column in PHRASE_COLUMNS:
+        for column in (*PHRASE_COLUMNS, *WORD_ORIGIN_COLUMNS):
             batch.drop_column(column)
         # Unknown for old Known words: off, so undoing one never forgets a word known before.
         batch.add_column(

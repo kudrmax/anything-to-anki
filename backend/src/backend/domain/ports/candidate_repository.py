@@ -5,17 +5,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
-    from backend.domain.value_objects.candidate_status import CandidateStatus
-    from backend.domain.value_objects.phrase import Phrase
-    from backend.domain.value_objects.phrase_origin import PhraseOrigin
     from backend.domain.value_objects.word_status import WordStatus
 
 
 class CandidateRepository(ABC):
-    """Port for persisting and retrieving word candidates."""
-
-    @abstractmethod
-    def create_batch(self, candidates: list[StoredCandidate]) -> list[StoredCandidate]: ...
+    """Port for the words of sources. Their phrases go through the occurrence repository."""
 
     @abstractmethod
     def add_word(self, word: StoredCandidate) -> int:
@@ -43,21 +37,11 @@ class CandidateRepository(ABC):
     def get_by_id(self, candidate_id: int) -> StoredCandidate | None: ...
 
     @abstractmethod
-    def set_origin(self, candidate_id: int, origin: PhraseOrigin | None) -> None:
-        """Where the word's collected phrase came from."""
-
-    @abstractmethod
-    def count_by_status(self, status: CandidateStatus) -> int: ...
+    def count_by_status(self, status: WordStatus) -> int:
+        """Words with this decision, across all sources."""
 
     @abstractmethod
     def count_all(self) -> int: ...
-
-    @abstractmethod
-    def set_polished_phrase(self, candidate_id: int, phrase: Phrase | None) -> None:
-        """Store the rewritten phrase; None drops it. Clears a revert."""
-
-    @abstractmethod
-    def set_polish_reverted(self, candidate_id: int, reverted: bool) -> None: ...
 
     @abstractmethod
     def get_by_ids(self, candidate_ids: list[int]) -> list[StoredCandidate]:
@@ -71,8 +55,8 @@ class CandidateRepository(ABC):
     def delete_by_source(self, source_id: int) -> None: ...
 
     @abstractmethod
-    def get_all_by_status(self, status: CandidateStatus) -> list[StoredCandidate]:
-        """Return all candidates with the given status, across all sources."""
+    def get_all_by_status(self, status: WordStatus) -> list[StoredCandidate]:
+        """Words with this decision across all sources, by source."""
 
     @abstractmethod
     def get_by_lemma(self, lemma: str) -> list[StoredCandidate]:

@@ -14,12 +14,12 @@ from backend.domain.exceptions import (
     PhraseNotFoundError,
     SourceOperationBusyError,
 )
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.generation_result import GenerationResult
 from backend.domain.value_objects.prompts_config import PromptsConfig
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
+from backend.domain.value_objects.word_status import WordStatus
 
-from tests.phrase_support import make_occurrence, phrase
+from tests.phrase_support import make_occurrence
 
 _CONFIG = PromptsConfig(
     generate_meaning_user_template='Word: "{lemma}" ({pos})\nContext: "{context}"',
@@ -68,14 +68,11 @@ def _make_candidate(cid: int = 1) -> StoredCandidate:
         source_id=1,
         lemma="elaborate",
         pos="VERB",
-        source_phrase=phrase("Could you elaborate on that?", "elaborate"),
-        status=CandidateStatus.PENDING,
+        status=WordStatus.PENDING,
         cefr_level=None,
         zipf_frequency=4.5,
         occurrences=1,
         is_phrasal_verb=False,
-        meaning=None,
-        media=None,
     )
 
 
