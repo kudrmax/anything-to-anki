@@ -30,8 +30,6 @@ type PhoneView = 'card' | 'text' | 'list'
 const SOURCES_PATH = '/'
 /** Все карточки Ready разобраны: остальное — по желанию. */
 const DONE = 'Done'
-/** Цифры решений видны на кнопках, здесь — только неочевидные клавиши. */
-const DOCK_HINT = '↑↓ phrases · Space audio · ⌘V picture'
 /** Ссылка на конкретную карточку: с ней ревью открывается сразу на ней. */
 const CANDIDATE_PARAM = 'candidate'
 
@@ -280,11 +278,10 @@ export function ReviewScreen() {
             </Button>
           </div>
         )}
-        {/* В разметке cloze у панели свои Cancel и Save; клавиши решений работают и без дока. */}
+        {/* Телефон: решения — в панели под карточкой. В разметке cloze у панели свои Cancel и Save. */}
         {current && view === 'card' && !clozeEditing && (
-          <div className={css.dock}>
+          <div className={`${css.dock} ${css.phoneOnly}`}>
             <DecisionButtons candidate={current} review={review} />
-            <div className={css.dockHint}>{DOCK_HINT}</div>
           </div>
         )}
       </div>

@@ -9,7 +9,7 @@ import { targetText } from '@/lib/text/phraseParts'
 import { CardPhrase } from './CardPhrase'
 import { CefrTooltip } from './CefrTooltip'
 import { ClozePanel } from './ClozePanel'
-import { PhraseTools } from './PhraseActions'
+import { DecisionButtons, PhraseTools } from './PhraseActions'
 import type { Review } from './useReview'
 import { useClozeEditor } from './useClozeEditor'
 import { usePhraseEditor } from './usePhraseEditor'
@@ -22,6 +22,9 @@ interface PhraseCardProps {
 }
 
 const GENERATED_PHRASE = 'generated phrase'
+/** Цифры решений видны на кнопках, здесь — только неочевидные клавиши. */
+const KEYS_HINT = '↑↓ · Space · ⌘V'
+const KEYS_HINT_TITLE = '↑↓ — phrases · Space — audio · ⌘V — paste a picture'
 
 const DECIDED_LABEL: Record<ChosenDecision, string> = { learn: 'Learn', cloze: 'Cloze', known: 'Known', skip: 'Skipped' }
 
@@ -178,6 +181,11 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
       </div>
 
       <footer className={detailsOpen ? css.cardFoot : `${css.cardFoot} ${css.collapsed}`}>
+        {/* Десктоп: решения — в нижней полосе карточки; на телефоне они в панели под карточкой. */}
+        <div className={css.footDecisions}>
+          <DecisionButtons candidate={candidate} review={review} />
+          <span className={css.footHint} title={KEYS_HINT_TITLE}>{KEYS_HINT}</span>
+        </div>
         <div className={css.facts}>
           {candidate.cloze && (
             <span className={css.clozeFact}><Icon as={Brackets} size="s" />{clozeLabel(candidate.cloze)}</span>
