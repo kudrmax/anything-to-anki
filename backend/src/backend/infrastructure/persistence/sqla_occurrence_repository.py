@@ -23,6 +23,8 @@ from backend.infrastructure.persistence.models import (
     StoredCandidateModel,
     dump_phrase,
     dump_position,
+    load_phrase,
+    load_position,
 )
 
 if TYPE_CHECKING:
@@ -185,6 +187,11 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 exported=bool(exported),
                 has_active_job=bool(active),
                 text_hash=OccurrenceRow.hash_text(json.loads(phrase.source_phrase)["text"]),
+                fragment_score=phrase.fragment_score,
+                shows_polish=phrase.polished_phrase is not None and not phrase.polish_reverted,
+                phrase_hash=OccurrenceRow.hash_phrase(
+                    _required(phrase.source_phrase), load_position(phrase.phrase_position),
+                ),
             )
             for phrase, results, exported, active in rows
         ]
@@ -317,6 +324,12 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         return exists().where(
             JobModel.phrase_id == PhraseModel.id, JobModel.status.in_(ACTIVE_JOB_STATUSES),
         )
+
+
+def _required(stored: str) -> Phrase:
+    phrase = load_phrase(stored)
+    assert phrase is not None
+    return phrase
 
 
 def _dumped(phrase: Phrase) -> str:
