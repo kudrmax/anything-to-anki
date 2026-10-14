@@ -15,3 +15,12 @@ export function decisionChange(current: CandidateStatus, chosen: Decision, conve
 export function learnConvertsCloze(candidate: Pick<StoredCandidate, 'cloze' | 'can_cloze'>): boolean {
   return candidate.cloze !== null && candidate.can_cloze
 }
+
+/** Кнопка, которой принято решение по фразе: Learn у cloze-карточки — это Cloze. */
+export type ChosenDecision = Decision | 'cloze'
+
+export function chosenDecision(candidate: Pick<StoredCandidate, 'status' | 'cloze'>): ChosenDecision | null {
+  if (candidate.status === 'pending') return null
+  if (candidate.status === 'learn' && candidate.cloze !== null) return 'cloze'
+  return candidate.status
+}

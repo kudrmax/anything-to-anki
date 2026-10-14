@@ -9,6 +9,7 @@ import { Aside, Page, PageHeader } from '@/shell'
 import { ChevronLeft, ChevronRight, FileText, List, ListChevronsDownUp, ListChevronsUpDown, PanelRightClose, PanelRightOpen, Upload } from 'lucide-react'
 import { Banner, Button, Empty, Icon, IconButton, Progress, Spinner, Toast } from '@/ui'
 import { GenerateMenu } from './GenerateMenu'
+import { DecisionButtons } from './PhraseActions'
 import { PhraseCard } from './PhraseCard'
 import { PhraseRow } from './PhraseRow'
 import { SelectionPopover } from './SelectionPopover'
@@ -26,6 +27,8 @@ type PhoneView = 'card' | 'text' | 'list'
 const SOURCES_PATH = '/'
 /** Все карточки Ready разобраны: остальное — по желанию. */
 const DONE = 'Done'
+/** Цифры решений видны на кнопках, здесь — только неочевидные клавиши. */
+const DOCK_HINT = '↑↓ phrases · Space audio · ⌘V picture'
 /** Ссылка на конкретную карточку: с ней ревью открывается сразу на ней. */
 const CANDIDATE_PARAM = 'candidate'
 
@@ -82,7 +85,7 @@ export function ReviewScreen() {
   useEffect(() => {
     if (loading) return
     listRef.current?.querySelector(`[data-candidate-id="${currentId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-  }, [currentId, currentIndex, loading])
+  }, [currentId, currentIndex, loading, phraseListShown])
 
   const { mark, setCurrentId, cancelEditing, sourceId, clozeEditing, startCloze, cancelCloze } = review
   const toggleAudio = review.player.toggle
@@ -159,7 +162,7 @@ export function ReviewScreen() {
     </div>
   )
 
-  // Позиция и ‹ › — в ряду телефона и в шапке десктопа без списка.
+  // Позиция и ‹ › — только на телефоне: там нет клавиатуры, чтобы листать фразы.
   const stepper = (
     <>
       <span className={css.position}>{currentIndex + 1} / {visible.length}</span>
@@ -176,12 +179,11 @@ export function ReviewScreen() {
       meta={counts.total > 0 && (
         <>
           <Progress inline value={counts.progress} />
-          {counts.reviewed === counts.total ? DONE : `${counts.reviewed} / ${counts.total}`}
+          {counts.reviewed === counts.total ? DONE : `${counts.reviewed} / ${counts.total} decided`}
         </>
       )}
     >
       <div className={css.headerTools}>
-        {candidates.length > 0 && !phraseListShown && <div className={css.headerStepper}>{stepper}</div>}
         {candidates.length > 0 && (
           <>
             <SortMenu value={review.sortOrder} onChange={review.setSortOrder} />
@@ -205,8 +207,8 @@ export function ReviewScreen() {
           />
         )}
       </div>
-      <Button variant="fill" title="Export cards to Anki" onClick={() => navigate(`/sources/${sourceId}/export`)}>
-        <Icon as={Upload} size="s" />{counts.learn}
+      <Button className={css.export} title="Export cards to Anki" onClick={() => navigate(`/sources/${sourceId}/export`)}>
+        <Icon as={Upload} size="s" />Export <span className={css.exportCount}>{counts.learn}</span>
       </Button>
     </PageHeader>
   )
@@ -273,8 +275,12 @@ export function ReviewScreen() {
             </Button>
           </div>
         )}
-        {candidates.length > 0 && (
-          <div className={css.hint}>↑ ↓ — next phrase · 1 Learn · 2 Cloze · 3 Know · 4 Skip · Space — play audio · ⌘V — paste picture</div>
+        {/* В разметке cloze у панели свои Cancel и Save; клавиши решений работают и без дока. */}
+        {current && view === 'card' && !clozeEditing && (
+          <div className={css.dock}>
+            <DecisionButtons candidate={current} review={review} />
+            <div className={css.dockHint}>{DOCK_HINT}</div>
+          </div>
         )}
       </div>
       {selection && (

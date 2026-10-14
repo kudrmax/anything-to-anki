@@ -1,14 +1,15 @@
 import { useState } from 'react'
-import { Brackets, Target, Volume2 } from 'lucide-react'
+import { Brackets, Check, Target, Volume2 } from 'lucide-react'
 import type { CandidateCloze, EnrichmentStatus, PhraseOrigin, StoredCandidate } from '@/api/types'
 import { CLOZE_HINT_LABEL } from '@/lib/clozeHints'
+import { chosenDecision, type ChosenDecision } from '@/lib/decision'
 import { FREQ_BAND_LABEL, isDivider, meaningAction, meaningParts, mediaUrl, nonEmptyLines, primaryUsageGroup } from '@/lib/text/meaning'
 import { Button, Chip, Icon, MediaThumb, Spinner, Text } from '@/ui'
 import { targetText } from '@/lib/text/phraseParts'
 import { CardPhrase } from './CardPhrase'
 import { CefrTooltip } from './CefrTooltip'
 import { ClozePanel } from './ClozePanel'
-import { DecisionButtons, PhraseTools } from './PhraseActions'
+import { PhraseTools } from './PhraseActions'
 import type { Review } from './useReview'
 import { useClozeEditor } from './useClozeEditor'
 import { usePhraseEditor } from './usePhraseEditor'
@@ -21,6 +22,8 @@ interface PhraseCardProps {
 }
 
 const GENERATED_PHRASE = 'generated phrase'
+
+const DECIDED_LABEL: Record<ChosenDecision, string> = { learn: 'Learn', cloze: 'Cloze', known: 'Known', skip: 'Skipped' }
 
 /** Откуда фраза кандидата темы: из другого источника или сгенерирована. */
 const originLabel = (origin: PhraseOrigin): string =>
@@ -35,7 +38,7 @@ function RichText({ text, candidate }: { text: string; candidate: StoredCandidat
   return (
     <>
       {meaningParts(text, candidate.lemma, targetText(candidate.phrase)).map((part, i) =>
-        part.target || part.bold ? <b key={i}>{part.text}</b> : part.text,
+        part.target ? <b key={i} className={css.target}>{part.text}</b> : part.bold ? <b key={i}>{part.text}</b> : part.text,
       )}
     </>
   )
@@ -51,7 +54,10 @@ function StatusText({ status, labels, error }: { status: EnrichmentStatus | unde
   )
 }
 
-/** Текущая фраза: слева то, что запоминаешь, справа то, что объясняет. */
+/**
+ * Текущая фраза: сверху фраза, слева то, по чему решаешь (перевод и пересказ контекста),
+ * справа справка (произношение, синонимы, определение, примеры), снизу факты и инструменты.
+ */
 export function PhraseCard({ candidate, review }: PhraseCardProps) {
   const [cefrAnchor, setCefrAnchor] = useState<HTMLElement | null>(null)
   const { sourceId, player } = review
@@ -64,6 +70,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
     clozeEditor.cancel()
     phraseEditor.start()
   }
+  const decided = chosenDecision(candidate)
 
   const usUrl = mediaUrl(sourceId, candidate.pronunciation?.us_audio_path)
   const ukUrl = mediaUrl(sourceId, candidate.pronunciation?.uk_audio_path)
@@ -86,12 +93,50 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   const paragraphs = meaning?.meaning ? nonEmptyLines(meaning.meaning) : []
   // Пример уходит на место фразы как есть: его **жирные** слова — target.
   const examples = meaning?.examples ? nonEmptyLines(meaning.examples) : []
-  const [definition, ...context] = paragraphs
+  const [definition, ...rest] = paragraphs
+  // Вторая строка значения пересказывает контекст фразы: по ней решают, поэтому она слева.
+  const retold = rest[0] && !isDivider(rest[0]) ? rest[0] : null
+  const more = retold ? rest.slice(1) : rest
 
   return (
     <article className={clozeEditor.active ? `${css.card} ${css.clozeEditing}` : css.card} data-candidate-id={candidate.id}>
       <header className={css.cardHead}>
-        <CardPhrase candidate={candidate} editor={phraseEditor} cloze={clozeEditor} />
+        <div className={css.phraseRow}>
+          <CardPhrase candidate={candidate} editor={phraseEditor} cloze={clozeEditor} />
+          {decided && (
+            <span className={css.decided}><Icon as={Check} size="s" />{DECIDED_LABEL[decided]}</span>
+          )}
+        </div>
+        {clozeEditor.active && <ClozePanel editor={clozeEditor} />}
+      </header>
+
+      <div className={css.cardLeft}>
+        {meaning?.translation && <p className={css.translation}>{meaning.translation}</p>}
+        {retold && <p className={css.retold}><RichText text={retold} candidate={candidate} /></p>}
+        {paragraphs.length === 0 && (
+          <div className={css.status}>
+            <StatusText status={meaning?.status} error={meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
+            {action && (
+              <Button variant="accent-link" busy={review.busy.generating.has(candidate.id)} onClick={() => void review.generate(candidate.id)}>
+                {action === 'retry' ? 'Retry' : 'Generate meaning'}
+              </Button>
+            )}
+          </div>
+        )}
+        <div className={css.visuals}>
+          <MediaThumb
+            screenshotUrl={media.screenshotUrl}
+            audioUrl={media.audioUrl}
+            status={isActive(candidate.media?.status) ? candidate.media?.status : undefined}
+            error={candidate.media?.error}
+            playing={player.playingUrl === media.audioUrl}
+            onToggle={player.toggle}
+          />
+          {media.meaningImageUrl && <img className={css.meaningImage} src={media.meaningImageUrl} alt="" onError={e => { e.currentTarget.hidden = true }} />}
+        </div>
+      </div>
+
+      <div className={css.cardRight}>
         {hasMeta && (
           <div className={css.meta}>
             {meaning?.ipa && <Text mono>{meaning.ipa}</Text>}
@@ -106,37 +151,9 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             )}
           </div>
         )}
-        {clozeEditor.active && <ClozePanel editor={clozeEditor} />}
-      </header>
-
-      <div className={css.cardLeft}>
-        {meaning?.translation && <p className={css.translation}>{meaning.translation}</p>}
         {meaning?.synonyms && <p className={css.synonyms}>{meaning.synonyms}</p>}
-        <MediaThumb
-          screenshotUrl={media.screenshotUrl}
-          audioUrl={media.audioUrl}
-          status={isActive(candidate.media?.status) ? candidate.media?.status : undefined}
-          error={candidate.media?.error}
-          playing={player.playingUrl === media.audioUrl}
-          onToggle={player.toggle}
-        />
-        <DecisionButtons candidate={candidate} review={review} cloze={clozeEditor} />
-      </div>
-
-      <div className={css.cardRight}>
         {definition && <p className={css.definition}><RichText text={definition} candidate={candidate} /></p>}
-        {media.meaningImageUrl && <img className={css.meaningImage} src={media.meaningImageUrl} alt="" onError={e => { e.currentTarget.hidden = true }} />}
-        {paragraphs.length === 0 && (
-          <div className={css.status}>
-            <StatusText status={meaning?.status} error={meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
-            {action && (
-              <Button variant="accent-link" busy={review.busy.generating.has(candidate.id)} onClick={() => void review.generate(candidate.id)}>
-                {action === 'retry' ? 'Retry' : 'Generate meaning'}
-              </Button>
-            )}
-          </div>
-        )}
-        {context.map((paragraph, i) => isDivider(paragraph)
+        {more.map((paragraph, i) => isDivider(paragraph)
           ? <hr key={i} className={phrase.divider} />
           : <p key={i} className={css.context}><RichText text={paragraph} candidate={candidate} /></p>)}
         {examples.length > 0 && (
@@ -151,27 +168,28 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             ))}
           </ul>
         )}
-        <div className={css.cardFoot}>
-          <div className={css.facts}>
-            {candidate.cloze && (
-              <span className={css.clozeFact}><Icon as={Brackets} size="s" />{clozeLabel(candidate.cloze)}</span>
-            )}
-            {candidate.is_phrasal_verb ? <span>phrasal verb</span> : candidate.cefr_level && (
-              <span
-                className={css.cefr}
-                onMouseEnter={e => candidate.cefr_breakdown && setCefrAnchor(e.currentTarget)}
-                onMouseLeave={() => setCefrAnchor(null)}
-              >
-                {candidate.is_sweet_spot && <Icon as={Target} size="s" />}
-                {candidate.cefr_level}
-              </span>
-            )}
-            {facts.map(fact => <span key={fact}>{fact}</span>)}
-            {candidate.origin && <span>{originLabel(candidate.origin)}</span>}
-          </div>
-          <PhraseTools candidate={candidate} review={review} onEditPhrase={editPhrase} />
-        </div>
       </div>
+
+      <footer className={css.cardFoot}>
+        <div className={css.facts}>
+          {candidate.cloze && (
+            <span className={css.clozeFact}><Icon as={Brackets} size="s" />{clozeLabel(candidate.cloze)}</span>
+          )}
+          {candidate.is_phrasal_verb ? <span>phrasal verb</span> : candidate.cefr_level && (
+            <span
+              className={css.cefr}
+              onMouseEnter={e => candidate.cefr_breakdown && setCefrAnchor(e.currentTarget)}
+              onMouseLeave={() => setCefrAnchor(null)}
+            >
+              {candidate.is_sweet_spot && <Icon as={Target} size="s" />}
+              {candidate.cefr_level}
+            </span>
+          )}
+          {facts.map(fact => <span key={fact}>{fact}</span>)}
+          {candidate.origin && <span>{originLabel(candidate.origin)}</span>}
+        </div>
+        <PhraseTools candidate={candidate} review={review} onEditPhrase={editPhrase} />
+      </footer>
 
       {cefrAnchor && candidate.cefr_breakdown && candidate.cefr_level && (
         <CefrTooltip breakdown={candidate.cefr_breakdown} cefrLevel={candidate.cefr_level} anchor={cefrAnchor} onClose={() => setCefrAnchor(null)} />
