@@ -550,9 +550,19 @@ export type AddSourceResult =
   | { questions: Question[] }
   | { source_ids: number[]; collection_id: number | null }
 
-export interface DetectedFormat {
+/** Во что превратится ввод экрана Add. */
+export type InputKind = 'source' | 'topic' | 'phrase'
+/** Почему ввод заведомо не добавится. */
+export type InputProblem = 'unsupported_link' | 'file_not_found'
+
+/** Что backend сказал про ввод экрана Add; у пустого ввода все поля пустые. */
+export interface InputDescription {
+  kind: InputKind | null
   format: SourceFormat | null
-  label: string
+  label: string | null
+  problem: InputProblem | null
+  problem_message: string | null
+  problem_hint: string | null
 }
 
 export interface SourceMediaStats {

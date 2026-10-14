@@ -40,6 +40,7 @@
   --warn-line: color-mix(in srgb, var(--warn) 40%, transparent);
   --ok-line: color-mix(in srgb, var(--ok) 40%, transparent);
   --err-tint: color-mix(in srgb, var(--err) 14%, transparent);
+  --err-line: color-mix(in srgb, var(--err) 60%, transparent);
   --media-veil: color-mix(in srgb, var(--bg) 25%, transparent);
   --fade-bottom: linear-gradient(transparent, var(--bg) 40%);
   /* функции AI на графике токенов */
