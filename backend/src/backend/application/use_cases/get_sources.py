@@ -11,6 +11,12 @@ from backend.application.dto.source_dtos import (
     SourceGroupDTO,
 )
 from backend.domain.exceptions import SourceNotFoundError
+from backend.domain.services.source_actions import (
+    can_delete,
+    can_export,
+    can_review,
+    review_fraction,
+)
 from backend.domain.services.source_operations import available_operation, operation_hint
 from backend.domain.services.source_stage import shown_status, stage_of
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
@@ -133,6 +139,10 @@ class GetSourcesUseCase:
             available_operation=available_operation(source, busy_with),
             busy_with=busy_with,
             operation_hint=operation_hint(busy_with),
+            can_review=can_review(source.status),
+            can_export=can_export(source.status),
+            can_delete=can_delete(source, busy_with),
+            review_fraction=review_fraction(source.status, progress),
         )
 
     def get_by_id(

@@ -87,6 +87,11 @@ class SourceDTO(BaseModel):
     busy_with: SourceOperationKind | None = None
     # Why no operation is offered while the source is busy.
     operation_hint: str | None = None
+    can_review: bool = False
+    can_export: bool = False
+    can_delete: bool = False
+    # How far the review has got, 0..1; a reviewed source is complete.
+    review_fraction: float = 0.0
 
 
 class SourceGroupDTO(BaseModel):

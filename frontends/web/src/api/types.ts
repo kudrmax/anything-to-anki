@@ -114,6 +114,12 @@ export interface SourceSummary {
   busy_with: SourceOperationKind | null
   /** Почему операция не предлагается, пока источник занят. */
   operation_hint: string | null
+  /** Что источник позволяет сейчас; решает backend. */
+  can_review: boolean
+  can_export: boolean
+  can_delete: boolean
+  /** Доля разобранного, 0..1; разобранный источник — 1. */
+  review_fraction: number
 }
 
 export type SourceOperationKind = 'process' | 'rebuild' | 'preview' | 'refresh'

@@ -181,6 +181,24 @@ class TestGetSourcesUseCase:
         assert result[0].status == SourceStatus.DONE.value
         self.source_repo.update_status.assert_not_called()
 
+    def test_a_source_says_what_it_allows_and_how_far_its_review_is(self) -> None:
+        self.source_repo.list_all.return_value = [
+            _text(1, SourceStatus.NEW), _text(2, SourceStatus.PARTIALLY_REVIEWED),
+            _text(3, SourceStatus.REVIEWED),
+        ]
+        self.card_query.shown_cards.return_value = {
+            2: [_row(2, 1, WordStatus.LEARN), _row(2, 2)],
+            3: [_row(3, 3)],
+        }
+        self.lock.operations.return_value = {1: HeldOperation(SourceOperationKind.PROCESS)}
+
+        new, started, reviewed = self.use_case.list_all()
+
+        assert (new.can_review, new.can_export, new.can_delete) == (False, False, False)
+        assert (started.can_review, started.can_export, started.can_delete) == (True, True, True)
+        assert started.review_fraction == 0.5
+        assert reviewed.review_fraction == 1.0
+
     def test_a_busy_source_says_with_what_and_offers_no_operation(self) -> None:
         self.source_repo.list_all.return_value = [_text(1)]
         self.lock.operations.return_value = {1: HeldOperation(SourceOperationKind.REBUILD)}

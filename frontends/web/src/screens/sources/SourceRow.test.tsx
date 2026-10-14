@@ -9,6 +9,7 @@ const source: SourceSummary = {
   video_downloaded: false, created_at: '2026-10-01T00:00:00Z', candidate_count: 4, learn_count: 0, progress: { decided: 0, total: 4 },
   processing_stage: null, collection_id: 11, collection_path: ['Friends', 'Season 1'], stage: 'ready',
   awaiting_generation: false, generation_status: null, generation_error: null, is_permanent: false, available_operation: null, busy_with: null, operation_hint: null,
+  can_review: true, can_export: false, can_delete: true, review_fraction: 0,
 }
 
 describe('SourceRow', () => {
@@ -28,9 +29,9 @@ describe('SourceRow', () => {
 
   afterEach(() => act(() => root.unmount()))
 
-  const render = (takenBySelection: boolean, showPath = false) => act(() => root.render(
+  const render = (takenBySelection: boolean, showPath = false, shown: SourceSummary = source) => act(() => root.render(
     <SourceRow
-      source={source} selected={false} showPath={showPath} primary={false}
+      source={shown} selected={false} showPath={showPath} primary={false}
       onProcess={noop} onGenerate={noop} onCancelGeneration={noop} onRetryGeneration={noop}
       onReview={onReview} onExport={noop} onDelete={noop} onRename={noop} onRebuild={noop} onRefresh={noop}
       onRowClick={() => takenBySelection} onMoveTo={noop} dragIds={() => [source.id]}
@@ -43,6 +44,17 @@ describe('SourceRow', () => {
     render(false)
     act(() => row().click())
     expect(onReview).toHaveBeenCalledWith(7)
+  })
+
+  it('opens only a source the backend lets review', () => {
+    render(false, false, { ...source, can_review: false })
+    act(() => row().click())
+    expect(onReview).not.toHaveBeenCalled()
+  })
+
+  it('shows how far the review is as the backend says', () => {
+    render(false, false, { ...source, status: 'reviewed', review_fraction: 0.25 })
+    expect(host.innerHTML).toContain('--p: 25%')
   })
 
   it('does not open the source when the click was taken by selection', () => {

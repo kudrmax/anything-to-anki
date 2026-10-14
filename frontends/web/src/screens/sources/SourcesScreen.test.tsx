@@ -22,6 +22,7 @@ const source = (id: number, title: string, status: SourceSummary['status']): Sou
   created_at: '2026-10-01T00:00:00Z', candidate_count: 4, learn_count: 0, progress: { decided: 1, total: 4 }, processing_stage: null,
   collection_id: null, collection_path: [], stage: 'ready', awaiting_generation: false, generation_status: null,
   generation_error: null, is_permanent: false, available_operation: null, busy_with: null, operation_hint: null,
+  can_review: true, can_export: status !== 'done', can_delete: true, review_fraction: 0.25,
 })
 
 const board: SourceBoard = {
