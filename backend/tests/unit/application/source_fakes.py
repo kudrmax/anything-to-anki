@@ -49,9 +49,6 @@ class InMemorySourceRepository(SourceRepository):
     ) -> None:
         raise NotImplementedError
 
-    def update_source(self, source: Source) -> None:
-        raise NotImplementedError
-
     def update_title(self, source_id: int, title: str) -> None:
         raise NotImplementedError
 
