@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CandidateCloze } from '@/api/types'
-import { decisionChange, learnConvertsCloze } from './decision'
+import { chosenDecision, decisionChange, learnConvertsCloze } from './decision'
 
 const CLOZE: CandidateCloze = { hidden_word_indices: [1], hint_kind: 'none', custom_hint: null }
 
@@ -27,5 +27,18 @@ describe('learnConvertsCloze', () => {
   })
   it('has nothing to convert on a plain card', () => {
     expect(learnConvertsCloze({ cloze: null, can_cloze: true })).toBe(false)
+  })
+})
+
+describe('chosenDecision', () => {
+  it('has nothing chosen on an undecided phrase', () => {
+    expect(chosenDecision({ status: 'pending', cloze: null })).toBeNull()
+  })
+  it('names the decision the phrase got', () => {
+    expect(chosenDecision({ status: 'learn', cloze: null })).toBe('learn')
+    expect(chosenDecision({ status: 'known', cloze: null })).toBe('known')
+  })
+  it('names Cloze for a Learn card with hidden words', () => {
+    expect(chosenDecision({ status: 'learn', cloze: CLOZE })).toBe('cloze')
   })
 })

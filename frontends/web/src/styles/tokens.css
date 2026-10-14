@@ -151,7 +151,7 @@
   --dash-bw: 1.5px;
   --cloze-mark: 6px;   /* точка над скрытым словом вне target'а */
   --wide-lead: calc(var(--page-x) - var(--s4));   /* отступ карточки: вместе с полем строки даёт --page-x */
-  --card-cols: minmax(min-content, 1fr) minmax(0, 1.7fr);
+  --card-cols: minmax(0, 1fr) minmax(0, 1fr);
   --aside: 380px;
   --col-gap: 80px;
   --page-x: 44px;
@@ -186,22 +186,27 @@
   --divider-text-basis: 0%;
   --card-display: grid;
   --card-pad: var(--s7);
-  --card-head-pb: var(--s6);
+  --card-head-pt: var(--s6);
+  --card-head-pb: var(--s5);
+  --card-cols-pb: var(--s5);         /* под колонками — линия нижней полосы, большой отступ не нужен */
   --card-left-display: flex;
   --card-left-item-mx: 0;
   --card-left-item-mt: 0;
-  --card-right-pt: 0;
+  --card-left-first-mt: 0px;
+  --card-right-pt: var(--s5);
   --card-right-bw: var(--bw);
   --card-right-order: 0;
-  --decisions-order: 0;
-  --decisions-position: static;
+  --card-right-overflow: auto;
+  --card-right-contain: size;        /* справка не растит карточку: высоту задаёт левая колонка или окно */
+  --card-right-mask: linear-gradient(black calc(100% - var(--s6)), transparent);   /* справка уходит под край — видно, что её можно прокрутить */
+  --card-min-h: auto;
+  --card-foot-order: 0;
   --current-card-order: 0;
   --main-pb: var(--s8);
   --fit-display: grid;
   --fit-align: start;
   --fit-h: auto;
   --fit-content-display: block;
-  --review-body-display: block;
   --queue-row-display: flex;
   --show-more-display: block;
   --phone-flex: none;
@@ -217,14 +222,16 @@
   --wide-head-mb: var(--s5h);
   --away-display: flex;
   --fit-aside-display: block;
+  --fit-aside-row: body;              /* узкое окно: под контентом */
   --card-flex: 0 1 auto;
   --card-overflow: visible;
-  --decisions-shadow: none;
-  --decisions-mt: auto;
-  --decisions-pad: var(--s5) 0 0;
-  --decisions-bw: 0;
-  --decisions-radius: 0;
-  --decisions-bg: none;
+  --dock-align: center;
+  --dock-bottom: var(--s5);
+  --dock-mt: var(--s3);
+  --dock-pad: var(--s3);
+  --dock-bg: color-mix(in srgb, var(--card) 92%, transparent);
+  --dock-shadow: inset 0 0 0 var(--bw) var(--line), 0 12px 40px -12px var(--bg);
+  --dock-reserve: calc(var(--decision-h) + 2 * var(--dock-pad) + var(--dock-bottom) + var(--main-pb) + var(--s5));   /* место под доком, куда не прокручивается текущая карточка */
   --decision-flex: none;
   --decision-h: var(--h);
   --cloze-cols: auto minmax(0, 1fr);
@@ -272,7 +279,7 @@
 
   /* слои и прозрачность */
   --z-menu: 20; --z-modal: 30; --z-toast: 40;
-  --o-disabled: .5; --o-off: .45; --o-kbd: .6; --o-dim: .35;
+  --o-disabled: .5; --o-off: .45; --o-kbd: .6; --o-dim: .35; --o-visuals: .6;
   --shadow-pop: 0 14px 36px -12px color-mix(in srgb, black 60%, transparent);
 
   /* движение */
@@ -312,6 +319,7 @@
     --aside-inner-w: auto;
     --aside-hidden-h: 0;
     --aside-position: static;
+    --fit-aside-row: after;
   }
 }
 
@@ -341,27 +349,33 @@
 
     --card-display: flex;
     --card-pad: var(--s5);
+    --card-head-pt: var(--card-pad);
     --card-head-pb: var(--s4);
+    --card-cols-pb: var(--card-pad);
     --card-left-display: contents;
     --card-left-item-mx: var(--card-pad);
     --card-left-item-mt: var(--s3);
+    --card-left-first-mt: var(--s5);
     --card-right-pt: var(--card-pad);
     --card-right-bw: 0px;
     --card-right-order: 1;
-    --decisions-order: 2;
-    --decisions-position: sticky;
-    --decisions-mt: auto;
-    --decisions-pad: var(--s4) var(--card-pad);
-    --decisions-bw: var(--bw);
-    --decisions-radius: 0;
-    --decisions-shadow: inset var(--bw) 0 0 var(--line), inset calc(var(--bw) * -1) 0 0 var(--line), inset 0 calc(var(--bw) * -1) 0 var(--line);
+    --card-right-overflow: visible;
+    --card-right-contain: none;
+    --card-right-mask: none;
+    --card-min-h: 0px;
+    --card-foot-order: 2;
+    --dock-align: stretch;
+    --dock-bottom: 0px;
+    --dock-mt: var(--s3);
+    --dock-pad: var(--s3);
+    --dock-bg: var(--card);
+    --dock-shadow: inset 0 0 0 var(--bw) var(--line);
     --current-card-order: -1;
     --main-pb: calc(var(--s5) + env(safe-area-inset-bottom));
     --fit-display: flex;
     --fit-align: stretch;
     --fit-h: 100%;
     --fit-content-display: flex;
-    --review-body-display: flex;
     --queue-row-display: none;
     --show-more-display: none;
     --phone-flex: flex;
@@ -381,7 +395,6 @@
     --fit-aside-display: none;
     --card-flex: 1;
     --card-overflow: auto;
-    --decisions-bg: var(--card);
     --decision-flex: 1;
     --decision-h: 44px;
     --cloze-cols: minmax(0, 1fr);

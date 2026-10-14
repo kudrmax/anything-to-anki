@@ -1,14 +1,13 @@
 import { useState } from 'react'
-import { ArrowRight, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
-import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
-import { decisionChange, learnConvertsCloze, type Decision } from '@/lib/decision'
+import { ArrowRight, Check, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
+import type { FollowUpAction, StoredCandidate } from '@/api/types'
+import { chosenDecision, decisionChange, learnConvertsCloze, type ChosenDecision, type Decision } from '@/lib/decision'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { phraseWordTexts } from '@/lib/text/phraseParts'
 import { toggled } from '@/lib/text/words'
 import { Button, Field, Icon, IconButton, Menu, Spinner, Text, WordPicker, type MenuItem, type MenuPage } from '@/ui'
 import { ImagePicker } from './ImagePicker'
 import { PolishComparison } from './PolishComparison'
-import type { ClozeEditor } from './useClozeEditor'
 import type { Review } from './useReview'
 import css from './review.module.css'
 
@@ -34,43 +33,39 @@ interface PhraseActionsProps {
   review: Review
 }
 
-interface DecisionButtonsProps extends PhraseActionsProps {
-  cloze: ClozeEditor
-}
-
-/** Решения по фразе: Learn 1 · Cloze 2 · Know 3 · Skip 4. */
-export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsProps) {
-  const isRated = candidate.status !== 'pending'
-  const isCloze = candidate.cloze !== null
-  const convertsCloze = learnConvertsCloze(candidate)
+/**
+ * Решения по фразе: Learn 1 · Cloze 2 · Know 3 · Skip 4.
+ * Learn залит всегда — это основное действие; уже принятое решение отмечено галочкой.
+ */
+export function DecisionButtons({ candidate, review }: PhraseActionsProps) {
+  const clozeActive = review.clozeEditingId === candidate.id
+  const chosen = chosenDecision(candidate)
   const decide = (status: Decision) => {
-    if (cloze.active) cloze.cancel()
-    void review.mark(candidate.id, decisionChange(candidate.status, status, convertsCloze))
-  }
-  const isPrimary = (status: CandidateStatus) => {
-    if (cloze.active) return false
-    if (status === 'learn' && convertsCloze) return false
-    return isRated ? candidate.status === status : status === 'learn'
+    if (clozeActive) review.cancelCloze()
+    void review.mark(candidate.id, decisionChange(candidate.status, status, learnConvertsCloze(candidate)))
   }
   const variant = (primary: boolean) => (primary ? 'fill' : 'soft')
+  const chosenClass = (decision: ChosenDecision) => (chosen === decision ? css.chosen : undefined)
+  const check = (decision: ChosenDecision) => chosen === decision && <Icon as={Check} size="s" />
   return (
     <div className={css.decisions}>
-      <Button variant={variant(isPrimary(LEARN.status))} kbd={LEARN.kbd} onMouseDown={keepFocusOnMouseDown} onClick={() => decide(LEARN.status)}>
-        {LEARN.label}
+      <Button variant={variant(!clozeActive)} className={chosenClass(LEARN.status)} kbd={LEARN.kbd} onMouseDown={keepFocusOnMouseDown} onClick={() => decide(LEARN.status)}>
+        {check(LEARN.status)}{LEARN.label}
       </Button>
       <Button
-        variant={variant(isCloze || cloze.active)}
+        variant={variant(clozeActive)}
+        className={chosenClass('cloze')}
         kbd={CLOZE.kbd}
         disabled={!candidate.can_cloze}
         title={candidate.can_cloze ? undefined : ALREADY_IN_ANKI}
         onMouseDown={keepFocusOnMouseDown}
-        onClick={cloze.start}
+        onClick={() => review.startCloze(candidate.id)}
       >
-        {CLOZE.label}
+        {check('cloze')}{CLOZE.label}
       </Button>
       {OTHER_DECISIONS.map(decision => (
-        <Button key={decision.status} variant={variant(isPrimary(decision.status))} kbd={decision.kbd} onMouseDown={keepFocusOnMouseDown} onClick={() => decide(decision.status)}>
-          {decision.label}
+        <Button key={decision.status} variant="soft" className={chosenClass(decision.status)} kbd={decision.kbd} onMouseDown={keepFocusOnMouseDown} onClick={() => decide(decision.status)}>
+          {check(decision.status)}{decision.label}
         </Button>
       ))}
     </div>
