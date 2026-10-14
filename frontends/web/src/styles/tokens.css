@@ -183,7 +183,6 @@
   --use-example-position: absolute;  /* «Use as phrase» встаёт поверх строки примера; на касании — после текста */
   --use-example-bg: color-mix(in srgb, var(--ac) 13%, var(--card));
   --kbd-display: inline;
-  --hint-display: block;
   --input-fs: inherit;
   --tab-px: var(--s4);
   --env-display: inline;
@@ -208,6 +207,8 @@
   --card-foot-order: 0;
   --card-head-bw: var(--bw);
   --card-foot-bw: var(--bw);
+  --card-foot-pad: var(--s3) var(--card-pad) var(--s3) var(--s3);   /* слева кнопки решений: им свой небольшой отступ */
+  --facts-justify: flex-end;
   --details-toggle-order: 0;
   --details-collapsed-display: flex;
   --phrase-row-dir: row;
@@ -248,7 +249,7 @@
   --dock-pad: var(--s3);
   --dock-bg: color-mix(in srgb, var(--card) 92%, transparent);
   --dock-shadow: inset 0 0 0 var(--bw) var(--line), 0 12px 40px -12px var(--bg);
-  --dock-reserve: calc(var(--decision-h) + 2 * var(--dock-pad) + var(--dock-bottom) + var(--main-pb) + var(--s5));   /* место под доком, куда не прокручивается текущая карточка */
+  --dock-reserve: calc(var(--main-pb) + var(--s5));   /* отступ снизу, до которого список докручивает текущую карточку */
   --decision-flex: none;
   --decision-h: var(--h);
   --cloze-cols: auto minmax(0, 1fr);
@@ -385,6 +386,8 @@
     --card-foot-order: 3;
     --card-head-bw: 0px;
     --card-foot-bw: 0px;
+    --card-foot-pad: var(--s3) var(--card-pad);
+    --facts-justify: flex-start;
     --details-toggle-order: 1;
     --details-collapsed-display: none;
     --phrase-row-dir: column;
@@ -461,7 +464,6 @@
     --use-example-position: static;
     --use-example-display: none;
     --kbd-display: none;
-    --hint-display: none;
     --input-fs: max(16px, 1em);
   }
 }

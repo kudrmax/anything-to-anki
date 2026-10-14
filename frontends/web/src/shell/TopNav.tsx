@@ -50,6 +50,7 @@ export function TopNav() {
       to={destination.path}
       className={current === destination.section ? `${css.tab} ${css.on}` : css.tab}
       aria-current={current === destination.section ? 'page' : undefined}
+      data-current={current === destination.section || undefined}
     >
       {destination.label}
       {badge ? <span className={css.badge}>{badge}</span> : null}
