@@ -6,7 +6,7 @@ import { allowedInClozeMarkup, reviewAction, type ReviewAction } from '@/lib/hot
 import { pastedPicture } from '@/lib/pastedPicture'
 import { phraseListShownPref, sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
-import { ArrowDownWideNarrow, Ellipsis, FileText, List, ListChevronsDownUp, ListChevronsUpDown, PanelRightClose, PanelRightOpen, Sparkles, Upload } from 'lucide-react'
+import { ArrowDownWideNarrow, ChevronLeft, ChevronRight, Ellipsis, FileText, List, ListChevronsDownUp, ListChevronsUpDown, PanelRightClose, PanelRightOpen, Sparkles, Upload } from 'lucide-react'
 import { Banner, Button, Empty, Icon, IconButton, Menu, Progress, Spinner, Toast, type MenuItem } from '@/ui'
 import { GenerateMenu } from './GenerateMenu'
 import { generationItems } from './generationItems'
@@ -189,11 +189,18 @@ export function ReviewScreen() {
         <>
           {/* Десктоп: прогресс — линия по нижнему краю вкладок, на всю ширину окна; видна краем глаза. */}
           <span className={css.windowProgress} style={{ '--p': `${Math.round(counts.progress * 100)}%` } as CSSProperties} />
-          {counts.reviewed === counts.total ? DONE : `${counts.reviewed} / ${counts.total}`}
+          {counts.reviewed === counts.total ? DONE : <span>{counts.reviewed} / {counts.total}<span className={css.desktopText}> decided</span></span>}
         </>
       )}
     >
       <div className={`${css.headerTools} ${css.desktopOnly}`}>
+        {currentIndex >= 0 && (
+          <div className={css.stepper}>
+            <span className={css.position}>{currentIndex + 1} / {visible.length}</span>
+            <IconButton icon={ChevronLeft} label="Previous phrase" disabled={prevId === null} onClick={() => prevId !== null && showCard(prevId)} />
+            <IconButton icon={ChevronRight} label="Next phrase" disabled={nextId === null} onClick={() => nextId !== null && showCard(nextId)} />
+          </div>
+        )}
         {candidates.length > 0 && (
           <>
             <SortMenu value={review.sortOrder} onChange={review.setSortOrder} />
