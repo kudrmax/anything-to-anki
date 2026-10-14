@@ -24,7 +24,7 @@
 
 /* экран: дерево слева, список справа; на телефоне дерево уходит в ScopePicker */
 .layout { display: grid; grid-template-columns: var(--sources-cols); gap: var(--page-x); align-items: start; padding-top: var(--page-top); }
-.side { display: var(--desktop-display); align-content: start; position: sticky; top: var(--page-top); gap: var(--s7); max-height: var(--sources-side-max-h); overflow-y: auto; scrollbar-width: thin; }
+.side { display: var(--desktop-display); align-content: start; gap: var(--s7); }
 .main { min-width: 0; }
 .search { margin-bottom: var(--s7); }
 .emptyStart { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s5); }

@@ -98,8 +98,9 @@
   --tree-w: 240px;
   --tree-twisty: 20px;
   --tree-indent: 16px;
+  /* направляющая детей — по центру иконки родителя: поле строки + стрелка + зазор + пол-иконки */
+  --tree-guide-x: calc(var(--s2) + var(--tree-twisty) + var(--s3) + var(--icon-s) / 2);
   --sources-cols: var(--tree-w) minmax(0, 1fr);
-  --sources-side-max-h: calc(100dvh - var(--nav-h) - 2 * var(--page-top));
   --move-list-h: 360px;
   --tree-drop-line: 2px;
 

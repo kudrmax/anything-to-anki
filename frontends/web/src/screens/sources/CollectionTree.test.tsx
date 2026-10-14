@@ -146,7 +146,8 @@ describe('CollectionTree', () => {
     remountWithChild(false)
     press(item('Top'), 'F2')
     const input = host.querySelector('input')!
-    expect(input.closest('div')!.children[1]).toBe(input)
+    const cells = [...input.parentElement!.children]
+    expect(cells.indexOf(input)).toBe(cells.length - 2)
     expect(host.textContent).toContain('Child')
     typeInto(input, 'Changed')
     press(input, 'Escape')

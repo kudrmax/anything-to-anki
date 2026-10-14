@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
-import { ChevronDown, ChevronRight, Inbox, Layers, Plus, type LucideIcon } from 'lucide-react'
+import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderOpen, FolderPlus, Inbox, Layers, Plus, type LucideIcon } from 'lucide-react'
 import type { CollectionNode, CollectionTree as Tree, Scope, ScopeCounts } from '@/api/types'
 import { useCollapsed } from '@/hooks/useCollapsed'
 import { collectionDrop, zoneAt, type DropZone } from '@/lib/treeDrop'
@@ -60,10 +60,11 @@ export function CollectionTree(props: CollectionTreeProps) {
     if (e.key === 'Enter') finish(true)
     if (e.key === 'Escape') finish(false)
   }
-  /** Поле встаёт на место имени: стрелка и отступ строки остаются, строка не прыгает. */
+  /** Поле встаёт на место имени: стрелка, иконка и отступ остаются, строка не прыгает. */
   const editorRow = (depth: 0 | 1, count?: number) => (
-    <div className={[css.row, css.editing, depth === 1 && css.sub].filter(Boolean).join(' ')}>
-      <span className={css.twisty} />
+    <div className={[css.row, depth === 1 && css.leaf, css.editing].filter(Boolean).join(' ')}>
+      {depth === 0 && <span className={css.twisty} />}
+      <span className={css.icon}><Icon as={Folder} size="s" /></span>
       <input
         ref={armEditor}
         autoFocus
@@ -128,9 +129,12 @@ export function CollectionTree(props: CollectionTreeProps) {
   const row = (node: CollectionNode, depth: 0 | 1) => {
     const selected = scope === node.id
     const zone = hover?.id === node.id ? hover.zone : null
-    const classes = [css.row, depth === 1 && css.sub, selected && css.on, zone && css[zone]].filter(Boolean).join(' ')
+    const classes = [css.row, depth === 1 && css.leaf, selected && css.on, zone && css[zone]].filter(Boolean).join(' ')
     const collapsed = isCollapsed(node.id)
     const renaming = editing?.kind === 'rename' && editing.id === node.id
+    const hasChildren = node.children.length > 0
+    const creatingInside = editing?.kind === 'create' && editing.parentId === node.id
+    const stop = (e: { stopPropagation: () => void }) => e.stopPropagation()
     return (
       <div key={node.id}>
         {renaming ? editorRow(depth, node.counts.total) : <div className={css.cell}>
@@ -139,6 +143,8 @@ export function CollectionTree(props: CollectionTreeProps) {
               className={classes}
               role="treeitem"
               aria-selected={selected}
+              aria-expanded={hasChildren ? !collapsed : undefined}
+              aria-level={depth + 1}
               tabIndex={0}
               draggable={draggable}
               onClick={() => onSelect(node.id)}
@@ -150,23 +156,40 @@ export function CollectionTree(props: CollectionTreeProps) {
               onDragLeave={leave}
               onDrop={e => dropOnNode(e, node)}
             >
-              {node.children.length > 0
+              {depth === 0 && (hasChildren
                 ? <button
                     type="button"
                     className={css.twisty}
                     aria-label={collapsed ? 'Expand' : 'Collapse'}
                     onClick={e => { e.stopPropagation(); toggle(node.id) }}
-                    onDoubleClick={e => e.stopPropagation()}
+                    onDoubleClick={stop}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation() }}
-                  ><Icon as={collapsed ? ChevronRight : ChevronDown} /></button>
-                : <span className={css.twisty} />}
+                  ><Icon as={collapsed ? ChevronRight : ChevronDown} size="s" /></button>
+                : <span className={css.twisty} />)}
+              <span className={css.icon}><Icon as={selected ? FolderOpen : Folder} size="s" /></span>
               <span className={css.name}>{node.name}</span>
-              <span className={css.count}>{node.counts.total}</span>
+              <span className={css.trail} onClick={stop} onDoubleClick={stop}>
+                <span className={css.count}>{node.counts.total}</span>
+                <span className={css.actions}>
+                  {node.accepts_collections && (
+                    <button type="button" className={css.action} title="New subcollection" aria-label="New subcollection" onClick={() => startCreate(node.id)}>
+                      <Icon as={FolderPlus} size="s" />
+                    </button>
+                  )}
+                  <Menu align="start" items={menuFor(node)} trigger={
+                    <button type="button" className={css.action} title="More" aria-label={`More for ${node.name}`}><Icon as={Ellipsis} size="s" /></button>
+                  } />
+                </span>
+              </span>
             </div>
           } />
         </div>}
-        {!collapsed && node.children.map(child => row(child, 1))}
-        {editing?.kind === 'create' && editing.parentId === node.id && editorRow(1)}
+        {((hasChildren && !collapsed) || creatingInside) && (
+          <div className={css.children} role="group">
+            {!collapsed && node.children.map(child => row(child, 1))}
+            {creatingInside && editorRow(1)}
+          </div>
+        )}
       </div>
     )
   }
@@ -183,9 +206,10 @@ export function CollectionTree(props: CollectionTreeProps) {
       onDragLeave={leave}
       onDrop={key === 'unsorted' ? e => { e.preventDefault(); const s = sourcesIn(e); if (s) props.onDropSources(s, null); setHover(null) } : undefined}
     >
-      <span className={css.twisty}><Icon as={icon} /></span>
+      <span className={css.twisty} />
+      <span className={css.icon}><Icon as={icon} size="s" /></span>
       <span className={css.name}>{label}</span>
-      <span className={css.count}>{counts.total}</span>
+      <span className={css.trail}><span className={css.count}>{counts.total}</span></span>
     </div>
   )
 
