@@ -177,6 +177,8 @@
   --aside-pb: 0px;
   --page-content-order: 0;           /* 1 — боковая колонка встаёт над контентом */
   --reveal: 0;                       /* элементы, видимые по наведению */
+  --use-example-position: absolute;  /* «Use as phrase» встаёт поверх строки примера; на касании — после текста */
+  --use-example-bg: color-mix(in srgb, var(--ac) 13%, var(--card));
   --kbd-display: inline;
   --hint-display: block;
   --input-fs: inherit;
@@ -429,6 +431,7 @@
 @media (hover: none) {
   :root {
     --reveal: 1;
+    --use-example-position: static;
     --kbd-display: none;
     --hint-display: none;
     --input-fs: max(16px, 1em);
