@@ -2,19 +2,29 @@
 .heading { display: flex; align-items: center; justify-content: space-between; margin-top: var(--s5); padding-left: var(--s4); font-size: var(--fs-xs); font-weight: var(--fw-m); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--tx3); }
 .cell > span, .cell > span > span { display: flex; width: 100%; }
 
-/* строка: стрелка | иконка | имя | счётчик или действия */
-.row { display: grid; grid-template-columns: var(--tree-twisty) var(--icon-s) minmax(0, 1fr) auto; align-items: center; column-gap: var(--s3); width: 100%; height: var(--h); padding: 0 var(--s3) 0 var(--s2); border-radius: var(--rc); color: var(--tx2); font-size: var(--fs-c); cursor: pointer; transition: background var(--t), color var(--t); }
+/* строка: иконка | имя | счётчик или действия. У папки с детьми иконка — она же стрелка: при наведении, а у свёрнутой всегда */
+.row { display: grid; grid-template-columns: var(--tree-twisty) minmax(0, 1fr) auto; align-items: center; column-gap: var(--s3); width: 100%; height: var(--h); padding: 0 var(--s3) 0 var(--s2); border-radius: var(--rc); color: var(--tx2); font-size: var(--fs-c); cursor: pointer; transition: background var(--t), color var(--t); }
 .row:hover { background: var(--hover); }
 .on, .on:hover { background: var(--soft); color: var(--tx); font-weight: var(--fw-m); }
 .on .icon { color: var(--ac); }
 
-/* вложенность: направляющая под центром стрелки родителя, дети сдвинуты на шаг уровня */
-.children { display: flex; flex-direction: column; gap: var(--s1); margin: var(--s1) 0 var(--s1) var(--tree-guide-x); padding-left: calc(var(--tree-indent) - var(--tree-guide-x) - var(--bw)); border-left: var(--bw) solid var(--line); }
-
-.twisty { display: grid; place-items: center; width: var(--tree-twisty); height: var(--tree-twisty); border-radius: var(--s2); color: var(--tx3); }
+.icon { display: grid; place-items: center; width: var(--tree-twisty); height: var(--tree-twisty); border-radius: var(--s2); color: var(--tx3); }
+.twisty > * { grid-area: 1 / 1; display: grid; }
+.chevron { visibility: hidden; }
+.row:hover .twisty .chevron, .twisty:focus-visible .chevron, .closed .chevron { visibility: visible; }
+.row:hover .twisty .folder, .twisty:focus-visible .folder, .closed .folder { visibility: hidden; }
 button.twisty:hover { background: var(--soft); color: var(--tx); }
-.icon { display: grid; place-items: center; color: var(--tx3); }
 .name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+
+/* вложенность: от иконки родителя вниз идёт линия, к иконке каждого ребёнка — отвод, у последнего — уголок */
+.children { display: flex; flex-direction: column; gap: var(--s1); margin-top: var(--s1); padding-left: var(--tree-indent); }
+.children > .item { position: relative; }
+.children > .item::before, .children > .item::after { content: ""; position: absolute; left: var(--tree-guide-left); width: var(--tree-tick); pointer-events: none; }
+.children > .item:not(:last-child)::before { top: calc(-1 * var(--s1)); bottom: 0; border-left: var(--bw) solid var(--tree-line); }
+.children > .item:not(:last-child)::after { top: var(--tree-tick-top); border-top: var(--bw) solid var(--tree-line); }
+.children > .item:last-child::after { top: calc(-1 * var(--s1)); height: var(--tree-elbow-h); border-left: var(--bw) solid var(--tree-line); border-bottom: var(--bw) solid var(--tree-line); border-bottom-left-radius: var(--s2); }
+.children > .item:first-child::before, .children > .item:first-child:last-child::after { top: var(--tree-guide-top); }
+.children > .item:first-child:last-child::after { height: var(--tree-elbow-h-first); }
 
 .trail { display: grid; justify-items: end; align-items: center; min-width: var(--h-s); }
 .trail > * { grid-area: 1 / 1; }

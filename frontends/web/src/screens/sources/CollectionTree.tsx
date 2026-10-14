@@ -60,10 +60,9 @@ export function CollectionTree(props: CollectionTreeProps) {
     if (e.key === 'Enter') finish(true)
     if (e.key === 'Escape') finish(false)
   }
-  /** Поле встаёт на место имени: стрелка, иконка и отступ остаются, строка не прыгает. */
+  /** Поле встаёт на место имени: иконка и отступ остаются, строка не прыгает. */
   const editorRow = (count?: number) => (
     <div className={`${css.row} ${css.editing}`}>
-      <span className={css.twisty} />
       <span className={css.icon}><Icon as={Folder} size="s" /></span>
       <input
         ref={armEditor}
@@ -137,7 +136,7 @@ export function CollectionTree(props: CollectionTreeProps) {
     const creatingInside = editing?.kind === 'create' && editing.parentId === node.id
     const stop = (e: { stopPropagation: () => void }) => e.stopPropagation()
     return (
-      <div key={node.id}>
+      <div key={node.id} className={css.item}>
         {renaming ? editorRow(node.counts.total) : <div className={css.cell}>
           <Menu openOn="contextmenu" align="start" items={menuFor(node)} trigger={
             <div
@@ -160,14 +159,16 @@ export function CollectionTree(props: CollectionTreeProps) {
               {hasChildren
                 ? <button
                     type="button"
-                    className={css.twisty}
+                    className={[css.icon, css.twisty, collapsed && css.closed].filter(Boolean).join(' ')}
                     aria-label={collapsed ? 'Expand' : 'Collapse'}
                     onClick={e => { e.stopPropagation(); toggle(node.id) }}
                     onDoubleClick={stop}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation() }}
-                  ><Icon as={collapsed ? ChevronRight : ChevronDown} size="s" /></button>
-                : <span className={css.twisty} />}
-              <span className={css.icon}><Icon as={selected ? FolderOpen : Folder} size="s" /></span>
+                  >
+                    <span className={css.folder}><Icon as={selected ? FolderOpen : Folder} size="s" /></span>
+                    <span className={css.chevron}><Icon as={collapsed ? ChevronRight : ChevronDown} size="s" /></span>
+                  </button>
+                : <span className={css.icon}><Icon as={selected ? FolderOpen : Folder} size="s" /></span>}
               <span className={css.name} title={node.name}>{node.name}</span>
               <span className={css.trail} onClick={stop} onDoubleClick={stop}>
                 <span className={css.count}>{node.counts.total}</span>
@@ -188,7 +189,7 @@ export function CollectionTree(props: CollectionTreeProps) {
         {((hasChildren && !collapsed) || creatingInside) && (
           <div className={css.children} role="group">
             {!collapsed && node.children.map(row)}
-            {creatingInside && editorRow()}
+            {creatingInside && <div className={css.item}>{editorRow()}</div>}
           </div>
         )}
       </div>
@@ -207,7 +208,6 @@ export function CollectionTree(props: CollectionTreeProps) {
       onDragLeave={leave}
       onDrop={key === 'unsorted' ? e => { e.preventDefault(); const s = sourcesIn(e); if (s) props.onDropSources(s, null); setHover(null) } : undefined}
     >
-      <span className={css.twisty} />
       <span className={css.icon}><Icon as={icon} size="s" /></span>
       <span className={css.name}>{label}</span>
       <span className={css.trail}><span className={css.count}>{counts.total}</span></span>

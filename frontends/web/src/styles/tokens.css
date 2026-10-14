@@ -97,10 +97,19 @@
   --h-row-s: 44px;
   --tree-w: 320px;
   --tree-twisty: 20px;
-  /* шаг уровня: стрелка ребёнка встаёт под папку родителя */
-  --tree-indent: calc(var(--tree-twisty) + var(--s3));
-  /* направляющая детей — по центру стрелки родителя: поле строки + пол-стрелки − пол-линии */
-  --tree-guide-x: calc(var(--s2) + var(--tree-twisty) / 2 - var(--bw) / 2);
+  /* шаг уровня: иконка ребёнка правее иконки родителя на ширину слота */
+  --tree-indent: calc(var(--s2) + var(--tree-twisty));
+  /* линия детей — по центру иконки родителя, отсчёт от левого края ребёнка */
+  --tree-guide-left: calc(var(--s2) + var(--tree-twisty) / 2 - var(--bw) / 2 - var(--tree-indent));
+  /* отвод от линии до строки ребёнка */
+  --tree-tick: calc(-1 * var(--tree-guide-left));
+  /* линия начинается чуть ниже иконки родителя */
+  --tree-guide-top: calc(var(--icon-s) / 2 - var(--h) / 2);
+  --tree-line: color-mix(in srgb, var(--tx3) 45%, transparent);
+  /* отвод — по середине строки; уголок последнего ребёнка — от верха строки (или от иконки родителя) до середины */
+  --tree-tick-top: calc(var(--h) / 2 - var(--bw) / 2);
+  --tree-elbow-h: calc(var(--h) / 2 + var(--s1) + var(--bw) / 2);
+  --tree-elbow-h-first: calc(var(--h) / 2 - var(--tree-guide-top) + var(--bw) / 2);
   /* предок в пути шапки: длиннее — многоточие, открытой коллекции остаётся место */
   --scope-crumb-max: calc(var(--h) * 5);
   /* предки в пути сжимаются раньше имени открытой коллекции */
