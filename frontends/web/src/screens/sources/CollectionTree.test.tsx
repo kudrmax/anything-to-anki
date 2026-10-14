@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CollectionNode, CollectionTree as Tree } from '@/api/types'
 import { COLLECTION_MIME, CollectionTree } from './CollectionTree'
 
-const counts = { total: 1, reviewed: 0, pending: 1 }
+const counts = { total: 1, reviewed: 0, pending: 1, candidate_count: 0, decided_count: 0 }
 const node = (id: number, name: string, accepts: boolean, moveTargets: (number | null)[] = [null]): CollectionNode => ({
   id, name, parent_id: null, counts, depth: 1, accepts_collections: accepts, move_targets: moveTargets, children: [],
 })
@@ -208,5 +208,14 @@ describe('CollectionTree', () => {
     act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
     openMenu('Nested')
     expect(host.textContent).not.toContain('New subcollection')
+  })
+
+  it('shows the decision progress of a collection and only the source count without candidates', () => {
+    const progressed = { ...node(3, 'Books', true), counts: { ...counts, total: 2, candidate_count: 1070, decided_count: 41 } }
+    act(() => root.render(<CollectionTree tree={{ ...tree, collections: [progressed] }} scope="all" draggable {...handlers} />))
+
+    expect(item('Books').textContent).toContain('4%')
+    expect(item('Books').querySelector('[title="41 of 1070 decided · 2 sources"]')).not.toBeNull()
+    expect(item('All').textContent).not.toContain('%')
   })
 })

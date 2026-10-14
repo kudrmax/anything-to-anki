@@ -28,12 +28,15 @@ button.twisty:hover { background: var(--soft); color: var(--tx); }
 
 .trail { display: grid; justify-items: end; align-items: center; min-width: var(--h-s); }
 .trail > * { grid-area: 1 / 1; }
-.count { font-size: var(--fs-xs); color: var(--tx3); font-variant-numeric: tabular-nums; }
+.stats { display: flex; align-items: center; gap: var(--s3); --progress-inline-w: var(--tree-bar-w); --progress-track: var(--line); }
+.count, .percent { font-size: var(--fs-xs); color: var(--tx3); font-variant-numeric: tabular-nums; text-align: right; }
+.count { min-width: var(--tree-count-w); }
+.percent { min-width: var(--tree-percent-w); }
 .actions { display: flex; gap: var(--s1); visibility: hidden; }
 .action { display: grid; place-items: center; width: var(--h-s); height: var(--h-s); border-radius: var(--s2); color: var(--tx3); }
 .action:hover { background: var(--soft); color: var(--tx); }
 .row:hover .actions, .row:focus-within .actions, .actions:has([role="menu"]) { visibility: visible; }
-.row:hover .count, .row:focus-within .count, .trail:has([role="menu"]) .count { visibility: hidden; }
+.row:hover .stats, .row:focus-within .stats, .trail:has([role="menu"]) .stats { visibility: hidden; }
 
 .before { box-shadow: inset 0 var(--tree-drop-line) 0 var(--ac); }
 .after { box-shadow: inset 0 calc(var(--tree-drop-line) * -1) 0 var(--ac); }

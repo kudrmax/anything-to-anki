@@ -6,7 +6,7 @@ import { api } from '@/api/client'
 import type { CollectionTree, Scope, SourceBoard, SourceSummary, Stats } from '@/api/types'
 import { SourcesScreen } from './SourcesScreen'
 
-const counts = { total: 3, reviewed: 1, pending: 0 }
+const counts = { total: 3, reviewed: 1, pending: 0, candidate_count: 0, decided_count: 0 }
 const tree: CollectionTree = {
   all: counts,
   unsorted: counts,

@@ -73,6 +73,7 @@
   --image-option-ratio: 4 / 3;
   --field-area: 128px;
   --prog: 3px;
+  --progress-track: var(--soft);
   --measure: 64ch;
   --fact-label-w: 84px;
   --focus-leading-trim: calc((1 - var(--lh-focus)) * var(--fs-focus) / 2);
@@ -98,6 +99,10 @@
   --tree-w: 320px;
   /* строка дерева ниже обычного контрола: дерево плотное, как боковая панель */
   --tree-h: 30px;
+  /* хвост строки: полоска решений, процент, число источников — колонки ровные по всему дереву */
+  --tree-bar-w: 28px;
+  --tree-percent-w: 4ch;
+  --tree-count-w: 2ch;
   --tree-twisty: 20px;
   /* шаг уровня: иконка ребёнка правее иконки родителя на ширину слота */
   --tree-indent: calc(var(--s2) + var(--tree-twisty));

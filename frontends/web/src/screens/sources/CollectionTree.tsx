@@ -3,12 +3,27 @@ import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderOpen, FolderPlus, In
 import type { CollectionNode, CollectionTree as Tree, Scope, ScopeCounts } from '@/api/types'
 import { useCollapsed } from '@/hooks/useCollapsed'
 import { collectionDrop, zoneAt, type DropZone } from '@/lib/treeDrop'
-import { Icon, IconButton, Menu } from '@/ui'
+import { Icon, IconButton, Menu, Progress } from '@/ui'
 import { collectionMenuItems } from './collectionMenu'
 import css from './CollectionTree.module.css'
 
 export const SOURCES_MIME = 'application/x-anki-sources'
 export const COLLECTION_MIME = 'application/x-anki-collection'
+
+/** Прогресс решений по всем источникам области и число источников; без кандидатов — только число. */
+function Stats({ counts }: { counts: ScopeCounts }) {
+  const { total, candidate_count: candidates, decided_count: decided } = counts
+  const sources = `${total} ${total === 1 ? 'source' : 'sources'}`
+  return (
+    <span className={css.stats} title={candidates > 0 ? `${decided} of ${candidates} decided · ${sources}` : sources}>
+      {candidates > 0 && <>
+        <Progress inline value={decided / candidates} />
+        <span className={css.percent}>{Math.round((decided / candidates) * 100)}%</span>
+      </>}
+      <span className={css.count}>{total}</span>
+    </span>
+  )
+}
 
 type Editing = { kind: 'create'; parentId: number | null } | { kind: 'rename'; id: number } | null
 type Hover = { id: number | 'unsorted'; zone: DropZone } | null
@@ -171,7 +186,7 @@ export function CollectionTree(props: CollectionTreeProps) {
                 : <span className={css.icon}><Icon as={selected ? FolderOpen : Folder} size="s" /></span>}
               <span className={css.name} title={node.name}>{node.name}</span>
               <span className={css.trail} onClick={stop} onDoubleClick={stop}>
-                <span className={css.count}>{node.counts.total}</span>
+                <Stats counts={node.counts} />
                 <span className={css.actions}>
                   {node.accepts_collections && (
                     <button type="button" className={css.action} title="New subcollection" aria-label="New subcollection" onClick={() => startCreate(node.id)}>
@@ -210,7 +225,7 @@ export function CollectionTree(props: CollectionTreeProps) {
     >
       <span className={css.icon}><Icon as={icon} size="s" /></span>
       <span className={css.name}>{label}</span>
-      <span className={css.trail}><span className={css.count}>{counts.total}</span></span>
+      <span className={css.trail}><Stats counts={counts} /></span>
     </div>
   )
 
