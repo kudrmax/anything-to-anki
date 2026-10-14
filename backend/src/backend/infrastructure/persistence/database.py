@@ -12,6 +12,8 @@ from backend.domain.value_objects.source_status import SourceStatus
 if TYPE_CHECKING:
     import sqlite3
 
+    from alembic.config import Config
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,11 +23,22 @@ class Base(DeclarativeBase):
 
 SQLITE_FILE_URL_PREFIX = "sqlite:///"
 SQLITE_IN_MEMORY_PATH = ":memory:"
+SQLITE_BUSY_TIMEOUT_MS = 30_000
 
 
 def default_db_url() -> str:
     data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
     return f"sqlite:///{data_dir}/app.db"
+
+
+def _sqlite_file(db_url: str) -> str | None:
+    """The path of a file-based SQLite DB; None for any other URL."""
+    if not db_url.startswith(SQLITE_FILE_URL_PREFIX):
+        return None
+    db_path = db_url[len(SQLITE_FILE_URL_PREFIX):]
+    if not db_path or db_path == SQLITE_IN_MEMORY_PATH:
+        return None
+    return db_path
 
 
 def _ensure_sqlite_directory(db_url: str) -> None:
@@ -35,11 +48,8 @@ def _ensure_sqlite_directory(db_url: str) -> None:
     SQLite does not create missing parents and fails with
     'unable to open database file' — the app would not start at all.
     """
-    if not db_url.startswith(SQLITE_FILE_URL_PREFIX):
-        return
-
-    db_path = db_url[len(SQLITE_FILE_URL_PREFIX):]
-    if not db_path or db_path == SQLITE_IN_MEMORY_PATH:
+    db_path = _sqlite_file(db_url)
+    if db_path is None:
         return
 
     parent_dir = os.path.dirname(db_path)
@@ -48,7 +58,7 @@ def _ensure_sqlite_directory(db_url: str) -> None:
 
 
 def run_alembic_migrations(db_url: str) -> None:
-    """Run all pending Alembic migrations up to head."""
+    """Run all pending Alembic migrations up to head, backing the DB up first."""
     from pathlib import Path as _Path
 
     from alembic import command
@@ -59,7 +69,30 @@ def run_alembic_migrations(db_url: str) -> None:
     cfg = Config()
     cfg.set_main_option("script_location", str(alembic_dir))
     cfg.set_main_option("sqlalchemy.url", db_url)
+    if _has_pending_migrations(cfg, db_url):
+        from backend.infrastructure.persistence.database_backup import DatabaseBackup
+
+        db_path = _sqlite_file(db_url)
+        assert db_path is not None
+        DatabaseBackup(_Path(db_path)).take()
     command.upgrade(cfg, "head")
+
+
+def _has_pending_migrations(cfg: Config, db_url: str) -> bool:
+    """An existing file DB, already migrated before, that is behind the newest migration."""
+    from alembic.runtime.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+
+    db_path = _sqlite_file(db_url)
+    if db_path is None or not os.path.exists(db_path):
+        return False
+    engine = create_engine(db_url)
+    try:
+        with engine.connect() as conn:
+            current = set(MigrationContext.configure(conn).get_current_heads())
+    finally:
+        engine.dispose()
+    return bool(current) and current != set(ScriptDirectory.from_config(cfg).get_heads())
 
 
 def _enable_sqlite_foreign_keys(
@@ -74,12 +107,20 @@ def _enable_sqlite_foreign_keys(
     cursor.close()
 
 
+def _wait_for_locks(dbapi_conn: sqlite3.Connection, _connection_record: object) -> None:
+    """A writer waits for another one to finish instead of failing at once."""
+    cursor = dbapi_conn.cursor()
+    cursor.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
+    cursor.close()
+
+
 def create_session_factory(db_url: str | None = None) -> sessionmaker[Session]:
     """Create a SQLAlchemy session factory."""
     resolved_url = db_url or default_db_url()
     _ensure_sqlite_directory(resolved_url)
     engine = create_engine(resolved_url, connect_args={"check_same_thread": False})
     event.listen(engine, "connect", _enable_sqlite_foreign_keys)
+    event.listen(engine, "connect", _wait_for_locks)
     return sessionmaker(bind=engine)
 
 

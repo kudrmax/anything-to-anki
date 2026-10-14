@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import sqlalchemy as sa
 from alembic import op
@@ -278,7 +278,9 @@ def _target_key(
 
 def _fill_phrase_ids(conn: sa.Connection) -> None:
     """Before any merge rebinds them, jobs, reports and exports learn their card's phrase."""
-    phrase_of_card = "(SELECT phrase_id FROM _card_phrase WHERE candidate_id_old = {}.candidate_id)"
+    phrase_of_card = (
+        "(SELECT phrase_id FROM _card_phrase WHERE candidate_id_old = {}.candidate_id)"
+    )
     conn.execute(sa.text(
         f"UPDATE jobs SET phrase_id = {phrase_of_card.format('jobs')}, phrase_revision = 0"
         f" WHERE job_type IN {PHRASE_LEVEL_JOB_TYPES} AND candidate_id IS NOT NULL"
@@ -344,19 +346,40 @@ def _merge(conn: sa.Connection, loser: int, winner: int) -> None:
 
 
 def _release_skipped_originals(conn: sa.Connection, cards: list[_Card]) -> None:
-    """A card skipped for an example of its lemma: the original is neither skipped nor shown."""
+    """A card skipped for an example of its lemma: the original is neither skipped nor shown.
+
+    It is again the analyzer's phrase of its place, even when the merge made it a duplicate,
+    unless another phrase of the word holds that place.
+    """
     for card in cards:
         if card.status != SKIP_STATUS:
             continue
-        conn.execute(
+        released = conn.execute(
             sa.text(
                 "UPDATE phrases SET skipped = 0, shown_by = NULL"
                 " WHERE id = (SELECT phrase_id FROM _card_phrase WHERE candidate_id_old = :card)"
-                " AND origin != :example"
+                " AND origin IN (:auto, :manual)"
                 " AND EXISTS (SELECT 1 FROM phrases e WHERE e.candidate_id = phrases.candidate_id"
                 " AND e.origin = :example AND e.id != phrases.id)"
             ),
-            {"card": card.id, "example": ORIGIN_EXAMPLE},
+            {
+                "card": card.id, "example": ORIGIN_EXAMPLE, "auto": ORIGIN_AUTO,
+                "manual": ORIGIN_MANUAL,
+            },
+        )
+        if not released.rowcount:
+            continue
+        conn.execute(
+            sa.text(
+                "UPDATE phrases SET origin = :auto"
+                " WHERE id = (SELECT phrase_id FROM _card_phrase WHERE candidate_id_old = :card)"
+                " AND origin = :manual AND block IS NOT NULL"
+                " AND NOT EXISTS (SELECT 1 FROM phrases o"
+                " WHERE o.candidate_id = phrases.candidate_id AND o.origin = :auto"
+                " AND o.id != phrases.id AND o.block = phrases.block"
+                " AND o.line = phrases.line AND o.char = phrases.char)"
+            ),
+            {"card": card.id, "auto": ORIGIN_AUTO, "manual": ORIGIN_MANUAL},
         )
 
 
@@ -401,7 +424,9 @@ def _move_ipa(conn: sa.Connection) -> None:
         ).first()
         if exists:
             conn.execute(
-                sa.text("UPDATE candidate_pronunciations SET ipa = :ipa WHERE candidate_id = :word"),
+                sa.text(
+                    "UPDATE candidate_pronunciations SET ipa = :ipa WHERE candidate_id = :word"
+                ),
                 params,
             )
         else:
@@ -463,7 +488,8 @@ def _rekey_results() -> None:
     )
 
 
-def _rekey(table: str, columns: list[sa.Column[object]]) -> None:
+# Any: the result columns are of mixed types.
+def _rekey(table: str, columns: list[sa.Column[Any]]) -> None:
     """Results of a card move to its phrase: the table is rebuilt keyed by phrase_id."""
     new_table = f"_{table}_by_phrase"
     op.create_table(

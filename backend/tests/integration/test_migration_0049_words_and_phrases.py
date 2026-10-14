@@ -305,7 +305,7 @@ def test_a_decision_beats_a_newer_undecided_duplicate(db_url: str) -> None:
 def test_skipped_original_of_an_example_is_released(db_url: str) -> None:
     c = _phrase_of(db_url, CARD_D, "again and left")
     d = _phrase_of(db_url, CARD_D, "She left early")
-    assert (c["skipped"], c["shown_by"]) == (0, None)
+    assert (c["origin"], c["skipped"], c["shown_by"]) == ("auto", 0, None)
     assert (d["origin"], d["shown_by"], d["block"]) == ("example", "user", None)
     words = _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_D)
     assert words == [{"status": "pending"}]
@@ -365,3 +365,8 @@ def test_new_tables_exist(db_url: str) -> None:
     assert not candidate_columns & {
         "source_phrase", "polished_phrase", "polish_reverted", "phrase_position",
     }
+
+
+def test_no_row_points_at_a_merged_away_word(db_url: str) -> None:
+    assert _rows(db_url, "PRAGMA foreign_key_check") == []
+    assert len(_rows(db_url, "SELECT id FROM anki_synced_cards")) == 3  # noqa: PLR2004 — A, G, H
