@@ -20,3 +20,12 @@ def time_of(document: Document, position: DocumentPosition) -> tuple[int, int] |
     if not lines or None in starts or None in ends:
         return None
     return min(s for s in starts if s is not None), max(e for e in ends if e is not None)
+
+
+def is_timed(document: Document) -> bool:
+    """Its lines carry the times they are spoken at: the subtitles of a video."""
+    return any(
+        line.start_ms is not None
+        for block in document.blocks if not isinstance(block, Heading)
+        for line in block.lines
+    )

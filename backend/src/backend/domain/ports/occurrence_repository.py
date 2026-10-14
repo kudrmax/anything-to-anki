@@ -73,6 +73,7 @@ class OccurrenceRepository(ABC):
         """Every word of the source, light."""
 
     @abstractmethod
-    def apply_plan(self, plan: RebuildPlan) -> None:
+    def apply_plan(self, plan: RebuildPlan) -> list[int]:
         """Write a rebuild plan in the caller's transaction: words, phrases, their words
-        and the selection marks."""
+        and the selection marks. Returns the ids of the inserted phrases, in the order of
+        `plan.occ_to_insert`."""

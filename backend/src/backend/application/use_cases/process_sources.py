@@ -7,6 +7,7 @@ from backend.application.dto.collection_dtos import StartedSourcesDTO
 from backend.domain.exceptions import (
     SourceAlreadyProcessedError,
     SourceNotFoundError,
+    SourceOperationBusyError,
     TopicTargetsMissingError,
 )
 from backend.domain.services.source_stage import is_pending
@@ -24,7 +25,8 @@ logger = logging.getLogger(__name__)
 
 class ProcessSourcesUseCase:
     """Starts processing of several sources: the chosen ones, or every pending one of a scope.
-    A source that can't start (missing, already started, no topic targets) is skipped."""
+    A source that can't start (missing, already started, busy, no topic targets) is
+    skipped."""
 
     def __init__(
         self,
@@ -52,6 +54,7 @@ class ProcessSourcesUseCase:
             except (
                 SourceNotFoundError,
                 SourceAlreadyProcessedError,
+                SourceOperationBusyError,
                 TopicTargetsMissingError,
             ) as e:
                 logger.info("Skipped processing of source %d: %s", source_id, e)

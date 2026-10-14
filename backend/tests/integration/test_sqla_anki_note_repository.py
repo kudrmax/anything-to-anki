@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.infrastructure.persistence.sqla_anki_note_repository import SqlaAnkiNoteRepository
 from backend.infrastructure.persistence.sqla_source_operation_lock import (
     SqlaSourceOperationLock,
@@ -51,14 +52,14 @@ def test_a_source_is_held_by_one_operation_at_a_time(db_session: Session) -> Non
     insert_source(db_session, OTHER_SOURCE)
     lock = SqlaSourceOperationLock(db_session)
 
-    assert lock.acquire(SOURCE, "rebuild")
-    assert not lock.acquire(SOURCE, "process")
-    assert lock.acquire(OTHER_SOURCE, "process")
-    assert lock.held(SOURCE) == "rebuild"
+    assert lock.acquire(SOURCE, SourceOperationKind.REBUILD)
+    assert not lock.acquire(SOURCE, SourceOperationKind.PROCESS)
+    assert lock.acquire(OTHER_SOURCE, SourceOperationKind.PROCESS)
+    assert lock.held(SOURCE) is SourceOperationKind.REBUILD
 
     lock.release(SOURCE)
     assert lock.held(SOURCE) is None
-    assert lock.acquire(SOURCE, "process")
+    assert lock.acquire(SOURCE, SourceOperationKind.PROCESS)
 
     lock.clear_all()
     assert (lock.held(SOURCE), lock.held(OTHER_SOURCE)) == (None, None)

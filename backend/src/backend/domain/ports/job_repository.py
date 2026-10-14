@@ -80,6 +80,10 @@ class JobRepository(ABC):
         """Remove the selected QUEUED and RUNNING jobs. Returns how many."""
 
     @abstractmethod
+    def cancel_for_phrases(self, phrase_ids: list[int]) -> int:
+        """Remove the QUEUED and RUNNING jobs of the phrases. Returns how many."""
+
+    @abstractmethod
     def dismiss(self, selection: JobSelection) -> int:
         """Remove the selected FAILED jobs. Returns how many."""
 

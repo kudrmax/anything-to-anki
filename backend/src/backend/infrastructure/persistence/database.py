@@ -154,21 +154,6 @@ def release_source_operations(session_factory: sessionmaker[Session]) -> None:
         session.close()
 
 
-def cleanup_enrichment_cache(session_factory: sessionmaker[Session]) -> None:
-    """Delete all enrichment_cache rows on startup. Data is expendable."""
-    from backend.infrastructure.persistence.sqla_enrichment_cache_repository import (
-        SqlaEnrichmentCacheRepository,
-    )
-
-    session = session_factory()
-    try:
-        repo = SqlaEnrichmentCacheRepository(session)
-        repo.cleanup_all()
-        session.commit()
-    finally:
-        session.close()
-
-
 def cleanup_parse_cache(session_factory: sessionmaker[Session]) -> None:
     """Drop the cached parses of documents no source has any more."""
     from sqlalchemy import select

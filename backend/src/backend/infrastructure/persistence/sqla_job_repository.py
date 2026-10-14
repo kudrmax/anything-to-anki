@@ -14,6 +14,7 @@ from backend.domain.value_objects.job_selection import UNKNOWN_JOB_ERROR
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import PHRASE_JOB_TYPES, JobType
 from backend.infrastructure.persistence.models import JobModel, PhraseModel
+from backend.infrastructure.persistence.phrase_writes import chunks
 from backend.infrastructure.persistence.primary_phrase import PrimaryPhrases
 
 if TYPE_CHECKING:
@@ -190,6 +191,16 @@ class SqlaJobRepository(JobRepository):
         return self._affected(
             delete(JobModel).where(JobModel.status.in_(_ACTIVE_STATUSES), *_selected(selection))
         )
+
+    def cancel_for_phrases(self, phrase_ids: list[int]) -> int:
+        cancelled = 0
+        for chunk in chunks(phrase_ids):
+            cancelled += self._affected(
+                delete(JobModel).where(
+                    JobModel.status.in_(_ACTIVE_STATUSES), JobModel.phrase_id.in_(chunk),
+                )
+            )
+        return cancelled
 
     def dismiss(self, selection: JobSelection) -> int:
         return self._affected(

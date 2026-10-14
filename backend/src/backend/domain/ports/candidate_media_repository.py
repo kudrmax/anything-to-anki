@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from backend.domain.entities.candidate_media import CandidateMedia
 
 
@@ -24,6 +26,13 @@ class CandidateMediaRepository(ABC):
 
     @abstractmethod
     def upsert_for_phrase(self, phrase_id: int, media: CandidateMedia) -> None: ...
+
+    @abstractmethod
+    def set_timecodes(self, times: Mapping[int, tuple[int, int] | None]) -> None:
+        """Phrase id → the time of its phrase in the video, None when untimed.
+
+        A phrase whose screenshot or clip is made keeps its media as it is: the files were
+        cut at those times. No row is made for an untimed phrase."""
 
     # ── by word, through its primary phrase ────────────────────────────
     # TRANSITIONAL(words-phrases): removed in Task 10

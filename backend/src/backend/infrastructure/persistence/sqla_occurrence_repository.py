@@ -280,8 +280,8 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             for word in words
         ]
 
-    def apply_plan(self, plan: RebuildPlan) -> None:
-        self._plans.apply(plan)
+    def apply_plan(self, plan: RebuildPlan) -> list[int]:
+        return self._plans.apply(plan)
 
     def shown_by_word(self, source_id: int) -> dict[int, list[Occurrence]]:
         by_word: dict[int, list[Occurrence]] = {}

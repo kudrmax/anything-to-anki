@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Generator  # noqa: TC003
+from collections.abc import Coroutine, Generator  # noqa: TC003
 from datetime import UTC, datetime, timedelta
 from pathlib import Path  # noqa: TC003
 
@@ -9,6 +9,7 @@ import pytest
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.api.routes import sources as sources_routes
+from backend.infrastructure.api.source_operations import SourceOperationRegistry
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import (
     PhraseModel,
@@ -65,6 +66,25 @@ def client(_db_engine: object) -> Generator[TestClient, None, None]:
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_operations_of_other_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Sources of every test get the same ids: operations of one must not show in another."""
+    monkeypatch.setattr(sources_routes, "OPERATIONS", SourceOperationRegistry())
+
+
+@pytest.fixture()
+def spawned(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    """Background operations started by the routes; none of them runs."""
+    started: list[object] = []
+
+    def record(work: Coroutine[object, object, None]) -> None:
+        work.close()
+        started.append(work)
+
+    monkeypatch.setattr(sources_routes, "_in_background", record)
+    return started
 
 
 @pytest.fixture()
@@ -206,6 +226,51 @@ class TestSourcesAPI:
         response = client.post(f"/sources/{source_id}/process")
         assert response.status_code == 202
 
+    def test_rebuild_runs_in_the_background_and_holds_the_source(
+        self, client: TestClient, spawned: list[object],
+    ) -> None:
+        source_id = self._new_source(client)
+
+        started = client.post(f"/sources/{source_id}/rebuild", json={"include_open": True})
+
+        assert started.status_code == 202
+        operation = started.json()
+        assert (operation["kind"], operation["state"]) == ("rebuild", "running")
+        assert len(spawned) == 1
+        state = client.get(f"/sources/{source_id}/operation")
+        assert state.status_code == 200
+        assert state.json()["operation_id"] == operation["operation_id"]
+        assert client.post(f"/sources/{source_id}/rebuild/preview").status_code == 409
+        assert client.post(f"/sources/{source_id}/rebuild", json={}).status_code == 409
+
+    def test_rebuild_preview_runs_in_the_background(
+        self, client: TestClient, spawned: list[object],
+    ) -> None:
+        source_id = self._new_source(client)
+
+        started = client.post(f"/sources/{source_id}/rebuild/preview")
+
+        assert started.status_code == 202
+        assert (started.json()["kind"], started.json()["state"]) == ("preview", "running")
+        assert len(spawned) == 1
+
+    def test_a_source_with_no_operation_has_no_operation_state(
+        self, client: TestClient,
+    ) -> None:
+        source_id = self._new_source(client)
+        assert client.get(f"/sources/{source_id}/operation").status_code == 404
+
+    def test_rebuild_of_a_missing_source_is_404(self, client: TestClient) -> None:
+        assert client.post("/sources/999/rebuild", json={}).status_code == 404
+
+    @staticmethod
+    def _new_source(client: TestClient) -> int:
+        create = client.post(
+            "/sources/add", json={"text": "The quick brown fox", "answers": TEXT_ANSWER},
+        )
+        source_id: int = create.json()["source_ids"][0]
+        return source_id
+
     def test_process_not_found(self, client: TestClient) -> None:
         response = client.post("/sources/999/process")
         assert response.status_code == 404
@@ -333,7 +398,7 @@ class TestSavedPhrasesAPI:
         )
         assert response.status_code == 400
 
-    def test_saved_phrases_source_cannot_be_deleted_or_reprocessed(
+    def test_saved_phrases_source_cannot_be_deleted_or_rebuilt(
         self, client: TestClient,
     ) -> None:
         client.post(
@@ -343,7 +408,8 @@ class TestSavedPhrasesAPI:
         source_id = client.get("/sources").json()[0]["id"]
 
         assert client.delete(f"/sources/{source_id}").status_code == 409
-        assert client.post(f"/sources/{source_id}/reprocess").status_code == 409
+        assert client.post(f"/sources/{source_id}/rebuild", json={}).status_code == 400
+        assert client.post(f"/sources/{source_id}/rebuild/preview").status_code == 400
 
 
 @pytest.mark.integration

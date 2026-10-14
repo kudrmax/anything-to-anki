@@ -1,8 +1,10 @@
 import pytest
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest, OccurrenceDTO, WordDTO
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
+from backend.domain.entities.source import Source
 from backend.domain.services.document_layout import DocumentLayout
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
+from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import (
     Document,
     Heading,
@@ -10,9 +12,13 @@ from backend.domain.value_objects.document import (
     Paragraph,
     ParagraphMode,
 )
+from backend.domain.value_objects.format import Format
+from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.dependencies import get_session_factory
 from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.database import run_alembic_migrations
+from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
+from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 
 B1 = AnalyzeTextRequest(user_level="B1")
 PROSE = "The relentless pursuit of perfection often leads to burnout."
@@ -142,3 +148,38 @@ class TestFullPipeline:
         cached = self.use_case.execute(document, B1)
 
         assert cached == expected
+
+
+@pytest.mark.integration
+class TestRebuildWithTheRealAnalysis:
+    def test_a_rebuild_after_processing_has_nothing_to_update(self) -> None:
+        container = Container()
+        session = get_session_factory()()
+        try:
+            source = SqlaSourceRepository(session).create(Source(
+                status=SourceStatus.NEW, format=Format.PLAIN, kind=Kind.TEXT, title="rebuild",
+            ))
+            assert source.id is not None
+            SqlaDocumentRepository(session).save(source.id, Document((
+                Heading(1, "A relentless ambition"),
+                Paragraph(
+                    lines=(Line(PROSE), Line("The relentless rain never stopped.")),
+                    mode=ParagraphMode.FLOW,
+                ),
+            )))
+            session.commit()
+            process = container.process_source_use_case(session)
+            process.start(source.id)
+            session.commit()
+            process.execute(source.id)
+
+            preview = container.rebuild_source_use_case(session).preview(source.id)
+
+            assert preview.without_open.nothing_to_update
+            assert preview.with_open.nothing_to_update
+        finally:
+            session.rollback()
+            if source.id is not None:
+                container.delete_source_use_case(session).execute(source.id)
+                session.commit()
+            session.close()

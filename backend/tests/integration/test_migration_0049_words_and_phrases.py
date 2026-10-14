@@ -394,7 +394,7 @@ def test_word_and_phrase_ids_are_never_reused(db_url: str) -> None:
     }
     assert "AUTOINCREMENT" in tables["candidates"]
     assert "AUTOINCREMENT" in tables["phrases"]
-    assert "enrichment_cache" in tables  # dropped together with Reprocess
+    assert "enrichment_cache" not in tables  # dropped together with Reprocess
 
 
 def test_new_tables_exist(db_url: str) -> None:

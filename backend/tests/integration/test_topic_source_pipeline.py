@@ -1,7 +1,7 @@
 """A topic source collects real phrases from the other sources, offline.
 
 Real spaCy, dictionaries and SQLite: targets are stored as if AI had already
-generated them, then processing (and reprocessing) runs without AI.
+generated them, then processing runs without AI. Topics are not rebuilt.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import pytest
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.topic_target import TopicTarget
-from backend.domain.exceptions import TopicTargetsMissingError
+from backend.domain.exceptions import RebuildNotSupportedError, TopicTargetsMissingError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
@@ -156,22 +156,14 @@ def test_topic_borrows_phrases_and_falls_back_to_generated(
     assert topic.status == SourceStatus.DONE
 
 
-def test_reprocessing_picks_up_a_newly_added_source(
-    db_session: Session, container: Container,
-) -> None:
+def test_a_topic_is_not_rebuilt(db_session: Session, container: Container) -> None:
     topic_id = _add_topic(db_session)
     process = container.process_source_use_case(db_session)
     process.start(topic_id)
     process.execute(topic_id)
-    assert _by_lemma(db_session, topic_id)["counter-offer"].origin == PhraseOrigin.generated()
 
-    _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
-    container.reprocess_source_use_case(db_session).execute(topic_id)
-    process.execute(topic_id)
-
-    counter_offer = _by_lemma(db_session, topic_id)["counter-offer"]
-    assert counter_offer.source_phrase.text == LATER_ARTICLE
-    assert counter_offer.origin == PhraseOrigin.from_source("Article")
+    with pytest.raises(RebuildNotSupportedError):
+        container.rebuild_source_use_case(db_session).execute(topic_id, include_open=False)
 
 
 def test_topic_cannot_be_processed_before_targets_exist(

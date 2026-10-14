@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select, update
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
 from backend.infrastructure.persistence.models import (
@@ -10,6 +11,7 @@ from backend.infrastructure.persistence.models import (
     PhraseModel,
     StoredCandidateModel,
 )
+from backend.infrastructure.persistence.phrase_writes import chunks
 from backend.infrastructure.persistence.primary_phrase import (
     PrimaryPhrases,
     primary_phrase_id,
@@ -18,6 +20,8 @@ from backend.infrastructure.persistence.primary_phrase import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.candidate_media import CandidateMedia
@@ -54,6 +58,34 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
             existing.start_ms = media.start_ms
             existing.end_ms = media.end_ms
             existing.generated_at = media.generated_at
+        self._session.flush()
+
+    def set_timecodes(self, times: Mapping[int, tuple[int, int] | None]) -> None:
+        not_made = (
+            CandidateMediaModel.screenshot_path.is_(None)
+            & CandidateMediaModel.audio_path.is_(None)
+        )
+        timed = [
+            {"phrase_id": phrase_id, "start_ms": time[0], "end_ms": time[1]}
+            for phrase_id, time in times.items() if time is not None
+        ]
+        if timed:
+            upsert = sqlite_insert(CandidateMediaModel)
+            self._session.execute(
+                upsert.on_conflict_do_update(
+                    index_elements=[CandidateMediaModel.phrase_id],
+                    set_={"start_ms": upsert.excluded.start_ms, "end_ms": upsert.excluded.end_ms},
+                    where=not_made,
+                ),
+                timed,
+            )
+        untimed = [phrase_id for phrase_id, time in times.items() if time is None]
+        for chunk in chunks(untimed):
+            self._session.execute(
+                update(CandidateMediaModel)
+                .where(CandidateMediaModel.phrase_id.in_(chunk), not_made)
+                .values(start_ms=None, end_ms=None)
+            )
         self._session.flush()
 
     # ── by word, through its primary phrase ────────────────────────────

@@ -26,6 +26,10 @@ from backend.application.dto.collection_dtos import (  # noqa: TC001
     StartedSourcesDTO,
 )
 from backend.application.dto.document_dtos import SourceDocumentDTO  # noqa: TC001
+from backend.application.dto.rebuild_dtos import (  # noqa: TC001
+    RebuildRequest,
+    SourceOperationDTO,
+)
 from backend.application.dto.source_dtos import (  # noqa: TC001
     SourceBoardDTO,
     SourceDetailDTO,
@@ -42,13 +46,13 @@ from backend.domain.exceptions import (
     InvalidSourceInputError,
     NotATextFileError,
     PermanentSourceError,
+    RebuildNotSupportedError,
     SourceAlreadyProcessedError,
-    SourceHasActiveJobsError,
     SourceHasNoDocumentError,
     SourceHasNoUrlError,
     SourceIsProcessingError,
     SourceNotFoundError,
-    SourceNotReprocessableError,
+    SourceOperationBusyError,
     SubtitlesNotAvailableError,
     TopicTargetsMissingError,
     UnsupportedUrlError,
@@ -56,6 +60,7 @@ from backend.domain.exceptions import (
 )
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.question import Answers
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.dependencies import (
     get_container,
@@ -63,8 +68,11 @@ from backend.infrastructure.api.dependencies import (
     get_session_factory,
 )
 from backend.infrastructure.api.scope_param import parse_scope
+from backend.infrastructure.api.source_operations import SourceOperationRegistry
 
 if TYPE_CHECKING:
+    from collections.abc import Coroutine
+
     from sqlalchemy.orm import Session
 
     from backend.infrastructure.container import Container
@@ -72,6 +80,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sources", tags=["sources"])
+
+OPERATIONS = SourceOperationRegistry()
+_background_tasks: set[asyncio.Task[None]] = set()
 
 
 @router.post("/add", status_code=201)
@@ -234,7 +245,7 @@ def delete_batch(
 
 def _launch(source_ids: list[int], container: Container, session_factory: object) -> None:
     for source_id in source_ids:
-        asyncio.create_task(_process_background(source_id, container, session_factory))
+        _in_background(_process_background(source_id, container, session_factory))
 
 
 @router.get("/{source_id}")
@@ -282,10 +293,12 @@ async def process_source(
         session.commit()
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except (SourceAlreadyProcessedError, TopicTargetsMissingError) as e:
+    except (
+        SourceAlreadyProcessedError, SourceOperationBusyError, TopicTargetsMissingError,
+    ) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
-    asyncio.create_task(_process_background(source_id, container, session_factory))
+    _in_background(_process_background(source_id, container, session_factory))
     return {"status": "processing"}
 
 
@@ -315,10 +328,7 @@ async def _process_background(
     bg_session: Session = session_factory()  # type: ignore[operator]
     try:
         use_case = container.process_source_use_case(bg_session)
-        await asyncio.to_thread(use_case.execute, source_id, on_stage_commit=bg_session.commit)
-        # Restore enrichment from cache (best-effort, uses bg_session)
-        reprocess_uc = container.reprocess_source_use_case(bg_session)
-        reprocess_uc.finalize(source_id)
+        await asyncio.to_thread(use_case.execute, source_id)
         bg_session.commit()
     except Exception:
         logger.exception("Background processing failed (source_id=%d)", source_id)
@@ -390,46 +400,88 @@ def get_source_document(
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
-@router.get("/{source_id}/reprocess-stats")
-def get_reprocess_stats(
-    source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, Any]:
-    try:
-        use_case = container.get_reprocess_stats_use_case(session)
-        stats = use_case.execute(source_id)
-        return {
-            "learn_count": stats.learn_count,
-            "known_count": stats.known_count,
-            "skip_count": stats.skip_count,
-            "pending_count": stats.pending_count,
-            "has_active_jobs": stats.has_active_jobs,
-        }
-    except SourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-
-
-@router.post("/{source_id}/reprocess", status_code=202)
-async def reprocess_source(
+@router.post("/{source_id}/rebuild/preview", status_code=202)
+async def preview_rebuild(
     source_id: int,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
     session_factory: object = Depends(get_session_factory),  # noqa: B008
-) -> dict[str, str]:
+) -> SourceOperationDTO:
+    """Starts the analysis of a rebuild; its counts come with the operation's state."""
+    operation = _start_rebuild(source_id, SourceOperationKind.PREVIEW, session, container)
+    _in_background(_rebuild_background(
+        source_id, operation.operation_id, None, container, session_factory,
+    ))
+    return operation
+
+
+@router.post("/{source_id}/rebuild", status_code=202)
+async def rebuild_source(
+    source_id: int,
+    request: RebuildRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+    session_factory: object = Depends(get_session_factory),  # noqa: B008
+) -> SourceOperationDTO:
+    operation = _start_rebuild(source_id, SourceOperationKind.REBUILD, session, container)
+    _in_background(_rebuild_background(
+        source_id, operation.operation_id, request.include_open, container, session_factory,
+    ))
+    return operation
+
+
+@router.get("/{source_id}/operation")
+def get_source_operation(source_id: int) -> SourceOperationDTO:
+    """The last rebuild or preview started on the source: running, or its result."""
+    operation = OPERATIONS.last(source_id)
+    if operation is None:
+        raise HTTPException(status_code=404, detail=f"No operation on source {source_id}")
+    return operation
+
+
+def _start_rebuild(
+    source_id: int, kind: SourceOperationKind, session: Session, container: Container,
+) -> SourceOperationDTO:
     try:
-        use_case = container.reprocess_source_use_case(session)
-        use_case.execute(source_id)
-        session.commit()
+        container.rebuild_source_use_case(session).start(source_id, kind)
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except SourceNotReprocessableError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except (SourceHasActiveJobsError, TopicTargetsMissingError, PermanentSourceError) as e:
+    except SourceOperationBusyError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
+    except RebuildNotSupportedError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    session.commit()
+    return OPERATIONS.started(source_id, kind)
 
-    asyncio.create_task(_process_background(source_id, container, session_factory))
-    return {"status": "processing"}
+
+async def _rebuild_background(
+    source_id: int,
+    operation_id: int,
+    include_open: bool | None,
+    container: Container,
+    session_factory: object,
+) -> None:
+    """`include_open` None: the preview."""
+    bg_session: Session = session_factory()  # type: ignore[operator]
+    try:
+        use_case = container.rebuild_source_use_case(bg_session)
+        if include_open is None:
+            preview = await asyncio.to_thread(use_case.run_preview, source_id)
+            OPERATIONS.finished(source_id, operation_id, preview=preview)
+        else:
+            summary = await asyncio.to_thread(use_case.run, source_id, include_open)
+            OPERATIONS.finished(source_id, operation_id, summary=summary)
+    except Exception as e:
+        logger.exception("Background rebuild failed (source_id=%d)", source_id)
+        OPERATIONS.failed(source_id, operation_id, str(e))
+    finally:
+        bg_session.close()
+
+
+def _in_background(work: Coroutine[object, object, None]) -> None:
+    task = asyncio.create_task(work)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 @router.get("/{source_id}/candidates")

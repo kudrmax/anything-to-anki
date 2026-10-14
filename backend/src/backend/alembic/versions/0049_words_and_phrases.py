@@ -15,7 +15,7 @@ Known already). See docs/specs/words-phrases-rebuild.md, «Миграция 0049
 The position → occurrence key logic is a frozen copy: it must not follow later changes
 of the domain's DocumentLayout.
 
-`enrichment_cache` stays until Reprocess, its only user, is removed (Task 6 drops it).
+`enrichment_cache` goes with Reprocess, its only user: Rebuild keeps everything in place.
 
 One-way: merged words and re-keyed results cannot be split back into cards.
 """
@@ -84,6 +84,7 @@ def upgrade() -> None:
     _create_indexes()
     _fill_phrase_words(conn)
     op.drop_table("_card_phrase")
+    op.drop_table("enrichment_cache")
 
 
 def downgrade() -> None:

@@ -36,7 +36,6 @@ from backend.infrastructure.api.routes.queue import router as queue_router
 from backend.infrastructure.api.routes.tts import router as tts_router
 from backend.infrastructure.logging_setup import configure_logging
 from backend.infrastructure.persistence.database import (
-    cleanup_enrichment_cache,
     cleanup_parse_cache,
     reconcile_media_files,
     release_source_operations,
@@ -59,7 +58,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         run_alembic_migrations(db_url)
     reset_stuck_processing(session_factory)
     release_source_operations(session_factory)
-    cleanup_enrichment_cache(session_factory)
     cleanup_parse_cache(session_factory)
     data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
     media_root = os.environ.get("MEDIA_ROOT", os.path.join(data_dir, "media"))

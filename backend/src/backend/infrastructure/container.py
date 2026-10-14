@@ -28,7 +28,6 @@ from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
-from backend.application.use_cases.get_reprocess_stats import GetReprocessStatsUseCase
 from backend.application.use_cases.get_source_document import GetSourceDocumentUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
@@ -42,11 +41,11 @@ from backend.application.use_cases.place_sources import PlaceSourcesUseCase
 from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.process_sources import ProcessSourcesUseCase
+from backend.application.use_cases.rebuild_source import RebuildSourceUseCase
 from backend.application.use_cases.rename_collection import RenameCollectionUseCase
 from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
 from backend.application.use_cases.report_candidate import ReportCandidateUseCase
-from backend.application.use_cases.reprocess_source import ReprocessSourceUseCase
 from backend.application.use_cases.restore_collection import RestoreCollectionUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.save_cloze import SaveClozeUseCase
@@ -63,6 +62,7 @@ from backend.application.utils.phrase_reader import PhraseReader
 from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.application.utils.rewrite_phrase import RewritePhrase
+from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.application.utils.topic_generation import TopicGenerationProbe
 from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
@@ -152,9 +152,15 @@ from backend.infrastructure.persistence.sqla_job_repository import SqlaJobReposi
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
+from backend.infrastructure.persistence.sqla_occurrence_repository import (
+    SqlaOccurrenceRepository,
+)
 from backend.infrastructure.persistence.sqla_parse_cache import SqlaParseCache
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
+)
+from backend.infrastructure.persistence.sqla_source_operation_lock import (
+    SqlaSourceOperationLock,
 )
 from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
@@ -162,6 +168,7 @@ from backend.infrastructure.persistence.sqla_source_repository import (
 from backend.infrastructure.persistence.sqla_topic_target_repository import (
     SqlaTopicTargetRepository,
 )
+from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from backend.infrastructure.persistence.sqla_unknown_word_repository import (
     SqlaUnknownWordRepository,
 )
@@ -447,6 +454,7 @@ class Container:
         return DeleteSourceUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            lock=SqlaSourceOperationLock(session),
             media_root=self._media_root,
         )
 
@@ -508,13 +516,34 @@ class Container:
         return ProcessSourceUseCase(
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            lock=SqlaSourceOperationLock(session),
+            unit_of_work=SqlaUnitOfWork(session),
+            rebuilder=self._source_rebuilder(session),
+            topic_phrase_collector=self._topic_phrase_collector(session),
+        )
+
+    def rebuild_source_use_case(self, session: Session) -> RebuildSourceUseCase:
+        return RebuildSourceUseCase(
+            source_repo=SqlaSourceRepository(session),
+            lock=SqlaSourceOperationLock(session),
+            unit_of_work=SqlaUnitOfWork(session),
+            rebuilder=self._source_rebuilder(session),
+        )
+
+    def _source_rebuilder(self, session: Session) -> SourceRebuilder:
+        settings_repo = SqlaSettingsRepository(session)
+        return SourceRebuilder(
+            source_repo=SqlaSourceRepository(session),
+            document_repo=SqlaDocumentRepository(session),
+            occurrence_repo=SqlaOccurrenceRepository(session),
+            job_repo=SqlaJobRepository(session),
+            media_repo=SqlaCandidateMediaRepository(session),
+            settings_repo=settings_repo,
             vocabulary=self._user_vocabulary(session),
-            settings_repo=SqlaSettingsRepository(session),
             threshold_resolver=self._threshold_resolver(session),
             analyze_text_use_case=self.analyze_text_use_case(),
-            document_repo=SqlaDocumentRepository(session),
-            media_repo=SqlaCandidateMediaRepository(session),
-            topic_phrase_collector=self._topic_phrase_collector(session),
+            review_status=self._review_status_updater(session),
+            unit_of_work=SqlaUnitOfWork(session),
         )
 
     def process_sources_use_case(self, session: Session) -> ProcessSourcesUseCase:
@@ -585,26 +614,6 @@ class Container:
             SqlaAIUsageRepository,
         )
         return GetAIUsageStatsUseCase(usage_repo=SqlaAIUsageRepository(session))
-
-    def reprocess_source_use_case(self, session: Session) -> ReprocessSourceUseCase:
-        from backend.infrastructure.persistence.sqla_enrichment_cache_repository import (
-            SqlaEnrichmentCacheRepository,
-        )
-        return ReprocessSourceUseCase(
-            source_repo=SqlaSourceRepository(session),
-            candidate_repo=SqlaCandidateRepository(session),
-            job_repo=SqlaJobRepository(session),
-            process_source_use_case=self.process_source_use_case(session),
-            enrichment_cache_repo=SqlaEnrichmentCacheRepository(session),
-        )
-
-    def get_reprocess_stats_use_case(self, session: Session) -> GetReprocessStatsUseCase:
-        return GetReprocessStatsUseCase(
-            source_repo=SqlaSourceRepository(session),
-            candidate_repo=SqlaCandidateRepository(session),
-            vocabulary=self._user_vocabulary(session),
-            job_repo=SqlaJobRepository(session),
-        )
 
     def get_candidates_use_case(self, session: Session) -> GetCandidatesUseCase:
         return GetCandidatesUseCase(

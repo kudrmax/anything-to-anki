@@ -10,10 +10,10 @@ from backend.domain.exceptions import (
     SourceIsProcessingError,
     SourceNotFoundError,
 )
-from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
 
 logger = logging.getLogger(__name__)
@@ -26,10 +26,12 @@ class DeleteSourceUseCase:
         self,
         source_repo: SourceRepository,
         candidate_repo: CandidateRepository,
+        lock: SourceOperationLock,
         media_root: str,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
+        self._lock = lock
         self._media_root = media_root
 
     def execute(self, source_id: int) -> None:
@@ -38,7 +40,7 @@ class DeleteSourceUseCase:
             raise SourceNotFoundError(source_id)
         if source.is_permanent:
             raise PermanentSourceError(source_id)
-        if source.status == SourceStatus.PROCESSING:
+        if self._lock.held(source_id) is not None:
             raise SourceIsProcessingError(source_id)
 
         # Clean up media directory before removing DB rows.

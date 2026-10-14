@@ -1,20 +1,24 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 
 class SourceOperationLock(ABC):
     """Port for the one long operation a source may be busy with."""
 
     @abstractmethod
-    def acquire(self, source_id: int, kind: str) -> bool:
+    def acquire(self, source_id: int, kind: SourceOperationKind) -> bool:
         """Take the source for an operation; False if another one holds it."""
 
     @abstractmethod
     def release(self, source_id: int) -> None: ...
 
     @abstractmethod
-    def held(self, source_id: int) -> str | None:
+    def held(self, source_id: int) -> SourceOperationKind | None:
         """The kind of operation holding the source, if any."""
 
     @abstractmethod

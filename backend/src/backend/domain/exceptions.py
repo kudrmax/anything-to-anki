@@ -41,7 +41,7 @@ class KnownWordNotFoundError(DomainError):
 
 
 class SourceIsProcessingError(DomainError):
-    """Raised when trying to delete a source that is currently being processed."""
+    """Raised when trying to delete a source a long operation (processing, rebuild) holds."""
 
     def __init__(self, source_id: int) -> None:
         super().__init__(f"Source is currently being processed: {source_id}")
@@ -56,19 +56,21 @@ class SourceAlreadyProcessedError(DomainError):
         self.source_id = source_id
 
 
-class SourceNotReprocessableError(DomainError):
-    """Raised when trying to reprocess a source that is not in a reprocessable status."""
+class SourceOperationBusyError(DomainError):
+    """Raised when a source is held by another long operation (processing, rebuild)."""
 
-    def __init__(self, source_id: int) -> None:
-        super().__init__(f"Source cannot be reprocessed (wrong status): {source_id}")
+    def __init__(self, source_id: int, kind: str | None = None) -> None:
+        busy_with = f" ({kind})" if kind else ""
+        super().__init__(f"Source is busy with another operation{busy_with}: {source_id}")
         self.source_id = source_id
+        self.kind = kind
 
 
-class SourceHasActiveJobsError(DomainError):
-    """Raised when trying to reprocess a source that has active enrichment jobs."""
+class RebuildNotSupportedError(DomainError):
+    """Raised when rebuilding a source with no text of its own: a topic or saved phrases."""
 
     def __init__(self, source_id: int) -> None:
-        super().__init__(f"Source has active enrichment jobs: {source_id}")
+        super().__init__(f"Only a source with its own text can be rebuilt: {source_id}")
         self.source_id = source_id
 
 
@@ -277,10 +279,10 @@ class CandidateNotPolishedError(DomainError):
 
 
 class PermanentSourceError(DomainError):
-    """Raised when deleting or reprocessing a built-in source the app always keeps."""
+    """Raised when deleting a built-in source the app always keeps."""
 
     def __init__(self, source_id: int) -> None:
-        super().__init__(f"Built-in source can't be deleted or reprocessed: {source_id}")
+        super().__init__(f"Built-in source can't be deleted: {source_id}")
         self.source_id = source_id
 
 
