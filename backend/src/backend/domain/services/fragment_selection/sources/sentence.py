@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.domain.services.fragment_selection.candidate import Candidate
+from backend.domain.services.fragment_selection.utils import sentence_of
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -21,9 +22,6 @@ class SentenceSource:
         tokens: list[TokenData],
         target_index: int,
     ) -> Iterable[Candidate]:
-        sent_index = tokens[target_index].sent_index
-        indices = tuple(
-            sorted(t.index for t in tokens if t.sent_index == sent_index)
-        )
+        indices = tuple(t.index for t in sentence_of(tokens, target_index))
         if target_index in indices:
             yield Candidate(indices=indices, source_name=self.name)

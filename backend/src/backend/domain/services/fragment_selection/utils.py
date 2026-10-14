@@ -20,6 +20,19 @@ def count_content_words(
     )
 
 
+def sentence_of(tokens: list[TokenData], target_index: int) -> list[TokenData]:
+    """The tokens of the target's sentence. A sentence is a contiguous run of tokens,
+    so only the sentence is walked, never the whole text."""
+    sent_index = tokens[target_index].sent_index
+    start = target_index
+    while start > 0 and tokens[start - 1].sent_index == sent_index:
+        start -= 1
+    end = target_index
+    while end + 1 < len(tokens) and tokens[end + 1].sent_index == sent_index:
+        end += 1
+    return tokens[start:end + 1]
+
+
 def collect_subtree_in_sentence(
     tokens: list[TokenData], root_index: int, sent_index: int
 ) -> set[int]:

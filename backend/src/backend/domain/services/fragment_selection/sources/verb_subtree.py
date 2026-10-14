@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from backend.domain.services.fragment_selection.candidate import Candidate
 from backend.domain.services.fragment_selection.utils import (
     collect_subtree_in_sentence,
+    sentence_of,
 )
 
 if TYPE_CHECKING:
@@ -29,7 +30,7 @@ class VerbSubtreeSource:
         tokens: list[TokenData],
         target_index: int,
     ) -> Iterable[Candidate]:
-        for token in tokens:
+        for token in sentence_of(tokens, target_index):
             if token.pos != "VERB" or token.tag not in _VERB_TAGS:
                 continue
             subtree = collect_subtree_in_sentence(
