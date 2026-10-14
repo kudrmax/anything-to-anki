@@ -18,7 +18,6 @@ from backend.domain.value_objects.source_stage import STAGE_ORDER
 
 if TYPE_CHECKING:
     from backend.application.utils.candidate_sorter import CandidateSorter
-    from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.application.utils.topic_generation import TopicGenerationProbe
     from backend.domain.entities.source import Source
@@ -44,7 +43,6 @@ class GetSourcesUseCase:
         generation_probe: TopicGenerationProbe,
         report_repo: CardReportRepository,
         anki_sync_repo: AnkiSyncRepository,
-        review_status: ReviewStatusUpdater,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
@@ -54,7 +52,6 @@ class GetSourcesUseCase:
         self._generation_probe = generation_probe
         self._report_repo = report_repo
         self._anki_sync_repo = anki_sync_repo
-        self._review_status = review_status
 
     def list_all(self) -> list[SourceDTO]:
         tree = self._scope_resolver.tree()
@@ -81,8 +78,6 @@ class GetSourcesUseCase:
         assert source.id is not None
         candidates = self._candidate_repo.get_by_source(source.id)
         ready = self._candidate_sorter.arrange(candidates).ready()
-        # What the user knows changes which cards are ready, and with them the status.
-        status = self._review_status.settle(source, ready)
         generation = self._generation_probe.of(source)
         collection_id = source.collection_id
         collection_path = (
@@ -93,8 +88,8 @@ class GetSourcesUseCase:
         return SourceDTO(
             id=source.id,
             title=source.title or "",
-            status=status.value,
-            stage=stage_of(status, awaiting_generation=generation.awaiting).value,
+            status=source.status.value,
+            stage=stage_of(source.status, awaiting_generation=generation.awaiting).value,
             kind=source.kind.value if source.kind else None,
             role=source.role.value,
             has_video=source.has_video,

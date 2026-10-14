@@ -17,6 +17,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests.phrase_support import phrase
+
 
 @pytest.fixture()
 def client() -> Generator[TestClient, None, None]:
@@ -43,7 +45,7 @@ def client() -> Generator[TestClient, None, None]:
         StoredCandidate(
             source_id=source.id, lemma="pursuit", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,
-            context_fragment="the pursuit of",
+            source_phrase=phrase("the pursuit of", "pursuit"),
             occurrences=1, status=CandidateStatus.PENDING,
             phrase_position=DocumentPosition(0, 0, phrase_start, 0, phrase_start + 14),
         ),
@@ -211,7 +213,7 @@ class TestUnknownWordsAPI:
             "/candidates/1/report",
             json={
                 "reasons": ["More than one unknown word"],
-                "unknown_words": [{"start": 0, "end": 3}],
+                "unknown_words": [0],
             },
         )
         assert response.status_code == 201
@@ -221,13 +223,13 @@ class TestUnknownWordsAPI:
     def test_removing_the_unknown_word_returns_the_card_to_ready(
         self, client: TestClient,
     ) -> None:
-        client.post("/candidates/1/report", json={"unknown_words": [{"start": 0, "end": 3}]})
+        client.post("/candidates/1/report", json={"unknown_words": [0]})
         word = client.get("/unknown-words").json()[0]
         assert client.delete(f"/unknown-words/{word['id']}").status_code == 200
         assert self._card(client) == {"section": "ready", "ready": 1}
 
     def test_source_with_no_ready_cards_left_is_reviewed(self, client: TestClient) -> None:
-        client.post("/candidates/1/report", json={"unknown_words": [{"start": 0, "end": 3}]})
+        client.post("/candidates/1/report", json={"unknown_words": [0]})
         assert client.get("/sources/1").json()["status"] == "reviewed"
 
     def test_new_phrase_is_read_again(self, client: TestClient) -> None:

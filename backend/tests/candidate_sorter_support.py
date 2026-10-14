@@ -2,7 +2,7 @@
 
 Use cases take a ``CandidateSorter``; tests keep configuring sorting through
 the settings repository, with no word decisions unless they pass some. The user
-knows no words, and the cards' phrase words are taken as they are.
+knows no words and is at B1; frequent words follow the same threshold as sorting.
 """
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ from backend.application.utils.candidate_sorter import CandidateSorter
 from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
+from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.user_knowledge import UserKnowledge
 from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY
 
 if TYPE_CHECKING:
@@ -30,8 +32,9 @@ def threshold_resolver(
 
 
 def candidate_sorter(settings_repo: SettingsRepository) -> CandidateSorter:
-    vocabulary = MagicMock()
-    vocabulary.snapshot.return_value = EMPTY_VOCABULARY
-    return CandidateSorter(
-        settings_repo, threshold_resolver(settings_repo), vocabulary, MagicMock(),
+    resolver = threshold_resolver(settings_repo)
+    knowledge = MagicMock()
+    knowledge.current.side_effect = lambda: UserKnowledge(
+        EMPTY_VOCABULARY, CEFRLevel.B1, resolver.resolve().zipf,
     )
+    return CandidateSorter(settings_repo, resolver, knowledge)

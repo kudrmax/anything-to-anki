@@ -4,6 +4,8 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from backend.domain.value_objects.cefr_level import CEFRLevel
 
 TARGET_SEPARATOR = " "
@@ -61,6 +63,20 @@ class Phrase:
     def other_words(self) -> tuple[Word, ...]:
         target = set(self.target)
         return tuple(word for i, word in enumerate(self.words) if i not in target)
+
+    def runs(self, indices: Iterable[int]) -> list[tuple[int, int]]:
+        """Characters [start, end) of the given words; words with consecutive numbers make one
+        run, with whatever stands between them."""
+        runs: list[tuple[int, int]] = []
+        previous: int | None = None
+        for i in sorted(i for i in set(indices) if 0 <= i < len(self.words)):
+            word = self.words[i]
+            if previous is not None and i == previous + 1:
+                runs[-1] = (runs[-1][0], word.end)
+            else:
+                runs.append((word.start, word.end))
+            previous = i
+        return runs
 
     def with_target(self, target: tuple[int, ...]) -> Phrase:
         return replace(self, target=target)

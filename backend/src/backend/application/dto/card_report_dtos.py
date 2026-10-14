@@ -7,22 +7,15 @@ from pydantic import BaseModel, Field
 MAX_COMMENT_LENGTH = 1000
 
 
-class PhraseSpan(BaseModel):
-    """Characters [start, end) of the card's phrase."""
-
-    start: int = Field(ge=0)
-    end: int = Field(ge=0)
-
-
 class ReportCandidateRequest(BaseModel):
     """Input for complaining about a card: quick reasons, own words, or both.
 
-    `unknown_words` — the words of the phrase the user doesn't know, besides the target.
+    `unknown_words` — numbers of the words of the card's phrase the user doesn't know.
     """
 
     reasons: list[str] = Field(default_factory=list)
     comment: str = Field(default="", max_length=MAX_COMMENT_LENGTH)
-    unknown_words: list[PhraseSpan] = Field(default_factory=list)
+    unknown_words: list[int] = Field(default_factory=list)
 
 
 class ReportReasonDTO(BaseModel):

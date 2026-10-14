@@ -1,7 +1,6 @@
 import type { KeyboardEvent } from 'react'
 import type { StoredCandidate } from '@/api/types'
-import { highlightParts } from '@/lib/text/meaning'
-import { clozeParts } from './clozeParts'
+import { phraseParts } from '@/lib/text/phraseParts'
 import { ClozePhrase } from './ClozePhrase'
 import type { ClozeEditor } from './useClozeEditor'
 import type { PhraseEditor } from './usePhraseEditor'
@@ -52,15 +51,14 @@ export function CardPhrase({ candidate, editor, cloze }: CardPhraseProps) {
 
   if (cloze.active) {
     return cloze.preview && cloze.draft
-      ? <ClozePhrase preview={cloze.preview} hidden={cloze.draft.hidden_word_indices} onToggle={cloze.toggleWord} />
-      : <p className={css.phrase}>{candidate.phrase}</p>
+      ? <ClozePhrase phrase={candidate.phrase} hidden={cloze.draft.hidden_word_indices} onToggle={cloze.toggleWord} />
+      : <p className={css.phrase}>{candidate.phrase.text}</p>
   }
 
-  const parts = highlightParts(candidate.phrase, candidate.lemma, candidate.surface_form)
   if (candidate.cloze) {
     return (
       <p className={`${css.phrase} ${css.clozeSaved}`} title={candidate.can_cloze ? 'Click to change the hidden words' : undefined} onClick={candidate.can_cloze ? cloze.start : undefined}>
-        {clozeParts(parts, candidate.cloze.hidden_word_indices).map((part, i) => {
+        {phraseParts(candidate.phrase, new Set(candidate.cloze.hidden_word_indices)).map((part, i) => {
           if (part.hidden) return <span key={i} className={css.clozeGap}>{part.text}</span>
           return part.target ? <b key={i} className={`${phrase.target} ${phrase.targetCurrent}`}>{part.text}</b> : part.text
         })}
@@ -70,7 +68,7 @@ export function CardPhrase({ candidate, editor, cloze }: CardPhraseProps) {
 
   return (
     <p className={css.phrase} title="Double-click to edit" onDoubleClick={editor.start}>
-      {parts.map((part, i) =>
+      {phraseParts(candidate.phrase).map((part, i) =>
         part.target ? <b key={i} className={`${phrase.target} ${phrase.targetCurrent}`}>{part.text}</b> : part.text,
       )}
     </p>

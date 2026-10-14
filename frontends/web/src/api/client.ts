@@ -28,7 +28,6 @@ import type {
   GlobalExport,
   ImageSearchResult,
   KnownWord,
-  PhraseSpan,
   ReportReason,
   QueueActionResult,
   QueueSelection,
@@ -247,7 +246,7 @@ export const api = {
       body: JSON.stringify({ selection }),
     }),
 
-  reportCandidate: (candidateId: number, reasons: string[], comment: string, unknownWords: PhraseSpan[]) =>
+  reportCandidate: (candidateId: number, reasons: string[], comment: string, unknownWords: number[]) =>
     req<unknown>(`/candidates/${candidateId}/report`, {
       method: 'POST',
       body: JSON.stringify({ reasons, comment, unknown_words: unknownWords }),

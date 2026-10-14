@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.value_objects.document import Block, Line
+    from backend.domain.value_objects.document_position import DocumentPosition
 
 
 class GetSourceDocumentUseCase:
@@ -40,9 +41,9 @@ class GetSourceDocumentUseCase:
         layout = DocumentLayout(document)
         placed = sorted(
             (
-                (layout.span(c.target_position), c)
+                (span, c)
                 for c in self._candidate_repo.get_by_source(source_id)
-                if c.target_position is not None and c.id is not None
+                if c.id is not None and (span := _target_span(layout, c)) is not None
             ),
             key=lambda pair: (pair[0][0], -pair[0][1], pair[1].id or 0),
         )
@@ -51,18 +52,28 @@ class GetSourceDocumentUseCase:
         for (start, end), candidate in placed:
             if start < taken_until:
                 continue
-            highlights.append(_highlight(candidate))
+            highlights.append(_highlight(candidate, layout.position(start, end)))
             taken_until = end
         return SourceDocumentDTO(
             blocks=[_block(block) for block in document.blocks], highlights=highlights,
         )
 
 
-def _highlight(candidate: StoredCandidate) -> HighlightDTO:
-    assert candidate.id is not None and candidate.target_position is not None
+def _target_span(layout: DocumentLayout, candidate: StoredCandidate) -> tuple[int, int] | None:
+    """Where the target of the source phrase stands in the document text, first word to last."""
+    if candidate.phrase_position is None:
+        return None
+    start, _ = layout.span(candidate.phrase_position)
+    phrase = candidate.source_phrase
+    words = [phrase.words[i] for i in phrase.target]
+    return start + words[0].start, start + words[-1].end
+
+
+def _highlight(candidate: StoredCandidate, position: DocumentPosition) -> HighlightDTO:
+    assert candidate.id is not None
     return HighlightDTO(
         candidate_id=candidate.id,
-        position=DocumentPositionDTO.from_position(candidate.target_position),
+        position=DocumentPositionDTO.from_position(position),
         cefr_level=candidate.cefr_level,
         is_phrasal_verb=candidate.is_phrasal_verb,
     )

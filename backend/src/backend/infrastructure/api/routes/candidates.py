@@ -213,6 +213,8 @@ def replace_with_example(
         return result
     except CandidateNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except InvalidPhraseError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 

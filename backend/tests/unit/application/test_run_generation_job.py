@@ -10,6 +10,8 @@ from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.prompts_config import PromptsConfig
 
+from tests.phrase_support import phrase
+
 _CONFIG = PromptsConfig(
     generate_meaning_user_template='Word: "{lemma}" ({pos})\nContext: "{context}"',
     generate_meaning_system="SYSTEM PROMPT",
@@ -36,9 +38,8 @@ def _make_candidate(cid: int, lemma: str, *, with_meaning: bool = False) -> Stor
         id=cid,
         source_id=1,
         lemma=lemma,
-        surface_form=lemma,
         pos="VERB",
-        context_fragment=f"Could you {lemma} on that?",
+        source_phrase=phrase(f"Could you {lemma} on that?", lemma),
         status=CandidateStatus.PENDING,
         cefr_level=None,
         zipf_frequency=4.5,

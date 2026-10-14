@@ -14,13 +14,15 @@ from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.models import JobModel
+from backend.infrastructure.persistence.models import JobModel, dump_phrase
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.queue import job_worker
 from backend.infrastructure.queue.job_worker import NO_AI_RESULT_ERROR, JobWorker
 from backend.infrastructure.queue.tts_subprocess import process_tts_run
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
+
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterator
@@ -106,10 +108,10 @@ def factory(tmp_path: Path) -> Generator[sessionmaker[Session], None, None]:
         for cid in range(1, 10):
             session.execute(text(
                 "INSERT INTO candidates (id, source_id, lemma, pos, zipf_frequency,"
-                " is_sweet_spot, context_fragment, occurrences, status,"
-                " is_phrasal_verb, has_custom_context_fragment) VALUES (:id, :sid, 'word',"
-                " 'NOUN', 3.0, 0, 'ctx', 1, 'pending', 0, 0)"
-            ), {"id": cid, "sid": SOURCE_ID})
+                " is_sweet_spot, source_phrase, occurrences, status,"
+                " is_phrasal_verb) VALUES (:id, :sid, 'word',"
+                " 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
+            ), {"id": cid, "sid": SOURCE_ID, "phrase": dump_phrase(phrase("word"))})
         session.commit()
     yield session_factory
     engine.dispose()

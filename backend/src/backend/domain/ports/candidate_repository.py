@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.candidate_status import CandidateStatus
     from backend.domain.value_objects.document_position import DocumentPosition
-    from backend.domain.value_objects.phrase_words import PhraseWords
+    from backend.domain.value_objects.phrase import Phrase
 
 
 class CandidateRepository(ABC):
@@ -33,20 +33,17 @@ class CandidateRepository(ABC):
     def count_all(self) -> int: ...
 
     @abstractmethod
-    def update_phrase(
-        self, candidate_id: int, context_fragment: str, phrase_position: DocumentPosition,
+    def set_source_phrase(
+        self, candidate_id: int, phrase: Phrase, position: DocumentPosition,
     ) -> None:
-        """Set a new source phrase. Its polished version no longer applies and is dropped."""
+        """A new phrase from the source. Its polished version no longer applies and is dropped."""
 
     @abstractmethod
-    def set_polished_fragment(self, candidate_id: int, polished_fragment: str | None) -> None:
-        """Store AI's easier version of the phrase; None drops it. Clears a revert."""
+    def set_polished_phrase(self, candidate_id: int, phrase: Phrase | None) -> None:
+        """Store the rewritten phrase; None drops it. Clears a revert."""
 
     @abstractmethod
     def set_polish_reverted(self, candidate_id: int, reverted: bool) -> None: ...
-
-    @abstractmethod
-    def set_phrase_words(self, candidate_id: int, phrase_words: PhraseWords) -> None: ...
 
     @abstractmethod
     def get_by_ids(self, candidate_ids: list[int]) -> list[StoredCandidate]:

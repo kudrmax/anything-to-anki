@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.polish_phrases import PhrasePolishUseCase
+from backend.application.utils.rewrite_phrase import RewritePhrase
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.exceptions import TargetNotInPhraseError
+from backend.domain.services.phrase_building import target_by_lemma
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
@@ -14,6 +18,11 @@ from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.polished_phrase import PolishedPhrase
 from backend.domain.value_objects.prompts_config import PromptsConfig
 from backend.domain.value_objects.source_status import SourceStatus
+
+from tests.phrase_support import phrase
+
+if TYPE_CHECKING:
+    from backend.domain.value_objects.phrase import Phrase
 
 _CONFIG = PromptsConfig(
     generate_meaning_user_template="",
@@ -30,6 +39,20 @@ _TEXT = f"It rained. {_SOURCE_PHRASE}. Lillian was halfway down."
 _DOCUMENT = Document((Paragraph(lines=(Line(_TEXT),), mode=ParagraphMode.FLOW),))
 _PHRASE_START = _TEXT.index(_SOURCE_PHRASE)
 _PHRASE = DocumentPosition(0, 0, _PHRASE_START, 0, _PHRASE_START + len(_SOURCE_PHRASE))
+_LEMMAS = {"abandoned": "abandon"}
+
+
+def _read_for(text: str, lemma: str) -> Phrase:
+    found = phrase(text, lemma, lemmas=_LEMMAS)
+    if not target_by_lemma(found.words, text, lemma):
+        raise TargetNotInPhraseError()
+    return found
+
+
+def _polished(repo: MagicMock) -> list[tuple[int, str]]:
+    return [
+        (call.args[0], call.args[1].text) for call in repo.set_polished_phrase.call_args_list
+    ]
 
 
 def _candidate(
@@ -42,14 +65,13 @@ def _candidate(
         id=cid,
         source_id=9,
         lemma="abandon",
-        surface_form="abandoned",
         pos="VERB",
         cefr_level="B1",
         zipf_frequency=4.0,
-        context_fragment=_SOURCE_PHRASE,
+        source_phrase=phrase(_SOURCE_PHRASE, "abandoned"),
         occurrences=1,
         status=status,
-        polished_fragment=polished,
+        polished_phrase=phrase(polished, "abandoned") if polished is not None else None,
         phrase_position=_PHRASE,
     )
 
@@ -77,6 +99,8 @@ def _use_case(
     reset = MagicMock()
     document_repo = MagicMock()
     document_repo.get.return_value = _DOCUMENT
+    reader = MagicMock()
+    reader.read_for.side_effect = _read_for
     use_case = PhrasePolishUseCase(
         candidate_repo=candidate_repo,
         source_repo=source_repo,
@@ -85,6 +109,7 @@ def _use_case(
         enrichment_reset=reset,
         ai_service=ai_service,
         prompts_config=_CONFIG,
+        rewrite_phrase=RewritePhrase(candidate_repo, reader),
     )
     return use_case, candidate_repo, ai_service, reset
 
@@ -96,7 +121,7 @@ def test_stores_polished_phrase_and_drops_old_enrichments() -> None:
 
     use_case.execute_batch([1])
 
-    repo.set_polished_fragment.assert_called_once_with(1, easy)
+    assert _polished(repo) == [(1, easy)]
     reset.reset.assert_called_once_with(1)
 
 
@@ -121,7 +146,7 @@ def test_unchanged_answer_is_stored_without_dropping_enrichments() -> None:
 
     use_case.execute_batch([1])
 
-    repo.set_polished_fragment.assert_called_once_with(1, _SOURCE_PHRASE)
+    assert _polished(repo) == [(1, _SOURCE_PHRASE)]
     reset.reset.assert_not_called()
 
 
@@ -133,7 +158,7 @@ def test_answer_without_target_keeps_source_phrase() -> None:
 
     use_case.execute_batch([1])
 
-    repo.set_polished_fragment.assert_called_once_with(1, _SOURCE_PHRASE)
+    assert _polished(repo) == [(1, _SOURCE_PHRASE)]
     reset.reset.assert_not_called()
 
 
@@ -145,7 +170,7 @@ def test_answer_is_cleaned_of_bold_and_quotes() -> None:
 
     use_case.execute_batch([1])
 
-    repo.set_polished_fragment.assert_called_once_with(1, "People abandoned the barn.")
+    assert _polished(repo) == [(1, "People abandoned the barn.")]
 
 
 @pytest.mark.unit
@@ -158,7 +183,7 @@ def test_skips_decided_and_already_polished_cards() -> None:
     use_case.execute_batch([1, 2])
 
     ai.polish_phrases_batch.assert_not_called()
-    repo.set_polished_fragment.assert_not_called()
+    repo.set_polished_phrase.assert_not_called()
 
 
 @pytest.mark.unit
@@ -178,7 +203,7 @@ def test_cards_ai_did_not_answer_are_reported() -> None:
     )
 
     assert use_case.execute_batch([1, 2]) == [2]
-    repo.set_polished_fragment.assert_called_once_with(1, easy)
+    assert _polished(repo) == [(1, easy)]
 
 
 @pytest.mark.unit
@@ -189,5 +214,5 @@ def test_cards_no_longer_wanted_are_left_untouched() -> None:
     )
 
     assert use_case.execute_batch([1, 2], still_wanted=lambda ids: {1}) == []
-    repo.set_polished_fragment.assert_called_once_with(1, easy)
+    assert _polished(repo) == [(1, easy)]
     reset.reset.assert_called_once_with(1)

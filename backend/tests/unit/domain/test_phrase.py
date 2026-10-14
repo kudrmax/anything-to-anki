@@ -98,6 +98,11 @@ class TestTargetByLemma:
         words = words_of(text, _tokens(text, {"gave": "give"}))
         assert target_by_lemma(words, text, "give up") == (1, 3)
 
+    def test_finds_parts_out_of_order_when_not_in_order(self) -> None:
+        text = "in which well-being is built"
+        words = words_of(text, _tokens(text, {"built": "build"}))
+        assert target_by_lemma(words, text, "build in") == (0, 4)
+
     def test_missing_target_gives_nothing(self) -> None:
         text = "Nothing to see."
         words = words_of(text, _tokens(text))

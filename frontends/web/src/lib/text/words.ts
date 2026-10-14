@@ -1,15 +1,14 @@
-/** Слова фразы в том виде, в каком их показывает WordPicker. */
-export const phraseWords = (phrase: string): string[] => phrase.split(/\s+/).filter(Boolean)
+// Слово: буквы и цифры, с апострофами и дефисами внутри («don't», «well-known») — как у backend.
+const WORD = /(?:[\p{L}\p{N}]|['’-])+/gu
+const EDGE = /^['’-]+|['’-]+$/g
 
-/** Где во фразе стоят выбранные слова: символы [start, end). */
-export const pickedSpans = (phrase: string, selected: ReadonlySet<number>): { start: number; end: number }[] =>
-  [...phrase.matchAll(/\S+/g)]
-    .filter((_, i) => selected.has(i))
-    .map(match => ({ start: match.index, end: match.index + match[0].length }))
+/** Слова ещё не разобранного текста в том виде, в каком их показывает WordPicker. */
+export const phraseWords = (text: string): string[] =>
+  [...text.matchAll(WORD)].map(([word]) => word.replace(EDGE, '')).filter(Boolean)
 
-/** Выбранные слова по порядку фразы, через пробел. */
-export const pickedWords = (phrase: string, selected: ReadonlySet<number>): string =>
-  phraseWords(phrase).filter((_, i) => selected.has(i)).join(' ')
+/** Выбранные слова по порядку текста, через пробел. */
+export const pickedWords = (text: string, selected: ReadonlySet<number>): string =>
+  phraseWords(text).filter((_, i) => selected.has(i)).join(' ')
 
 /** Переключает индекс в наборе выбранных слов. */
 export const toggled = (selected: ReadonlySet<number>, index: number): Set<number> => {

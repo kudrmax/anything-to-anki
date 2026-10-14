@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.cefr_level import CEFRLevel
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.frequency_band import FrequencyBand
-    from backend.domain.value_objects.phrase_words import PhraseWords
+    from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.usage_distribution import UsageDistribution
 
 
@@ -21,12 +21,9 @@ class WordCandidate:
     cefr_level: CEFRLevel | None
     frequency_band: FrequencyBand
     zipf_frequency: float
-    context_fragment: str
-    phrase_words: PhraseWords
+    phrase: Phrase
     occurrences: int
     is_phrasal_verb: bool = False
-    surface_form: str | None = None  # Actual form in text, e.g. "gave up" for lemma "give up"
     cefr_breakdown: CEFRBreakdown | None = None
     usage_distribution: UsageDistribution | None = None
     phrase_position: DocumentPosition | None = None
-    target_position: DocumentPosition | None = None

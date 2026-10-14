@@ -1,6 +1,6 @@
 import type { StoredCandidate } from '@/api/types'
 import { computeDiff } from '@/lib/text/diff'
-import { highlightParts } from '@/lib/text/meaning'
+import { phraseParts } from '@/lib/text/phraseParts'
 import { Button } from '@/ui'
 import type { Review } from './useReview'
 import css from './review.module.css'
@@ -20,13 +20,13 @@ export function PolishComparison({ candidate, polished, review, onDone }: Polish
     <div className={css.polish}>
       <p className={css.polishLabel}>Original from the book</p>
       <p className={css.polishText}>
-        {highlightParts(candidate.context_fragment, candidate.lemma, candidate.surface_form).map((part, i) =>
+        {phraseParts(candidate.source_phrase).map((part, i) =>
           part.target ? <b key={i}>{part.text}</b> : part.text,
         )}
       </p>
       <p className={css.polishLabel}>Changes</p>
       <p className={css.polishText}>
-        {computeDiff(candidate.context_fragment, polished).map((segment, i) =>
+        {computeDiff(candidate.source_phrase.text, polished).map((segment, i) =>
           segment.type === 'same' ? segment.text
             : <span key={i} className={segment.type === 'added' ? css.added : css.removed}>{segment.text}</span>,
         )}

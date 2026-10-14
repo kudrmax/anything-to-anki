@@ -14,6 +14,7 @@ from backend.application.use_cases.download_pronunciation import (
 )
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from tests.phrase_support import phrase
 
 
 def _make_candidate(cid: int = 1, source_id: int = 10) -> StoredCandidate:
@@ -21,9 +22,8 @@ def _make_candidate(cid: int = 1, source_id: int = 10) -> StoredCandidate:
         id=cid,
         source_id=source_id,
         lemma="elaborate",
-        surface_form="elaborate",
         pos="VERB",
-        context_fragment="Could you elaborate on that?",
+        source_phrase=phrase("Could you elaborate on that?", "elaborate"),
         status=CandidateStatus.PENDING,
         cefr_level=None,
         zipf_frequency=4.5,

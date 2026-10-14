@@ -4,7 +4,7 @@ import { api } from '@/api/client'
 import type { DetectedFormat, Question } from '@/api/types'
 import { droppedPathsIn, nativeHost } from '@/lib/nativeHost'
 import { withDroppedPaths } from '@/lib/text/sourceInput'
-import { pickedWords, toggled } from '@/lib/text/words'
+import { phraseWords, pickedWords, toggled } from '@/lib/text/words'
 import { Button, Field, Segmented, Spinner, Stack, Text, TextArea, WordPicker } from '@/ui'
 import css from './AddSourceForm.module.css'
 import { PathField } from './PathField'
@@ -215,7 +215,7 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
             {mode === 'phrase' && (
               <Stack>
                 <Text tone="muted" size="s">{PHRASE_HINT}</Text>
-                <WordPicker phrase={input} selected={phraseTarget} onToggle={i => setPhraseTarget(prev => toggled(prev, i))} />
+                <WordPicker words={phraseWords(input)} selected={phraseTarget} onToggle={i => setPhraseTarget(prev => toggled(prev, i))} />
               </Stack>
             )}
             {error && <Text tone="err" size="s">{error}</Text>}

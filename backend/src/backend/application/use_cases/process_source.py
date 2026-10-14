@@ -136,16 +136,13 @@ class ProcessSourceUseCase:
                 pos=c.pos,
                 cefr_level=c.cefr_level,
                 zipf_frequency=c.zipf_frequency,
-                context_fragment=c.context_fragment,
-                phrase_words=c.phrase_words,
+                source_phrase=c.phrase,
                 occurrences=c.occurrences,
-                surface_form=c.surface_form,
                 is_phrasal_verb=c.is_phrasal_verb,
                 status=CandidateStatus.PENDING,
                 cefr_breakdown=bd,
                 usage_distribution=ud,
                 phrase_position=c.phrase_position.to_position() if c.phrase_position else None,
-                target_position=c.target_position.to_position() if c.target_position else None,
             ))
         created = self._candidate_repo.create_batch(stored)
 

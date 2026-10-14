@@ -9,12 +9,12 @@ export function usePhraseEditor(candidate: StoredCandidate, review: Review) {
 
   const start = () => {
     window.getSelection()?.removeAllRanges()
-    setDraft(candidate.phrase)
+    setDraft(candidate.phrase.text)
   }
 
   const save = async () => {
     if (draft === null || saving) return
-    if (draft.trim() === candidate.phrase.trim()) {
+    if (draft.trim() === candidate.phrase.text.trim()) {
       setDraft(null)
       return
     }

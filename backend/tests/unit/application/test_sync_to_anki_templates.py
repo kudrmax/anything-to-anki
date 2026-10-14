@@ -11,6 +11,7 @@ from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.export_group import ExportGroup
 
+from tests.phrase_support import phrase
 from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.vocabulary_support import user_vocabulary
 
@@ -49,8 +50,7 @@ class TestSyncToAnkiTemplates:
         candidate.id = 1
         candidate.status = CandidateStatus.LEARN
         candidate.lemma = "test"
-        candidate.surface_form = None
-        candidate.context_fragment = "This is a test"
+        candidate.phrase = phrase("This is a test", "test")
         candidate.meaning = MagicMock()
         candidate.meaning.meaning = "a trial"
         candidate.meaning.ipa = "/tɛst/"

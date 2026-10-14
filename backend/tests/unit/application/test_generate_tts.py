@@ -8,6 +8,8 @@ from backend.application.use_cases.generate_tts import ALL_VOICES, GenerateTTSUs
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
+from tests.phrase_support import phrase
+
 
 @pytest.fixture()
 def deps(tmp_path: Path) -> dict:
@@ -36,7 +38,7 @@ def _make_candidate(
         lemma="procrastinate",
         pos="VERB",
         status=CandidateStatus.LEARN,
-        context_fragment=context_fragment,
+        source_phrase=phrase(context_fragment, "procrastinate"),
         cefr_level=None,
         zipf_frequency=4.0,
         occurrences=1,
@@ -98,19 +100,6 @@ def test_generate_tts_skips_missing_candidate(deps: dict) -> None:
 
     use_case = GenerateTTSUseCase(**deps)
     use_case.execute_one(999)
-
-    deps["tts_generator"].generate_audio.assert_not_called()
-    deps["tts_repo"].upsert.assert_not_called()
-
-
-@pytest.mark.unit
-def test_execute_one_skips_empty_context_fragment(deps: dict) -> None:
-    """When context_fragment is empty string, skip TTS generation."""
-    candidate = _make_candidate(context_fragment="")
-    deps["candidate_repo"].get_by_id.return_value = candidate
-
-    use_case = GenerateTTSUseCase(**deps)
-    use_case.execute_one(1)
 
     deps["tts_generator"].generate_audio.assert_not_called()
     deps["tts_repo"].upsert.assert_not_called()

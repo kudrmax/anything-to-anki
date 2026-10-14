@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from backend.domain.value_objects.phrase import Phrase
 
 
 def strip_markdown(text: str) -> str:
@@ -12,6 +16,22 @@ def strip_markdown(text: str) -> str:
     return text
 
 
+
+
+def highlight_target(phrase: Phrase) -> str:
+    """The phrase for Anki: the target's words in <b>, the rest as written."""
+    out: list[str] = []
+    position = 0
+    for start, end in phrase.runs(phrase.target):
+        out.append(phrase.text[position:start])
+        out.append(f"<b>{phrase.text[start:end]}</b>")
+        position = end
+    out.append(phrase.text[position:])
+    return line_breaks("".join(out))
+
+
+def line_breaks(html: str) -> str:
+    return html.replace('\r\n', '<br>').replace('\n', '<br>')
 
 
 def highlight_all_forms(text: str, lemma: str, surface_form: str | None) -> str:
@@ -39,8 +59,7 @@ def highlight_all_forms(text: str, lemma: str, surface_form: str | None) -> str:
         patterns.append(r'\b' + re.escape(words[0]) + r'\w*' + rest + r'\b')
 
     combined = re.compile('(' + '|'.join(patterns) + ')', re.IGNORECASE)
-    result = combined.sub(r'<b>\1</b>', text)
-    return result.replace('\r\n', '<br>').replace('\n', '<br>')
+    return line_breaks(combined.sub(r'<b>\1</b>', text))
 
 
 def format_examples_as_list(html: str) -> str:

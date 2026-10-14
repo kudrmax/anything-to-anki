@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type SyntheticEvent } from 'react'
 import type { ImageOption, ImageProvider, StoredCandidate } from '@/api/types'
-import { highlightParts } from '@/lib/text/meaning'
+import { phraseParts } from '@/lib/text/phraseParts'
 import { Button, Empty, Field, Modal, Spinner } from '@/ui'
 import phrase from '@/ui/phrase.module.css'
 import type { Review } from './useReview'
@@ -64,7 +64,7 @@ export function ImagePicker({ candidate, review, onClose }: ImagePickerProps) {
   return (
     <Modal wide title={`Picture for “${candidate.lemma}”`} onClose={onClose} footer={<Button onClick={onClose}>Cancel</Button>}>
       <p className={phrase.context}>
-        {highlightParts(candidate.phrase, candidate.lemma, candidate.surface_form).map((part, i) =>
+        {phraseParts(candidate.phrase).map((part, i) =>
           part.target ? <b key={i} className={phrase.target}>{part.text}</b> : part.text,
         )}
       </p>

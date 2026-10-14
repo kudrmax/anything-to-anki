@@ -8,6 +8,8 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import CandidateNotFoundError, CandidateNotPolishedError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
+from tests.phrase_support import phrase
+
 
 def _candidate(polished: str | None, reverted: bool = False) -> StoredCandidate:
     return StoredCandidate(
@@ -17,10 +19,10 @@ def _candidate(polished: str | None, reverted: bool = False) -> StoredCandidate:
         pos="ADJ",
         cefr_level="B2",
         zipf_frequency=3.5,
-        context_fragment="The air around us was stale",
+        source_phrase=phrase("The air around us was stale", "stale"),
         occurrences=1,
         status=CandidateStatus.PENDING,
-        polished_fragment=polished,
+        polished_phrase=phrase(polished, "stale") if polished is not None else None,
         polish_reverted=reverted,
     )
 

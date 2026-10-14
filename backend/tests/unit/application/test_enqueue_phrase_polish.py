@@ -12,6 +12,8 @@ from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.phrase_support import phrase
+
 
 def _candidate(cid: int, status: CandidateStatus, polished: str | None = None) -> StoredCandidate:
     return StoredCandidate(
@@ -21,10 +23,10 @@ def _candidate(cid: int, status: CandidateStatus, polished: str | None = None) -
         pos="ADJ",
         cefr_level="B2",
         zipf_frequency=3.5,
-        context_fragment="The air was stale",
+        source_phrase=phrase("The air was stale", "stale"),
         occurrences=1,
         status=status,
-        polished_fragment=polished,
+        polished_phrase=phrase(polished, "stale") if polished is not None else None,
     )
 
 
@@ -62,5 +64,5 @@ def test_polish_again_drops_old_polish_and_queues_the_card() -> None:
 
     use_case.execute_one(4)
 
-    candidate_repo.set_polished_fragment.assert_called_once_with(4, None)
+    candidate_repo.set_polished_phrase.assert_called_once_with(4, None)
     assert [j.candidate_id for j in job_repo.enqueue.call_args.args[0]] == [4]

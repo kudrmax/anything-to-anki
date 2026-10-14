@@ -19,6 +19,8 @@ from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
+from tests.phrase_support import phrase
+
 pytestmark = pytest.mark.unit
 
 
@@ -45,8 +47,8 @@ def _candidate(
     ) if with_meaning else None
     return StoredCandidate(
         id=1, source_id=5, lemma="give up", pos="VERB", cefr_level="B1",
-        zipf_frequency=4.0, context_fragment=GIVE_UP,
-        occurrences=1, status=CandidateStatus.LEARN, surface_form="gave up",
+        zipf_frequency=4.0, source_phrase=phrase(GIVE_UP, "gave up"),
+        occurrences=1, status=CandidateStatus.LEARN,
         is_phrasal_verb=True, meaning=meaning, cloze=cloze,
     )
 
@@ -134,7 +136,7 @@ class TestPreviewCloze:
 
     def test_preview_echoes_the_card_phrase(self) -> None:
         self.candidate_repo.get_by_id.return_value = replace(
-            _candidate(), polished_fragment="She gave up smoking.",
+            _candidate(), polished_phrase=phrase("She gave up smoking.", "gave up"),
         )
         preview = self.use_case.execute(1, PreviewClozeRequest())
         assert preview.phrase == "She gave up smoking."

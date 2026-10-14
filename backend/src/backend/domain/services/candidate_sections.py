@@ -8,7 +8,7 @@ from backend.domain.value_objects.candidate_section import CandidateSection
 if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
-    from backend.domain.value_objects.vocabulary import Vocabulary
+    from backend.domain.value_objects.user_knowledge import UserKnowledge
 
 _JUNK_POS: frozenset[str] = frozenset({"INTJ"})
 _MISSING_FROM_DICTIONARY_ZIPF: float = 0.0
@@ -21,33 +21,25 @@ SECTION_ORDER: dict[CandidateSection, int] = {
 }
 
 
-def extra_words(candidate: StoredCandidate, vocabulary: Vocabulary) -> list[str]:
-    """Words of the phrase besides the target the user probably doesn't know.
-
-    A word is new when the user said so, or when it is rare and the user
-    didn't say they know it.
-    """
-    if candidate.phrase_words is None:
+def new_words(candidate: StoredCandidate, knowledge: UserKnowledge | None) -> list[str]:
+    """Words of the shown phrase besides the target that are new to the user, once each."""
+    if knowledge is None:
         return []
     found: list[str] = []
-    for word in candidate.phrase_words.words:
-        if word.lemma in found:
-            continue
-        if vocabulary.is_unknown(word.lemma) or (
-            word.rare and not vocabulary.is_known(word.lemma)
-        ):
+    for word in candidate.phrase.other_words():
+        if word.lemma not in found and knowledge.is_new(word):
             found.append(word.lemma)
     return found
 
 
 def section_of(
     candidate: StoredCandidate,
-    vocabulary: Vocabulary,
+    knowledge: UserKnowledge | None,
     frequent_threshold: FrequentWordThreshold | None,
 ) -> CandidateSection:
     if is_junk(candidate) or is_probably_known(candidate, frequent_threshold):
         return CandidateSection.PROBABLY_KNOWN
-    if extra_words(candidate, vocabulary):
+    if new_words(candidate, knowledge):
         return CandidateSection.EXTRA
     return CandidateSection.READY
 

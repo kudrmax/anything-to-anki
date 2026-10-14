@@ -3,7 +3,12 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from backend.application.utils.highlight import format_examples_as_list, highlight_all_forms
+from backend.application.utils.highlight import (
+    format_examples_as_list,
+    highlight_all_forms,
+    highlight_target,
+    line_breaks,
+)
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
 if TYPE_CHECKING:
@@ -86,7 +91,7 @@ class _CardContent:
     def _highlight(text: str | None, candidate: StoredCandidate) -> str:
         if not text:
             return ""
-        return highlight_all_forms(text, candidate.lemma, candidate.surface_form)
+        return highlight_all_forms(text, candidate.lemma, candidate.phrase.target_text())
 
 
 class RecognitionNoteBuilder:
@@ -99,9 +104,7 @@ class RecognitionNoteBuilder:
     def build(self, candidate: StoredCandidate) -> dict[str, str]:
         note: dict[str, str] = {}
         if self._fields.sentence:
-            note[self._fields.sentence] = highlight_all_forms(
-                candidate.card_phrase, candidate.lemma, candidate.surface_form,
-            )
+            note[self._fields.sentence] = highlight_target(candidate.phrase)
         self._content.fill(note, candidate)
         return note
 
@@ -119,15 +122,18 @@ class ClozeNoteBuilder:
 
     def build(self, candidate: StoredCandidate, cloze: CandidateCloze) -> dict[str, str]:
         indices = cloze.hidden_word_indices
-        hidden = self._builder.hidden_words(cloze.phrase, indices)
+        phrase = candidate.phrase
+        hidden = self._builder.hidden_words(phrase, indices)
         kind = cloze.hint_kind
         if kind not in self._builder.available_hints(candidate.meaning, hidden):
             kind = ClozeHintKind.NONE
         hints = self._builder.gap_hints(
-            kind, candidate.meaning, cloze.phrase, indices, cloze.custom_hint,
+            kind, candidate.meaning, phrase, indices, cloze.custom_hint,
         )
         note: dict[str, str] = {}
         if self._fields.sentence:
-            note[self._fields.sentence] = self._builder.cloze_text(cloze.phrase, indices, hints)
+            note[self._fields.sentence] = line_breaks(
+                self._builder.cloze_text(phrase, indices, hints),
+            )
         self._content.fill(note, candidate)
         return note

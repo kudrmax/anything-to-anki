@@ -10,12 +10,14 @@ from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import (
     CandidateTTSModel,
     StoredCandidateModel,
+    dump_phrase,
 )
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
 )
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -41,7 +43,7 @@ def _insert_candidate(session: Session, candidate_id: int, source_id: int = 1) -
         pos="NOUN",
         zipf_frequency=4.0,
         is_sweet_spot=True,
-        context_fragment="a test",
+        source_phrase=dump_phrase(phrase("a test", "test")),
         occurrences=1,
         status=CandidateStatus.LEARN.value,
     ))

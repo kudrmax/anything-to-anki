@@ -88,12 +88,12 @@ export function SourceText({ document, candidates, focusId, onWordClick, onTextS
   const markers = useMemo(() => listMarkers(document.blocks), [document])
   const ratedIds = useMemo(() => new Set(candidates.filter(c => c.status !== 'pending').map(c => c.id)), [candidates])
   const focused = candidates.find(c => c.id === focusId)
-  const fragment = focused && !focused.has_custom_context_fragment ? focused.phrase_position : null
+  const fragment = focused?.phrase_position ?? null
 
   // Держим слово текущей фразы в видимой части колонки.
   useEffect(() => {
     const container = containerRef.current
-    const mark = container && focusId !== null ? findMark(container, focusId, focused?.context_fragment ?? '') : null
+    const mark = container && focusId !== null ? findMark(container, focusId, focused?.source_phrase.text ?? '') : null
     if (!container || !mark) return
     // Останавливаемся на границе строки, чтобы верхняя видимая строка была целой.
     const lineHeight = parseFloat(getComputedStyle(container).lineHeight)

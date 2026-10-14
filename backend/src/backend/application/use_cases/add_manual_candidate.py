@@ -1,20 +1,16 @@
 from __future__ import annotations
 
-import re
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
 from backend.application.utils.candidate_factory import CandidateFactory
-from backend.domain.exceptions import (
-    InvalidPhraseError,
-    SourceHasNoDocumentError,
-    SourceNotFoundError,
-)
+from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundError
 from backend.domain.services.document_layout import DocumentLayout
 
 if TYPE_CHECKING:
     from backend.application.dto.candidate_dtos import SelectionDTO
+    from backend.application.utils.phrase_reader import PhraseReader
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.cefr_classifier import CEFRClassifier
@@ -42,6 +38,7 @@ class AddManualCandidateUseCase:
         frequency_provider: FrequencyProvider,
         phrasal_verb_detector: PhrasalVerbDetector,
         review_status: ReviewStatusUpdater,
+        phrase_reader: PhraseReader,
     ) -> None:
         self._source_repo = source_repo
         self._document_repo = document_repo
@@ -53,6 +50,7 @@ class AddManualCandidateUseCase:
             phrasal_verb_detector=phrasal_verb_detector,
         )
         self._review_status = review_status
+        self._phrase_reader = phrase_reader
 
     def execute(
         self,
@@ -68,31 +66,16 @@ class AddManualCandidateUseCase:
             raise SourceHasNoDocumentError(source_id)
         layout = DocumentLayout(document)
         phrase_position = layout.selected(selection.start, selection.end)
-        phrase_start, phrase_end = layout.span(phrase_position)
-        target = _words(surface_form).search(layout.text, phrase_start, phrase_end)
-        if target is None:
-            msg = f"{surface_form!r} is not in the selected phrase"
-            raise InvalidPhraseError(msg)
+        phrase = self._phrase_reader.read_for(layout.fragment(phrase_position), surface_form)
         occurrences = max(layout.text.lower().count(surface_form.lower()), 1)
 
-        candidate = self._candidate_factory.build(
-            source_id=source_id,
-            surface_form=surface_form,
-            context_fragment=layout.fragment(phrase_position),
-            occurrences=occurrences,
-        )
         candidate = replace(
-            candidate,
+            self._candidate_factory.build(
+                source_id=source_id, phrase=phrase, occurrences=occurrences,
+            ),
             phrase_position=phrase_position,
-            target_position=layout.position(target.start(), target.end()),
         )
         saved = self._candidate_repo.create_batch([candidate])[0]
         self._review_status.refresh(source_id)
         return stored_candidate_to_dto(saved)
 
-
-def _words(surface_form: str) -> re.Pattern[str]:
-    """The picked words, whatever whitespace stands between them in the document."""
-    return re.compile(
-        r"\s+".join(re.escape(word) for word in surface_form.split()), re.IGNORECASE,
-    )

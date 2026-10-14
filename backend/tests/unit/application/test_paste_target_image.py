@@ -13,6 +13,7 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import CandidateNotFoundError
 from backend.domain.ports.card_picture_encoder import CardPictureEncoder
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -31,7 +32,7 @@ def _candidate(
 ) -> StoredCandidate:
     return StoredCandidate(
         id=CANDIDATE_ID, source_id=SOURCE_ID, lemma="ladder", pos="NOUN", cefr_level="B1",
-        zipf_frequency=3.5, context_fragment="climb the ladder",
+        zipf_frequency=3.5, source_phrase=phrase("climb the ladder", "ladder"),
         occurrences=1, status=CandidateStatus.PENDING, media=media, meaning_image=meaning_image,
     )
 

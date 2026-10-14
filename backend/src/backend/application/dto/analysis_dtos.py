@@ -8,7 +8,7 @@ from backend.application.dto.cefr_dtos import CEFRBreakdownDTO
 from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.frequent_word_threshold import FALLBACK_ZIPF
-from backend.domain.value_objects.phrase_words import PhraseWords
+from backend.domain.value_objects.phrase import Phrase
 from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY, Vocabulary
 
 if TYPE_CHECKING:
@@ -42,15 +42,12 @@ class WordCandidateDTO(BaseModel):
     cefr_level: str | None
     zipf_frequency: float
     is_sweet_spot: bool
-    context_fragment: str
-    phrase_words: PhraseWords
+    phrase: Phrase
     occurrences: int
     is_phrasal_verb: bool = False
-    surface_form: str | None = None
     cefr_breakdown: CEFRBreakdownDTO | None = None
     usage_distribution: dict[str, float] | None = None
     phrase_position: DocumentPositionDTO | None = None
-    target_position: DocumentPositionDTO | None = None
 
 
 def dto_to_usage_distribution(

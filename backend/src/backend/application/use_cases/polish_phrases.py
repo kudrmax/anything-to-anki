@@ -5,11 +5,13 @@ import re
 from typing import TYPE_CHECKING
 
 from backend.application.utils.candidate_filter import CandidateFilter, keep_all
+from backend.domain.exceptions import TargetNotInPhraseError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.fragment_surroundings import FragmentSurroundings
 
 if TYPE_CHECKING:
     from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
+    from backend.application.utils.rewrite_phrase import RewritePhrase
     from backend.domain.entities.source import Source
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.ai_service import AIService
@@ -46,6 +48,7 @@ class PhrasePolishUseCase:
         enrichment_reset: PhraseEnrichmentReset,
         ai_service: AIService,
         prompts_config: PromptsConfig,
+        rewrite_phrase: RewritePhrase,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._source_repo = source_repo
@@ -54,6 +57,7 @@ class PhrasePolishUseCase:
         self._enrichment_reset = enrichment_reset
         self._ai_service = ai_service
         self._prompts_config = prompts_config
+        self._rewrite_phrase = rewrite_phrase
 
     def execute_batch(
         self,
@@ -63,7 +67,7 @@ class PhrasePolishUseCase:
         """Returns the wanted candidates AI gave no answer for."""
         waiting = [
             c for c in self._candidate_repo.get_by_ids(candidate_ids)
-            if c.id is not None and c.status in _ACTIVE_STATUSES and c.polished_fragment is None
+            if c.id is not None and c.status in _ACTIVE_STATUSES and c.polished_phrase is None
         ]
         if not waiting:
             logger.info("PhrasePolish batch: nothing left to polish")
@@ -99,9 +103,7 @@ class PhrasePolishUseCase:
             if answer is None:
                 unanswered.append(c.id)
                 continue
-            phrase = self._accepted_phrase(c, answer)
-            self._candidate_repo.set_polished_fragment(c.id, phrase)
-            if phrase != c.card_phrase:
+            if self._polish(c, answer) != c.phrase.text:
                 self._enrichment_reset.reset(c.id)
                 changed += 1
 
@@ -121,27 +123,28 @@ class PhrasePolishUseCase:
         around = FragmentSurroundings.around(
             document, candidate.phrase_position, POLISH_CONTEXT_CHARS,
         )
-        context = (
-            f"{around.before}{candidate.context_fragment}{around.after}"
-            if around else candidate.context_fragment
-        )
+        source = candidate.source_phrase
+        context = f"{around.before}{source.text}{around.after}" if around else source.text
         return self._prompts_config.polish_phrase_user_template.format(
             lemma=candidate.lemma,
             pos=candidate.pos,
-            surface_form=candidate.surface_form or candidate.lemma,
-            phrase=candidate.context_fragment,
+            surface_form=source.target_text(),
+            phrase=source.text,
             context=" ".join(context.split()),
         )
 
-    @staticmethod
-    def _accepted_phrase(candidate: StoredCandidate, answer: str) -> str:
-        phrase = " ".join(_BOLD_MARKERS.sub(r"\1", answer).split()).strip(_WRAPPING_QUOTES)
-        target = candidate.surface_form or candidate.lemma
-        if not phrase or target.lower() not in phrase.lower():
+    def _polish(self, candidate: StoredCandidate, answer: str) -> str:
+        """Stores AI's phrase and returns the text the card shows now. An answer that lost
+        the target is discarded: the source phrase stays, marked as polished."""
+        assert candidate.id is not None
+        text = " ".join(_BOLD_MARKERS.sub(r"\1", answer).split()).strip(_WRAPPING_QUOTES)
+        try:
+            return self._rewrite_phrase.execute(candidate, text).text
+        except TargetNotInPhraseError:
             logger.warning(
                 "PhrasePolish: answer lost the target, keeping the source phrase "
-                "(candidate=%s, target=%r, answer=%r)",
-                candidate.id, target, answer,
+                "(candidate=%s, lemma=%r, answer=%r)",
+                candidate.id, candidate.lemma, answer,
             )
-            return candidate.context_fragment
-        return phrase
+            self._candidate_repo.set_polished_phrase(candidate.id, candidate.source_phrase)
+            return candidate.source_phrase.text

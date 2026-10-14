@@ -37,7 +37,7 @@ class EnqueuePhrasePolishUseCase:
         if candidate is None or candidate.id is None:
             raise CandidateNotFoundError(candidate_id)
         self._polishable_source(candidate.source_id)
-        self._candidate_repo.set_polished_fragment(candidate.id, None)
+        self._candidate_repo.set_polished_phrase(candidate.id, None)
         self._queue(candidate.source_id, [candidate])
 
     def _polishable_source(self, source_id: int) -> Source:

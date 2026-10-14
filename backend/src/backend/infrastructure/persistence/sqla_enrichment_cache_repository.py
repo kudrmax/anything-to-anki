@@ -14,6 +14,7 @@ from backend.infrastructure.persistence.models import (
     CandidateTTSModel,
     EnrichmentCacheModel,
     StoredCandidateModel,
+    load_phrase,
 )
 
 if TYPE_CHECKING:
@@ -34,7 +35,7 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
                 StoredCandidateModel.source_id,
                 StoredCandidateModel.lemma,
                 StoredCandidateModel.pos,
-                StoredCandidateModel.context_fragment,
+                StoredCandidateModel.source_phrase,
                 # meaning
                 CandidateMeaningModel.meaning,
                 CandidateMeaningModel.translation,
@@ -87,7 +88,7 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
                 source_id=row.source_id,
                 lemma=row.lemma,
                 pos=row.pos,
-                context_fragment=row.context_fragment,
+                context_fragment=_phrase_text(row.source_phrase),
                 meaning=row.meaning,
                 translation=row.translation,
                 synonyms=row.synonyms,
@@ -125,9 +126,9 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
                 select(StoredCandidateModel).where(StoredCandidateModel.source_id == source_id)
             )
             if (
-                cache := cached.get(
-                    (candidate.lemma, candidate.pos, _spaced(candidate.context_fragment))
-                )
+                cache := cached.get((
+                    candidate.lemma, candidate.pos, _spaced(_phrase_text(candidate.source_phrase)),
+                ))
             )
             is not None
         ]
@@ -219,3 +220,10 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
 
 def _spaced(fragment: str) -> str:
     return " ".join(fragment.split())
+
+
+def _phrase_text(stored: str) -> str:
+    """The cache is keyed by the phrase as it stands in the source."""
+    phrase = load_phrase(stored)
+    assert phrase is not None
+    return phrase.text

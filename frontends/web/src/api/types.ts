@@ -220,6 +220,13 @@ export interface ClozePreview {
   can_save: boolean
 }
 
+/** Фраза карточки: текст как есть, слова — символы [start, end), target — номера слов. */
+export interface CardPhrase {
+  text: string
+  words: [number, number][]
+  target: number[]
+}
+
 /** Where a card stands in review: only the target is new, more words are new, or probably known. */
 export type CandidateSection = 'ready' | 'extra' | 'probably_known'
 
@@ -232,24 +239,21 @@ export interface StoredCandidate {
   is_sweet_spot: boolean
   /** На карточку уже жаловались. */
   reported: boolean
+  /** Фраза карточки: переписанная (AI или вручную), если её не откатили. */
+  phrase: CardPhrase
   /** Фраза как в источнике. */
-  context_fragment: string
-  /** Фраза карточки: упрощённая AI, если её не откатили. */
-  phrase: string
-  /** Упрощённая AI фраза — только если она отличается от фразы источника. */
-  polished_fragment: string | null
+  source_phrase: CardPhrase
+  /** Переписанная фраза — только если она отличается от фразы источника. */
+  polished_phrase: CardPhrase | null
   polish_reverted: boolean
   /** AI ещё работает над фразой. */
   polish_status: EnrichmentStatus | null
   section: CandidateSection | null
   occurrences: number
   status: CandidateStatus
-  surface_form: string | null
   is_phrasal_verb: boolean
-  has_custom_context_fragment: boolean
-  /** Где фраза и target стоят в документе источника; у замены примером их нет. */
+  /** Где фраза источника стоит в документе; у примера, темы и сохранённой фразы её нет. */
   phrase_position: DocumentPosition | null
-  target_position: DocumentPosition | null
   meaning: CandidateMeaning | null
   media: CandidateMedia | null
   /** Картинка-значение target'а: идёт на оборот карточки, кадр из видео — в media. */
@@ -394,12 +398,6 @@ export interface FrequentWordThresholdOption {
 export interface ReportReason {
   label: string
   picks_words: boolean
-}
-
-/** Characters [start, end) of a card's phrase. */
-export interface PhraseSpan {
-  start: number
-  end: number
 }
 
 export interface UnknownWord {

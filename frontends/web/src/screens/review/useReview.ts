@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { CandidateStatus, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, PhraseSpan, ReportReason, SaveClozeRequest, SourceDetail, SourceDocument, StoredCandidate } from '@/api/types'
+import type { CandidateStatus, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, SaveClozeRequest, SourceDetail, SourceDocument, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
@@ -299,7 +299,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   const startEditing = (candidateId: number) => {
     const candidate = candidates.find(c => c.id === candidateId)
     if (!candidate) return
-    setEditing({ candidateId, lemma: candidate.lemma, pos: candidate.pos, originalFragment: candidate.context_fragment })
+    setEditing({ candidateId, lemma: candidate.lemma, pos: candidate.pos, originalFragment: candidate.source_phrase.text })
   }
 
   const cancelEditing = useCallback(() => {
@@ -367,7 +367,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   }
 
   /** unknownWords — слова фразы карточки, которые пользователь не знает: карточки с ними уходят из Ready. */
-  const report = async (candidateId: number, reasons: string[], comment: string, unknownWords: PhraseSpan[] = []): Promise<boolean> => {
+  const report = async (candidateId: number, reasons: string[], comment: string, unknownWords: number[] = []): Promise<boolean> => {
     try {
       await api.reportCandidate(candidateId, reasons, comment, unknownWords)
       if (unknownWords.length > 0) await loadCandidates()

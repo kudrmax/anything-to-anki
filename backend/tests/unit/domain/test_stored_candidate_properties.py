@@ -5,6 +5,8 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.frequency_band import FrequencyBand
 
+from tests.phrase_support import phrase
+
 
 def _make(zipf: float) -> StoredCandidate:
     return StoredCandidate(
@@ -13,7 +15,7 @@ def _make(zipf: float) -> StoredCandidate:
         pos="NN",
         cefr_level="B1",
         zipf_frequency=zipf,
-        context_fragment="test context",
+        source_phrase=phrase("test context", "test"),
         occurrences=1,
         status=CandidateStatus.PENDING,
     )

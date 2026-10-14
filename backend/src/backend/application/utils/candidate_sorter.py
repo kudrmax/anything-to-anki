@@ -17,8 +17,7 @@ if TYPE_CHECKING:
     from backend.application.utils.frequent_word_threshold_resolver import (
         FrequentWordThresholdResolver,
     )
-    from backend.application.utils.phrase_words_reader import PhraseWordsReader
-    from backend.application.utils.user_vocabulary import UserVocabulary
+    from backend.application.utils.user_knowledge_reader import UserKnowledgeReader
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.settings_repository import SettingsRepository
 
@@ -48,21 +47,18 @@ class CandidateSorter:
         self,
         settings_repo: SettingsRepository,
         threshold_resolver: FrequentWordThresholdResolver,
-        vocabulary: UserVocabulary,
-        phrase_words_reader: PhraseWordsReader,
+        knowledge: UserKnowledgeReader,
     ) -> None:
         self._settings_repo = settings_repo
         self._threshold_resolver = threshold_resolver
-        self._vocabulary = vocabulary
-        self._phrase_words_reader = phrase_words_reader
+        self._knowledge = knowledge
 
     def arrange(
         self,
         candidates: list[StoredCandidate],
         order: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
     ) -> ArrangedCandidates:
-        self._phrase_words_reader.refresh(candidates)
-        vocabulary = self._vocabulary.snapshot()
+        knowledge = self._knowledge.current()
         threshold = self._threshold_resolver.resolve()
         if order == CandidateSortOrder.CHRONOLOGICAL:
             ordered = candidate_sorting.decided_last(
@@ -70,19 +66,19 @@ class CandidateSorter:
             )
         elif order == CandidateSortOrder.KEY_WORDS:
             ordered = candidate_sorting.sort_by_key_words(
-                candidates, frequent_threshold=threshold, vocabulary=vocabulary,
+                candidates, frequent_threshold=threshold, knowledge=knowledge,
             )
         else:
             ordered = candidate_sorting.sort_by_relevance(
                 candidates,
                 usage_order=self._usage_order(),
                 frequent_threshold=threshold,
-                vocabulary=vocabulary,
+                knowledge=knowledge,
             )
         return ArrangedCandidates(
             candidates=ordered,
             sections={
-                c.id: section_of(c, vocabulary, threshold)
+                c.id: section_of(c, knowledge, threshold)
                 for c in ordered if c.id is not None
             },
         )

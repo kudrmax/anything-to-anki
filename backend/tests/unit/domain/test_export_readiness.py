@@ -10,6 +10,8 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.missing_card_part import MissingCardPart
 
+from tests.phrase_support import phrase
+
 _NOW = datetime(2026, 10, 5, tzinfo=UTC)
 
 
@@ -25,7 +27,7 @@ def _candidate(
         pos="ADJ",
         cefr_level="B2",
         zipf_frequency=3.5,
-        context_fragment="Gordon was tense",
+        source_phrase=phrase("Gordon was tense", "tense"),
         occurrences=1,
         status=CandidateStatus.LEARN,
         meaning=CandidateMeaning(
@@ -63,7 +65,7 @@ class TestExportReadiness:
     def test_bare_candidate_misses_both(self) -> None:
         candidate = StoredCandidate(
             source_id=1, lemma="tense", pos="ADJ", cefr_level=None, zipf_frequency=3.5,
-            context_fragment="Gordon was tense", occurrences=1,
+            source_phrase=phrase("Gordon was tense", "tense"), occurrences=1,
             status=CandidateStatus.LEARN,
         )
         assert missing_parts(candidate) == [MissingCardPart.MEANING, MissingCardPart.AUDIO]

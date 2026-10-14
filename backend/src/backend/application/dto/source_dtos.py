@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.job import Job
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.candidate_section import CandidateSection
+    from backend.domain.value_objects.phrase import Phrase
 
 
 class UpdateTitleRequest(BaseModel):
@@ -117,6 +118,22 @@ class CandidateTTSDTO(BaseModel):
     generated_at: datetime | None = None
 
 
+class PhraseDTO(BaseModel):
+    """A card phrase: text, words by characters [start, end), the target by word numbers."""
+
+    text: str
+    words: list[tuple[int, int]]
+    target: list[int]
+
+    @staticmethod
+    def of(phrase: Phrase) -> PhraseDTO:
+        return PhraseDTO(
+            text=phrase.text,
+            words=[(word.start, word.end) for word in phrase.words],
+            target=list(phrase.target),
+        )
+
+
 class StoredCandidateDTO(BaseModel):
     """A persisted word candidate."""
 
@@ -128,21 +145,19 @@ class StoredCandidateDTO(BaseModel):
     is_sweet_spot: bool
     # The user has complained about this card at least once.
     reported: bool = False
+    # The phrase the card shows: polished by AI or by hand unless reverted.
+    phrase: PhraseDTO
     # The phrase as it stands in the source.
-    context_fragment: str
-    # The phrase the card shows: polished by AI unless reverted.
-    phrase: str
-    # AI's easier version, only when it differs from the source phrase.
-    polished_fragment: str | None = None
+    source_phrase: PhraseDTO
+    # The rewritten phrase (AI or by hand), only when it differs from the source one.
+    polished_phrase: PhraseDTO | None = None
     polish_reverted: bool = False
     polish_status: str | None = None  # 'queued' | 'running' | 'failed' while AI works on it
     # ready | extra | probably_known; None when the card was not arranged with its source
     section: str | None = None
     occurrences: int
     status: str
-    surface_form: str | None = None
     is_phrasal_verb: bool = False
-    has_custom_context_fragment: bool = False
     meaning: CandidateMeaningDTO | None = None
     media: CandidateMediaDTO | None = None
     meaning_image_path: str | None = None
@@ -155,9 +170,8 @@ class StoredCandidateDTO(BaseModel):
     cloze: CandidateClozeDTO | None = None
     # False once the card is in Anki: its note type can no longer change.
     can_cloze: bool = True
-    # Where the phrase and the target stand in the source's document; none for an example
+    # Where the source phrase stands in the source's document; none for an example
     phrase_position: DocumentPositionDTO | None = None
-    target_position: DocumentPositionDTO | None = None
 
 
 class SourceDetailDTO(BaseModel):
@@ -394,17 +408,17 @@ def stored_candidate_to_dto(
         zipf_frequency=c.zipf_frequency,
         is_sweet_spot=c.is_sweet_spot,
         reported=reported_ids is not None and c.id in reported_ids,
-        context_fragment=c.context_fragment,
-        phrase=c.card_phrase,
-        polished_fragment=c.polished_fragment if c.is_polished else None,
+        phrase=PhraseDTO.of(c.phrase),
+        source_phrase=PhraseDTO.of(c.source_phrase),
+        polished_phrase=(
+            PhraseDTO.of(c.polished_phrase) if c.polished_phrase and c.is_polished else None
+        ),
         polish_reverted=c.polish_reverted,
         polish_status=_polish_status(c, jobs_by_candidate),
         section=section.value if section is not None else None,
         occurrences=c.occurrences,
         status=c.status.value,
-        surface_form=c.surface_form,
         is_phrasal_verb=c.is_phrasal_verb,
-        has_custom_context_fragment=c.has_custom_context_fragment,
         meaning=meaning_dto,
         media=media_dto,
         meaning_image_path=c.meaning_image.image_path if c.meaning_image else None,
@@ -422,9 +436,6 @@ def stored_candidate_to_dto(
         can_cloze=synced_ids is None or c.id not in synced_ids,
         phrase_position=(
             DocumentPositionDTO.from_position(c.phrase_position) if c.phrase_position else None
-        ),
-        target_position=(
-            DocumentPositionDTO.from_position(c.target_position) if c.target_position else None
         ),
     )
 

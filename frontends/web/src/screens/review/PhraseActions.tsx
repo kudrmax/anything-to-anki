@@ -3,7 +3,8 @@ import { ArrowRight, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, M
 import type { CandidateStatus, FollowUpAction, StoredCandidate } from '@/api/types'
 import { decisionChange, learnConvertsCloze, type Decision } from '@/lib/decision'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
-import { pickedSpans, toggled } from '@/lib/text/words'
+import { phraseWordTexts } from '@/lib/text/phraseParts'
+import { toggled } from '@/lib/text/words'
 import { Button, Field, Icon, IconButton, Menu, Spinner, Text, WordPicker, type MenuItem, type MenuPage } from '@/ui'
 import { ImagePicker } from './ImagePicker'
 import { PolishComparison } from './PolishComparison'
@@ -125,7 +126,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
     setReasons(prev => (prev.includes(reason) ? prev.filter(r => r !== reason) : [...prev, reason]))
   // Причина, под которой отмечают незнакомые слова фразы: слова выбираются, только пока она выбрана.
   const picksWords = review.reportReasons.some(reason => reason.picks_words && reasons.includes(reason.label))
-  const pickedUnknown = picksWords ? pickedSpans(candidate.phrase, unknownWords) : []
+  const pickedUnknown = picksWords ? [...unknownWords].sort((a, b) => a - b) : []
   const canSend = reasons.length > 0 || complaint.trim().length > 0
   const sendReport = async (close: () => void) => {
     if (!canSend) return
@@ -148,7 +149,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
         {picksWords && (
           <>
             <Text tone="muted" size="s">{UNKNOWN_WORDS_HINT}</Text>
-            <WordPicker phrase={candidate.phrase} selected={unknownWords} onToggle={i => setUnknownWords(prev => toggled(prev, i))} />
+            <WordPicker words={phraseWordTexts(candidate.phrase)} selected={unknownWords} onToggle={i => setUnknownWords(prev => toggled(prev, i))} />
           </>
         )}
         <Field
@@ -195,7 +196,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
     ? { ...meaningItems[0], label: 'Meaning' }
     : { label: 'Meaning', hint: 'From scratch or a single part', icon: Sparkles, lead: busy.meaning ? <Spinner /> : undefined, items: meaningItems }
 
-  const polished = candidate.polished_fragment
+  const polished = candidate.polished_phrase?.text ?? null
   const polishEntry: MenuItem = polished && !polishing
     ? {
       label: 'Polish',

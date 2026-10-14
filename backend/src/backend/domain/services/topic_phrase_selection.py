@@ -10,13 +10,13 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from backend.domain.services.candidate_sections import extra_words
+from backend.domain.services.candidate_sections import new_words
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from backend.domain.entities.stored_candidate import StoredCandidate
-    from backend.domain.value_objects.vocabulary import Vocabulary
+    from backend.domain.value_objects.user_knowledge import UserKnowledge
 
 MIN_SENTENCE_WORDS = 4
 MAX_SENTENCE_WORDS = 30
@@ -59,12 +59,12 @@ def _word_count(text: str) -> int:
 
 def pick_best_candidate_phrase(
     candidates: Iterable[StoredCandidate],
-    vocabulary: Vocabulary,
+    knowledge: UserKnowledge,
 ) -> StoredCandidate | None:
     """Pick the phrase that is easiest to learn from: fewest new words, then shortest."""
     return min(
         candidates,
-        key=lambda c: (len(extra_words(c, vocabulary)), _word_count(c.context_fragment)),
+        key=lambda c: (len(new_words(c, knowledge)), len(c.phrase.words)),
         default=None,
     )
 

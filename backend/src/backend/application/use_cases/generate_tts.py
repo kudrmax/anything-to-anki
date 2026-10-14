@@ -53,7 +53,7 @@ class GenerateTTSUseCase:
             logger.warning("generate_tts: candidate %d not found", candidate_id)
             return
 
-        text = " ".join(candidate.card_phrase.split())
+        text = " ".join(candidate.phrase.text.split())
         if not text:
             logger.warning("generate_tts: candidate %d has no phrase", candidate_id)
             return

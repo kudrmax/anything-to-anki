@@ -80,7 +80,8 @@ def build_phrase(
 
 def target_by_lemma(words: Sequence[Word], text: str, lemma: str) -> tuple[int, ...]:
     """The first place the target stands in the words, by dictionary form or as written:
-    "give up" finds "gave … up". Nothing when it is not there."""
+    "give up" finds "gave … up"; its parts in another order only when not in order.
+    Nothing when it is not there."""
     wanted = lemma.lower().split(_LEMMA_SEPARATOR)
 
     def matches(index: int, part: str) -> bool:
@@ -100,4 +101,13 @@ def target_by_lemma(words: Sequence[Word], text: str, lemma: str) -> tuple[int, 
             found.append(following)
         if len(found) == len(wanted):
             return tuple(found)
-    return ()
+    # A particle may stand before its verb: "in which well-being is built" for "build in".
+    anywhere: list[int] = []
+    for part in wanted:
+        index = next(
+            (i for i in range(len(words)) if i not in anywhere and matches(i, part)), None,
+        )
+        if index is None:
+            return ()
+        anywhere.append(index)
+    return tuple(sorted(anywhere))

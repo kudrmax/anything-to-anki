@@ -18,6 +18,7 @@ if TYPE_CHECKING:
         PhrasalVerbDetector,
         PhrasalVerbMatch,
     )
+    from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.phrase_origin import PhraseOrigin
 
 FALLBACK_POS = "X"
@@ -59,12 +60,12 @@ class CandidateFactory:
     def build(
         self,
         source_id: int,
-        surface_form: str,
-        context_fragment: str,
+        phrase: Phrase,
         occurrences: int,
         origin: PhraseOrigin | None = None,
     ) -> StoredCandidate:
-        lexeme = self._resolve_lexeme(surface_form, context_fragment)
+        """The card for the phrase's target; what it is comes from the target as written."""
+        lexeme = self._resolve_lexeme(phrase.target_text(), phrase.text)
         breakdown = self._cefr_classifier.classify_detailed(lexeme.lemma, lexeme.tag)
         cefr = breakdown.final_level
         return StoredCandidate(
@@ -73,9 +74,8 @@ class CandidateFactory:
             pos=lexeme.pos,
             cefr_level=cefr.name if cefr != CEFRLevel.UNKNOWN else None,
             zipf_frequency=self._frequency_provider.get_zipf_value(lexeme.lemma),
-            context_fragment=context_fragment,
+            source_phrase=phrase,
             occurrences=occurrences,
-            surface_form=surface_form,
             is_phrasal_verb=lexeme.is_phrasal_verb,
             status=CandidateStatus.PENDING,
             cefr_breakdown=breakdown,

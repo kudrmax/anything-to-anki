@@ -5,23 +5,27 @@ from typing import TYPE_CHECKING
 import pytest
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.models import dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
+CTX = dump_phrase(phrase("ctx"))
 
 
 def _insert_candidate(session: Session, cid: int) -> None:
     session.execute(text(
         "INSERT INTO candidates (id, source_id, lemma, pos, "
-        "zipf_frequency, is_sweet_spot, context_fragment, "
-        "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-        f"VALUES ({cid}, 1, 'x', 'NOUN', 3.0, 0, 'ctx', 1, 'pending', 0, 0)"
-    ))
+        "zipf_frequency, is_sweet_spot, source_phrase, "
+        "occurrences, status, is_phrasal_verb) "
+        f"VALUES ({cid}, 1, 'x', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
+    ), {"phrase": CTX})
 
 
 @pytest.mark.integration
@@ -171,10 +175,10 @@ class TestSqlaCandidateMediaRepository:
             # Insert candidate with status='known' (not active)
             s.execute(text(
                 "INSERT INTO candidates (id, source_id, lemma, pos, "
-                "zipf_frequency, is_sweet_spot, context_fragment, "
-                "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (4, 1, 'z', 'NOUN', 3.0, 0, 'ctx', 1, 'known', 0, 0)"
-            ))
+                "zipf_frequency, is_sweet_spot, source_phrase, "
+                "occurrences, status, is_phrasal_verb) "
+                "VALUES (4, 1, 'z', 'NOUN', 3.0, 0, :phrase, 1, 'known', 0)"
+            ), {"phrase": CTX})
             s.commit()
             repo = SqlaCandidateMediaRepository(s)
             # candidate 4 has timecodes and no screenshot, but status=known -> NOT eligible

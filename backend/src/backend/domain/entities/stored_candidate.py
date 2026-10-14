@@ -14,8 +14,8 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.frequency_band import FrequencyBand
+    from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.phrase_origin import PhraseOrigin
-    from backend.domain.value_objects.phrase_words import PhraseWords
     from backend.domain.value_objects.usage_distribution import UsageDistribution
 
 @dataclass
@@ -30,21 +30,18 @@ class StoredCandidate:
     `origin` is set only when the phrase was borrowed from another source or
     generated — candidates of a topic source.
 
-    `phrase_words` are the words of the card's phrase besides the target, read
-    from the phrase it names; they tell which words of the phrase are new.
-
-    `context_fragment` is the phrase as it stands in the source. AI may polish
-    it into an easier `polished_fragment`, or the user may rewrite it there by
-    hand; the card shows the polished one unless the user reverted it.
+    `source_phrase` is the phrase as it stands in the source. AI may polish it
+    into an easier `polished_phrase`, or the user may rewrite it there by hand;
+    the card shows the polished one unless the user reverted it. A polished
+    phrase with the source's text means AI left it as is.
 
     `cloze` is the markup of the cloze card, if the user made one.
 
     `meaning_image` is a picture of the target the user picked; the video
     frame of the phrase is in `media`.
 
-    `phrase_position` and `target_position` place the phrase and the target in
-    the source's document. A phrase that isn't there (an example, a topic's
-    or a saved phrase) has none.
+    `phrase_position` places the source phrase in the source's document. A phrase
+    that isn't there (an example, a topic's or a saved phrase) has none.
     """
 
     source_id: int
@@ -52,12 +49,10 @@ class StoredCandidate:
     pos: str
     cefr_level: str | None
     zipf_frequency: float
-    context_fragment: str
+    source_phrase: Phrase
     occurrences: int
     status: CandidateStatus
-    surface_form: str | None = None
     is_phrasal_verb: bool = False
-    has_custom_context_fragment: bool = False
     meaning: CandidateMeaning | None = None
     media: CandidateMedia | None = None
     pronunciation: CandidatePronunciation | None = None
@@ -68,24 +63,22 @@ class StoredCandidate:
     cefr_breakdown: CEFRBreakdown | None = None
     usage_distribution: UsageDistribution | None = None
     origin: PhraseOrigin | None = None
-    phrase_words: PhraseWords | None = None
-    polished_fragment: str | None = None
+    polished_phrase: Phrase | None = None
     polish_reverted: bool = False
     phrase_position: DocumentPosition | None = None
-    target_position: DocumentPosition | None = None
 
     @property
     def is_polished(self) -> bool:
-        """AI rewrote the phrase. A phrase AI left as is does not count."""
-        polished = self.polished_fragment
-        return polished is not None and polished != self.context_fragment
+        """The phrase was rewritten. A phrase AI left as is does not count."""
+        polished = self.polished_phrase
+        return polished is not None and polished.text != self.source_phrase.text
 
     @property
-    def card_phrase(self) -> str:
+    def phrase(self) -> Phrase:
         """The phrase the card shows, speaks and exports."""
-        if self.polished_fragment is not None and not self.polish_reverted:
-            return self.polished_fragment
-        return self.context_fragment
+        if self.polished_phrase is not None and not self.polish_reverted:
+            return self.polished_phrase
+        return self.source_phrase
 
     @property
     def frequency_band(self) -> FrequencyBand:

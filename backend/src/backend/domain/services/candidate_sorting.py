@@ -9,16 +9,16 @@ from typing import TYPE_CHECKING
 
 from backend.domain.services.candidate_sections import (
     SECTION_ORDER,
-    extra_words,
     is_junk,
+    new_words,
     section_of,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY, Vocabulary
 
 if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
+    from backend.domain.value_objects.user_knowledge import UserKnowledge
 
 _CEFR_ORDER: dict[str | None, int] = {
     "A1": 1, "A2": 2,
@@ -49,7 +49,7 @@ def sort_by_relevance(
     candidates: list[StoredCandidate],
     usage_order: list[str] | None = None,
     frequent_threshold: FrequentWordThreshold | None = None,
-    vocabulary: Vocabulary = EMPTY_VOCABULARY,
+    knowledge: UserKnowledge | None = None,
 ) -> list[StoredCandidate]:
     """Sort candidates so the cards most worth learning come first.
 
@@ -66,8 +66,8 @@ def sort_by_relevance(
     return sorted(
         candidates,
         key=lambda c: (
-            *_section_key(c, vocabulary, frequent_threshold),
-            len(extra_words(c, vocabulary)),
+            *_section_key(c, knowledge, frequent_threshold),
+            len(new_words(c, knowledge)),
             c.is_phrasal_verb,
             -c.frequency_band.value,
             _usage_sort_key(c, usage_order),
@@ -80,7 +80,7 @@ def sort_by_relevance(
 def sort_by_key_words(
     candidates: list[StoredCandidate],
     frequent_threshold: FrequentWordThreshold | None = None,
-    vocabulary: Vocabulary = EMPTY_VOCABULARY,
+    knowledge: UserKnowledge | None = None,
 ) -> list[StoredCandidate]:
     """Sort candidates so the words this text leans on most come first.
 
@@ -95,20 +95,20 @@ def sort_by_key_words(
     return sorted(
         candidates,
         key=lambda c: (
-            *_section_key(c, vocabulary, frequent_threshold),
+            *_section_key(c, knowledge, frequent_threshold),
             -c.occurrences,
             c.zipf_frequency,
-            len(extra_words(c, vocabulary)),
+            len(new_words(c, knowledge)),
         ),
     )
 
 
 def _section_key(
     candidate: StoredCandidate,
-    vocabulary: Vocabulary,
+    knowledge: UserKnowledge | None,
     frequent_threshold: FrequentWordThreshold | None,
 ) -> tuple[int, bool, bool]:
-    section = section_of(candidate, vocabulary, frequent_threshold)
+    section = section_of(candidate, knowledge, frequent_threshold)
     return (
         SECTION_ORDER[section],
         candidate.status != CandidateStatus.PENDING,

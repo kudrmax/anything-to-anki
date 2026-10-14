@@ -33,6 +33,8 @@ from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.phrase_support import phrase
+
 if TYPE_CHECKING:
     from backend.application.dto.generation_dtos import GenerationKindStatusDTO
 
@@ -61,7 +63,7 @@ def _candidate(
         pos="ADJ",
         cefr_level="B2",
         zipf_frequency=3.5,
-        context_fragment="The air was stale",
+        source_phrase=phrase("The air was stale", "stale"),
         occurrences=1,
         status=status,
         meaning=_meaning(cid) if meaning else None,
@@ -173,12 +175,12 @@ class TestRunGeneration:
 
     def test_regenerating_phrases_drops_old_polish(self) -> None:
         candidate = _candidate(1)
-        candidate.polished_fragment = "The air was bad"
+        candidate.polished_phrase = phrase("The air was bad", "bad")
         setup = _Setup([candidate])
 
         setup.run.execute(SOURCE_ID, GenerationKind.POLISH, GenerationScope.ALL)
 
-        setup.candidate_repo.set_polished_fragment.assert_called_once_with(1, None)
+        setup.candidate_repo.set_polished_phrase.assert_called_once_with(1, None)
         assert setup.queued_ids() == [1]
 
     def test_nothing_to_queue_creates_no_jobs(self) -> None:

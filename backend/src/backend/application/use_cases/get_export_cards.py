@@ -4,7 +4,7 @@ from itertools import groupby
 from typing import TYPE_CHECKING
 
 from backend.application.dto.anki_dtos import CardPreviewDTO, ExportSectionDTO, GlobalExportDTO
-from backend.application.utils.highlight import highlight_all_forms
+from backend.application.utils.highlight import highlight_all_forms, highlight_target, line_breaks
 from backend.domain.services.export_readiness import missing_parts
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.source_scope import ScopeKind
@@ -97,9 +97,11 @@ class GetExportCardsUseCase:
 
         cloze = self._cloze_builder.effective(candidate)
         sentence = (
-            highlight_all_forms(candidate.card_phrase, candidate.lemma, candidate.surface_form)
+            highlight_target(candidate.phrase)
             if cloze is None
-            else self._cloze_builder.highlight_hidden(cloze.phrase, cloze.hidden_word_indices)
+            else line_breaks(
+                self._cloze_builder.highlight_hidden(candidate.phrase, cloze.hidden_word_indices),
+            )
         )
 
         return CardPreviewDTO(
@@ -107,7 +109,7 @@ class GetExportCardsUseCase:
             lemma=candidate.lemma,
             sentence=sentence,
             meaning=(
-                highlight_all_forms(meaning_text, candidate.lemma, candidate.surface_form)
+                highlight_all_forms(meaning_text, candidate.lemma, candidate.phrase.target_text())
                 if meaning_text is not None
                 else None
             ),

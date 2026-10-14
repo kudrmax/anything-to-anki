@@ -12,6 +12,7 @@ from backend.domain.exceptions import (
     PermanentMediaError,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from tests.phrase_support import phrase
 
 
 def _make_candidate(
@@ -33,7 +34,7 @@ def _make_candidate(
     return StoredCandidate(
         id=cid, source_id=1, lemma="test", pos="NOUN",
         cefr_level="B1", zipf_frequency=3.5,
-        context_fragment=fragment, occurrences=1,
+        source_phrase=phrase(fragment), occurrences=1,
         status=CandidateStatus.LEARN,
         media=media,
     )

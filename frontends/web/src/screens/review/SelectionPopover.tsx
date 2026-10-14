@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { computeDiff } from '@/lib/text/diff'
-import { pickedWords, toggled } from '@/lib/text/words'
+import { phraseWords, pickedWords, toggled } from '@/lib/text/words'
 import { Button, Text, Tooltip, WordPicker } from '@/ui'
 import type { SelectionPoint } from './SourceText'
 import type { Editing } from './useReview'
@@ -51,7 +51,7 @@ export function SelectionPopover({ phrase, point, editing, onSetBoundary, onAddW
         ) : (
           <>
             <Text tone="muted" size="s">Tap words to select target</Text>
-            <WordPicker phrase={phrase} selected={selected} onToggle={i => setSelected(prev => toggled(prev, i))} />
+            <WordPicker words={phraseWords(phrase)} selected={selected} onToggle={i => setSelected(prev => toggled(prev, i))} />
             {target && <Text tone="muted" size="s">Target: <Text tone="accent">{target}</Text></Text>}
           </>
         )}
