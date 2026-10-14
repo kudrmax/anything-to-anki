@@ -73,6 +73,8 @@
   --image-option-ratio: 4 / 3;
   --field-area: 128px;
   --prog: 3px;
+  --window-progress-h: 2px;
+  --window-progress-color: color-mix(in srgb, var(--ac) 70%, transparent);
   --progress-track: var(--soft);
   --measure: 64ch;
   --fact-label-w: 84px;
@@ -177,6 +179,7 @@
   --aside-pb: 0px;
   --page-content-order: 0;           /* 1 — боковая колонка встаёт над контентом */
   --reveal: 0;                       /* элементы, видимые по наведению */
+  --use-example-display: inline-block;
   --use-example-position: absolute;  /* «Use as phrase» встаёт поверх строки примера; на касании — после текста */
   --use-example-bg: color-mix(in srgb, var(--ac) 13%, var(--card));
   --kbd-display: inline;
@@ -203,6 +206,12 @@
   --card-right-mask: linear-gradient(black calc(100% - var(--s6)), transparent);   /* справка уходит под край — видно, что её можно прокрутить */
   --card-min-h: auto;
   --card-foot-order: 0;
+  --card-head-bw: var(--bw);
+  --card-foot-bw: var(--bw);
+  --details-toggle-order: 0;
+  --details-collapsed-display: flex;
+  --phrase-row-dir: row;
+  --phrase-row-gap: var(--s5);
   --current-card-order: 0;
   --main-pb: var(--s8);
   --fit-display: grid;
@@ -215,10 +224,14 @@
   --phone-display: none;
   --desktop-display: grid;
   --desktop-flex: flex;
+  --desktop-inline: inline;
   --header-px: calc(var(--px) + var(--sheet-pad));
   --header-meta-ml: 0px;
   --header-lead-display: flex;
-  --header-heading-basis: auto;
+  --header-heading-flex: 0 1 auto;
+  --header-compact-title-fs: var(--fs-h1);
+  --header-compact-title-ws: normal;
+  --immersive-nav-display: flex;
   --header-meta-order: 0;
   --header-tools-trim: 0px;
   --wide-head-mb: var(--s5h);
@@ -360,12 +373,18 @@
     --card-left-first-mt: var(--s5);
     --card-right-pt: var(--card-pad);
     --card-right-bw: 0px;
-    --card-right-order: 1;
+    --card-right-order: 2;
     --card-right-overflow: visible;
     --card-right-contain: none;
     --card-right-mask: none;
     --card-min-h: 0px;
-    --card-foot-order: 2;
+    --card-foot-order: 3;
+    --card-head-bw: 0px;
+    --card-foot-bw: 0px;
+    --details-toggle-order: 1;
+    --details-collapsed-display: none;
+    --phrase-row-dir: column;
+    --phrase-row-gap: var(--s3);
     --dock-align: stretch;
     --dock-bottom: 0px;
     --dock-mt: var(--s3);
@@ -385,11 +404,15 @@
     --sources-cols: minmax(0, 1fr);
     --desktop-display: none;
     --desktop-flex: none;
+    --desktop-inline: none;
     --header-px: 0px;
     --header-meta-ml: auto;
     --header-lead-display: contents;
-    --header-heading-basis: 100%;
-    --header-meta-order: 1;
+    --header-heading-flex: 1 1 0;
+    --header-compact-title-fs: var(--fs-l);
+    --header-compact-title-ws: nowrap;
+    --immersive-nav-display: none;
+    --header-meta-order: 0;
     --progress-inline-w: calc(var(--h) * 1.5);
     --header-tools-trim: var(--icon-inset-trim);
     --wide-head-mb: var(--s4);
@@ -432,6 +455,7 @@
   :root {
     --reveal: 1;
     --use-example-position: static;
+    --use-example-display: none;
     --kbd-display: none;
     --hint-display: none;
     --input-fs: max(16px, 1em);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { backIn } from '@/lib/backLink'
 import { decisionChange, learnConvertsCloze, type Decision } from '@/lib/decision'
@@ -6,17 +6,20 @@ import { allowedInClozeMarkup, reviewAction, type ReviewAction } from '@/lib/hot
 import { pastedPicture } from '@/lib/pastedPicture'
 import { phraseListShownPref, sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
-import { ChevronLeft, ChevronRight, FileText, List, ListChevronsDownUp, ListChevronsUpDown, PanelRightClose, PanelRightOpen, Upload } from 'lucide-react'
-import { Banner, Button, Empty, Icon, IconButton, Progress, Spinner, Toast } from '@/ui'
+import { ArrowDownWideNarrow, Ellipsis, FileText, List, ListChevronsDownUp, ListChevronsUpDown, PanelRightClose, PanelRightOpen, Sparkles, Upload } from 'lucide-react'
+import { Banner, Button, Empty, Icon, IconButton, Menu, Progress, Spinner, Toast, type MenuItem } from '@/ui'
 import { GenerateMenu } from './GenerateMenu'
+import { generationItems } from './generationItems'
 import { DecisionButtons } from './PhraseActions'
 import { PhraseCard } from './PhraseCard'
 import { PhraseRow } from './PhraseRow'
 import { SelectionPopover } from './SelectionPopover'
 import { SortMenu } from './SortMenu'
+import { sortItems, sortLabel } from './sortItems'
 import { SourceText, type SelectedText, type SelectionPoint } from './SourceText'
 import { audioUrlForCandidate, useReview } from './useReview'
 import { useShownCandidates } from './useShownCandidates'
+import { useSwipe } from './useSwipe'
 import { listItems, sectionToggleLabel, visibleCandidates, type ListItem } from './sections'
 import type { CandidateSection } from '@/api/types'
 import css from './review.module.css'
@@ -81,6 +84,11 @@ export function ReviewScreen() {
   const currentIndex = visible.findIndex(c => c.id === currentId)
   const prevId = visible[currentIndex - 1]?.id ?? null
   const nextId = currentIndex >= 0 ? visible[currentIndex + 1]?.id ?? null : null
+  // На телефоне фразы листают свайпом по карточке: влево — следующая, вправо — предыдущая.
+  const swipe = useSwipe(direction => {
+    const target = direction === 'left' ? nextId : prevId
+    if (target !== null) review.setCurrentId(target)
+  })
   const { loading } = review
   useEffect(() => {
     if (loading) return
@@ -135,10 +143,10 @@ export function ReviewScreen() {
   }, [current, pasteImage])
 
   if (review.loading) {
-    return <Page header={<PageHeader title="Review" back={sourcesPath} />}><Empty><Spinner /></Empty></Page>
+    return <Page immersive header={<PageHeader title="Review" back={sourcesPath} />}><Empty><Spinner /></Empty></Page>
   }
   if (!source) {
-    return <Page header={<PageHeader title="Review" back={sourcesPath} />}><Empty>Source not found.</Empty></Page>
+    return <Page immersive header={<PageHeader title="Review" back={sourcesPath} />}><Empty>Source not found.</Empty></Page>
   }
 
   const closeSelection = () => {
@@ -147,6 +155,9 @@ export function ReviewScreen() {
   }
 
   const hasSourceText = source.has_source_text
+
+  // Правка границ фразы идёт по тексту источника — на телефоне показываем его.
+  const view: PhoneView = editing ? 'text' : phoneView
 
   const showCard = (id: number) => {
     setCurrentId(id)
@@ -162,14 +173,14 @@ export function ReviewScreen() {
     </div>
   )
 
-  // Позиция и ‹ › — только на телефоне: там нет клавиатуры, чтобы листать фразы.
-  const stepper = (
-    <>
-      <span className={css.position}>{currentIndex + 1} / {visible.length}</span>
-      <IconButton icon={ChevronLeft} label="Previous phrase" disabled={prevId === null} onClick={() => prevId !== null && showCard(prevId)} />
-      <IconButton icon={ChevronRight} label="Next phrase" disabled={nextId === null} onClick={() => nextId !== null && showCard(nextId)} />
-    </>
-  )
+  const goToExport = () => navigate(`/sources/${sourceId}/export`)
+  // На телефоне всё редкое — в одном меню, чтобы шапка уместилась в строку.
+  const phoneMenu: MenuItem[] = [
+    { label: 'Export to Anki', icon: Upload, value: `${counts.learn}`, onSelect: goToExport },
+    ...(hasSourceText ? [{ label: view === 'text' ? 'Hide source text' : 'Source text', icon: FileText, separated: true, onSelect: () => togglePhoneView('text') }] : []),
+    { label: 'Sort', icon: ArrowDownWideNarrow, value: sortLabel(review.sortOrder), separated: !hasSourceText, items: sortItems(review.sortOrder, review.setSortOrder) },
+    { label: 'Generate', icon: Sparkles, items: generationItems(review) },
+  ]
 
   const header = (
     <PageHeader
@@ -178,38 +189,42 @@ export function ReviewScreen() {
       metaWithActions
       meta={counts.total > 0 && (
         <>
-          <Progress inline value={counts.progress} />
-          {counts.reviewed === counts.total ? DONE : `${counts.reviewed} / ${counts.total} decided`}
+          {/* Десктоп: прогресс — линия по нижнему краю вкладок, на всю ширину окна; видна краем глаза. */}
+          <span className={css.windowProgress} style={{ '--p': `${Math.round(counts.progress * 100)}%` } as CSSProperties} />
+          {counts.reviewed === counts.total ? DONE : `${counts.reviewed} / ${counts.total}`}
         </>
       )}
     >
-      <div className={css.headerTools}>
+      <div className={`${css.headerTools} ${css.desktopOnly}`}>
         {candidates.length > 0 && (
           <>
             <SortMenu value={review.sortOrder} onChange={review.setSortOrder} />
             <GenerateMenu review={review} />
+            <IconButton
+              icon={phraseListShown ? ListChevronsDownUp : ListChevronsUpDown}
+              label={phraseListShown ? 'Hide phrase list' : 'Show phrase list'}
+              onClick={togglePhraseList}
+            />
           </>
-        )}
-        {candidates.length > 0 && (
-          <IconButton
-            className={css.desktopOnly}
-            icon={phraseListShown ? ListChevronsDownUp : ListChevronsUpDown}
-            label={phraseListShown ? 'Hide phrase list' : 'Show phrase list'}
-            onClick={togglePhraseList}
-          />
         )}
         {hasSourceText && (
           <IconButton
-            className={css.desktopOnly}
             icon={sourceTextShown ? PanelRightOpen : PanelRightClose}
             label={sourceTextShown ? 'Hide source text' : 'Show source text'}
             onClick={toggleSourceText}
           />
         )}
       </div>
-      <Button className={css.export} title="Export cards to Anki" onClick={() => navigate(`/sources/${sourceId}/export`)}>
+      <Button className={`${css.export} ${css.desktopOnly}`} title="Export cards to Anki" onClick={goToExport}>
         <Icon as={Upload} size="s" />Export <span className={css.exportCount}>{counts.learn}</span>
       </Button>
+      {candidates.length > 0 && (
+        <div className={`${css.headerTools} ${css.phoneOnly}`}>
+          <IconButton icon={List} label="All phrases" active={view === 'list'} onClick={() => togglePhoneView('list')} />
+          <Menu items={phoneMenu} trigger={<IconButton icon={Ellipsis} label="More" />} />
+        </div>
+      )}
+      {counts.total > 0 && <div className={css.phoneProgress}><Progress value={counts.progress} /></div>}
     </PageHeader>
   )
 
@@ -219,9 +234,6 @@ export function ReviewScreen() {
       {editing && <Banner tone="warn" onDismiss={cancelEditing}>Select the new boundary for “{editing.lemma}” in the source text</Banner>}
     </>
   )
-
-  // Правка границ фразы идёт по тексту источника — на телефоне показываем его.
-  const view: PhoneView = editing ? 'text' : phoneView
 
   const sourceText = (onWordClick: (id: number) => void) => review.document && (
     <SourceText
@@ -238,16 +250,9 @@ export function ReviewScreen() {
   )
 
   return (
-    <Page fit wide header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={(review.vpnBlocked || editing) ? banner : undefined}>
+    <Page fit wide immersive header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={(review.vpnBlocked || editing) ? banner : undefined}>
       <div ref={listRef} className={phraseListShown ? css.body : `${css.body} ${css.focus}`}>
         {candidates.length === 0 && <Empty>No candidates found for this source.</Empty>}
-        {candidates.length > 0 && (
-          <div className={css.phoneBar}>
-            {hasSourceText && <IconButton className={css.phoneOnly} icon={FileText} label="Source text" active={view === 'text'} onClick={() => togglePhoneView('text')} />}
-            <IconButton className={css.phoneOnly} icon={List} label="All phrases" active={view === 'list'} onClick={() => togglePhoneView('list')} />
-            {stepper}
-          </div>
-        )}
         {view === 'text' && hasSourceText && <div className={css.textPanel}>{sourceText(showCard)}</div>}
         {view === 'list' && (
           <div className={css.listPanel}>
@@ -259,7 +264,7 @@ export function ReviewScreen() {
             )}
           </div>
         )}
-        <div className={view === 'card' ? css.queue : `${css.queue} ${css.away}`}>
+        <div className={view === 'card' ? css.queue : `${css.queue} ${css.away}`} {...swipe}>
           {items.map(item => {
             if (item.kind === 'section') return sectionToggle(item.section, item.count, item.open)
             const { candidate } = item
