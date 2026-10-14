@@ -27,7 +27,7 @@
 .visuals:empty { display: none; }
 .meaningImage { display: block; max-width: 100%; max-height: var(--thumb-h); width: auto; object-fit: contain; border-radius: var(--rc); }
 .context { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
-.examples { list-style: none; display: flex; flex-direction: column; gap: var(--s2); padding-left: var(--s5); border-left: var(--underline) solid var(--line); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
+.examples { list-style: none; display: flex; flex-direction: column; gap: var(--s3); font-size: var(--fs-m); line-height: var(--lh); color: var(--tx3); }
 .definition b, .context b, .examples b { font-weight: var(--fw-m); color: var(--tx); }
 .retold b { font-weight: var(--fw-m); }
 .retold .target { color: var(--ac); }
@@ -37,7 +37,7 @@
 .tools { display: flex; gap: var(--s1); margin-right: var(--icon-inset-trim); }
 
 /* решения: док у нижнего края окна, Learn залит всегда, принятое решение — с галочкой */
-.dock { position: sticky; bottom: var(--dock-bottom); z-index: 1; flex: none; align-self: var(--dock-align); display: flex; align-items: center; gap: var(--s3); margin-top: var(--dock-mt); padding: var(--dock-pad); border-radius: var(--r); background: var(--dock-bg); box-shadow: var(--dock-shadow); }
+.dock { position: sticky; bottom: var(--dock-bottom); z-index: 1; flex: none; align-self: var(--dock-align); display: flex; align-items: center; gap: var(--s3); margin: var(--dock-mt) 0 var(--dock-bottom); padding: var(--dock-pad); border-radius: var(--r); background: var(--dock-bg); box-shadow: var(--dock-shadow); }
 .decisions { flex: var(--decision-flex); display: flex; flex-wrap: nowrap; gap: var(--s3); }
 .decisions > button { flex: var(--decision-flex); justify-content: center; height: var(--decision-h); }
 .chosen { box-shadow: inset 0 0 0 var(--bw) var(--tx2); }
@@ -46,7 +46,8 @@
 /* очередь */
 /* без списка карточка занимает высоту окна и сжимается под неё; со списком окно прокручивается */
 .body { display: flex; flex-direction: column; flex: 1; min-height: 100%; }
-.focus .queue > .card { flex: 1 1 auto; }
+/* Отступы карточки отделяют её от строк списка; без списка строки скрыты, но в DOM остаются — :first-child не спасает. */
+.focus .queue > .card { flex: 1 1 auto; margin: 0; }
 .queue { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .queue > .queueItem, .queue > .sectionToggle { display: var(--queue-row-display); }
 .queue > .card { order: var(--current-card-order); margin: var(--wide-lead) 0; scroll-margin-bottom: var(--dock-reserve); }
@@ -114,9 +115,10 @@
 .reported, .reported:hover:not(:disabled) { color: var(--ac); }
 
 /* пример в карточке: при наведении его можно поставить вместо фразы */
-.example { display: flex; align-items: baseline; gap: var(--s3); }
-.example > span { flex: 1; min-width: 0; }
-.useExample { flex: none; padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--ac-wash); opacity: var(--reveal); transition: opacity var(--t); }
+/* текст примера — на всю ширину колонки, кнопка не отнимает у него места: встаёт поверх строки */
+.example { position: relative; padding-left: var(--s5); }
+.example::before { content: '·'; position: absolute; left: 0; font-weight: var(--fw-m); color: var(--tx3); }
+.useExample { position: var(--use-example-position); top: 0; right: 0; margin-left: var(--s3); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--use-example-bg); box-shadow: 0 0 var(--s3) var(--s2) var(--card); opacity: var(--reveal); transition: opacity var(--t); }
 .example:hover .useExample, .useExample:focus-visible { opacity: 1; }
 
 /* свой вопрос к AI */
