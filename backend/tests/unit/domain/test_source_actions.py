@@ -44,7 +44,9 @@ def test_a_free_source_can_be_deleted() -> None:
 def test_a_busy_or_built_in_source_cannot_be_deleted() -> None:
     assert not can_delete(Source(id=1, status=SourceStatus.NEW), SourceOperationKind.PROCESS)
     assert not can_delete(Source(id=1, status=SourceStatus.DONE), SourceOperationKind.REBUILD)
-    assert not can_delete(Source.saved_phrases(), None)
+    saved_phrases = Source.saved_phrases()
+    saved_phrases.id = 2
+    assert not can_delete(saved_phrases, None)
 
 
 @pytest.mark.parametrize(("status", "progress", "fraction"), [

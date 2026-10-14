@@ -5,11 +5,8 @@ import os
 import shutil
 from typing import TYPE_CHECKING
 
-from backend.domain.exceptions import (
-    PermanentSourceError,
-    SourceIsProcessingError,
-    SourceNotFoundError,
-)
+from backend.domain.exceptions import SourceNotFoundError
+from backend.domain.services.source_actions import ensure_deletable
 
 if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
@@ -38,10 +35,7 @@ class DeleteSourceUseCase:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
-        if source.is_permanent:
-            raise PermanentSourceError(source_id)
-        if self._lock.held(source_id) is not None:
-            raise SourceIsProcessingError(source_id)
+        ensure_deletable(source, self._lock.held(source_id))
 
         # Clean up media directory before removing DB rows.
         media_dir = os.path.join(self._media_root, str(source_id))

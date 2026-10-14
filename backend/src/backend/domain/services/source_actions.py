@@ -3,6 +3,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from backend.domain.exceptions import (
+    DomainError,
+    PermanentSourceError,
+    SourceIsProcessingError,
+)
 from backend.domain.services.source_review_status import REVIEWABLE_STATUSES
 from backend.domain.value_objects.source_status import SourceStatus
 
@@ -25,9 +30,21 @@ def can_export(status: SourceStatus) -> bool:
     return status in EXPORTABLE_STATUSES
 
 
-def can_delete(source: Source, busy_with: SourceOperationKind | None) -> bool:
+def ensure_deletable(source: Source, busy_with: SourceOperationKind | None) -> None:
     """A built-in source stays; no source goes while an operation holds it."""
-    return not source.is_permanent and busy_with is None
+    assert source.id is not None
+    if source.is_permanent:
+        raise PermanentSourceError(source.id)
+    if busy_with is not None:
+        raise SourceIsProcessingError(source.id)
+
+
+def can_delete(source: Source, busy_with: SourceOperationKind | None) -> bool:
+    try:
+        ensure_deletable(source, busy_with)
+    except DomainError:
+        return False
+    return True
 
 
 def review_fraction(status: SourceStatus, progress: DecisionProgress) -> float:

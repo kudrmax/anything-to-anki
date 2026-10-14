@@ -36,6 +36,16 @@ class ExportCard:
     phrase: Occurrence
 
     @property
+    def word_id(self) -> int:
+        assert self.word.id is not None
+        return self.word.id
+
+    @property
+    def phrase_id(self) -> int:
+        assert self.phrase.id is not None
+        return self.phrase.id
+
+    @property
     def is_cloze(self) -> bool:
         return self.phrase.decision_kind is DecisionKind.CLOZE
 

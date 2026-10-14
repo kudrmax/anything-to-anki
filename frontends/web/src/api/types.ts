@@ -106,8 +106,6 @@ export interface SourceSummary {
   awaiting_generation: boolean
   generation_status: GenerationStatus | null
   generation_error: string | null
-  /** Встроенный источник: его нельзя удалить и переобработать. */
-  is_permanent: boolean
   /** Как привести источник в актуальное состояние; решает backend. */
   available_operation: 'rebuild' | 'refresh' | null
   /** Операция, которой занят источник; другую сейчас не начать. */

@@ -237,7 +237,7 @@ class SyncToAnkiUseCase:
     def _mark_exported(self, card: ExportCard, note_id: int) -> None:
         """The word is now learned in Anki: Known only once its note matures."""
         word = card.word
-        self._anki_sync_repo.mark_synced(word.id, note_id, card.phrase.id)  # type: ignore[arg-type]
+        self._anki_sync_repo.mark_synced(card.word_id, note_id, card.phrase_id)
         self._anki_notes.add(note_id, word.lemma, word.pos)
 
     def _setting(self, key: str, default: str) -> str:
