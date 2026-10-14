@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.utils.review_cards import ReviewCards
+from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.candidate_sorting import sort_by_relevance, sort_chronologically
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document_position import DocumentPosition
@@ -18,7 +19,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 )
 
 from tests.phrase_support import phrase
-from tests.word_support import SeedWord, store_cards
+from tests.word_support import CardSeed, store_cards
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.review_card import ReviewCard
@@ -38,21 +39,23 @@ def _make_candidate(
     context_fragment: str = "",
     unknowns: int = 0,
     position: DocumentPosition | None = None,
-) -> SeedWord:
+) -> CardSeed:
     strange = [f"strange{i}" for i in range(unknowns)]
-    return SeedWord(
-        source_id=source_id,
-        phrase_position=position,
-        lemma=lemma,
-        pos="NN",
-        cefr_level=cefr,
-        zipf_frequency=zipf,
-        source_phrase=phrase(
+    return CardSeed(
+        StoredCandidate(
+            source_id=source_id,
+            lemma=lemma,
+            pos="NN",
+            cefr_level=cefr,
+            zipf_frequency=zipf,
+            occurrences=occurrences,
+            status=WordStatus.PENDING,
+            is_phrasal_verb=is_phrasal_verb,
+        ),
+        phrase(
             " ".join([context_fragment or f"context for {lemma}", *strange]), lemma, new=strange,
         ),
-        occurrences=occurrences,
-        status=WordStatus.PENDING,
-        is_phrasal_verb=is_phrasal_verb,
+        position=position,
     )
 
 
@@ -86,7 +89,7 @@ class TestSortingWithDb:
             "common_word", "mid_regular", "rare_word", "mid_phrasal", "dirty_word",
         ]
         dirty = sorted_candidates[-1]
-        assert dirty.phrase == _make_candidate(1, "dirty_word", 4.0, unknowns=2).source_phrase
+        assert dirty.phrase == _make_candidate(1, "dirty_word", 4.0, unknowns=2).text
 
     def test_chronological_sort_after_db_roundtrip(self, db_session: Session) -> None:
         store_cards(db_session, [

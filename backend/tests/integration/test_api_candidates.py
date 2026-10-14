@@ -4,6 +4,7 @@ from collections.abc import Generator  # noqa: TC003
 
 import pytest
 from backend.domain.entities.occurrence import Occurrence
+from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
@@ -24,7 +25,10 @@ from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
-from tests.word_support import SeedWord, store_cards
+from tests.word_support import PHRASE_ID_OFFSET, CardSeed, store_cards
+
+WORD_ID = 1
+PHRASE_ID = PHRASE_ID_OFFSET + 1
 
 
 @pytest.fixture()
@@ -48,12 +52,18 @@ def client() -> Generator[TestClient, None, None]:
     )
     phrase_start = text.index("the pursuit of")
     store_cards(session, [
-        SeedWord(
-            source_id=source.id, lemma="pursuit", pos="NOUN",
-            cefr_level="B2", zipf_frequency=3.5,
-            source_phrase=phrase("the pursuit of", "pursuit"),
-            occurrences=1, status=WordStatus.PENDING,
-            phrase_position=DocumentPosition(0, 0, phrase_start, 0, phrase_start + 14),
+        CardSeed(
+            StoredCandidate(
+                source_id=source.id,
+                lemma="pursuit",
+                pos="NOUN",
+                cefr_level="B2",
+                zipf_frequency=3.5,
+                occurrences=1,
+                status=WordStatus.PENDING,
+            ),
+            phrase("the pursuit of", "pursuit"),
+            position=DocumentPosition(0, 0, phrase_start, 0, phrase_start + 14),
         ),
     ])
     session.commit()
@@ -79,12 +89,12 @@ def client() -> Generator[TestClient, None, None]:
 @pytest.mark.integration
 class TestDecisionAPI:
     def test_mark_candidate_learn(self, client: TestClient) -> None:
-        response = client.put("/phrases/1/decision", json={"status": "learn"})
+        response = client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "learn"})
         assert response.status_code == 200
         assert response.json()["status"] == "learn"
 
     def test_mark_candidate_known(self, client: TestClient) -> None:
-        response = client.put("/phrases/1/decision", json={"status": "known"})
+        response = client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "known"})
         assert response.status_code == 200
         # Verify it was added to known words
         kw_response = client.get("/known-words")
@@ -94,22 +104,22 @@ class TestDecisionAPI:
         self, client: TestClient,
     ) -> None:
         assert client.get("/sources/1").json()["status"] == "done"
-        client.put("/phrases/1/decision", json={"status": "learn"})
+        client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "learn"})
         assert client.get("/sources/1").json()["status"] == "reviewed"
 
     def test_undo_returns_the_candidate_and_the_source_to_review(
         self, client: TestClient,
     ) -> None:
-        client.put("/phrases/1/decision", json={"status": "learn"})
-        response = client.put("/phrases/1/decision", json={"status": "pending"})
+        client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "learn"})
+        response = client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "pending"})
         assert response.status_code == 200
         assert client.get("/sources/1").json()["status"] == "partially_reviewed"
 
     def test_undoing_known_removes_the_word_from_known_words(
         self, client: TestClient,
     ) -> None:
-        client.put("/phrases/1/decision", json={"status": "known"})
-        client.put("/phrases/1/decision", json={"status": "pending"})
+        client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "known"})
+        client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "pending"})
         assert all(w["lemma"] != "pursuit" for w in client.get("/known-words").json())
 
     def test_mark_candidate_not_found(self, client: TestClient) -> None:
@@ -119,12 +129,12 @@ class TestDecisionAPI:
     def test_a_decision_on_a_sibling_card_is_refused(self, client: TestClient) -> None:
         session = next(app.dependency_overrides[get_db_session]())
         sibling = SqlaOccurrenceRepository(session).add(Occurrence(
-            candidate_id=1, origin=OccurrenceOrigin.MANUAL,
+            candidate_id=WORD_ID, origin=OccurrenceOrigin.MANUAL,
             source_phrase=phrase("the pursuit of", "pursuit"), phrase_position=None,
             key=None, fragment_score=None, shown_by=ShownBy.USER,
         ))
         session.commit()
-        client.put("/phrases/1/decision", json={"status": "learn"})
+        client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "learn"})
 
         response = client.put(f"/phrases/{sibling.id}/decision", json={"status": "known"})
 
@@ -136,13 +146,13 @@ class TestDecisionAPI:
         SqlaKnownWordRepository(session).add("pursuit", "NOUN")
         session.commit()
 
-        response = client.put("/phrases/1/decision", json={"status": "learn"})
+        response = client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "learn"})
 
         assert response.status_code == 409
         assert response.json()["detail"] == "Already known"
 
     def test_mark_candidate_invalid_status(self, client: TestClient) -> None:
-        response = client.put("/phrases/1/decision", json={"status": "invalid"})
+        response = client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "invalid"})
         assert response.status_code == 422
 
 
@@ -150,7 +160,7 @@ class TestDecisionAPI:
 class TestCardReportsAPI:
     def test_report_keeps_a_snapshot_of_the_card(self, client: TestClient) -> None:
         response = client.post(
-            "/phrases/1/report",
+            f"/phrases/{PHRASE_ID}/report",
             json={"reasons": ["Phrase too long"], "comment": " odd split "},
         )
         assert response.status_code == 201
@@ -164,28 +174,30 @@ class TestCardReportsAPI:
 
     def test_report_keeps_several_reasons(self, client: TestClient) -> None:
         reasons = ["Phrase too long", "Wrong word form"]
-        response = client.post("/phrases/1/report", json={"reasons": reasons})
+        response = client.post(f"/phrases/{PHRASE_ID}/report", json={"reasons": reasons})
         assert response.status_code == 201
         assert response.json()["reasons"] == reasons
         assert response.json()["comment"] == ""
 
     def test_reports_are_listed_newest_first(self, client: TestClient) -> None:
-        client.post("/phrases/1/report", json={"comment": "first"})
-        client.post("/phrases/1/report", json={"comment": "second"})
+        client.post(f"/phrases/{PHRASE_ID}/report", json={"comment": "first"})
+        client.post(f"/phrases/{PHRASE_ID}/report", json={"comment": "second"})
         comments = [r["comment"] for r in client.get("/api/card-reports").json()]
         assert comments == ["second", "first"]
 
     def test_report_outlives_the_source(self, client: TestClient) -> None:
-        client.post("/phrases/1/report", json={"reasons": ["Wrong phrase boundary"]})
+        client.post(f"/phrases/{PHRASE_ID}/report", json={"reasons": ["Wrong phrase boundary"]})
         client.delete("/sources/1")
         assert len(client.get("/api/card-reports").json()) == 1
 
     def test_report_without_reasons_or_comment_is_rejected(self, client: TestClient) -> None:
-        response = client.post("/phrases/1/report", json={"reasons": [], "comment": "   "})
+        response = client.post(
+            f"/phrases/{PHRASE_ID}/report", json={"reasons": [], "comment": "   "},
+        )
         assert response.status_code == 422
 
     def test_unknown_reason_is_rejected(self, client: TestClient) -> None:
-        response = client.post("/phrases/1/report", json={"reasons": ["Made up"]})
+        response = client.post(f"/phrases/{PHRASE_ID}/report", json={"reasons": ["Made up"]})
         assert response.status_code == 422
 
     def test_unknown_candidate(self, client: TestClient) -> None:
@@ -194,10 +206,10 @@ class TestCardReportsAPI:
     def test_reported_candidate_is_marked(self, client: TestClient) -> None:
         def reported() -> bool:
             candidates = client.get("/sources/1/candidates").json()
-            return next(c for c in candidates if c["phrase_id"] == 1)["reported"]
+            return next(c for c in candidates if c["phrase_id"] == PHRASE_ID)["reported"]
 
         assert reported() is False
-        client.post("/phrases/1/report", json={"comment": "x"})
+        client.post(f"/phrases/{PHRASE_ID}/report", json={"comment": "x"})
         assert reported() is True
 
     def test_reasons(self, client: TestClient) -> None:
@@ -242,7 +254,7 @@ class TestUnknownWordsAPI:
 
     def test_word_marked_in_a_report_moves_the_card_to_extra(self, client: TestClient) -> None:
         response = client.post(
-            "/phrases/1/report",
+            f"/phrases/{PHRASE_ID}/report",
             json={
                 "reasons": ["More than one unknown word"],
                 "unknown_words": [0],
@@ -255,17 +267,17 @@ class TestUnknownWordsAPI:
     def test_removing_the_unknown_word_returns_the_card_to_ready(
         self, client: TestClient,
     ) -> None:
-        client.post("/phrases/1/report", json={"unknown_words": [0]})
+        client.post(f"/phrases/{PHRASE_ID}/report", json={"unknown_words": [0]})
         word = client.get("/unknown-words").json()[0]
         assert client.delete(f"/unknown-words/{word['id']}").status_code == 200
         assert self._card(client) == {"section": "ready", "ready": 1}
 
     def test_source_with_no_ready_cards_left_is_reviewed(self, client: TestClient) -> None:
-        client.post("/phrases/1/report", json={"unknown_words": [0]})
+        client.post(f"/phrases/{PHRASE_ID}/report", json={"unknown_words": [0]})
         assert client.get("/sources/1").json()["status"] == "reviewed"
 
     def test_new_phrase_is_read_again(self, client: TestClient) -> None:
-        client.put("/phrases/1/phrase", json={"phrase": "the ominous pursuit of"})
+        client.put(f"/phrases/{PHRASE_ID}/phrase", json={"phrase": "the ominous pursuit of"})
         assert self._card(client) == {"section": "extra", "ready": 0}
-        client.put("/phrases/1/phrase", json={"phrase": "the long pursuit of"})
+        client.put(f"/phrases/{PHRASE_ID}/phrase", json={"phrase": "the long pursuit of"})
         assert self._card(client) == {"section": "ready", "ready": 1}

@@ -9,11 +9,12 @@ from backend.application.utils.anki_template_renderer import AnkiTemplateRendere
 from backend.application.utils.export_queue import ExportQueue
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_tts import CandidateTTS
+from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.word_status import WordStatus
 
-from tests.export_support import DecisionsOf, ExportWord
+from tests.export_support import ExportCards, export_card
 from tests.phrase_support import phrase
 from tests.unit.application.scope_fakes import empty_scope_resolver
 
@@ -40,7 +41,7 @@ class TestSyncToAnkiTemplates:
     def test_passes_rendered_templates_to_ensure_note_type(
         self, templates_dir: Path
     ) -> None:
-        candidate_repo = MagicMock()
+        cards = ExportCards()
         anki_connector = MagicMock()
         settings_repo = MagicMock()
         anki_sync_repo = MagicMock()
@@ -48,17 +49,25 @@ class TestSyncToAnkiTemplates:
 
         settings_repo.get.side_effect = lambda key, default: default
 
-        candidate = ExportWord(
-            id=1, source_id=1, lemma="test", pos="NOUN", cefr_level="B2", zipf_frequency=3.5,
-            occurrences=1, status=WordStatus.LEARN,
-            source_phrase=phrase("This is a test", "test"),
+        candidate = export_card(
+            StoredCandidate(
+                id=1,
+                source_id=1,
+                lemma="test",
+                pos="NOUN",
+                cefr_level="B2",
+                zipf_frequency=3.5,
+                occurrences=1,
+                status=WordStatus.LEARN,
+            ),
+            phrase("This is a test", "test"),
             meaning=CandidateMeaning(
                 candidate_id=1, meaning="a trial", translation=None, synonyms=None,
                 examples=None, ipa="/tɛst/", generated_at=None,
             ),
             tts=CandidateTTS(candidate_id=1, audio_path="/tmp/test.m4a", generated_at=None),
         )
-        candidate_repo.get_by_source.return_value = [candidate]
+        cards.put([candidate])
 
         anki_connector.is_available.return_value = True
         anki_connector.get_model_field_names.return_value = _EveryField()
@@ -67,7 +76,7 @@ class TestSyncToAnkiTemplates:
 
         use_case = SyncToAnkiUseCase(
             export_queue=ExportQueue(
-                candidate_repo, anki_sync_repo, DecisionsOf(candidate_repo),
+                cards.words, anki_sync_repo, cards,
             ),
             anki_connector=anki_connector,
             settings_repo=settings_repo,

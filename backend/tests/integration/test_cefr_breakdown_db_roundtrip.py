@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.word_status import WordStatus
@@ -15,7 +16,7 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
 )
 
 from tests.phrase_support import phrase
-from tests.word_support import SeedWord, store_cards
+from tests.word_support import CardSeed, store_cards
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -64,16 +65,18 @@ def _existing_source(source_id: int) -> int:
 class TestCEFRBreakdownDBRoundtrip:
     def test_breakdown_saved_and_loaded(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
-        candidate = SeedWord(
-            source_id=1,
-            lemma="happy",
-            pos="JJ",
-            cefr_level="B1",
-            zipf_frequency=5.0,
-            source_phrase=phrase("I am happy"),
-            occurrences=1,
-            status=WordStatus.PENDING,
-            cefr_breakdown=_make_breakdown(),
+        candidate = CardSeed(
+            StoredCandidate(
+                source_id=1,
+                lemma="happy",
+                pos="JJ",
+                cefr_level="B1",
+                zipf_frequency=5.0,
+                occurrences=1,
+                status=WordStatus.PENDING,
+                cefr_breakdown=_make_breakdown(),
+            ),
+            phrase("I am happy"),
         )
         created = store_cards(db_session, [candidate])
         assert len(created) == 1
@@ -88,16 +91,18 @@ class TestCEFRBreakdownDBRoundtrip:
 
     def test_breakdown_priority_votes_restored(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
-        candidate = SeedWord(
-            source_id=1,
-            lemma="test",
-            pos="NN",
-            cefr_level="A2",
-            zipf_frequency=4.0,
-            source_phrase=phrase("a test"),
-            occurrences=1,
-            status=WordStatus.PENDING,
-            cefr_breakdown=_make_breakdown(),
+        candidate = CardSeed(
+            StoredCandidate(
+                source_id=1,
+                lemma="test",
+                pos="NN",
+                cefr_level="A2",
+                zipf_frequency=4.0,
+                occurrences=1,
+                status=WordStatus.PENDING,
+                cefr_breakdown=_make_breakdown(),
+            ),
+            phrase("a test"),
         )
         store_cards(db_session, [candidate])
 
@@ -112,16 +117,18 @@ class TestCEFRBreakdownDBRoundtrip:
 
     def test_voting_sources_restored(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
-        candidate = SeedWord(
-            source_id=1,
-            lemma="word",
-            pos="NN",
-            cefr_level="B1",
-            zipf_frequency=4.0,
-            source_phrase=phrase("a word"),
-            occurrences=1,
-            status=WordStatus.PENDING,
-            cefr_breakdown=_make_breakdown(),
+        candidate = CardSeed(
+            StoredCandidate(
+                source_id=1,
+                lemma="word",
+                pos="NN",
+                cefr_level="B1",
+                zipf_frequency=4.0,
+                occurrences=1,
+                status=WordStatus.PENDING,
+                cefr_breakdown=_make_breakdown(),
+            ),
+            phrase("a word"),
         )
         store_cards(db_session, [candidate])
 
@@ -137,16 +144,18 @@ class TestCEFRBreakdownDBRoundtrip:
     def test_efllex_distribution_survives_db(self, db_session: Session) -> None:
         """EFLLex distribution (JSON) must survive write → read."""
         repo = SqlaCandidateRepository(db_session)
-        candidate = SeedWord(
-            source_id=1,
-            lemma="run",
-            pos="VB",
-            cefr_level="A2",
-            zipf_frequency=5.5,
-            source_phrase=phrase("run fast"),
-            occurrences=2,
-            status=WordStatus.PENDING,
-            cefr_breakdown=_make_breakdown(),
+        candidate = CardSeed(
+            StoredCandidate(
+                source_id=1,
+                lemma="run",
+                pos="VB",
+                cefr_level="A2",
+                zipf_frequency=5.5,
+                occurrences=2,
+                status=WordStatus.PENDING,
+                cefr_breakdown=_make_breakdown(),
+            ),
+            phrase("run fast"),
         )
         store_cards(db_session, [candidate])
 
@@ -161,16 +170,18 @@ class TestCEFRBreakdownDBRoundtrip:
     def test_no_breakdown_stays_none(self, db_session: Session) -> None:
         """Candidates without breakdown should have cefr_breakdown=None after load."""
         repo = SqlaCandidateRepository(db_session)
-        candidate = SeedWord(
-            source_id=1,
-            lemma="old",
-            pos="JJ",
-            cefr_level="A1",
-            zipf_frequency=5.0,
-            source_phrase=phrase("old candidate"),
-            occurrences=1,
-            status=WordStatus.PENDING,
-            cefr_breakdown=None,
+        candidate = CardSeed(
+            StoredCandidate(
+                source_id=1,
+                lemma="old",
+                pos="JJ",
+                cefr_level="A1",
+                zipf_frequency=5.0,
+                occurrences=1,
+                status=WordStatus.PENDING,
+                cefr_breakdown=None,
+            ),
+            phrase("old candidate"),
         )
         store_cards(db_session, [candidate])
 
@@ -184,19 +195,21 @@ class TestCEFRBreakdownDBRoundtrip:
             StoredCandidateModel,
         )
 
-        candidate = SeedWord(
-            source_id=1,
-            lemma="gone",
-            pos="VB",
-            cefr_level="B2",
-            zipf_frequency=4.0,
-            source_phrase=phrase("it is gone"),
-            occurrences=1,
-            status=WordStatus.PENDING,
-            cefr_breakdown=_make_breakdown(),
+        candidate = CardSeed(
+            StoredCandidate(
+                source_id=1,
+                lemma="gone",
+                pos="VB",
+                cefr_level="B2",
+                zipf_frequency=4.0,
+                occurrences=1,
+                status=WordStatus.PENDING,
+                cefr_breakdown=_make_breakdown(),
+            ),
+            phrase("it is gone"),
         )
         created = store_cards(db_session, [candidate])
-        cid = created[0].id
+        cid = created[0].word_id
 
         # Verify breakdown exists
         breakdown = db_session.query(CEFRBreakdownModel).filter_by(candidate_id=cid).one_or_none()
@@ -218,16 +231,20 @@ class TestCEFRBreakdownDBRoundtrip:
         (Cambridge priority). After load, cefr_level must be B1 (runtime), not C2.
         """
         repo = SqlaCandidateRepository(db_session)
-        candidate = SeedWord(
-            source_id=1,
-            lemma="mismatch",
-            pos="NN",
-            cefr_level="C2",  # deliberately wrong — should be overridden
+        candidate = CardSeed(
+            StoredCandidate(
+                source_id=1,
+                lemma="mismatch",
+                pos="NN",
+                cefr_level="C2",
+                # deliberately wrong — should be overridden
             zipf_frequency=4.0,
-            source_phrase=phrase("a mismatch"),
-            occurrences=1,
-            status=WordStatus.PENDING,
-            cefr_breakdown=_make_breakdown(),  # Cambridge knows B1
+                occurrences=1,
+                status=WordStatus.PENDING,
+                cefr_breakdown=_make_breakdown(),
+                # Cambridge knows B1,
+            ),
+            phrase("a mismatch"),
         )
         store_cards(db_session, [candidate])
 

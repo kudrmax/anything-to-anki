@@ -1,10 +1,9 @@
 """Words and their phrases straight in the database, for tests below the repositories."""
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.models import dump_phrase
 from sqlalchemy import text
@@ -12,6 +11,8 @@ from sqlalchemy import text
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
+    from backend.domain.entities.occurrence import Occurrence
+    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin
@@ -71,6 +72,37 @@ def insert_word(
     )
 
 
+PHRASE_ID_OFFSET = 1000
+
+
+@dataclass(frozen=True)
+class CardSeed:
+    """A word and one phrase of it, to store with `store_cards`."""
+
+    word: StoredCandidate
+    text: Phrase
+    position: DocumentPosition | None = None
+    skipped: bool = False
+
+
+@dataclass(frozen=True)
+class SeededCard:
+    """A stored word and the phrase stored for it, both with their ids."""
+
+    word: StoredCandidate
+    phrase: Occurrence
+
+    @property
+    def word_id(self) -> int:
+        assert self.word.id is not None
+        return self.word.id
+
+    @property
+    def phrase_id(self) -> int:
+        assert self.phrase.id is not None
+        return self.phrase.id
+
+
 def store_card(
     session: Session,
     word: StoredCandidate,
@@ -79,12 +111,13 @@ def store_card(
     position: DocumentPosition | None = None,
     origin: OccurrenceOrigin | None = None,
     skipped: bool = False,
-) -> tuple[int, int]:
+) -> SeededCard:
     """A phrase of the word through the repositories; the word is made when the source has
     none of its lemma. A decided word made here decides on this phrase.
 
     `origin` is `auto` for a new word's phrase with a place in the document, `example`
-    without one, `manual` for another phrase of a word. Returns (word id, phrase id).
+    without one, `manual` for another phrase of a word. Phrase ids start past
+    `PHRASE_ID_OFFSET`, so a phrase id never equals a word id.
     """
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.value_objects.built_analysis import WordKey
@@ -101,6 +134,7 @@ def store_card(
         SqlaOccurrenceRepository,
     )
 
+    _offset_phrase_ids(session)
     words = SqlaCandidateRepository(session)
     occurrences = SqlaOccurrenceRepository(session)
     key = WordKey.of(word.lemma, word.is_phrasal_verb)
@@ -130,28 +164,24 @@ def store_card(
         is_decision=decided,
         decision_kind=DecisionKind.LEARN if decided else None,
     ))
-    assert added.id is not None
-    return word_id, added.id
+    stored = words.get_by_id(word_id)
+    assert stored is not None
+    return SeededCard(word=stored, phrase=added)
 
 
-@dataclass
-class SeedWord(StoredCandidate):
-    """A word with one phrase to store with `store_cards`; `phrase_id` is set once stored."""
-
-    source_phrase: Phrase | None = None
-    phrase_position: DocumentPosition | None = None
-    skipped: bool = False
-    phrase_id: int | None = None
+def store_cards(session: Session, seeds: list[CardSeed]) -> list[SeededCard]:
+    """Each seed through `store_card`, in order."""
+    return [
+        store_card(session, s.word, s.text, position=s.position, skipped=s.skipped)
+        for s in seeds
+    ]
 
 
-def store_cards(session: Session, words: list[SeedWord]) -> list[SeedWord]:
-    """Each word's phrase through the repositories (see `store_card`), the words as stored."""
-    stored: list[SeedWord] = []
-    for word in words:
-        assert word.source_phrase is not None
-        word_id, phrase_id = store_card(
-            session, word, word.source_phrase, position=word.phrase_position,
-            skipped=word.skipped,
-        )
-        stored.append(replace(word, id=word_id, phrase_id=phrase_id))
-    return stored
+def _offset_phrase_ids(session: Session) -> None:
+    session.execute(text(
+        "INSERT INTO sqlite_sequence (name, seq) SELECT 'phrases', :offset"
+        " WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'phrases')"
+    ), {"offset": PHRASE_ID_OFFSET})
+    session.execute(text(
+        "UPDATE sqlite_sequence SET seq = :offset WHERE name = 'phrases' AND seq < :offset"
+    ), {"offset": PHRASE_ID_OFFSET})
