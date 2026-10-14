@@ -6,7 +6,7 @@ import css from './sources.module.css'
 
 const ADDED_MESSAGE = 'Added to Sources'
 
-/** Отдельный экран добавления — телефонная пара к форме в боковой колонке Sources. */
+/** Экран добавления источника, темы или фразы. */
 export function AddSourceScreen() {
   const [notice, showNotice] = useToast()
   const [warning, showWarning] = useToast()

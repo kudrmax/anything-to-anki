@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.domain.entities.ai_usage_record import AIUsageRecord
@@ -35,6 +35,7 @@ from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
 from backend.domain.value_objects.phrase_words import PhraseWord, PhraseWords
 from backend.domain.value_objects.processing_stage import ProcessingStage
+from backend.domain.value_objects.source_eviction import SourceEviction
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.token_usage import TokenUsage
@@ -93,12 +94,26 @@ def load_phrase_words(stored: str | None) -> PhraseWords | None:
 
 
 class CollectionModel(Base):
-    """SQLAlchemy model for collections."""
+    """SQLAlchemy model for collections: a two-level tree in manual order."""
 
     __tablename__ = "collections"
+    __table_args__ = (
+        Index(
+            "uq_collections_sibling_name",
+            text("coalesce(parent_id, 0)"),
+            "name",
+            unique=True,
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    parent_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("collections.id", ondelete="CASCADE"), nullable=True,
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
@@ -107,6 +122,9 @@ class CollectionModel(Base):
         return Collection(
             id=self.id,
             name=self.name,
+            parent_id=self.parent_id,
+            position=self.position,
+            deleted_at=self.deleted_at,
             created_at=self.created_at,
         )
 
@@ -114,7 +132,33 @@ class CollectionModel(Base):
     def from_entity(collection: Collection) -> CollectionModel:
         return CollectionModel(
             name=collection.name,
+            parent_id=collection.parent_id,
+            position=collection.position,
+            deleted_at=collection.deleted_at,
             created_at=collection.created_at,
+        )
+
+
+class CollectionEvictionModel(Base):
+    """Where deleting a collection moved a source: Undo puts it back."""
+
+    __tablename__ = "collection_evictions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    collection_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("collections.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    source_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sources.id", ondelete="CASCADE"), nullable=False,
+    )
+    previous_collection_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    moved_to_collection_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    def to_value(self) -> SourceEviction:
+        return SourceEviction(
+            source_id=self.source_id,
+            previous_collection_id=self.previous_collection_id,
+            moved_to_collection_id=self.moved_to_collection_id,
         )
 
 

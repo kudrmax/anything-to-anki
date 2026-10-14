@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { backIn } from '@/lib/backLink'
 import { decisionChange, learnConvertsCloze, type Decision } from '@/lib/decision'
 import { allowedInClozeMarkup, reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { pastedPicture } from '@/lib/pastedPicture'
@@ -31,6 +32,7 @@ const CANDIDATE_PARAM = 'candidate'
 export function ReviewScreen() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const sourcesPath = backIn(useLocation().state, SOURCES_PATH)
   const [searchParams] = useSearchParams()
   const requestedCandidate = searchParams.get(CANDIDATE_PARAM)
   const review = useReview(Number(id), requestedCandidate === null ? null : Number(requestedCandidate))
@@ -130,10 +132,10 @@ export function ReviewScreen() {
   }, [current, pasteImage])
 
   if (review.loading) {
-    return <Page header={<PageHeader title="Review" back={SOURCES_PATH} />}><Empty><Spinner /></Empty></Page>
+    return <Page header={<PageHeader title="Review" back={sourcesPath} />}><Empty><Spinner /></Empty></Page>
   }
   if (!source) {
-    return <Page header={<PageHeader title="Review" back={SOURCES_PATH} />}><Empty>Source not found.</Empty></Page>
+    return <Page header={<PageHeader title="Review" back={sourcesPath} />}><Empty>Source not found.</Empty></Page>
   }
 
   const closeSelection = () => {
@@ -169,7 +171,7 @@ export function ReviewScreen() {
   const header = (
     <PageHeader
       title={source.title}
-      back={SOURCES_PATH}
+      back={sourcesPath}
       metaWithActions
       meta={counts.total > 0 && (
         <>

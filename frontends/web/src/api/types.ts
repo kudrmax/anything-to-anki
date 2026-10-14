@@ -17,11 +17,61 @@ export type CandidateStatus = 'pending' | 'learn' | 'known' | 'skip'
 
 export type CandidateSortOrder = 'relevance' | 'chronological' | 'key_words'
 
+export type Scope = 'all' | 'unsorted' | number
+export type SourceStage = 'in_progress' | 'preparing' | 'ready' | 'reviewed'
+
+export interface ScopeCounts {
+  total: number
+  reviewed: number
+  pending: number
+}
+
+export interface CollectionNode {
+  id: number
+  name: string
+  parent_id: number | null
+  counts: ScopeCounts
+  /** Может принять подколлекции. */
+  accepts_collections: boolean
+  /** Может сама стать подколлекцией. */
+  can_be_nested: boolean
+  children: CollectionNode[]
+}
+
+export interface CollectionTree {
+  all: ScopeCounts
+  unsorted: ScopeCounts
+  collections: CollectionNode[]
+}
+
 export interface Collection {
   id: number
   name: string
-  source_count: number
-  created_at: string
+  parent_id: number | null
+  position: number
+}
+
+export interface RenamedCollection {
+  id: number
+  name: string
+  previous_name: string
+}
+
+export interface MovedCollection {
+  id: number
+  previous_parent_id: number | null
+  previous_position: number
+}
+
+export interface DeletedCollection {
+  id: number
+  name: string
+  evicted_source_count: number
+}
+
+export interface SourcePlacement {
+  source_id: number
+  collection_id: number | null
 }
 
 export interface SourceSummary {
@@ -42,7 +92,8 @@ export interface SourceSummary {
   ready_decided_count: number
   processing_stage: ProcessingStage | null
   collection_id: number | null
-  collection_name: string | null
+  collection_path: string[]
+  stage: SourceStage
   /** Тема ещё ждёт AI-шага: запрос не превращён в target'ы. */
   awaiting_generation: boolean
   generation_status: GenerationStatus | null
@@ -268,6 +319,16 @@ export type MissingCardPart = 'meaning' | 'audio'
 
 export type ExportGroup = 'ready' | 'incomplete'
 
+export interface SourceGroup {
+  stage: SourceStage
+  sources: SourceSummary[]
+}
+
+export interface SourceBoard {
+  title: string
+  groups: SourceGroup[]
+}
+
 export interface ExportSection {
   source_id: number
   source_title: string
@@ -275,6 +336,7 @@ export interface ExportSection {
 }
 
 export interface GlobalExport {
+  title: string | null
   ready: ExportSection[]
   incomplete: ExportSection[]
   exported_count: number

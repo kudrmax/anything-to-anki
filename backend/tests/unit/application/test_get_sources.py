@@ -3,6 +3,9 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
+from backend.application.utils.source_scope_resolver import SourceScopeResolver
+from backend.application.utils.topic_generation import TopicGenerationProbe
+from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceNotFoundError
@@ -10,6 +13,7 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_role import SourceRole
+from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.candidate_sorter_support import candidate_sorter
@@ -38,8 +42,8 @@ class TestGetSourcesUseCase:
             candidate_repo=self.candidate_repo,
             candidate_sorter=sorter,
             job_repo=self.job_repo,
-            collection_repo=self.collection_repo,
-            topic_target_repo=self.topic_target_repo,
+            scope_resolver=SourceScopeResolver(self.source_repo, self.collection_repo),
+            generation_probe=TopicGenerationProbe(self.job_repo, self.topic_target_repo),
             report_repo=self.report_repo,
             anki_sync_repo=self.anki_sync_repo,
             review_status=ReviewStatusUpdater(self.source_repo, self.candidate_repo, sorter),
@@ -56,6 +60,34 @@ class TestGetSourcesUseCase:
         result = self.use_case.list_all()
         assert len(result) == 2
         assert result[0].id == 1
+
+    def test_board_groups_scope_by_stage_and_filters_by_title(self) -> None:
+        self.collection_repo.list_all.return_value = [
+            Collection(id=1, name="Friends"), Collection(id=2, name="Season 1", parent_id=1),
+        ]
+        self.source_repo.list_all.return_value = [
+            Source(id=1, title="Pilot", status=SourceStatus.DONE, collection_id=2),
+            Source(id=2, title="Sonogram", status=SourceStatus.NEW, collection_id=2),
+            Source(id=3, title="Essay", status=SourceStatus.PARTIALLY_REVIEWED),
+        ]
+        # A source with a ready card left to decide is ready for review.
+        self.candidate_repo.get_by_source.return_value = [StoredCandidate(
+            id=1, source_id=1, lemma="word", pos="NOUN", cefr_level="B2",
+            zipf_frequency=4.0, context_fragment="ctx", occurrences=1,
+            status=CandidateStatus.PENDING,
+        )]
+
+        board = self.use_case.board(SourceScope.collection(1))
+
+        assert board.title == "Friends"
+        assert [(g.stage, [s.title for s in g.sources]) for g in board.groups] == [
+            ("preparing", ["Sonogram"]),
+            ("ready", ["Pilot"]),
+        ]
+        assert board.groups[1].sources[0].collection_path == ["Friends", "Season 1"]
+
+        found = self.use_case.board(SourceScope.all(), query="SONO")
+        assert [s.title for g in found.groups for s in g.sources] == ["Sonogram"]
 
     def test_topic_without_targets_awaits_generation(self) -> None:
         from datetime import UTC, datetime

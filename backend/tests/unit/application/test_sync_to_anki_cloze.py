@@ -16,6 +16,7 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.export_group import ExportGroup
 
+from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.vocabulary_support import user_vocabulary
 
 pytestmark = pytest.mark.unit
@@ -103,6 +104,7 @@ class TestSyncToAnkiCloze:
             template_renderer=self.renderer,
             vocabulary=user_vocabulary(MagicMock()),
             cloze_builder=ClozeBuilder(),
+            scope_resolver=empty_scope_resolver(),
         )
 
     def _sync(self, *candidates: StoredCandidate) -> None:

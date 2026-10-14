@@ -6,6 +6,8 @@ from backend.domain.ports.source_repository import SourceRepository
 from backend.infrastructure.persistence.models import SourceModel
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.source import Source
@@ -77,12 +79,13 @@ class SqlaSourceRepository(SourceRepository):
         model.video_path = video_path
         self._session.flush()
 
-    def update_collection(self, source_id: int, collection_id: int | None) -> None:
-        model = self._session.get(SourceModel, source_id)
-        if model is None:
-            from backend.domain.exceptions import SourceNotFoundError
-            raise SourceNotFoundError(source_id)
-        model.collection_id = collection_id
+    def set_collections(self, placements: Mapping[int, int | None]) -> None:
+        for source_id, collection_id in placements.items():
+            model = self._session.get(SourceModel, source_id)
+            if model is None:
+                from backend.domain.exceptions import SourceNotFoundError
+                raise SourceNotFoundError(source_id)
+            model.collection_id = collection_id
         self._session.flush()
 
     def delete(self, source_id: int) -> None:

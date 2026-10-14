@@ -1,4 +1,4 @@
-"""Migration 0047 adds unknown words and a card's phrase words, dropping the stale count."""
+"""Migration 0048 adds unknown words and a card's phrase words, dropping the stale count."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -26,7 +26,7 @@ def test_upgrade_keeps_cards_and_downgrade_restores_columns(tmp_path: Path) -> N
     )
     cfg.set_main_option("sqlalchemy.url", db_url)
 
-    command.upgrade(cfg, "0046")
+    command.upgrade(cfg, "0047")
     with create_engine(db_url).begin() as conn:
         conn.execute(text(
             "INSERT INTO sources (id, title, status, role, created_at)"
@@ -39,7 +39,7 @@ def test_upgrade_keeps_cards_and_downgrade_restores_columns(tmp_path: Path) -> N
             " VALUES (1, 100, 'feast', 'NOUN', 3.9, 1, 'a feast', 'dirty', 1, 1, 'pending', 0, 0)"
         ))
 
-    command.upgrade(cfg, "0047")
+    command.upgrade(cfg, "0048")
     columns = _columns(db_url)
     assert not columns & STALE_COLUMNS
     assert "phrase_words" in columns
@@ -48,6 +48,6 @@ def test_upgrade_keeps_cards_and_downgrade_restores_columns(tmp_path: Path) -> N
         row = conn.execute(text("SELECT lemma, phrase_words FROM candidates")).one()
     assert tuple(row) == ("feast", None)
 
-    command.downgrade(cfg, "0046")
+    command.downgrade(cfg, "0047")
     assert _columns(db_url) >= STALE_COLUMNS
     assert "unknown_words" not in inspect(create_engine(db_url)).get_table_names()

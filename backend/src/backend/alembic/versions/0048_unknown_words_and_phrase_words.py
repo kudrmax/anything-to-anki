@@ -1,7 +1,7 @@
 """Unknown words, and the words of a card's phrase instead of a count of new ones.
 
-Revision ID: 0047
-Revises: 0046
+Revision ID: 0048
+Revises: 0047
 
 fragment_unknown_count and fragment_purity were counted once, when the source was
 processed, and went stale as the user marked words or the phrase changed. A card
@@ -11,8 +11,8 @@ Cards made before get their words when their source is first opened.
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0047"
-down_revision = "0046"
+revision = "0048"
+down_revision = "0047"
 branch_labels = None
 depends_on = None
 

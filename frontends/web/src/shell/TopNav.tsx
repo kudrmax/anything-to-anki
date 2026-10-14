@@ -12,12 +12,11 @@ interface Destination {
   section: Section
   label: string
   path: string
-  phoneOnly?: boolean
 }
 
 const MAIN: Destination[] = [
+  { section: 'add', label: 'Add', path: '/add' },
   { section: 'sources', label: 'Sources', path: '/' },
-  { section: 'add', label: 'Add', path: '/add', phoneOnly: true },
   { section: 'export', label: 'Export', path: '/export' },
   { section: 'queue', label: 'Queue', path: '/queue' },
   { section: 'usage', label: 'Usage', path: '/usage' },
@@ -49,7 +48,7 @@ export function TopNav() {
     <NavLink
       key={destination.section}
       to={destination.path}
-      className={[css.tab, current === destination.section && css.on, destination.phoneOnly && css.phoneOnly].filter(Boolean).join(' ')}
+      className={current === destination.section ? `${css.tab} ${css.on}` : css.tab}
       aria-current={current === destination.section ? 'page' : undefined}
     >
       {destination.label}

@@ -9,9 +9,11 @@ from backend.domain.exceptions import (
     AnkiNotAvailableError,
     AnkiNoteTypeIncompleteError,
     AnkiSyncError,
+    CollectionNotFoundError,
 )
 from backend.domain.value_objects.export_group import ExportGroup  # noqa: TC001
 from backend.infrastructure.api.dependencies import get_container, get_db_session
+from backend.infrastructure.api.scope_param import parse_scope
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -22,12 +24,16 @@ router = APIRouter(tags=["export"])
 
 
 @router.get("/export/cards")
-def get_all_export_cards(
+def get_scope_export_cards(
+    scope: str = "all",
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> GlobalExportDTO:
     use_case = container.get_export_cards_use_case(session)
-    return use_case.execute_all()
+    try:
+        return use_case.execute_scope(parse_scope(scope))
+    except CollectionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/export/cards/{source_id}")
@@ -41,16 +47,20 @@ def get_source_export_cards(
 
 
 @router.post("/export/sync-to-anki")
-def sync_all_to_anki(
+def sync_scope_to_anki(
     group: ExportGroup,
+    scope: str = "all",
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> SyncResultDTO:
+    parsed_scope = parse_scope(scope)
     use_case = container.sync_to_anki_use_case(session)
     try:
-        result = use_case.execute_all(group)
+        result = use_case.execute_scope(parsed_scope, group)
         session.commit()
         return result
+    except CollectionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AnkiNotAvailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except AnkiNoteTypeIncompleteError as exc:

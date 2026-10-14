@@ -7,6 +7,8 @@ from backend.domain.services.export_readiness import export_group
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
@@ -41,6 +43,10 @@ class ExportQueue:
 
     def for_all(self) -> ExportBatch:
         return self._split(self._candidate_repo.get_all_by_status(CandidateStatus.LEARN))
+
+    def for_sources(self, source_ids: Collection[int]) -> ExportBatch:
+        learn = self._candidate_repo.get_all_by_status(CandidateStatus.LEARN)
+        return self._split([c for c in learn if c.source_id in source_ids])
 
     def _split(self, learn: list[StoredCandidate]) -> ExportBatch:
         candidate_ids = [c.id for c in learn if c.id is not None]

@@ -174,6 +174,15 @@ class TestGetExportCardsAPI:
         data = response.json()
         assert isinstance(data["ready"], list)
         assert isinstance(data["incomplete"], list)
+        assert data["title"] == "All sources"
+
+    def test_rejects_an_unknown_scope(self, client: TestClient) -> None:
+        assert client.get("/export/cards?scope=nonsense").status_code == 400
+        assert client.post("/export/sync-to-anki?group=ready&scope=nonsense").status_code == 400
+
+    def test_missing_collection_is_not_found(self, client: TestClient) -> None:
+        assert client.get("/export/cards?scope=9999").status_code == 404
+        assert client.post("/export/sync-to-anki?group=ready&scope=9999").status_code == 404
 
 
 @pytest.mark.integration

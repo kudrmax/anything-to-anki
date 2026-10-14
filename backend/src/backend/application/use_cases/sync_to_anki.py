@@ -17,6 +17,7 @@ from backend.application.utils.anki_note_types import (
     is_app_note_type,
 )
 from backend.domain.exceptions import AnkiNotAvailableError, AnkiNoteTypeIncompleteError
+from backend.domain.value_objects.source_scope import ScopeKind
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
     from backend.application.utils.anki_note_types import NoteTypeCheck
     from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
     from backend.application.utils.export_queue import ExportQueue
+    from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.anki_connector import AnkiConnector
@@ -31,6 +33,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.services.cloze_builder import ClozeBuilder
     from backend.domain.value_objects.export_group import ExportGroup
+    from backend.domain.value_objects.source_scope import SourceScope
 
 _DEFAULT_DECK: str = "Default"
 
@@ -75,6 +78,7 @@ class SyncToAnkiUseCase:
         template_renderer: AnkiTemplateRenderer,
         vocabulary: UserVocabulary,
         cloze_builder: ClozeBuilder,
+        scope_resolver: SourceScopeResolver,
     ) -> None:
         self._export_queue = export_queue
         self._connector = anki_connector
@@ -83,15 +87,29 @@ class SyncToAnkiUseCase:
         self._template_renderer = template_renderer
         self._vocabulary = vocabulary
         self._cloze_builder = cloze_builder
+        self._scope_resolver = scope_resolver
 
     def execute(self, source_id: int, group: ExportGroup) -> SyncResultDTO:
-        deck_name = self._setting("anki_deck_name", _DEFAULT_DECK)
         pending = self._export_queue.for_source(source_id).in_group(group)
+        return self._push(pending, group, f"source_id={source_id}")
 
+    def execute_scope(self, scope: SourceScope, group: ExportGroup) -> SyncResultDTO:
+        if scope.kind is ScopeKind.ALL:
+            batch = self._export_queue.for_all()
+        else:
+            ids = {s.id for s in self._scope_resolver.sources(scope) if s.id is not None}
+            batch = self._export_queue.for_sources(ids)
+        label = f"scope={scope.kind}:{scope.collection_id}"
+        return self._push(batch.in_group(group), group, label)
+
+    def _push(
+        self, pending: list[StoredCandidate], group: ExportGroup, label: str,
+    ) -> SyncResultDTO:
+        deck_name = self._setting("anki_deck_name", _DEFAULT_DECK)
         total = len(pending)
         logger.info(
-            "sync_to_anki: start (source_id=%d, group=%s, deck=%s, pending=%d)",
-            source_id, group, deck_name, total,
+            "sync_to_anki: start (%s, group=%s, deck=%s, pending=%d)",
+            label, group, deck_name, total,
         )
         if total == 0:
             return SyncResultDTO(total=0, added=0, skipped=0, errors=0)
@@ -132,8 +150,8 @@ class SyncToAnkiUseCase:
                 self._handle_failure(deck_name, target, candidate, exc, tally)
 
         logger.info(
-            "sync_to_anki: done (source_id=%d, deck=%s, added=%d, skipped=%d, errors=%d)",
-            source_id, deck_name, tally.added, tally.skipped, tally.errors,
+            "sync_to_anki: done (%s, deck=%s, added=%d, skipped=%d, errors=%d)",
+            label, deck_name, tally.added, tally.skipped, tally.errors,
         )
         return SyncResultDTO(
             total=total, added=tally.added, skipped=tally.skipped, errors=tally.errors,
@@ -209,39 +227,6 @@ class SyncToAnkiUseCase:
 
     def _setting(self, key: str, default: str) -> str:
         return self._settings_repo.get(key, default) or default
-
-    def execute_all(self, group: ExportGroup) -> SyncResultDTO:
-        """Sync the group's not yet exported learn candidates of every source to Anki."""
-        pending = self._export_queue.for_all().in_group(group)
-        if not pending:
-            return SyncResultDTO(total=0, added=0, skipped=0, errors=0)
-
-        source_ids = list(dict.fromkeys(c.source_id for c in pending))
-
-        total = 0
-        added = 0
-        skipped = 0
-        errors = 0
-        skipped_lemmas: list[str] = []
-        error_lemmas: list[str] = []
-
-        for source_id in source_ids:
-            result = self.execute(source_id, group)
-            total += result.total
-            added += result.added
-            skipped += result.skipped
-            errors += result.errors
-            skipped_lemmas.extend(result.skipped_lemmas)
-            error_lemmas.extend(result.error_lemmas)
-
-        return SyncResultDTO(
-            total=total,
-            added=added,
-            skipped=skipped,
-            errors=errors,
-            skipped_lemmas=skipped_lemmas,
-            error_lemmas=error_lemmas,
-        )
 
 
 def _refuse_incomplete(check: NoteTypeCheck) -> None:

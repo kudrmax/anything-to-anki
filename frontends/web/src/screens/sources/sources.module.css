@@ -3,12 +3,15 @@
 .groupTitle { display: flex; gap: var(--s3); margin-bottom: var(--s3); font-size: var(--fs-xs); font-weight: var(--fw-m); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--tx3); }
 
 /* строка источника: тип | название | прогресс | действие | меню */
-.row { display: grid; grid-template-columns: var(--source-row-cols); grid-template-areas: var(--source-row-areas); align-items: center; gap: var(--source-row-gap); padding: var(--s4); margin: 0 calc(var(--s4) * -1); border-radius: var(--r); transition: background var(--t); }
+.row { -webkit-touch-callout: none; display: grid; grid-template-columns: var(--source-row-cols); grid-template-areas: var(--source-row-areas); align-items: center; gap: var(--source-row-gap); padding: var(--s4); margin: 0 calc(var(--s4) * -1); border-radius: var(--r); transition: background var(--t); }
 .row:hover { background: var(--hover); }
+.selected, .selected:hover { background: var(--ac-wash); }
+.row[draggable="true"]:active { cursor: grabbing; }
 .clickable { cursor: pointer; }
 .type { grid-area: type; width: var(--h-word); height: var(--h-word); display: grid; place-items: center; border-radius: var(--rc); background: var(--soft); color: var(--tx2); }
 .name { grid-area: name; min-width: 0; }
 .title { display: block; font-size: var(--fs-t); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.path { display: block; font-size: var(--fs-xs); color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .done .title, .done .type { color: var(--tx3); }
 .progress { grid-area: progress; display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
 .caption { display: inline-flex; align-items: center; gap: var(--s2); }
@@ -16,7 +19,52 @@
 .more { grid-area: more; opacity: var(--reveal); transition: opacity var(--t); }
 .row:hover .more, .more:focus-within, .more:has([role="menu"]) { opacity: 1; }
 
-/* правая колонка */
+/* форма на экране Add */
 .add { padding: var(--source-add-pad); border: var(--dash-bw) dashed var(--line); border-radius: var(--r); }
-/* на телефоне форма живёт на отдельном экране Add */
-.desktopOnly { display: var(--desktop-display); }
+
+/* экран: дерево слева, список справа; на телефоне дерево уходит в ScopePicker */
+.layout { display: grid; grid-template-columns: var(--sources-cols); gap: var(--page-x); align-items: start; padding-top: var(--page-top); }
+.side { display: var(--desktop-display); align-content: start; gap: var(--s7); }
+.main { min-width: 0; }
+.search { margin-bottom: var(--s7); }
+.emptyStart { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s5); }
+.phoneOnly { display: var(--phone-display); }
+
+/* шапка области: крошки, название, прогресс | действия */
+.scopeHeader { display: flex; align-items: center; justify-content: space-between; gap: var(--s4) var(--gap); margin-bottom: var(--s6); }
+.scopeLead { flex: 1 1 var(--header-lead-min); min-width: 0; display: flex; flex-direction: column; gap: var(--s2); }
+.scopeTitle { display: flex; align-items: center; gap: var(--s2); min-width: 0; height: var(--h); font: var(--fw-b) var(--fs-h1)/var(--lh-tight) var(--ui); letter-spacing: var(--ls-tight); color: var(--tx); white-space: nowrap; }
+.scopeParent { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font: inherit; font-weight: var(--fw); color: var(--tx3); border-radius: var(--s2); transition: color var(--t); }
+.scopeParent:hover { color: var(--tx); }
+.scopeSep { display: grid; place-items: center; flex: none; color: var(--tx3); }
+.scopeName { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.scopeProgress { font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); }
+.scopeSlot { width: var(--h); height: var(--h); flex: none; }
+.scopeActions { display: flex; align-items: center; gap: var(--gap); flex: none; }
+
+/* панель выбора: прилипает к низу колонки списка */
+.selectionBar { position: sticky; bottom: var(--s5); z-index: var(--z-menu); display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3) var(--gap); margin-top: var(--s6); padding: var(--s3) var(--s3) var(--s3) var(--s5); border-radius: var(--r); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line), var(--shadow-pop); }
+.selectionCount { flex: 1; min-width: 0; font-size: var(--fs-c); font-weight: var(--fw-m); }
+.selectionActions { display: flex; align-items: center; gap: var(--s3); }
+
+/* Move to…: поиск и список узлов */
+.options { display: flex; flex-direction: column; gap: var(--s1); max-height: var(--move-list-h); overflow: auto; margin: 0 calc(var(--s3) * -1); padding: 0 var(--s3); }
+.option { display: grid; grid-template-columns: var(--tree-twisty) minmax(0, 1fr) auto; align-items: center; gap: var(--s3); width: 100%; min-height: var(--h); padding: 0 var(--s4); border-radius: var(--rc); color: var(--tx2); font-size: var(--fs-c); text-align: left; }
+.option:disabled { opacity: var(--o-disabled); cursor: default; }
+.optionSub { padding-left: calc(var(--s4) + var(--tree-indent)); }
+.optionOn { background: var(--soft); color: var(--tx); }
+.optionIcon { display: grid; place-items: center; color: var(--tx3); }
+.optionName { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.optionParent { color: var(--tx3); }
+.optionHint { font-size: var(--fs-xs); color: var(--tx3); }
+.moveNote { font-size: var(--fs-s); color: var(--tx3); }
+.moveEmpty { padding: var(--s4); font-size: var(--fs-s); color: var(--tx3); }
+
+/* телефонный выбор области */
+.scopePicker { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s3); width: 100%; height: var(--h); margin-bottom: var(--s5); padding: 0 var(--s4); border-radius: var(--rc); background: var(--soft); color: var(--tx); font-size: var(--fs-c); font-weight: var(--fw-m); text-align: left; }
+.scopePicker > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pickerBody { display: flex; flex-direction: column; gap: var(--s6); }
+
+/* при переключении области остаётся прошлый список, а не пустой кадр; приглушается, только если загрузка затянулась */
+.listArea { transition: opacity var(--t); }
+.stale { opacity: var(--o-kbd); transition-delay: var(--stale-delay); }

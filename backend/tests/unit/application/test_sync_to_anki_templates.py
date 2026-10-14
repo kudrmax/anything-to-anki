@@ -11,6 +11,7 @@ from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.export_group import ExportGroup
 
+from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
@@ -74,6 +75,7 @@ class TestSyncToAnkiTemplates:
             template_renderer=renderer,
             vocabulary=user_vocabulary(known_word_repo),
             cloze_builder=ClozeBuilder(),
+            scope_resolver=empty_scope_resolver(),
         )
         use_case.execute(source_id=1, group=ExportGroup.READY)
 

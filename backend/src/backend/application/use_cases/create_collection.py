@@ -2,37 +2,25 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.application.dto.collection_dtos import CollectionDTO
+from backend.application.dto.collection_dtos import CollectionDTO, collection_to_dto
 from backend.domain.entities.collection import Collection
-from backend.domain.exceptions import CollectionNameExistsError
+from backend.domain.services.collection_tree import CollectionTree
 
 if TYPE_CHECKING:
     from backend.domain.ports.collection_repository import CollectionRepository
 
-_MAX_NAME_LENGTH: int = 200
-
 
 class CreateCollectionUseCase:
-    """Creates a new collection."""
+    """Creates a collection, or a subcollection of a top-level one, at the end of its siblings."""
 
     def __init__(self, collection_repo: CollectionRepository) -> None:
         self._collection_repo = collection_repo
 
-    def execute(self, name: str) -> CollectionDTO:
-        name = name.strip()
-        if not name:
-            raise ValueError("Collection name must not be empty")
-        if len(name) > _MAX_NAME_LENGTH:
-            raise ValueError(f"Collection name must not exceed {_MAX_NAME_LENGTH} characters")
-
-        existing = self._collection_repo.list_all()
-        if any(c.name == name for c in existing):
-            raise CollectionNameExistsError(name)
-
-        collection = self._collection_repo.create(Collection(name=name))
-        return CollectionDTO(
-            id=collection.id,  # type: ignore[arg-type]
-            name=collection.name,
-            source_count=0,
-            created_at=collection.created_at,
+    def execute(self, name: str, parent_id: int | None = None) -> CollectionDTO:
+        tree = CollectionTree(self._collection_repo.list_all())
+        tree.check_parent(parent_id)
+        clean = tree.check_name(name, parent_id)
+        created = self._collection_repo.create(
+            Collection(name=clean, parent_id=parent_id, position=tree.next_position(parent_id)),
         )
+        return collection_to_dto(created)
