@@ -189,7 +189,7 @@ export function ReviewScreen() {
         <>
           {/* Десктоп: прогресс — линия по нижнему краю вкладок, на всю ширину окна; видна краем глаза. */}
           <span className={css.windowProgress} style={{ '--p': `${Math.round(counts.progress * 100)}%` } as CSSProperties} />
-          {counts.reviewed === counts.total ? DONE : <span>{counts.reviewed} / {counts.total}<span className={css.desktopText}> decided</span></span>}
+          {counts.reviewed === counts.total ? DONE : `${counts.reviewed} / ${counts.total}`}
         </>
       )}
     >
