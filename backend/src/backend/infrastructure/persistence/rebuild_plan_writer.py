@@ -1,7 +1,7 @@
 """Writes a rebuild plan in the caller's transaction."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -20,6 +20,7 @@ from backend.infrastructure.persistence.phrase_writes import PhraseWords, chunks
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from sqlalchemy import Table
     from sqlalchemy.orm import Session
 
     from backend.domain.services.phrase_selection import SelectionChange
@@ -138,17 +139,19 @@ class RebuildPlanWriter:
         phrases only by their id."""
         if not inserts:
             return []
-        upsert = sqlite_insert(PhraseModel).on_conflict_do_update(
-            index_elements=[
-                PhraseModel.candidate_id, PhraseModel.block, PhraseModel.line, PhraseModel.char,
-            ],
+        # The table, not the mapped class: one multi-row statement per batch, where the
+        # ORM's bulk path compiles a statement per row for an upsert with RETURNING.
+        table = cast("Table", PhraseModel.__table__)
+        phrases = table.c
+        upsert = sqlite_insert(table).on_conflict_do_update(
+            index_elements=[phrases.candidate_id, phrases.block, phrases.line, phrases.char],
             index_where=text(AUTO_ONLY),
-            set_={"candidate_id": PhraseModel.candidate_id},
+            set_={"candidate_id": phrases.candidate_id},
         ).returning(
-            PhraseModel.id,
-            PhraseModel.source_phrase,
-            PhraseModel.polished_phrase,
-            PhraseModel.polish_reverted,
+            phrases.id,
+            phrases.source_phrase,
+            phrases.polished_phrase,
+            phrases.polish_reverted,
             sort_by_parameter_order=True,
         )
         rows = [_new_row(planned, word_ids[planned.word]) for planned in inserts]
