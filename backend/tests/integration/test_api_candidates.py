@@ -15,6 +15,9 @@ from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import SourceModel
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
+from backend.infrastructure.persistence.sqla_known_word_repository import (
+    SqlaKnownWordRepository,
+)
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
@@ -129,6 +132,16 @@ class TestDecisionAPI:
 
         assert response.status_code == 409
         assert response.json()["detail"] == "Learned via another phrase: change it on that card"
+
+    def test_learn_on_a_word_known_elsewhere_says_why(self, client: TestClient) -> None:
+        session = next(app.dependency_overrides[get_db_session]())
+        SqlaKnownWordRepository(session).add("pursuit", "NOUN")
+        session.commit()
+
+        response = client.put("/phrases/1/decision", json={"status": "learn"})
+
+        assert response.status_code == 409
+        assert response.json()["detail"] == "Already known"
 
     def test_mark_candidate_invalid_status(self, client: TestClient) -> None:
         response = client.put("/phrases/1/decision", json={"status": "invalid"})

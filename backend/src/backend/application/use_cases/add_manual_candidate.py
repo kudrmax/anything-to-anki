@@ -32,9 +32,10 @@ class AddManualCandidateUseCase:
 
     The word is read by the same enrichment pipeline as automatic processing (lemma, POS,
     CEFR, frequency) but bypasses the CEFR level gate — it is always saved. A word the source
-    already has gets another phrase; at the place of one of its auto phrases, that phrase is
-    shown instead of a duplicate (and if it was the selection card, it keeps standing for
-    it). The phrase keeps its place in the document as its key, so Rebuild finds it.
+    already has gets another phrase; at the place of one of its auto phrases, or of a manual
+    phrase with the same text, that phrase is shown instead of a duplicate (and if it was the
+    selection card, it keeps standing for it). The phrase keeps its place in the document as
+    its key, so Rebuild finds it.
     """
 
     def __init__(
@@ -109,7 +110,13 @@ class AddManualCandidateUseCase:
         existing = next(
             (
                 o for o in self._occurrences.of_word(word_id)
-                if o.origin is OccurrenceOrigin.AUTO and o.key == key
+                if o.key == key and (
+                    o.origin is OccurrenceOrigin.AUTO
+                    or (
+                        o.origin is OccurrenceOrigin.MANUAL
+                        and o.source_phrase.text == candidate.source_phrase.text
+                    )
+                )
             ),
             None,
         )

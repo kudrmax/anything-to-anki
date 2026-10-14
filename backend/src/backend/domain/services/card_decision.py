@@ -90,7 +90,7 @@ class CardState:
 
     decided_here: bool
     decided_elsewhere: WordStatus | None
-    known_elsewhere: bool
+    elsewhere: Elsewhere | None
     buttons_enabled: frozenset[DecisionButton]
 
 
@@ -148,13 +148,14 @@ def decide(
 
 
 def card_state(
-    occ: Occurrence, word: StoredCandidate, learning_or_known_elsewhere: bool,
+    occ: Occurrence, word: StoredCandidate, learning_or_known_elsewhere: Elsewhere | None,
 ) -> CardState:
+    """`learning_or_known_elsewhere`: why the word is done via another source, if it is;
+    a word decided in this source shows its own decision instead."""
     status = word_status_of(word)
     decided = status is not WordStatus.PENDING
     decided_here = decided and occ.is_decision
-    # Which of the two it is does not change the buttons.
-    elsewhere = Elsewhere.KNOWN if learning_or_known_elsewhere else None
+    elsewhere = None if decided else learning_or_known_elsewhere
     enabled = {
         button for button, action in ACTION_OF_BUTTON.items()
         if _allowed(occ, status, action, elsewhere)
@@ -166,7 +167,7 @@ def card_state(
     return CardState(
         decided_here=decided_here,
         decided_elsewhere=status if decided and not occ.is_decision else None,
-        known_elsewhere=not decided and learning_or_known_elsewhere,
+        elsewhere=elsewhere,
         buttons_enabled=frozenset(enabled),
     )
 

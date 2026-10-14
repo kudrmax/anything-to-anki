@@ -203,25 +203,25 @@ def test_an_exported_cloze_stays_a_cloze_and_keeps_its_markup() -> None:
 
 
 def test_an_open_card_offers_every_decision() -> None:
-    state = card_state(_phrase(), _word(CandidateStatus.PENDING), False)
+    state = card_state(_phrase(), _word(CandidateStatus.PENDING), None)
 
     assert not state.decided_here
     assert state.decided_elsewhere is None
-    assert not state.known_elsewhere
+    assert state.elsewhere is None
     assert state.buttons_enabled == {
         DecisionButton.LEARN, DecisionButton.CLOZE, DecisionButton.KNOWN, DecisionButton.SKIP,
     }
 
 
 def test_a_skipped_card_can_be_unskipped_or_decided() -> None:
-    state = card_state(_phrase(skipped=True), _word(CandidateStatus.SKIP), False)
+    state = card_state(_phrase(skipped=True), _word(CandidateStatus.SKIP), None)
 
     assert DecisionButton.UNSKIP in state.buttons_enabled
     assert DecisionButton.LEARN in state.buttons_enabled
 
 
 def test_the_decision_card_can_be_undone_and_changed() -> None:
-    state = card_state(_decision(), _word(CandidateStatus.LEARN), False)
+    state = card_state(_decision(), _word(CandidateStatus.LEARN), None)
 
     assert state.decided_here
     assert state.decided_elsewhere is None
@@ -232,13 +232,13 @@ def test_the_decision_card_can_be_undone_and_changed() -> None:
 
 
 def test_an_exported_decision_card_only_switches_learn_and_known() -> None:
-    state = card_state(_decision(exported=True), _word(CandidateStatus.LEARN), False)
+    state = card_state(_decision(exported=True), _word(CandidateStatus.LEARN), None)
 
     assert state.buttons_enabled == {DecisionButton.LEARN, DecisionButton.KNOWN}
 
 
 def test_a_sibling_card_shows_the_decision_with_its_buttons_inactive() -> None:
-    state = card_state(_phrase(), _word(CandidateStatus.KNOWN), False)
+    state = card_state(_phrase(), _word(CandidateStatus.KNOWN), None)
 
     assert not state.decided_here
     assert state.decided_elsewhere is WordStatus.KNOWN
@@ -246,22 +246,23 @@ def test_a_sibling_card_shows_the_decision_with_its_buttons_inactive() -> None:
 
 
 def test_a_skipped_sibling_shows_the_decision_and_may_be_unskipped() -> None:
-    state = card_state(_phrase(skipped=True), _word(CandidateStatus.LEARN), False)
+    state = card_state(_phrase(skipped=True), _word(CandidateStatus.LEARN), None)
 
     assert state.decided_elsewhere is WordStatus.LEARN
     assert state.buttons_enabled == {DecisionButton.UNSKIP}
 
 
-def test_a_card_known_elsewhere_is_done_and_cannot_be_learned() -> None:
-    state = card_state(_phrase(), _word(CandidateStatus.PENDING), True)
+@pytest.mark.parametrize("elsewhere", [Elsewhere.KNOWN, Elsewhere.LEARNING])
+def test_a_card_known_elsewhere_is_done_and_cannot_be_learned(elsewhere: Elsewhere) -> None:
+    state = card_state(_phrase(), _word(CandidateStatus.PENDING), elsewhere)
 
-    assert state.known_elsewhere
+    assert state.elsewhere is elsewhere
     assert DecisionButton.LEARN not in state.buttons_enabled
     assert DecisionButton.CLOZE not in state.buttons_enabled
     assert DecisionButton.KNOWN in state.buttons_enabled
 
 
 def test_a_decided_word_is_not_known_elsewhere() -> None:
-    state = card_state(_decision(), _word(CandidateStatus.LEARN), True)
+    state = card_state(_decision(), _word(CandidateStatus.LEARN), Elsewhere.LEARNING)
 
-    assert not state.known_elsewhere
+    assert state.elsewhere is None

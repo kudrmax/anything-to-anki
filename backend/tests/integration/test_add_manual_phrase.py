@@ -200,6 +200,22 @@ def test_a_manual_add_on_the_selection_card_keeps_one_card(bench: Bench) -> None
     assert shown[0].replaces_selection
 
 
+def test_adding_the_same_selection_twice_shows_one_manual_card(bench: Bench) -> None:
+    bench.processed(word("glare", at(0)))
+    manual = Manual(bench)
+    manual.add(GLARE_LINE, 1)
+    [added] = [o for o in _of(bench, "glare") if o.origin is OccurrenceOrigin.MANUAL]
+    assert added.id is not None
+    bench.occurrences.set_skipped(added.id, True)
+
+    manual.add(GLARE_LINE, 1)
+
+    manuals = [o for o in _of(bench, "glare") if o.origin is OccurrenceOrigin.MANUAL]
+    assert [(o.id, o.shown_by, o.skipped) for o in manuals] == [
+        (added.id, ShownBy.USER, False),
+    ]
+
+
 def test_a_manual_add_keeps_the_decision_card(bench: Bench) -> None:
     bench.processed(word("glare", at(0, 0.1), _at(GLARE_LINE, GLARE_CHAR)))
     decision = bench.phrase_on("glare", 0)
@@ -230,10 +246,10 @@ def test_learn_on_a_manual_card_closes_the_word_and_exports_one_phrase(bench: Be
 
     word_view = bench.candidates.get_by_id(manual.candidate_id)
     assert word_view is not None
-    sibling = card_state(_of(bench, "glare")[0], word_view, False)
+    sibling = card_state(_of(bench, "glare")[0], word_view, None)
     assert sibling.decided_elsewhere is WordStatus.LEARN
     assert sibling.buttons_enabled == frozenset()
-    decision_card = card_state(_of(bench, "glare")[1], word_view, False)
+    decision_card = card_state(_of(bench, "glare")[1], word_view, None)
     assert DecisionButton.UNDO in decision_card.buttons_enabled
     assert first.id is not None
     with pytest.raises(CardDecisionLockedError):

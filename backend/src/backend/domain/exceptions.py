@@ -404,7 +404,10 @@ class DecidedElsewhereError(DomainError):
     """Raised when a word known or being learned via another source is marked to learn."""
 
     def __init__(self, phrase_id: int, elsewhere: Elsewhere) -> None:
-        reason = "Known" if elsewhere is Elsewhere.KNOWN else "Learning from another source"
+        reason = (
+            "Already known" if elsewhere is Elsewhere.KNOWN
+            else "Already learning from another source"
+        )
         super().__init__(reason)
         self.phrase_id = phrase_id
         self.elsewhere = elsewhere

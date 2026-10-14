@@ -281,7 +281,7 @@ def test_learn_on_a_word_known_elsewhere_is_refused(bench: Bench) -> None:
         bench.decide(FIRST, LEARN)
 
     assert refused.value.elsewhere is Elsewhere.KNOWN
-    assert str(refused.value) == "Known"
+    assert str(refused.value) == "Already known"
     assert bench.word_status() is WordStatus.PENDING
 
 
@@ -297,7 +297,7 @@ def test_learn_on_a_word_learning_in_another_source_is_refused(
         bench.decide(FIRST, CLOZE)
 
     assert refused.value.elsewhere is Elsewhere.LEARNING
-    assert str(refused.value) == "Learning from another source"
+    assert str(refused.value) == "Already learning from another source"
 
 
 def test_an_unknown_phrase_is_not_found(bench: Bench) -> None:
