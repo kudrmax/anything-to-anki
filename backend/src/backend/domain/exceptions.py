@@ -288,6 +288,13 @@ class InvalidPhraseError(DomainError):
     """Raised when a phrase added by hand is empty or does not contain its target."""
 
 
+class TargetNotInPhraseError(InvalidPhraseError):
+    """Raised when the target is not among the words of a phrase's text."""
+
+    def __init__(self, message: str = "Target is missing from the phrase") -> None:
+        super().__init__(message)
+
+
 class GenerationNotSupportedError(DomainError):
     """Raised when a source has no use for a kind of generation (e.g. TTS for a video)."""
 
