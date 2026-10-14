@@ -3,10 +3,15 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.dto.analysis_dtos import (
     AnalyzeTextResponse,
-    WordCandidateDTO,
+    OccurrenceDTO,
+    OccurrenceKeyDTO,
+    WordDTO,
 )
+from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.application.use_cases.process_source import ProcessSourceUseCase
+from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.entities.source import Source
+from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import (
     SourceAlreadyProcessedError,
     SourceHasNoDocumentError,
@@ -20,6 +25,20 @@ from backend.domain.value_objects.source_status import SourceStatus
 from tests.candidate_sorter_support import threshold_resolver
 from tests.phrase_support import phrase
 from tests.vocabulary_support import user_vocabulary
+
+
+def _occurrence(
+    text: str, target: str | None = None, *, score: float = 0.0, char: int = 0,
+) -> OccurrenceDTO:
+    return OccurrenceDTO(
+        phrase=phrase(text, target),
+        phrase_position=DocumentPositionDTO(
+            block=0, start_line=0, start_char=char, end_line=0, end_char=char + len(text),
+        ),
+        key=OccurrenceKeyDTO(block=0, line=0, char=char),
+        fragment_score=score,
+    )
+
 
 DOCUMENT = Document((Paragraph(lines=(Line("Hello world"),), mode=ParagraphMode.FLOW),))
 
@@ -92,12 +111,11 @@ class TestProcessSourceExecute:
         mocks["known_word_repo"].get_all_pairs.return_value = set()
         mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
             text="Hello world",
-            candidates=[
-                WordCandidateDTO(
+            words=[
+                WordDTO(
                     lemma="ubiquitous", pos="ADJ", cefr_level="C1",
-                    zipf_frequency=3.2, is_sweet_spot=True,
-                    phrase=phrase("ubiquitous presence"),
-                    occurrences=1,
+                    zipf_frequency=3.2,
+                    occurrences=[_occurrence("ubiquitous presence")],
                 ),
             ],
             total_tokens=5,
@@ -119,12 +137,11 @@ class TestProcessSourceExecute:
         mocks["known_word_repo"].get_all_pairs.return_value = set()
         mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
             text="dodgy deal",
-            candidates=[
-                WordCandidateDTO(
+            words=[
+                WordDTO(
                     lemma="dodgy", pos="ADJ", cefr_level="B2",
-                    zipf_frequency=3.3, is_sweet_spot=True,
-                    phrase=phrase("dodgy deal"),
-                    occurrences=1,
+                    zipf_frequency=3.3,
+                    occurrences=[_occurrence("dodgy deal")],
                     usage_distribution={"informal": 1.0},
                 ),
             ],
@@ -150,7 +167,7 @@ class TestProcessSourceExecute:
             ("Pursuit", "NOUN"), ("divorce", None),
         }
         mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
-            text="Hello", candidates=[], total_tokens=1, unique_lemmas=1,
+            text="Hello", words=[], total_tokens=1, unique_lemmas=1,
         )
         uc.execute(1)
         document, request = mocks["analyze_text"].execute.call_args[0]
@@ -167,12 +184,13 @@ class TestProcessSourceExecute:
         mocks["known_word_repo"].get_all_pairs.return_value = set()
         mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
             text="Hello",
-            candidates=[
-                WordCandidateDTO(
+            words=[
+                WordDTO(
                     lemma="paleontology", pos="NOUN", cefr_level="C1",
-                    zipf_frequency=2.8, is_sweet_spot=False,
-                    phrase=phrase("So on a dare, I picked paleontology.", "paleontology"),
-                    occurrences=1,
+                    zipf_frequency=2.8,
+                    occurrences=[
+                        _occurrence("So on a dare, I picked paleontology.", "paleontology"),
+                    ],
                 ),
             ],
             total_tokens=8,
@@ -183,6 +201,34 @@ class TestProcessSourceExecute:
         assert created[0].source_phrase == phrase(
             "So on a dare, I picked paleontology.", "paleontology",
         )
+
+    def test_word_gets_the_phrase_of_its_best_occurrence(self) -> None:
+        created = self._process(WordDTO(
+            lemma="glare", pos="NOUN", cefr_level="C1", zipf_frequency=3.0,
+            occurrences=[
+                _occurrence("a glare here", "glare", score=5.0, char=0),
+                _occurrence("the glare there", "glare", score=2.0, char=20),
+                _occurrence("one glare more", "glare", score=2.0, char=40),
+            ],
+        ))
+        assert created[0].source_phrase.text == "the glare there"
+        assert created[0].occurrence_key == OccurrenceKey(block=0, line=0, char=20)
+        assert created[0].fragment_score == 2.0
+        assert created[0].occurrences == 3
+
+    def _process(self, word: WordDTO) -> list[StoredCandidate]:
+        uc, mocks = _make_use_case()
+        mocks["source_repo"].get_by_id.return_value = Source(
+            id=1, status=SourceStatus.PROCESSING, format=Format.PLAIN, kind=Kind.TEXT,
+        )
+        mocks["settings_repo"].get.return_value = "B1"
+        mocks["known_word_repo"].get_all_pairs.return_value = set()
+        mocks["analyze_text"].execute.return_value = AnalyzeTextResponse(
+            text="text", words=[word], total_tokens=3, unique_lemmas=3,
+        )
+        uc.execute(1)
+        created: list[StoredCandidate] = mocks["candidate_repo"].create_batch.call_args[0][0]
+        return created
 
     def test_execute_not_found(self) -> None:
         uc, mocks = _make_use_case()

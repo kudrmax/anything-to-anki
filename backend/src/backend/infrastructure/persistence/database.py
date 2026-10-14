@@ -169,6 +169,25 @@ def cleanup_enrichment_cache(session_factory: sessionmaker[Session]) -> None:
         session.close()
 
 
+def cleanup_parse_cache(session_factory: sessionmaker[Session]) -> None:
+    """Drop the cached parses of documents no source has any more."""
+    from sqlalchemy import select
+
+    from backend.infrastructure.adapters.caching_document_analyzer import document_hash
+    from backend.infrastructure.persistence.document_json import load_document
+    from backend.infrastructure.persistence.models import SourceDocumentModel
+    from backend.infrastructure.persistence.sqla_parse_cache import SqlaParseCache
+
+    with session_factory() as session:
+        live = {
+            document_hash(load_document(stored))
+            for stored in session.scalars(select(SourceDocumentModel.document))
+        }
+    dropped = SqlaParseCache(session_factory).keep_only(live)
+    if dropped:
+        logger.info("Parse cache: dropped the parses of %d documents", dropped)
+
+
 def reconcile_media_files(session_factory: sessionmaker[Session], media_root: str) -> None:
     """Remove orphan media files/directories without corresponding DB records.
 

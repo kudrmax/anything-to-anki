@@ -81,6 +81,7 @@ from backend.domain.value_objects.fragment_selection_config import (
 from backend.infrastructure.adapters.ai_model_mapping import model_id_for
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
 from backend.infrastructure.adapters.bing_image_source import BingImageSource
+from backend.infrastructure.adapters.caching_document_analyzer import CachingDocumentAnalyzer
 from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
 from backend.infrastructure.adapters.dict_cache.cefr_source import DictCacheCEFRSource
 from backend.infrastructure.adapters.dict_cache.pronunciation_source import (
@@ -151,6 +152,7 @@ from backend.infrastructure.persistence.sqla_job_repository import SqlaJobReposi
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
+from backend.infrastructure.persistence.sqla_parse_cache import SqlaParseCache
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
 )
@@ -395,7 +397,11 @@ class Container:
 
     def analyze_text_use_case(self) -> AnalyzeTextUseCase:
         return AnalyzeTextUseCase(
-            document_analyzer=self._document_analyzer,
+            document_analyzer=CachingDocumentAnalyzer(
+                self._document_analyzer,
+                SqlaParseCache(self._get_session_factory()),
+                self._document_analyzer.version,
+            ),
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),

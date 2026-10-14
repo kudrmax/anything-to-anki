@@ -1,7 +1,9 @@
 from backend.application.dto.analysis_dtos import (
     AnalyzeTextRequest,
     AnalyzeTextResponse,
-    WordCandidateDTO,
+    OccurrenceDTO,
+    OccurrenceKeyDTO,
+    WordDTO,
 )
 from backend.application.dto.anki_dtos import AnkiStatusDTO, CardPreviewDTO, SyncResultDTO
 from backend.application.dto.candidate_dtos import MarkCandidateRequest
@@ -28,5 +30,7 @@ __all__ = [
     "stored_candidate_to_dto",
     "SyncResultDTO",
     "UpdateSettingsRequest",
-    "WordCandidateDTO",
+    "OccurrenceDTO",
+    "OccurrenceKeyDTO",
+    "WordDTO",
 ]

@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, InstanceOf, field_validator
 
 from backend.application.dto.cefr_dtos import CEFRBreakdownDTO
 from backend.application.dto.document_dtos import DocumentPositionDTO
+from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.frequent_word_threshold import FALLBACK_ZIPF
 from backend.domain.value_objects.phrase import Phrase
@@ -32,22 +33,47 @@ class AnalyzeTextRequest(BaseModel):
         return v.strip().upper()
 
 
-class WordCandidateDTO(BaseModel):
-    """Single word candidate in the analysis result."""
+class OccurrenceKeyDTO(BaseModel):
+    """Where the target starts: block, line and character of that line."""
+
+    block: int
+    line: int
+    char: int
+
+    @staticmethod
+    def from_key(key: OccurrenceKey) -> OccurrenceKeyDTO:
+        return OccurrenceKeyDTO(block=key.block, line=key.line, char=key.char)
+
+    def to_key(self) -> OccurrenceKey:
+        return OccurrenceKey(block=self.block, line=self.line, char=self.char)
+
+
+class OccurrenceDTO(BaseModel):
+    """One place of a word in the text: its phrase there and how good that phrase is.
+
+    A lower `fragment_score` is a better phrase.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    phrase: InstanceOf[Phrase]
+    phrase_position: DocumentPositionDTO
+    key: OccurrenceKeyDTO
+    fragment_score: float
+
+
+class WordDTO(BaseModel):
+    """A word worth learning in the analysed text, with every place it occurs, in reading
+    order."""
+
     lemma: str
+    is_phrasal_verb: bool = False
     pos: str
     cefr_level: str | None
-    zipf_frequency: float
-    is_sweet_spot: bool
-    phrase: InstanceOf[Phrase]
-    occurrences: int
-    is_phrasal_verb: bool = False
     cefr_breakdown: CEFRBreakdownDTO | None = None
+    zipf_frequency: float
     usage_distribution: dict[str, float] | None = None
-    phrase_position: DocumentPositionDTO | None = None
+    occurrences: list[OccurrenceDTO]
 
 
 def dto_to_usage_distribution(
@@ -65,6 +91,6 @@ class AnalyzeTextResponse(BaseModel):
     """Output of the text analysis pipeline."""
 
     text: str
-    candidates: list[WordCandidateDTO]
+    words: list[WordDTO]
     total_tokens: int
     unique_lemmas: int

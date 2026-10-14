@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import spacy
+from spacy import about as spacy_about
 from spacy.language import Language
 
 from backend.domain.entities.token_data import TokenData
@@ -30,6 +31,11 @@ class SpaCyTextAnalyzer(TextAnalyzer):
     def __init__(self, model_name: str = "en_core_web_sm") -> None:
         self._nlp: Language = spacy.load(model_name)
         self._nlp.add_pipe(PARAGRAPH_BOUNDARIES, before="parser")
+
+    @property
+    def version(self) -> str:
+        """spaCy's version and the model's: what the parse of a text depends on."""
+        return f"{spacy_about.__version__}:{self._nlp.meta['version']}"
 
     def analyze(self, text: str) -> list[TokenData]:
         doc = self._nlp(text)

@@ -66,7 +66,7 @@ class TestProcessVideoSource:
         settings_repo = MagicMock()
         settings_repo.get.return_value = "B1"
         analyze_result = MagicMock()
-        analyze_result.candidates = []
+        analyze_result.words = []
         analyze_result.text = "some text"
         analyze_text = MagicMock()
         analyze_text.execute.return_value = analyze_result

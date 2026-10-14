@@ -109,7 +109,7 @@ class TestStoredCandidateToDto:
 
 
 class TestProcessSourceBreakdownPropagation:
-    """process_source must pass breakdown from WordCandidateDTO to StoredCandidate."""
+    """process_source must pass breakdown from WordDTO to StoredCandidate."""
 
     def test_dto_to_breakdown_roundtrip(self) -> None:
         """Simulates what process_source does: DTO → domain → StoredCandidate."""

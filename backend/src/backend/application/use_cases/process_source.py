@@ -22,6 +22,7 @@ from backend.domain.value_objects.source_status import SourceStatus
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from backend.application.dto.analysis_dtos import WordDTO
     from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
     from backend.application.utils.frequent_word_threshold_resolver import (
         FrequentWordThresholdResolver,
@@ -126,24 +127,7 @@ class ProcessSourceUseCase:
         )
         result = self._analyze_text.execute(document, request)
 
-        stored: list[StoredCandidate] = []
-        for c in result.candidates:
-            bd = dto_to_breakdown(c.cefr_breakdown) if c.cefr_breakdown else None
-            ud = dto_to_usage_distribution(c.usage_distribution)
-            stored.append(StoredCandidate(
-                source_id=source_id,
-                lemma=c.lemma,
-                pos=c.pos,
-                cefr_level=c.cefr_level,
-                zipf_frequency=c.zipf_frequency,
-                source_phrase=c.phrase,
-                occurrences=c.occurrences,
-                is_phrasal_verb=c.is_phrasal_verb,
-                status=CandidateStatus.PENDING,
-                cefr_breakdown=bd,
-                usage_distribution=ud,
-                phrase_position=c.phrase_position.to_position() if c.phrase_position else None,
-            ))
+        stored = [self._stored(source_id, word) for word in result.words]
         created = self._candidate_repo.create_batch(stored)
 
         # A phrase of timed lines gets their time: the clip of its card
@@ -167,6 +151,28 @@ class ProcessSourceUseCase:
         logger.info(
             "process_source: done (source_id=%d, candidates_created=%d, with_timecodes=%d)",
             source_id, len(created), timed,
+        )
+
+    @staticmethod
+    def _stored(source_id: int, word: WordDTO) -> StoredCandidate:
+        # TRANSITIONAL(words-phrases): removed in Task 6 — one phrase per word, the best
+        # scored occurrence (ties to the earliest), until select_phrases/plan_rebuild
+        occurrence = min(word.occurrences, key=lambda o: o.fragment_score)
+        return StoredCandidate(
+            source_id=source_id,
+            lemma=word.lemma,
+            pos=word.pos,
+            cefr_level=word.cefr_level,
+            zipf_frequency=word.zipf_frequency,
+            source_phrase=occurrence.phrase,
+            occurrences=len(word.occurrences),
+            is_phrasal_verb=word.is_phrasal_verb,
+            status=CandidateStatus.PENDING,
+            cefr_breakdown=dto_to_breakdown(word.cefr_breakdown) if word.cefr_breakdown else None,
+            usage_distribution=dto_to_usage_distribution(word.usage_distribution),
+            phrase_position=occurrence.phrase_position.to_position(),
+            occurrence_key=occurrence.key.to_key(),
+            fragment_score=occurrence.fragment_score,
         )
 
     def _process_topic(

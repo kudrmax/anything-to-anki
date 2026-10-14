@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
     from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
     from backend.domain.entities.candidate_tts import CandidateTTS
+    from backend.domain.entities.occurrence import OccurrenceKey
     from backend.domain.value_objects.candidate_status import CandidateStatus
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.document_position import DocumentPosition
@@ -74,6 +75,9 @@ class StoredCandidate:
     polished_phrase: Phrase | None = None
     polish_reverted: bool = False
     phrase_position: DocumentPosition | None = None
+    # TRANSITIONAL(words-phrases): removed in Task 10 — written to the new phrase, not read back
+    occurrence_key: OccurrenceKey | None = None
+    fragment_score: float | None = None
 
     # TRANSITIONAL(words-phrases): removed in Task 10
     @property
