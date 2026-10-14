@@ -1,7 +1,7 @@
 /* текущая фраза: сверху фраза, слева то, по чему решаешь, справа справка, снизу факты и инструменты */
 .card { display: var(--card-display); flex-direction: column; flex: var(--card-flex); min-height: var(--card-min-h); overflow-y: var(--card-overflow); grid-template-columns: var(--card-cols); grid-template-rows: auto 1fr auto; background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); border-radius: var(--r); cursor: default; }
-.cardHead { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--s4); padding: var(--card-head-pt) var(--card-pad) var(--card-head-pb); border-bottom: var(--bw) solid var(--line); }
-.phraseRow { display: flex; align-items: flex-start; gap: var(--s5); }
+.cardHead { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--s4); padding: var(--card-head-pt) var(--card-pad) var(--card-head-pb); border-bottom: var(--card-head-bw) solid var(--line); }
+.phraseRow { display: flex; flex-direction: var(--phrase-row-dir); align-items: flex-start; gap: var(--phrase-row-gap); }
 .phraseRow > :first-child { flex: 1; min-width: 0; }
 .decided { flex: none; display: inline-flex; align-items: center; gap: var(--s2); margin-top: var(--s3); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx2); background: var(--soft); }
 .cardLeft { display: var(--card-left-display); flex-direction: column; gap: var(--s4); padding: var(--s5) var(--card-pad) var(--card-cols-pb); }
@@ -31,9 +31,13 @@
 .definition b, .context b, .examples b { font-weight: var(--fw-m); color: var(--tx); }
 .retold b { font-weight: var(--fw-m); }
 .retold .target { color: var(--ac); }
-.cardFoot { grid-column: 1 / -1; order: var(--card-foot-order); display: flex; align-items: center; gap: var(--s4); padding: var(--s3) var(--card-pad); border-top: var(--bw) solid var(--line); }
+.cardFoot { grid-column: 1 / -1; order: var(--card-foot-order); display: flex; align-items: center; gap: var(--s4); padding: var(--s3) var(--card-pad); border-top: var(--card-foot-bw) solid var(--line); }
 .facts { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); font-size: var(--fs-s); color: var(--tx3); }
 .facts > * + *::before { content: '·'; margin-right: var(--s3); }
+/* телефон: справка свёрнута в строку Details под тем, по чему решаешь; на десктопе её нет — справка всегда видна */
+.detailsToggle { display: var(--phone-flex); order: var(--details-toggle-order); align-items: center; justify-content: space-between; margin-top: auto; padding: var(--s4) var(--card-pad); font-size: var(--fs-m); color: var(--tx3); }
+.detailsToggle[aria-expanded="true"] { margin-top: var(--s3); color: var(--tx); }
+.cardRight.collapsed, .cardFoot.collapsed { display: var(--details-collapsed-display); }
 .tools { display: flex; gap: var(--s1); margin-right: var(--icon-inset-trim); }
 
 /* решения: док у нижнего края окна, Learn залит всегда, принятое решение — с галочкой */
@@ -60,15 +64,9 @@
 .queueItemCurrent { color: var(--tx); background: var(--ac-wash); }
 .queue.away { display: var(--away-display); }
 
-/* телефон: ряд переключения и панели на месте карточки */
-.phoneBar { display: var(--phone-flex); flex: none; align-items: center; gap: var(--s2); margin-bottom: var(--s4); }
-.phoneBar > :first-child { margin-left: var(--icon-inset-trim); }
-.phoneBar > :last-child { margin-right: var(--icon-inset-trim); }
 /* десктоп без списка: только текущая карточка */
 .focus .queue > .queueItem, .focus .queue > .sectionToggle, .focus .showMore { display: none; }
 .sectionToggle { padding: var(--py) var(--card-pad) 0; }
-.phoneBar > .phoneOnly { display: var(--phone-display); }
-.position { margin-left: auto; padding-inline: var(--s3); font-size: var(--fs-s); color: var(--tx3); font-variant-numeric: tabular-nums; }
 .textPanel { display: var(--phone-flex); flex-direction: column; flex: 1; min-height: 0; }
 .textPanel > .source { flex: 1; min-height: 0; max-height: none; }
 .listPanel { display: var(--phone-flex); flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
@@ -107,7 +105,6 @@
 .iconTrigger { width: var(--h); height: var(--h); justify-content: center; border-radius: var(--rc); color: var(--tx3); }
 .iconTrigger:hover:not(:disabled) { background: var(--soft); }
 .headerTools { display: flex; align-items: center; gap: var(--s2); }
-.headerTools > .desktopOnly { display: var(--desktop-display); }
 .headerTools > :first-child { margin-left: var(--header-tools-trim); }
 
 /* жалоба: поле и кнопка отправки под причинами */
@@ -118,8 +115,9 @@
 /* текст примера — на всю ширину колонки, кнопка не отнимает у него места: встаёт поверх строки */
 .example { position: relative; padding-left: var(--s5); }
 .example::before { content: '·'; position: absolute; left: 0; font-weight: var(--fw-m); color: var(--tx3); }
-.useExample { position: var(--use-example-position); top: 0; right: 0; margin-left: var(--s3); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--use-example-bg); box-shadow: 0 0 var(--s3) var(--s2) var(--card); opacity: var(--reveal); transition: opacity var(--t); }
+.useExample { display: var(--use-example-display); position: var(--use-example-position); top: 0; right: 0; margin-left: var(--s3); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--use-example-bg); box-shadow: 0 0 var(--s3) var(--s2) var(--card); opacity: var(--reveal); transition: opacity var(--t); }
 .example:hover .useExample, .useExample:focus-visible { opacity: 1; }
+.exampleOpen .useExample { display: inline-flex; opacity: 1; }
 
 /* свой вопрос к AI */
 .ask { display: flex; align-items: center; gap: var(--s2); }
@@ -164,3 +162,11 @@
 .clozeBlank { color: var(--ac); font-weight: var(--fw-m); }
 .clozeActions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--s3); }
 .clozeTip { margin-right: auto; font-size: var(--fs-s); color: var(--tx3); }
+
+/* десктоп и телефон показывают разные части шапки; правила в конце — поверх display самих элементов */
+.desktopOnly, .export.desktopOnly { display: var(--desktop-flex); }
+.desktopText { display: var(--desktop-inline); }
+.phoneOnly { display: var(--phone-flex); }
+/* телефон: прогресс — полоса на всю ширину под строкой шапки */
+.phoneProgress { display: var(--phone-flex); flex-basis: 100%; order: 1; margin-top: var(--s2); }
+.phoneProgress > * { flex: 1; }

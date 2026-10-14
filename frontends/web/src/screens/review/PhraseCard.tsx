@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Brackets, Check, Target, Volume2 } from 'lucide-react'
+import { Brackets, Check, ChevronDown, ChevronUp, Target, Volume2 } from 'lucide-react'
 import type { CandidateCloze, EnrichmentStatus, PhraseOrigin, StoredCandidate } from '@/api/types'
 import { CLOZE_HINT_LABEL } from '@/lib/clozeHints'
 import { chosenDecision, type ChosenDecision } from '@/lib/decision'
@@ -60,6 +60,9 @@ function StatusText({ status, labels, error }: { status: EnrichmentStatus | unde
  */
 export function PhraseCard({ candidate, review }: PhraseCardProps) {
   const [cefrAnchor, setCefrAnchor] = useState<HTMLElement | null>(null)
+  // Телефон: справка свёрнута в строку Details, «Use as phrase» — только у примера, по которому тапнули.
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [openExample, setOpenExample] = useState<number | null>(null)
   const { sourceId, player } = review
   const meaning = candidate.meaning
   const media = review.mediaFor(candidate)
@@ -136,7 +139,11 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
         </div>
       </div>
 
-      <div className={css.cardRight}>
+      <button type="button" className={css.detailsToggle} aria-expanded={detailsOpen} onClick={() => setDetailsOpen(open => !open)}>
+        Details<Icon as={detailsOpen ? ChevronUp : ChevronDown} size="s" />
+      </button>
+
+      <div className={detailsOpen ? css.cardRight : `${css.cardRight} ${css.collapsed}`}>
         {hasMeta && (
           <div className={css.meta}>
             {meaning?.ipa && <Text mono>{meaning.ipa}</Text>}
@@ -159,7 +166,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
         {examples.length > 0 && (
           <ul className={css.examples}>
             {examples.map((line, i) => (
-              <li key={i} className={css.example}>
+              <li key={i} className={openExample === i ? `${css.example} ${css.exampleOpen}` : css.example} onClick={() => setOpenExample(i)}>
                 <span><RichText text={line} candidate={candidate} /></span>
                 <button type="button" className={css.useExample} onClick={() => void review.replaceWithExample(candidate.id, line.trim())}>
                   Use as phrase
@@ -170,7 +177,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
         )}
       </div>
 
-      <footer className={css.cardFoot}>
+      <footer className={detailsOpen ? css.cardFoot : `${css.cardFoot} ${css.collapsed}`}>
         <div className={css.facts}>
           {candidate.cloze && (
             <span className={css.clozeFact}><Icon as={Brackets} size="s" />{clozeLabel(candidate.cloze)}</span>
