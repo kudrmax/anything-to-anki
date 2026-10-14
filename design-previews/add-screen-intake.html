@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Add screen mockup</title>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+  :root {
+    --bg: #100f0e; --card: #181716; --soft: #222120; --line: #2c2b2a;
+    --tx: #e9e8e7; --tx2: #bbbab9; --tx3: #8c8c8a; --ac: #eda57c; --on-ac: #24120a; --err: #f09a8e; --ok: #a9cf9a;
+    --fill: linear-gradient(120deg, color-mix(in srgb, var(--ac) 88%, #f09a8e), color-mix(in srgb, var(--ac) 88%, var(--tx)));
+    --ac-wash: color-mix(in srgb, var(--ac) 13%, transparent);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #050505; color: var(--tx); font: 15px/1.5 -apple-system, "Inter", system-ui, sans-serif; padding: 24px; }
+  h2.cap { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  p.note { font-size: 13px; color: var(--tx3); margin-bottom: 12px; max-width: 900px; }
+  .frame { width: 1000px; height: 470px; border-radius: 12px; border: 1px solid #222; overflow: hidden; margin-bottom: 40px;
+    background: radial-gradient(900px 420px at 18% -10%, color-mix(in srgb, var(--ac) 14%, transparent), transparent 60%), var(--bg); }
+  svg.lucide { width: 16px; height: 16px; stroke-width: 1.75; flex: none; }
+  .nav { height: 48px; display: flex; align-items: center; gap: 22px; padding: 0 28px; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--tx3); }
+  .nav .on { color: var(--tx); box-shadow: inset 0 -2px 0 var(--ac); height: 100%; display: flex; align-items: center; }
+  .nav .sp { flex: 1; }
+  .page { padding: 22px 28px; width: 720px; }
+  h1 { font-size: 22px; font-weight: 600; margin-bottom: 16px; }
+  textarea { width: 100%; height: 96px; resize: none; background: var(--soft); border: 1px solid transparent; border-radius: 12px; color: var(--tx); font: inherit; padding: 10px 12px; outline: none; }
+  textarea.focus { border-color: color-mix(in srgb, var(--ac) 55%, transparent); }
+  textarea.bad { border-color: color-mix(in srgb, var(--err) 60%, transparent); }
+  .kind { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .seg { display: inline-flex; background: var(--soft); border-radius: 11px; padding: 3px; gap: 2px; }
+  .seg span { position: relative; padding: 5px 12px; border-radius: 8px; font-size: 13.5px; color: var(--tx2); }
+  .seg span.on { background: #34322f; color: var(--tx); }
+  .seg span.off { opacity: .4; }
+  .det { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--tx2); }
+  .det svg.lucide { color: var(--tx3); }
+  .why { font-size: 12.5px; color: var(--tx3); margin-top: 8px; }
+  .why b { color: var(--tx2); font-weight: 500; }
+  .err { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; font-size: 13.5px; color: var(--err); }
+  .err span.sub { display: block; color: var(--tx3); font-size: 12.5px; }
+  .field { margin-top: 12px; height: 36px; border-radius: 10px; background: var(--soft); color: var(--tx3); font-size: 14px; display: flex; align-items: center; padding: 0 12px; }
+  .btn { margin-top: 16px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 14.5px; font-weight: 500; background: var(--fill); color: var(--on-ac); }
+  .btn.dis { background: var(--soft); color: var(--tx3); }
+  .words { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .words span { padding: 2px 9px; border-radius: 7px; background: var(--soft); font-size: 13px; color: var(--tx2); }
+  .words span.t { background: var(--ac-wash); color: var(--ac); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 50%, transparent); }
+</style>
+</head>
+<body>
+
+<script>
+const nav = `<div class="nav"><span class="on">Add</span><span>Sources</span><span>Export</span><span>Queue</span><span>Usage</span><span class="sp"></span><span>Settings</span></div>`;
+</script>
+
+<h2 class="cap">1 · Одно слово → предложена тема</h2>
+<p class="note">Режим выбран по вводу: одно слово или короткое выражение — это тема. Рядом с режимом сказано, что будет. Переключить можно, но по умолчанию правильно.</p>
+<div class="frame"><div class="nav"><span class="on">Add</span><span>Sources</span><span>Export</span><span>Queue</span><span>Usage</span><span class="sp"></span><span>Settings</span></div>
+<div class="page"><h1>Add</h1>
+  <textarea class="focus">procrastinate</textarea>
+  <div class="kind"><div class="seg"><span>Source</span><span class="on">Topic</span><span>Phrase</span></div>
+    <span class="det"><i data-lucide="sparkles"></i>Topic — AI picks targets, phrases come from your sources</span></div>
+  <div class="field">Title (optional)</div>
+  <div class="btn">Add topic</div>
+</div></div>
+
+<h2 class="cap">2 · Одно предложение → предложена фраза</h2>
+<p class="note">Одно предложение — это фраза для карточки. Слова для выбора target'а появляются сразу.</p>
+<div class="frame"><div class="nav"><span class="on">Add</span><span>Sources</span><span>Export</span><span>Queue</span><span>Usage</span><span class="sp"></span><span>Settings</span></div>
+<div class="page"><h1>Add</h1>
+  <textarea class="focus">She shrugged off the comment and kept walking.</textarea>
+  <div class="kind"><div class="seg"><span>Source</span><span>Topic</span><span class="on">Phrase</span></div>
+    <span class="det"><i data-lucide="text-cursor-input"></i>Phrase — tap the words you want to learn</span></div>
+  <div class="words"><span>She</span><span class="t">shrugged</span><span class="t">off</span><span>the</span><span>comment</span><span>and</span><span>kept</span><span>walking</span></div>
+  <div class="btn">Add phrase</div>
+</div></div>
+
+<h2 class="cap">3 · Был выбран Topic, вставлена ссылка → режим снова по вводу</h2>
+<p class="note">Сменился ввод — сменилось и предложение: ссылка на видео снова становится источником. Что именно прочитается — крупно, рядом с режимом, а не мелко у края.</p>
+<div class="frame"><div class="nav"><span class="on">Add</span><span>Sources</span><span>Export</span><span>Queue</span><span>Usage</span><span class="sp"></span><span>Settings</span></div>
+<div class="page"><h1>Add</h1>
+  <textarea class="focus">https://www.youtube.com/watch?v=dQw4w9WgXcQ</textarea>
+  <div class="kind"><div class="seg"><span class="on">Source</span><span>Topic</span><span>Phrase</span></div>
+    <span class="det"><i data-lucide="clapperboard"></i>Video · YouTube</span></div>
+  <div class="field">Title (optional)</div>
+  <div class="btn">Add source</div>
+</div></div>
+
+<h2 class="cap">4 · Неподдерживаемая ссылка → ошибка, кнопка выключена</h2>
+<p class="note">Нельзя нажать то, что заведомо не сработает. Сказано, что не так и что сделать вместо этого.</p>
+<div class="frame"><div class="nav"><span class="on">Add</span><span>Sources</span><span>Export</span><span>Queue</span><span>Usage</span><span class="sp"></span><span>Settings</span></div>
+<div class="page"><h1>Add</h1>
+  <textarea class="bad">https://example.com/some-article</textarea>
+  <div class="err"><i data-lucide="circle-alert"></i><span>This link can't be read<span class="sub">Supported: YouTube. For an article, paste its text or save it as a file.</span></span></div>
+  <div class="btn dis">Add source</div>
+</div></div>
+
+<h2 class="cap">5 · Файла нет → ошибка сразу, а не после нажатия</h2>
+<p class="note">Путь проверяется вместе с форматом: несуществующий файл виден до нажатия.</p>
+<div class="frame"><div class="nav"><span class="on">Add</span><span>Sources</span><span>Export</span><span>Queue</span><span>Usage</span><span class="sp"></span><span>Settings</span></div>
+<div class="page"><h1>Add</h1>
+  <textarea class="bad">/Users/max/Downloads/Twig.epub</textarea>
+  <div class="err"><i data-lucide="circle-alert"></i><span>File not found<span class="sub">Check the path or choose the file again.</span></span></div>
+  <div class="btn dis">Add source</div>
+</div></div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>
