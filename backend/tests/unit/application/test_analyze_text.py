@@ -20,7 +20,6 @@ from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
-from backend.domain.value_objects.frequency_band import FrequencyBand
 from backend.domain.value_objects.user_knowledge import UserKnowledge
 from backend.domain.value_objects.vocabulary import Vocabulary
 
@@ -103,9 +102,6 @@ def _create_use_case(
 
     frequency_provider = MagicMock()
     _freq = freq_map or {}
-    frequency_provider.get_frequency.side_effect = lambda lemma: FrequencyBand.from_zipf(
-        _freq.get(lemma, 5.0)
-    )
     frequency_provider.get_zipf_value.side_effect = lambda lemma: _freq.get(lemma, 5.0)
 
     phrasal_verb_detector = MagicMock()

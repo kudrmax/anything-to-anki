@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import exists, func, insert, select, update
+from sqlalchemy import insert, select, update
 
 from backend.domain.ports.anki_note_repository import AnkiNoteRepository
 from backend.infrastructure.persistence.models import AnkiNoteModel
@@ -42,11 +42,6 @@ class SqlaAnkiNoteRepository(AnkiNoteRepository):
 
     def mark_deleted(self, note_ids: list[int], at: datetime) -> None:
         self._mark(note_ids, deleted_at=at)
-
-    def has_lemma(self, lemma: str) -> bool:
-        return bool(self._session.scalar(
-            select(exists().where(func.lower(AnkiNoteModel.lemma) == lemma.lower()))
-        ))
 
     def _mark(self, note_ids: list[int], **values: datetime) -> None:
         if not note_ids:

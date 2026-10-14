@@ -11,19 +11,19 @@ class TestWordfreqFrequencyProvider:
         self.provider = WordfreqFrequencyProvider()
 
     def test_common_word_returns_ultra_common_or_common(self) -> None:
-        freq = self.provider.get_frequency("the")
+        freq = FrequencyBand.from_zipf(self.provider.get_zipf_value("the"))
         assert freq in (FrequencyBand.ULTRA_COMMON, FrequencyBand.COMMON)
 
     def test_rare_word_returns_low_or_rare(self) -> None:
-        freq = self.provider.get_frequency("ubiquitous")
+        freq = FrequencyBand.from_zipf(self.provider.get_zipf_value("ubiquitous"))
         assert freq in (FrequencyBand.LOW, FrequencyBand.RARE, FrequencyBand.MID)
 
     def test_sweet_spot_word(self) -> None:
-        freq = self.provider.get_frequency("sacrifice")
+        freq = FrequencyBand.from_zipf(self.provider.get_zipf_value("sacrifice"))
         assert freq.is_sweet_spot is True
 
     def test_unknown_word_returns_rare(self) -> None:
-        freq = self.provider.get_frequency("asdfghjklzxcv")
+        freq = FrequencyBand.from_zipf(self.provider.get_zipf_value("asdfghjklzxcv"))
         assert freq == FrequencyBand.RARE
 
     def test_get_zipf_value_returns_float(self) -> None:

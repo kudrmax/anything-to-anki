@@ -11,12 +11,4 @@ class CandidatePronunciationRepository(ABC):
     """Port for persisting pronunciation enrichment data."""
 
     @abstractmethod
-    def get_by_candidate_id(self, candidate_id: int) -> CandidatePronunciation | None: ...
-
-    @abstractmethod
-    def get_by_candidate_ids(
-        self, candidate_ids: list[int],
-    ) -> dict[int, CandidatePronunciation]: ...
-
-    @abstractmethod
     def upsert(self, pronunciation: CandidatePronunciation) -> None: ...

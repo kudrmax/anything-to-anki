@@ -88,14 +88,6 @@ class RefreshNotSupportedError(DomainError):
         self.source_id = source_id
 
 
-class InvalidCandidateStatusError(DomainError):
-    """Raised when an invalid candidate status is provided."""
-
-    def __init__(self, status: str) -> None:
-        super().__init__(f"Invalid candidate status: {status}")
-        self.status_value = status
-
-
 class AnkiNotAvailableError(DomainError):
     """Raised when AnkiConnect is not reachable."""
 

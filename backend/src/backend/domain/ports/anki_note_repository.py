@@ -25,7 +25,3 @@ class AnkiNoteRepository(ABC):
 
     @abstractmethod
     def mark_deleted(self, note_ids: list[int], at: datetime) -> None: ...
-
-    @abstractmethod
-    def has_lemma(self, lemma: str) -> bool:
-        """A note of this lemma was exported."""

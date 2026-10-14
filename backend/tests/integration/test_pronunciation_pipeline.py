@@ -75,7 +75,9 @@ class TestPronunciationPipeline:
             session.commit()
 
             # Step 2: verify result
-            result = pron_repo.get_by_candidate_id(1)
+            word = candidate_repo.get_by_id(1)
+            assert word is not None
+            result = word.pronunciation
             assert result is not None
             assert result.us_audio_path is not None
             assert "1_pron_us.mp3" in result.us_audio_path
@@ -109,7 +111,9 @@ class TestPronunciationPipeline:
             use_case.execute_one(1)
             session.commit()
 
-            result = pron_repo.get_by_candidate_id(1)
+            word = candidate_repo.get_by_id(1)
+            assert word is not None
+            result = word.pronunciation
             assert result is not None
             assert result.us_audio_path is None
             assert result.uk_audio_path is None

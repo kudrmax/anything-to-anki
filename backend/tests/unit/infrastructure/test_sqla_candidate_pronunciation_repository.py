@@ -13,6 +13,7 @@ from backend.infrastructure.persistence.models import (
 from backend.infrastructure.persistence.sqla_candidate_pronunciation_repository import (
     SqlaCandidatePronunciationRepository,
 )
+from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -42,12 +43,18 @@ def _insert_candidate(session: Session, candidate_id: int, source_id: int = 1) -
     session.flush()
 
 
-class TestGetByCandidateId:
-    def test_returns_none_for_missing(self, session: Session) -> None:
-        repo = SqlaCandidatePronunciationRepository(session)
-        assert repo.get_by_candidate_id(999) is None
+def _word_pronunciation(session: Session, word_id: int) -> CandidatePronunciation | None:
+    word = SqlaCandidateRepository(session).get_by_id(word_id)
+    assert word is not None
+    return word.pronunciation
 
-    def test_returns_entity(self, session: Session) -> None:
+
+class TestTheWordCarriesItsPronunciation:
+    def test_a_word_without_one_has_none(self, session: Session) -> None:
+        _insert_candidate(session, 1)
+        assert _word_pronunciation(session, 1) is None
+
+    def test_a_stored_pronunciation_comes_with_the_word(self, session: Session) -> None:
         _insert_candidate(session, 1)
         now = datetime(2026, 1, 1, tzinfo=UTC)
         session.add(CandidatePronunciationModel(
@@ -58,37 +65,12 @@ class TestGetByCandidateId:
         ))
         session.flush()
 
-        repo = SqlaCandidatePronunciationRepository(session)
-        result = repo.get_by_candidate_id(1)
+        result = _word_pronunciation(session, 1)
 
         assert result is not None
         assert result.candidate_id == 1
         assert result.us_audio_path == "/us.mp3"
         assert result.uk_audio_path == "/uk.mp3"
-
-
-class TestGetByCandidateIds:
-    def test_empty_ids_returns_empty(self, session: Session) -> None:
-        repo = SqlaCandidatePronunciationRepository(session)
-        assert repo.get_by_candidate_ids([]) == {}
-
-    def test_returns_matching_entries(self, session: Session) -> None:
-        _insert_candidate(session, 1)
-        _insert_candidate(session, 2)
-        _insert_candidate(session, 3)
-        for cid in [1, 2]:
-            session.add(CandidatePronunciationModel(
-                candidate_id=cid,
-                us_audio_path=None,
-                uk_audio_path=None,
-                generated_at=None,
-            ))
-        session.flush()
-
-        repo = SqlaCandidatePronunciationRepository(session)
-        result = repo.get_by_candidate_ids([1, 2, 3])
-
-        assert set(result.keys()) == {1, 2}
 
 
 class TestUpsert:
@@ -140,9 +122,7 @@ class TestRowHoldingOnlyTheIpa:
         session.add(CandidatePronunciationModel(candidate_id=1, ipa="/ɡleə/"))
         session.flush()
 
-        repo = SqlaCandidatePronunciationRepository(session)
-
-        assert repo.get_by_candidate_id(1) is None
+        assert _word_pronunciation(session, 1) is None
 
     def test_keeps_the_ipa_when_recordings_arrive(self, session: Session) -> None:
         _insert_candidate(session, 1)

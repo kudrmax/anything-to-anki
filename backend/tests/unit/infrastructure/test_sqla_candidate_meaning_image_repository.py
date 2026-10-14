@@ -42,19 +42,25 @@ def session() -> Generator[Session, None, None]:
     s.close()
 
 
+def _image(session: Session) -> CandidateMeaningImage | None:
+    word = SqlaCandidateRepository(session).get_by_id(CANDIDATE_ID)
+    assert word is not None
+    return word.meaning_image
+
+
 @pytest.mark.unit
 class TestCandidateMeaningImageRepository:
     def test_upsert_then_get_roundtrip(self, session: Session) -> None:
         repo = SqlaCandidateMeaningImageRepository(session)
         image = CandidateMeaningImage(CANDIDATE_ID, FIRST_PATH)
         repo.upsert(image)
-        assert repo.get_by_candidate_id(CANDIDATE_ID) == image
+        assert _image(session) == image
 
     def test_upsert_replaces_the_previous_image(self, session: Session) -> None:
         repo = SqlaCandidateMeaningImageRepository(session)
         repo.upsert(CandidateMeaningImage(CANDIDATE_ID, FIRST_PATH))
         repo.upsert(CandidateMeaningImage(CANDIDATE_ID, SECOND_PATH))
-        assert repo.get_by_candidate_id(CANDIDATE_ID) == CandidateMeaningImage(
+        assert _image(session) == CandidateMeaningImage(
             CANDIDATE_ID, SECOND_PATH,
         )
 
@@ -62,7 +68,7 @@ class TestCandidateMeaningImageRepository:
         repo = SqlaCandidateMeaningImageRepository(session)
         repo.upsert(CandidateMeaningImage(CANDIDATE_ID, FIRST_PATH))
         repo.delete_by_candidate_id(CANDIDATE_ID)
-        assert repo.get_by_candidate_id(CANDIDATE_ID) is None
+        assert _image(session) is None
 
     def test_candidate_carries_its_meaning_image(self, session: Session) -> None:
         SqlaCandidateMeaningImageRepository(session).upsert(

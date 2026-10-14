@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
-
 from backend.domain.ports.candidate_pronunciation_repository import (
     CandidatePronunciationRepository,
 )
@@ -25,19 +23,6 @@ class SqlaCandidatePronunciationRepository(CandidatePronunciationRepository):
 
     def __init__(self, session: Session) -> None:
         self._session = session
-
-    def get_by_candidate_id(self, candidate_id: int) -> CandidatePronunciation | None:
-        return self.get_by_candidate_ids([candidate_id]).get(candidate_id)
-
-    def get_by_candidate_ids(self, candidate_ids: list[int]) -> dict[int, CandidatePronunciation]:
-        if not candidate_ids:
-            return {}
-        stmt = select(CandidatePronunciationModel).where(
-            CandidatePronunciationModel.candidate_id.in_(candidate_ids),
-            CandidatePronunciationModel.is_generated(),
-        )
-        rows = self._session.execute(stmt).scalars().all()
-        return {row.candidate_id: row.to_entity() for row in rows}
 
     def upsert(self, pronunciation: CandidatePronunciation) -> None:
         existing = self._session.get(CandidatePronunciationModel, pronunciation.candidate_id)

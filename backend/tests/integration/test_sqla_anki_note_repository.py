@@ -6,10 +6,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
+from backend.infrastructure.persistence.models import AnkiNoteModel
 from backend.infrastructure.persistence.sqla_anki_note_repository import SqlaAnkiNoteRepository
 from backend.infrastructure.persistence.sqla_source_operation_lock import (
     SqlaSourceOperationLock,
 )
+from sqlalchemy import select
 
 from tests.integration.conftest import insert_source
 
@@ -43,8 +45,9 @@ def test_adding_a_note_again_keeps_it_as_it_was(db_session: Session) -> None:
     notes.add(1, "other", None)
 
     assert notes.pending() == []
-    assert notes.has_lemma("Glare")
-    assert not notes.has_lemma("other")
+    assert db_session.scalar(select(AnkiNoteModel.lemma).where(AnkiNoteModel.note_id == 1)) == (
+        "glare"
+    )
 
 
 def test_a_source_is_held_by_one_operation_at_a_time(db_session: Session) -> None:
