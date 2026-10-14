@@ -89,11 +89,32 @@ class TestCollectionsAPI:
         assert response.status_code == 409
         assert response.json()["detail"] == 'Collection "worm" already exists here'
 
-    def test_third_level_is_409(self, client: TestClient) -> None:
+    def test_third_level_is_created(self, client: TestClient) -> None:
         top = client.post("/collections", json={"name": "A"}).json()
         sub = client.post("/collections", json={"name": "B", "parent_id": top["id"]}).json()
         third = client.post("/collections", json={"name": "C", "parent_id": sub["id"]})
-        assert third.status_code == 409
+        assert third.status_code == 201
+        assert client.get("/collections").json()["collections"][0]["children"][0]["children"][0][
+            "name"
+        ] == "C"
+
+    def test_sixth_level_is_409(self, client: TestClient) -> None:
+        parent_id = None
+        for name in ("L1", "L2", "L3", "L4", "L5"):
+            created = client.post("/collections", json={"name": name, "parent_id": parent_id})
+            assert created.status_code == 201
+            parent_id = created.json()["id"]
+        sixth = client.post("/collections", json={"name": "L6", "parent_id": parent_id})
+        assert sixth.status_code == 409
+        assert sixth.json()["detail"] == "Collections can't be nested deeper than 5 levels"
+
+    def test_move_into_own_child_is_409(self, client: TestClient) -> None:
+        a = client.post("/collections", json={"name": "A"}).json()
+        b = client.post("/collections", json={"name": "B", "parent_id": a["id"]}).json()
+        moved = client.post(
+            f"/collections/{a['id']}/move", json={"parent_id": b["id"], "position": 0},
+        )
+        assert moved.status_code == 409
 
     def test_move_answers_previous_place(self, client: TestClient) -> None:
         a = client.post("/collections", json={"name": "A"}).json()

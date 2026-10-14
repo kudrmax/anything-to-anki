@@ -205,7 +205,7 @@ class CollectionNameExistsError(DomainError):
 
 
 class CollectionMoveNotAllowedError(DomainError):
-    """Raised when a collection would end up deeper than two levels or inside itself."""
+    """Raised when a collection would end up deeper than the depth limit or inside itself."""
 
     def __init__(self, reason: str) -> None:
         super().__init__(reason)

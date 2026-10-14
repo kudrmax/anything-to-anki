@@ -14,8 +14,9 @@ if TYPE_CHECKING:
 
 
 class DeleteCollectionUseCase:
-    """Deletes a collection softly, keeping its sources: a subcollection hands them to its parent,
-    a collection sends its whole subtree to Unsorted. Where they lay is kept for Undo."""
+    """Deletes a collection softly with its whole subtree, keeping the sources: they go to the
+    parent of the deleted collection (Unsorted for a top-level one). Where they lay is kept
+    for Undo."""
 
     def __init__(
         self, collection_repo: CollectionRepository, source_repo: SourceRepository,
@@ -36,7 +37,7 @@ class DeleteCollectionUseCase:
         self._source_repo.set_collections({e.source_id: target for e in evictions})
         self._collection_repo.record_evictions(collection_id, evictions)
         now = datetime.now(tz=UTC)
-        doomed = [node, *tree.children(collection_id)]
+        doomed = [tree.get(i) for i in subtree]
         self._collection_repo.save([replace(c, deleted_at=now) for c in doomed])
         return DeletedCollectionDTO(
             id=collection_id, name=node.name, evicted_source_count=len(evictions),

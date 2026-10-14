@@ -49,3 +49,34 @@ class TestDeleteCollection:
     def test_not_found(self) -> None:
         with pytest.raises(CollectionNotFoundError):
             self.use_case.execute(99)
+
+
+@pytest.mark.unit
+class TestDeleteDeepSubtree:
+    def setup_method(self) -> None:
+        # Shows(1) ─ Friends(2) ─ Season 1(3) ─ Pilot(4); IELTS(5)
+        self.collections = InMemoryCollectionRepository([
+            Collection(id=1, name="Shows"),
+            Collection(id=2, name="Friends", parent_id=1),
+            Collection(id=3, name="Season 1", parent_id=2),
+            Collection(id=4, name="Pilot", parent_id=3),
+            Collection(id=5, name="IELTS", position=1),
+        ])
+        self.sources = InMemorySourceRepository(
+            [source(10, 1), source(11, 2), source(12, 3), source(13, 4), source(14, 5)],
+        )
+        self.use_case = DeleteCollectionUseCase(self.collections, self.sources)
+
+    def test_every_level_goes_with_the_node(self) -> None:
+        self.use_case.execute(2)
+        stamp = self.collections.items[2].deleted_at
+        assert stamp is not None
+        assert [self.collections.items[i].deleted_at for i in (3, 4)] == [stamp, stamp]
+        assert self.collections.items[1].deleted_at is None
+
+    def test_sources_of_whole_subtree_go_to_the_parent(self) -> None:
+        deleted = self.use_case.execute(2)
+        assert deleted.evicted_source_count == 3
+        assert [self.sources.items[i].collection_id for i in (10, 11, 12, 13, 14)] == [
+            1, 1, 1, 1, 5,
+        ]

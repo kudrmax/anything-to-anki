@@ -11,7 +11,8 @@ if TYPE_CHECKING:
 
 
 class CreateCollectionUseCase:
-    """Creates a collection, or a subcollection of a top-level one, at the end of its siblings."""
+    """Creates a collection, or a subcollection of any collection deep enough to hold one, at the
+    end of its siblings."""
 
     def __init__(self, collection_repo: CollectionRepository) -> None:
         self._collection_repo = collection_repo

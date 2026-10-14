@@ -50,19 +50,20 @@ class ListCollectionsUseCase:
         def node(collection: Collection) -> CollectionNodeDTO:
             assert collection.id is not None
             subtree = tree.subtree_ids(collection.id)
-            children = tree.children(collection.id)
             return CollectionNodeDTO(
                 id=collection.id,
                 name=collection.name,
                 parent_id=collection.parent_id,
                 counts=counts([s for s in sources if s.collection_id in subtree]),
-                accepts_collections=collection.is_top_level,
-                can_be_nested=not children,
-                children=[node(child) for child in children],
+                depth=tree.depth(collection.id),
+                accepts_collections=tree.can_hold_children(collection.id),
+                move_targets=tree.move_targets(collection.id),
+                children=[node(child) for child in tree.children(collection.id)],
             )
 
         return CollectionTreeDTO(
             all=counts(sources),
             unsorted=counts([s for s in sources if s.collection_id is None]),
+            max_depth=tree.max_depth,
             collections=[node(c) for c in tree.children(None)],
         )

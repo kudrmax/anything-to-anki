@@ -33,9 +33,17 @@ class TestCreateCollection:
         with pytest.raises(CollectionNameExistsError):
             CreateCollectionUseCase(repo()).execute("season 1", parent_id=1)
 
-    def test_no_third_level(self) -> None:
+    def test_third_level(self) -> None:
+        created = CreateCollectionUseCase(repo()).execute("Episode", parent_id=2)
+        assert created.parent_id == 2
+
+    def test_no_sixth_level(self) -> None:
+        use_case = CreateCollectionUseCase(repo())
+        parent_id = 2
+        for name in ("L3", "L4", "L5"):
+            parent_id = use_case.execute(name, parent_id=parent_id).id
         with pytest.raises(CollectionMoveNotAllowedError):
-            CreateCollectionUseCase(repo()).execute("Episode", parent_id=2)
+            use_case.execute("L6", parent_id=parent_id)
 
     def test_unknown_parent(self) -> None:
         with pytest.raises(CollectionNotFoundError):
