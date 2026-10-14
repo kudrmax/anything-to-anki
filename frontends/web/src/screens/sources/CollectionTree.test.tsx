@@ -142,6 +142,19 @@ describe('CollectionTree', () => {
     expect(handlers.onRename).toHaveBeenCalledWith(1, 'Renamed')
   })
 
+  it('renames in place of the name: subcollections stay, Escape keeps the old name', () => {
+    remountWithChild(false)
+    press(item('Top'), 'F2')
+    const input = host.querySelector('input')!
+    expect(input.closest('div')!.children[1]).toBe(input)
+    expect(host.textContent).toContain('Child')
+    typeInto(input, 'Changed')
+    press(input, 'Escape')
+    expect(handlers.onRename).not.toHaveBeenCalled()
+    expect(host.querySelector('input')).toBeNull()
+    localStorage.clear()
+  })
+
   it('offers New subcollection only for nodes that accept collections', () => {
     openMenu('Top')
     expect(host.textContent).toContain('New subcollection')

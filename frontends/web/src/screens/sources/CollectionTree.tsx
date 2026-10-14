@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Inbox, Layers, Plus, type LucideIcon } from 
 import type { CollectionNode, CollectionTree as Tree, Scope, ScopeCounts } from '@/api/types'
 import { useCollapsed } from '@/hooks/useCollapsed'
 import { collectionDrop, zoneAt, type DropZone } from '@/lib/treeDrop'
-import { Field, Icon, IconButton, Menu } from '@/ui'
+import { Icon, IconButton, Menu } from '@/ui'
 import { collectionMenuItems } from './collectionMenu'
 import css from './CollectionTree.module.css'
 
@@ -60,8 +60,24 @@ export function CollectionTree(props: CollectionTreeProps) {
     if (e.key === 'Enter') finish(true)
     if (e.key === 'Escape') finish(false)
   }
-  const editor = (
-    <Field ref={armEditor} autoFocus value={draft} placeholder="Collection name" onChange={e => setDraft(e.target.value)} onKeyDown={onEditKey} onBlur={() => finish(true)} />
+  /** Поле встаёт на место имени: стрелка и отступ строки остаются, строка не прыгает. */
+  const editorRow = (depth: 0 | 1, count?: number) => (
+    <div className={[css.row, css.editing, depth === 1 && css.sub].filter(Boolean).join(' ')}>
+      <span className={css.twisty} />
+      <input
+        ref={armEditor}
+        autoFocus
+        className={css.input}
+        value={draft}
+        placeholder="Collection name"
+        aria-label="Collection name"
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={onEditKey}
+        onBlur={() => finish(true)}
+        onFocus={e => e.currentTarget.select()}
+      />
+      <span className={css.count}>{count}</span>
+    </div>
   )
 
   const sourcesIn = (e: DragEvent): number[] | null => {
@@ -113,11 +129,11 @@ export function CollectionTree(props: CollectionTreeProps) {
     const selected = scope === node.id
     const zone = hover?.id === node.id ? hover.zone : null
     const classes = [css.row, depth === 1 && css.sub, selected && css.on, zone && css[zone]].filter(Boolean).join(' ')
-    if (editing?.kind === 'rename' && editing.id === node.id) return <div key={node.id} className={classes}>{editor}</div>
     const collapsed = isCollapsed(node.id)
+    const renaming = editing?.kind === 'rename' && editing.id === node.id
     return (
       <div key={node.id}>
-        <div className={css.cell}>
+        {renaming ? editorRow(depth, node.counts.total) : <div className={css.cell}>
           <Menu openOn="contextmenu" align="start" items={menuFor(node)} trigger={
             <div
               className={classes}
@@ -148,9 +164,9 @@ export function CollectionTree(props: CollectionTreeProps) {
               <span className={css.count}>{node.counts.total}</span>
             </div>
           } />
-        </div>
+        </div>}
         {!collapsed && node.children.map(child => row(child, 1))}
-        {editing?.kind === 'create' && editing.parentId === node.id && <div className={`${css.row} ${css.sub}`}>{editor}</div>}
+        {editing?.kind === 'create' && editing.parentId === node.id && editorRow(1)}
       </div>
     )
   }
@@ -182,7 +198,7 @@ export function CollectionTree(props: CollectionTreeProps) {
         <IconButton icon={Plus} label="New collection" onClick={() => startCreate(null)} />
       </div>
       {tree.collections.map(node => row(node, 0))}
-      {editing?.kind === 'create' && editing.parentId === null && <div className={css.row}>{editor}</div>}
+      {editing?.kind === 'create' && editing.parentId === null && editorRow(0)}
       {tree.collections.length === 0 && editing === null && <p className={css.empty}>Group sources into collections and subcollections</p>}
     </nav>
   )
