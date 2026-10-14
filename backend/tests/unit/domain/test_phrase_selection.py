@@ -21,8 +21,34 @@ def test_results_freeze_without_include_open_only() -> None:
 
 def test_user_shown_auto_blocks_selection() -> None:
     a = row(id=1, score=0.1)
-    b = row(id=2, score=0.9, shown=USER)
+    b = row(id=2, score=0.9, shown=USER, replaces=True)
     assert select_phrases([a, b], False, False).set_selection is None
+
+
+def test_a_user_shown_auto_beside_a_lost_selection_card_does_not_block_it() -> None:
+    a = row(id=1, score=0.1)
+    b = row(id=2, score=0.9, shown=USER)
+    assert select_phrases([a, b], False, False).set_selection == 1
+
+
+def test_an_example_that_replaced_a_manual_card_does_not_block_selection() -> None:
+    example = row(id=1, origin=EXAMPLE, shown=USER)
+    auto = row(id=2, score=0.1)
+    assert select_phrases([example, auto], False, False).set_selection == 2
+
+
+def test_a_replacing_phrase_no_longer_shown_does_not_block_selection() -> None:
+    example = row(id=1, origin=EXAMPLE, replaces=True)
+    auto = row(id=2, score=0.1)
+    assert select_phrases([example, auto], False, False).set_selection == 2
+
+
+def test_a_replaced_selection_card_clears_a_loose_selection_mark() -> None:
+    example = row(id=1, origin=EXAMPLE, shown=USER, replaces=True)
+    loose = row(id=2, score=0.1, shown=SELECTION)
+    assert select_phrases([example, loose], False, False) == SelectionChange(
+        clear_selection=(2,),
+    )
 
 
 def test_skipped_never_selected() -> None:
@@ -89,7 +115,7 @@ def test_a_decided_word_keeps_its_marks_as_they_are() -> None:
 
 
 def test_an_example_that_replaced_the_selection_card_leaves_no_selection() -> None:
-    example = row(id=1, origin=EXAMPLE, shown=USER)
+    example = row(id=1, origin=EXAMPLE, shown=USER, replaces=True)
     auto = row(id=2, score=0.1)
     assert select_phrases([example, auto], False, False).is_empty
 

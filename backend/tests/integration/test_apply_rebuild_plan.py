@@ -10,6 +10,7 @@ from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.services.phrase_selection import SelectionChange
 from backend.domain.services.rebuild_plan import OccurrenceInsert, RebuildPlan, plan_rebuild
 from backend.domain.value_objects.built_analysis import WordKey
+from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_origin_kind import ShownBy
 from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.domain.value_objects.word_status import WordStatus
@@ -24,7 +25,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 from sqlalchemy import select, text
 
 from tests.integration.conftest import insert_source
-from tests.rebuild_support import built, occ
+from tests.rebuild_support import breakdown, built, occ
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.built_analysis import BuiltWord
@@ -182,9 +183,10 @@ def test_the_selection_moves_and_the_old_phrase_keeps_its_results(
 def test_word_data_follows_the_analysis(repo: SqlaOccurrenceRepository) -> None:
     _rebuild(repo, [built("glare", occ(0, 0.5))])
     usage = UsageDistribution({"formal": 0.5, "neutral": 0.5})
+    levels = breakdown(CEFRLevel.C1, {CEFRLevel.B2: 0.123456, CEFRLevel.C1: 0.876544})
     analysed = [replace(
         built("glare", occ(0, 0.5), occ(1, 0.6), pos="NOUN", zipf=4.25),
-        usage_distribution=usage,
+        usage_distribution=usage, cefr_breakdown=levels, cefr_level=levels.final_level.name,
     )]
 
     _rebuild(repo, analysed)
@@ -194,6 +196,8 @@ def test_word_data_follows_the_analysis(repo: SqlaOccurrenceRepository) -> None:
         "NOUN", 4.25, 2,
     )
     assert stored.data.usage_distribution == usage
+    assert stored.data.cefr_breakdown is not None
+    assert stored.data.cefr_breakdown.reduced() == levels.reduced()
     assert _plan(repo, analysed).is_empty
 
 

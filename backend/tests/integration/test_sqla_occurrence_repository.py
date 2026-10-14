@@ -235,3 +235,18 @@ def test_shown_by_word_keeps_only_shown_phrases(repo: SqlaOccurrenceRepository) 
 
 def test_get_of_a_missing_phrase_is_none(repo: SqlaOccurrenceRepository) -> None:
     assert repo.get(9999) is None
+
+
+def test_a_phrase_can_be_marked_as_replacing_the_selection_card(
+    repo: SqlaOccurrenceRepository,
+) -> None:
+    phrase_id = _added(repo)
+
+    repo.set_replaces_selection(phrase_id, replaces=True)
+
+    stored = repo.get(phrase_id)
+    assert stored is not None
+    assert stored.replaces_selection
+    rows = {row.id: row for row in repo.projection(SOURCE)}
+    assert rows[phrase_id].replaces_selection
+    assert not rows[WORD].replaces_selection

@@ -4,7 +4,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.occurrence import OccurrenceKey
+from backend.domain.services.cefr_level_resolver import resolve_cefr_level
 from backend.domain.value_objects.built_analysis import BuiltOccurrence, BuiltWord, WordData
+from backend.domain.value_objects.cefr_breakdown import (
+    CAMBRIDGE,
+    CEFRPY,
+    EFLLEX,
+    KELLY,
+    OXFORD,
+    CEFRBreakdown,
+    SourceVote,
+)
+from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
@@ -59,6 +70,7 @@ def row(
     text: str = DEFAULT_TEXT,
     variant: bool = False,
     shows_polish: bool = False,
+    replaces: bool = False,
 ) -> OccurrenceRow:
     """A phrase row; its key is at `line` (the id unless given)."""
     at = id if line is None else line
@@ -78,6 +90,7 @@ def row(
         text_hash=OccurrenceRow.hash_text(text),
         fragment_score=score,
         shows_polish=shows_polish,
+        replaces_selection=replaces,
         phrase_hash=OccurrenceRow.hash_phrase(
             text_phrase(text, variant=variant), position_at(at, text),
         ),
@@ -126,4 +139,25 @@ def built(
     return BuiltWord(
         lemma=lemma, is_phrasal_verb=False, pos=pos, cefr_level=None, cefr_breakdown=None,
         zipf_frequency=zipf, usage_distribution=None, occurrences=tuple(occurrences),
+    )
+
+
+def _vote(name: str, level: CEFRLevel) -> SourceVote:
+    return SourceVote(source_name=name, distribution={level: 1.0}, top_level=level)
+
+
+def breakdown(oxford: CEFRLevel, efllex: dict[CEFRLevel, float]) -> CEFRBreakdown:
+    """A breakdown as the analysis makes it: Oxford's level and EFLLex's distribution."""
+    priority = [_vote(OXFORD, oxford), _vote(CAMBRIDGE, CEFRLevel.UNKNOWN)]
+    votes = [
+        _vote(CEFRPY, CEFRLevel.UNKNOWN),
+        SourceVote(
+            source_name=EFLLEX, distribution=efllex,
+            top_level=max(efllex, key=lambda level: efllex[level]),
+        ),
+        _vote(KELLY, CEFRLevel.UNKNOWN),
+    ]
+    final, method = resolve_cefr_level(priority, votes)
+    return CEFRBreakdown(
+        final_level=final, decision_method=method, priority_votes=priority, votes=votes,
     )

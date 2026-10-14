@@ -18,6 +18,7 @@ class OccurrenceRow:
     `text_hash` identifies the source text of the phrase (see `hash_text`); `phrase_hash`
     the source phrase with the facts about its words and its place (see `hash_phrase`).
     `shows_polish`: the card shows the polished phrase, not the source one.
+    `replaces_selection`: the phrase took the place of the word's selection card.
     """
 
     id: int
@@ -36,6 +37,7 @@ class OccurrenceRow:
     fragment_score: float | None
     shows_polish: bool
     phrase_hash: str
+    replaces_selection: bool = False
 
     @property
     def is_shown(self) -> bool:

@@ -39,7 +39,15 @@ from backend.domain.entities.unknown_word import UnknownWord
 from backend.domain.entities.word_decision import WordDecision
 from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.built_analysis import WordData
-from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
+from backend.domain.value_objects.cefr_breakdown import (
+    CAMBRIDGE,
+    CEFRPY,
+    EFLLEX,
+    KELLY,
+    OXFORD,
+    CEFRBreakdown,
+    SourceVote,
+)
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.content import Kind
@@ -280,48 +288,16 @@ class CEFRBreakdownModel(Base):
     kelly: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
 
-def _level_to_str(level: CEFRLevel) -> str | None:
-    """Convert CEFRLevel to string for DB storage. UNKNOWN -> None."""
-    if level is CEFRLevel.UNKNOWN:
-        return None
-    return level.name
-
-
 def _breakdown_to_model(breakdown: CEFRBreakdown) -> CEFRBreakdownModel:
-    """Map domain CEFRBreakdown to SQLAlchemy model."""
-    all_votes = [*breakdown.priority_votes, *breakdown.votes]
-
-    cambridge: str | None = None
-    cefrpy: str | None = None
-    efllex_distribution: str | None = None
-    oxford: str | None = None
-    kelly: str | None = None
-
-    for vote in all_votes:
-        level_str = _level_to_str(vote.top_level)
-        if vote.source_name == "Cambridge Dictionary":
-            cambridge = level_str
-        elif vote.source_name == "CEFRpy":
-            cefrpy = level_str
-        elif vote.source_name == "EFLLex":
-            dist = {
-                lvl.name: round(prob, 4)
-                for lvl, prob in vote.distribution.items()
-                if lvl is not CEFRLevel.UNKNOWN and prob > 0
-            }
-            efllex_distribution = json.dumps(dist) if dist else None
-        elif vote.source_name == "Oxford 5000":
-            oxford = level_str
-        elif vote.source_name == "Kelly List":
-            kelly = level_str
-
+    """Map domain CEFRBreakdown to SQLAlchemy model: what `CEFRBreakdown.reduced` keeps."""
+    reduced = breakdown.reduced()
     return CEFRBreakdownModel(
         decision_method=breakdown.decision_method,
-        cambridge=cambridge,
-        cefrpy=cefrpy,
-        efllex_distribution=efllex_distribution,
-        oxford=oxford,
-        kelly=kelly,
+        cambridge=reduced.level_of(CAMBRIDGE),
+        cefrpy=reduced.level_of(CEFRPY),
+        efllex_distribution=json.dumps(dict(reduced.efllex)) if reduced.efllex else None,
+        oxford=reduced.level_of(OXFORD),
+        kelly=reduced.level_of(KELLY),
     )
 
 
@@ -352,13 +328,13 @@ def _model_to_breakdown(model: CEFRBreakdownModel) -> CEFRBreakdown:
         return SourceVote(source_name=name, distribution=dist, top_level=top)
 
     priority_votes = [
-        _make_vote("Oxford 5000", model.oxford),
-        _make_vote("Cambridge Dictionary", model.cambridge),
+        _make_vote(OXFORD, model.oxford),
+        _make_vote(CAMBRIDGE, model.cambridge),
     ]
     votes = [
-        _make_vote("CEFRpy", model.cefrpy),
-        _make_vote("EFLLex", None, model.efllex_distribution),
-        _make_vote("Kelly List", model.kelly),
+        _make_vote(CEFRPY, model.cefrpy),
+        _make_vote(EFLLEX, None, model.efllex_distribution),
+        _make_vote(KELLY, model.kelly),
     ]
 
     final_level, decision_method = resolve_cefr_level(priority_votes, votes)
@@ -553,6 +529,9 @@ class PhraseModel(Base):
     edited_by_user: Mapped[bool] = mapped_column(
         nullable=False, default=False, server_default="0",
     )
+    replaces_selection: Mapped[bool] = mapped_column(
+        nullable=False, default=False, server_default="0",
+    )
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
@@ -587,6 +566,7 @@ class PhraseModel(Base):
                 DecisionKind(self.decision_kind) if self.decision_kind is not None else None
             ),
             edited_by_user=self.edited_by_user,
+            replaces_selection=self.replaces_selection,
             polished_phrase=load_phrase(self.polished_phrase),
             polish_reverted=self.polish_reverted,
         )
@@ -611,6 +591,7 @@ class PhraseModel(Base):
             is_decision=occurrence.is_decision,
             decision_kind=occurrence.decision_kind.value if occurrence.decision_kind else None,
             edited_by_user=occurrence.edited_by_user,
+            replaces_selection=occurrence.replaces_selection,
         )
 
 

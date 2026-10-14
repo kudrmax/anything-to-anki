@@ -116,6 +116,7 @@ def _create_tables() -> None:
         sa.Column("is_decision", sa.Boolean(), nullable=False, server_default="0"),
         sa.Column("decision_kind", sa.String(10), nullable=True),
         sa.Column("edited_by_user", sa.Boolean(), nullable=False, server_default="0"),
+        sa.Column("replaces_selection", sa.Boolean(), nullable=False, server_default="0"),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sqlite_autoincrement=True,
     )
@@ -370,6 +371,15 @@ def _release_skipped_originals(conn: sa.Connection, cards: list[_Card]) -> None:
         )
         if not released.rowcount:
             continue
+        conn.execute(
+            sa.text(
+                "UPDATE phrases SET replaces_selection = 1"
+                " WHERE origin = :example AND shown_by IS NOT NULL AND candidate_id ="
+                " (SELECT p.candidate_id FROM phrases p JOIN _card_phrase c ON c.phrase_id = p.id"
+                " WHERE c.candidate_id_old = :card)"
+            ),
+            {"card": card.id, "example": ORIGIN_EXAMPLE},
+        )
         conn.execute(
             sa.text(
                 "UPDATE phrases SET origin = :auto"

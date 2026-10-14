@@ -344,8 +344,16 @@ def test_skipped_original_of_an_example_is_released(db_url: str) -> None:
     d = _phrase_of(db_url, CARD_D, "She left early")
     assert (c["origin"], c["skipped"], c["shown_by"]) == ("auto", 0, None)
     assert (d["origin"], d["shown_by"], d["block"]) == ("example", "user", None)
+    assert (c["replaces_selection"], d["replaces_selection"]) == (0, 1)
     words = _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_D)
     assert words == [{"status": "pending"}]
+
+
+def test_only_an_example_that_took_a_skipped_original_replaces_a_selection(
+    db_url: str,
+) -> None:
+    replacing = _rows(db_url, "SELECT candidate_id FROM phrases WHERE replaces_selection = 1")
+    assert replacing == [{"candidate_id": CARD_D}]
 
 
 def test_topic_phrase_is_collected(db_url: str) -> None:

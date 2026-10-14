@@ -48,6 +48,10 @@ class OccurrenceRepository(ABC):
     def set_shown(self, ids: list[int], shown_by: ShownBy | None) -> None: ...
 
     @abstractmethod
+    def set_replaces_selection(self, occurrence_id: int, replaces: bool) -> None:
+        """Mark a phrase the user put in place of the word's selection card."""
+
+    @abstractmethod
     def set_skipped(self, occurrence_id: int, skipped: bool) -> None: ...
 
     @abstractmethod

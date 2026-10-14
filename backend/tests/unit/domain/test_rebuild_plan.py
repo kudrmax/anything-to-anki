@@ -10,6 +10,7 @@ from backend.domain.services.phrase_protection import is_touched, is_untouchable
 from backend.domain.services.phrase_selection import is_frozen, select_phrases
 from backend.domain.services.rebuild_plan import RebuildPlan, plan_rebuild
 from backend.domain.value_objects.built_analysis import BuiltWord, WordKey
+from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.word_row import WordRow
@@ -22,6 +23,7 @@ from tests.rebuild_support import (
     MANUAL,
     SELECTION,
     USER,
+    breakdown,
     built,
     key_at,
     occ,
@@ -100,7 +102,7 @@ class Store:
                 skipped=False, is_decision=False, revision=0, edited_by_user=False,
                 has_results=False, exported=False, has_active_job=False,
                 text_hash=OccurrenceRow.hash_text(o.phrase.text),
-                fragment_score=o.fragment_score, shows_polish=False,
+                fragment_score=o.fragment_score, shows_polish=False, replaces_selection=False,
                 phrase_hash=OccurrenceRow.hash_phrase(o.phrase, o.phrase_position),
             )
         for change in plan.selection_changes:
@@ -136,6 +138,7 @@ def _random_row(rnd: random.Random, row_id: int, word_id: int, line: int) -> Occ
         text=rnd.choice(TEXTS),
         variant=rnd.random() < 0.3,
         shows_polish=rnd.random() < 0.15,
+        replaces=shown is USER and rnd.random() < 0.4,
     )
 
 
@@ -404,7 +407,7 @@ def test_include_open_moves_the_selection_off_a_generated_phrase() -> None:
 
 
 def test_a_user_shown_auto_phrase_keeps_its_mark_and_gets_no_twin() -> None:
-    mine = row(id=1, line=1, score=0.5, shown=USER)
+    mine = row(id=1, line=1, score=0.5, shown=USER, replaces=True)
 
     result = plan([mine], [word()], [built("glare", occ(1, 0.1))])
 
@@ -437,3 +440,21 @@ def test_cards_without_generation_counts_shown_phrases_left_to_generate() -> Non
     ])
 
     assert result.counts.cards_without_generation == 1
+
+
+def test_a_stale_breakdown_is_rewritten_but_rounding_is_no_change() -> None:
+    shown = row(id=1, score=0.5, shown=SELECTION)
+    stored = breakdown(CEFRLevel.B2, {CEFRLevel.B2: 0.6, CEFRLevel.C1: 0.4})
+    stored_word = replace(word(), data=replace(word().data, cefr_breakdown=stored))
+    rounded_only = breakdown(CEFRLevel.B2, {CEFRLevel.B2: 0.600001, CEFRLevel.C1: 0.399999})
+    stale = breakdown(CEFRLevel.B2, {CEFRLevel.B2: 0.3, CEFRLevel.C1: 0.7})
+
+    same = plan([shown], [stored_word], [
+        replace(built("glare", occ(1, 0.5)), cefr_breakdown=rounded_only),
+    ])
+    changed = plan([shown], [stored_word], [
+        replace(built("glare", occ(1, 0.5)), cefr_breakdown=stale),
+    ])
+
+    assert same.is_empty
+    assert [u.data.cefr_breakdown for u in changed.words_to_update] == [stale]

@@ -170,6 +170,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 text_hash=OccurrenceRow.hash_text(json.loads(phrase.source_phrase)["text"]),
                 fragment_score=phrase.fragment_score,
                 shows_polish=phrase.polished_phrase is not None and not phrase.polish_reverted,
+                replaces_selection=phrase.replaces_selection,
                 phrase_hash=OccurrenceRow.hash_phrase(
                     _required(phrase.source_phrase), load_position(phrase.phrase_position),
                 ),
@@ -217,6 +218,14 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             update(PhraseModel)
             .where(PhraseModel.id.in_(ids))
             .values(shown_by=shown_by.value if shown_by is not None else None)
+        )
+        self._session.flush()
+
+    def set_replaces_selection(self, occurrence_id: int, replaces: bool) -> None:
+        self._session.execute(
+            update(PhraseModel)
+            .where(PhraseModel.id == occurrence_id)
+            .values(replaces_selection=replaces)
         )
         self._session.flush()
 

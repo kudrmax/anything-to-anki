@@ -47,8 +47,8 @@ def select_phrases(
     """The selection marks of one word after processing or a rebuild.
 
     A decided word keeps its cards as they are. A frozen selection mark stays, and no other
-    selection mark beside it. A word whose selection card was replaced — by an example or by
-    the user's own mark on an auto phrase, so no selection mark is left — gets none.
+    selection mark beside it. A word whose selection card was replaced — a shown phrase
+    marked `replaces_selection` — gets none.
     Otherwise the best auto phrase that is not skipped is selected: the lowest score, then
     the one read first. Only selection marks are set or cleared.
     """
@@ -58,8 +58,8 @@ def select_phrases(
     frozen = [o for o in selected if is_frozen(o, include_open)]
     if frozen:
         return _keep(selected, {o.id for o in frozen})
-    if not selected and any(_replaces_selection(o) for o in word_occurrences):
-        return SelectionChange()
+    if any(o.is_shown and o.replaces_selection for o in word_occurrences):
+        return _keep(selected, set())
     candidates = [
         o for o in word_occurrences
         if o.origin is OccurrenceOrigin.AUTO and not o.skipped and o.shown_by is not ShownBy.USER
@@ -75,12 +75,6 @@ def select_phrases(
 
 def _keep(selected: list[OccurrenceRow], kept: set[int]) -> SelectionChange:
     return SelectionChange(clear_selection=tuple(o.id for o in selected if o.id not in kept))
-
-
-def _replaces_selection(o: OccurrenceRow) -> bool:
-    if o.shown_by is not ShownBy.USER:
-        return False
-    return o.origin in (OccurrenceOrigin.EXAMPLE, OccurrenceOrigin.AUTO)
 
 
 def _rank(o: OccurrenceRow) -> tuple[float, tuple[float, float, float], int]:

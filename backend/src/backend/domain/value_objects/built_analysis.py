@@ -7,7 +7,7 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import OccurrenceKey
-    from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
+    from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, ReducedBreakdown
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.usage_distribution import UsageDistribution
@@ -29,8 +29,7 @@ class WordKey:
 class WordData:
     """What the analysis knows of a word, apart from its phrases.
 
-    The breakdown travels with the data but does not tell two data apart: it is stored
-    in a reduced form, and its final level is `cefr_level`.
+    Breakdowns are compared by what the store keeps of them (`CEFRBreakdown.reduced`).
     """
 
     pos: str
@@ -49,12 +48,17 @@ class WordData:
             and self.zipf_frequency == other.zipf_frequency
             and self.occurrence_count == other.occurrence_count
             and _groups(self.usage_distribution) == _groups(other.usage_distribution)
+            and _reduced(self.cefr_breakdown) == _reduced(other.cefr_breakdown)
         )
 
     def __hash__(self) -> int:
         return hash(
             (self.pos, _level(self.cefr_level), self.zipf_frequency, self.occurrence_count),
         )
+
+
+def _reduced(breakdown: CEFRBreakdown | None) -> ReducedBreakdown | None:
+    return breakdown.reduced() if breakdown is not None else None
 
 
 def _level(cefr_level: str | None) -> str | None:

@@ -31,7 +31,8 @@ class Occurrence:
     """A phrase of a word: the place in the text and everything made for that place.
 
     The meaning, media, tts and cloze are attached by the repository.
-    `exported` means a row of `anki_synced_cards` points here.
+    `exported` means a row of `anki_synced_cards` points here. `replaces_selection`: the
+    user put this phrase in place of the word's selection card, so the selection shows none.
     """
 
     candidate_id: int
@@ -46,6 +47,7 @@ class Occurrence:
     is_decision: bool = False
     decision_kind: DecisionKind | None = None
     edited_by_user: bool = False
+    replaces_selection: bool = False
     polished_phrase: Phrase | None = None
     polish_reverted: bool = False
     id: int | None = None
