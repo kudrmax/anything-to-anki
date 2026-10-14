@@ -8,8 +8,8 @@
 .on, .on:hover { background: var(--soft); color: var(--tx); font-weight: var(--fw-m); }
 .on .icon { color: var(--ac); }
 
-/* вложенность: направляющая под центром стрелки родителя, строки детей одинаковые с родительской */
-.children { display: flex; flex-direction: column; gap: var(--s1); margin: var(--s1) 0 var(--s1) var(--tree-guide-x); border-left: var(--bw) solid var(--line); }
+/* вложенность: направляющая под центром стрелки родителя, дети сдвинуты на шаг уровня */
+.children { display: flex; flex-direction: column; gap: var(--s1); margin: var(--s1) 0 var(--s1) var(--tree-guide-x); padding-left: calc(var(--tree-indent) - var(--tree-guide-x) - var(--bw)); border-left: var(--bw) solid var(--line); }
 
 .twisty { display: grid; place-items: center; width: var(--tree-twisty); height: var(--tree-twisty); border-radius: var(--s2); color: var(--tx3); }
 button.twisty:hover { background: var(--soft); color: var(--tx); }
