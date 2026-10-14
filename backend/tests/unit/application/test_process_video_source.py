@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
@@ -15,6 +16,8 @@ from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.candidate_sorter_support import threshold_resolver
+from tests.phrase_support import phrase
+from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
@@ -35,7 +38,7 @@ def _make_candidate(fragment: str, position: DocumentPosition) -> StoredCandidat
     return StoredCandidate(
         id=1, source_id=1, lemma="test", pos="NOUN",
         cefr_level="B1", zipf_frequency=3.5,
-        context_fragment=fragment, fragment_purity="clean",
+        source_phrase=phrase(fragment),
         occurrences=1, status=CandidateStatus.PENDING, phrase_position=position,
     )
 
@@ -56,13 +59,7 @@ class TestProcessVideoSource:
         source_repo.get_by_id.return_value = source
         candidate_repo = MagicMock()
         # create_batch returns candidates with IDs set
-        returned = [StoredCandidate(
-            id=i + 1, source_id=c.source_id, lemma=c.lemma, pos=c.pos,
-            cefr_level=c.cefr_level, zipf_frequency=c.zipf_frequency,
-            context_fragment=c.context_fragment,
-            fragment_purity=c.fragment_purity, occurrences=c.occurrences,
-            status=c.status, phrase_position=c.phrase_position,
-        ) for i, c in enumerate(candidates)]
+        returned = [replace(c, id=i + 1) for i, c in enumerate(candidates)]
         candidate_repo.create_batch.return_value = returned
         known_word_repo = MagicMock()
         known_word_repo.get_all_pairs.return_value = set()
@@ -81,7 +78,7 @@ class TestProcessVideoSource:
         return ProcessSourceUseCase(
             source_repo=source_repo,
             candidate_repo=candidate_repo,
-            known_word_repo=known_word_repo,
+            vocabulary=user_vocabulary(known_word_repo),
             settings_repo=settings_repo,
             threshold_resolver=threshold_resolver(settings_repo),
             analyze_text_use_case=analyze_text,

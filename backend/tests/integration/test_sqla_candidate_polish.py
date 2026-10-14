@@ -7,6 +7,7 @@ from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.models import dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -17,7 +18,10 @@ from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
+from tests.phrase_support import phrase
+
 _NOW = datetime(2026, 10, 4, tzinfo=UTC)
+SOURCE_TEXT = "The air was stale"
 
 
 @pytest.mark.integration
@@ -30,11 +34,12 @@ class TestCandidatePolishPersistence:
             s.execute(
                 text(
                     "INSERT INTO candidates (id, source_id, lemma, pos, "
-                    "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
-                    "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                    "VALUES (1, 1, 'stale', 'ADJ', 3.0, 0, 'The air was stale', 'clean', "
-                    "1, 'pending', 0, 0)"
-                )
+                    "zipf_frequency, is_sweet_spot, source_phrase, "
+                    "occurrences, status, is_phrasal_verb) "
+                    "VALUES (1, 1, 'stale', 'ADJ', 3.0, 0, :phrase, "
+                    "1, 'pending', 0)"
+                ),
+                {"phrase": dump_phrase(phrase(SOURCE_TEXT, "stale"))},
             )
             s.commit()
 
@@ -42,28 +47,28 @@ class TestCandidatePolishPersistence:
         with self._Session() as s:
             candidate = SqlaCandidateRepository(s).get_by_id(1)
             assert candidate is not None
-            assert candidate.polished_fragment is None
+            assert candidate.polished_phrase is None
             assert not candidate.polish_reverted
 
     def test_polish_and_revert_round_trip(self) -> None:
         with self._Session() as s:
             repo = SqlaCandidateRepository(s)
-            repo.set_polished_fragment(1, "The air was not fresh, stale.")
+            repo.set_polished_phrase(1, phrase("The air was not fresh, stale.", "stale"))
             repo.set_polish_reverted(1, True)
             s.commit()
         with self._Session() as s:
             candidate = SqlaCandidateRepository(s).get_by_id(1)
             assert candidate is not None
-            assert candidate.polished_fragment == "The air was not fresh, stale."
+            assert candidate.polished_phrase == phrase("The air was not fresh, stale.", "stale")
             assert candidate.polish_reverted
-            assert candidate.card_phrase == "The air was stale"
+            assert candidate.phrase.text == SOURCE_TEXT
 
     def test_new_polish_clears_revert(self) -> None:
         with self._Session() as s:
             repo = SqlaCandidateRepository(s)
-            repo.set_polished_fragment(1, "Old stale air.")
+            repo.set_polished_phrase(1, phrase("Old stale air.", "stale"))
             repo.set_polish_reverted(1, True)
-            repo.set_polished_fragment(1, "The stale air.")
+            repo.set_polished_phrase(1, phrase("The stale air.", "stale"))
             s.commit()
             candidate = repo.get_by_id(1)
             assert candidate is not None
@@ -72,15 +77,15 @@ class TestCandidatePolishPersistence:
     def test_new_source_phrase_drops_polish(self) -> None:
         with self._Session() as s:
             repo = SqlaCandidateRepository(s)
-            repo.set_polished_fragment(1, "The stale air.")
+            repo.set_polished_phrase(1, phrase("The stale air.", "stale"))
             repo.set_polish_reverted(1, True)
-            repo.update_phrase(
-                1, "The air around us was stale", DocumentPosition(0, 0, 0, 0, 27),
-            )
+            new_phrase = phrase("The air around us was stale", "stale")
+            repo.set_source_phrase(1, new_phrase, DocumentPosition(0, 0, 0, 0, 27))
             s.commit()
             candidate = repo.get_by_id(1)
             assert candidate is not None
-            assert candidate.polished_fragment is None
+            assert candidate.source_phrase == new_phrase
+            assert candidate.polished_phrase is None
             assert not candidate.polish_reverted
 
     def test_meaning_and_tts_can_be_dropped(self) -> None:

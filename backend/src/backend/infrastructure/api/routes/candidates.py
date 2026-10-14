@@ -120,9 +120,7 @@ def report_candidate(
     container: Container = Depends(get_container),  # noqa: B008
 ) -> CardReportDTO:
     try:
-        report = container.report_candidate_use_case(session).execute(
-            candidate_id, request.reasons, request.comment,
-        )
+        report = container.report_candidate_use_case(session).execute(candidate_id, request)
         session.commit()
         return report
     except CandidateNotFoundError as e:
@@ -215,6 +213,8 @@ def replace_with_example(
         return result
     except CandidateNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except InvalidPhraseError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 

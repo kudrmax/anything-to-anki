@@ -18,8 +18,11 @@ from backend.domain.value_objects.document import (
     ParagraphMode,
 )
 from backend.domain.value_objects.document_position import DocumentPosition
+from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
+
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -34,21 +37,24 @@ DOCUMENT = Document((
 ))
 
 
-def _candidate(source_id: int, lemma: str, target: DocumentPosition) -> StoredCandidate:
+PHRASE = "He gave up the relentless pursuit of happiness."
+
+
+def _candidate(source_id: int, lemma: str, target: str) -> StoredCandidate:
     return StoredCandidate(
         source_id=source_id, lemma=lemma, pos="NOUN", cefr_level="B2", zipf_frequency=3.0,
-        context_fragment="He gave up the relentless pursuit of happiness.",
-        fragment_purity="clean", occurrences=1, status=CandidateStatus.PENDING,
-        phrase_position=DocumentPosition(1, 0, 0, 1, 13), target_position=target,
+        source_phrase=phrase(PHRASE, target),
+        occurrences=1, status=CandidateStatus.PENDING,
+        phrase_position=DocumentPosition(1, 0, 0, 1, 13),
     )
 
 
 def test_marks_that_would_overlap_keep_the_first(db_session: Session, source_id: int) -> None:
     SqlaDocumentRepository(db_session).save(source_id, DOCUMENT)
     give_up, give, pursuit = SqlaCandidateRepository(db_session).create_batch([
-        _candidate(source_id, "give up", DocumentPosition(1, 0, 3, 0, 10)),
-        _candidate(source_id, "give", DocumentPosition(1, 0, 3, 0, 7)),
-        _candidate(source_id, "pursuit", DocumentPosition(1, 0, 26, 0, 33)),
+        _candidate(source_id, "give up", "gave up"),
+        _candidate(source_id, "give", "gave"),
+        _candidate(source_id, "pursuit", "pursuit"),
     ])
 
     screen = GetSourceDocumentUseCase(
@@ -66,34 +72,36 @@ def test_marks_that_would_overlap_keep_the_first(db_session: Session, source_id:
 def test_selected_phrase_replaces_the_old_one(db_session: Session, source_id: int) -> None:
     SqlaDocumentRepository(db_session).save(source_id, DOCUMENT)
     (candidate,) = SqlaCandidateRepository(db_session).create_batch([
-        _candidate(source_id, "pursuit", DocumentPosition(1, 0, 26, 0, 33)),
+        _candidate(source_id, "pursuit", "pursuit"),
     ])
     assert candidate.id is not None
     set_boundary = SetPhraseBoundaryUseCase(
         SqlaCandidateRepository(db_session), SqlaDocumentRepository(db_session),
+        Container().phrase_reader,
     )
 
-    phrase = set_boundary.execute(candidate.id, SelectionDTO(
+    text = set_boundary.execute(candidate.id, SelectionDTO(
         start_block=1, start_line=0, start_char=14, end_block=1, end_line=1, end_char=13,
     ))
 
-    assert phrase == "relentless pursuit of happiness."
+    assert text == "relentless pursuit of happiness."
     updated = SqlaCandidateRepository(db_session).get_by_id(candidate.id)
     assert updated is not None
-    assert updated.context_fragment == phrase
+    assert updated.source_phrase.text == text
+    assert updated.source_phrase.target_text() == "pursuit"
     assert updated.phrase_position == DocumentPosition(1, 0, 15, 1, 13)
-    assert updated.target_position == DocumentPosition(1, 0, 26, 0, 33)
 
 
 def test_selection_across_blocks_is_rejected(db_session: Session, source_id: int) -> None:
     SqlaDocumentRepository(db_session).save(source_id, DOCUMENT)
     (candidate,) = SqlaCandidateRepository(db_session).create_batch([
-        _candidate(source_id, "pursuit", DocumentPosition(1, 0, 26, 0, 33)),
+        _candidate(source_id, "pursuit", "pursuit"),
     ])
     assert candidate.id is not None
     with pytest.raises(InvalidPhraseError, match="one paragraph"):
         SetPhraseBoundaryUseCase(
             SqlaCandidateRepository(db_session), SqlaDocumentRepository(db_session),
+            Container().phrase_reader,
         ).execute(candidate.id, SelectionDTO(
             start_block=0, start_line=0, start_char=0, end_block=1, end_line=0, end_char=5,
         ))

@@ -47,20 +47,6 @@ function buildHighlightPattern(lemma: string, surfaceForm: string | null): RegEx
   return new RegExp(`(${patterns.join('|')})`, 'gi')
 }
 
-/** Фрагмент с выделенным первым вхождением изучаемого слова. */
-export function highlightParts(fragment: string, lemma: string, surfaceForm: string | null): TextPart[] {
-  const clean = stripMarkdown(fragment)
-  const pattern = buildHighlightPattern(lemma, surfaceForm)
-  const match = pattern.exec(clean)
-  if (!match) return [{ text: clean, bold: false, target: false }]
-  const parts: TextPart[] = [
-    { text: clean.slice(0, match.index), bold: false, target: false },
-    { text: match[0], bold: false, target: true },
-    { text: clean.slice(match.index + match[0].length), bold: false, target: false },
-  ]
-  return parts.filter(part => part.text.length > 0)
-}
-
 /** Текст значения: **жирные** участки и все вхождения изучаемого слова. */
 export function meaningParts(text: string, lemma: string, surfaceForm: string | null): TextPart[] {
   const pattern = buildHighlightPattern(lemma, surfaceForm)
@@ -96,14 +82,6 @@ export function nonEmptyLines(text: string): string[] {
 }
 
 export const isDivider = (line: string): boolean => /^---+$/.test(line.trim())
-
-export function parseExamples(examples: string | null | undefined): string[] {
-  if (!examples) return []
-  return examples
-    .split('\n')
-    .map(line => line.replace(/\*{2}(.+?)\*{2}/g, '$1').trim())
-    .filter(line => line.length > 0)
-}
 
 /** Медиа отдаётся относительным путём /media/{source}/{имя файла}. */
 export function mediaUrl(sourceId: number, path: string | null | undefined): string | null {

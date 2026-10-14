@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from backend.application.constants import INITIALLY_SHOWN_CANDIDATES
 from backend.application.dto.source_dtos import (
+    ProgressDTO,
     SourceBoardDTO,
     SourceDetailDTO,
     SourceDTO,
@@ -14,7 +15,6 @@ from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.services.source_stage import stage_of
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.source_stage import STAGE_ORDER
 
 if TYPE_CHECKING:
@@ -78,7 +78,7 @@ class GetSourcesUseCase:
     def _summary(self, source: Source, tree: CollectionTree) -> SourceDTO:
         assert source.id is not None
         candidates = self._candidate_repo.get_by_source(source.id)
-        progress = DecisionProgress.of_statuses(c.status for c in candidates)
+        progress = self._candidate_sorter.arrange(candidates).progress()
         generation = self._generation_probe.of(source)
         collection_id = source.collection_id
         collection_path = (
@@ -97,9 +97,9 @@ class GetSourcesUseCase:
             source_url=source.source_url,
             video_downloaded=source.video_path is not None,
             created_at=source.created_at,
-            candidate_count=progress.total,
+            candidate_count=len(candidates),
             learn_count=sum(1 for c in candidates if c.status == CandidateStatus.LEARN),
-            decided_count=progress.decided,
+            progress=ProgressDTO.of(progress),
             processing_stage=source.processing_stage.value if source.processing_stage else None,
             collection_id=collection_id,
             collection_path=collection_path,
@@ -114,19 +114,18 @@ class GetSourcesUseCase:
         source_id: int,
         sort_order: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
     ) -> SourceDetailDTO:
-        from backend.domain.services.candidate_sorting import decided_last
-
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
         assert source.id is not None
-        candidates = self._candidate_repo.get_by_source(source.id)
-        candidates = self._candidate_sorter.sort(candidates, source, sort_order)
+        arranged = self._candidate_sorter.arrange(
+            self._candidate_repo.get_by_source(source.id), sort_order,
+        )
+        candidates = arranged.candidates
         initially_shown = (
             None if sort_order == CandidateSortOrder.CHRONOLOGICAL
             else INITIALLY_SHOWN_CANDIDATES
         )
-        candidates = decided_last(candidates)
         candidate_ids = [c.id for c in candidates if c.id is not None]
         jobs_by_candidate = self._job_repo.get_jobs_for_candidates(candidate_ids)
         reported_ids = self._report_repo.reported_candidate_ids(candidate_ids)
@@ -146,8 +145,11 @@ class GetSourcesUseCase:
             processing_stage=source.processing_stage.value if source.processing_stage else None,
             created_at=source.created_at,
             candidates=[
-                stored_candidate_to_dto(c, jobs_by_candidate, reported_ids, synced_ids)
+                stored_candidate_to_dto(
+                    c, jobs_by_candidate, reported_ids, synced_ids, arranged.section(c),
+                )
                 for c in candidates
             ],
+            progress=ProgressDTO.of(arranged.progress()),
             initially_shown_candidates=initially_shown,
         )

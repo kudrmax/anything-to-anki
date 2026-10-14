@@ -7,11 +7,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from backend.domain.services.candidate_sections import (
+    SECTION_ORDER,
+    is_junk,
+    new_words,
+    section_of,
+)
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
+    from backend.domain.value_objects.user_knowledge import UserKnowledge
 
 _CEFR_ORDER: dict[str | None, int] = {
     "A1": 1, "A2": 2,
@@ -21,9 +28,6 @@ _CEFR_ORDER: dict[str | None, int] = {
 }
 
 _NEUTRAL = "neutral"
-_JUNK_POS: frozenset[str] = frozenset({"INTJ"})
-_MISSING_FROM_DICTIONARY_ZIPF: float = 0.0
-_WORD_SEPARATOR = " "
 
 
 def _cefr_sort_key(cefr_level: str | None) -> int:
@@ -45,16 +49,15 @@ def sort_by_relevance(
     candidates: list[StoredCandidate],
     usage_order: list[str] | None = None,
     frequent_threshold: FrequentWordThreshold | None = None,
+    knowledge: UserKnowledge | None = None,
 ) -> list[StoredCandidate]:
     """Sort candidates so the cards most worth learning come first.
 
-    Probably useless cards go down instead of disappearing. Groups, top to bottom:
-    1. clean phrases, regular words before phrasal verbs
-    2. phrases with other unknown words — fewer unknowns first
-    3. words at or above `frequent_threshold` — probably known
-    4. junk: interjections and words missing from the frequency dictionary
+    By section: ready, extra new words, probably known (junk at its bottom).
+    Decided cards go below pending ones of their section. In extra, fewer new
+    words first; regular words before phrasal verbs.
 
-    Inside a group:
+    Then:
     1. frequency_band DESC — more frequent bands first
     2. usage_rank ASC — higher-priority usage group first (if usage_order given)
     3. cefr_level ASC — easier levels first; None sorts after C2
@@ -63,9 +66,8 @@ def sort_by_relevance(
     return sorted(
         candidates,
         key=lambda c: (
-            _is_junk(c),
-            _is_probably_known(c, frequent_threshold),
-            c.fragment_unknown_count,
+            *_section_key(c, knowledge, frequent_threshold),
+            len(new_words(c, knowledge)),
             c.is_phrasal_verb,
             -c.frequency_band.value,
             _usage_sort_key(c, usage_order),
@@ -78,42 +80,40 @@ def sort_by_relevance(
 def sort_by_key_words(
     candidates: list[StoredCandidate],
     frequent_threshold: FrequentWordThreshold | None = None,
+    knowledge: UserKnowledge | None = None,
 ) -> list[StoredCandidate]:
     """Sort candidates so the words this text leans on most come first.
 
     Meant for preparing to read: the words that keep coming back in the
-    text and are rare in the language. Junk and probably known words go
-    down the same way as in ``sort_by_relevance``.
+    text and are rare in the language. Sections as in ``sort_by_relevance``.
 
-    Inside a group:
+    Inside a section:
     1. occurrences DESC — more occurrences in source text first
     2. zipf_frequency ASC — rarer in the language first
-    3. fragment_unknown_count ASC — cleaner phrase first
+    3. fewer new words in the phrase first
     """
     return sorted(
         candidates,
         key=lambda c: (
-            _is_junk(c),
-            _is_probably_known(c, frequent_threshold),
+            *_section_key(c, knowledge, frequent_threshold),
             -c.occurrences,
             c.zipf_frequency,
-            c.fragment_unknown_count,
+            len(new_words(c, knowledge)),
         ),
     )
 
 
-def _is_probably_known(
+def _section_key(
     candidate: StoredCandidate,
+    knowledge: UserKnowledge | None,
     frequent_threshold: FrequentWordThreshold | None,
-) -> bool:
-    return frequent_threshold is not None and frequent_threshold.covers(candidate.zipf_frequency)
-
-
-def _is_junk(candidate: StoredCandidate) -> bool:
-    if candidate.pos in _JUNK_POS:
-        return True
-    is_single_word = _WORD_SEPARATOR not in candidate.lemma
-    return is_single_word and candidate.zipf_frequency <= _MISSING_FROM_DICTIONARY_ZIPF
+) -> tuple[int, bool, bool]:
+    section = section_of(candidate, knowledge, frequent_threshold)
+    return (
+        SECTION_ORDER[section],
+        candidate.status != CandidateStatus.PENDING,
+        is_junk(candidate),
+    )
 
 
 def sort_chronologically(candidates: list[StoredCandidate]) -> list[StoredCandidate]:

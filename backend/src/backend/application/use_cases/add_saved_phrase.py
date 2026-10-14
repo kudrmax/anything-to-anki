@@ -7,11 +7,11 @@ from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candi
 from backend.application.utils.candidate_factory import CandidateFactory
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import InvalidPhraseError
-from backend.domain.services.phrase_target import normalize_target, phrase_contains_target
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.source_role import SourceRole
 
 if TYPE_CHECKING:
+    from backend.application.utils.phrase_reader import PhraseReader
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.cefr_classifier import CEFRClassifier
@@ -39,6 +39,7 @@ class AddSavedPhraseUseCase:
         frequency_provider: FrequencyProvider,
         phrasal_verb_detector: PhrasalVerbDetector,
         review_status: ReviewStatusUpdater,
+        phrase_reader: PhraseReader,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
@@ -49,21 +50,17 @@ class AddSavedPhraseUseCase:
             phrasal_verb_detector=phrasal_verb_detector,
         )
         self._review_status = review_status
+        self._phrase_reader = phrase_reader
 
-    def execute(self, phrase: str, target: str) -> StoredCandidateDTO:
-        phrase = " ".join(phrase.split())
-        target = normalize_target(target)
-        if not phrase:
+    def execute(self, phrase: str, target_words: list[int]) -> StoredCandidateDTO:
+        text = " ".join(phrase.split())
+        if not text:
             raise InvalidPhraseError("Phrase cannot be empty")
-        if not phrase_contains_target(phrase, target):
-            raise InvalidPhraseError("Pick the target among the words of the phrase")
+        read = self._phrase_reader.read_picked(text, target_words)
 
         source_id = self._saved_phrases_source_id()
         candidate = self._candidate_factory.build(
-            source_id=source_id,
-            surface_form=target,
-            context_fragment=phrase,
-            occurrences=SINGLE_OCCURRENCE,
+            source_id=source_id, phrase=read, occurrences=SINGLE_OCCURRENCE,
         )
         learned = dataclasses.replace(candidate, status=CandidateStatus.LEARN)
         saved = self._candidate_repo.create_batch([learned])[0]

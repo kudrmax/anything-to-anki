@@ -7,6 +7,7 @@ import { quickAddPanel } from '@/lib/nativeHost'
 import { Button, Toast, useToast } from '@/ui'
 import phrase from '@/ui/phrase.module.css'
 import { normalizePhrase, pickSpan, segments, snapToWords, targetText, type Span } from './targetSpan'
+import { wordsIn } from '@/lib/text/words'
 import css from './QuickAdd.module.css'
 
 export const QUICK_ADD_PATH = '/quick-add'
@@ -52,7 +53,7 @@ export function QuickAddScreen() {
     if (!target.length || saving) return
     setSaving(true)
     try {
-      await api.addSavedPhrase(text, targetText(text, target))
+      await api.addSavedPhrase(text, wordsIn(text, target))
       showToast(SAVED_MESSAGE)
       setTarget([])
       if (panel) window.setTimeout(() => panel.close(), CLOSE_AFTER_SAVE_MS)

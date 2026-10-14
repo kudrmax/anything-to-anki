@@ -8,10 +8,21 @@ MAX_COMMENT_LENGTH = 1000
 
 
 class ReportCandidateRequest(BaseModel):
-    """Input for complaining about a card: quick reasons, own words, or both."""
+    """Input for complaining about a card: quick reasons, own words, or both.
+
+    `unknown_words` — numbers of the words of the card's phrase the user doesn't know.
+    """
 
     reasons: list[str] = Field(default_factory=list)
     comment: str = Field(default="", max_length=MAX_COMMENT_LENGTH)
+    unknown_words: list[int] = Field(default_factory=list)
+
+
+class ReportReasonDTO(BaseModel):
+    """A quick reason; `picks_words` — choosing it lets the user pick the words they don't know."""
+
+    label: str
+    picks_words: bool = False
 
 
 class CardReportDTO(BaseModel):

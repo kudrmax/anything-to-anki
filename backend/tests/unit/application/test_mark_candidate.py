@@ -7,6 +7,9 @@ from backend.domain.entities.word_decision import WordDecision
 from backend.domain.exceptions import CandidateNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
+from tests.phrase_support import phrase
+from tests.vocabulary_support import user_vocabulary
+
 
 @pytest.mark.unit
 class TestMarkCandidateUseCase:
@@ -20,7 +23,7 @@ class TestMarkCandidateUseCase:
         self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.use_case = MarkCandidateUseCase(
             candidate_repo=self.candidate_repo,
-            known_word_repo=self.known_word_repo,
+            vocabulary=user_vocabulary(self.known_word_repo),
             decision_repo=self.decision_repo,
             review_status=self.review_status,
             cloze_repo=self.cloze_repo,
@@ -31,7 +34,7 @@ class TestMarkCandidateUseCase:
         self.candidate_repo.get_by_id.return_value = StoredCandidate(
             id=1, source_id=1, lemma="pursuit", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,
-            context_fragment="the pursuit of", fragment_purity="clean",
+            source_phrase=phrase("the pursuit of", "pursuit"),
             occurrences=1, status=CandidateStatus.PENDING,
         )
         self.use_case.execute(1, CandidateStatus.LEARN)
@@ -42,7 +45,7 @@ class TestMarkCandidateUseCase:
         self.candidate_repo.get_by_id.return_value = StoredCandidate(
             id=1, source_id=1, lemma="pursuit", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,
-            context_fragment="the pursuit of", fragment_purity="clean",
+            source_phrase=phrase("the pursuit of", "pursuit"),
             occurrences=1, status=CandidateStatus.PENDING,
         )
         self.use_case.execute(1, CandidateStatus.KNOWN)
@@ -53,7 +56,7 @@ class TestMarkCandidateUseCase:
         self.candidate_repo.get_by_id.return_value = StoredCandidate(
             id=1, source_id=5, lemma="pursuit", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,
-            context_fragment="the pursuit of", fragment_purity="clean",
+            source_phrase=phrase("the pursuit of", "pursuit"),
             occurrences=1, status=CandidateStatus.PENDING,
         )
         self.use_case.execute(1, CandidateStatus.SKIP)
@@ -63,7 +66,7 @@ class TestMarkCandidateUseCase:
         self.candidate_repo.get_by_id.return_value = StoredCandidate(
             id=1, source_id=5, lemma="pursuit", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,
-            context_fragment="the pursuit of", fragment_purity="clean",
+            source_phrase=phrase("the pursuit of", "pursuit"),
             occurrences=1, status=status,
         )
 
@@ -119,7 +122,7 @@ def _candidate(
 ) -> StoredCandidate:
     return StoredCandidate(
         id=1, source_id=1, lemma=lemma, pos="NOUN", cefr_level="C1", zipf_frequency=3.63,
-        context_fragment="big lizards", fragment_purity="clean", occurrences=1,
+        source_phrase=phrase("big lizards", "lizards"), occurrences=1,
         status=status, is_phrasal_verb=phrasal,
     )
 
@@ -131,7 +134,7 @@ class TestMarkCandidateRemembersDecisions:
         self.decision_repo = MagicMock()
         self.use_case = MarkCandidateUseCase(
             candidate_repo=self.candidate_repo,
-            known_word_repo=MagicMock(),
+            vocabulary=user_vocabulary(MagicMock()),
             decision_repo=self.decision_repo,
             review_status=MagicMock(),
             cloze_repo=MagicMock(),

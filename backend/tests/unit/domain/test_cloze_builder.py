@@ -9,9 +9,13 @@ from backend.domain.services.cloze_builder import ClozeBuilder, ClozeFrontPart
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
+from tests.phrase_support import phrase
+
 pytestmark = pytest.mark.unit
 
-GIVE_UP = "She finally gave up smoking last year."
+GIVE_UP_TEXT = "She finally gave up smoking last year."
+GIVE_UP = phrase(GIVE_UP_TEXT, "gave up")
+GAVE_IT_UP = phrase("I gave it up at last.", "give up", lemmas={"gave": "give"})
 builder = ClozeBuilder()
 
 
@@ -29,52 +33,47 @@ def _meaning(
     )
 
 
-def _candidate(
-    phrase: str, lemma: str, surface: str | None, cloze: CandidateCloze | None
-) -> StoredCandidate:
+def _candidate(text: str, cloze: CandidateCloze | None) -> StoredCandidate:
     return StoredCandidate(
         source_id=1,
-        lemma=lemma,
+        lemma="give up",
         pos="VERB",
         cefr_level=None,
         zipf_frequency=4.0,
-        context_fragment=phrase,
-        fragment_purity="clean",
+        source_phrase=phrase(text, "gave up"),
         occurrences=1,
         status=CandidateStatus.LEARN,
-        surface_form=surface,
         id=1,
         cloze=cloze,
     )
 
 
 def test_words_mark_target_words_including_phrasal_verb() -> None:
-    words = builder.words(GIVE_UP, "give up", "gave up")
-    assert [w.text for w in words] == ["She", "finally", "gave", "up", "smoking", "last", "year."]
+    words = builder.words(GIVE_UP)
+    assert [w.text for w in words] == ["She", "finally", "gave", "up", "smoking", "last", "year"]
     assert [w.index for w in words if w.is_target] == [2, 3]
 
 
 def test_words_mark_separated_phrasal_verb() -> None:
-    words = builder.words("I gave it up at last.", "give up", "gave up")
+    words = builder.words(GAVE_IT_UP)
     assert [w.index for w in words if w.is_target] == [1, 3]
 
 
 def test_words_ignore_case_and_edge_punctuation() -> None:
-    words = builder.words("Procrastinate, they said.", "procrastinate", None)
+    words = builder.words(phrase("Procrastinate, they said.", "procrastinate"))
     assert [w.index for w in words if w.is_target] == [0]
 
 
 def test_default_hidden_is_target_words() -> None:
-    assert builder.default_hidden(builder.words(GIVE_UP, "give up", "gave up")) == (2, 3)
+    assert builder.default_hidden(GIVE_UP) == (2, 3)
 
 
 def test_validate_rejects_empty_and_out_of_range() -> None:
-    words = builder.words(GIVE_UP, "give up", "gave up")
     with pytest.raises(InvalidClozeError):
-        builder.validate(words, ())
+        builder.validate(GIVE_UP, ())
     with pytest.raises(InvalidClozeError):
-        builder.validate(words, (7,))
-    builder.validate(words, (3,))
+        builder.validate(GIVE_UP, (7,))
+    builder.validate(GIVE_UP, (3,))
 
 
 def test_cloze_text_merges_adjacent_words_and_keeps_punctuation_outside() -> None:
@@ -84,17 +83,18 @@ def test_cloze_text_merges_adjacent_words_and_keeps_punctuation_outside() -> Non
 
 def test_cloze_text_uses_same_number_for_separated_parts() -> None:
     assert (
-        builder.cloze_text("I gave it up at last.", (1, 3))
+        builder.cloze_text(GAVE_IT_UP, (1, 3))
         == "I {{c1::gave}} it {{c1::up}} at last."
     )
 
 
 def test_cloze_text_keeps_inner_apostrophe_and_outer_quotes() -> None:
-    assert builder.cloze_text('He said "don\'t" twice', (2,)) == 'He said "{{c1::don\'t}}" twice'
+    cloze = builder.cloze_text(phrase('He said "don\'t" twice'), (2,))
+    assert cloze == 'He said "{{c1::don\'t}}" twice'
 
 
 def test_cloze_text_escapes_anki_syntax() -> None:
-    text = builder.cloze_text("a::b c}}d end", (0, 1))
+    text = builder.cloze_text(phrase("a::b c}}d end"), (0, 1, 2, 3))
     assert "{{c1::" in text
     assert text.count("::") == 1  # only the c1 separator survives
     assert text.count("}}") == 1
@@ -102,11 +102,11 @@ def test_cloze_text_escapes_anki_syntax() -> None:
 
 def test_cloze_text_puts_each_hint_into_its_gap() -> None:
     assert (
-        builder.cloze_text("I gave it up at last.", (1, 3), ["g…", "u…"])
+        builder.cloze_text(GAVE_IT_UP, (1, 3), ["g…", "u…"])
         == "I {{c1::gave::g…}} it {{c1::up::u…}} at last."
     )
     assert (
-        builder.cloze_text("I gave it up at last.", (1, 3), ["бросить", ""])
+        builder.cloze_text(GAVE_IT_UP, (1, 3), ["бросить", ""])
         == "I {{c1::gave::бросить}} it {{c1::up}} at last."
     )
 
@@ -126,7 +126,7 @@ def test_front_shows_gaps_without_hint() -> None:
 
 
 def test_front_shows_hint_inside_gap_and_keeps_punctuation_outside() -> None:
-    assert builder.front('"Year," she said', (0,), ["y…"]) == [
+    assert builder.front(phrase('"Year," she said'), (0,), ["y…"]) == [
         ClozeFrontPart('"', is_gap=False),
         ClozeFrontPart("[y…]", is_gap=True),
         ClozeFrontPart('," she said', is_gap=False),
@@ -135,7 +135,7 @@ def test_front_shows_hint_inside_gap_and_keeps_punctuation_outside() -> None:
 
 def test_gap_hints_first_letter_per_gap() -> None:
     hints = builder.gap_hints(
-        ClozeHintKind.FIRST_LETTER, _meaning(), "I gave it up at last.", (1, 3), None
+        ClozeHintKind.FIRST_LETTER, _meaning(), GAVE_IT_UP, (1, 3), None
     )
     assert hints == ["g…", "u…"]
     assert builder.gap_hints(ClozeHintKind.FIRST_LETTER, None, GIVE_UP, (2, 3), None) == [
@@ -144,16 +144,18 @@ def test_gap_hints_first_letter_per_gap() -> None:
 
 
 def test_gap_hints_whole_target_hint_goes_to_first_gap() -> None:
-    phrase = "I gave it up at last."
-    assert builder.gap_hints(ClozeHintKind.TRANSLATION, _meaning(), phrase, (1, 3), None) == [
+    assert builder.gap_hints(ClozeHintKind.TRANSLATION, _meaning(), GAVE_IT_UP, (1, 3), None) == [
         "бросить",
         "",
     ]
-    assert builder.gap_hints(ClozeHintKind.CUSTOM, None, phrase, (1, 3), " quit ") == [
+    assert builder.gap_hints(ClozeHintKind.CUSTOM, None, GAVE_IT_UP, (1, 3), " quit ") == [
         "quit",
         "",
     ]
-    assert builder.gap_hints(ClozeHintKind.NONE, _meaning(), phrase, (1, 3), None) == ["", ""]
+    assert builder.gap_hints(ClozeHintKind.NONE, _meaning(), GAVE_IT_UP, (1, 3), None) == [
+        "",
+        "",
+    ]
 
 
 def test_hint_text_variants() -> None:
@@ -198,27 +200,19 @@ def test_available_hints_leak_check_uses_word_boundaries() -> None:
 
 
 def test_effective_keeps_markup_for_same_phrase() -> None:
-    cloze = CandidateCloze(1, (3,), ClozeHintKind.TRANSLATION, None, GIVE_UP)
-    assert builder.effective(_candidate(GIVE_UP, "give up", "gave up", cloze)) == cloze
+    cloze = CandidateCloze(1, (3,), ClozeHintKind.TRANSLATION, None, GIVE_UP_TEXT)
+    assert builder.effective(_candidate(GIVE_UP_TEXT, cloze)) == cloze
 
 
 def test_effective_rebuilds_markup_for_changed_phrase() -> None:
-    cloze = CandidateCloze(1, (3,), ClozeHintKind.TRANSLATION, None, GIVE_UP)
+    cloze = CandidateCloze(1, (3,), ClozeHintKind.TRANSLATION, None, GIVE_UP_TEXT)
     new_phrase = "Finally she gave up."
-    result = builder.effective(_candidate(new_phrase, "give up", "gave up", cloze))
+    result = builder.effective(_candidate(new_phrase, cloze))
     assert result == CandidateCloze(1, (2, 3), ClozeHintKind.TRANSLATION, None, new_phrase)
 
 
-def test_effective_drops_cloze_when_target_is_gone() -> None:
-    cloze = CandidateCloze(1, (3,), ClozeHintKind.NONE, None, GIVE_UP)
-    assert (
-        builder.effective(_candidate("Totally different text.", "give up", "gave up", cloze))
-        is None
-    )
-
-
 def test_effective_without_cloze_is_none() -> None:
-    assert builder.effective(_candidate(GIVE_UP, "give up", "gave up", None)) is None
+    assert builder.effective(_candidate(GIVE_UP_TEXT, None)) is None
 
 
 def test_highlight_hidden_wraps_runs_and_keeps_punctuation_outside() -> None:

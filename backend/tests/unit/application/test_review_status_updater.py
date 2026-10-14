@@ -1,21 +1,37 @@
+import itertools
 from unittest.mock import MagicMock
 
 import pytest
+from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.phrase import Phrase
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.candidate_sorter_support import candidate_sorter
+from tests.phrase_support import phrase
 
-def _candidate(status: CandidateStatus) -> StoredCandidate:
+
+def _candidate(status: CandidateStatus, *, other_new_words: int = 0) -> StoredCandidate:
     return StoredCandidate(
-        id=1, source_id=7, lemma="pursuit", pos="NOUN", cefr_level="B2", zipf_frequency=3.5,
-        context_fragment="the pursuit of", fragment_purity="clean", occurrences=1, status=status,
+        id=next(_IDS), source_id=7, lemma="pursuit", pos="NOUN", cefr_level="B2",
+        zipf_frequency=3.5, occurrences=1, status=status,
+        source_phrase=_phrase(other_new_words),
     )
+
+
+_IDS = itertools.count(1)
+
+
+def _phrase(other_new_words: int) -> Phrase:
+    strange = [f"strange{i}" for i in range(other_new_words)]
+    return phrase(" ".join(["the pursuit of", *strange]), "pursuit", new=strange)
 
 
 def _source(status: SourceStatus) -> MagicMock:
     source = MagicMock()
+    source.id = 7
     source.status = status
     return source
 
@@ -25,8 +41,11 @@ class TestReviewStatusUpdater:
     def setup_method(self) -> None:
         self.source_repo = MagicMock()
         self.candidate_repo = MagicMock()
+        settings_repo = MagicMock()
+        settings_repo.get.return_value = None
         self.updater = ReviewStatusUpdater(
-            source_repo=self.source_repo, candidate_repo=self.candidate_repo,
+            source_repo=self.source_repo,
+            review_progress=ReviewProgress(self.candidate_repo, candidate_sorter(settings_repo)),
         )
 
     def test_saves_the_derived_status_when_it_changes(self) -> None:
@@ -47,3 +66,18 @@ class TestReviewStatusUpdater:
         self.source_repo.get_by_id.return_value = None
         self.updater.refresh(7)
         self.source_repo.update_status.assert_not_called()
+
+    def test_cards_with_other_new_words_do_not_hold_the_source(self) -> None:
+        self.source_repo.get_by_id.return_value = _source(SourceStatus.PARTIALLY_REVIEWED)
+        self.candidate_repo.get_by_source.return_value = [
+            _candidate(CandidateStatus.LEARN),
+            _candidate(CandidateStatus.PENDING, other_new_words=1),
+        ]
+        self.updater.refresh(7)
+        self.source_repo.update_status.assert_called_once_with(7, SourceStatus.REVIEWED)
+
+    def test_refresh_all_goes_through_every_source(self) -> None:
+        self.source_repo.list_all.return_value = [_source(SourceStatus.DONE)]
+        self.candidate_repo.get_by_source.return_value = [_candidate(CandidateStatus.LEARN)]
+        self.updater.refresh_all()
+        self.source_repo.update_status.assert_called_once_with(7, SourceStatus.REVIEWED)

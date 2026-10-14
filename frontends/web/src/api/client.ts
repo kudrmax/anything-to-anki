@@ -28,6 +28,7 @@ import type {
   GlobalExport,
   ImageSearchResult,
   KnownWord,
+  ReportReason,
   QueueActionResult,
   QueueSelection,
   QueueSnapshot,
@@ -46,6 +47,7 @@ import type {
   UsagePeriod,
   NoteTypeCheck,
   NoteTypeKind,
+  UnknownWord,
 } from './types'
 import { buildHeaders, reloadIfStale } from './clientBuild'
 
@@ -155,6 +157,11 @@ export const api = {
   deleteKnownWord: (id: number) =>
     req<{ deleted: number }>(`/known-words/${id}`, { method: 'DELETE' }),
 
+  getUnknownWords: () => req<UnknownWord[]>('/unknown-words'),
+
+  deleteUnknownWord: (id: number) =>
+    req<{ deleted: number }>(`/unknown-words/${id}`, { method: 'DELETE' }),
+
   deleteSource: (id: number) => reqVoid(`/sources/${id}`, { method: 'DELETE' }),
 
   generateMeaning: (candidateId: number, followUpAction?: FollowUpAction, followUpText?: string) =>
@@ -239,13 +246,13 @@ export const api = {
       body: JSON.stringify({ selection }),
     }),
 
-  reportCandidate: (candidateId: number, reasons: string[], comment: string) =>
+  reportCandidate: (candidateId: number, reasons: string[], comment: string, unknownWords: number[]) =>
     req<unknown>(`/candidates/${candidateId}/report`, {
       method: 'POST',
-      body: JSON.stringify({ reasons, comment }),
+      body: JSON.stringify({ reasons, comment, unknown_words: unknownWords }),
     }),
 
-  getReportReasons: () => req<string[]>('/api/card-reports/reasons'),
+  getReportReasons: () => req<ReportReason[]>('/api/card-reports/reasons'),
 
   replaceWithExample: (candidateId: number, exampleText: string) =>
     req<StoredCandidate>(`/candidates/${candidateId}/replace-with-example`, {
@@ -253,16 +260,16 @@ export const api = {
       body: JSON.stringify({ example_text: exampleText }),
     }),
 
-  addSavedPhrase: (phrase: string, target: string) =>
+  addSavedPhrase: (phrase: string, targetWords: number[]) =>
     req<StoredCandidate>('/sources/saved-phrases', {
       method: 'POST',
-      body: JSON.stringify({ phrase, target }),
+      body: JSON.stringify({ phrase, target_words: targetWords }),
     }),
 
-  addManualCandidate: (sourceId: number, surfaceForm: string, selection: DocumentSelection) =>
+  addManualCandidate: (sourceId: number, targetWords: number[], selection: DocumentSelection) =>
     req<StoredCandidate>(`/sources/${sourceId}/candidates/manual`, {
       method: 'POST',
-      body: JSON.stringify({ surface_form: surfaceForm, selection }),
+      body: JSON.stringify({ target_words: targetWords, selection }),
     }),
 
   getMediaStats: () => req<SourceMediaStats[]>('/api/settings/media-stats'),

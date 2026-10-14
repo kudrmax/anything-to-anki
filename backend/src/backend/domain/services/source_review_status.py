@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from backend.domain.value_objects.decision_progress import DecisionProgress
 
 REVIEWABLE_STATUSES = frozenset({
     SourceStatus.DONE,
@@ -15,11 +14,15 @@ REVIEWABLE_STATUSES = frozenset({
 })
 
 
-def derive_review_status(
-    current: SourceStatus, candidate_statuses: Iterable[CandidateStatus],
-) -> SourceStatus:
-    """Статус ревью источника по оценкам его кандидатов; источники вне ревью не меняются."""
+def derive_review_status(current: SourceStatus, progress: DecisionProgress) -> SourceStatus:
+    """Статус ревью источника по его прогрессу; источники вне ревью не меняются.
+
+    Не начатый источник остаётся не начатым, пока по нему нет ни одного решения.
+    """
     if current not in REVIEWABLE_STATUSES:
         return current
-    has_pending = any(status == CandidateStatus.PENDING for status in candidate_statuses)
-    return SourceStatus.PARTIALLY_REVIEWED if has_pending else SourceStatus.REVIEWED
+    if progress.decided == progress.total:
+        return SourceStatus.REVIEWED
+    if current == SourceStatus.DONE and progress.decided == 0:
+        return SourceStatus.DONE
+    return SourceStatus.PARTIALLY_REVIEWED

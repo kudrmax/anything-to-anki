@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { computeDiff } from '@/lib/text/diff'
-import { pickedWords, toggled } from '@/lib/text/words'
+import { phraseWords, pickedIndices, pickedWords, toggled } from '@/lib/text/words'
 import { Button, Text, Tooltip, WordPicker } from '@/ui'
 import type { SelectionPoint } from './SourceText'
 import type { Editing } from './useReview'
@@ -14,7 +14,7 @@ interface SelectionPopoverProps {
   /** Задан — попап правит границы фрагмента, иначе добавляет новое слово. */
   editing: Editing | null
   onSetBoundary: (phrase: string) => Promise<void>
-  onAddWord: (target: string, context: string) => Promise<void>
+  onAddWord: (targetWords: number[]) => Promise<void>
   onCancel: () => void
 }
 
@@ -51,7 +51,7 @@ export function SelectionPopover({ phrase, point, editing, onSetBoundary, onAddW
         ) : (
           <>
             <Text tone="muted" size="s">Tap words to select target</Text>
-            <WordPicker phrase={phrase} selected={selected} onToggle={i => setSelected(prev => toggled(prev, i))} />
+            <WordPicker words={phraseWords(phrase)} selected={selected} onToggle={i => setSelected(prev => toggled(prev, i))} />
             {target && <Text tone="muted" size="s">Target: <Text tone="accent">{target}</Text></Text>}
           </>
         )}
@@ -59,7 +59,7 @@ export function SelectionPopover({ phrase, point, editing, onSetBoundary, onAddW
           <Button variant="link" onClick={onCancel}>Cancel</Button>
           {editing
             ? <Button variant="fill" busy={loading} onClick={() => void run(() => onSetBoundary(phrase))}>Set boundary</Button>
-            : <Button variant="fill" busy={loading} disabled={!target} onClick={() => void run(() => onAddWord(target, phrase))}>Add word</Button>}
+            : <Button variant="fill" busy={loading} disabled={!target} onClick={() => void run(() => onAddWord(pickedIndices(selected)))}>Add word</Button>}
         </div>
       </div>
     </Tooltip>

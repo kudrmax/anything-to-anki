@@ -25,17 +25,17 @@ class SelectionDTO(BaseModel):
 
 
 class AddManualCandidateRequest(BaseModel):
-    """A word the user picked in a phrase they selected on the source screen."""
+    """Words the user picked, by their numbers, in a phrase they selected on the source screen."""
 
-    surface_form: str
+    target_words: list[int]
     selection: SelectionDTO
 
 
 class AddSavedPhraseRequest(BaseModel):
-    """Input for saving a phrase met anywhere, with the target picked in it."""
+    """Input for saving a phrase met anywhere, with the target words picked in it by number."""
 
     phrase: str
-    target: str
+    target_words: list[int]
 
 
 class SetPhraseBoundaryRequest(BaseModel):

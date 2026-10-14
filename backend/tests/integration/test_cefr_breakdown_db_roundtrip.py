@@ -15,6 +15,8 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
 
+from tests.phrase_support import phrase
+
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
@@ -68,8 +70,7 @@ class TestCEFRBreakdownDBRoundtrip:
             pos="JJ",
             cefr_level="B1",
             zipf_frequency=5.0,
-            context_fragment="I am happy",
-            fragment_purity="clean",
+            source_phrase=phrase("I am happy"),
             occurrences=1,
             status=CandidateStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
@@ -93,8 +94,7 @@ class TestCEFRBreakdownDBRoundtrip:
             pos="NN",
             cefr_level="A2",
             zipf_frequency=4.0,
-            context_fragment="a test",
-            fragment_purity="clean",
+            source_phrase=phrase("a test"),
             occurrences=1,
             status=CandidateStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
@@ -118,8 +118,7 @@ class TestCEFRBreakdownDBRoundtrip:
             pos="NN",
             cefr_level="B1",
             zipf_frequency=4.0,
-            context_fragment="a word",
-            fragment_purity="clean",
+            source_phrase=phrase("a word"),
             occurrences=1,
             status=CandidateStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
@@ -144,8 +143,7 @@ class TestCEFRBreakdownDBRoundtrip:
             pos="VB",
             cefr_level="A2",
             zipf_frequency=5.5,
-            context_fragment="run fast",
-            fragment_purity="clean",
+            source_phrase=phrase("run fast"),
             occurrences=2,
             status=CandidateStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
@@ -169,8 +167,7 @@ class TestCEFRBreakdownDBRoundtrip:
             pos="JJ",
             cefr_level="A1",
             zipf_frequency=5.0,
-            context_fragment="old candidate",
-            fragment_purity="clean",
+            source_phrase=phrase("old candidate"),
             occurrences=1,
             status=CandidateStatus.PENDING,
             cefr_breakdown=None,
@@ -194,8 +191,7 @@ class TestCEFRBreakdownDBRoundtrip:
             pos="VB",
             cefr_level="B2",
             zipf_frequency=4.0,
-            context_fragment="it is gone",
-            fragment_purity="clean",
+            source_phrase=phrase("it is gone"),
             occurrences=1,
             status=CandidateStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
@@ -229,8 +225,7 @@ class TestCEFRBreakdownDBRoundtrip:
             pos="NN",
             cefr_level="C2",  # deliberately wrong — should be overridden
             zipf_frequency=4.0,
-            context_fragment="a mismatch",
-            fragment_purity="clean",
+            source_phrase=phrase("a mismatch"),
             occurrences=1,
             status=CandidateStatus.PENDING,
             cefr_breakdown=_make_breakdown(),  # Cambridge knows B1

@@ -10,11 +10,16 @@ from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.api.routes import sources as sources_routes
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.models import SourceModel, StoredCandidateModel
+from backend.infrastructure.persistence.models import (
+    SourceModel,
+    StoredCandidateModel,
+    dump_phrase,
+)
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests.phrase_support import phrase
 from tests.unit.infrastructure.epub.epub_builder import EpubBuilder, TocLink, page, prose
 
 
@@ -217,8 +222,7 @@ class TestSourcesAPI:
             pos="VERB",
             zipf_frequency=3.8,
             is_sweet_spot=True,
-            context_fragment="I'm gonna do it",
-            fragment_purity="clean",
+            source_phrase=dump_phrase(phrase("I'm gonna do it", "gonna")),
             occurrences=1,
             status="pending",
             usage_distribution_json=json.dumps({"informal": 0.8, "neutral": 0.2}),
@@ -288,7 +292,7 @@ class TestSavedPhrasesAPI:
     def test_phrase_goes_to_saved_phrases_source_to_learn(self, client: TestClient) -> None:
         response = client.post(
             "/sources/saved-phrases",
-            json={"phrase": "She finally gave in to the pressure.", "target": "gave in"},
+            json={"phrase": "She finally gave in to the pressure.", "target_words": [2, 3]},
         )
 
         assert response.status_code == 201
@@ -307,9 +311,9 @@ class TestSavedPhrasesAPI:
         assert detail["can_polish_phrases"] is False
 
     def test_second_phrase_reuses_the_same_source(self, client: TestClient) -> None:
-        for phrase in ("It was a daunting task.", "Keep it concise."):
-            target = phrase.split()[-1].rstrip(".")
-            client.post("/sources/saved-phrases", json={"phrase": phrase, "target": target})
+        for text in ("It was a daunting task.", "Keep it concise."):
+            last = len(text.split()) - 1
+            client.post("/sources/saved-phrases", json={"phrase": text, "target_words": [last]})
 
         sources = client.get("/sources").json()
         assert len(sources) == 1
@@ -318,7 +322,7 @@ class TestSavedPhrasesAPI:
     def test_target_outside_phrase_is_rejected(self, client: TestClient) -> None:
         response = client.post(
             "/sources/saved-phrases",
-            json={"phrase": "It was a daunting task.", "target": "challenge"},
+            json={"phrase": "It was a daunting task.", "target_words": [9]},
         )
         assert response.status_code == 400
 
@@ -327,7 +331,7 @@ class TestSavedPhrasesAPI:
     ) -> None:
         client.post(
             "/sources/saved-phrases",
-            json={"phrase": "It was a daunting task.", "target": "daunting"},
+            json={"phrase": "It was a daunting task.", "target_words": [3]},
         )
         source_id = client.get("/sources").json()[0]["id"]
 

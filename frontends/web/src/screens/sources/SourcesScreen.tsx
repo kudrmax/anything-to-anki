@@ -32,7 +32,7 @@ const STAGE_LABEL: Record<SourceStage, string> = {
   reviewed: 'Reviewed',
 }
 const SCOPE_TITLE = { all: 'All sources', unsorted: 'Unsorted' } as const
-const NO_COUNTS: ScopeCounts = { total: 0, reviewed: 0, pending: 0, candidate_count: 0, decided_count: 0 }
+const NO_COUNTS: ScopeCounts = { total: 0, reviewed: 0, pending: 0, progress: { decided: 0, total: 0 } }
 const UNSORTED = 'Unsorted'
 const ADD_PATH = '/add'
 const EXPORT_PATH = '/export'

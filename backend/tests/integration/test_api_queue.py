@@ -6,9 +6,12 @@ import pytest
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.models import dump_phrase
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
+
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -80,11 +83,14 @@ def _insert_candidate(
     session.execute(
         text(
             "INSERT INTO candidates (id, source_id, lemma, pos, "
-            "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
-            "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-            "VALUES (:id, :sid, :lemma, 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
+            "zipf_frequency, is_sweet_spot, source_phrase, "
+            "occurrences, status, is_phrasal_verb) "
+            "VALUES (:id, :sid, :lemma, 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
         ),
-        {"id": candidate_id, "sid": source_id, "lemma": lemma},
+        {
+            "id": candidate_id, "sid": source_id, "lemma": lemma,
+            "phrase": dump_phrase(phrase(lemma)),
+        },
     )
     session.flush()
 

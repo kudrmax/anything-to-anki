@@ -6,7 +6,7 @@ import pytest
 from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.models import StoredCandidateModel
+from backend.infrastructure.persistence.models import StoredCandidateModel, dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_meaning_image_repository import (
     SqlaCandidateMeaningImageRepository,
 )
@@ -15,6 +15,8 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
 )
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -39,8 +41,7 @@ def session() -> Generator[Session, None, None]:
         pos="NOUN",
         zipf_frequency=4.0,
         is_sweet_spot=True,
-        context_fragment="the drain is blocked",
-        fragment_purity="clean",
+        source_phrase=dump_phrase(phrase("the drain is blocked", "drain")),
         occurrences=1,
         status=CandidateStatus.LEARN.value,
     ))

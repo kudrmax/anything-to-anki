@@ -22,6 +22,9 @@ from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 
+from tests.phrase_support import phrase
+from tests.vocabulary_support import user_vocabulary
+
 pytestmark = pytest.mark.unit
 
 GIVE_UP = "She finally gave up smoking last year."
@@ -30,8 +33,8 @@ GIVE_UP = "She finally gave up smoking last year."
 def _candidate(synonyms: str = "quit, stop") -> StoredCandidate:
     return StoredCandidate(
         id=1, source_id=5, lemma="give up", pos="VERB", cefr_level="B1",
-        zipf_frequency=4.0, context_fragment=GIVE_UP, fragment_purity="clean",
-        occurrences=1, status=CandidateStatus.PENDING, surface_form="gave up",
+        zipf_frequency=4.0, source_phrase=phrase(GIVE_UP, "gave up"),
+        occurrences=1, status=CandidateStatus.PENDING,
         is_phrasal_verb=True,
         meaning=CandidateMeaning(
             candidate_id=1, meaning="To stop.", translation="бросить",
@@ -53,7 +56,7 @@ class TestSaveCloze:
         self.candidate_repo.get_by_id.return_value = _candidate()
         mark = MarkCandidateUseCase(
             candidate_repo=self.candidate_repo,
-            known_word_repo=MagicMock(),
+            vocabulary=user_vocabulary(MagicMock()),
             decision_repo=MagicMock(),
             review_status=MagicMock(),
             cloze_repo=self.cloze_repo,

@@ -17,6 +17,7 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
 from sqlalchemy import text
 
 from tests.integration.conftest import insert_source
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -41,8 +42,7 @@ def _create_candidate(repo: SqlaCandidateRepository, lemma: str) -> int:
             pos="NOUN",
             cefr_level=None,
             zipf_frequency=4.0,
-            context_fragment=f"a {lemma}",
-            fragment_purity="clean",
+            source_phrase=phrase(f"a {lemma}", lemma),
             occurrences=1,
             status=CandidateStatus.PENDING,
         )

@@ -20,12 +20,17 @@ export type CandidateSortOrder = 'relevance' | 'chronological' | 'key_words'
 export type Scope = 'all' | 'unsorted' | number
 export type SourceStage = 'in_progress' | 'preparing' | 'ready' | 'reviewed'
 
+/** Решённые карточки среди Ready: одни и те же числа у источника, его ревью и коллекции. */
+export interface Progress {
+  decided: number
+  total: number
+}
+
 export interface ScopeCounts {
   total: number
   reviewed: number
   pending: number
-  candidate_count: number
-  decided_count: number
+  progress: Progress
 }
 
 export interface CollectionNode {
@@ -92,8 +97,7 @@ export interface SourceSummary {
   created_at: string
   candidate_count: number
   learn_count: number
-  /** Сколько фраз уже получили решение: learn, known или skip. */
-  decided_count: number
+  progress: Progress
   processing_stage: ProcessingStage | null
   collection_id: number | null
   collection_path: string[]
@@ -224,6 +228,16 @@ export interface ClozePreview {
   can_save: boolean
 }
 
+/** Фраза карточки: текст как есть, слова — символы [start, end), target — номера слов. */
+export interface CardPhrase {
+  text: string
+  words: [number, number][]
+  target: number[]
+}
+
+/** Where a card stands in review: only the target is new, more words are new, or probably known. */
+export type CandidateSection = 'ready' | 'extra' | 'probably_known'
+
 export interface StoredCandidate {
   id: number
   lemma: string
@@ -233,24 +247,21 @@ export interface StoredCandidate {
   is_sweet_spot: boolean
   /** На карточку уже жаловались. */
   reported: boolean
+  /** Фраза карточки: переписанная (AI или вручную), если её не откатили. */
+  phrase: CardPhrase
   /** Фраза как в источнике. */
-  context_fragment: string
-  /** Фраза карточки: упрощённая AI, если её не откатили. */
-  phrase: string
-  /** Упрощённая AI фраза — только если она отличается от фразы источника. */
-  polished_fragment: string | null
+  source_phrase: CardPhrase
+  /** Переписанная фраза — только если она отличается от фразы источника. */
+  polished_phrase: CardPhrase | null
   polish_reverted: boolean
   /** AI ещё работает над фразой. */
   polish_status: EnrichmentStatus | null
-  fragment_purity: string
+  section: CandidateSection | null
   occurrences: number
   status: CandidateStatus
-  surface_form: string | null
   is_phrasal_verb: boolean
-  has_custom_context_fragment: boolean
-  /** Где фраза и target стоят в документе источника; у замены примером их нет. */
+  /** Где фраза источника стоит в документе; у примера, темы и сохранённой фразы её нет. */
   phrase_position: DocumentPosition | null
-  target_position: DocumentPosition | null
   meaning: CandidateMeaning | null
   media: CandidateMedia | null
   /** Картинка-значение target'а: идёт на оборот карточки, кадр из видео — в media. */
@@ -285,6 +296,7 @@ export interface SourceDetail {
   candidates: StoredCandidate[]
   /** How many candidates to show before "Show more"; null — show all. */
   initially_shown_candidates: number | null
+  progress: Progress
 }
 
 export interface AnkiStatus {
@@ -387,6 +399,18 @@ export interface FrequentWordThresholdOption {
   zipf: number | null
   /** Words that go down to the bottom of the list at this threshold. */
   examples: string[]
+}
+
+/** A quick reason to report a card; picks_words — choosing it lets the user pick the words they don't know. */
+export interface ReportReason {
+  label: string
+  picks_words: boolean
+}
+
+export interface UnknownWord {
+  id: number
+  lemma: string
+  created_at: string
 }
 
 export interface KnownWord {

@@ -23,6 +23,8 @@ from backend.infrastructure.persistence.sqla_source_repository import (
 )
 from sqlalchemy.orm import Session
 
+from tests.phrase_support import phrase
+
 
 @pytest.mark.integration
 class TestSourceRepository:
@@ -93,7 +95,7 @@ class TestCandidateRepository:
             StoredCandidate(
                 source_id=source_id, lemma=lemma, pos="NOUN",
                 cefr_level="B2", zipf_frequency=3.5,
-                context_fragment=f"context {lemma}", fragment_purity="clean",
+                source_phrase=phrase(f"context {lemma}", lemma),
                 occurrences=1, status=status,
             )
         ])
@@ -115,13 +117,13 @@ class TestCandidateRepository:
             StoredCandidate(
                 source_id=source_id, lemma="pursuit", pos="NOUN",
                 cefr_level="B2", zipf_frequency=3.5,
-                context_fragment="the pursuit of", fragment_purity="clean",
+                source_phrase=phrase("the pursuit of", "pursuit"),
                 occurrences=2, status=CandidateStatus.PENDING,
             ),
             StoredCandidate(
                 source_id=source_id, lemma="burnout", pos="NOUN",
                 cefr_level="C2", zipf_frequency=2.1,
-                context_fragment="leads to burnout", fragment_purity="clean",
+                source_phrase=phrase("leads to burnout", "burnout"),
                 occurrences=1, status=CandidateStatus.PENDING,
             ),
         ]
@@ -139,7 +141,7 @@ class TestCandidateRepository:
             StoredCandidate(
                 source_id=source_id, lemma="test", pos="NOUN",
                 cefr_level="B1", zipf_frequency=4.0,
-                context_fragment="a test", fragment_purity="clean",
+                source_phrase=phrase("a test", "test"),
                 occurrences=1, status=CandidateStatus.PENDING,
             ),
         ])

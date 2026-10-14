@@ -10,6 +10,8 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
+from tests.phrase_support import phrase
+
 
 def _make_breakdown() -> CEFRBreakdown:
     return CEFRBreakdown(
@@ -53,8 +55,7 @@ def _make_stored_candidate(with_breakdown: bool = True) -> StoredCandidate:
         pos="JJ",
         cefr_level="B1",
         zipf_frequency=5.0,
-        context_fragment="I am happy",
-        fragment_purity="clean",
+        source_phrase=phrase("I am happy", "happy"),
         occurrences=1,
         status=CandidateStatus.PENDING,
         cefr_breakdown=_make_breakdown() if with_breakdown else None,

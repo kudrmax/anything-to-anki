@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { Brackets, Target, Volume2 } from 'lucide-react'
 import type { CandidateCloze, EnrichmentStatus, PhraseOrigin, StoredCandidate } from '@/api/types'
 import { CLOZE_HINT_LABEL } from '@/lib/clozeHints'
-import { FREQ_BAND_LABEL, isDivider, meaningAction, meaningParts, mediaUrl, nonEmptyLines, parseExamples, primaryUsageGroup } from '@/lib/text/meaning'
+import { FREQ_BAND_LABEL, isDivider, meaningAction, meaningParts, mediaUrl, nonEmptyLines, primaryUsageGroup } from '@/lib/text/meaning'
 import { Button, Chip, Icon, MediaThumb, Spinner, Text } from '@/ui'
+import { targetText } from '@/lib/text/phraseParts'
 import { CardPhrase } from './CardPhrase'
 import { CefrTooltip } from './CefrTooltip'
 import { ClozePanel } from './ClozePanel'
@@ -33,7 +34,7 @@ const isActive = (status: EnrichmentStatus | undefined): boolean => status === '
 function RichText({ text, candidate }: { text: string; candidate: StoredCandidate }) {
   return (
     <>
-      {meaningParts(text, candidate.lemma, candidate.surface_form).map((part, i) =>
+      {meaningParts(text, candidate.lemma, targetText(candidate.phrase)).map((part, i) =>
         part.target || part.bold ? <b key={i}>{part.text}</b> : part.text,
       )}
     </>
@@ -83,9 +84,8 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   const hasMeta = Boolean(meaning?.ipa || usUrl || ukUrl || ttsUrl)
     || isActive(candidate.pronunciation?.status) || isActive(candidate.tts?.status)
   const paragraphs = meaning?.meaning ? nonEmptyLines(meaning.meaning) : []
+  // Пример уходит на место фразы как есть: его **жирные** слова — target.
   const examples = meaning?.examples ? nonEmptyLines(meaning.examples) : []
-  // Те же строки без разметки: такой текст встаёт на место фразы.
-  const plainExamples = parseExamples(meaning?.examples)
   const [definition, ...context] = paragraphs
 
   return (
@@ -144,11 +144,9 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             {examples.map((line, i) => (
               <li key={i} className={css.example}>
                 <span><RichText text={line} candidate={candidate} /></span>
-                {plainExamples[i] && (
-                  <button type="button" className={css.useExample} onClick={() => void review.replaceWithExample(candidate.id, plainExamples[i])}>
-                    Use as phrase
-                  </button>
-                )}
+                <button type="button" className={css.useExample} onClick={() => void review.replaceWithExample(candidate.id, line.trim())}>
+                  Use as phrase
+                </button>
               </li>
             ))}
           </ul>

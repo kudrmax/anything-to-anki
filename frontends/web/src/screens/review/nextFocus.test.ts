@@ -30,4 +30,13 @@ describe('nextFocusId', () => {
   it('returns null when nothing is pending', () => {
     expect(nextFocusId(list([1, 'known'], [2, 'skip']), 2, 0)).toBeNull()
   })
+
+  it('stays in the section of the marked phrase', () => {
+    const fresh = [
+      { id: 1, status: 'learn', section: 'ready' },
+      { id: 2, status: 'pending', section: 'extra' },
+    ] as StoredCandidate[]
+    expect(nextFocusId(fresh, 1, 0, 'ready')).toBeNull()
+    expect(nextFocusId(fresh, 1, 0)).toBe(2)
+  })
 })

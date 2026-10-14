@@ -15,7 +15,7 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
-from backend.infrastructure.persistence.models import EnrichmentCacheModel
+from backend.infrastructure.persistence.models import EnrichmentCacheModel, dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_meaning_image_repository import (
     SqlaCandidateMeaningImageRepository,
 )
@@ -41,6 +41,8 @@ from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
 )
 from sqlalchemy import text
+
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -71,8 +73,7 @@ def _create_source_with_enriched_candidates(db_session: Session) -> int:
                 pos="VERB",
                 cefr_level="C1",
                 zipf_frequency=3.2,
-                context_fragment="She tends to procrastinate when facing deadlines.",
-                fragment_purity="pure",
+                source_phrase=phrase("She tends to procrastinate when facing deadlines."),
                 occurrences=1,
                 status=CandidateStatus.LEARN,
             ),
@@ -82,8 +83,7 @@ def _create_source_with_enriched_candidates(db_session: Session) -> int:
                 pos="NOUN",
                 cefr_level="B2",
                 zipf_frequency=4.5,
-                context_fragment="She tends to procrastinate when facing deadlines.",
-                fragment_purity="pure",
+                source_phrase=phrase("She tends to procrastinate when facing deadlines."),
                 occurrences=1,
                 status=CandidateStatus.LEARN,
             ),
@@ -160,8 +160,7 @@ def _create_source_with_enriched_candidates_v2(
                 pos="VERB",
                 cefr_level="C1",
                 zipf_frequency=3.2,
-                context_fragment=text,
-                fragment_purity="pure",
+                source_phrase=phrase(text),
                 occurrences=1,
                 status=CandidateStatus.LEARN,
             ),
@@ -171,8 +170,7 @@ def _create_source_with_enriched_candidates_v2(
                 pos="NOUN",
                 cefr_level="B2",
                 zipf_frequency=4.5,
-                context_fragment=text,
-                fragment_purity="pure",
+                source_phrase=phrase(text),
                 occurrences=1,
                 status=CandidateStatus.LEARN,
             ),
@@ -261,7 +259,7 @@ def test_restore_to_candidates_after_reprocess(db_session: Session) -> None:
     candidate_repo.delete_by_source(source_id)
     db_session.flush()
 
-    # Recreate with same (lemma, pos, context_fragment) but different CEFR
+    # Recreate with same (lemma, pos, source phrase text) but different CEFR
     new_candidates = candidate_repo.create_batch(
         [
             StoredCandidate(
@@ -270,8 +268,7 @@ def test_restore_to_candidates_after_reprocess(db_session: Session) -> None:
                 pos="VERB",
                 cefr_level="C2",  # changed from C1
                 zipf_frequency=3.2,
-                context_fragment=fragment,
-                fragment_purity="pure",
+                source_phrase=phrase(fragment),
                 occurrences=1,
                 status=CandidateStatus.PENDING,
             ),
@@ -281,8 +278,7 @@ def test_restore_to_candidates_after_reprocess(db_session: Session) -> None:
                 pos="NOUN",
                 cefr_level="B1",  # changed from B2
                 zipf_frequency=4.5,
-                context_fragment=fragment,
-                fragment_purity="pure",
+                source_phrase=phrase(fragment),
                 occurrences=1,
                 status=CandidateStatus.PENDING,
             ),
@@ -332,8 +328,7 @@ def test_no_restore_when_fragment_changed(db_session: Session) -> None:
                 pos="VERB",
                 cefr_level="C1",
                 zipf_frequency=3.2,
-                context_fragment="People often procrastinate on difficult tasks.",
-                fragment_purity="pure",
+                source_phrase=phrase("People often procrastinate on difficult tasks."),
                 occurrences=1,
                 status=CandidateStatus.PENDING,
             ),
@@ -342,14 +337,14 @@ def test_no_restore_when_fragment_changed(db_session: Session) -> None:
     db_session.flush()
 
     # Cache was built before this candidate existed — its fragment differs from cached one.
-    # restore_to_candidates matches on (lemma, pos, context_fragment), so this candidate
-    # must NOT be matched (context_fragment changed).
+    # restore_to_candidates matches on (lemma, pos, source phrase text), so this candidate
+    # must NOT be matched (the phrase changed).
     # Count only newly restored: we check the new candidate specifically.
     cache_repo.restore_to_candidates(source_id)
 
     assert new_candidates[0].id is not None
     m = meaning_repo.get_by_candidate_id(new_candidates[0].id)
-    # The new candidate has a different context_fragment — no cache hit, so meaning
+    # The new candidate has a different source phrase — no cache hit, so meaning
     # must not have been written for its id.
     assert m is None
 
@@ -405,8 +400,7 @@ def test_parallel_reprocess_two_sources(db_session: Session) -> None:
                 pos="VERB",
                 cefr_level="C1",
                 zipf_frequency=3.2,
-                context_fragment=fragment1,
-                fragment_purity="pure",
+                source_phrase=phrase(fragment1),
                 occurrences=1,
                 status=CandidateStatus.PENDING,
             ),
@@ -416,8 +410,7 @@ def test_parallel_reprocess_two_sources(db_session: Session) -> None:
                 pos="NOUN",
                 cefr_level="B2",
                 zipf_frequency=4.5,
-                context_fragment=fragment1,
-                fragment_purity="pure",
+                source_phrase=phrase(fragment1),
                 occurrences=1,
                 status=CandidateStatus.PENDING,
             ),
@@ -431,8 +424,7 @@ def test_parallel_reprocess_two_sources(db_session: Session) -> None:
                 pos="VERB",
                 cefr_level="B2",
                 zipf_frequency=3.8,
-                context_fragment=fragment2,
-                fragment_purity="pure",
+                source_phrase=phrase(fragment2),
                 occurrences=1,
                 status=CandidateStatus.PENDING,
             ),
@@ -442,8 +434,7 @@ def test_parallel_reprocess_two_sources(db_session: Session) -> None:
                 pos="NOUN",
                 cefr_level="B1",
                 zipf_frequency=4.9,
-                context_fragment=fragment2,
-                fragment_purity="pure",
+                source_phrase=phrase(fragment2),
                 occurrences=1,
                 status=CandidateStatus.PENDING,
             ),
@@ -535,7 +526,7 @@ def test_meaning_image_survives_reprocess(db_session: Session) -> None:
     [new] = candidate_repo.create_batch([
         StoredCandidate(
             source_id=source_id, lemma="deadline", pos="NOUN", cefr_level="B2",
-            zipf_frequency=4.5, context_fragment=fragment, fragment_purity="pure",
+            zipf_frequency=4.5, source_phrase=phrase(fragment),
             occurrences=1, status=CandidateStatus.PENDING,
         ),
     ])
@@ -558,11 +549,11 @@ def test_restore_matches_a_phrase_that_differs_only_in_whitespace(db_session: Se
     candidate_repo = SqlaCandidateRepository(db_session)
     meaning_repo = SqlaCandidateMeaningRepository(db_session)
     db_session.execute(
-        text(
-            "UPDATE candidates SET context_fragment ="
-            " 'She tends to\nprocrastinate  when facing deadlines.' WHERE source_id = :id"
-        ),
-        {"id": source_id},
+        text("UPDATE candidates SET source_phrase = :phrase WHERE source_id = :id"),
+        {
+            "phrase": dump_phrase(phrase("She tends to\nprocrastinate  when facing deadlines.")),
+            "id": source_id,
+        },
     )
     cache_repo.save_from_source(source_id)
     candidate_repo.delete_by_source(source_id)
@@ -574,8 +565,7 @@ def test_restore_matches_a_phrase_that_differs_only_in_whitespace(db_session: Se
             pos="VERB",
             cefr_level="C1",
             zipf_frequency=3.2,
-            context_fragment="She tends to procrastinate when facing deadlines.",
-            fragment_purity="pure",
+            source_phrase=phrase("She tends to procrastinate when facing deadlines."),
             occurrences=1,
             status=CandidateStatus.PENDING,
         ),

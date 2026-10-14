@@ -16,7 +16,9 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.export_group import ExportGroup
 
+from tests.phrase_support import phrase
 from tests.unit.application.scope_fakes import empty_scope_resolver
+from tests.vocabulary_support import user_vocabulary
 
 pytestmark = pytest.mark.unit
 
@@ -31,21 +33,21 @@ class _EveryField(list[str]):
 
 
 def _cloze(
-    candidate_id: int, indices: tuple[int, ...] = (3,), phrase: str = GIVE_UP
+    candidate_id: int, indices: tuple[int, ...] = (3,), text: str = GIVE_UP
 ) -> CandidateCloze:
     return CandidateCloze(
         candidate_id=candidate_id,
         hidden_word_indices=indices,
         hint_kind=ClozeHintKind.TRANSLATION,
         custom_hint=None,
-        phrase=phrase,
+        phrase=text,
     )
 
 
 def _candidate(
     candidate_id: int,
     lemma: str,
-    phrase: str,
+    text: str,
     surface: str | None = None,
     cloze: CandidateCloze | None = None,
 ) -> StoredCandidate:
@@ -56,11 +58,9 @@ def _candidate(
         pos="VERB",
         cefr_level="B2",
         zipf_frequency=4.0,
-        context_fragment=phrase,
-        fragment_purity="clean",
+        source_phrase=phrase(text, surface or lemma),
         occurrences=1,
         status=CandidateStatus.LEARN,
-        surface_form=surface,
         meaning=CandidateMeaning(
             candidate_id=candidate_id,
             meaning="To stop doing something.",
@@ -102,7 +102,7 @@ class TestSyncToAnkiCloze:
             settings_repo=self.settings_repo,
             anki_sync_repo=self.anki_sync_repo,
             template_renderer=self.renderer,
-            known_word_repo=MagicMock(),
+            vocabulary=user_vocabulary(MagicMock()),
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
         )
@@ -181,7 +181,7 @@ class TestSyncToAnkiCloze:
         )
 
     def test_stale_cloze_exported_with_rebuilt_gap(self) -> None:
-        self._sync(_give_up(_cloze(1, indices=(0,), phrase="An old phrase.")))
+        self._sync(_give_up(_cloze(1, indices=(0,), text="An old phrase.")))
 
         [(model, note)] = self._added()
         assert model == "AnythingToAnkiCloze"

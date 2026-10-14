@@ -12,7 +12,7 @@ export const COLLECTION_MIME = 'application/x-anki-collection'
 
 /** Прогресс решений по всем источникам области и число источников; без кандидатов — только число. */
 function Stats({ counts }: { counts: ScopeCounts }) {
-  const { total, candidate_count: candidates, decided_count: decided } = counts
+  const { total, progress: { decided, total: candidates } } = counts
   const sources = `${total} ${total === 1 ? 'source' : 'sources'}`
   return (
     <span className={css.stats} title={candidates > 0 ? `${decided} of ${candidates} decided · ${sources}` : sources}>

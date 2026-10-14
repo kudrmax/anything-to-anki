@@ -19,6 +19,7 @@ from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.phrase_support import phrase
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.unit.application.source_fakes import InMemorySourceRepository
@@ -28,6 +29,7 @@ def _make_candidate(
     lemma: str,
     status: CandidateStatus,
     fragment: str = "test fragment",
+    target: str | None = None,
     meaning: str | None = None,
     ipa: str | None = None,
     translation: str | None = None,
@@ -66,8 +68,7 @@ def _make_candidate(
         pos="NOUN",
         cefr_level="B2",
         zipf_frequency=3.5,
-        context_fragment=fragment,
-        fragment_purity="clean",
+        source_phrase=phrase(fragment, target or lemma),
         occurrences=1,
         status=status,
         meaning=meaning_obj,
@@ -192,19 +193,17 @@ class TestGetExportCardsExecute:
 
     def test_sentence_highlights_inflected_form(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
-            _make_candidate("run", CandidateStatus.LEARN, "she is running fast"),
+            _make_candidate("run", CandidateStatus.LEARN, "she is running fast", target="running"),
         ]
         result = self.use_case.execute(source_id=1)
         assert "<b>running</b>" in result.incomplete[0].cards[0].sentence
 
-    def test_sentence_strips_markdown(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate("burnout", CandidateStatus.LEARN, "leads to **burnout** quickly"),
-        ]
+    def test_sentence_bolds_only_the_target_occurrence(self) -> None:
+        candidate = _make_candidate("burnout", CandidateStatus.LEARN, "burnout after burnout")
+        candidate.source_phrase = phrase("burnout after burnout", "after burnout")
+        self.candidate_repo.get_by_source.return_value = [candidate]
         result = self.use_case.execute(source_id=1)
-        card = result.incomplete[0].cards[0]
-        assert "**" not in card.sentence
-        assert "<b>burnout</b>" in card.sentence
+        assert result.incomplete[0].cards[0].sentence == "burnout <b>after burnout</b>"
 
     def test_meaning_strips_markdown_and_highlights(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -338,16 +337,15 @@ class TestGetExportCardsExecute:
 
 
     def test_cloze_card_shows_hidden_words_in_bold(self) -> None:
-        phrase = "She finally gave up smoking last year."
+        text = "She finally gave up smoking last year."
         candidate = replace(
-            _make_candidate("give up", CandidateStatus.LEARN, phrase),
-            surface_form="gave up",
+            _make_candidate("give up", CandidateStatus.LEARN, text, target="gave up"),
             cloze=CandidateCloze(
                 candidate_id=1,
                 hidden_word_indices=(3,),
                 hint_kind=ClozeHintKind.NONE,
                 custom_hint=None,
-                phrase=phrase,
+                phrase=text,
             ),
         )
         self.candidate_repo.get_by_source.return_value = [candidate]

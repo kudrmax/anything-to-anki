@@ -8,9 +8,11 @@ from backend.domain.entities.job import Job
 from backend.domain.value_objects.job_selection import UNKNOWN_JOB_ERROR, JobSelection
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
-from backend.infrastructure.persistence.models import JobModel
+from backend.infrastructure.persistence.models import JobModel, dump_phrase
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from sqlalchemy import text
+
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -27,10 +29,10 @@ def _insert_source(session: Session, source_id: int) -> None:
 def _insert_candidate(session: Session, candidate_id: int, source_id: int) -> None:
     session.execute(text(
         "INSERT INTO candidates (id, source_id, lemma, pos, "
-        "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
-        "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-        "VALUES (:id, :sid, 'word', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
-    ), {"id": candidate_id, "sid": source_id})
+        "zipf_frequency, is_sweet_spot, source_phrase, "
+        "occurrences, status, is_phrasal_verb) "
+        "VALUES (:id, :sid, 'word', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
+    ), {"id": candidate_id, "sid": source_id, "phrase": dump_phrase(phrase("word"))})
     session.flush()
 
 

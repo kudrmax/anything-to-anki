@@ -13,6 +13,8 @@ from backend.domain.exceptions import (
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
+from tests.phrase_support import phrase
+
 
 def _make_candidate(
     cid: int,
@@ -33,7 +35,7 @@ def _make_candidate(
     return StoredCandidate(
         id=cid, source_id=1, lemma="test", pos="NOUN",
         cefr_level="B1", zipf_frequency=3.5,
-        context_fragment=fragment, fragment_purity="clean", occurrences=1,
+        source_phrase=phrase(fragment), occurrences=1,
         status=CandidateStatus.LEARN,
         media=media,
     )

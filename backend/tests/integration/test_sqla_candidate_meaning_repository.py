@@ -5,11 +5,16 @@ from datetime import UTC, datetime
 import pytest
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.models import dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+
+from tests.phrase_support import phrase
+
+CTX = dump_phrase(phrase("ctx"))
 
 
 @pytest.mark.integration
@@ -22,10 +27,11 @@ class TestSqlaCandidateMeaningRepository:
             s.execute(
                 text(
                     "INSERT INTO candidates (id, source_id, lemma, pos, "
-                    "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
-                    "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                    "VALUES (1, 1, 'x', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
-                )
+                    "zipf_frequency, is_sweet_spot, source_phrase, "
+                    "occurrences, status, is_phrasal_verb) "
+                    "VALUES (1, 1, 'x', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
+                ),
+                {"phrase": CTX},
             )
             s.commit()
 
@@ -78,10 +84,11 @@ class TestSqlaCandidateMeaningRepository:
             s.execute(
                 text(
                     "INSERT INTO candidates (id, source_id, lemma, pos, "
-                    "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
-                    "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                    "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
-                )
+                    "zipf_frequency, is_sweet_spot, source_phrase, "
+                    "occurrences, status, is_phrasal_verb) "
+                    "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
+                ),
+                {"phrase": CTX},
             )
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
@@ -104,10 +111,10 @@ class TestSqlaCandidateMeaningRepository:
         with self._Session() as s:
             s.execute(text(
                 "INSERT INTO candidates (id, source_id, lemma, pos, "
-                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
-                "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
-            ))
+                "zipf_frequency, is_sweet_spot, source_phrase, "
+                "occurrences, status, is_phrasal_verb) "
+                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
+            ), {"phrase": CTX})
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
@@ -133,10 +140,10 @@ class TestSqlaCandidateMeaningRepository:
         with self._Session() as s:
             s.execute(text(
                 "INSERT INTO candidates (id, source_id, lemma, pos, "
-                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
-                "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'pending', 0, 0)"
-            ))
+                "zipf_frequency, is_sweet_spot, source_phrase, "
+                "occurrences, status, is_phrasal_verb) "
+                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
+            ), {"phrase": CTX})
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
             # candidate 1 has meaning, candidate 2 does not
@@ -153,10 +160,10 @@ class TestSqlaCandidateMeaningRepository:
         with self._Session() as s:
             s.execute(text(
                 "INSERT INTO candidates (id, source_id, lemma, pos, "
-                "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
-                "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
-                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, 'ctx', 'clean', 1, 'known', 0, 0)"
-            ))
+                "zipf_frequency, is_sweet_spot, source_phrase, "
+                "occurrences, status, is_phrasal_verb) "
+                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, :phrase, 1, 'known', 0)"
+            ), {"phrase": CTX})
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
             # 2 candidates, neither has meaning, but only 1 active (PENDING)

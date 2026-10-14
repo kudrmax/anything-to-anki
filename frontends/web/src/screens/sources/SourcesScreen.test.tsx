@@ -6,7 +6,7 @@ import { api } from '@/api/client'
 import type { CollectionTree, Scope, SourceBoard, SourceSummary, Stats } from '@/api/types'
 import { SourcesScreen } from './SourcesScreen'
 
-const counts = { total: 3, reviewed: 1, pending: 0, candidate_count: 0, decided_count: 0 }
+const counts = { total: 3, reviewed: 1, pending: 0, progress: { decided: 0, total: 0 } }
 const tree: CollectionTree = {
   all: counts,
   unsorted: counts,
@@ -19,7 +19,7 @@ const tree: CollectionTree = {
 
 const source = (id: number, title: string, status: SourceSummary['status']): SourceSummary => ({
   id, title, status, kind: 'text', role: 'content', has_video: false, source_url: null, video_downloaded: false,
-  created_at: '2026-10-01T00:00:00Z', candidate_count: 4, learn_count: 0, decided_count: 1, processing_stage: null,
+  created_at: '2026-10-01T00:00:00Z', candidate_count: 4, learn_count: 0, progress: { decided: 1, total: 4 }, processing_stage: null,
   collection_id: null, collection_path: [], stage: 'ready', awaiting_generation: false, generation_status: null,
   generation_error: null, is_permanent: false,
 })

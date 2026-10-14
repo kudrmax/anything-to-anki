@@ -5,17 +5,19 @@ from typing import TYPE_CHECKING
 from backend.application.dto.known_word_dtos import KnownWordDTO
 
 if TYPE_CHECKING:
-    from backend.domain.ports.known_word_repository import KnownWordRepository
+    from backend.application.utils.review_status_updater import ReviewStatusUpdater
+    from backend.application.utils.user_vocabulary import UserVocabulary
 
 
 class ManageKnownWordsUseCase:
     """Lists and deletes known-word whitelist entries."""
 
-    def __init__(self, known_word_repo: KnownWordRepository) -> None:
-        self._known_word_repo = known_word_repo
+    def __init__(self, vocabulary: UserVocabulary, review_status: ReviewStatusUpdater) -> None:
+        self._vocabulary = vocabulary
+        self._review_status = review_status
 
     def list_all(self) -> list[KnownWordDTO]:
-        words = self._known_word_repo.list_all()
+        words = self._vocabulary.known_words()
         return [
             KnownWordDTO(
                 id=w.id,  # type: ignore[arg-type]
@@ -27,9 +29,11 @@ class ManageKnownWordsUseCase:
         ]
 
     def delete(self, known_word_id: int) -> None:
-        self._known_word_repo.remove(known_word_id)
+        self._vocabulary.remove_known(known_word_id)
+        self._review_status.refresh_all()
 
     def add_bulk(self, lemmas: list[str]) -> None:
         """Add multiple words as known (pos=None, meaning known for any POS)."""
         for lemma in lemmas:
-            self._known_word_repo.add(lemma, None)
+            self._vocabulary.mark_known(lemma, None)
+        self._review_status.refresh_all()

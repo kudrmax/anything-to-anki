@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { BootstrapStatus, NoteTypeCheck, NoteTypeKind, CleanupMediaKind, FrequentWordThresholdOption, KnownWord, Settings, SourceMediaStats } from '@/api/types'
+import type { BootstrapStatus, NoteTypeCheck, NoteTypeKind, CleanupMediaKind, FrequentWordThresholdOption, KnownWord, Settings, SourceMediaStats, UnknownWord } from '@/api/types'
 
 const BOOTSTRAP_POLL_MS = 2000
 const FLASH_MS = 2000
@@ -15,6 +15,7 @@ export function useSettings() {
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [knownWords, setKnownWords] = useState<KnownWord[]>([])
+  const [unknownWords, setUnknownWords] = useState<UnknownWord[]>([])
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [noteTypes, setNoteTypes] = useState<NoteTypeCheck[] | null>(null)
   const [noteTypesError, setNoteTypesError] = useState<string | null>(null)
@@ -75,11 +76,12 @@ export function useSettings() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [settings, words, thresholds] = await Promise.all([
-          api.getSettings(), api.getKnownWords(), api.getFrequentWordThresholds(),
+        const [settings, words, unknown, thresholds] = await Promise.all([
+          api.getSettings(), api.getKnownWords(), api.getUnknownWords(), api.getFrequentWordThresholds(),
         ])
         setForm(settings)
         setKnownWords(words)
+        setUnknownWords(unknown)
         setFrequentWordThresholds(thresholds)
       } catch (e) {
         setSaveError(e instanceof Error ? e.message : 'Failed to load settings')
@@ -132,6 +134,16 @@ export function useSettings() {
     }
   }
 
+  const deleteUnknownWord = async (id: number) => {
+    setDeletingId(id)
+    try {
+      await api.deleteUnknownWord(id)
+      setUnknownWords(prev => prev.filter(w => w.id !== id))
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   const fixNoteType = async (kind: NoteTypeKind) => {
     setFixingNoteType(kind)
     setNoteTypesError(null)
@@ -168,7 +180,7 @@ export function useSettings() {
 
   return {
     form, loading, saving, saved, saveError, setField, save,
-    knownWords, deletingId, deleteWord,
+    knownWords, deletingId, deleteWord, unknownWords, deleteUnknownWord,
     noteTypes, noteTypesError, fixingNoteType, fixNoteType,
     copiedTemplate, copyTemplate,
     bootstrapStatus, buildBootstrap,

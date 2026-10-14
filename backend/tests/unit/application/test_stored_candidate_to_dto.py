@@ -16,6 +16,8 @@ from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 
+from tests.phrase_support import phrase
+
 NOW = datetime(2025, 1, 1, tzinfo=UTC)
 
 
@@ -33,8 +35,7 @@ def _make_candidate(
         pos="NOUN",
         cefr_level="B2",
         zipf_frequency=3.5,
-        context_fragment="a test",
-        fragment_purity="clean",
+        source_phrase=phrase("a test", "test"),
         occurrences=1,
         status=CandidateStatus.PENDING,
         meaning=meaning,
@@ -269,9 +270,11 @@ class TestStoredCandidateToDtoCloze:
     ) -> StoredCandidate:
         return StoredCandidate(
             id=1, source_id=10, lemma="give up", pos="VERB", cefr_level="B1",
-            zipf_frequency=4.0, context_fragment="She finally gave up smoking.",
-            fragment_purity="clean", occurrences=1, status=status,
-            surface_form="gave up", cloze=cloze,
+            zipf_frequency=4.0,
+            source_phrase=phrase(
+                "She finally gave up smoking.", "give up", lemmas={"gave": "give"},
+            ),
+            occurrences=1, status=status, cloze=cloze,
         )
 
     def test_stored_candidate_dto_has_effective_cloze_and_can_cloze(self) -> None:
@@ -288,7 +291,7 @@ class TestStoredCandidateToDtoCloze:
         assert synced.can_cloze is False
 
     def test_cloze_is_shown_only_for_learn(self) -> None:
-        phrase = "She finally gave up smoking."
-        cloze = CandidateCloze(1, (2, 3), ClozeHintKind.NONE, None, phrase)
+        text = "She finally gave up smoking."
+        cloze = CandidateCloze(1, (2, 3), ClozeHintKind.NONE, None, text)
         dto = stored_candidate_to_dto(self._candidate(cloze, CandidateStatus.SKIP))
         assert dto.cloze is None

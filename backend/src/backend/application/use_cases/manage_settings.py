@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from backend.application.utils.frequent_word_threshold_resolver import (
         FrequentWordThresholdResolver,
     )
+    from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.ports.settings_repository import SettingsRepository
 
 _DEFAULT_CEFR_LEVEL: str = "B1"
@@ -61,6 +62,7 @@ _BOOL_KEYS: frozenset[str] = frozenset({"enable_definitions"})
 _JSON_LIST_KEYS: frozenset[str] = frozenset({"usage_group_order", "tts_enabled_voices"})
 _FLOAT_KEYS: frozenset[str] = frozenset({"tts_speed"})
 _INT_KEYS: frozenset[str] = frozenset({IMAGES_PER_SOURCE_SETTING})
+_KNOWLEDGE_KEYS: tuple[str, ...] = ("cefr_level", FREQUENT_WORD_THRESHOLD_SETTING)
 
 
 class ManageSettingsUseCase:
@@ -70,9 +72,11 @@ class ManageSettingsUseCase:
         self,
         settings_repo: SettingsRepository,
         threshold_resolver: FrequentWordThresholdResolver,
+        review_status: ReviewStatusUpdater,
     ) -> None:
         self._settings_repo = settings_repo
         self._threshold_resolver = threshold_resolver
+        self._review_status = review_status
 
     def get_settings(self) -> SettingsDTO:
         raw: dict[str, str] = {
@@ -94,6 +98,9 @@ class ManageSettingsUseCase:
         return SettingsDTO(**values)  # type: ignore[arg-type]
 
     def update_settings(self, request: UpdateSettingsRequest) -> SettingsDTO:
+        """The user's level and frequency threshold decide which cards are ready:
+        changing them refreshes every source's review status."""
+        before = {key: self._settings_repo.get(key, None) for key in _KNOWLEDGE_KEYS}
         for key in _SETTING_KEYS:
             value = getattr(request, key, None)
             if value is not None:
@@ -106,6 +113,8 @@ class ManageSettingsUseCase:
                 else:
                     str_value = str(value)
                 self._settings_repo.set(key, str_value)
+        if any(self._settings_repo.get(key, None) != value for key, value in before.items()):
+            self._review_status.refresh_all()
         return self.get_settings()
 
     def frequent_word_threshold_options(self) -> list[FrequentWordThresholdDTO]:

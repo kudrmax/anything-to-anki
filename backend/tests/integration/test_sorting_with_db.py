@@ -7,11 +7,18 @@ import pytest
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.candidate_sorting import sort_by_relevance, sort_chronologically
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document_position import DocumentPosition
+from backend.domain.value_objects.user_knowledge import UserKnowledge
+from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
+KNOWLEDGE = UserKnowledge(EMPTY_VOCABULARY, CEFRLevel.B1, frequent_zipf=4.5)
 
 
 def _make_candidate(
@@ -26,6 +33,7 @@ def _make_candidate(
     unknowns: int = 0,
     position: DocumentPosition | None = None,
 ) -> StoredCandidate:
+    strange = [f"strange{i}" for i in range(unknowns)]
     return StoredCandidate(
         source_id=source_id,
         phrase_position=position,
@@ -33,9 +41,9 @@ def _make_candidate(
         pos="NN",
         cefr_level=cefr,
         zipf_frequency=zipf,
-        context_fragment=context_fragment or f"context for {lemma}",
-        fragment_purity="clean" if unknowns == 0 else "dirty",
-        fragment_unknown_count=unknowns,
+        source_phrase=phrase(
+            " ".join([context_fragment or f"context for {lemma}", *strange]), lemma, new=strange,
+        ),
         occurrences=occurrences,
         status=CandidateStatus.PENDING,
         is_phrasal_verb=is_phrasal_verb,
@@ -61,11 +69,12 @@ class TestSortingWithDb:
             _make_candidate(1, "mid_regular", 4.0, cefr="B1"),
         ])
         loaded = repo.get_by_source(1)
-        sorted_candidates = sort_by_relevance(loaded)
+        sorted_candidates = sort_by_relevance(loaded, knowledge=KNOWLEDGE)
         assert [c.lemma for c in sorted_candidates] == [
             "common_word", "mid_regular", "rare_word", "mid_phrasal", "dirty_word",
         ]
-        assert sorted_candidates[-1].fragment_unknown_count == 2
+        dirty = sorted_candidates[-1]
+        assert dirty.phrase == _make_candidate(1, "dirty_word", 4.0, unknowns=2).phrase
 
     def test_chronological_sort_after_db_roundtrip(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)

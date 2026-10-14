@@ -64,10 +64,10 @@ class PolishTarget(GenerationTarget):
         return source.can_polish_phrases
 
     def is_done(self, candidate: StoredCandidate) -> bool:
-        return candidate.polished_fragment is not None
+        return candidate.polished_phrase is not None
 
     def discard(self, candidate_id: int) -> None:
-        self._candidate_repo.set_polished_fragment(candidate_id, None)
+        self._candidate_repo.set_polished_phrase(candidate_id, None)
 
 
 class MeaningTarget(GenerationTarget):

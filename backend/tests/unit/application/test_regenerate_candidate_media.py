@@ -11,6 +11,8 @@ from backend.domain.entities.candidate_meaning_image import CandidateMeaningImag
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
 
+from tests.phrase_support import phrase
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -41,7 +43,7 @@ class TestRegenerateCandidateMedia:
         candidate = MagicMock()
         candidate.id = 10
         candidate.source_id = 42
-        candidate.context_fragment = "How are you?"
+        candidate.source_phrase = phrase("How are you?")
         candidate.phrase_position = HOW_ARE_YOU
         candidate.media = None
 
@@ -104,7 +106,7 @@ class TestRegenerateCandidateMedia:
         candidate = MagicMock()
         candidate.id = 10
         candidate.source_id = 42
-        candidate.context_fragment = "How are you?"
+        candidate.source_phrase = phrase("How are you?")
         candidate.phrase_position = HOW_ARE_YOU
         candidate.media = None
 
@@ -153,7 +155,7 @@ class TestRegenerateCandidateMedia:
         candidate = MagicMock()
         candidate.id = 10
         candidate.source_id = 42
-        candidate.context_fragment = "How are you?"
+        candidate.source_phrase = phrase("How are you?")
         candidate.phrase_position = HOW_ARE_YOU
         candidate.media = None
         candidate.meaning_image = CandidateMeaningImage(candidate_id=10, image_path=str(picked))
@@ -261,7 +263,7 @@ class TestRegenerateCandidateMedia:
         candidate = MagicMock()
         candidate.id = 10
         candidate.source_id = 42
-        candidate.context_fragment = "This text is not in SRT at all."
+        candidate.source_phrase = phrase("This text is not in SRT at all.")
         candidate.phrase_position = None
 
         source = MagicMock()

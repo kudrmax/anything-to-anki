@@ -39,19 +39,20 @@ class GetCandidatesUseCase:
         source_id: int,
         sort_order: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
     ) -> list[StoredCandidateDTO]:
-        from backend.domain.services.candidate_sorting import decided_last
-
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
-        candidates = self._candidate_repo.get_by_source(source_id)
-        candidates = self._candidate_sorter.sort(candidates, source, sort_order)
-        candidates = decided_last(candidates)
+        arranged = self._candidate_sorter.arrange(
+            self._candidate_repo.get_by_source(source_id), sort_order,
+        )
+        candidates = arranged.candidates
         candidate_ids = [c.id for c in candidates if c.id is not None]
         jobs_by_candidate = self._job_repo.get_jobs_for_candidates(candidate_ids)
         reported_ids = self._report_repo.reported_candidate_ids(candidate_ids)
         synced_ids = self._anki_sync_repo.get_synced_candidate_ids(candidate_ids)
         return [
-            stored_candidate_to_dto(c, jobs_by_candidate, reported_ids, synced_ids)
+            stored_candidate_to_dto(
+                c, jobs_by_candidate, reported_ids, synced_ids, arranged.section(c),
+            )
             for c in candidates
         ]

@@ -1,28 +1,30 @@
-import type { ClozePreview } from '@/api/types'
+import type { CardPhrase } from '@/api/types'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
+import { phraseParts } from '@/lib/text/phraseParts'
 import css from './review.module.css'
 
 interface ClozePhraseProps {
-  preview: ClozePreview
+  phrase: CardPhrase
   hidden: number[]
   onToggle: (index: number) => void
 }
 
 /** Фраза в режиме разметки cloze: каждое слово — кнопка, скрытые слова в пунктирной рамке. */
-export function ClozePhrase({ preview, hidden, onToggle }: ClozePhraseProps) {
+export function ClozePhrase({ phrase, hidden, onToggle }: ClozePhraseProps) {
   return (
     <p className={`${css.phrase} ${css.clozeEdit}`}>
-      {preview.words.map(word => {
-        const isHidden = hidden.includes(word.index)
+      {phraseParts(phrase, new Set(hidden)).map((part, i) => {
+        const word = part.word
+        if (word === null) return part.text
         const classes = [
           css.clozeWord,
-          word.is_target && css.clozeWordTarget,
-          isHidden && css.clozeGap,
-          isHidden && !word.is_target && css.clozeWordExtra,
+          part.target && css.clozeWordTarget,
+          part.hidden && css.clozeGap,
+          part.hidden && !part.target && css.clozeWordExtra,
         ].filter(Boolean).join(' ')
         return (
-          <button key={word.index} type="button" className={classes} aria-pressed={isHidden} onMouseDown={keepFocusOnMouseDown} onClick={() => onToggle(word.index)}>
-            {word.text}
+          <button key={i} type="button" className={classes} aria-pressed={part.hidden} onMouseDown={keepFocusOnMouseDown} onClick={() => onToggle(word)}>
+            {part.text}
           </button>
         )
       })}

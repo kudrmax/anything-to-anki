@@ -7,8 +7,8 @@ from backend.domain.services.bootstrap_word_selector import BootstrapWordSelecto
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
 if TYPE_CHECKING:
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.ports.bootstrap_index_repository import BootstrapIndexRepository
-    from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.settings_repository import SettingsRepository
 
 _CEFR_ORDER = [CEFRLevel.A1, CEFRLevel.A2, CEFRLevel.B1, CEFRLevel.B2, CEFRLevel.C1, CEFRLevel.C2]
@@ -20,11 +20,11 @@ class GetBootstrapWordsUseCase:
     def __init__(
         self,
         index_repo: BootstrapIndexRepository,
-        known_word_repo: KnownWordRepository,
+        vocabulary: UserVocabulary,
         settings_repo: SettingsRepository,
     ) -> None:
         self._index_repo = index_repo
-        self._known_word_repo = known_word_repo
+        self._vocabulary = vocabulary
         self._settings_repo = settings_repo
 
     def execute(self, excluded_lemmas: list[str]) -> list[BootstrapWordDTO]:
@@ -36,14 +36,14 @@ class GetBootstrapWordsUseCase:
             return []
 
         entries = self._index_repo.get_all_entries()
-        known_pairs = self._known_word_repo.get_all_pairs()
-        known_lemmas = {lemma for lemma, _ in known_pairs}
+        vocabulary = self._vocabulary.snapshot()
+        decided_lemmas = set(vocabulary.known | vocabulary.unknown)
 
         selector = BootstrapWordSelector()
         selected = selector.select_words(
             entries=entries,
             grid_levels=grid_levels,
-            known_lemmas=known_lemmas,
+            known_lemmas=decided_lemmas,
             excluded_lemmas=set(excluded_lemmas),
         )
 

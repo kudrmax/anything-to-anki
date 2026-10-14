@@ -16,12 +16,16 @@ import { SortMenu } from './SortMenu'
 import { SourceText, type SelectedText, type SelectionPoint } from './SourceText'
 import { audioUrlForCandidate, useReview } from './useReview'
 import { useShownCandidates } from './useShownCandidates'
+import { listItems, sectionToggleLabel, visibleCandidates, type ListItem } from './sections'
+import type { CandidateSection } from '@/api/types'
 import css from './review.module.css'
 
 const DECISION: Partial<Record<ReviewAction, Decision>> = { learn: 'learn', known: 'known', skip: 'skip' }
 type PhoneView = 'card' | 'text' | 'list'
 
 const SOURCES_PATH = '/'
+/** Все карточки Ready разобраны: остальное — по желанию. */
+const DONE = 'Done'
 /** Ссылка на конкретную карточку: с ней ревью открывается сразу на ней. */
 const CANDIDATE_PARAM = 'candidate'
 
@@ -50,8 +54,20 @@ export function ReviewScreen() {
   const [phoneView, setPhoneView] = useState<PhoneView>('card')
   const togglePhoneView = (view: PhoneView) => setPhoneView(prev => (prev === view ? 'card' : view))
   const current = candidates.find(c => c.id === currentId) ?? null
+  // Разделы есть во всех сортировках, кроме порядка текста; Probably known свёрнут, пока его не открыли.
+  const sectioned = review.sortOrder !== 'chronological'
+  const [openedSections, setOpenedSections] = useState<ReadonlySet<CandidateSection>>(new Set())
+  // Карточка, открытая ссылкой или кликом по тексту, видна, даже если её раздел свёрнут.
+  const openSections = current?.section ? new Set([...openedSections, current.section]) : openedSections
+  const toggleSection = (section: CandidateSection) => setOpenedSections(prev => {
+    const next = new Set(prev)
+    if (openSections.has(section)) next.delete(section)
+    else next.add(section)
+    return next
+  })
+  const visible = sectioned ? visibleCandidates(candidates, openSections) : candidates
   const list = useShownCandidates(
-    candidates,
+    visible,
     source?.initially_shown_candidates ?? null,
     currentId,
     `${id}:${review.sortOrder}`,
@@ -59,9 +75,9 @@ export function ReviewScreen() {
 
   // Держим карточку в поле зрения: и когда список только появился (ревью открыли ссылкой на карточку),
   // и когда фоновое обновление переставило её в списке.
-  const currentIndex = candidates.findIndex(c => c.id === currentId)
-  const prevId = candidates[currentIndex - 1]?.id ?? null
-  const nextId = currentIndex >= 0 ? candidates[currentIndex + 1]?.id ?? null : null
+  const currentIndex = visible.findIndex(c => c.id === currentId)
+  const prevId = visible[currentIndex - 1]?.id ?? null
+  const nextId = currentIndex >= 0 ? visible[currentIndex + 1]?.id ?? null : null
   const { loading } = review
   useEffect(() => {
     if (loading) return
@@ -134,10 +150,19 @@ export function ReviewScreen() {
     setPhoneView('card')
   }
 
+  const items: ListItem[] = sectioned
+    ? listItems(candidates, list.shown, openSections)
+    : list.shown.map(candidate => ({ kind: 'candidate', candidate }))
+  const sectionToggle = (section: CandidateSection, count: number, open: boolean) => (
+    <div key={section} className={css.sectionToggle}>
+      <Button variant="link" onClick={() => toggleSection(section)}>{sectionToggleLabel(section, count, open)}</Button>
+    </div>
+  )
+
   // Позиция и ‹ › — в ряду телефона и в шапке десктопа без списка.
   const stepper = (
     <>
-      <span className={css.position}>{currentIndex + 1} / {candidates.length}</span>
+      <span className={css.position}>{currentIndex + 1} / {visible.length}</span>
       <IconButton icon={ChevronLeft} label="Previous phrase" disabled={prevId === null} onClick={() => prevId !== null && showCard(prevId)} />
       <IconButton icon={ChevronRight} label="Next phrase" disabled={nextId === null} onClick={() => nextId !== null && showCard(nextId)} />
     </>
@@ -148,10 +173,10 @@ export function ReviewScreen() {
       title={source.title}
       back={sourcesPath}
       metaWithActions
-      meta={candidates.length > 0 && (
+      meta={counts.total > 0 && (
         <>
           <Progress inline value={counts.progress} />
-          {counts.marked} / {counts.total}
+          {counts.reviewed === counts.total ? DONE : `${counts.reviewed} / ${counts.total}`}
         </>
       )}
     >
@@ -224,18 +249,22 @@ export function ReviewScreen() {
         {view === 'text' && hasSourceText && <div className={css.textPanel}>{sourceText(showCard)}</div>}
         {view === 'list' && (
           <div className={css.listPanel}>
-            {list.shown.map(candidate => (
-              <PhraseRow key={candidate.id} candidate={candidate} current={candidate.id === currentId} onSelect={showCard} />
-            ))}
+            {items.map(item => item.kind === 'section'
+              ? sectionToggle(item.section, item.count, item.open)
+              : <PhraseRow key={item.candidate.id} candidate={item.candidate} current={item.candidate.id === currentId} onSelect={showCard} />)}
             {list.hiddenCount > 0 && (
               <Button variant="link" onClick={list.showMore}>Show {list.nextPageCount} more · {list.hiddenCount} left</Button>
             )}
           </div>
         )}
         <div className={view === 'card' ? css.queue : `${css.queue} ${css.away}`}>
-          {list.shown.map(candidate => candidate.id === currentId
-            ? <PhraseCard key={candidate.id} candidate={candidate} review={review} />
-            : <PhraseRow key={candidate.id} candidate={candidate} onSelect={setCurrentId} />)}
+          {items.map(item => {
+            if (item.kind === 'section') return sectionToggle(item.section, item.count, item.open)
+            const { candidate } = item
+            return candidate.id === currentId
+              ? <PhraseCard key={candidate.id} candidate={candidate} review={review} />
+              : <PhraseRow key={candidate.id} candidate={candidate} onSelect={setCurrentId} />
+          })}
         </div>
         {list.hiddenCount > 0 && (
           <div className={css.showMore}>
@@ -244,7 +273,6 @@ export function ReviewScreen() {
             </Button>
           </div>
         )}
-        {candidates.length > 0 && counts.marked === counts.total && <Empty>All candidates reviewed.</Empty>}
         {candidates.length > 0 && (
           <div className={css.hint}>↑ ↓ — next phrase · 1 Learn · 2 Cloze · 3 Know · 4 Skip · Space — play audio · ⌘V — paste picture</div>
         )}
@@ -255,7 +283,7 @@ export function ReviewScreen() {
           point={selection.point}
           editing={editing}
           onSetBoundary={async () => { if (await review.setBoundary(selection.selected.selection)) setSelection(null) }}
-          onAddWord={async target => { if (await review.addWord(target, selection.selected.selection)) setSelection(null) }}
+          onAddWord={async targetWords => { if (await review.addWord(targetWords, selection.selected.selection)) setSelection(null) }}
           onCancel={closeSelection}
         />
       )}

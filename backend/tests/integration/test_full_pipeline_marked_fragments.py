@@ -80,16 +80,16 @@ def use_case() -> AnalyzeTextUseCase:
 
 @pytest.fixture(scope="module")
 def hpmor_fragments(use_case: AnalyzeTextUseCase) -> dict[str, str]:
-    """lemma → context_fragment mapping for the full HPMOR excerpt."""
+    """lemma → phrase text mapping for the full HPMOR excerpt."""
     resp = use_case.execute(_document(HPMOR, "text"), AnalyzeTextRequest(user_level=USER_LEVEL))
-    return {c.lemma.lower(): c.context_fragment for c in resp.candidates}
+    return {c.lemma.lower(): c.phrase.text for c in resp.candidates}
 
 
 @pytest.fixture(scope="module")
 def lyrics_fragments(use_case: AnalyzeTextUseCase) -> dict[str, str]:
-    """lemma → context_fragment mapping for the full Evil Morty lyrics."""
+    """lemma → phrase text mapping for the full Evil Morty lyrics."""
     resp = use_case.execute(_document(LYRICS, "song"), AnalyzeTextRequest(user_level=USER_LEVEL))
-    return {c.lemma.lower(): c.context_fragment for c in resp.candidates}
+    return {c.lemma.lower(): c.phrase.text for c in resp.candidates}
 
 
 # ---------------------------------------------------------------------------

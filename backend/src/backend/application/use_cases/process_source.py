@@ -14,7 +14,6 @@ from backend.domain.exceptions import (
     TopicTargetsMissingError,
 )
 from backend.domain.services.document_time import time_of
-from backend.domain.services.known_word_filter import KnownWordFilter
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_role import SourceRole
@@ -28,11 +27,11 @@ if TYPE_CHECKING:
         FrequentWordThresholdResolver,
     )
     from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.source import Source
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.document_repository import DocumentRepository
-    from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
 
@@ -48,7 +47,7 @@ class ProcessSourceUseCase:
         self,
         source_repo: SourceRepository,
         candidate_repo: CandidateRepository,
-        known_word_repo: KnownWordRepository,
+        vocabulary: UserVocabulary,
         settings_repo: SettingsRepository,
         threshold_resolver: FrequentWordThresholdResolver,
         analyze_text_use_case: AnalyzeTextUseCase,
@@ -58,7 +57,7 @@ class ProcessSourceUseCase:
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
-        self._known_word_repo = known_word_repo
+        self._vocabulary = vocabulary
         self._settings_repo = settings_repo
         self._threshold_resolver = threshold_resolver
         self._analyze_text = analyze_text_use_case
@@ -120,10 +119,9 @@ class ProcessSourceUseCase:
 
         self._notify_stage(source_id, ProcessingStage.ANALYZING_TEXT, on_stage_commit)
         cefr_level = self._settings_repo.get("cefr_level", "B1") or "B1"
-        known_filter = KnownWordFilter(self._known_word_repo.get_all_pairs())
         request = AnalyzeTextRequest(
             user_level=cefr_level,
-            known_lemmas=known_filter.known_lemmas,
+            vocabulary=self._vocabulary.snapshot(),
             frequent_word_zipf=self._threshold_resolver.resolve().zipf,
         )
         result = self._analyze_text.execute(document, request)
@@ -138,17 +136,13 @@ class ProcessSourceUseCase:
                 pos=c.pos,
                 cefr_level=c.cefr_level,
                 zipf_frequency=c.zipf_frequency,
-                context_fragment=c.context_fragment,
-                fragment_purity=c.fragment_purity,
-                fragment_unknown_count=c.fragment_unknown_count,
+                source_phrase=c.phrase,
                 occurrences=c.occurrences,
-                surface_form=c.surface_form,
                 is_phrasal_verb=c.is_phrasal_verb,
                 status=CandidateStatus.PENDING,
                 cefr_breakdown=bd,
                 usage_distribution=ud,
                 phrase_position=c.phrase_position.to_position() if c.phrase_position else None,
-                target_position=c.target_position.to_position() if c.target_position else None,
             ))
         created = self._candidate_repo.create_batch(stored)
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { CandidateStatus, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, SaveClozeRequest, SourceDetail, SourceDocument, StoredCandidate } from '@/api/types'
+import type { CandidateStatus, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, SaveClozeRequest, SourceDetail, SourceDocument, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
@@ -45,7 +45,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   const [sortOrder, setSortOrderState] = useState<SortOrder>(() => sortOrderPref.read())
   const [editing, setEditing] = useState<Editing | null>(null)
   const [toast, showToast] = useToast()
-  const [reportReasons, setReportReasons] = useState<string[]>([])
+  const [reportReasons, setReportReasons] = useState<ReportReason[]>([])
   useEffect(() => {
     api.getReportReasons().then(setReportReasons).catch(() => {})
   }, [])
@@ -53,14 +53,16 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const setSortOrder = (order: SortOrder) => { sortOrderPref.write(order); setSortOrderState(order) }
 
-  const fetchCandidates = useCallback(
-    () => api.getCandidates(sourceId, sortOrder),
+  // Источник вместе с кандидатами: разделы и счётчик Ready считает backend по всем карточкам.
+  const fetchSource = useCallback(
+    () => api.getSource(sourceId, sortOrder),
     [sourceId, sortOrder],
   )
 
-  const applyCandidates = useCallback((cands: StoredCandidate[]) => {
-    setCandidates(cands)
-    if (hasCandidateVpnErrors(cands)) setVpnBlocked(true)
+  const applySource = useCallback((src: SourceDetail) => {
+    setSource(src)
+    setCandidates(src.candidates)
+    if (hasCandidateVpnErrors(src.candidates)) setVpnBlocked(true)
   }, [])
 
   const loadDocument = useCallback(async (hasText: boolean) => {
@@ -69,9 +71,10 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   }, [sourceId])
 
   const loadCandidates = useCallback(async () => {
-    applyCandidates(await fetchCandidates())
-    await loadDocument(source?.has_source_text ?? false)
-  }, [fetchCandidates, applyCandidates, loadDocument, source])
+    const src = await fetchSource()
+    applySource(src)
+    await loadDocument(src.has_source_text)
+  }, [fetchSource, applySource, loadDocument])
 
   const loadGeneration = useCallback(async () => {
     try {
@@ -121,19 +124,20 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
    * сначала сворачивается на месте; следующую фразу выбираем уже по новому порядку.
    */
   const settle = useCallback(async (candidateId: number, markedIndex: number, decided: (c: StoredCandidate) => StoredCandidate, advance: boolean) => {
-    const refreshed = await fetchCandidates().catch(() => null)
-    const fresh = refreshed ?? candidatesRef.current.map(c => (c.id === candidateId ? decided(c) : c))
-    if (refreshed) applyCandidates(refreshed)
+    const markedSection = candidatesRef.current.find(c => c.id === candidateId)?.section ?? null
+    const refreshed = await fetchSource().catch(() => null)
+    const fresh = refreshed?.candidates ?? candidatesRef.current.map(c => (c.id === candidateId ? decided(c) : c))
+    if (refreshed) applySource(refreshed)
     else setCandidates(fresh)
 
     if (!advance) return
-    const focusId = nextFocusId(fresh, candidateId, markedIndex)
+    const focusId = nextFocusId(fresh, candidateId, markedIndex, sortOrder === 'chronological' ? null : markedSection)
     if (focusId === null) return
     setCurrentId(focusId)
     const focus = fresh.find(c => c.id === focusId)
     const nextUrl = focus && autoPlayAudioPref.read() ? audioUrlForCandidate(focus, sourceId) : null
     if (nextUrl) play(nextUrl)
-  }, [sourceId, play, fetchCandidates, applyCandidates])
+  }, [sourceId, sortOrder, play, fetchSource, applySource])
 
   const mark = useCallback(async (candidateId: number, status: CandidateStatus) => {
     stop()
@@ -295,7 +299,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   const startEditing = (candidateId: number) => {
     const candidate = candidates.find(c => c.id === candidateId)
     if (!candidate) return
-    setEditing({ candidateId, lemma: candidate.lemma, pos: candidate.pos, originalFragment: candidate.context_fragment })
+    setEditing({ candidateId, lemma: candidate.lemma, pos: candidate.pos, originalFragment: candidate.source_phrase.text })
   }
 
   const cancelEditing = useCallback(() => {
@@ -318,9 +322,9 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   }
 
   /** true — слово добавлено; при ошибке показывает её и оставляет попап открытым. */
-  const addWord = async (target: string, selection: DocumentSelection): Promise<boolean> => {
+  const addWord = async (targetWords: number[], selection: DocumentSelection): Promise<boolean> => {
     try {
-      const result = await api.addManualCandidate(sourceId, target, selection)
+      const result = await api.addManualCandidate(sourceId, targetWords, selection)
       window.getSelection()?.removeAllRanges()
       await loadCandidates()
       setCurrentId(result.id)
@@ -362,10 +366,12 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     }
   }
 
-  const report = async (candidateId: number, reasons: string[], comment: string): Promise<boolean> => {
+  /** unknownWords — слова фразы карточки, которые пользователь не знает: карточки с ними уходят из Ready. */
+  const report = async (candidateId: number, reasons: string[], comment: string, unknownWords: number[] = []): Promise<boolean> => {
     try {
-      await api.reportCandidate(candidateId, reasons, comment)
-      setCandidates(prev => prev.map(c => (c.id === candidateId ? { ...c, reported: true } : c)))
+      await api.reportCandidate(candidateId, reasons, comment, unknownWords)
+      if (unknownWords.length > 0) await loadCandidates()
+      else setCandidates(prev => prev.map(c => (c.id === candidateId ? { ...c, reported: true } : c)))
       showToast('Report saved')
       return true
     } catch (e) {
@@ -380,12 +386,13 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     meaningImageUrl: mediaUrl(sourceId, candidate.meaning_image_path),
   })
 
-  const markedCount = candidates.filter(c => c.status !== 'pending').length
   const learnCount = candidates.filter(c => c.status === 'learn').length
+  const readyTotal = source?.progress.total ?? 0
+  const readyReviewed = source?.progress.decided ?? 0
 
   return {
     sourceId, source, document, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,
-    counts: { marked: markedCount, total: candidates.length, learn: learnCount, progress: candidates.length > 0 ? markedCount / candidates.length : 0 },
+    counts: { reviewed: readyReviewed, total: readyTotal, learn: learnCount, progress: readyTotal > 0 ? readyReviewed / readyTotal : 0 },
     generation, generationActions,
     mark, generate, replaceWithExample,
     clozeEditingId, clozeEditing: clozeEditingId !== null, startCloze, cancelCloze, saveCloze, generateTTS, regenerateMedia, findImages, applyImage, pasteImage, polishAgain, setPolishReverted, editPhrase,

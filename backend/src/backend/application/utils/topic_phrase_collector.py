@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from backend.domain.services.known_word_filter import KnownWordFilter
+from backend.domain.exceptions import TargetNotInPhraseError
 from backend.domain.services.topic_phrase_selection import (
     find_shortest_sentence,
     parse_marked_phrase,
@@ -15,15 +15,18 @@ from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOrigi
 
 if TYPE_CHECKING:
     from backend.application.utils.candidate_factory import CandidateFactory
+    from backend.application.utils.phrase_reader import PhraseReader
+    from backend.application.utils.user_knowledge_reader import UserKnowledgeReader
     from backend.domain.entities.source import Source
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.entities.topic_target import TopicTarget
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.document_repository import DocumentRepository
-    from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.topic_target_repository import TopicTargetRepository
     from backend.domain.value_objects.document import Document
+    from backend.domain.value_objects.phrase import Phrase
+    from backend.domain.value_objects.user_knowledge import UserKnowledge
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +43,8 @@ class CollectedTopic:
 
 
 @dataclass(frozen=True)
-class _Phrase:
-    text: str
-    target: str
+class _Found:
+    phrase: Phrase
     origin: PhraseOrigin
 
 
@@ -61,22 +63,24 @@ class TopicPhraseCollector:
         source_repo: SourceRepository,
         document_repo: DocumentRepository,
         candidate_repo: CandidateRepository,
-        known_word_repo: KnownWordRepository,
+        knowledge: UserKnowledgeReader,
         candidate_factory: CandidateFactory,
+        phrase_reader: PhraseReader,
     ) -> None:
         self._topic_target_repo = topic_target_repo
         self._source_repo = source_repo
         self._document_repo = document_repo
         self._candidate_repo = candidate_repo
-        self._known_word_repo = known_word_repo
+        self._knowledge = knowledge
         self._candidate_factory = candidate_factory
+        self._phrase_reader = phrase_reader
 
     def has_targets(self, source_id: int) -> bool:
         return self._topic_target_repo.has_targets(source_id)
 
     def collect(self, source_id: int) -> CollectedTopic:
         targets = self._topic_target_repo.get_by_source(source_id)
-        known = KnownWordFilter(self._known_word_repo.get_all_pairs())
+        knowledge = self._knowledge.current()
         library = {
             s.id: (s, document) for s in self._source_repo.list_all()
             if s.id is not None and (document := self._document_repo.get(s.id)) is not None
@@ -88,17 +92,16 @@ class TopicPhraseCollector:
             generated = self._generated_candidate(source_id, target)
             if generated is None:
                 continue
-            if generated.lemma in seen or known.is_known(generated.lemma):
+            if generated.lemma in seen or knowledge.vocabulary.is_known(generated.lemma):
                 continue
             seen.add(generated.lemma)
-            phrase = self._real_phrase(generated, target, library)
+            found = self._real_phrase(generated, target, library, knowledge)
             candidates.append(
-                generated if phrase is None else self._candidate_factory.build(
+                generated if found is None else self._candidate_factory.build(
                     source_id=source_id,
-                    surface_form=phrase.target,
-                    context_fragment=phrase.text,
+                    phrase=found.phrase,
                     occurrences=SINGLE_OCCURRENCE,
-                    origin=phrase.origin,
+                    origin=found.origin,
                 ),
             )
 
@@ -112,7 +115,7 @@ class TopicPhraseCollector:
         )
         return CollectedTopic(
             candidates=candidates,
-            text=PHRASE_SEPARATOR.join(c.context_fragment for c in candidates),
+            text=PHRASE_SEPARATOR.join(c.source_phrase.text for c in candidates),
         )
 
     def _generated_candidate(self, source_id: int, target: TopicTarget) -> StoredCandidate | None:
@@ -123,10 +126,19 @@ class TopicPhraseCollector:
                 target.id,
             )
             return None
+        try:
+            phrase = self._phrase_reader.read(example.text, example.spans)
+        except TargetNotInPhraseError:
+            phrase = None
+        if phrase is None:
+            logger.warning(
+                "topic_phrase_collector: marked target not among the words (target_id=%s)",
+                target.id,
+            )
+            return None
         return self._candidate_factory.build(
             source_id=source_id,
-            surface_form=example.target,
-            context_fragment=example.text,
+            phrase=phrase,
             occurrences=SINGLE_OCCURRENCE,
             origin=PhraseOrigin.generated(),
         )
@@ -136,20 +148,20 @@ class TopicPhraseCollector:
         generated: StoredCandidate,
         target: TopicTarget,
         library: dict[int, tuple[Source, Document]],
-    ) -> _Phrase | None:
+        knowledge: UserKnowledge,
+    ) -> _Found | None:
         same_lemma = [
             c for c in self._candidate_repo.get_by_lemma(generated.lemma)
             if c.source_id in library
         ]
-        best = pick_best_candidate_phrase(same_lemma)
+        best = pick_best_candidate_phrase(same_lemma, knowledge)
         if best is not None:
-            return _Phrase(
-                text=best.context_fragment,
-                target=best.surface_form or best.lemma,
+            return _Found(
+                phrase=best.source_phrase,
                 origin=PhraseOrigin.from_source(_title(library[best.source_id][0])),
             )
 
-        variants = {target.phrase, generated.surface_form or generated.lemma}
+        variants = {target.phrase, generated.source_phrase.target_text()}
         # A sentence never runs across blocks: a heading or a list item stands alone.
         found = [
             (sentence, source)
@@ -160,11 +172,16 @@ class TopicPhraseCollector:
         if not found:
             return None
         sentence, source = min(found, key=lambda pair: len(pair[0].text.split()))
-        return _Phrase(
-            text=sentence.text,
-            target=sentence.target,
-            origin=PhraseOrigin.from_source(_title(source)),
-        )
+        phrase = self._phrase(sentence.text, sentence.target)
+        if phrase is None:
+            return None
+        return _Found(phrase=phrase, origin=PhraseOrigin.from_source(_title(source)))
+
+    def _phrase(self, text: str, target: str) -> Phrase | None:
+        try:
+            return self._phrase_reader.read_for(text, target)
+        except TargetNotInPhraseError:
+            return None
 
 
 def _title(source: Source) -> str:

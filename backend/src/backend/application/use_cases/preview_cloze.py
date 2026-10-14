@@ -13,7 +13,8 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_cloze import CandidateCloze
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.settings_repository import SettingsRepository
-    from backend.domain.services.cloze_builder import ClozeBuilder, ClozeWord
+    from backend.domain.services.cloze_builder import ClozeBuilder
+    from backend.domain.value_objects.phrase import Phrase
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +41,12 @@ class PreviewClozeUseCase:
         if candidate is None:
             raise CandidateNotFoundError(candidate_id)
         saved = self._builder.effective(candidate)
-        phrase = candidate.card_phrase
-        words = self._builder.words(phrase, candidate.lemma, candidate.surface_form)
+        phrase = candidate.phrase
+        words = self._builder.words(phrase)
 
-        indices = self._indices(request, saved, words)
+        indices = self._indices(request, saved, phrase)
         if indices:
-            self._builder.validate(words, indices)
+            self._builder.validate(phrase, indices)
         hidden = self._builder.hidden_words(phrase, indices)
         available = self._builder.available_hints(candidate.meaning, hidden)
         kind = self._hint_kind(request, saved)
@@ -57,7 +58,7 @@ class PreviewClozeUseCase:
         hints = self._builder.gap_hints(kind, candidate.meaning, phrase, indices, custom)
 
         return ClozePreviewDTO(
-            phrase=phrase,
+            phrase=phrase.text,
             words=[ClozeWordDTO(index=w.index, text=w.text, is_target=w.is_target) for w in words],
             hidden_word_indices=list(indices),
             hint_kind=kind.value,
@@ -86,13 +87,13 @@ class PreviewClozeUseCase:
         self,
         request: PreviewClozeRequest,
         saved: CandidateCloze | None,
-        words: list[ClozeWord],
+        phrase: Phrase,
     ) -> tuple[int, ...]:
         if request.hidden_word_indices is not None:
             return tuple(sorted(set(request.hidden_word_indices)))
         if saved is not None:
             return saved.hidden_word_indices
-        return self._builder.default_hidden(words)
+        return self._builder.default_hidden(phrase)
 
     def _hint_kind(
         self, request: PreviewClozeRequest, saved: CandidateCloze | None,

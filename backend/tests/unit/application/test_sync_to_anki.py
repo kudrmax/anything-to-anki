@@ -21,9 +21,11 @@ from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.phrase_support import phrase
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.unit.application.source_fakes import InMemorySourceRepository
+from tests.vocabulary_support import user_vocabulary
 
 
 class _EveryField(list[str]):
@@ -63,8 +65,7 @@ def _make_candidate(
         pos="NOUN",
         cefr_level="B2",
         zipf_frequency=3.5,
-        context_fragment=f"context with {lemma} here",
-        fragment_purity="clean",
+        source_phrase=phrase(f"context with {lemma} here", lemma),
         occurrences=1,
         status=status,
         meaning=meaning_obj,
@@ -94,7 +95,7 @@ class TestSyncToAnkiUseCase:
             settings_repo=self.settings_repo,
             anki_sync_repo=self.anki_sync_repo,
             template_renderer=self.template_renderer,
-            known_word_repo=self.known_word_repo,
+            vocabulary=user_vocabulary(self.known_word_repo),
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
         )
@@ -297,8 +298,7 @@ class TestSyncToAnkiUseCase:
             pos=candidate.pos,
             cefr_level=candidate.cefr_level,
             zipf_frequency=candidate.zipf_frequency,
-            context_fragment=candidate.context_fragment,
-            fragment_purity=candidate.fragment_purity,
+            source_phrase=candidate.source_phrase,
             occurrences=candidate.occurrences,
             status=candidate.status,
             meaning=candidate.meaning,
@@ -534,8 +534,7 @@ class TestSyncToAnkiUseCase:
             pos="NOUN",
             cefr_level="B2",
             zipf_frequency=3.5,
-            context_fragment="context with thug here",
-            fragment_purity="clean",
+            source_phrase=phrase("context with thug here", "thug"),
             occurrences=1,
             status=CandidateStatus.LEARN,
             meaning=CandidateMeaning(
@@ -592,7 +591,7 @@ class TestSyncRefusesIncompleteNoteType:
             settings_repo=settings_repo,
             anki_sync_repo=anki_sync_repo,
             template_renderer=MagicMock(),
-            known_word_repo=MagicMock(),
+            vocabulary=user_vocabulary(MagicMock()),
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
         )
@@ -643,7 +642,7 @@ class TestSyncCollectionScope:
             template_renderer=MagicMock(
                 render_recognition=MagicMock(return_value=NoteTemplates("F", "B", "")),
             ),
-            known_word_repo=MagicMock(),
+            vocabulary=user_vocabulary(),
             cloze_builder=ClozeBuilder(),
             scope_resolver=SourceScopeResolver(
                 InMemorySourceRepository(sources),

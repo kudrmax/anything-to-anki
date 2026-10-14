@@ -76,7 +76,7 @@ class GenerateMeaningUseCase:
         user_prompt = self._prompts_config.generate_meaning_user_template.format(
             lemma=candidate.lemma,
             pos=candidate.pos,
-            context=candidate.card_phrase,
+            context=candidate.phrase.text,
         )
         result = self._ai_service.generate_meaning(
             self._prompts_config.generate_meaning_system, user_prompt
@@ -129,7 +129,7 @@ class GenerateMeaningUseCase:
         user_prompt = self._prompts_config.generate_meaning_user_template.format(
             lemma=candidate.lemma,
             pos=candidate.pos,
-            context=candidate.card_phrase,
+            context=candidate.phrase.text,
         )
         combined_prompt = f"{user_prompt}\n\n{follow_up_prompt}"
 

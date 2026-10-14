@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.models import dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_pronunciation_repository import (
     SqlaCandidatePronunciationRepository,
 )
@@ -18,6 +19,8 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
 )
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -28,11 +31,11 @@ if TYPE_CHECKING:
 def _insert_candidate(session: Session, candidate_id: int, lemma: str, source_id: int = 1) -> None:
     session.execute(text(
         "INSERT INTO candidates (id, source_id, lemma, pos, "
-        "zipf_frequency, is_sweet_spot, context_fragment, fragment_purity, "
-        "occurrences, status, is_phrasal_verb, has_custom_context_fragment) "
+        "zipf_frequency, is_sweet_spot, source_phrase, "
+        "occurrences, status, is_phrasal_verb) "
         f"VALUES ({candidate_id}, {source_id}, '{lemma}', 'NOUN', "
-        f"4.0, 1, 'a {lemma}', 'clean', 1, 'learn', 0, 0)"
-    ))
+        "4.0, 1, :phrase, 1, 'learn', 0)"
+    ), {"phrase": dump_phrase(phrase(f"a {lemma}", lemma))})
 
 
 @pytest.mark.integration

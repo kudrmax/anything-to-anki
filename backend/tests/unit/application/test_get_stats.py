@@ -5,6 +5,8 @@ from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.utils.export_queue import ExportBatch
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
+from tests.vocabulary_support import user_vocabulary
+
 
 @pytest.mark.unit
 class TestGetStatsUseCase:
@@ -17,7 +19,7 @@ class TestGetStatsUseCase:
         self.job_repo.get_queue_summary.return_value = {}
         self.use_case = GetStatsUseCase(
             candidate_repo=self.candidate_repo,
-            known_word_repo=self.known_word_repo,
+            vocabulary=user_vocabulary(self.known_word_repo),
             export_queue=self.export_queue,
             job_repo=self.job_repo,
         )

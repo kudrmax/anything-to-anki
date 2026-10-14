@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
+from backend.application.dto.source_dtos import ProgressDTO
+
 if TYPE_CHECKING:
     from backend.domain.entities.collection import Collection
 
@@ -53,9 +55,8 @@ class ScopeCountsDTO(BaseModel):
     total: int
     reviewed: int
     pending: int
-    # Candidates of all the scope's sources and how many of them are decided, as on a source.
-    candidate_count: int
-    decided_count: int
+    # The progress of all the scope's sources summed, as each source shows it.
+    progress: ProgressDTO
 
 
 class CollectionNodeDTO(BaseModel):

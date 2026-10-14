@@ -62,15 +62,14 @@ class SaveClozeUseCase:
         if candidate_id in self._anki_sync_repo.get_synced_candidate_ids([candidate_id]):
             raise ClozeNotAllowedError(f"Candidate {candidate_id} is already in Anki")
 
-        if phrase != candidate.card_phrase:
+        if phrase != candidate.phrase.text:
             raise ClozePhraseChangedError(candidate_id)
         indices = tuple(sorted(set(hidden_word_indices)))
-        words = self._builder.words(phrase, candidate.lemma, candidate.surface_form)
-        self._builder.validate(words, indices)
+        self._builder.validate(candidate.phrase, indices)
         custom = (custom_hint or "").strip()
         if hint_kind is ClozeHintKind.CUSTOM and not custom:
             raise InvalidClozeError("Write the hint")
-        hidden = self._builder.hidden_words(phrase, indices)
+        hidden = self._builder.hidden_words(candidate.phrase, indices)
         if hint_kind not in self._builder.available_hints(candidate.meaning, hidden):
             raise InvalidClozeError(
                 f"The {hint_kind.value} hint is unavailable for the hidden words",

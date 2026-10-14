@@ -33,8 +33,12 @@ from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
 )
 
+from tests.phrase_support import phrase
+
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
+SENTENCE = "She tends to procrastinate when facing deadlines."
 
 
 def _create_processed_source(db_session: Session) -> int:
@@ -56,8 +60,7 @@ def _create_processed_source(db_session: Session) -> int:
             pos="VERB",
             cefr_level="C1",
             zipf_frequency=3.2,
-            context_fragment="She tends to procrastinate when facing deadlines.",
-            fragment_purity="pure",
+            source_phrase=phrase(SENTENCE, "procrastinate"),
             occurrences=1,
             status=CandidateStatus.LEARN,
         ),
@@ -67,8 +70,7 @@ def _create_processed_source(db_session: Session) -> int:
             pos="NOUN",
             cefr_level="B2",
             zipf_frequency=4.5,
-            context_fragment="She tends to procrastinate when facing deadlines.",
-            fragment_purity="pure",
+            source_phrase=phrase(SENTENCE, "deadlines"),
             occurrences=1,
             status=CandidateStatus.KNOWN,
         ),
@@ -78,8 +80,7 @@ def _create_processed_source(db_session: Session) -> int:
             pos="VERB",
             cefr_level="A2",
             zipf_frequency=5.1,
-            context_fragment="She tends to procrastinate when facing deadlines.",
-            fragment_purity="pure",
+            source_phrase=phrase(SENTENCE, "tends"),
             occurrences=1,
             status=CandidateStatus.SKIP,
         ),
@@ -103,13 +104,19 @@ def _make_reprocess_uc(
 
 
 def _make_stats_uc(db_session: Session) -> GetReprocessStatsUseCase:
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.infrastructure.persistence.sqla_known_word_repository import (
         SqlaKnownWordRepository,
+    )
+    from backend.infrastructure.persistence.sqla_unknown_word_repository import (
+        SqlaUnknownWordRepository,
     )
     return GetReprocessStatsUseCase(
         source_repo=SqlaSourceRepository(db_session),
         candidate_repo=SqlaCandidateRepository(db_session),
-        known_word_repo=SqlaKnownWordRepository(db_session),
+        vocabulary=UserVocabulary(
+            SqlaKnownWordRepository(db_session), SqlaUnknownWordRepository(db_session),
+        ),
         job_repo=SqlaJobRepository(db_session),
     )
 
@@ -272,8 +279,7 @@ def test_finalize_restores_enrichment(db_session: Session) -> None:
             pos="VERB",
             cefr_level="C2",
             zipf_frequency=3.2,
-            context_fragment="She tends to procrastinate when facing deadlines.",
-            fragment_purity="pure",
+            source_phrase=phrase(SENTENCE, "procrastinate"),
             occurrences=1,
             status=CandidateStatus.PENDING,
         ),

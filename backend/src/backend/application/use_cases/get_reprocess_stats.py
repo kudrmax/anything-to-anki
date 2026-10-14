@@ -4,13 +4,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import SourceNotFoundError
-from backend.domain.services.known_word_filter import KnownWordFilter
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
 if TYPE_CHECKING:
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.job_repository import JobRepository
-    from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.source_repository import SourceRepository
 
 
@@ -28,12 +27,12 @@ class GetReprocessStatsUseCase:
         self,
         source_repo: SourceRepository,
         candidate_repo: CandidateRepository,
-        known_word_repo: KnownWordRepository,
+        vocabulary: UserVocabulary,
         job_repo: JobRepository,
     ) -> None:
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
-        self._known_word_repo = known_word_repo
+        self._vocabulary = vocabulary
         self._job_repo = job_repo
 
     def execute(self, source_id: int) -> ReprocessStats:
@@ -42,7 +41,7 @@ class GetReprocessStatsUseCase:
             raise SourceNotFoundError(source_id)
 
         candidates = self._candidate_repo.get_by_source(source_id)
-        known_filter = KnownWordFilter(self._known_word_repo.get_all_pairs())
+        vocabulary = self._vocabulary.snapshot()
 
         learn_lost_count = 0
         known_lost_count = 0
@@ -51,10 +50,10 @@ class GetReprocessStatsUseCase:
 
         for c in candidates:
             if c.status == CandidateStatus.LEARN:
-                if not known_filter.is_known(c.lemma):
+                if not vocabulary.is_known(c.lemma):
                     learn_lost_count += 1
             elif c.status == CandidateStatus.KNOWN:
-                if not known_filter.is_known(c.lemma):
+                if not vocabulary.is_known(c.lemma):
                     known_lost_count += 1
             elif c.status == CandidateStatus.SKIP:
                 skip_count += 1

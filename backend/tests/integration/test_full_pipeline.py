@@ -45,8 +45,8 @@ class TestFullPipeline:
         response = self.use_case.execute(_prose(PROSE), B1)
 
         for candidate in response.candidates:
-            assert candidate.context_fragment != ""
-            assert candidate.fragment_purity in ("clean", "dirty")
+            assert candidate.phrase.text != ""
+            assert candidate.phrase.target
 
     def test_candidates_have_sweet_spot_info(self) -> None:
         response = self.use_case.execute(_prose(PROSE), B1)
@@ -62,13 +62,16 @@ class TestFullPipeline:
         layout = DocumentLayout(document)
         for candidate in response.candidates:
             assert candidate.phrase_position is not None
-            assert candidate.target_position is not None
-            phrase = candidate.phrase_position.to_position()
-            target = candidate.target_position.to_position()
-            assert layout.fragment(phrase) == candidate.context_fragment
-            assert phrase.block == target.block == 1
-            assert layout.span(phrase)[0] <= layout.span(target)[0]
-            assert layout.span(target)[1] <= layout.span(phrase)[1]
+            position = candidate.phrase_position.to_position()
+            assert layout.fragment(position) == candidate.phrase.text
+            assert position.block == 1
+
+    def test_target_is_the_candidate_word_in_its_phrase(self) -> None:
+        response = self.use_case.execute(_prose(PROSE), B1)
+
+        for candidate in response.candidates:
+            target = [candidate.phrase.words[i] for i in candidate.phrase.target]
+            assert target[0].lemma == candidate.lemma.split()[0]
 
     def test_heading_is_a_phrase_of_its_own(self) -> None:
         document = Document((
@@ -80,7 +83,7 @@ class TestFullPipeline:
         response = self.use_case.execute(document, B1)
 
         relentless = next(c for c in response.candidates if c.lemma == "relentless")
-        assert relentless.context_fragment == "A relentless ambition"
+        assert relentless.phrase.text == "A relentless ambition"
         assert relentless.phrase_position is not None
         assert relentless.phrase_position.block == 0
 
@@ -97,5 +100,5 @@ class TestFullPipeline:
         response = self.use_case.execute(document, B1)
 
         relentless = next(c for c in response.candidates if c.lemma == "relentless")
-        assert "\n" not in relentless.context_fragment
-        assert "call" not in relentless.context_fragment
+        assert "\n" not in relentless.phrase.text
+        assert "call" not in relentless.phrase.text

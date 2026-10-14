@@ -40,7 +40,7 @@ export function useClozeEditor(candidate: StoredCandidate, review: Review) {
     }
   }, [candidate.id])
 
-  const phrase = candidate.phrase
+  const phrase = candidate.phrase.text
   useEffect(() => {
     if (!active) return
     void requestPreview({})

@@ -28,6 +28,7 @@ from backend.infrastructure.api.routes import (
     settings,
     sources,
     stats,
+    unknown_words,
     usage,
 )
 from backend.infrastructure.api.routes.media import router as media_router
@@ -105,6 +106,7 @@ app.include_router(media_router)
 app.include_router(candidates.router)
 app.include_router(card_reports.router)
 app.include_router(known_words.router)
+app.include_router(unknown_words.router)
 app.include_router(settings.router)
 app.include_router(anki.router)
 app.include_router(export.router)

@@ -14,6 +14,7 @@ from backend.infrastructure.persistence.models import (
     CandidatePronunciationModel,
     CandidateTTSModel,
     StoredCandidateModel,
+    dump_phrase,
     dump_position,
 )
 
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.candidate_status import CandidateStatus
     from backend.domain.value_objects.document_position import DocumentPosition
+    from backend.domain.value_objects.phrase import Phrase
 
 
 class SqlaCandidateRepository(CandidateRepository):
@@ -71,42 +73,25 @@ class SqlaCandidateRepository(CandidateRepository):
         )
         return result or 0
 
-    def count_by_source_and_status(self) -> dict[int, dict[CandidateStatus, int]]:
-        from backend.domain.value_objects.candidate_status import CandidateStatus
-
-        rows = (
-            self._session.query(
-                StoredCandidateModel.source_id,
-                StoredCandidateModel.status,
-                func.count(StoredCandidateModel.id),
-            )
-            .group_by(StoredCandidateModel.source_id, StoredCandidateModel.status)
-            .all()
-        )
-        counts: dict[int, dict[CandidateStatus, int]] = {}
-        for source_id, status, count in rows:
-            counts.setdefault(source_id, {})[CandidateStatus(status)] = count
-        return counts
-
     def count_all(self) -> int:
         result = self._session.query(func.count(StoredCandidateModel.id)).scalar()
         return result or 0
 
-    def update_phrase(
-        self, candidate_id: int, context_fragment: str, phrase_position: DocumentPosition,
+    def set_source_phrase(
+        self, candidate_id: int, phrase: Phrase, position: DocumentPosition,
     ) -> None:
         model = self._session.get(StoredCandidateModel, candidate_id)
         if model is not None:
-            model.context_fragment = context_fragment
-            model.phrase_position = dump_position(phrase_position)
-            model.polished_fragment = None
+            model.source_phrase = _dumped(phrase)
+            model.phrase_position = dump_position(position)
+            model.polished_phrase = None
             model.polish_reverted = False
             self._session.flush()
 
-    def set_polished_fragment(self, candidate_id: int, polished_fragment: str | None) -> None:
+    def set_polished_phrase(self, candidate_id: int, phrase: Phrase | None) -> None:
         model = self._session.get(StoredCandidateModel, candidate_id)
         if model is not None:
-            model.polished_fragment = polished_fragment
+            model.polished_phrase = dump_phrase(phrase)
             model.polish_reverted = False
             self._session.flush()
 
@@ -242,3 +227,9 @@ class SqlaCandidateRepository(CandidateRepository):
                 e.cloze = clozes.get(e.id)
                 e.meaning_image = images.get(e.id)
         return entities
+
+
+def _dumped(phrase: Phrase) -> str:
+    stored = dump_phrase(phrase)
+    assert stored is not None
+    return stored
