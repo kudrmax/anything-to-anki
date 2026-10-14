@@ -21,7 +21,7 @@ interface SourceRowProps {
   onExport: (id: number) => void
   onDelete: (id: number) => void
   onRename: (id: number, title: string) => void
-  onReprocess: (id: number) => void
+  onRebuild: (id: number) => void
   /** true — клик ушёл на выбор строки, открывать источник не нужно. */
   onRowClick: (e: MouseEvent, id: number) => boolean
   onMoveTo: (id: number) => void
@@ -74,7 +74,7 @@ function progressCaption(source: SourceSummary): string {
   return `${source.progress.total} phrases`
 }
 
-export function SourceRow({ source, selected, showPath, primary, onProcess, onGenerate, onCancelGeneration, onRetryGeneration, onReview, onExport, onDelete, onRename, onReprocess, onRowClick, onMoveTo, dragIds, draggable, onLongPress }: SourceRowProps) {
+export function SourceRow({ source, selected, showPath, primary, onProcess, onGenerate, onCancelGeneration, onRetryGeneration, onReview, onExport, onDelete, onRename, onRebuild, onRowClick, onMoveTo, dragIds, draggable, onLongPress }: SourceRowProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(source.title)
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -101,7 +101,7 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
     ...(canExport ? [{ label: 'Export', icon: Upload, onSelect: () => onExport(source.id) }] : []),
     { label: 'Rename', icon: Pencil, onSelect: startEditing },
     { label: 'Move to…', icon: FolderInput, onSelect: () => onMoveTo(source.id) },
-    ...(isProcessing || source.status === 'new' || source.is_permanent ? [] : [{ label: 'Reprocess', icon: RefreshCw, onSelect: () => onReprocess(source.id) }]),
+    ...(isProcessing || source.status === 'new' || source.is_permanent ? [] : [{ label: 'Rebuild', icon: RefreshCw, onSelect: () => onRebuild(source.id) }]),
     ...(isProcessing || source.is_permanent ? [] : [{ label: 'Delete', icon: Trash2, danger: true, separated: true, onSelect: () => onDelete(source.id) }]),
   ]
 
@@ -117,7 +117,7 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
     done: <Button variant={reviewVariant} onClick={() => onReview(source.id)}>Review</Button>,
     partially_reviewed: <Button variant={reviewVariant} onClick={() => onReview(source.id)}>Continue</Button>,
     reviewed: <Button variant="link" onClick={() => onReview(source.id)}>Open</Button>,
-    error: <Button onClick={() => onReprocess(source.id)}>Retry</Button>,
+    error: <Button onClick={() => onProcess(source.id)}>Retry</Button>,
   }[source.status]
 
   const progress = (() => {

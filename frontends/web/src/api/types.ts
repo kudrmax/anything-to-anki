@@ -473,12 +473,12 @@ export interface GenerationOverview {
   in_progress: boolean
 }
 
-export interface ReprocessStats {
-  learn_count: number
-  known_count: number
-  skip_count: number
-  pending_count: number
-  has_active_jobs: boolean
+/** Долгая операция над источником (Rebuild или его превью), запущенная в фоне. */
+export interface SourceOperation {
+  operation_id: number
+  kind: 'process' | 'rebuild' | 'preview'
+  state: 'running' | 'done' | 'error'
+  error: string | null
 }
 
 /** Кусок одного блока документа источника; символы — code points, конец не включается. */

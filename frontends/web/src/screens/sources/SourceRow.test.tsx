@@ -32,7 +32,7 @@ describe('SourceRow', () => {
     <SourceRow
       source={source} selected={false} showPath={showPath} primary={false}
       onProcess={noop} onGenerate={noop} onCancelGeneration={noop} onRetryGeneration={noop}
-      onReview={onReview} onExport={noop} onDelete={noop} onRename={noop} onReprocess={noop}
+      onReview={onReview} onExport={noop} onDelete={noop} onRename={noop} onRebuild={noop}
       onRowClick={() => takenBySelection} onMoveTo={noop} dragIds={() => [source.id]}
       draggable onLongPress={onLongPress}
     />,

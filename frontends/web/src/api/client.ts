@@ -32,7 +32,7 @@ import type {
   QueueActionResult,
   QueueSelection,
   QueueSnapshot,
-  ReprocessStats,
+  SourceOperation,
   Settings,
   SourceDetail,
   SourceMediaStats,
@@ -224,11 +224,11 @@ export const api = {
   cancelGeneration: (sourceId: number, kind: GenerationKind) =>
     req<{ cancelled: number }>(`/sources/${sourceId}/generation/${kind}/cancel`, { method: 'POST' }),
 
-  getReprocessStats: (sourceId: number) =>
-    req<ReprocessStats>(`/sources/${sourceId}/reprocess-stats`),
-
-  reprocessSource: (sourceId: number) =>
-    req<{ status: string }>(`/sources/${sourceId}/reprocess`, { method: 'POST' }),
+  rebuildSource: (sourceId: number, includeOpen: boolean) =>
+    req<SourceOperation>(`/sources/${sourceId}/rebuild`, {
+      method: 'POST',
+      body: JSON.stringify({ include_open: includeOpen }),
+    }),
 
   getStats: () => req<Stats>('/stats'),
 

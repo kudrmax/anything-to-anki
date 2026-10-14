@@ -15,7 +15,6 @@ import { Banner, Button, Empty, Field, Stat, StatGrid, Toast, ToastStack, UndoTo
 import { CollectionTree } from './CollectionTree'
 import { MoveToModal } from './MoveToModal'
 import { NameModal } from './NameModal'
-import { ReprocessModal } from './ReprocessModal'
 import { ScopeHeader } from './ScopeHeader'
 import { ScopePicker } from './ScopePicker'
 import { SelectionBar } from './SelectionBar'
@@ -58,7 +57,6 @@ export function SourcesScreen() {
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION)
   const [moveTarget, setMoveTarget] = useState<MoveTarget>(null)
   const [naming, setNaming] = useState<Naming>(null)
-  const [reprocessId, setReprocessId] = useState<number | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [processingAll, setProcessingAll] = useState(false)
   const [toast, showToast] = useToast()
@@ -136,12 +134,6 @@ export function SourcesScreen() {
   const review = (id: number) => navigate(`/sources/${id}/review`, { state: backTo(`/${scopeQuery(scope)}`) })
   const exportSource = (id: number) => navigate(`/sources/${id}/export`)
   const exportScope = () => navigate(`${EXPORT_PATH}${scopeQuery(scope)}`)
-
-  const reprocess = (id: number) => {
-    const source = board.board?.groups.flatMap(g => g.sources).find(s => s.id === id)
-    if (source?.status === 'error') void board.reprocess(id)
-    else setReprocessId(id)
-  }
 
   const processAll = async () => {
     setProcessingAll(true)
@@ -306,7 +298,7 @@ export function SourcesScreen() {
                         onExport={exportSource}
                         onDelete={deleteSource}
                         onRename={(id, newTitle) => void board.rename(id, newTitle)}
-                        onReprocess={reprocess}
+                        onRebuild={id => void board.rebuild(id)}
                         onRowClick={rowClick}
                         onMoveTo={id => setMoveTarget({ kind: 'sources', ids: [id] })}
                         dragIds={() => dragIds(source.id)}
@@ -348,14 +340,6 @@ export function SourcesScreen() {
           submitLabel={naming.kind === 'rename' ? 'Rename' : 'Create'}
           onSubmit={submitName}
           onClose={() => setNaming(null)}
-        />
-      )}
-      {reprocessId !== null && (
-        <ReprocessModal
-          sourceId={reprocessId}
-          onClose={() => setReprocessId(null)}
-          onReprocess={() => { const id = reprocessId; setReprocessId(null); void board.reprocess(id) }}
-          onOpenExport={exportSource}
         />
       )}
       <ToastStack raised={selectedIds.length > 0}>
