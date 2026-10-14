@@ -166,6 +166,9 @@
 /* десктоп и телефон показывают разные части шапки; правила в конце — поверх display самих элементов */
 .desktopOnly, .export.desktopOnly { display: var(--desktop-flex); }
 .desktopText { display: var(--desktop-inline); }
+/* десктоп: прогресс — линия по нижнему краю вкладок через всё окно; на телефоне вкладок нет, там своя полоса */
+.windowProgress { display: var(--desktop-flex); position: fixed; z-index: 1; top: calc(var(--nav-h) - var(--window-progress-h)); left: 0; right: 0; height: var(--window-progress-h); pointer-events: none; }
+.windowProgress::before { content: ''; width: var(--p); background: var(--window-progress-color); transition: width var(--t); }
 .phoneOnly { display: var(--phone-flex); }
 /* телефон: прогресс — полоса на всю ширину под строкой шапки */
 .phoneProgress { display: var(--phone-flex); flex-basis: 100%; order: 1; margin-top: var(--s2); }

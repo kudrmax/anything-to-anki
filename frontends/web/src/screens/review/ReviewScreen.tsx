@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { backIn } from '@/lib/backLink'
 import { decisionChange, learnConvertsCloze, type Decision } from '@/lib/decision'
@@ -189,8 +189,9 @@ export function ReviewScreen() {
       metaWithActions
       meta={counts.total > 0 && (
         <>
-          <span className={css.desktopOnly}><Progress inline value={counts.progress} /></span>
-          {counts.reviewed === counts.total ? DONE : <span>{counts.reviewed} / {counts.total}<span className={css.desktopText}> decided</span></span>}
+          {/* Десктоп: прогресс — линия по нижнему краю вкладок, на всю ширину окна; видна краем глаза. */}
+          <span className={css.windowProgress} style={{ '--p': `${Math.round(counts.progress * 100)}%` } as CSSProperties} />
+          {counts.reviewed === counts.total ? DONE : `${counts.reviewed} / ${counts.total}`}
         </>
       )}
     >
