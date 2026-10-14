@@ -238,6 +238,8 @@
   --away-display: flex;
   --fit-aside-display: block;
   --fit-aside-row: body;              /* узкое окно: под контентом */
+  --fit-aside-contain: size;
+  --fit-aside-align: stretch;
   --card-flex: 0 1 auto;
   --card-overflow: visible;
   --dock-align: center;
@@ -335,6 +337,8 @@
     --aside-hidden-h: 0;
     --aside-position: static;
     --fit-aside-row: after;
+    --fit-aside-contain: none;
+    --fit-aside-align: start;
   }
 }
 
