@@ -35,11 +35,16 @@ CARD_G = 7  # exported, LEARN
 CARD_H = 8  # exported, LEARN, same lemma as G
 CARD_I = 9  # LEARN, not exported
 CARD_J = 10  # PENDING, same lemma as I, newer
-CARD_COUNT = 10
+CARD_L = 11  # LEARN, not exported
+CARD_K = 12  # exported, PENDING again, same lemma as L, newer
+CARD_M = 13  # pronunciation and picture
+CARD_N = 14  # same lemma as M, newer, its own pronunciation and picture
+CARD_COUNT = 14
 
 NOTE_A = 111
 NOTE_G = 222
 NOTE_H = 333
+NOTE_K = 444
 
 LINE_0 = "He glared at me."
 LINE_1 = "Then he glared again and left."
@@ -200,6 +205,34 @@ def _seed(conn: Connection) -> None:
         conn, CARD_J, EXPORTED_PAIR_SOURCE, "wander", "pending",
         _stored_phrase("We wander off.", "wander"), [0, 3, 0, 3, 14],
     )
+    _card(
+        conn, CARD_L, EXPORTED_PAIR_SOURCE, "drift", "learn",
+        _stored_phrase("They drift.", "drift"), [0, 4, 0, 4, 11],
+    )
+    _card(
+        conn, CARD_K, EXPORTED_PAIR_SOURCE, "drift", "pending",
+        _stored_phrase("We drift away.", "drift"), [0, 5, 0, 5, 14],
+    )
+    _synced(conn, CARD_K, NOTE_K)
+    for card_id, text_ in ((CARD_M, "They roam."), (CARD_N, "We roam far.")):
+        _card(
+            conn, card_id, EXPORTED_PAIR_SOURCE, "roam", "pending",
+            _stored_phrase(text_, "roam"), [0, card_id, 0, card_id, len(text_)],
+        )
+        conn.execute(
+            text(
+                "INSERT INTO candidate_pronunciations (candidate_id, us_audio_path)"
+                " VALUES (:c, :p)"
+            ),
+            {"c": card_id, "p": f"/us/{card_id}.mp3"},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO candidate_meaning_images (candidate_id, image_path)"
+                " VALUES (:c, :p)"
+            ),
+            {"c": card_id, "p": f"/img/{card_id}.webp"},
+        )
 
 
 @pytest.fixture
@@ -227,7 +260,9 @@ def _phrase_of(db_url: str, word_id: int, text_start: str) -> dict[str, object]:
 
 def test_one_word_per_lemma_and_every_card_is_a_phrase(db_url: str) -> None:
     words = _rows(db_url, "SELECT id, lemma, status FROM candidates ORDER BY id")
-    assert [w["id"] for w in words] == [CARD_A, CARD_D, CARD_TOPIC, CARD_SPANNING, CARD_H, CARD_I]
+    assert [w["id"] for w in words] == [
+        CARD_A, CARD_D, CARD_TOPIC, CARD_SPANNING, CARD_H, CARD_I, CARD_L, CARD_N,
+    ]
     assert len(_rows(db_url, "SELECT id FROM phrases")) == CARD_COUNT
 
 
@@ -257,7 +292,9 @@ def test_results_are_keyed_by_the_phrase_of_their_card(db_url: str) -> None:
 
 
 def test_ipa_moves_to_the_pronunciation_of_the_word(db_url: str) -> None:
-    rows = _rows(db_url, "SELECT candidate_id, ipa FROM candidate_pronunciations")
+    rows = _rows(
+        db_url, "SELECT candidate_id, ipa FROM candidate_pronunciations WHERE ipa IS NOT NULL",
+    )
     assert rows == [{"candidate_id": CARD_A, "ipa": "/ɡleə/"}]
 
 
@@ -275,7 +312,7 @@ def test_running_job_and_report_point_at_the_phrase_of_their_card(db_url: str) -
 def test_every_export_record_survives_with_its_phrase(db_url: str) -> None:
     synced = _rows(
         db_url, "SELECT candidate_id, phrase_id, anki_note_id FROM anki_synced_cards"
-        " ORDER BY anki_note_id",
+        " WHERE anki_note_id != :k ORDER BY anki_note_id", k=NOTE_K,
     )
     g = _phrase_of(db_url, CARD_H, "They linger")
     h = _phrase_of(db_url, CARD_H, "We linger")
@@ -288,7 +325,7 @@ def test_every_export_record_survives_with_its_phrase(db_url: str) -> None:
     assert h["is_decision"] and not g["is_decision"]
     notes = _rows(db_url, "SELECT note_id, lemma, matured_at FROM anki_notes ORDER BY note_id")
     assert [(n["note_id"], n["lemma"]) for n in notes] == [
-        (NOTE_A, "glare"), (NOTE_G, "linger"), (NOTE_H, "linger"),
+        (NOTE_A, "glare"), (NOTE_G, "linger"), (NOTE_H, "linger"), (NOTE_K, "drift"),
     ]
     assert all(n["matured_at"] is not None for n in notes)
 
@@ -369,4 +406,40 @@ def test_new_tables_exist(db_url: str) -> None:
 
 def test_no_row_points_at_a_merged_away_word(db_url: str) -> None:
     assert _rows(db_url, "PRAGMA foreign_key_check") == []
-    assert len(_rows(db_url, "SELECT id FROM anki_synced_cards")) == 3  # noqa: PLR2004 — A, G, H
+    assert len(_rows(db_url, "SELECT id FROM anki_synced_cards")) == 4  # noqa: PLR2004 — A G H K
+
+
+def test_a_decision_beats_an_exported_duplicate_whose_export_keeps_its_phrase(
+    db_url: str,
+) -> None:
+    words = _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_L)
+    assert words == [{"status": "learn"}]
+    assert _rows(db_url, "SELECT id FROM candidates WHERE id = :w", w=CARD_K) == []
+    decided = _phrase_of(db_url, CARD_L, "They drift")
+    exported = _phrase_of(db_url, CARD_L, "We drift")
+    assert (decided["is_decision"], exported["is_decision"]) == (1, 0)
+    synced = _rows(
+        db_url, "SELECT candidate_id, phrase_id FROM anki_synced_cards WHERE anki_note_id = :n",
+        n=NOTE_K,
+    )
+    assert synced == [{"candidate_id": CARD_L, "phrase_id": exported["id"]}]
+
+
+def test_the_winner_keeps_its_own_pronunciation_and_picture(db_url: str) -> None:
+    pronunciations = _rows(
+        db_url, "SELECT candidate_id, us_audio_path FROM candidate_pronunciations"
+        " WHERE candidate_id IN (:m, :n)", m=CARD_M, n=CARD_N,
+    )
+    assert pronunciations == [{"candidate_id": CARD_N, "us_audio_path": f"/us/{CARD_N}.mp3"}]
+    images = _rows(
+        db_url, "SELECT candidate_id, image_path FROM candidate_meaning_images"
+        " WHERE candidate_id IN (:m, :n)", m=CARD_M, n=CARD_N,
+    )
+    assert images == [{"candidate_id": CARD_N, "image_path": f"/img/{CARD_N}.webp"}]
+    orphans = _rows(
+        db_url, "SELECT candidate_id FROM candidate_pronunciations"
+        " WHERE candidate_id NOT IN (SELECT id FROM candidates)"
+        " UNION ALL SELECT candidate_id FROM candidate_meaning_images"
+        " WHERE candidate_id NOT IN (SELECT id FROM candidates)",
+    )
+    assert orphans == []

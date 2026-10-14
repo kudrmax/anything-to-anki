@@ -305,8 +305,9 @@ def _merge_duplicates(conn: sa.Connection, cards: list[_Card]) -> None:
     for group in groups.values():
         if len(group) < 2:  # noqa: PLR2004 — a group of one has no duplicate
             continue
+        # A decision is never lost: an export record keeps its own phrase anyway.
         winner = max(
-            group, key=lambda c: (c.exported, c.status in DECIDED_STATUSES, c.id),
+            group, key=lambda c: (c.status in DECIDED_STATUSES, c.exported, c.id),
         )
         for loser in group:
             if loser is not winner:
