@@ -7,7 +7,7 @@ A card kept its phrase four ways: the text (context_fragment, polished_fragment)
 target as written (surface_form), the target's place in the document (target_position)
 and a mark that the phrase was an example (has_custom_context_fragment). Now the source
 phrase and the rewritten one are each text + words by characters + target by word
-numbers (see docs/specs/card-phrase-model.html). fragment_unknown_count and
+numbers. fragment_unknown_count and
 fragment_purity, counted once at processing, go: which words are new is decided on reading.
 
 Applied to both copies of the app (prod and dev) on 2026-10-14: every card got its phrases

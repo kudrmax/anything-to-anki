@@ -1,6 +1,6 @@
-# Unified Dictionary Data
+# Формат словарных данных
 
-Эта папка содержит словарные данные в unified JSON формате. Проект читает их через SQLite-кэш (`.cache/dict.db`), который собирается автоматически при `make up`.
+Здесь описан формат, который приложение читает из `DICTIONARIES_DIR` (`backend/cli/build_dict_cache.py`). Сами данные лежат в отдельном репозитории [anything-to-anki-dicts](https://github.com/kudrmax/anything-to-anki-dicts), в папке `unified/`. При `make up` приложение собирает из них SQLite-кэш `$DICTIONARIES_DIR/.cache/dict.db`.
 
 ## Быстрый старт
 
@@ -34,17 +34,17 @@ make up
 ## Структура
 
 ```
-dictionaries/
+$DICTIONARIES_DIR/
 ├── cefr/               # N файлов, голосование между ними
-│   ├── oxford.json
 │   ├── cambridge.json
-│   └── efllex.json
+│   ├── oxford.json
+│   ├── efllex.json
+│   └── kelly.json
 ├── audio.json          # один файл
 ├── ipa.json            # один файл
 ├── usage.json          # один файл
-├── .cache/             # автогенерируемый кэш (в .gitignore)
-│   └── dict.db
-└── README.md
+└── .cache/             # автогенерируемый кэш
+    └── dict.db
 ```
 
 ## Форматы
