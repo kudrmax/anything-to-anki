@@ -7,7 +7,6 @@ from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.models import StoredCandidateModel, dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
@@ -17,7 +16,7 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from tests.phrase_support import phrase
+from tests.word_support import insert_word
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -33,17 +32,10 @@ def session() -> Generator[Session, None, None]:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     s = sessionmaker(bind=engine)()
-    s.add(StoredCandidateModel(
-        id=CANDIDATE_ID,
-        source_id=SOURCE_ID,
-        lemma="test",
-        pos="NOUN",
-        zipf_frequency=4.0,
-        is_sweet_spot=True,
-        source_phrase=dump_phrase(phrase("a test", "test")),
-        occurrences=1,
-        status=CandidateStatus.LEARN.value,
-    ))
+    insert_word(
+        s, CANDIDATE_ID, source_id=SOURCE_ID, lemma="test", phrase_text="a test",
+        status=CandidateStatus.LEARN.value, zipf_frequency=4.0, is_sweet_spot=True,
+    )
     s.flush()
     yield s
     s.close()

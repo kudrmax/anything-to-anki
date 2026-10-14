@@ -10,7 +10,6 @@ from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import (
     CandidateTTSModel,
     StoredCandidateModel,
-    dump_phrase,
 )
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
@@ -18,7 +17,7 @@ from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from tests.phrase_support import phrase
+from tests.word_support import insert_word
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -37,17 +36,10 @@ def session() -> Generator[Session, None, None]:
 
 
 def _insert_candidate(session: Session, candidate_id: int, source_id: int = 1) -> None:
-    session.add(StoredCandidateModel(
-        id=candidate_id,
-        source_id=source_id,
-        lemma="test",
-        pos="NOUN",
-        zipf_frequency=4.0,
-        is_sweet_spot=True,
-        source_phrase=dump_phrase(phrase("a test", "test")),
-        occurrences=1,
-        status=CandidateStatus.LEARN.value,
-    ))
+    insert_word(
+        session, candidate_id, source_id=source_id, status=CandidateStatus.LEARN.value,
+        zipf_frequency=4.0, is_sweet_spot=True,
+    )
     session.flush()
 
 
@@ -75,7 +67,7 @@ class TestUpsert:
     def test_updates_existing_record(self, session: Session) -> None:
         _insert_candidate(session, 1)
         session.add(CandidateTTSModel(
-            candidate_id=1,
+            phrase_id=1,
             audio_path="/old.m4a",
             generated_at=datetime(2025, 1, 1, tzinfo=UTC),
         ))
@@ -107,7 +99,7 @@ class TestGetByCandidateId:
         _insert_candidate(session, 1)
         now = datetime(2026, 3, 15, tzinfo=UTC)
         session.add(CandidateTTSModel(
-            candidate_id=1,
+            phrase_id=1,
             audio_path="/audio/1_tts.m4a",
             generated_at=now,
         ))
@@ -137,7 +129,7 @@ class TestGetByCandidateIds:
         _insert_candidate(session, 3)
         for cid in [1, 3]:
             session.add(CandidateTTSModel(
-                candidate_id=cid,
+                phrase_id=cid,
                 audio_path=f"/audio/{cid}_tts.m4a",
                 generated_at=None,
             ))
@@ -172,7 +164,7 @@ class TestGetEligibleCandidateIds:
         _insert_candidate(session, 2, source_id=1)
         # candidate 1 already has TTS
         session.add(CandidateTTSModel(
-            candidate_id=1,
+            phrase_id=1,
             audio_path="/audio.m4a",
             generated_at=None,
         ))

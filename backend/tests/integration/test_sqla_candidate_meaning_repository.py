@@ -9,10 +9,11 @@ from backend.infrastructure.persistence.models import dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from tests.phrase_support import phrase
+from tests.word_support import insert_word
 
 CTX = dump_phrase(phrase("ctx"))
 
@@ -24,15 +25,7 @@ class TestSqlaCandidateMeaningRepository:
         Base.metadata.create_all(engine)
         self._Session = sessionmaker(bind=engine)
         with self._Session() as s:
-            s.execute(
-                text(
-                    "INSERT INTO candidates (id, source_id, lemma, pos, "
-                    "zipf_frequency, is_sweet_spot, source_phrase, "
-                    "occurrences, status, is_phrasal_verb) "
-                    "VALUES (1, 1, 'x', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
-                ),
-                {"phrase": CTX},
-            )
+            insert_word(s, 1, lemma="x", phrase_text="ctx")
             s.commit()
 
     def test_get_returns_none_when_no_row(self) -> None:
@@ -81,15 +74,7 @@ class TestSqlaCandidateMeaningRepository:
     def test_get_all_by_source_returns_mapping(self) -> None:
         with self._Session() as s:
             # add another candidate
-            s.execute(
-                text(
-                    "INSERT INTO candidates (id, source_id, lemma, pos, "
-                    "zipf_frequency, is_sweet_spot, source_phrase, "
-                    "occurrences, status, is_phrasal_verb) "
-                    "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
-                ),
-                {"phrase": CTX},
-            )
+            insert_word(s, 2, lemma="y", phrase_text="ctx")
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
@@ -109,12 +94,7 @@ class TestSqlaCandidateMeaningRepository:
 
     def test_get_by_candidate_ids_returns_mapping(self) -> None:
         with self._Session() as s:
-            s.execute(text(
-                "INSERT INTO candidates (id, source_id, lemma, pos, "
-                "zipf_frequency, is_sweet_spot, source_phrase, "
-                "occurrences, status, is_phrasal_verb) "
-                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
-            ), {"phrase": CTX})
+            insert_word(s, 2, lemma="y", phrase_text="ctx")
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
             repo.upsert(CandidateMeaning(
@@ -138,12 +118,7 @@ class TestSqlaCandidateMeaningRepository:
 
     def test_get_candidate_ids_without_meaning_returns_only_missing(self) -> None:
         with self._Session() as s:
-            s.execute(text(
-                "INSERT INTO candidates (id, source_id, lemma, pos, "
-                "zipf_frequency, is_sweet_spot, source_phrase, "
-                "occurrences, status, is_phrasal_verb) "
-                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
-            ), {"phrase": CTX})
+            insert_word(s, 2, lemma="y", phrase_text="ctx")
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
             # candidate 1 has meaning, candidate 2 does not
@@ -158,12 +133,7 @@ class TestSqlaCandidateMeaningRepository:
 
     def test_count_candidate_ids_without_meaning(self) -> None:
         with self._Session() as s:
-            s.execute(text(
-                "INSERT INTO candidates (id, source_id, lemma, pos, "
-                "zipf_frequency, is_sweet_spot, source_phrase, "
-                "occurrences, status, is_phrasal_verb) "
-                "VALUES (2, 1, 'y', 'NOUN', 3.0, 0, :phrase, 1, 'known', 0)"
-            ), {"phrase": CTX})
+            insert_word(s, 2, lemma="y", phrase_text="ctx", status="known")
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
             # 2 candidates, neither has meaning, but only 1 active (PENDING)

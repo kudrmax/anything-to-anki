@@ -6,12 +6,11 @@ import pytest
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.models import dump_phrase
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from tests.phrase_support import phrase
+from tests.word_support import insert_word
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -78,15 +77,7 @@ def _insert_source(session: Session, source_id: int, title: str | None = None) -
 
 
 def _insert_candidate(session: Session, candidate_id: int, source_id: int) -> None:
-    session.execute(
-        text(
-            "INSERT INTO candidates (id, source_id, lemma, pos, "
-            "zipf_frequency, is_sweet_spot, source_phrase, "
-            "occurrences, status, is_phrasal_verb) "
-            "VALUES (:id, :sid, 'word', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
-        ),
-        {"id": candidate_id, "sid": source_id, "phrase": dump_phrase(phrase("a word", "word"))},
-    )
+    insert_word(session, candidate_id, source_id=source_id)
     session.flush()
 
 
@@ -106,7 +97,7 @@ def _insert_job(
 def _insert_meaning(session: Session, candidate_id: int) -> None:
     session.execute(
         text(
-            "INSERT INTO candidate_meanings (candidate_id, meaning, translation, synonyms) "
+            "INSERT INTO candidate_meanings (phrase_id, meaning, translation, synonyms) "
             "VALUES (:cid, 'm', 't', 's')"
         ),
         {"cid": candidate_id},

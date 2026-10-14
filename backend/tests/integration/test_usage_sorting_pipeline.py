@@ -11,7 +11,11 @@ from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.usage_distribution import UsageDistribution
-from backend.infrastructure.persistence.models import StoredCandidateModel
+from backend.infrastructure.persistence.models import (
+    PhraseModel,
+    StoredCandidateModel,
+    dump_phrase,
+)
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
 )
@@ -21,6 +25,10 @@ from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
+
+def _phrase_of(candidate: StoredCandidate) -> PhraseModel:
+    return PhraseModel(source_phrase=dump_phrase(candidate.source_phrase), origin="auto")
 
 
 @pytest.mark.integration
@@ -68,7 +76,7 @@ class TestUsageSortingPipeline:
         model = StoredCandidateModel.from_entity(candidate)
         assert model.usage_distribution_json is not None
 
-        restored = model.to_entity()
+        restored = model.to_entity(_phrase_of(candidate), candidate.status)
         assert restored.usage_distribution is not None
         assert restored.usage_distribution.groups == {"neutral": 0.6, "informal": 0.4}
 
@@ -88,5 +96,5 @@ class TestUsageSortingPipeline:
         model = StoredCandidateModel.from_entity(candidate)
         assert model.usage_distribution_json is None
 
-        restored = model.to_entity()
+        restored = model.to_entity(_phrase_of(candidate), candidate.status)
         assert restored.usage_distribution is None

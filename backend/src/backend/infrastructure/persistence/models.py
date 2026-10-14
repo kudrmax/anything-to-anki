@@ -19,6 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.domain.entities.ai_usage_record import AIUsageRecord
+from backend.domain.entities.anki_note import AnkiNote
 from backend.domain.entities.bootstrap_index_meta import BootstrapIndexMeta
 from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
 from backend.domain.entities.candidate_cloze import CandidateCloze
@@ -37,7 +38,6 @@ from backend.domain.entities.topic_target import TopicTarget
 from backend.domain.entities.unknown_word import UnknownWord
 from backend.domain.entities.word_decision import WordDecision
 from backend.domain.value_objects.ai_feature import AIFeature
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
@@ -63,8 +63,8 @@ from backend.infrastructure.persistence.utc_datetime import UTCDateTime
 if TYPE_CHECKING:
     from sqlalchemy import ColumnElement
 
-    from backend.domain.entities.anki_note import AnkiNote
     from backend.domain.entities.job import Job
+    from backend.domain.value_objects.candidate_status import CandidateStatus
 
 
 def dump_position(position: DocumentPosition | None) -> str | None:
@@ -606,8 +606,6 @@ class AnkiNoteModel(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     def to_entity(self) -> AnkiNote:
-        from backend.domain.entities.anki_note import AnkiNote
-
         return AnkiNote(
             note_id=self.note_id,
             lemma=self.lemma,
@@ -916,11 +914,12 @@ class CandidatePronunciationModel(Base):
 
     @classmethod
     def is_generated(cls) -> ColumnElement[bool]:
-        """The recordings were looked for; a row holding only the IPA was not."""
+        """The recordings were looked for: any row but one holding only the IPA."""
         return or_(
             cls.generated_at.is_not(None),
             cls.us_audio_path.is_not(None),
             cls.uk_audio_path.is_not(None),
+            cls.ipa.is_(None),
         )
 
     def to_entity(self) -> CandidatePronunciation:

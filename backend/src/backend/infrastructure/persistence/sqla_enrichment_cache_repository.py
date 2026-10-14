@@ -13,9 +13,11 @@ from backend.infrastructure.persistence.models import (
     CandidatePronunciationModel,
     CandidateTTSModel,
     EnrichmentCacheModel,
+    PhraseModel,
     StoredCandidateModel,
     load_phrase,
 )
+from backend.infrastructure.persistence.primary_phrase import PrimaryPhrases, primary_phrase_id
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -23,11 +25,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# TRANSITIONAL(words-phrases): removed in Task 10
 class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
-    """SQLAlchemy implementation of EnrichmentCacheRepository."""
+    """SQLAlchemy implementation of EnrichmentCacheRepository.
+
+    A word's results are those of its primary phrase; the IPA is the word's.
+    """
 
     def __init__(self, session: Session) -> None:
         self._session = session
+        self._primary = PrimaryPhrases(session)
 
     def save_from_source(self, source_id: int) -> None:
         stmt = (
@@ -35,13 +42,13 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
                 StoredCandidateModel.source_id,
                 StoredCandidateModel.lemma,
                 StoredCandidateModel.pos,
-                StoredCandidateModel.source_phrase,
+                PhraseModel.source_phrase,
                 # meaning
                 CandidateMeaningModel.meaning,
                 CandidateMeaningModel.translation,
                 CandidateMeaningModel.synonyms,
                 CandidateMeaningModel.examples,
-                CandidateMeaningModel.ipa,
+                CandidatePronunciationModel.ipa,
                 CandidateMeaningModel.generated_at.label("meaning_generated_at"),
                 # media
                 CandidateMediaModel.screenshot_path,
@@ -59,22 +66,15 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
                 # meaning image
                 CandidateMeaningImageModel.image_path.label("meaning_image_path"),
             )
-            .outerjoin(
-                CandidateMeaningModel,
-                CandidateMeaningModel.candidate_id == StoredCandidateModel.id,
-            )
-            .outerjoin(
-                CandidateMediaModel,
-                CandidateMediaModel.candidate_id == StoredCandidateModel.id,
-            )
+            .select_from(StoredCandidateModel)
+            .join(PhraseModel, PhraseModel.id == primary_phrase_id(StoredCandidateModel.id))
+            .outerjoin(CandidateMeaningModel, CandidateMeaningModel.phrase_id == PhraseModel.id)
+            .outerjoin(CandidateMediaModel, CandidateMediaModel.phrase_id == PhraseModel.id)
             .outerjoin(
                 CandidatePronunciationModel,
                 CandidatePronunciationModel.candidate_id == StoredCandidateModel.id,
             )
-            .outerjoin(
-                CandidateTTSModel,
-                CandidateTTSModel.candidate_id == StoredCandidateModel.id,
-            )
+            .outerjoin(CandidateTTSModel, CandidateTTSModel.phrase_id == PhraseModel.id)
             .outerjoin(
                 CandidateMeaningImageModel,
                 CandidateMeaningImageModel.candidate_id == StoredCandidateModel.id,
@@ -120,32 +120,34 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
                 select(EnrichmentCacheModel).where(EnrichmentCacheModel.source_id == source_id)
             )
         }
+        words = list(self._session.scalars(
+            select(StoredCandidateModel).where(StoredCandidateModel.source_id == source_id)
+        ))
+        primaries = self._primary.models([word.id for word in words])
         rows = [
-            (candidate.id, cache)
-            for candidate in self._session.scalars(
-                select(StoredCandidateModel).where(StoredCandidateModel.source_id == source_id)
-            )
-            if (
+            (word.id, primaries[word.id].id, cache)
+            for word in words
+            if word.id in primaries
+            and (
                 cache := cached.get((
-                    candidate.lemma, candidate.pos, _spaced(_phrase_text(candidate.source_phrase)),
+                    word.lemma, word.pos, _spaced(_phrase_text(primaries[word.id].source_phrase)),
                 ))
             )
             is not None
         ]
 
         restored = 0
-        for cid, cache in rows:
+        for cid, phrase_id, cache in rows:
             any_restored = False
 
             if cache.meaning is not None:
                 self._session.merge(
                     CandidateMeaningModel(
-                        candidate_id=cid,
+                        phrase_id=phrase_id,
                         meaning=cache.meaning,
                         translation=cache.translation,
                         synonyms=cache.synonyms,
                         examples=cache.examples,
-                        ipa=cache.ipa,
                         generated_at=cache.meaning_generated_at,
                     )
                 )
@@ -154,7 +156,7 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
             if cache.screenshot_path is not None or cache.audio_path is not None:
                 self._session.merge(
                     CandidateMediaModel(
-                        candidate_id=cid,
+                        phrase_id=phrase_id,
                         screenshot_path=cache.screenshot_path,
                         audio_path=cache.audio_path,
                         start_ms=cache.start_ms,
@@ -164,12 +166,17 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
                 )
                 any_restored = True
 
-            if cache.us_audio_path is not None or cache.uk_audio_path is not None:
+            if (
+                cache.us_audio_path is not None
+                or cache.uk_audio_path is not None
+                or cache.ipa is not None
+            ):
                 self._session.merge(
                     CandidatePronunciationModel(
                         candidate_id=cid,
                         us_audio_path=cache.us_audio_path,
                         uk_audio_path=cache.uk_audio_path,
+                        ipa=cache.ipa,
                         generated_at=cache.pronunciation_generated_at,
                     )
                 )
@@ -178,7 +185,7 @@ class SqlaEnrichmentCacheRepository(EnrichmentCacheRepository):
             if cache.tts_audio_path is not None:
                 self._session.merge(
                     CandidateTTSModel(
-                        candidate_id=cid,
+                        phrase_id=phrase_id,
                         audio_path=cache.tts_audio_path,
                         generated_at=cache.tts_generated_at,
                     )

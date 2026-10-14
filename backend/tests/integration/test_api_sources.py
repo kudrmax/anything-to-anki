@@ -11,6 +11,7 @@ from backend.infrastructure.api.dependencies import get_db_session, get_session_
 from backend.infrastructure.api.routes import sources as sources_routes
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import (
+    PhraseModel,
     SourceModel,
     StoredCandidateModel,
     dump_phrase,
@@ -222,12 +223,18 @@ class TestSourcesAPI:
             pos="VERB",
             zipf_frequency=3.8,
             is_sweet_spot=True,
-            source_phrase=dump_phrase(phrase("I'm gonna do it", "gonna")),
             occurrences=1,
             status="pending",
             usage_distribution_json=json.dumps({"informal": 0.8, "neutral": 0.2}),
         )
         db_session.add(candidate)
+        db_session.flush()
+        db_session.add(PhraseModel(
+            candidate_id=candidate.id,
+            source_phrase=dump_phrase(phrase("I'm gonna do it", "gonna")),
+            origin="auto",
+            shown_by="selection",
+        ))
         db_session.commit()
 
         response = client.get(f"/sources/{source.id}")

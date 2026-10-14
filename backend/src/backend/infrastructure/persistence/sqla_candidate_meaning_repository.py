@@ -128,7 +128,10 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
         self, stmt: Select[T], source_id: int | None, only_active: bool,
     ) -> Select[T]:
         conditions: list[ColumnElement[bool]] = [
-            or_(CandidateMeaningModel.phrase_id.is_(None), CandidateMeaningModel.meaning.is_(None)),
+            or_(
+                CandidateMeaningModel.phrase_id.is_(None),
+                CandidateMeaningModel.meaning.is_(None),
+            ),
         ]
         if source_id is not None:
             conditions.append(StoredCandidateModel.source_id == source_id)

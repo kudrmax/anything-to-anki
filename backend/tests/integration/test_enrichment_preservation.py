@@ -317,9 +317,9 @@ def test_no_restore_when_fragment_changed(db_session: Session) -> None:
 
     cache_repo.save_from_source(source_id)
 
-    # Add a brand-new candidate with a different fragment (never existed before).
-    # We do NOT delete old candidates — we just add a new one with a changed fragment
-    # and verify restore_to_candidates does not match it.
+    # Reprocess cuts the word's phrase anew, and the fragment changed: restore_to_candidates
+    # must not match it.
+    candidate_repo.delete_by_source(source_id)
     new_candidates = candidate_repo.create_batch(
         [
             StoredCandidate(
@@ -549,7 +549,10 @@ def test_restore_matches_a_phrase_that_differs_only_in_whitespace(db_session: Se
     candidate_repo = SqlaCandidateRepository(db_session)
     meaning_repo = SqlaCandidateMeaningRepository(db_session)
     db_session.execute(
-        text("UPDATE candidates SET source_phrase = :phrase WHERE source_id = :id"),
+        text(
+            "UPDATE phrases SET source_phrase = :phrase"
+            " WHERE candidate_id IN (SELECT id FROM candidates WHERE source_id = :id)"
+        ),
         {
             "phrase": dump_phrase(phrase("She tends to\nprocrastinate  when facing deadlines.")),
             "id": source_id,

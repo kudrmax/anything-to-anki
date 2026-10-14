@@ -7,7 +7,6 @@ from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.models import dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -15,10 +14,11 @@ from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCan
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
 )
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from tests.phrase_support import phrase
+from tests.word_support import insert_word
 
 _NOW = datetime(2026, 10, 4, tzinfo=UTC)
 SOURCE_TEXT = "The air was stale"
@@ -31,16 +31,7 @@ class TestCandidatePolishPersistence:
         Base.metadata.create_all(engine)
         self._Session = sessionmaker(bind=engine)
         with self._Session() as s:
-            s.execute(
-                text(
-                    "INSERT INTO candidates (id, source_id, lemma, pos, "
-                    "zipf_frequency, is_sweet_spot, source_phrase, "
-                    "occurrences, status, is_phrasal_verb) "
-                    "VALUES (1, 1, 'stale', 'ADJ', 3.0, 0, :phrase, "
-                    "1, 'pending', 0)"
-                ),
-                {"phrase": dump_phrase(phrase(SOURCE_TEXT, "stale"))},
-            )
+            insert_word(s, 1, lemma="stale", pos="ADJ", phrase_text=SOURCE_TEXT)
             s.commit()
 
     def test_new_candidate_is_not_polished(self) -> None:

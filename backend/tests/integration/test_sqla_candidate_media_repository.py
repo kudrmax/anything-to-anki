@@ -9,10 +9,11 @@ from backend.infrastructure.persistence.models import dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from tests.phrase_support import phrase
+from tests.word_support import insert_word
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -21,12 +22,7 @@ CTX = dump_phrase(phrase("ctx"))
 
 
 def _insert_candidate(session: Session, cid: int) -> None:
-    session.execute(text(
-        "INSERT INTO candidates (id, source_id, lemma, pos, "
-        "zipf_frequency, is_sweet_spot, source_phrase, "
-        "occurrences, status, is_phrasal_verb) "
-        f"VALUES ({cid}, 1, 'x', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
-    ), {"phrase": CTX})
+    insert_word(session, cid, phrase_text="ctx")
 
 
 @pytest.mark.integration
@@ -174,12 +170,7 @@ class TestSqlaCandidateMediaRepository:
     def test_get_eligible_candidate_ids_excludes_non_active_status(self) -> None:
         with self._Session() as s:
             # Insert candidate with status='known' (not active)
-            s.execute(text(
-                "INSERT INTO candidates (id, source_id, lemma, pos, "
-                "zipf_frequency, is_sweet_spot, source_phrase, "
-                "occurrences, status, is_phrasal_verb) "
-                "VALUES (4, 1, 'z', 'NOUN', 3.0, 0, :phrase, 1, 'known', 0)"
-            ), {"phrase": CTX})
+            insert_word(s, 4, lemma="z", status="known", phrase_text="ctx")
             s.commit()
             repo = SqlaCandidateMediaRepository(s)
             # candidate 4 has timecodes and no screenshot, but status=known -> NOT eligible

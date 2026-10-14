@@ -17,12 +17,14 @@ from backend.infrastructure.persistence.models import PhraseModel, StoredCandida
 
 if TYPE_CHECKING:
     from sqlalchemy import ColumnElement, ScalarSelect
-    from sqlalchemy.orm import Session
+    from sqlalchemy.orm import InstrumentedAttribute, Session
 
 ACTIVE_STATUSES = (CandidateStatus.PENDING.value, CandidateStatus.LEARN.value)
 
 
-def primary_phrase_id(word_id: ColumnElement[int]) -> ScalarSelect[int]:
+def primary_phrase_id(
+    word_id: ColumnElement[int] | InstrumentedAttribute[int],
+) -> ScalarSelect[int]:
     """The id of the primary phrase of the word, as a correlated subquery."""
     phrase = aliased(PhraseModel)
     shown_and_open = case(

@@ -39,7 +39,9 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 
 ACTIVE_JOB_STATUSES = (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
-RESULT_MODELS = (CandidateMeaningModel, CandidateMediaModel, CandidateTTSModel, CandidateClozeModel)
+RESULT_MODELS = (
+    CandidateMeaningModel, CandidateMediaModel, CandidateTTSModel, CandidateClozeModel,
+)
 
 
 @dataclass(frozen=True)
@@ -114,7 +116,9 @@ class PhraseWords:
         self._session = session
 
     def rewrite(self, phrase: PhraseModel) -> None:
-        self._session.execute(delete(PhraseWordModel).where(PhraseWordModel.phrase_id == phrase.id))
+        self._session.execute(
+            delete(PhraseWordModel).where(PhraseWordModel.phrase_id == phrase.id)
+        )
         lemmas = sorted({word[_WORD_LEMMA] for word in json.loads(phrase.shown_text)["words"]})
         if lemmas:
             self._session.execute(
@@ -281,7 +285,9 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 self._has_active_job().label("has_active_job"),
             ).where(*where).order_by(PhraseModel.id)
         ).all()
-        results = self._results.by_phrase({phrase.id: phrase.candidate_id for phrase, _, _ in rows})
+        results = self._results.by_phrase(
+            {phrase.id: phrase.candidate_id for phrase, _, _ in rows}
+        )
         occurrences: list[Occurrence] = []
         for phrase, exported, active in rows:
             made = results[phrase.id]

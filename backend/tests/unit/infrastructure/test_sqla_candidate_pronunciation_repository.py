@@ -10,7 +10,6 @@ from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import (
     CandidatePronunciationModel,
     StoredCandidateModel,
-    dump_phrase,
 )
 from backend.infrastructure.persistence.sqla_candidate_pronunciation_repository import (
     SqlaCandidatePronunciationRepository,
@@ -18,7 +17,7 @@ from backend.infrastructure.persistence.sqla_candidate_pronunciation_repository 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from tests.phrase_support import phrase
+from tests.word_support import insert_word
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -37,17 +36,10 @@ def session() -> Generator[Session, None, None]:
 
 
 def _insert_candidate(session: Session, candidate_id: int, source_id: int = 1) -> None:
-    session.add(StoredCandidateModel(
-        id=candidate_id,
-        source_id=source_id,
-        lemma="test",
-        pos="NOUN",
-        zipf_frequency=4.0,
-        is_sweet_spot=True,
-        source_phrase=dump_phrase(phrase("a test", "test")),
-        occurrences=1,
-        status=CandidateStatus.LEARN.value,
-    ))
+    insert_word(
+        session, candidate_id, source_id=source_id, status=CandidateStatus.LEARN.value,
+        zipf_frequency=4.0, is_sweet_spot=True,
+    )
     session.flush()
 
 
@@ -182,3 +174,29 @@ class TestGetEligibleCandidateIds:
         result = repo.get_eligible_candidate_ids(source_id=1)
 
         assert result == []
+
+
+class TestRowHoldingOnlyTheIpa:
+    def test_is_not_a_pronunciation_and_stays_eligible(self, session: Session) -> None:
+        _insert_candidate(session, 1)
+        session.add(CandidatePronunciationModel(candidate_id=1, ipa="/ɡleə/"))
+        session.flush()
+
+        repo = SqlaCandidatePronunciationRepository(session)
+
+        assert repo.get_by_candidate_id(1) is None
+        assert repo.get_eligible_candidate_ids(source_id=1) == [1]
+
+    def test_keeps_the_ipa_when_recordings_arrive(self, session: Session) -> None:
+        _insert_candidate(session, 1)
+        session.add(CandidatePronunciationModel(candidate_id=1, ipa="/ɡleə/"))
+        session.flush()
+        repo = SqlaCandidatePronunciationRepository(session)
+
+        repo.upsert(CandidatePronunciation(
+            candidate_id=1, us_audio_path="/us.mp3", uk_audio_path=None, generated_at=None,
+        ))
+
+        row = session.get(CandidatePronunciationModel, 1)
+        assert row is not None
+        assert (row.ipa, row.us_audio_path) == ("/ɡleə/", "/us.mp3")

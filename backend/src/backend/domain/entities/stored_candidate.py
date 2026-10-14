@@ -52,30 +52,37 @@ class StoredCandidate:
     pos: str
     cefr_level: str | None
     zipf_frequency: float
+    # TRANSITIONAL(words-phrases): removed in Task 10
     source_phrase: Phrase
     occurrences: int
     status: CandidateStatus
     is_phrasal_verb: bool = False
+    # TRANSITIONAL(words-phrases): removed in Task 10
     meaning: CandidateMeaning | None = None
     media: CandidateMedia | None = None
     pronunciation: CandidatePronunciation | None = None
+    # TRANSITIONAL(words-phrases): removed in Task 10
     tts: CandidateTTS | None = None
+    # TRANSITIONAL(words-phrases): removed in Task 10
     cloze: CandidateCloze | None = None
     meaning_image: CandidateMeaningImage | None = None
     id: int | None = None
     cefr_breakdown: CEFRBreakdown | None = None
     usage_distribution: UsageDistribution | None = None
     origin: PhraseOrigin | None = None
+    # TRANSITIONAL(words-phrases): removed in Task 10
     polished_phrase: Phrase | None = None
     polish_reverted: bool = False
     phrase_position: DocumentPosition | None = None
 
+    # TRANSITIONAL(words-phrases): removed in Task 10
     @property
     def is_polished(self) -> bool:
         """The phrase was rewritten. A phrase AI left as is does not count."""
         polished = self.polished_phrase
         return polished is not None and polished.text != self.source_phrase.text
 
+    # TRANSITIONAL(words-phrases): removed in Task 10
     @property
     def phrase(self) -> Phrase:
         """The phrase the card shows, speaks and exports."""
