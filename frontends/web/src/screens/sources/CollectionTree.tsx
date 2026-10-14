@@ -168,7 +168,7 @@ export function CollectionTree(props: CollectionTreeProps) {
                   ><Icon as={collapsed ? ChevronRight : ChevronDown} size="s" /></button>
                 : <span className={css.twisty} />}
               <span className={css.icon}><Icon as={selected ? FolderOpen : Folder} size="s" /></span>
-              <span className={css.name}>{node.name}</span>
+              <span className={css.name} title={node.name}>{node.name}</span>
               <span className={css.trail} onClick={stop} onDoubleClick={stop}>
                 <span className={css.count}>{node.counts.total}</span>
                 <span className={css.actions}>

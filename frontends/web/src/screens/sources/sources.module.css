@@ -34,11 +34,11 @@
 .scopeHeader { display: flex; align-items: center; justify-content: space-between; gap: var(--s4) var(--gap); margin-bottom: var(--s6); }
 .scopeLead { flex: 1 1 var(--header-lead-min); min-width: 0; display: flex; flex-direction: column; gap: var(--s2); }
 .scopeTitle { display: flex; align-items: center; gap: var(--s2); min-width: 0; height: var(--h); font: var(--fw-b) var(--fs-h1)/var(--lh-tight) var(--ui); letter-spacing: var(--ls-tight); color: var(--tx); white-space: nowrap; }
-.scopeParent { flex: 0 1 auto; min-width: 0; max-width: var(--scope-crumb-max); overflow: hidden; text-overflow: ellipsis; font: inherit; font-weight: var(--fw); color: var(--tx3); border-radius: var(--s2); transition: color var(--t); }
+.scopeParent { flex: 0 var(--scope-crumb-shrink) auto; min-width: var(--s7); max-width: var(--scope-crumb-max); overflow: hidden; text-overflow: ellipsis; font: inherit; font-weight: var(--fw); color: var(--tx3); border-radius: var(--s2); transition: color var(--t); }
 .scopeParent:hover { color: var(--tx); }
 .scopeGap { flex: none; font-weight: var(--fw); color: var(--tx3); cursor: default; }
 .scopeSep { display: grid; place-items: center; flex: none; color: var(--tx3); }
-.scopeName { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.scopeName { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .scopeProgress { font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); }
 .scopeSlot { width: var(--h); height: var(--h); flex: none; }
 .scopeActions { display: flex; align-items: center; gap: var(--gap); flex: none; }
