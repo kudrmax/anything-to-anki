@@ -2,7 +2,9 @@
 
 ## Продукт
 
-**AnythingToAnki** — локальный инструмент для изучения английского из потребляемого контента: источник (текст/субтитры/видео/lyrics) → извлечение текста → сегментация на фразы → отбор target'ов → AI-генерация → карточки Anki через AnkiConnect. На сервер никогда не поднимается.
+**Цель:** учить английский на том, что ты и так смотришь, слушаешь и читаешь. Даёшь источник: фильм, видео, песню, статью. Приложение находит в нём новые для тебя слова, фразовые глаголы и коллокации и делает по каждому готовую карточку: фраза из этого же источника, где всё остальное тебе уже знакомо. Карточки идут списком, сверху самые полезные для изучения. Ты размечаешь их: «учу» или «знаю». Карточки «учу» уходят в Anki, а слова «знаю» больше не предлагаются.
+
+Локальный инструмент: источник (текст/субтитры/видео/lyrics) → извлечение текста → сегментация на фразы → отбор target'ов → AI-генерация → разметка → карточки Anki через AnkiConnect. На сервер никогда не поднимается.
 
 ### Продуктовое видение
 
@@ -14,7 +16,7 @@
 
 **Pipeline:**
 ```
-Источник ─► Извлечение текста ─► Сегментация на фразы ─► Отбор target'ов ─► Карточки
+Источник ─► Извлечение текста ─► Сегментация на фразы ─► Отбор target'ов ─► Генерация карточек ─► Разметка ─► Anki
 ```
 
 Сегментация — через синтаксический анализ зависимостей (spaCy), не простой split по пунктуации. Отбор target'ов — по частотности (wordfreq), CEFR (cefrpy), словарю фразовых глаголов, с исключением известных пользователю слов. Среди фраз с одним и тем же target'ом приоритет тем, где всё остальное уже знакомо.
@@ -37,25 +39,9 @@
 
 ---
 
-## Навигация по справочникам
-
-Детальное описание того, как всё устроено, живёт в `docs/`. Читать по мере необходимости:
-
-- **[docs/project-map.md](docs/project-map.md)** — структура репозитория, что где лежит
-- **[docs/architecture.md](docs/architecture.md)** — Clean Architecture, слои, порты и адаптеры
-- **[docs/workers.md](docs/workers.md)** — SQLite job queue, воркер, TTS subprocess
-- **[docs/ai-integration.md](docs/ai-integration.md)** — ai_proxy, адаптеры, промпты
-- **[docs/running.md](docs/running.md)** — запуск dev/prod, `make`-команды, env vars
-- **[docs/migrations.md](docs/migrations.md)** — как добавить Alembic-миграцию
-- **[docs/testing.md](docs/testing.md)** — структура тестов и запуск
-- **[docs/verify-before-done.md](docs/verify-before-done.md)** — чек-лист перед завершением задачи
-- **[docs/card-reports.md](docs/card-reports.md)** — жалобы пользователя на карточки и как их разбирать
-
----
-
 ## Архитектура — главное правило
 
-Clean Architecture: `domain ◄── application ◄── infrastructure`, `frontends ─► application`. Подробности — `docs/architecture.md`.
+Clean Architecture: `domain ◄── application ◄── infrastructure`, `frontends ─► application`.
 
 > # КРИТИЧЕСКОЕ ПРАВИЛО: backend ↔ frontend — полная изоляция
 >
@@ -75,7 +61,7 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 ## Dev/Prod — главное правило
 
-Две независимые рабочие копии проекта: `anything-to-anki/` (dev) и `anything-to-anki-prod/` (prod). У каждой — своя `./data/`, свой `./.env`, свои процессы. В каждой копии команды одинаковые: `make up/down/logs`. Подробности — `docs/running.md`.
+Две независимые рабочие копии проекта: `anything-to-anki/` (dev) и `anything-to-anki-prod/` (prod). У каждой — своя `./data/`, свой `./.env`, свои процессы. В каждой копии команды одинаковые: `make up/down/logs`.
 
 > # КРИТИЧЕСКОЕ ПРАВИЛО: две рабочие копии, никакого общего состояния
 >
@@ -105,7 +91,7 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 - **Composition over inheritance.** Наследование только для реализации портов (ABC)
 - **Именованные константы** вместо магических чисел/строк (UPPER_SNAKE_CASE)
 - **Линтер — `ruff`,** конфиг единый в `pyproject.toml`. Правила и line-length — там, не здесь
-- **Перед завершением задачи** — прогнать чек-лист из `docs/verify-before-done.md`
+- **Перед завершением задачи** — если трогал Python: `make lint`, `make typecheck`, `make test`; если трогал `frontends/web`: `npm run lint` и `npm run build`. Всё должно быть зелёным
 
 ---
 
@@ -160,7 +146,7 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 **Данные:**
 - `plain dict` для структурированных данных (только `dataclass` / `pydantic`)
-- Inline `ALTER TABLE` / `CREATE TABLE` в Python-коде (только Alembic, см. `docs/migrations.md`)
+- Inline `ALTER TABLE` / `CREATE TABLE` в Python-коде (только Alembic)
 - `Any` без объяснения в комментарии
 
 **Процесс:**
@@ -175,6 +161,6 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 ## Подводные камни
 
-- **`claude-agent-sdk` → Keychain:** SDK аутентифицируется через Keychain, работает только через `ai_proxy` на хосте (см. `docs/ai-integration.md`)
-- **Frontend build check** — `npm run build`, не `tsc --noEmit` (см. `docs/verify-before-done.md`)
+- **`claude-agent-sdk` → Keychain:** SDK аутентифицируется через Keychain, работает только через `ai_proxy` на хосте
+- **Frontend build check** — `npm run build`, не `tsc --noEmit`: именно его выполняет `make up`
 - **Миграции — только Alembic,** никаких inline `ALTER TABLE` или `execute(text(...))` для DDL
