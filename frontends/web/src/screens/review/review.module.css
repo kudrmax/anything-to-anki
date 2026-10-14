@@ -53,6 +53,8 @@
 .body { display: flex; flex-direction: column; flex: 1; min-height: 100%; }
 /* Отступы карточки отделяют её от строк списка; без списка строки скрыты, но в DOM остаются — :first-child не спасает. */
 .focus .queue > .card { flex: 1 1 auto; margin: 0; }
+/* Со списком окно прокручивается само: справка видна целиком, а не обрезается по высоте левой колонки. */
+.body:not(.focus) .cardRight { contain: none; overflow-y: visible; mask-image: none; }
 .queue { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .queue > .queueItem, .queue > .sectionToggle { display: var(--queue-row-display); }
 .queue > .card { order: var(--current-card-order); margin: var(--wide-lead) 0; scroll-margin-bottom: var(--dock-reserve); }
