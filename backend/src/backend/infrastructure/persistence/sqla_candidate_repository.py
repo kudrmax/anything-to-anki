@@ -13,11 +13,13 @@ from backend.domain.value_objects.phrase_origin_kind import (
     OccurrenceOrigin,
     ShownBy,
 )
+from backend.domain.value_objects.source_role import SourceRole
 from backend.infrastructure.persistence.models import (
     CandidateClozeModel,
     CandidateMeaningImageModel,
     CandidatePronunciationModel,
     PhraseModel,
+    SourceModel,
     StoredCandidateModel,
     load_phrase,
     load_position,
@@ -41,6 +43,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.phrase import Phrase
 
 DECIDED_STATUSES = (CandidateStatus.LEARN, CandidateStatus.KNOWN)
+COLLECTING_ROLES = (SourceRole.TOPIC.value, SourceRole.SAVED_PHRASES.value)
 
 
 class SqlaCandidateRepository(CandidateRepository):
@@ -69,7 +72,9 @@ class SqlaCandidateRepository(CandidateRepository):
                     word.status = CandidateStatus.PENDING.value
                 self._session.add(word)
                 self._session.flush()
-            origin = _origin_of(candidate, is_new_word=is_new_word)
+            origin = _origin_of(
+                candidate, is_new_word=is_new_word, collects=self._collects(candidate.source_id),
+            )
             decided = is_new_word and candidate.status in DECIDED_STATUSES
             self._occurrences.add(Occurrence(
                 candidate_id=word.id,
@@ -204,6 +209,11 @@ class SqlaCandidateRepository(CandidateRepository):
             )
         ).first()
 
+    def _collects(self, source_id: int) -> bool:
+        """A topic or the saved phrases: their phrases are collected, not found in a text."""
+        role = self._session.scalar(select(SourceModel.role).where(SourceModel.id == source_id))
+        return role in COLLECTING_ROLES
+
     def _primary_model(self, candidate_id: int) -> PhraseModel | None:
         return self._primary.models([candidate_id]).get(candidate_id)
 
@@ -262,10 +272,12 @@ class SqlaCandidateRepository(CandidateRepository):
 
 
 # TRANSITIONAL(words-phrases): removed in Task 10
-def _origin_of(candidate: StoredCandidate, *, is_new_word: bool) -> OccurrenceOrigin:
-    """A collected phrase (topic), an example (no place in the text), the analyzer's phrase
-    of a new word, or a phrase the user added to a word that already has one."""
-    if candidate.origin is not None:
+def _origin_of(
+    candidate: StoredCandidate, *, is_new_word: bool, collects: bool,
+) -> OccurrenceOrigin:
+    """A collected phrase (topic, saved phrases), an example (no place in the text), the
+    analyzer's phrase of a new word, or a phrase the user added to a word that has one."""
+    if collects or candidate.origin is not None:
         return OccurrenceOrigin.COLLECTED
     if candidate.phrase_position is None:
         return OccurrenceOrigin.EXAMPLE

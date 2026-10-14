@@ -17,7 +17,12 @@ from backend.domain.value_objects.phrase_origin_kind import (
     OccurrenceOrigin,
     ShownBy,
 )
-from backend.infrastructure.persistence.models import PhraseModel, StoredCandidateModel
+from backend.domain.value_objects.source_role import SourceRole
+from backend.infrastructure.persistence.models import (
+    PhraseModel,
+    SourceModel,
+    StoredCandidateModel,
+)
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
@@ -160,3 +165,19 @@ def test_phrase_edits_write_through_to_the_primary_phrase(
     read = repo.get_by_id(word.id)
     assert read is not None
     assert (read.source_phrase.text, read.polished_phrase) == ("glare again", None)
+
+
+@pytest.mark.parametrize("role", [SourceRole.TOPIC, SourceRole.SAVED_PHRASES])
+def test_a_phrase_of_a_topic_or_saved_phrases_is_collected(
+    db_session: Session, role: SourceRole,
+) -> None:
+    db_session.add(SourceModel(id=5, title="t", status="done", role=role.value))
+    db_session.flush()
+    repo = SqlaCandidateRepository(db_session)
+
+    word = repo.create_batch([_candidate(5, "glare", "he glare at me", position=None)])[0]
+
+    assert word.id is not None
+    assert [(p.origin, p.shown_by) for p in _phrases(db_session, word.id)] == [
+        (OccurrenceOrigin.COLLECTED.value, ShownBy.USER.value),
+    ]
