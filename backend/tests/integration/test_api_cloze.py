@@ -47,7 +47,9 @@ def client() -> Generator[TestClient, None, None]:
         )
         for lemma in ["give up", "smoke"]
     ])
-    session.add(AnkiSyncedCardModel(candidate_id=SYNCED_CANDIDATE_ID, anki_note_id=777))
+    session.add(AnkiSyncedCardModel(
+        candidate_id=SYNCED_CANDIDATE_ID, phrase_id=SYNCED_CANDIDATE_ID, anki_note_id=777,
+    ))
     session.commit()
     session.close()
 
@@ -77,7 +79,7 @@ def _candidate_in_source(client: TestClient, candidate_id: int) -> dict[str, Any
 class TestSaveClozeAPI:
     def test_save_marks_learn_and_shows_cloze(self, client: TestClient) -> None:
         response = client.put(
-            f"/candidates/{CANDIDATE_ID}/cloze",
+            f"/phrases/{CANDIDATE_ID}/cloze",
             json={
                 "hidden_word_indices": [3, 2], "hint_kind": "first_letter", "phrase": GIVE_UP,
             },
@@ -97,46 +99,46 @@ class TestSaveClozeAPI:
     def test_synced_candidate_cannot_be_clozed(self, client: TestClient) -> None:
         assert _candidate_in_source(client, SYNCED_CANDIDATE_ID)["can_cloze"] is False
         response = client.put(
-            f"/candidates/{SYNCED_CANDIDATE_ID}/cloze",
+            f"/phrases/{SYNCED_CANDIDATE_ID}/cloze",
             json={"hidden_word_indices": [4], "hint_kind": "none", "phrase": GIVE_UP},
         )
         assert response.status_code == 409
 
     def test_empty_indices_are_rejected(self, client: TestClient) -> None:
         response = client.put(
-            f"/candidates/{CANDIDATE_ID}/cloze",
+            f"/phrases/{CANDIDATE_ID}/cloze",
             json={"hidden_word_indices": [], "hint_kind": "none", "phrase": GIVE_UP},
         )
         assert response.status_code == 422
 
     def test_unknown_hint_kind_is_rejected(self, client: TestClient) -> None:
         response = client.put(
-            f"/candidates/{CANDIDATE_ID}/cloze",
+            f"/phrases/{CANDIDATE_ID}/cloze",
             json={"hidden_word_indices": [2], "hint_kind": "bogus", "phrase": GIVE_UP},
         )
         assert response.status_code == 422
 
     def test_missing_candidate_is_404(self, client: TestClient) -> None:
         response = client.put(
-            "/candidates/999/cloze",
+            "/phrases/999/cloze",
             json={"hidden_word_indices": [0], "hint_kind": "none", "phrase": GIVE_UP},
         )
         assert response.status_code == 404
 
     def test_status_change_drops_cloze(self, client: TestClient) -> None:
         client.put(
-            f"/candidates/{CANDIDATE_ID}/cloze",
+            f"/phrases/{CANDIDATE_ID}/cloze",
             json={"hidden_word_indices": [2, 3], "hint_kind": "none", "phrase": GIVE_UP},
         )
-        response = client.patch(f"/candidates/{CANDIDATE_ID}", json={"status": "skip"})
+        response = client.put(f"/phrases/{CANDIDATE_ID}/decision", json={"status": "skip"})
         assert response.status_code == 200
-        response = client.patch(f"/candidates/{CANDIDATE_ID}", json={"status": "learn"})
+        response = client.put(f"/phrases/{CANDIDATE_ID}/decision", json={"status": "learn"})
         assert response.status_code == 200
         assert _candidate_in_source(client, CANDIDATE_ID)["cloze"] is None
 
     def test_markup_of_another_phrase_is_rejected(self, client: TestClient) -> None:
         response = client.put(
-            f"/candidates/{CANDIDATE_ID}/cloze",
+            f"/phrases/{CANDIDATE_ID}/cloze",
             json={"hidden_word_indices": [2], "hint_kind": "none", "phrase": "Old phrase."},
         )
         assert response.status_code == 409
@@ -144,7 +146,7 @@ class TestSaveClozeAPI:
 
     def test_missing_phrase_is_rejected(self, client: TestClient) -> None:
         response = client.put(
-            f"/candidates/{CANDIDATE_ID}/cloze",
+            f"/phrases/{CANDIDATE_ID}/cloze",
             json={"hidden_word_indices": [2], "hint_kind": "none"},
         )
         assert response.status_code == 422

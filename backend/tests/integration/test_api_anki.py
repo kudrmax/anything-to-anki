@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests.export_support import decision_of
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
@@ -189,6 +190,12 @@ class TestSyncToAnkiAPI:
     def test_sync_adds_cards_successfully(self, client: TestClient) -> None:
         post = _add_text(client, "burnout is exhausting")
         source_id = post.json()["source_ids"][0]
+        burnout = StoredCandidate(
+            id=1, source_id=source_id, lemma="burnout", pos="NOUN",
+            cefr_level="B2", zipf_frequency=3.5,
+            source_phrase=phrase("burnout is exhausting", "burnout"),
+            occurrences=1, status=CandidateStatus.LEARN,
+        )
 
         # Mark first candidate as learn via mock on candidate repo
         with (
@@ -216,14 +223,11 @@ class TestSyncToAnkiAPI:
             ),
             patch(
                 "backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository.get_by_source",
-                return_value=[
-                    StoredCandidate(
-                        id=1, source_id=source_id, lemma="burnout", pos="NOUN",
-                        cefr_level="B2", zipf_frequency=3.5,
-                        source_phrase=phrase("burnout is exhausting", "burnout"),
-                        occurrences=1, status=CandidateStatus.LEARN,
-                    )
-                ],
+                return_value=[burnout],
+            ),
+            patch(
+                "backend.infrastructure.persistence.sqla_occurrence_repository.SqlaOccurrenceRepository.decision_phrases",
+                return_value={1: decision_of(burnout)},
             ),
         ):
             response = client.post(f"/export/sync-to-anki/{source_id}?group=incomplete")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, field_validator
 
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.services.card_decision import DecisionAction
 
 
 class SelectionDTO(BaseModel):
@@ -62,8 +62,10 @@ class EditPhraseRequest(BaseModel):
     phrase: str
 
 
-class MarkCandidateRequest(BaseModel):
-    """Input for marking a candidate status."""
+class DecidePhraseRequest(BaseModel):
+    """A decision on a card: learn, known, skip, unskip, or pending to undo it.
+
+    Cloze is decided by saving the cloze markup."""
 
     status: str
 
@@ -71,7 +73,7 @@ class MarkCandidateRequest(BaseModel):
     @classmethod
     def validate_status(cls, v: str) -> str:
         normalized = v.strip().lower()
-        valid = {s.value for s in CandidateStatus}
+        valid = {a.value for a in DecisionAction if a is not DecisionAction.CLOZE}
         if normalized not in valid:
             msg = f"Invalid status: {v}. Must be one of: {', '.join(sorted(valid))}"
             raise ValueError(msg)

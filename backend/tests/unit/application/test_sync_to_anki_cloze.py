@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,10 +16,15 @@ from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.export_group import ExportGroup
+from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 
+from tests.export_support import DecisionsOf, decision_of
 from tests.phrase_support import phrase
 from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.vocabulary_support import user_vocabulary
+
+if TYPE_CHECKING:
+    from backend.domain.entities.occurrence import Occurrence
 
 pytestmark = pytest.mark.unit
 
@@ -82,6 +88,19 @@ def _burnout() -> StoredCandidate:
     return _candidate(2, "burnout", "Burnout is real.")
 
 
+class _Overridden:
+    """Decision phrases of the words a test overrides; the rest as the words show them."""
+
+    def __init__(self, phrases: dict[int, Occurrence], rest: DecisionsOf) -> None:
+        self._phrases = phrases
+        self._rest = rest
+
+    def decision_phrases(self, candidate_ids: list[int]) -> dict[int, Occurrence]:
+        found = self._rest.decision_phrases(candidate_ids)
+        found.update({i: p for i, p in self._phrases.items() if i in candidate_ids})
+        return found
+
+
 class TestSyncToAnkiCloze:
     def setup_method(self) -> None:
         self.candidate_repo = MagicMock()
@@ -96,8 +115,12 @@ class TestSyncToAnkiCloze:
         self.renderer = MagicMock()
         self.renderer.render_recognition.return_value = NoteTemplates("F", "B", "C")
         self.renderer.render_cloze.return_value = NoteTemplates("CF", "CB", "C")
+        self.overrides: dict[int, Occurrence] = {}
         self.use_case = SyncToAnkiUseCase(
-            export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
+            export_queue=ExportQueue(
+                self.candidate_repo, self.anki_sync_repo,
+                _Overridden(self.overrides, DecisionsOf(self.candidate_repo)),  # type: ignore[arg-type]
+            ),
             anki_connector=self.connector,
             settings_repo=self.settings_repo,
             anki_sync_repo=self.anki_sync_repo,
@@ -130,6 +153,28 @@ class TestSyncToAnkiCloze:
         assert note["Target"] == "give up"
         assert note["IPA"] == "/ɡɪv ʌp/"
         assert note["Translation"] == "бросить"
+
+    def test_the_note_type_follows_the_kind_of_the_decision(self) -> None:
+        learn_with_markup = _give_up(_cloze(1))
+        self.overrides[1] = replace(
+            decision_of(learn_with_markup), decision_kind=DecisionKind.LEARN,
+        )
+
+        self._sync(learn_with_markup)
+
+        [(model, note)] = self._added()
+        assert model == "AnythingToAnkiType"
+        assert "{{c1::" not in note["Sentence"]
+
+    def test_a_cloze_decided_without_markup_hides_the_target(self) -> None:
+        bare = _give_up(None)
+        self.overrides[1] = replace(decision_of(bare), decision_kind=DecisionKind.CLOZE)
+
+        self._sync(bare)
+
+        [(model, note)] = self._added()
+        assert model == "AnythingToAnkiCloze"
+        assert note["Sentence"] == "She finally {{c1::gave up}} smoking last year."
 
     def test_cloze_model_created_with_is_cloze(self) -> None:
         self._sync(_give_up(_cloze(1)))
@@ -168,7 +213,7 @@ class TestSyncToAnkiCloze:
         self.connector.find_notes_by_target.assert_called_once_with(
             "Default", "AnythingToAnkiCloze", "Target", "give up"
         )
-        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 555)
+        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 555, 1)
 
     def test_recognition_duplicate_is_found_by_its_model_and_target_field(self) -> None:
         self.connector.add_notes.return_value = [None]

@@ -10,16 +10,16 @@ from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.source_scope import ScopeKind
 
 if TYPE_CHECKING:
-    from backend.application.utils.export_queue import ExportBatch, ExportQueue
+    from backend.application.utils.export_queue import ExportBatch, ExportCard, ExportQueue
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
-    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.services.cloze_builder import ClozeBuilder
     from backend.domain.value_objects.source_scope import SourceScope
 
 
 class GetExportCardsUseCase:
-    """Builds card previews for 'learn' candidates not yet exported: ready and incomplete apart."""
+    """Builds card previews for 'learn' words not yet exported, each by the phrase of its
+    decision: ready and incomplete apart."""
 
     def __init__(
         self,
@@ -53,9 +53,9 @@ class GetExportCardsUseCase:
             exported_count=batch.exported_count,
         )
 
-    def _build_sections(self, candidates: list[StoredCandidate]) -> list[ExportSectionDTO]:
+    def _build_sections(self, cards: list[ExportCard]) -> list[ExportSectionDTO]:
         sections: list[ExportSectionDTO] = []
-        for src_id, group in groupby(candidates, key=lambda c: c.source_id):
+        for src_id, group in groupby(cards, key=lambda c: c.word.source_id):
             source = self._source_repo.get_by_id(src_id)
             sections.append(ExportSectionDTO(
                 source_id=src_id,
@@ -64,14 +64,16 @@ class GetExportCardsUseCase:
             ))
         return sections
 
-    def _build_card(self, candidate: StoredCandidate) -> CardPreviewDTO:
+    def _build_card(self, card: ExportCard) -> CardPreviewDTO:
+        candidate = card.word
+        decision = card.phrase
         screenshot_url: str | None = None
         audio_url: str | None = None
-        if candidate.media and candidate.media.screenshot_path:
-            filename = candidate.media.screenshot_path.rsplit("/", 1)[-1]
+        if decision.media and decision.media.screenshot_path:
+            filename = decision.media.screenshot_path.rsplit("/", 1)[-1]
             screenshot_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
-        if candidate.media and candidate.media.audio_path:
-            filename = candidate.media.audio_path.rsplit("/", 1)[-1]
+        if decision.media and decision.media.audio_path:
+            filename = decision.media.audio_path.rsplit("/", 1)[-1]
             audio_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
 
         pronunciation_us_url: str | None = None
@@ -84,23 +86,24 @@ class GetExportCardsUseCase:
             pronunciation_uk_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
 
         tts_audio_url: str | None = None
-        if candidate.tts and candidate.tts.audio_path:
-            filename = candidate.tts.audio_path.rsplit("/", 1)[-1]
+        if decision.tts and decision.tts.audio_path:
+            filename = decision.tts.audio_path.rsplit("/", 1)[-1]
             tts_audio_url = f"{self._media_base_url}/{candidate.source_id}/{filename}"
 
-        meaning_obj = candidate.meaning
+        meaning_obj = decision.meaning
         meaning_text = meaning_obj.meaning if meaning_obj else None
         ipa_text = meaning_obj.ipa if meaning_obj else None
         translation_text = meaning_obj.translation if meaning_obj else None
         synonyms_text = meaning_obj.synonyms if meaning_obj else None
         examples_text = meaning_obj.examples if meaning_obj else None
 
-        cloze = self._cloze_builder.effective(candidate)
+        phrase = decision.phrase
+        cloze = card.cloze_markup(self._cloze_builder)
         sentence = (
-            highlight_target(candidate.phrase)
+            highlight_target(phrase)
             if cloze is None
             else line_breaks(
-                self._cloze_builder.highlight_hidden(candidate.phrase, cloze.hidden_word_indices),
+                self._cloze_builder.highlight_hidden(phrase, cloze.hidden_word_indices),
             )
         )
 
@@ -109,7 +112,7 @@ class GetExportCardsUseCase:
             lemma=candidate.lemma,
             sentence=sentence,
             meaning=(
-                highlight_all_forms(meaning_text, candidate.lemma, candidate.phrase.target_text())
+                highlight_all_forms(meaning_text, candidate.lemma, phrase.target_text())
                 if meaning_text is not None
                 else None
             ),
@@ -122,6 +125,6 @@ class GetExportCardsUseCase:
             pronunciation_us_url=pronunciation_us_url,
             pronunciation_uk_url=pronunciation_uk_url,
             tts_audio_url=tts_audio_url,
-            missing=[part.value for part in missing_parts(candidate)],
+            missing=[part.value for part in missing_parts(decision)],
             is_cloze=cloze is not None,
         )

@@ -19,6 +19,7 @@ from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.export_support import DecisionsOf
 from tests.phrase_support import phrase
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.scope_fakes import empty_scope_resolver
@@ -92,7 +93,9 @@ class TestGetExportCardsExecute:
         self.source_repo = MagicMock()
         self.source_repo.get_by_id.return_value = _make_source_mock(1, "Test Source")
         self.use_case = GetExportCardsUseCase(
-            export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
+            export_queue=ExportQueue(
+                self.candidate_repo, self.anki_sync_repo, DecisionsOf(self.candidate_repo),
+            ),
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
@@ -266,7 +269,9 @@ class TestGetExportCardsExecute:
 
     def test_custom_media_base_url(self) -> None:
         use_case = GetExportCardsUseCase(
-            export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
+            export_queue=ExportQueue(
+                self.candidate_repo, self.anki_sync_repo, DecisionsOf(self.candidate_repo),
+            ),
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
@@ -374,7 +379,9 @@ class TestGetExportCardsAllScope:
         self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.source_repo = MagicMock()
         self.use_case = GetExportCardsUseCase(
-            export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
+            export_queue=ExportQueue(
+                self.candidate_repo, self.anki_sync_repo, DecisionsOf(self.candidate_repo),
+            ),
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
@@ -448,7 +455,9 @@ class TestGetExportCardsCollectionScope:
             Source(id=2, status=SourceStatus.DONE, title="Loose"),
         ]
         self.use_case = GetExportCardsUseCase(
-            export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
+            export_queue=ExportQueue(
+                self.candidate_repo, self.anki_sync_repo, DecisionsOf(self.candidate_repo),
+            ),
             source_repo=InMemorySourceRepository(sources),
             cloze_builder=ClozeBuilder(),
             scope_resolver=SourceScopeResolver(

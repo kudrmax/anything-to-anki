@@ -9,7 +9,7 @@ import css from './export.module.css'
 /** Backend отдаёт значение готовым HTML: определение, затем пояснения через <br>. */
 const PARAGRAPH_BREAK = /<br\s*\/?>/i
 
-const MISSING_LABEL: Record<MissingCardPart, string> = { meaning: 'No meaning', audio: 'No audio' }
+const MISSING_LABEL: Record<MissingCardPart, string> = { meaning: 'No meaning', audio: 'No audio', cloze: 'No cloze words' }
 
 interface ExportCardRowProps {
   card: CardPreview

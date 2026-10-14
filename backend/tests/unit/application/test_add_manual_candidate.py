@@ -25,6 +25,7 @@ from backend.application.dto.candidate_dtos import SelectionDTO
 from backend.application.use_cases.add_manual_candidate import (
     AddManualCandidateUseCase,
 )
+from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.token_data import TokenData
@@ -117,9 +118,15 @@ def _phrase_reader() -> MagicMock:
 
 
 def _saved(candidate_repo: MagicMock) -> StoredCandidate:
-    (saved,) = candidate_repo.create_batch.call_args[0][0]
-    assert isinstance(saved, StoredCandidate)
-    return saved
+    """The new word as the card shows it: the word stored, seen through its manual phrase."""
+    (word,) = candidate_repo.add_word.call_args[0]
+    (occurrence,) = candidate_repo.occurrences.add.call_args[0]
+    assert isinstance(word, StoredCandidate)
+    assert isinstance(occurrence, Occurrence)
+    return replace(
+        word, id=occurrence.candidate_id, source_phrase=occurrence.source_phrase,
+        phrase_position=occurrence.phrase_position,
+    )
 
 
 def _patch_classify_detailed(mock: MagicMock) -> MagicMock:
@@ -152,10 +159,12 @@ def _make_use_case(
 ) -> AddManualCandidateUseCase:
     classifier = cefr_classifier or MagicMock()
     _patch_classify_detailed(classifier)
+    repo = candidate_repo or MagicMock()
     return AddManualCandidateUseCase(
         source_repo=source_repo or MagicMock(),
         document_repo=_documents(document_text),
-        candidate_repo=candidate_repo or MagicMock(),
+        candidate_repo=repo,
+        occurrence_repo=repo.occurrences,
         text_analyzer=text_analyzer or MagicMock(),
         cefr_classifier=classifier,
         frequency_provider=frequency_provider or MagicMock(),
@@ -165,19 +174,15 @@ def _make_use_case(
     )
 
 
-def _stored(candidate: StoredCandidate, new_id: int = 99) -> StoredCandidate:
-    # Simulate repo assigning an id on save.
-    return replace(candidate, id=new_id)
+NEW_WORD_ID = 100
 
 
 def _mock_repo_save() -> MagicMock:
-    """Returns a candidate_repo mock whose create_batch echoes input with id set."""
+    """A candidate_repo mock storing one new word; `.occurrences` stores its phrase."""
     repo = MagicMock()
-
-    def _create(candidates: list[StoredCandidate]) -> list[StoredCandidate]:
-        return [_stored(c, new_id=100 + i) for i, c in enumerate(candidates)]
-
-    repo.create_batch.side_effect = _create
+    repo.occurrences.word_rows.return_value = []
+    repo.add_word.return_value = NEW_WORD_ID
+    repo.get_by_id.side_effect = lambda _word_id: _saved(repo)
     return repo
 
 
@@ -407,7 +412,7 @@ class TestSelection:
                 target_words=_picked("lorem ipsum", "dolor"),
                 selection=_select("lorem ipsum dolor", "lorem ipsum"),
             )
-        candidate_repo.create_batch.assert_not_called()
+        candidate_repo.add_word.assert_not_called()
 
     def test_phrase_and_target_are_placed_in_the_document(self) -> None:
         source_repo = MagicMock()

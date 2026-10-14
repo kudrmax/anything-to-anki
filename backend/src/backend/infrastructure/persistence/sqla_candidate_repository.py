@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.ports.candidate_repository import CandidateRepository
@@ -14,8 +14,8 @@ from backend.domain.value_objects.phrase_origin_kind import (
     ShownBy,
 )
 from backend.domain.value_objects.source_role import SourceRole
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
-    CandidateClozeModel,
     CandidateMeaningImageModel,
     CandidatePronunciationModel,
     PhraseModel,
@@ -39,7 +39,6 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.stored_candidate import StoredCandidate
-    from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.phrase_origin import PhraseOrigin
 
@@ -94,6 +93,21 @@ class SqlaCandidateRepository(CandidateRepository):
             created.append(self._view([word])[0])
         return created
 
+    def add_word(self, word: StoredCandidate) -> int:
+        model = StoredCandidateModel.from_entity(word)
+        model.status = WordStatus.PENDING.value
+        self._session.add(model)
+        self._session.flush()
+        return model.id
+
+    def set_word_status(self, candidate_id: int, status: WordStatus) -> None:
+        self._session.execute(
+            update(StoredCandidateModel)
+            .where(StoredCandidateModel.id == candidate_id)
+            .values(status=status.value)
+        )
+        self._session.flush()
+
     def get_by_source(self, source_id: int) -> list[StoredCandidate]:
         return self._read(StoredCandidateModel.source_id == source_id)
 
@@ -111,23 +125,6 @@ class SqlaCandidateRepository(CandidateRepository):
         self._session.flush()
 
     # TRANSITIONAL(words-phrases): removed in Task 10
-    def update_status(self, candidate_id: int, status: CandidateStatus) -> None:
-        """SKIP skips the primary phrase; LEARN and KNOWN make it the phrase of the decision."""
-        word = self._session.get(StoredCandidateModel, candidate_id)
-        primary = self._primary.id(candidate_id)
-        if word is None or primary is None:
-            return
-        if status in DECIDED_STATUSES:
-            word.status = status.value
-            self._occurrences.set_skipped(primary, False)
-            self._occurrences.set_decision(candidate_id, primary, self._decision_kind(primary))
-        else:
-            word.status = CandidateStatus.PENDING.value
-            self._occurrences.set_decision(candidate_id, None, None)
-            self._occurrences.set_skipped(primary, status is CandidateStatus.SKIP)
-        self._session.flush()
-
-    # TRANSITIONAL(words-phrases): removed in Task 10
     def count_by_status(self, status: CandidateStatus) -> int:
         stmt = (
             select(func.count(StoredCandidateModel.id))
@@ -139,14 +136,6 @@ class SqlaCandidateRepository(CandidateRepository):
     def count_all(self) -> int:
         result = self._session.query(func.count(StoredCandidateModel.id)).scalar()
         return result or 0
-
-    # TRANSITIONAL(words-phrases): removed in Task 10
-    def set_source_phrase(
-        self, candidate_id: int, phrase: Phrase, position: DocumentPosition,
-    ) -> None:
-        primary = self._primary_model(candidate_id)
-        if primary is not None:
-            self._occurrences.write_text(primary.id, phrase, position)
 
     # TRANSITIONAL(words-phrases): removed in Task 10
     def set_polished_phrase(self, candidate_id: int, phrase: Phrase | None) -> None:
@@ -226,10 +215,6 @@ class SqlaCandidateRepository(CandidateRepository):
 
     def _primary_model(self, candidate_id: int) -> PhraseModel | None:
         return self._primary.models([candidate_id]).get(candidate_id)
-
-    def _decision_kind(self, phrase_id: int) -> DecisionKind:
-        has_cloze = self._session.get(CandidateClozeModel, phrase_id) is not None
-        return DecisionKind.CLOZE if has_cloze else DecisionKind.LEARN
 
     def _read(
         self, *where: ColumnElement[bool], join_primary: bool = False,

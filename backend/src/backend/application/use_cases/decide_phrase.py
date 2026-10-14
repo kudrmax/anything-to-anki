@@ -1,0 +1,107 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from backend.domain.entities.word_decision import WordDecision
+from backend.domain.exceptions import PhraseNotFoundError
+from backend.domain.services.card_decision import decide, word_status_of
+from backend.domain.value_objects.word_status import WordStatus
+
+if TYPE_CHECKING:
+    from backend.application.utils.decided_elsewhere import DecidedElsewhere
+    from backend.application.utils.review_status_updater import ReviewStatusUpdater
+    from backend.application.utils.user_vocabulary import UserVocabulary
+    from backend.domain.entities.occurrence import Occurrence
+    from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.ports.candidate_cloze_repository import CandidateClozeRepository
+    from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.word_decision_repository import WordDecisionRepository
+    from backend.domain.services.card_decision import DecisionAction, DecisionOutcome
+
+DECIDED = frozenset({WordStatus.LEARN, WordStatus.KNOWN})
+
+
+class DecidePhraseUseCase:
+    """Learn, Cloze, Known, Skip, Unskip or undo on a card (a phrase of a word).
+
+    The rules are `card_decision.decide`. Besides the word and the phrase, a decision keeps
+    the known words in sync, remembers known/learn verdicts for calibration and refreshes
+    the review status.
+    """
+
+    def __init__(
+        self,
+        occurrence_repo: OccurrenceRepository,
+        candidate_repo: CandidateRepository,
+        vocabulary: UserVocabulary,
+        decision_repo: WordDecisionRepository,
+        review_status: ReviewStatusUpdater,
+        cloze_repo: CandidateClozeRepository,
+        decided_elsewhere: DecidedElsewhere,
+    ) -> None:
+        self._occurrences = occurrence_repo
+        self._candidates = candidate_repo
+        self._vocabulary = vocabulary
+        self._decision_repo = decision_repo
+        self._review_status = review_status
+        self._cloze_repo = cloze_repo
+        self._decided_elsewhere = decided_elsewhere
+
+    def execute(self, occurrence_id: int, action: DecisionAction) -> None:
+        occ = self._occurrences.get(occurrence_id)
+        if occ is None:
+            raise PhraseNotFoundError(occurrence_id)
+        word = self._candidates.get_by_id(occ.candidate_id)
+        if word is None:
+            raise PhraseNotFoundError(occurrence_id)
+        before = word_status_of(word)
+        elsewhere = (
+            self._decided_elsewhere.of(word.lemma) if before is WordStatus.PENDING else None
+        )
+        outcome = decide(occ, before, action, elsewhere)
+        self._write(occ, before, outcome)
+        self._follow(word, before, outcome.word_status)
+
+    def _write(self, occ: Occurrence, before: WordStatus, outcome: DecisionOutcome) -> None:
+        assert occ.id is not None
+        if outcome.word_status is not before:
+            self._candidates.set_word_status(occ.candidate_id, outcome.word_status)
+        if (outcome.is_decision, outcome.decision_kind) != (occ.is_decision, occ.decision_kind):
+            self._occurrences.set_decision(
+                occ.candidate_id, occ.id if outcome.is_decision else None, outcome.decision_kind,
+            )
+        if outcome.skipped != occ.skipped:
+            self._occurrences.set_skipped(occ.id, outcome.skipped)
+        if outcome.drop_cloze and occ.cloze is not None:
+            self._cloze_repo.delete_by_phrase_id(occ.id)
+
+    def _follow(self, word: StoredCandidate, before: WordStatus, after: WordStatus) -> None:
+        """The review status changes with any action; knowledge only with the word's status."""
+        if after is before:
+            self._review_status.refresh(word.source_id)
+            return
+        if after is WordStatus.KNOWN:
+            self._vocabulary.mark_known(word.lemma, word.pos)
+        elif before is WordStatus.KNOWN:
+            self._vocabulary.forget_known(word.lemma, word.pos)
+        self._remember_decision(word, before, after)
+        if WordStatus.KNOWN in (before, after):
+            self._review_status.refresh_all()
+        else:
+            self._review_status.refresh(word.source_id)
+
+    def _remember_decision(
+        self, word: StoredCandidate, before: WordStatus, after: WordStatus,
+    ) -> None:
+        """Only single words: a phrase's frequency is not comparable with a word's."""
+        if word.is_phrasal_verb or " " in word.lemma:
+            return
+        if after in DECIDED:
+            self._decision_repo.record(WordDecision(
+                lemma=word.lemma,
+                zipf_frequency=word.zipf_frequency,
+                is_known=after is WordStatus.KNOWN,
+            ))
+        elif before in DECIDED:
+            self._decision_repo.forget(word.lemma)

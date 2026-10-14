@@ -119,12 +119,12 @@ export const api = {
   previewCloze: (id: number, draft: Partial<ClozeDraft>, signal?: AbortSignal) =>
     req<ClozePreview>(`/candidates/${id}/cloze/preview`, { method: 'POST', body: JSON.stringify(draft), signal }),
 
-  saveCloze: (id: number, request: SaveClozeRequest) =>
-    req<StoredCandidate>(`/candidates/${id}/cloze`, { method: 'PUT', body: JSON.stringify(request) }),
+  saveCloze: (phraseId: number, request: SaveClozeRequest) =>
+    req<StoredCandidate>(`/phrases/${phraseId}/cloze`, { method: 'PUT', body: JSON.stringify(request) }),
 
-  markCandidate: (id: number, status: CandidateStatus) =>
-    req<{ id: number; status: string }>(`/candidates/${id}`, {
-      method: 'PATCH',
+  decidePhrase: (phraseId: number, status: CandidateStatus) =>
+    req<{ id: number; status: string }>(`/phrases/${phraseId}/decision`, {
+      method: 'PUT',
       body: JSON.stringify({ status }),
     }),
 
@@ -243,8 +243,8 @@ export const api = {
   fixNoteType: (kind: NoteTypeKind) =>
     req<NoteTypeCheck>(`/anki/note-types/${kind}/fix`, { method: 'POST' }),
 
-  setPhraseBoundary: (candidateId: number, selection: DocumentSelection) =>
-    req<{ id: number; context_fragment: string }>(`/candidates/${candidateId}/phrase-boundary`, {
+  setPhraseBoundary: (phraseId: number, selection: DocumentSelection) =>
+    req<{ id: number; context_fragment: string }>(`/phrases/${phraseId}/phrase-boundary`, {
       method: 'PUT',
       body: JSON.stringify({ selection }),
     }),
@@ -257,8 +257,8 @@ export const api = {
 
   getReportReasons: () => req<ReportReason[]>('/api/card-reports/reasons'),
 
-  replaceWithExample: (candidateId: number, exampleText: string) =>
-    req<StoredCandidate>(`/candidates/${candidateId}/replace-with-example`, {
+  replaceWithExample: (phraseId: number, exampleText: string) =>
+    req<StoredCandidate>(`/phrases/${phraseId}/replace-with-example`, {
       method: 'POST',
       body: JSON.stringify({ example_text: exampleText }),
     }),

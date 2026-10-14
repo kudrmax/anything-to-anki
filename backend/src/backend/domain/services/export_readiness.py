@@ -4,26 +4,30 @@ from typing import TYPE_CHECKING
 
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.missing_card_part import MissingCardPart
+from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 
 if TYPE_CHECKING:
-    from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.entities.occurrence import Occurrence
 
 
-def missing_parts(candidate: StoredCandidate) -> list[MissingCardPart]:
-    """Required parts the card still lacks: a meaning and the phrase spoken."""
+def missing_parts(decision: Occurrence) -> list[MissingCardPart]:
+    """Required parts the card of a decision phrase still lacks: a meaning, the phrase
+    spoken, and for a cloze the words it hides."""
     missing: list[MissingCardPart] = []
-    if candidate.meaning is None or not candidate.meaning.meaning:
+    if decision.meaning is None or not decision.meaning.meaning:
         missing.append(MissingCardPart.MEANING)
-    if not _has_phrase_audio(candidate):
+    if not _has_phrase_audio(decision):
         missing.append(MissingCardPart.AUDIO)
+    if decision.decision_kind is DecisionKind.CLOZE and decision.cloze is None:
+        missing.append(MissingCardPart.CLOZE)
     return missing
 
 
-def export_group(candidate: StoredCandidate) -> ExportGroup:
-    return ExportGroup.INCOMPLETE if missing_parts(candidate) else ExportGroup.READY
+def export_group(decision: Occurrence) -> ExportGroup:
+    return ExportGroup.INCOMPLETE if missing_parts(decision) else ExportGroup.READY
 
 
-def _has_phrase_audio(candidate: StoredCandidate) -> bool:
-    has_clip = candidate.media is not None and bool(candidate.media.audio_path)
-    has_tts = candidate.tts is not None and bool(candidate.tts.audio_path)
+def _has_phrase_audio(decision: Occurrence) -> bool:
+    has_clip = decision.media is not None and bool(decision.media.audio_path)
+    has_tts = decision.tts is not None and bool(decision.tts.audio_path)
     return has_clip or has_tts

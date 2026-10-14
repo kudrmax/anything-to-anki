@@ -144,7 +144,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     const markedIndex = candidatesRef.current.findIndex(c => c.id === candidateId)
 
     try {
-      await api.markCandidate(candidateId, status)
+      await api.decidePhrase(phraseOf(candidatesRef.current, candidateId), status)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to save the decision')
       return
@@ -167,7 +167,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     const markedIndex = candidatesRef.current.findIndex(c => c.id === candidateId)
     let saved: StoredCandidate
     try {
-      saved = await api.saveCloze(candidateId, request)
+      saved = await api.saveCloze(phraseOf(candidatesRef.current, candidateId), request)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to save the cloze')
       return false
@@ -216,7 +216,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const replaceWithExample = useCallback(async (candidateId: number, exampleText: string) => {
     try {
-      const newCandidate = await api.replaceWithExample(candidateId, exampleText)
+      const newCandidate = await api.replaceWithExample(phraseOf(candidatesRef.current, candidateId), exampleText)
       setCandidates(prev => {
         const rest = prev.map(c => (c.id === candidateId ? { ...c, status: 'skip' as const } : c))
         // TRANSITIONAL(words-phrases): removed in Task 10 — the example is a phrase of the same word, so it comes back with the word's id
@@ -317,7 +317,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   const setBoundary = async (selection: DocumentSelection): Promise<boolean> => {
     if (!editing) return false
     try {
-      await api.setPhraseBoundary(editing.candidateId, selection)
+      await api.setPhraseBoundary(phraseOf(candidatesRef.current, editing.candidateId), selection)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to save the boundary')
       return false
@@ -411,3 +411,10 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 }
 
 export type Review = ReturnType<typeof useReview>
+
+// TRANSITIONAL(words-phrases): removed in Task 11 — cards are keyed by phrase_id there
+function phraseOf(candidates: StoredCandidate[], candidateId: number): number {
+  const phraseId = candidates.find(c => c.id === candidateId)?.phrase_id
+  if (phraseId == null) throw new Error('The card has no phrase')
+  return phraseId
+}

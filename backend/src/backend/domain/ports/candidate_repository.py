@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.candidate_status import CandidateStatus
-    from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.phrase_origin import PhraseOrigin
+    from backend.domain.value_objects.word_status import WordStatus
 
 
 class CandidateRepository(ABC):
@@ -18,14 +18,20 @@ class CandidateRepository(ABC):
     def create_batch(self, candidates: list[StoredCandidate]) -> list[StoredCandidate]: ...
 
     @abstractmethod
+    def add_word(self, word: StoredCandidate) -> int:
+        """Store a new word without phrases; returns its id. Its phrases go through the
+        occurrence repository."""
+
+    @abstractmethod
+    def set_word_status(self, candidate_id: int, status: WordStatus) -> None:
+        """The decision on the word; the phrase of the decision is the phrases' business."""
+
+    @abstractmethod
     def get_by_source(self, source_id: int) -> list[StoredCandidate]:
         """Return candidates for the source, unsorted."""
 
     @abstractmethod
     def get_by_id(self, candidate_id: int) -> StoredCandidate | None: ...
-
-    @abstractmethod
-    def update_status(self, candidate_id: int, status: CandidateStatus) -> None: ...
 
     @abstractmethod
     def set_origin(self, candidate_id: int, origin: PhraseOrigin | None) -> None:
@@ -36,12 +42,6 @@ class CandidateRepository(ABC):
 
     @abstractmethod
     def count_all(self) -> int: ...
-
-    @abstractmethod
-    def set_source_phrase(
-        self, candidate_id: int, phrase: Phrase, position: DocumentPosition,
-    ) -> None:
-        """A new phrase from the source. Its polished version no longer applies and is dropped."""
 
     @abstractmethod
     def set_polished_phrase(self, candidate_id: int, phrase: Phrase | None) -> None:

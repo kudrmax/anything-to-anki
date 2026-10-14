@@ -9,3 +9,5 @@ class MissingCardPart(StrEnum):
     MEANING = "meaning"
     AUDIO = "audio"
     """The phrase spoken: a clip cut from the video or TTS."""
+    CLOZE = "cloze"
+    """The words a cloze card hides: the decision is a cloze, its phrase has no markup."""

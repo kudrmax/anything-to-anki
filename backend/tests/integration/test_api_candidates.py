@@ -3,16 +3,21 @@ from __future__ import annotations
 from collections.abc import Generator  # noqa: TC003
 
 import pytest
+from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
+from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import SourceModel
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
+from backend.infrastructure.persistence.sqla_occurrence_repository import (
+    SqlaOccurrenceRepository,
+)
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -71,14 +76,14 @@ def client() -> Generator[TestClient, None, None]:
 
 
 @pytest.mark.integration
-class TestCandidatesAPI:
+class TestDecisionAPI:
     def test_mark_candidate_learn(self, client: TestClient) -> None:
-        response = client.patch("/candidates/1", json={"status": "learn"})
+        response = client.put("/phrases/1/decision", json={"status": "learn"})
         assert response.status_code == 200
         assert response.json()["status"] == "learn"
 
     def test_mark_candidate_known(self, client: TestClient) -> None:
-        response = client.patch("/candidates/1", json={"status": "known"})
+        response = client.put("/phrases/1/decision", json={"status": "known"})
         assert response.status_code == 200
         # Verify it was added to known words
         kw_response = client.get("/known-words")
@@ -88,30 +93,45 @@ class TestCandidatesAPI:
         self, client: TestClient,
     ) -> None:
         assert client.get("/sources/1").json()["status"] == "done"
-        client.patch("/candidates/1", json={"status": "learn"})
+        client.put("/phrases/1/decision", json={"status": "learn"})
         assert client.get("/sources/1").json()["status"] == "reviewed"
 
     def test_undo_returns_the_candidate_and_the_source_to_review(
         self, client: TestClient,
     ) -> None:
-        client.patch("/candidates/1", json={"status": "learn"})
-        response = client.patch("/candidates/1", json={"status": "pending"})
+        client.put("/phrases/1/decision", json={"status": "learn"})
+        response = client.put("/phrases/1/decision", json={"status": "pending"})
         assert response.status_code == 200
         assert client.get("/sources/1").json()["status"] == "partially_reviewed"
 
     def test_undoing_known_removes_the_word_from_known_words(
         self, client: TestClient,
     ) -> None:
-        client.patch("/candidates/1", json={"status": "known"})
-        client.patch("/candidates/1", json={"status": "pending"})
+        client.put("/phrases/1/decision", json={"status": "known"})
+        client.put("/phrases/1/decision", json={"status": "pending"})
         assert all(w["lemma"] != "pursuit" for w in client.get("/known-words").json())
 
     def test_mark_candidate_not_found(self, client: TestClient) -> None:
-        response = client.patch("/candidates/999", json={"status": "learn"})
+        response = client.put("/phrases/999/decision", json={"status": "learn"})
         assert response.status_code == 404
 
+    def test_a_decision_on_a_sibling_card_is_refused(self, client: TestClient) -> None:
+        session = next(app.dependency_overrides[get_db_session]())
+        sibling = SqlaOccurrenceRepository(session).add(Occurrence(
+            candidate_id=1, origin=OccurrenceOrigin.MANUAL,
+            source_phrase=phrase("the pursuit of", "pursuit"), phrase_position=None,
+            key=None, fragment_score=None, shown_by=ShownBy.USER,
+        ))
+        session.commit()
+        client.put("/phrases/1/decision", json={"status": "learn"})
+
+        response = client.put(f"/phrases/{sibling.id}/decision", json={"status": "known"})
+
+        assert response.status_code == 409
+        assert response.json()["detail"] == "Learned via another phrase: change it on that card"
+
     def test_mark_candidate_invalid_status(self, client: TestClient) -> None:
-        response = client.patch("/candidates/1", json={"status": "invalid"})
+        response = client.put("/phrases/1/decision", json={"status": "invalid"})
         assert response.status_code == 422
 
 

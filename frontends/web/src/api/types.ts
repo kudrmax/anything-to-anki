@@ -242,6 +242,8 @@ export type CandidateSection = 'ready' | 'extra' | 'probably_known'
 
 export interface StoredCandidate {
   id: number
+  /** Фраза, которую показывает карточка: решения, cloze, граница и пример идут по ней. */
+  phrase_id: number | null
   lemma: string
   pos: string
   cefr_level: string | null
@@ -328,7 +330,7 @@ export interface CardPreview {
   is_cloze: boolean
 }
 
-export type MissingCardPart = 'meaning' | 'audio'
+export type MissingCardPart = 'meaning' | 'audio' | 'cloze'
 
 export type ExportGroup = 'ready' | 'incomplete'
 

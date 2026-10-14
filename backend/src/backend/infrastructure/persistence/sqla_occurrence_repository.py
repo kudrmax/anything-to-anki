@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_meaning import CandidateMeaning
     from backend.domain.entities.candidate_media import CandidateMedia
     from backend.domain.entities.candidate_tts import CandidateTTS
-    from backend.domain.entities.occurrence import Occurrence
+    from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
     from backend.domain.services.rebuild_plan import RebuildPlan
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
@@ -182,6 +182,19 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         found = self._occurrences(PhraseModel.id == occurrence_id)
         return found[0] if found else None
 
+    def of_word(self, candidate_id: int) -> list[Occurrence]:
+        return self._occurrences(PhraseModel.candidate_id == candidate_id)
+
+    def decision_phrases(self, candidate_ids: list[int]) -> dict[int, Occurrence]:
+        if not candidate_ids:
+            return {}
+        return {
+            occurrence.candidate_id: occurrence
+            for occurrence in self._occurrences(
+                PhraseModel.candidate_id.in_(candidate_ids), PhraseModel.is_decision.is_(True),
+            )
+        }
+
     def add(self, occurrence: Occurrence) -> Occurrence:
         model = PhraseModel.from_entity(occurrence)
         self._session.add(model)
@@ -198,6 +211,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         polished: Phrase | None = None,
         polish_reverted: bool = False,
         bump_revision: bool = False,
+        edited_by_user: bool = False,
     ) -> None:
         model = self._session.get(PhraseModel, occurrence_id)
         if model is None:
@@ -208,8 +222,22 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         model.polish_reverted = polish_reverted
         if bump_revision:
             model.revision += 1
+        if edited_by_user:
+            model.edited_by_user = True
         self._session.flush()
         self._words.rewrite({model.id: model.shown_text})
+
+    def set_key(self, occurrence_id: int, key: OccurrenceKey | None) -> None:
+        self._session.execute(
+            update(PhraseModel)
+            .where(PhraseModel.id == occurrence_id)
+            .values(
+                block=key.block if key is not None else None,
+                line=key.line if key is not None else None,
+                char=key.char if key is not None else None,
+            )
+        )
+        self._session.flush()
 
     def set_shown(self, ids: list[int], shown_by: ShownBy | None) -> None:
         if not ids:

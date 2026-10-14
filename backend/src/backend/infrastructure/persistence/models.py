@@ -421,6 +421,7 @@ class StoredCandidateModel(Base):
             polished_phrase=load_phrase(primary.polished_phrase),
             polish_reverted=primary.polish_reverted,
             phrase_position=load_position(primary.phrase_position),
+            phrase_id=primary.id,
         )
 
     def word_data(self) -> WordData:

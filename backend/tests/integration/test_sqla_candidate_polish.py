@@ -14,6 +14,9 @@ from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCan
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
 )
+from backend.infrastructure.persistence.sqla_occurrence_repository import (
+    SqlaOccurrenceRepository,
+)
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -71,7 +74,9 @@ class TestCandidatePolishPersistence:
             repo.set_polished_phrase(1, phrase("The stale air.", "stale"))
             repo.set_polish_reverted(1, True)
             new_phrase = phrase("The air around us was stale", "stale")
-            repo.set_source_phrase(1, new_phrase, DocumentPosition(0, 0, 0, 0, 27))
+            SqlaOccurrenceRepository(s).write_text(
+                1, new_phrase, DocumentPosition(0, 0, 0, 0, 27),
+            )
             s.commit()
             candidate = repo.get_by_id(1)
             assert candidate is not None

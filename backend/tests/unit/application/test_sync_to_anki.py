@@ -21,6 +21,7 @@ from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.export_support import DecisionsOf
 from tests.phrase_support import phrase
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.scope_fakes import empty_scope_resolver
@@ -90,7 +91,9 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.get_model_field_names.return_value = _EveryField()
         self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.use_case = SyncToAnkiUseCase(
-            export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
+            export_queue=ExportQueue(
+                self.candidate_repo, self.anki_sync_repo, DecisionsOf(self.candidate_repo),
+            ),
             anki_connector=self.anki_connector,
             settings_repo=self.settings_repo,
             anki_sync_repo=self.anki_sync_repo,
@@ -179,7 +182,7 @@ class TestSyncToAnkiUseCase:
 
         self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
 
-        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 12345)
+        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 12345, 1)
         self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
 
     def test_counts_as_skipped_when_note_already_exists_in_anki(self) -> None:
@@ -197,7 +200,7 @@ class TestSyncToAnkiUseCase:
         assert result.skipped == 1
         assert result.skipped_lemmas == ["burnout"]
         assert result.errors == 0
-        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 99999)
+        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 99999, 1)
         self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
 
     def test_counts_errors_when_add_fails_and_note_not_found(self) -> None:
@@ -232,7 +235,7 @@ class TestSyncToAnkiUseCase:
         assert result.skipped == 1
         assert result.skipped_lemmas == ["burnout"]
         assert result.errors == 0
-        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 99999)
+        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 99999, 1)
         self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
 
     def test_counts_errors_on_exception(self) -> None:
@@ -586,7 +589,9 @@ class TestSyncRefusesIncompleteNoteType:
         anki_sync_repo = MagicMock()
         anki_sync_repo.get_synced_candidate_ids.return_value = set()
         use_case = SyncToAnkiUseCase(
-            export_queue=ExportQueue(candidate_repo, anki_sync_repo),
+            export_queue=ExportQueue(
+                candidate_repo, anki_sync_repo, DecisionsOf(candidate_repo),
+            ),
             anki_connector=connector,
             settings_repo=settings_repo,
             anki_sync_repo=anki_sync_repo,
@@ -635,7 +640,9 @@ class TestSyncCollectionScope:
             Source(id=2, status=SourceStatus.DONE),
         ]
         use_case = SyncToAnkiUseCase(
-            export_queue=ExportQueue(candidate_repo, anki_sync_repo),
+            export_queue=ExportQueue(
+                candidate_repo, anki_sync_repo, DecisionsOf(candidate_repo),
+            ),
             anki_connector=connector,
             settings_repo=MagicMock(get=MagicMock(return_value=None)),
             anki_sync_repo=anki_sync_repo,

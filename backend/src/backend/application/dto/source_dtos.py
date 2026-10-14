@@ -152,6 +152,8 @@ class StoredCandidateDTO(BaseModel):
     """A persisted word candidate."""
 
     id: int
+    # The phrase the card shows: decisions, cloze, boundary and examples go by it.
+    phrase_id: int | None = None
     lemma: str
     pos: str
     cefr_level: str | None
@@ -414,6 +416,7 @@ def stored_candidate_to_dto(
 
     return StoredCandidateDTO(
         id=c.id,  # type: ignore[arg-type]
+        phrase_id=c.phrase_id,
         lemma=c.lemma,
         pos=c.pos,
         cefr_level=c.cefr_level,

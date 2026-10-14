@@ -174,10 +174,12 @@ class ClozeBuilder:
 
     def effective(self, candidate: StoredCandidate) -> CandidateCloze | None:
         """The markup for the phrase the card shows; for another phrase it is the target."""
-        cloze = candidate.cloze
+        return self.effective_for(candidate.phrase, candidate.cloze)
+
+    def effective_for(self, phrase: Phrase, cloze: CandidateCloze | None) -> CandidateCloze | None:
+        """The markup for `phrase`; markup made for another phrase hides its target."""
         if cloze is None:
             return None
-        phrase = candidate.phrase
         if cloze.phrase == phrase.text:
             return cloze
         return replace(cloze, hidden_word_indices=phrase.target, phrase=phrase.text)

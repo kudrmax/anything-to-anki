@@ -6,6 +6,7 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -146,7 +147,7 @@ class TestCandidateRepository:
             ),
         ])
         assert created[0].id is not None
-        repo.update_status(created[0].id, CandidateStatus.LEARN)
+        repo.set_word_status(created[0].id, WordStatus.LEARN)
         updated = repo.get_by_id(created[0].id)
         assert updated is not None
         assert updated.status == CandidateStatus.LEARN

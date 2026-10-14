@@ -11,6 +11,7 @@ from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.export_group import ExportGroup
 
+from tests.export_support import DecisionsOf
 from tests.phrase_support import phrase
 from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.vocabulary_support import user_vocabulary
@@ -68,7 +69,9 @@ class TestSyncToAnkiTemplates:
 
         known_word_repo = MagicMock()
         use_case = SyncToAnkiUseCase(
-            export_queue=ExportQueue(candidate_repo, anki_sync_repo),
+            export_queue=ExportQueue(
+                candidate_repo, anki_sync_repo, DecisionsOf(candidate_repo),
+            ),
             anki_connector=anki_connector,
             settings_repo=settings_repo,
             anki_sync_repo=anki_sync_repo,

@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from backend.domain.entities.occurrence import Occurrence
+    from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
     from backend.domain.services.rebuild_plan import RebuildPlan
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.occurrence_row import OccurrenceRow
@@ -28,6 +28,14 @@ class OccurrenceRepository(ABC):
     def get(self, occurrence_id: int) -> Occurrence | None: ...
 
     @abstractmethod
+    def of_word(self, candidate_id: int) -> list[Occurrence]:
+        """Every phrase of the word with its results, in the order they were made."""
+
+    @abstractmethod
+    def decision_phrases(self, candidate_ids: list[int]) -> dict[int, Occurrence]:
+        """Word id → the phrase of its decision, with results; undecided words are left out."""
+
+    @abstractmethod
     def add(self, occurrence: Occurrence) -> Occurrence:
         """Store a new phrase; its words are taken from the text it shows."""
 
@@ -41,8 +49,15 @@ class OccurrenceRepository(ABC):
         polished: Phrase | None = None,
         polish_reverted: bool = False,
         bump_revision: bool = False,
+        edited_by_user: bool = False,
     ) -> None:
-        """The only way to change a phrase's text; rewrites its words from the text it shows."""
+        """The only way to change a phrase's text; rewrites its words from the text it shows.
+
+        `edited_by_user` marks the phrase as cut by the user; the mark is never taken off."""
+
+    @abstractmethod
+    def set_key(self, occurrence_id: int, key: OccurrenceKey | None) -> None:
+        """Where the target of the phrase starts in the document."""
 
     @abstractmethod
     def set_shown(self, ids: list[int], shown_by: ShownBy | None) -> None: ...

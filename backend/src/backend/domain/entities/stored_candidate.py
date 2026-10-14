@@ -78,6 +78,8 @@ class StoredCandidate:
     # TRANSITIONAL(words-phrases): removed in Task 10 — written to the new phrase, not read back
     occurrence_key: OccurrenceKey | None = None
     fragment_score: float | None = None
+    # TRANSITIONAL(words-phrases): removed in Task 10 — the phrase the card is seen through
+    phrase_id: int | None = None
 
     # TRANSITIONAL(words-phrases): removed in Task 10
     @property

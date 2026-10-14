@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import bisect
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
+from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.exceptions import InvalidPhraseError
 from backend.domain.value_objects.document import (
     BLOCK_SEPARATOR,
@@ -17,6 +19,9 @@ from backend.domain.value_objects.document import (
     ParagraphMode,
 )
 from backend.domain.value_objects.document_position import DocumentPosition
+
+if TYPE_CHECKING:
+    from backend.domain.value_objects.phrase import Phrase
 
 ONE_BLOCK_MESSAGE = "A phrase must stay within one paragraph"
 EMPTY_SELECTION_MESSAGE = "Select some text"
@@ -98,6 +103,14 @@ class DocumentLayout:
         if first >= last:
             raise InvalidPhraseError(EMPTY_SELECTION_MESSAGE)
         return self.position(first, last)
+
+    def target_key(self, position: DocumentPosition, phrase: Phrase) -> OccurrenceKey:
+        """Where the first word of the target of a phrase at `position` starts: the key of
+        its occurrence, as the analysis gives it."""
+        start, _ = self.span(position)
+        first = start + min(phrase.words[i].start for i in phrase.target)
+        place = self.position(first, first)
+        return OccurrenceKey(block=place.block, line=place.start_line, char=place.start_char)
 
     def line_offset(self, block: int, line: int) -> int:
         """Where a line starts in the text."""

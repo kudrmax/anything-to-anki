@@ -7,13 +7,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.phrase_origin_kind import (
-    DecisionKind,
     OccurrenceOrigin,
     ShownBy,
 )
@@ -23,10 +20,10 @@ from backend.infrastructure.persistence.models import (
     SourceModel,
     StoredCandidateModel,
 )
-from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
-    SqlaCandidateClozeRepository,
-)
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+from backend.infrastructure.persistence.sqla_occurrence_repository import (
+    SqlaOccurrenceRepository,
+)
 from sqlalchemy import select
 
 from tests.phrase_support import phrase
@@ -97,7 +94,8 @@ def test_skip_skips_the_primary_phrase_and_keeps_the_word_pending(
     word = repo.create_batch([_candidate(source_id, "glare", "he glare at me")])[0]
     assert word.id is not None
 
-    repo.update_status(word.id, CandidateStatus.SKIP)
+    [primary] = _phrases(db_session, word.id)
+    SqlaOccurrenceRepository(db_session).set_skipped(primary.id, True)
 
     model = db_session.get(StoredCandidateModel, word.id)
     assert model is not None
@@ -108,26 +106,6 @@ def test_skip_skips_the_primary_phrase_and_keeps_the_word_pending(
     assert read.status is CandidateStatus.SKIP
     assert repo.count_by_status(CandidateStatus.SKIP) == 1
     assert repo.count_by_status(CandidateStatus.PENDING) == 0
-
-
-def test_learn_marks_the_phrase_of_the_decision_with_its_kind(
-    db_session: Session, source_id: int,
-) -> None:
-    repo = SqlaCandidateRepository(db_session)
-    word = repo.create_batch([_candidate(source_id, "glare", "he glare at me")])[0]
-    assert word.id is not None
-    SqlaCandidateClozeRepository(db_session).upsert(CandidateCloze(
-        candidate_id=word.id, hidden_word_indices=(1,), hint_kind=ClozeHintKind.NONE,
-        custom_hint=None, phrase="he glare at me",
-    ))
-
-    repo.update_status(word.id, CandidateStatus.LEARN)
-
-    [primary] = _phrases(db_session, word.id)
-    assert (primary.is_decision, primary.decision_kind) == (True, DecisionKind.CLOZE.value)
-    repo.update_status(word.id, CandidateStatus.PENDING)
-    db_session.refresh(primary)
-    assert (primary.is_decision, primary.decision_kind) == (False, None)
 
 
 def test_the_phrase_of_the_decision_is_the_one_the_word_is_seen_through(
@@ -161,10 +139,6 @@ def test_phrase_edits_write_through_to_the_primary_phrase(
     assert read is not None
     assert read.polished_phrase is not None
     assert (read.polished_phrase.text, read.polish_reverted) == ("he glare", True)
-    repo.set_source_phrase(word.id, phrase("glare again", "glare"), POSITION)
-    read = repo.get_by_id(word.id)
-    assert read is not None
-    assert (read.source_phrase.text, read.polished_phrase) == ("glare again", None)
 
 
 @pytest.mark.parametrize("role", [SourceRole.TOPIC, SourceRole.SAVED_PHRASES])

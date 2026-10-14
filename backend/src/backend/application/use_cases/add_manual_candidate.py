@@ -5,27 +5,36 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
 from backend.application.utils.candidate_factory import CandidateFactory
+from backend.domain.entities.occurrence import Occurrence
 from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundError
 from backend.domain.services.document_layout import DocumentLayout
+from backend.domain.value_objects.built_analysis import WordKey
+from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
 if TYPE_CHECKING:
     from backend.application.dto.candidate_dtos import SelectionDTO
     from backend.application.utils.phrase_reader import PhraseReader
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
+    from backend.domain.entities.occurrence import OccurrenceKey
+    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.cefr_classifier import CEFRClassifier
     from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.frequency_provider import FrequencyProvider
+    from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.text_analyzer import TextAnalyzer
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
 
 
 class AddManualCandidateUseCase:
-    """Manually adds a word candidate selected by the user during review.
+    """Adds the word the user selected during review as a card the user shows.
 
-    Runs the same enrichment pipeline as automatic processing (lemma, POS, CEFR,
-    frequency) but bypasses the CEFR level gate — the candidate is always saved.
+    The word is read by the same enrichment pipeline as automatic processing (lemma, POS,
+    CEFR, frequency) but bypasses the CEFR level gate — it is always saved. A word the source
+    already has gets another phrase; at the place of one of its auto phrases, that phrase is
+    shown instead of a duplicate (and if it was the selection card, it keeps standing for
+    it). The phrase keeps its place in the document as its key, so Rebuild finds it.
     """
 
     def __init__(
@@ -33,6 +42,7 @@ class AddManualCandidateUseCase:
         source_repo: SourceRepository,
         document_repo: DocumentRepository,
         candidate_repo: CandidateRepository,
+        occurrence_repo: OccurrenceRepository,
         text_analyzer: TextAnalyzer,
         cefr_classifier: CEFRClassifier,
         frequency_provider: FrequencyProvider,
@@ -43,6 +53,7 @@ class AddManualCandidateUseCase:
         self._source_repo = source_repo
         self._document_repo = document_repo
         self._candidate_repo = candidate_repo
+        self._occurrences = occurrence_repo
         self._candidate_factory = CandidateFactory(
             text_analyzer=text_analyzer,
             cefr_classifier=cefr_classifier,
@@ -75,7 +86,51 @@ class AddManualCandidateUseCase:
             ),
             phrase_position=phrase_position,
         )
-        saved = self._candidate_repo.create_batch([candidate])[0]
+        key = layout.target_key(phrase_position, phrase)
+        word_id = self._word_of(candidate)
+        if word_id is None:
+            word_id = self._candidate_repo.add_word(candidate)
+            self._add_phrase(word_id, candidate, key)
+        else:
+            self._show_at(word_id, candidate, key)
         self._review_status.refresh(source_id)
+        saved = self._candidate_repo.get_by_id(word_id)
+        assert saved is not None
         return stored_candidate_to_dto(saved)
+
+    def _word_of(self, candidate: StoredCandidate) -> int | None:
+        key = WordKey.of(candidate.lemma, candidate.is_phrasal_verb)
+        return next(
+            (w.id for w in self._occurrences.word_rows(candidate.source_id) if w.key == key),
+            None,
+        )
+
+    def _show_at(self, word_id: int, candidate: StoredCandidate, key: OccurrenceKey) -> None:
+        existing = next(
+            (
+                o for o in self._occurrences.of_word(word_id)
+                if o.origin is OccurrenceOrigin.AUTO and o.key == key
+            ),
+            None,
+        )
+        if existing is None:
+            self._add_phrase(word_id, candidate, key)
+            return
+        assert existing.id is not None
+        if existing.shown_by is ShownBy.SELECTION:
+            self._occurrences.set_replaces_selection(existing.id, True)
+        self._occurrences.set_shown([existing.id], ShownBy.USER)
+        if existing.skipped:
+            self._occurrences.set_skipped(existing.id, False)
+
+    def _add_phrase(self, word_id: int, candidate: StoredCandidate, key: OccurrenceKey) -> None:
+        self._occurrences.add(Occurrence(
+            candidate_id=word_id,
+            origin=OccurrenceOrigin.MANUAL,
+            source_phrase=candidate.source_phrase,
+            phrase_position=candidate.phrase_position,
+            key=key,
+            fragment_score=None,
+            shown_by=ShownBy.USER,
+        ))
 

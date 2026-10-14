@@ -19,6 +19,7 @@ from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
 from backend.application.use_cases.create_collection import CreateCollectionUseCase
 from backend.application.use_cases.create_topic import CreateTopicUseCase
+from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
 from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.application.use_cases.delete_sources import DeleteSourcesUseCase
@@ -35,7 +36,6 @@ from backend.application.use_cases.list_collections import ListCollectionsUseCas
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.manage_unknown_words import ManageUnknownWordsUseCase
-from backend.application.use_cases.mark_candidate import MarkCandidateUseCase
 from backend.application.use_cases.move_collection import MoveCollectionUseCase
 from backend.application.use_cases.place_sources import PlaceSourcesUseCase
 from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
@@ -55,6 +55,7 @@ from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.application.utils.candidate_factory import CandidateFactory
 from backend.application.utils.candidate_sorter import CandidateSorter
+from backend.application.utils.decided_elsewhere import DecidedElsewhere
 from backend.application.utils.export_queue import ExportQueue
 from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
@@ -153,6 +154,7 @@ from backend.infrastructure.persistence.sqla_job_repository import SqlaJobReposi
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
+from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
@@ -370,6 +372,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             document_repo=SqlaDocumentRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            occurrence_repo=SqlaOccurrenceRepository(session),
             text_analyzer=self._text_analyzer,
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
@@ -380,6 +383,7 @@ class Container:
 
     def set_phrase_boundary_use_case(self, session: Session) -> SetPhraseBoundaryUseCase:
         return SetPhraseBoundaryUseCase(
+            occurrence_repo=SqlaOccurrenceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             document_repo=SqlaDocumentRepository(session),
             phrase_reader=self._phrase_reader,
@@ -648,24 +652,26 @@ class Container:
             review_status=self._review_status_updater(session),
         )
 
-    def mark_candidate_use_case(self, session: Session) -> MarkCandidateUseCase:
-        return MarkCandidateUseCase(
+    def decide_phrase_use_case(self, session: Session) -> DecidePhraseUseCase:
+        vocabulary = self._user_vocabulary(session)
+        return DecidePhraseUseCase(
+            occurrence_repo=SqlaOccurrenceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
-            vocabulary=self._user_vocabulary(session),
+            vocabulary=vocabulary,
             decision_repo=SqlaWordDecisionRepository(session),
             review_status=self._review_status_updater(session),
             cloze_repo=SqlaCandidateClozeRepository(session),
-            anki_sync_repo=SqlaAnkiSyncRepository(session),
+            decided_elsewhere=DecidedElsewhere(vocabulary, SqlaLearningQuery(session)),
         )
 
     def save_cloze_use_case(self, session: Session) -> SaveClozeUseCase:
         return SaveClozeUseCase(
+            occurrence_repo=SqlaOccurrenceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             cloze_repo=SqlaCandidateClozeRepository(session),
-            anki_sync_repo=SqlaAnkiSyncRepository(session),
             job_repo=SqlaJobRepository(session),
             report_repo=SqlaCardReportRepository(session),
-            mark_candidate=self.mark_candidate_use_case(session),
+            decide_phrase=self.decide_phrase_use_case(session),
             builder=ClozeBuilder(),
         )
 
@@ -678,6 +684,7 @@ class Container:
 
     def replace_with_example_use_case(self, session: Session) -> ReplaceWithExampleUseCase:
         return ReplaceWithExampleUseCase(
+            occurrence_repo=SqlaOccurrenceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             review_status=self._review_status_updater(session),
             phrase_reader=self._phrase_reader,
@@ -792,6 +799,7 @@ class Container:
         return ExportQueue(
             candidate_repo=SqlaCandidateRepository(session),
             anki_sync_repo=SqlaAnkiSyncRepository(session),
+            occurrence_repo=SqlaOccurrenceRepository(session),
         )
 
     def generate_meaning_use_case(self, session: Session) -> GenerateMeaningUseCase:
