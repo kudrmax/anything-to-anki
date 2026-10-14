@@ -376,6 +376,8 @@ class StoredCandidateModel(Base):
     occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False, default=False)
+    # The Known decision on this word put the lemma into the user's Known (undo forgets it).
+    known_added: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="0")
     usage_distribution_json: Mapped[str | None] = mapped_column(
         "usage_distribution", Text, nullable=True
     )
@@ -413,6 +415,7 @@ class StoredCandidateModel(Base):
             occurrences=self.occurrences,
             is_phrasal_verb=self.is_phrasal_verb,
             status=status,
+            known_added=self.known_added,
             meaning=None,
             media=None,
             cefr_breakdown=bd,

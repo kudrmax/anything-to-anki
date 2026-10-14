@@ -21,7 +21,6 @@ from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 from tests.export_support import DecisionsOf, decision_of
 from tests.phrase_support import phrase
 from tests.unit.application.scope_fakes import empty_scope_resolver
-from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import Occurrence
@@ -125,7 +124,8 @@ class TestSyncToAnkiCloze:
             settings_repo=self.settings_repo,
             anki_sync_repo=self.anki_sync_repo,
             template_renderer=self.renderer,
-            vocabulary=user_vocabulary(MagicMock()),
+            anki_note_repo=MagicMock(),
+            known_from_anki=MagicMock(**{"run.return_value": 0}),
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
         )

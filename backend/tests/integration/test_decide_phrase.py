@@ -63,6 +63,8 @@ class Bench:
         self.second = self._add_phrase("She glared back.")
         self.known_words = MagicMock()
         self.known_words.get_all_pairs.return_value = set()
+        self.removals = MagicMock()
+        self.removals.contains.return_value = False
         self.decisions = MagicMock()
         self.review_status = MagicMock()
         self.learning = SqlaLearningQuery(session)
@@ -77,7 +79,7 @@ class Bench:
         return added.id
 
     def use_case(self) -> DecidePhraseUseCase:
-        vocabulary = user_vocabulary(self.known_words)
+        vocabulary = user_vocabulary(self.known_words, removals=self.removals)
         return DecidePhraseUseCase(
             occurrence_repo=self.occurrences,
             candidate_repo=self.candidates,
@@ -127,6 +129,7 @@ def test_learn_decides_the_word_on_that_phrase(bench: Bench) -> None:
     assert bench.phrase(bench.second).decision_kind is DecisionKind.LEARN
     assert not bench.phrase(FIRST).is_decision
     bench.review_status.refresh.assert_called_once_with(1)
+    bench.review_status.refresh_showing.assert_called_once_with({LEMMA})
     bench.decisions.record.assert_called_once_with(
         WordDecision(lemma=LEMMA, zipf_frequency=3.0, is_known=False),
     )
@@ -145,7 +148,9 @@ def test_known_marks_the_word_known(bench: Bench) -> None:
     assert bench.word_status() is WordStatus.KNOWN
     assert bench.phrase(FIRST).is_decision
     bench.known_words.add.assert_called_once_with(LEMMA, "VERB")
-    bench.review_status.refresh_all.assert_called_once()
+    bench.review_status.refresh.assert_called_once_with(1)
+    bench.review_status.refresh_showing.assert_called_once_with({LEMMA})
+    bench.review_status.refresh_all.assert_not_called()
 
 
 @pytest.mark.parametrize("action", [LEARN, CLOZE, KNOWN, SKIP, PENDING])
@@ -170,7 +175,36 @@ def test_known_is_undone_on_the_decision_phrase(bench: Bench) -> None:
     assert bench.word_status() is WordStatus.PENDING
     assert not bench.phrase(FIRST).is_decision
     bench.known_words.remove_by_lemma.assert_called_once_with(LEMMA, "VERB")
+    bench.removals.add.assert_called_once_with(LEMMA)
     bench.decisions.forget.assert_called_once_with(LEMMA)
+
+
+@pytest.mark.parametrize("undo", [PENDING, LEARN, SKIP])
+def test_leaving_known_keeps_a_word_the_user_knew_before_the_decision(
+    bench: Bench, undo: DecisionAction,
+) -> None:
+    """Known via another source or the settings: this card's Known did not add it."""
+    bench.known_words.get_all_pairs.return_value = {(LEMMA, None)}
+    bench.decide(FIRST, KNOWN)
+
+    bench.decide(FIRST, undo)
+
+    bench.known_words.add.assert_not_called()
+    bench.known_words.remove_by_lemma.assert_not_called()
+    bench.removals.add.assert_not_called()
+
+
+@pytest.mark.parametrize("undo", [PENDING, LEARN, SKIP])
+def test_leaving_known_forgets_the_known_this_decision_added(
+    bench: Bench, undo: DecisionAction,
+) -> None:
+    bench.decide(FIRST, KNOWN)
+    bench.known_words.get_all_pairs.return_value = {(LEMMA, "VERB")}
+
+    bench.decide(FIRST, undo)
+
+    bench.known_words.remove_by_lemma.assert_called_once_with(LEMMA, "VERB")
+    bench.removals.add.assert_called_once_with(LEMMA)
 
 
 def test_the_decision_changes_on_its_card(bench: Bench) -> None:

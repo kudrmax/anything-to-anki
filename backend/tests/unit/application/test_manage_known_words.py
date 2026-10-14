@@ -12,8 +12,11 @@ class TestManageKnownWordsUseCase:
         self.known_word_repo = MagicMock()
         self.unknown_word_repo = MagicMock()
         self.review_status = MagicMock()
+        self.removals = MagicMock()
         self.use_case = ManageKnownWordsUseCase(
-            vocabulary=UserVocabulary(self.known_word_repo, self.unknown_word_repo),
+            vocabulary=UserVocabulary(
+                self.known_word_repo, self.unknown_word_repo, MagicMock(), self.removals,
+            ),
             review_status=self.review_status,
         )
 
@@ -26,8 +29,10 @@ class TestManageKnownWordsUseCase:
         assert result[0].lemma == "run"
 
     def test_delete(self) -> None:
+        self.known_word_repo.get_by_id.return_value = KnownWord(id=1, lemma="run", pos="VERB")
         self.use_case.delete(1)
         self.known_word_repo.remove.assert_called_once_with(1)
+        self.removals.add.assert_called_once_with("run")
 
     def test_add_bulk(self) -> None:
         self.known_word_repo.add.return_value = KnownWord(id=1, lemma="test", pos=None)

@@ -157,6 +157,7 @@ def _rebuilder(
                 candidate_repo=SqlaCandidateRepository(session),
                 candidate_sorter=candidate_sorter(settings),
             ),
+            occurrence_repo=worker,  # type: ignore[arg-type]
         ),
         unit_of_work=SqlaUnitOfWork(session),
     )

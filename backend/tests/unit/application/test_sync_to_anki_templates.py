@@ -14,7 +14,6 @@ from backend.domain.value_objects.export_group import ExportGroup
 from tests.export_support import DecisionsOf
 from tests.phrase_support import phrase
 from tests.unit.application.scope_fakes import empty_scope_resolver
-from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -67,7 +66,6 @@ class TestSyncToAnkiTemplates:
         anki_sync_repo.get_synced_candidate_ids.return_value = set()
         anki_connector.add_notes.return_value = [12345]
 
-        known_word_repo = MagicMock()
         use_case = SyncToAnkiUseCase(
             export_queue=ExportQueue(
                 candidate_repo, anki_sync_repo, DecisionsOf(candidate_repo),
@@ -76,7 +74,8 @@ class TestSyncToAnkiTemplates:
             settings_repo=settings_repo,
             anki_sync_repo=anki_sync_repo,
             template_renderer=renderer,
-            vocabulary=user_vocabulary(known_word_repo),
+            anki_note_repo=MagicMock(),
+            known_from_anki=MagicMock(**{"run.return_value": 0}),
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
         )

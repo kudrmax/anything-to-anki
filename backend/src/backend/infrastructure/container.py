@@ -17,6 +17,7 @@ from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
 from backend.application.use_cases.add_source import AddSourceUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
+from backend.application.use_cases.check_anki_progress import CheckAnkiProgressUseCase
 from backend.application.use_cases.create_collection import CreateCollectionUseCase
 from backend.application.use_cases.create_topic import CreateTopicUseCase
 from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
@@ -29,6 +30,7 @@ from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
+from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
 from backend.application.use_cases.get_source_document import GetSourceDocumentUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
@@ -60,6 +62,7 @@ from backend.application.utils.export_queue import ExportQueue
 from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
+from backend.application.utils.known_from_anki import RefreshKnownFromAnki
 from backend.application.utils.phrase_reader import PhraseReader
 from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
@@ -116,6 +119,7 @@ from backend.infrastructure.adapters.wordfreq_frequency_provider import (
 )
 from backend.infrastructure.adapters.yandex_image_source import YandexImageSource
 from backend.infrastructure.config.prompts_loader import PromptsLoader
+from backend.infrastructure.persistence.sqla_anki_note_repository import SqlaAnkiNoteRepository
 from backend.infrastructure.persistence.sqla_anki_sync_repository import (
     SqlaAnkiSyncRepository,
 )
@@ -151,6 +155,9 @@ from backend.infrastructure.persistence.sqla_collection_repository import (
 )
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
+from backend.infrastructure.persistence.sqla_known_word_removal_repository import (
+    SqlaKnownWordRemovalRepository,
+)
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
@@ -719,6 +726,7 @@ class Container:
         return ReviewStatusUpdater(
             source_repo=SqlaSourceRepository(session),
             review_progress=self._review_progress(session),
+            occurrence_repo=SqlaOccurrenceRepository(session),
         )
 
     def _review_progress(self, session: Session) -> ReviewProgress:
@@ -731,6 +739,8 @@ class Container:
         return UserVocabulary(
             known_word_repo=SqlaKnownWordRepository(session),
             unknown_word_repo=SqlaUnknownWordRepository(session),
+            learning_query=SqlaLearningQuery(session),
+            removal_repo=SqlaKnownWordRemovalRepository(session),
         )
 
     @property
@@ -782,9 +792,27 @@ class Container:
             settings_repo=SqlaSettingsRepository(session),
             anki_sync_repo=SqlaAnkiSyncRepository(session),
             template_renderer=self._anki_template_renderer,
-            vocabulary=self._user_vocabulary(session),
+            anki_note_repo=SqlaAnkiNoteRepository(session),
+            known_from_anki=self._known_from_anki(session),
             cloze_builder=ClozeBuilder(),
             scope_resolver=self._scope_resolver(session),
+        )
+
+    def check_anki_progress_use_case(self, session: Session) -> CheckAnkiProgressUseCase:
+        return CheckAnkiProgressUseCase(self._anki_connector, self._known_from_anki(session))
+
+    def get_learning_words_use_case(self, session: Session) -> GetLearningWordsUseCase:
+        return GetLearningWordsUseCase(
+            vocabulary=self._user_vocabulary(session),
+            learning_query=SqlaLearningQuery(session),
+        )
+
+    def _known_from_anki(self, session: Session) -> RefreshKnownFromAnki:
+        return RefreshKnownFromAnki(
+            anki_connector=self._anki_connector,
+            anki_note_repo=SqlaAnkiNoteRepository(session),
+            vocabulary=self._user_vocabulary(session),
+            review_status=self._review_status_updater(session),
         )
 
     def get_export_cards_use_case(self, session: Session) -> GetExportCardsUseCase:

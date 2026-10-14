@@ -60,13 +60,27 @@ class DecidePhraseUseCase:
             self._decided_elsewhere.of(word.lemma) if before is WordStatus.PENDING else None
         )
         outcome = decide(occ, before, action, elsewhere)
-        self._write(occ, before, outcome)
-        self._follow(word, before, outcome.word_status)
+        known_added = self._adds_known(word, before, outcome.word_status)
+        self._write(occ, before, outcome, known_added)
+        self._follow(word, before, outcome.word_status, known_added)
 
-    def _write(self, occ: Occurrence, before: WordStatus, outcome: DecisionOutcome) -> None:
+    def _adds_known(self, word: StoredCandidate, before: WordStatus, after: WordStatus) -> bool:
+        """Whether the word's Known puts the lemma into the user's Known: not when the user
+        knew it before this decision (another source, the settings)."""
+        if after is not WordStatus.KNOWN:
+            return False
+        if before is WordStatus.KNOWN:
+            return word.known_added
+        return not self._vocabulary.is_known(word.lemma)
+
+    def _write(
+        self, occ: Occurrence, before: WordStatus, outcome: DecisionOutcome, known_added: bool,
+    ) -> None:
         assert occ.id is not None
         if outcome.word_status is not before:
-            self._candidates.set_word_status(occ.candidate_id, outcome.word_status)
+            self._candidates.set_word_status(
+                occ.candidate_id, outcome.word_status, known_added=known_added,
+            )
         if (outcome.is_decision, outcome.decision_kind) != (occ.is_decision, occ.decision_kind):
             self._occurrences.set_decision(
                 occ.candidate_id, occ.id if outcome.is_decision else None, outcome.decision_kind,
@@ -76,20 +90,21 @@ class DecidePhraseUseCase:
         if outcome.drop_cloze and occ.cloze is not None:
             self._cloze_repo.delete_by_phrase_id(occ.id)
 
-    def _follow(self, word: StoredCandidate, before: WordStatus, after: WordStatus) -> None:
-        """The review status changes with any action; knowledge only with the word's status."""
+    def _follow(
+        self, word: StoredCandidate, before: WordStatus, after: WordStatus, known_added: bool,
+    ) -> None:
+        """The review status changes with any action; knowledge (known or learning) only with
+        the word's status, and then in every source showing the lemma."""
         if after is before:
             self._review_status.refresh(word.source_id)
             return
-        if after is WordStatus.KNOWN:
+        if known_added:
             self._vocabulary.mark_known(word.lemma, word.pos)
-        elif before is WordStatus.KNOWN:
+        elif before is WordStatus.KNOWN and word.known_added:
             self._vocabulary.forget_known(word.lemma, word.pos)
         self._remember_decision(word, before, after)
-        if WordStatus.KNOWN in (before, after):
-            self._review_status.refresh_all()
-        else:
-            self._review_status.refresh(word.source_id)
+        self._review_status.refresh(word.source_id)
+        self._review_status.refresh_showing({word.lemma.lower()})
 
     def _remember_decision(
         self, word: StoredCandidate, before: WordStatus, after: WordStatus,

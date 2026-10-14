@@ -44,6 +44,9 @@ class StoredCandidate:
     `meaning_image` is a picture of the target the user picked; the video
     frame of the phrase is in `media`.
 
+    `known_added`: the word's Known decision put the lemma into the user's Known — undoing
+    it forgets the lemma; a lemma known before the decision stays known.
+
     `phrase_position` places the source phrase in the source's document. A phrase
     that isn't there (an example, a topic's or a saved phrase) has none.
     """
@@ -58,6 +61,7 @@ class StoredCandidate:
     occurrences: int
     status: CandidateStatus
     is_phrasal_verb: bool = False
+    known_added: bool = False
     # TRANSITIONAL(words-phrases): removed in Task 10
     meaning: CandidateMeaning | None = None
     media: CandidateMedia | None = None

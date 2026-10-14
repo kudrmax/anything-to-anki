@@ -6,22 +6,34 @@ from sqlalchemy import exists, func, select
 
 from backend.domain.ports.learning_query import LearningQuery
 from backend.domain.value_objects.word_status import WordStatus
-from backend.infrastructure.persistence.models import AnkiSyncedCardModel, StoredCandidateModel
+from backend.infrastructure.persistence.models import (
+    AnkiNoteModel,
+    AnkiSyncedCardModel,
+    StoredCandidateModel,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 
 class SqlaLearningQuery(LearningQuery):
-    """Learn words of every source without a row in `anki_synced_cards`."""
+    """Learn words of every source without a row in `anki_synced_cards`, and notes in
+    `anki_notes` neither mature nor deleted."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def learning_lemmas(self) -> frozenset[str]:
+    def awaiting_export(self) -> frozenset[str]:
         exported = exists().where(AnkiSyncedCardModel.candidate_id == StoredCandidateModel.id)
         return frozenset(self._session.scalars(
             select(func.lower(StoredCandidateModel.lemma))
             .where(StoredCandidateModel.status == WordStatus.LEARN.value, ~exported)
+            .distinct()
+        ))
+
+    def in_anki(self) -> frozenset[str]:
+        return frozenset(self._session.scalars(
+            select(func.lower(AnkiNoteModel.lemma))
+            .where(AnkiNoteModel.matured_at.is_(None), AnkiNoteModel.deleted_at.is_(None))
             .distinct()
         ))

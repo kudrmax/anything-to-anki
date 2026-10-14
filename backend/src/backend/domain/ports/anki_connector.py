@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from backend.domain.value_objects.note_maturity import NoteCards
 
 
 class AnkiConnector(ABC):
@@ -57,3 +61,7 @@ class AnkiConnector(ABC):
     @abstractmethod
     def store_media_file(self, filename: str, file_path: str) -> None:
         """Copy a local file to Anki's media folder via AnkiConnect."""
+
+    @abstractmethod
+    def note_cards(self, note_ids: list[int]) -> dict[int, NoteCards]:
+        """The cards of each note; a note missing from the result is deleted in Anki."""

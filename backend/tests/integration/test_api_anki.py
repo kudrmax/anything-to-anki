@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 from backend.application.utils.anki_note_settings import AnkiFieldNames
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -63,6 +64,16 @@ def db_session(client: TestClient) -> Generator[Session, None, None]:
     yield session
     session.close()
     engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _no_real_anki() -> Generator[None, None, None]:
+    """Whatever a test does not stub finds Anki offline: no request leaves the machine."""
+    with patch(
+        "backend.infrastructure.adapters.anki_connect_connector.httpx.post",
+        side_effect=httpx.ConnectError("Anki is not running in tests"),
+    ):
+        yield
 
 
 _DEFAULT_CLOZE_FIELDS = AnkiFieldNames.read(MagicMock(**{"get.return_value": None})).cloze_fields()
@@ -186,6 +197,7 @@ class TestSyncToAnkiAPI:
         data = response.json()
         assert data["total"] == 0
         assert data["added"] == 0
+        assert data["matured"] == 0
 
     def test_sync_adds_cards_successfully(self, client: TestClient) -> None:
         post = _add_text(client, "burnout is exhausting")
@@ -268,3 +280,20 @@ class TestSyncToAnkiAPI:
 
 def _add_text(client: TestClient, text: str) -> Response:
     return client.post("/sources/add", json={"text": text, "answers": {"text.kind": "text"}})
+
+
+@pytest.mark.integration
+class TestAnkiProgressAPI:
+    def test_check_progress_with_anki_offline_is_503(self, client: TestClient) -> None:
+        assert client.post("/anki/check-progress").status_code == 503
+
+    def test_check_progress_counts_words_learned_in_anki(self, client: TestClient) -> None:
+        with patch(f"{_CONNECTOR}.is_available", return_value=True):
+            response = client.post("/anki/check-progress")
+        assert response.status_code == 200
+        assert response.json() == {"matured": 0}
+
+    def test_the_learning_list_is_read_only_and_split(self, client: TestClient) -> None:
+        response = client.get("/vocabulary/learning")
+        assert response.status_code == 200
+        assert response.json() == {"in_anki": [], "awaiting_export": []}

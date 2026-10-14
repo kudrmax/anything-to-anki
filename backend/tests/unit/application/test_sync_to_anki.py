@@ -26,7 +26,6 @@ from tests.phrase_support import phrase
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.unit.application.source_fakes import InMemorySourceRepository
-from tests.vocabulary_support import user_vocabulary
 
 
 class _EveryField(list[str]):
@@ -83,7 +82,9 @@ class TestSyncToAnkiUseCase:
         self.settings_repo = MagicMock()
         self.anki_sync_repo = MagicMock()
         self.template_renderer = MagicMock()
-        self.known_word_repo = MagicMock()
+        self.anki_note_repo = MagicMock()
+        self.known_from_anki = MagicMock()
+        self.known_from_anki.run.return_value = 0
         self.template_renderer.render_recognition.return_value = NoteTemplates(
             "<front/>", "<back/>", "",
         )
@@ -98,7 +99,8 @@ class TestSyncToAnkiUseCase:
             settings_repo=self.settings_repo,
             anki_sync_repo=self.anki_sync_repo,
             template_renderer=self.template_renderer,
-            vocabulary=user_vocabulary(self.known_word_repo),
+            anki_note_repo=self.anki_note_repo,
+            known_from_anki=self.known_from_anki,
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
         )
@@ -110,7 +112,7 @@ class TestSyncToAnkiUseCase:
         result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
         assert result.total == 0
         assert result.added == 0
-        self.anki_connector.is_available.assert_not_called()
+        self.anki_connector.add_notes.assert_not_called()
 
     def test_raises_when_anki_unavailable(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -134,9 +136,9 @@ class TestSyncToAnkiUseCase:
         assert result.added == 2
         assert result.skipped == 0
         assert result.errors == 0
-        assert self.known_word_repo.add.call_count == 2
-        self.known_word_repo.add.assert_any_call("burnout", "NOUN")
-        self.known_word_repo.add.assert_any_call("relentless", "NOUN")
+        assert self.anki_note_repo.add.call_count == 2
+        self.anki_note_repo.add.assert_any_call(12345, "burnout", "NOUN")
+        self.anki_note_repo.add.assert_any_call(12345, "relentless", "NOUN")
 
     def test_exports_only_not_yet_exported_candidates(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -156,7 +158,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.add_notes.assert_called_once()
         call_notes = self.anki_connector.add_notes.call_args[1]["notes"]
         assert call_notes[0]["Target"] == "relentless"
-        self.known_word_repo.add.assert_called_once_with("relentless", "NOUN")
+        self.anki_note_repo.add.assert_called_once_with(99999, "relentless", "NOUN")
 
     def test_all_already_exported_returns_without_calling_anki(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -169,9 +171,8 @@ class TestSyncToAnkiUseCase:
         assert result.total == 0
         assert result.added == 0
         assert result.skipped == 0
-        self.anki_connector.is_available.assert_not_called()
         self.anki_connector.add_notes.assert_not_called()
-        self.known_word_repo.add.assert_not_called()
+        self.anki_note_repo.add.assert_not_called()
 
     def test_marks_synced_after_successful_add(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -183,7 +184,7 @@ class TestSyncToAnkiUseCase:
         self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
 
         self.anki_sync_repo.mark_synced.assert_called_once_with(1, 12345, 1)
-        self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
+        self.anki_note_repo.add.assert_called_once_with(12345, "burnout", "NOUN")
 
     def test_counts_as_skipped_when_note_already_exists_in_anki(self) -> None:
         # add_notes returns None (allowDuplicate=False), but note exists in Anki
@@ -201,7 +202,7 @@ class TestSyncToAnkiUseCase:
         assert result.skipped_lemmas == ["burnout"]
         assert result.errors == 0
         self.anki_sync_repo.mark_synced.assert_called_once_with(1, 99999, 1)
-        self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
+        self.anki_note_repo.add.assert_called_once_with(99999, "burnout", "NOUN")
 
     def test_counts_errors_when_add_fails_and_note_not_found(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -217,7 +218,7 @@ class TestSyncToAnkiUseCase:
         assert result.errors == 1
         assert result.error_lemmas == ["burnout"]
         self.anki_sync_repo.mark_synced.assert_not_called()
-        self.known_word_repo.add.assert_not_called()
+        self.anki_note_repo.add.assert_not_called()
 
     def test_duplicate_exception_marks_synced_and_counts_as_skipped(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -236,7 +237,7 @@ class TestSyncToAnkiUseCase:
         assert result.skipped_lemmas == ["burnout"]
         assert result.errors == 0
         self.anki_sync_repo.mark_synced.assert_called_once_with(1, 99999, 1)
-        self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
+        self.anki_note_repo.add.assert_called_once_with(99999, "burnout", "NOUN")
 
     def test_counts_errors_on_exception(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -251,7 +252,7 @@ class TestSyncToAnkiUseCase:
         assert result.errors == 1
         assert result.error_lemmas == ["burnout"]
         self.anki_sync_repo.mark_synced.assert_not_called()
-        self.known_word_repo.add.assert_not_called()
+        self.anki_note_repo.add.assert_not_called()
 
     def test_meaning_from_candidate(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
@@ -596,7 +597,8 @@ class TestSyncRefusesIncompleteNoteType:
             settings_repo=settings_repo,
             anki_sync_repo=anki_sync_repo,
             template_renderer=MagicMock(),
-            vocabulary=user_vocabulary(MagicMock()),
+            anki_note_repo=MagicMock(),
+            known_from_anki=MagicMock(**{"run.return_value": 0}),
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
         )
@@ -649,7 +651,8 @@ class TestSyncCollectionScope:
             template_renderer=MagicMock(
                 render_recognition=MagicMock(return_value=NoteTemplates("F", "B", "")),
             ),
-            vocabulary=user_vocabulary(),
+            anki_note_repo=MagicMock(),
+            known_from_anki=MagicMock(**{"run.return_value": 0}),
             cloze_builder=ClozeBuilder(),
             scope_resolver=SourceScopeResolver(
                 InMemorySourceRepository(sources),
@@ -662,3 +665,75 @@ class TestSyncCollectionScope:
         pushed = [c.kwargs["notes"][0]["Target"] for c in connector.add_notes.call_args_list]
         assert result.total == 1
         assert pushed == ["burnout"]
+
+
+@pytest.mark.unit
+class TestSyncChecksProgressInAnki:
+    """Every export checks maturity first, also when nothing is new."""
+
+    def setup_method(self) -> None:
+        self.candidate_repo = MagicMock()
+        self.candidate_repo.get_by_source.return_value = []
+        self.anki_connector = MagicMock()
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.get_model_field_names.return_value = _EveryField()
+        self.anki_connector.add_notes.return_value = [12345]
+        settings_repo = MagicMock()
+        settings_repo.get.return_value = None
+        anki_sync_repo = MagicMock()
+        anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        renderer = MagicMock()
+        renderer.render_recognition.return_value = NoteTemplates("F", "B", "")
+        self.anki_note_repo = MagicMock()
+        self.known_from_anki = MagicMock()
+        self.known_from_anki.run.return_value = 3
+        self.use_case = SyncToAnkiUseCase(
+            export_queue=ExportQueue(
+                self.candidate_repo, anki_sync_repo, DecisionsOf(self.candidate_repo),
+            ),
+            anki_connector=self.anki_connector,
+            settings_repo=settings_repo,
+            anki_sync_repo=anki_sync_repo,
+            template_renderer=renderer,
+            anki_note_repo=self.anki_note_repo,
+            known_from_anki=self.known_from_anki,
+            cloze_builder=ClozeBuilder(),
+            scope_resolver=empty_scope_resolver(),
+        )
+
+    def test_an_export_with_nothing_new_still_checks_progress(self) -> None:
+        result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
+
+        assert result.total == 0
+        assert result.matured == 3
+        self.known_from_anki.run.assert_called_once()
+
+    def test_anki_offline_with_nothing_new_is_no_error(self) -> None:
+        self.anki_connector.is_available.return_value = False
+
+        result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
+
+        assert result.total == 0
+        assert result.matured == 0
+        self.known_from_anki.run.assert_not_called()
+
+    def test_anki_offline_with_new_cards_is_an_error(self) -> None:
+        self.anki_connector.is_available.return_value = False
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "burnout", CandidateStatus.LEARN),
+        ]
+
+        with pytest.raises(AnkiNotAvailableError):
+            self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+
+    def test_an_exported_word_is_learning_not_known(self) -> None:
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "burnout", CandidateStatus.LEARN),
+        ]
+
+        result = self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+
+        assert result.added == 1
+        assert result.matured == 3
+        self.anki_note_repo.add.assert_called_once_with(12345, "burnout", "NOUN")
+        self.known_from_anki.run.assert_called_once()

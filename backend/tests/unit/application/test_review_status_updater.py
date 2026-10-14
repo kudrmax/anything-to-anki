@@ -41,11 +41,13 @@ class TestReviewStatusUpdater:
     def setup_method(self) -> None:
         self.source_repo = MagicMock()
         self.candidate_repo = MagicMock()
+        self.occurrence_repo = MagicMock()
         settings_repo = MagicMock()
         settings_repo.get.return_value = None
         self.updater = ReviewStatusUpdater(
             source_repo=self.source_repo,
             review_progress=ReviewProgress(self.candidate_repo, candidate_sorter(settings_repo)),
+            occurrence_repo=self.occurrence_repo,
         )
 
     def test_saves_the_derived_status_when_it_changes(self) -> None:
@@ -80,4 +82,15 @@ class TestReviewStatusUpdater:
         self.source_repo.list_all.return_value = [_source(SourceStatus.DONE)]
         self.candidate_repo.get_by_source.return_value = [_candidate(CandidateStatus.LEARN)]
         self.updater.refresh_all()
+        self.source_repo.update_status.assert_called_once_with(7, SourceStatus.REVIEWED)
+
+    def test_refresh_showing_goes_through_the_sources_whose_cards_show_the_lemmas(self) -> None:
+        self.occurrence_repo.sources_showing.return_value = {7}
+        self.source_repo.get_by_id.return_value = _source(SourceStatus.DONE)
+        self.candidate_repo.get_by_source.return_value = [_candidate(CandidateStatus.LEARN)]
+
+        self.updater.refresh_showing({"pursuit"})
+
+        self.occurrence_repo.sources_showing.assert_called_once_with({"pursuit"})
+        self.source_repo.list_all.assert_not_called()
         self.source_repo.update_status.assert_called_once_with(7, SourceStatus.REVIEWED)

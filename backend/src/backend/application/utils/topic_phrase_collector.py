@@ -92,7 +92,8 @@ class TopicPhraseCollector:
             generated = self._generated_candidate(source_id, target)
             if generated is None:
                 continue
-            if generated.lemma in seen or knowledge.vocabulary.is_known(generated.lemma):
+            lemma = generated.lemma
+            if lemma in seen or knowledge.vocabulary.is_known_or_learning(lemma):
                 continue
             seen.add(generated.lemma)
             found = self._real_phrase(generated, target, library, knowledge)

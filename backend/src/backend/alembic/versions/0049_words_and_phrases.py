@@ -532,6 +532,10 @@ def _drop_card_columns() -> None:
     ) as batch:
         for column in PHRASE_COLUMNS:
             batch.drop_column(column)
+        # Unknown for old Known words: off, so undoing one never forgets a word known before.
+        batch.add_column(
+            sa.Column("known_added", sa.Boolean(), nullable=False, server_default="0"),
+        )
     with op.batch_alter_table("jobs") as batch:
         batch.create_foreign_key(
             "fk_jobs_phrase_id_phrases", "phrases", ["phrase_id"], ["id"], ondelete="CASCADE",

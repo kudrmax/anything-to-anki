@@ -13,7 +13,11 @@ class TestUserVocabulary:
         self.known.get_all_pairs.return_value = {("lurk", "VERB"), ("feast", None)}
         self.unknown = MagicMock()
         self.unknown.lemmas.return_value = {"lurk"}
-        self.vocabulary = UserVocabulary(self.known, self.unknown)
+        self.learning = MagicMock()
+        self.learning.learning_lemmas.return_value = frozenset({"gull", "feast"})
+        self.removals = MagicMock()
+        self.removals.contains.return_value = False
+        self.vocabulary = UserVocabulary(self.known, self.unknown, self.learning, self.removals)
 
     def test_word_in_both_lists_is_unknown(self) -> None:
         snapshot = self.vocabulary.snapshot()
@@ -30,3 +34,31 @@ class TestUserVocabulary:
         self.vocabulary.mark_unknown("feast")
         self.known.remove_every_pos.assert_called_once_with("feast")
         self.unknown.add.assert_called_once_with("feast")
+
+    def test_the_snapshot_has_the_learning_words_below_known(self) -> None:
+        snapshot = self.vocabulary.snapshot()
+        assert snapshot.is_learning("gull") is True
+        assert snapshot.is_learning("feast") is False
+
+    def test_marking_known_lifts_an_earlier_removal(self) -> None:
+        self.vocabulary.mark_known("gull", None)
+        self.removals.discard.assert_called_once_with("gull")
+
+    def test_forgetting_known_remembers_the_removal(self) -> None:
+        self.vocabulary.forget_known("feast", None)
+        self.known.remove_by_lemma.assert_called_once_with("feast", None)
+        self.removals.add.assert_called_once_with("feast")
+
+    def test_a_mature_word_becomes_known(self) -> None:
+        assert self.vocabulary.mark_mature("gull", "NOUN") is True
+        self.known.add.assert_called_once_with("gull", "NOUN")
+        self.removals.discard.assert_not_called()
+
+    def test_maturity_leaves_an_unknown_word_alone(self) -> None:
+        assert self.vocabulary.mark_mature("lurk", "VERB") is False
+        self.known.add.assert_not_called()
+
+    def test_maturity_does_not_put_back_a_word_removed_from_known(self) -> None:
+        self.removals.contains.return_value = True
+        assert self.vocabulary.mark_mature("gull", "NOUN") is False
+        self.known.add.assert_not_called()

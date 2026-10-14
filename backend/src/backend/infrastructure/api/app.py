@@ -31,6 +31,7 @@ from backend.infrastructure.api.routes import (
     stats,
     unknown_words,
     usage,
+    vocabulary,
 )
 from backend.infrastructure.api.routes.media import router as media_router
 from backend.infrastructure.api.routes.queue import router as queue_router
@@ -111,6 +112,7 @@ app.include_router(phrases.router)
 app.include_router(card_reports.router)
 app.include_router(known_words.router)
 app.include_router(unknown_words.router)
+app.include_router(vocabulary.router)
 app.include_router(settings.router)
 app.include_router(anki.router)
 app.include_router(export.router)

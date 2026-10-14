@@ -331,3 +331,71 @@ class TestEnsureNoteType:
                 "Back": "{{cloze:Text}}{{Target}}",
             }
         ]
+
+
+class _FakeAnkiCards:
+    """AnkiConnect's `findCards nid:` and `cardsInfo` over a fixed set of cards."""
+
+    def __init__(self, cards: dict[int, tuple[int, int, int]]) -> None:
+        self.cards = cards  # card id → (note id, interval, queue)
+        self.calls: list[tuple[str, dict[str, object]]] = []
+
+    def invoke(self, action: str, **params: object) -> object:
+        self.calls.append((action, params))
+        if action == "findCards":
+            query = str(params["query"])
+            assert query.startswith("nid:")
+            notes = {int(n) for n in query.removeprefix("nid:").split(",")}
+            return [card for card, (note, _, _) in self.cards.items() if note in notes]
+        assert action == "cardsInfo"
+        card_ids = params["cards"]
+        assert isinstance(card_ids, list)
+        return [
+            {"cardId": card, "note": self.cards[card][0], "interval": self.cards[card][1],
+             "queue": self.cards[card][2]}
+            for card in card_ids
+        ]
+
+
+@pytest.mark.unit
+class TestNoteCards:
+    def _connector(self, fake: _FakeAnkiCards) -> AnkiConnectConnector:
+        connector = AnkiConnectConnector(url="http://test")
+        connector._invoke = fake.invoke  # type: ignore[method-assign]
+        return connector
+
+    def test_gives_the_active_intervals_and_suspended_count_of_each_note(self) -> None:
+        fake = _FakeAnkiCards({
+            11: (1, 30, 2), 12: (1, -600, 1), 13: (1, 50, -1),
+            21: (2, 25, 2),
+        })
+
+        cards = self._connector(fake).note_cards([1, 2])
+
+        assert sorted(cards[1].intervals) == [-600, 30]
+        assert cards[1].suspended == 1
+        assert cards[2].intervals == (25,)
+        assert cards[2].suspended == 0
+
+    def test_a_note_without_cards_is_missing(self) -> None:
+        fake = _FakeAnkiCards({11: (1, 30, 2)})
+
+        assert set(self._connector(fake).note_cards([1, 2])) == {1}
+
+    def test_no_notes_ask_nothing(self) -> None:
+        fake = _FakeAnkiCards({})
+
+        assert self._connector(fake).note_cards([]) == {}
+        assert fake.calls == []
+
+    def test_asks_in_batches(self) -> None:
+        notes = list(range(1, 502))
+        fake = _FakeAnkiCards({note * 10: (note, 30, 2) for note in notes})
+
+        cards = self._connector(fake).note_cards(notes)
+
+        assert len(cards) == 501
+        finds = [params for action, params in fake.calls if action == "findCards"]
+        infos = [params for action, params in fake.calls if action == "cardsInfo"]
+        assert len(finds) == 2
+        assert all(len(info["cards"]) <= 500 for info in infos)  # type: ignore[arg-type]

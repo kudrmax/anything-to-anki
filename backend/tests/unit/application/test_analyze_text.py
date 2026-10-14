@@ -234,6 +234,7 @@ def _run(
     known: frozenset[str] = frozenset(),
     frequent_zipf: float | None = 4.5,
     unknown: frozenset[str] = frozenset(),
+    learning: frozenset[str] = frozenset(),
 ) -> list[WordDTO]:
     use_case = _create_use_case(
         tokens=tokens,
@@ -241,7 +242,7 @@ def _run(
         freq_map=freq_map or {},
     )
     request = AnalyzeTextRequest(
-        user_level="B1", vocabulary=Vocabulary.of(known=known, unknown=unknown),
+        user_level="B1", vocabulary=Vocabulary.of(known=known, unknown=unknown, learning=learning),
         frequent_word_zipf=frequent_zipf,
     )
     return use_case.execute(request).words
@@ -266,6 +267,19 @@ class TestAnalyzeTextKnownWords:
         tokens = [_make_token(0, "divorced", "divorce", pos="VERB", tag="VBN")]
         candidates = _run(tokens, {"divorce": CEFRLevel.B2}, known=frozenset({"divorce"}))
         assert candidates == []
+
+    def test_word_learned_elsewhere_is_not_a_candidate(self) -> None:
+        tokens = [_make_token(0, "divorced", "divorce", pos="VERB", tag="VBN")]
+        candidates = _run(tokens, {"divorce": CEFRLevel.B2}, learning=frozenset({"divorce"}))
+        assert candidates == []
+
+    def test_word_learned_elsewhere_but_marked_unknown_is_a_candidate(self) -> None:
+        tokens = [_make_token(0, "divorced", "divorce", pos="VERB", tag="VBN")]
+        candidates = _run(
+            tokens, {"divorce": CEFRLevel.B2},
+            learning=frozenset({"divorce"}), unknown=frozenset({"divorce"}),
+        )
+        assert [c.lemma for c in candidates] == ["divorce"]
 
     def test_known_phrasal_verb_is_not_a_candidate(self) -> None:
         tokens = [

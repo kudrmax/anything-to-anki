@@ -130,6 +130,7 @@ class Bench:
         self.jobs = SqlaJobRepository(session)
         self.candidates = SqlaCandidateRepository(session)
         self.sources = SqlaSourceRepository(session)
+        self.vocabulary = user_vocabulary()
 
     def rebuilder(self) -> SourceRebuilder:
         settings = SqlaSettingsRepository(self.session)
@@ -140,7 +141,7 @@ class Bench:
             job_repo=self.jobs,
             media_repo=self.media,
             settings_repo=settings,
-            vocabulary=user_vocabulary(),
+            vocabulary=self.vocabulary,
             threshold_resolver=threshold_resolver(settings),
             analyze_text_use_case=self.analyze_text,
             review_status=ReviewStatusUpdater(
@@ -148,6 +149,7 @@ class Bench:
                 review_progress=ReviewProgress(
                     candidate_repo=self.candidates, candidate_sorter=candidate_sorter(settings),
                 ),
+                occurrence_repo=self.occurrences,
             ),
             unit_of_work=SqlaUnitOfWork(self.session),
         )

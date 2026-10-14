@@ -14,6 +14,9 @@ class KnownWordRepository(ABC):
     def add(self, lemma: str, pos: str | None) -> KnownWord: ...
 
     @abstractmethod
+    def get_by_id(self, known_word_id: int) -> KnownWord | None: ...
+
+    @abstractmethod
     def remove(self, known_word_id: int) -> None: ...
 
     @abstractmethod

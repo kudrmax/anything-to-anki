@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.anki_dtos import (  # noqa: TC001
+    AnkiProgressDTO,
     AnkiStatusDTO,
     AnkiTemplatesDTO,
     NoteTypeCheckDTO,
@@ -59,3 +60,17 @@ def get_anki_templates(
     container: Container = Depends(get_container),  # noqa: B008
 ) -> AnkiTemplatesDTO:
     return container.get_anki_templates_use_case(session).execute()
+
+
+@router.post("/anki/check-progress")
+def check_anki_progress(
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> AnkiProgressDTO:
+    """Which exported words Anki says are learned; they become Known. No export."""
+    try:
+        result = container.check_anki_progress_use_case(session).execute()
+    except AnkiNotAvailableError as exc:
+        raise HTTPException(status_code=503, detail="Anki is not available") from exc
+    session.commit()
+    return result

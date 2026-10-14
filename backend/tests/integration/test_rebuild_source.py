@@ -25,6 +25,7 @@ from tests.source_rebuild_support import (
     time_of_line,
     word,
 )
+from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
     from backend.application.dto.analysis_dtos import AnalyzeTextRequest
@@ -64,6 +65,18 @@ def test_a_decided_word_the_analysis_lost_keeps_its_card(bench: Bench) -> None:
     assert kept is not None
     assert kept.is_decision
     assert bench.shown_lines("linger") == [3]
+
+
+def test_the_analysis_takes_words_learned_elsewhere_but_not_here_out(bench: Bench) -> None:
+    """A word learned in another source is no new candidate; one learned here stays one."""
+    bench.processed(word("glare", at(0)), word("linger", at(3)))
+    bench.decide_learn("linger", bench.phrase_on("linger", 3).id)
+    bench.vocabulary = user_vocabulary(learning_lemmas={"glare", "linger", "wander"})
+
+    bench.rebuild().execute(SOURCE, include_open=False)
+
+    request: AnalyzeTextRequest = bench.analyze_text.execute.call_args.args[1]
+    assert request.vocabulary.learning == {"glare", "wander"}
 
 
 def test_a_word_lost_without_a_decision_goes(bench: Bench) -> None:

@@ -11,6 +11,7 @@ from backend.domain.services.document_time import is_timed, time_of
 from backend.domain.services.rebuild_plan import plan_rebuild
 from backend.domain.services.source_review_status import REVIEWABLE_STATUSES
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
     from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
@@ -90,11 +91,20 @@ class SourceRebuilder:
         request = AnalyzeTextRequest(
             user_level=self._settings_repo.get("cefr_level", DEFAULT_USER_LEVEL)
             or DEFAULT_USER_LEVEL,
-            vocabulary=self._vocabulary.snapshot(),
+            vocabulary=self._vocabulary.snapshot().without_learning(
+                self._learned_here(source_id),
+            ),
             frequent_word_zipf=self._threshold_resolver.resolve().zipf,
         )
         result = self._analyze_text.execute(document, request)
         return AnalysedSource(source_id, document, self._builder.words(result.words))
+
+    def _learned_here(self, source_id: int) -> set[str]:
+        """Learn words of this source stay its candidates; learned elsewhere, they don't."""
+        return {
+            row.lemma for row in self._occurrence_repo.word_rows(source_id)
+            if row.status is WordStatus.LEARN
+        }
 
     def plan(self, analysed: AnalysedSource, include_open: bool) -> RebuildPlan:
         """The plan as it stands now; nothing is written."""

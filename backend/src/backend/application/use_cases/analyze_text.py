@@ -145,7 +145,7 @@ class AnalyzeTextUseCase:
             if not self._candidate_filter.is_relevant_token(token):
                 continue
             lemma = knowledge.lemma_of(token)
-            if knowledge.is_known(lemma):
+            if knowledge.is_known_or_learning(lemma):
                 continue
             words.setdefault(lemma, []).append(_Occurrence(
                 target_index=token.index,
@@ -160,7 +160,7 @@ class AnalyzeTextUseCase:
     ) -> dict[str, list[_Occurrence]]:
         phrasal_verbs: dict[str, list[_Occurrence]] = {}
         for match in self._phrasal_verb_detector.detect(tokens):
-            if knowledge.is_known(match.lemma):
+            if knowledge.is_known_or_learning(match.lemma):
                 continue
             phrasal_verbs.setdefault(match.lemma, []).append(_Occurrence(
                 target_index=match.verb_index,

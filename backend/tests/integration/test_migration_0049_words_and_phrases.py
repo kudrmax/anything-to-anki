@@ -266,6 +266,11 @@ def test_one_word_per_lemma_and_every_card_is_a_phrase(db_url: str) -> None:
     assert len(_rows(db_url, "SELECT id FROM phrases")) == CARD_COUNT
 
 
+def test_no_old_known_word_claims_it_added_the_lemma_to_known(db_url: str) -> None:
+    """Undoing an old Known never forgets the lemma: who added it is not known."""
+    assert _rows(db_url, "SELECT id FROM candidates WHERE known_added != 0") == []
+
+
 def test_duplicate_of_an_exported_card_becomes_its_manual_phrase(db_url: str) -> None:
     a = _phrase_of(db_url, CARD_A, LINE_0)
     b = _phrase_of(db_url, CARD_A, "Then he glared")

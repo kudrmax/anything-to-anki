@@ -100,11 +100,13 @@ class SqlaCandidateRepository(CandidateRepository):
         self._session.flush()
         return model.id
 
-    def set_word_status(self, candidate_id: int, status: WordStatus) -> None:
+    def set_word_status(
+        self, candidate_id: int, status: WordStatus, *, known_added: bool = False,
+    ) -> None:
         self._session.execute(
             update(StoredCandidateModel)
             .where(StoredCandidateModel.id == candidate_id)
-            .values(status=status.value)
+            .values(status=status.value, known_added=known_added)
         )
         self._session.flush()
 

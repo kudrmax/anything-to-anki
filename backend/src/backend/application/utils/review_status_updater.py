@@ -7,6 +7,7 @@ from backend.domain.services.source_review_status import derive_review_status
 if TYPE_CHECKING:
     from backend.application.utils.review_progress import ReviewProgress
     from backend.domain.entities.source import Source
+    from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
 
 
@@ -20,9 +21,11 @@ class ReviewStatusUpdater:
         self,
         source_repo: SourceRepository,
         review_progress: ReviewProgress,
+        occurrence_repo: OccurrenceRepository,
     ) -> None:
         self._source_repo = source_repo
         self._review_progress = review_progress
+        self._occurrence_repo = occurrence_repo
 
     def refresh(self, source_id: int) -> None:
         source = self._source_repo.get_by_id(source_id)
@@ -33,6 +36,12 @@ class ReviewStatusUpdater:
         """После того как изменилось, какие слова пользователь знает: карточки сменили разделы."""
         for source in self._source_repo.list_all():
             self._refresh(source)
+
+    def refresh_showing(self, lemmas: set[str]) -> None:
+        """После того как изменилось, знает ли или учит ли пользователь эти слова: только
+        источники, где они есть среди слов показанных фраз."""
+        for source_id in sorted(self._occurrence_repo.sources_showing(lemmas)):
+            self.refresh(source_id)
 
     def _refresh(self, source: Source) -> None:
         assert source.id is not None

@@ -33,8 +33,9 @@ class WordKnowledge:
             vocabulary=vocabulary, user_level=user_level, frequent_zipf=frequent_zipf,
         )
 
-    def is_known(self, lemma: str) -> bool:
-        return self._user.vocabulary.is_known(lemma)
+    def is_known_or_learning(self, lemma: str) -> bool:
+        """Not a new candidate: known, or already learned (here or in another source)."""
+        return self._user.vocabulary.is_known_or_learning(lemma)
 
     def zipf(self, lemma: str) -> float:
         return self.facts.zipf(lemma)

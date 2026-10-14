@@ -23,8 +23,11 @@ class CandidateRepository(ABC):
         occurrence repository."""
 
     @abstractmethod
-    def set_word_status(self, candidate_id: int, status: WordStatus) -> None:
-        """The decision on the word; the phrase of the decision is the phrases' business."""
+    def set_word_status(
+        self, candidate_id: int, status: WordStatus, *, known_added: bool = False,
+    ) -> None:
+        """The decision on the word; the phrase of the decision is the phrases' business.
+        `known_added`: a Known decision that put the lemma into the user's Known."""
 
     @abstractmethod
     def get_by_source(self, source_id: int) -> list[StoredCandidate]:
