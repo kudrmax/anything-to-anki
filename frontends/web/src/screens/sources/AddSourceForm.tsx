@@ -4,7 +4,7 @@ import { api } from '@/api/client'
 import type { DetectedFormat, Question } from '@/api/types'
 import { droppedPathsIn, nativeHost } from '@/lib/nativeHost'
 import { withDroppedPaths } from '@/lib/text/sourceInput'
-import { phraseWords, pickedWords, toggled } from '@/lib/text/words'
+import { phraseWords, pickedIndices, toggled } from '@/lib/text/words'
 import { Button, Field, Segmented, Spinner, Stack, Text, TextArea, WordPicker } from '@/ui'
 import css from './AddSourceForm.module.css'
 import { PathField } from './PathField'
@@ -166,10 +166,9 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
   })
 
   const addPhrase = () => {
-    const target = pickedWords(input, phraseTarget)
-    if (!target) { setError('Select target words'); return }
+    if (!phraseTarget.size) { setError('Select target words'); return }
     void run(async () => {
-      await api.addSavedPhrase(input.trim(), target)
+      await api.addSavedPhrase(input, pickedIndices(phraseTarget))
       reset()
       setPhraseSaved(true)
       await onReload()

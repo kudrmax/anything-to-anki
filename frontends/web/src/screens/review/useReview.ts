@@ -322,9 +322,9 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   }
 
   /** true — слово добавлено; при ошибке показывает её и оставляет попап открытым. */
-  const addWord = async (target: string, selection: DocumentSelection): Promise<boolean> => {
+  const addWord = async (targetWords: number[], selection: DocumentSelection): Promise<boolean> => {
     try {
-      const result = await api.addManualCandidate(sourceId, target, selection)
+      const result = await api.addManualCandidate(sourceId, targetWords, selection)
       window.getSelection()?.removeAllRanges()
       await loadCandidates()
       setCurrentId(result.id)

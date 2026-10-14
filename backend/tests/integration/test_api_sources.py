@@ -292,7 +292,7 @@ class TestSavedPhrasesAPI:
     def test_phrase_goes_to_saved_phrases_source_to_learn(self, client: TestClient) -> None:
         response = client.post(
             "/sources/saved-phrases",
-            json={"phrase": "She finally gave in to the pressure.", "target": "gave in"},
+            json={"phrase": "She finally gave in to the pressure.", "target_words": [2, 3]},
         )
 
         assert response.status_code == 201
@@ -312,8 +312,8 @@ class TestSavedPhrasesAPI:
 
     def test_second_phrase_reuses_the_same_source(self, client: TestClient) -> None:
         for text in ("It was a daunting task.", "Keep it concise."):
-            target = text.split()[-1].rstrip(".")
-            client.post("/sources/saved-phrases", json={"phrase": text, "target": target})
+            last = len(text.split()) - 1
+            client.post("/sources/saved-phrases", json={"phrase": text, "target_words": [last]})
 
         sources = client.get("/sources").json()
         assert len(sources) == 1
@@ -322,7 +322,7 @@ class TestSavedPhrasesAPI:
     def test_target_outside_phrase_is_rejected(self, client: TestClient) -> None:
         response = client.post(
             "/sources/saved-phrases",
-            json={"phrase": "It was a daunting task.", "target": "challenge"},
+            json={"phrase": "It was a daunting task.", "target_words": [9]},
         )
         assert response.status_code == 400
 
@@ -331,7 +331,7 @@ class TestSavedPhrasesAPI:
     ) -> None:
         client.post(
             "/sources/saved-phrases",
-            json={"phrase": "It was a daunting task.", "target": "daunting"},
+            json={"phrase": "It was a daunting task.", "target_words": [3]},
         )
         source_id = client.get("/sources").json()[0]["id"]
 

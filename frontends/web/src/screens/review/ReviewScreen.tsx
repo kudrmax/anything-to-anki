@@ -283,7 +283,7 @@ export function ReviewScreen() {
           point={selection.point}
           editing={editing}
           onSetBoundary={async () => { if (await review.setBoundary(selection.selected.selection)) setSelection(null) }}
-          onAddWord={async target => { if (await review.addWord(target, selection.selected.selection)) setSelection(null) }}
+          onAddWord={async targetWords => { if (await review.addWord(targetWords, selection.selected.selection)) setSelection(null) }}
           onCancel={closeSelection}
         />
       )}

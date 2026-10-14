@@ -175,11 +175,12 @@ def phrase(self) -> Phrase: ...            # показанная фраза</pr
   <section>
     <h2><span class="n">05</span>Порты и use case'ы</h2>
     <h3>PhraseReader (application)</h3>
-    <p>Единственное место, где текст превращается во фразу. Через порт <code>TextAnalyzer</code> (spaCy) получает токены, собирает слова по правилу «слово в тексте», лемму, уровень и частотность берёт из токенов слова. Два способа указать target:</p>
+    <p>Единственное место, где текст превращается во фразу. Через порт <code>TextAnalyzer</code> (spaCy) получает токены, собирает слова по правилу «слово в тексте», лемму, уровень и частотность берёт из токенов слова. Три способа указать target:</p>
     <div class="scroll"><table>
       <tr><th>Метод</th><th>Когда</th><th>Как ставится target</th></tr>
-      <tr><td><code>read(text, target_spans)</code></td><td>Пользователь или источник указал target символами: выделение в Quick Add, «Добавить слово», <code>**bold**</code> в примере и теме, место target в документе</td><td>Слова, которые попадают в эти символы</td></tr>
-      <tr><td><code>read_for(text, lemma)</code></td><td>Текст без указанного target: Polish, ручная правка, новая граница</td><td>Слова, чьи леммы дают лемму карточки по порядку (<code>give up</code> → <code>gave … up</code>). Первое такое вхождение. Не нашлось — <code>TargetNotInPhraseError</code></td></tr>
+      <tr><td><code>read(text, target_spans)</code></td><td>Источник указал target символами: <code>**bold**</code> в примере и теме, место target в документе</td><td>Слова, которые попадают в эти символы</td></tr>
+      <tr><td><code>read_picked(text, words)</code></td><td>Пользователь выбрал слова: Quick Add, сохранение фразы, «Добавить слово»</td><td>Слова с этими номерами. Фронт и backend делят текст на слова по одному правилу, поэтому номера совпадают. Номер вне фразы или пустой выбор — <code>TargetNotInPhraseError</code></td></tr>
+      <tr><td><code>read_for(text, lemma)</code></td><td>Текст без указанного target: Polish, ручная правка, новая граница</td><td>Слова, чьи леммы дают лемму карточки по порядку (<code>give up</code> → <code>gave … up</code>). Часть слова через дефис тоже подходит (<code>dong</code> → <code>ding-dong</code>). Первое такое вхождение. Не нашлось — <code>TargetNotInPhraseError</code></td></tr>
     </table></div>
     <h3>Use case'ы, которые меняются</h3>
     <div class="scroll"><table>
@@ -187,9 +188,9 @@ def phrase(self) -> Phrase: ...            # показанная фраза</pr
       <tr><td>ProcessSource / AnalyzeText</td><td>Строит <code>source_phrase</code> из уже разобранного документа: слова фрагмента, target — защищённые токены вхождения. Отдельного разбора нет.</td></tr>
       <tr><td>RewritePhrase (новый, общий)</td><td>Новый текст → <code>read_for(text, lemma)</code> → <code>polished_phrase</code>. Target не найден — <code>TargetNotInPhraseError</code>, фраза не меняется. Вызывают PolishPhrases (ответ AI отклоняется, как сейчас при потере target) и EditCardPhrase (пользователь видит «Target is missing from the phrase», текст остаётся в поле).</td></tr>
       <tr><td>SetPhraseBoundary</td><td>Новый кусок документа → новая <code>source_phrase</code>; target — то же место в документе. Если target не внутри нового куска — граница не применяется: «Target must be inside the phrase».</td></tr>
-      <tr><td>AddManualCandidate</td><td>Выделение + выбранные слова → <code>read(text, spans)</code>.</td></tr>
-      <tr><td>AddSavedPhrase</td><td>Quick Add шлёт символы выбранных слов, а не склеенную строку → <code>read(text, spans)</code>.</td></tr>
-      <tr><td>ReplaceWithExample, тема</td><td>Пример с <code>**bold**</code> → текст без звёздочек + символы выделенного → <code>read</code>.</td></tr>
+      <tr><td>AddManualCandidate</td><td>Выделение + номера выбранных слов (<code>target_words</code>) → <code>read_picked</code>.</td></tr>
+      <tr><td>AddSavedPhrase</td><td>Текст + номера выбранных слов (<code>target_words</code>), а не склеенная строка → <code>read_picked</code>.</td></tr>
+      <tr><td>ReplaceWithExample, тема</td><td>Пример с <code>**bold**</code> → текст без звёздочек + символы каждого выделенного куска → <code>read</code>. Повтор слова в примере не мешает: target там, где жирный.</td></tr>
       <tr><td>RevertPhrasePolish, EnqueuePhrasePolish</td><td>Только переключают / сбрасывают <code>polished_phrase</code>.</td></tr>
       <tr><td>ReportCandidate</td><td>Принимает номера слов показанной фразы вместо символов.</td></tr>
       <tr><td>SaveCloze, PreviewCloze</td><td>Номера слов — номера слов фразы. Если показанная фраза сменилась, разметка, как сейчас, строится заново по target новой фразы.</td></tr>
@@ -209,7 +210,8 @@ def phrase(self) -> Phrase: ...            # показанная фраза</pr
   "words": [[0, 1], [2, 8], [9, 13], [14, 23], [24, 27], [28, 33]],
   "target": [3]
 },
-"source_phrase": { ... }   // для сравнения Polish, если есть переписанная</pre>
+"source_phrase": { ... },  // для сравнения Polish, если есть переписанная
+"polished_phrase": { ... } // переписанная, даже если пользователь её отменил: для «вернуть»</pre>
     <ul>
       <li>Фронт режет текст по символам слов и рисует: target, скрытые cloze, выбор слов во флажке и в «Добавить слово». Своих правил деления на слова и поиска target у фронта нет.</li>
       <li>Леммы и уровни слов на фронт не уходят — не нужны.</li>
@@ -230,7 +232,7 @@ def phrase(self) -> Phrase: ...            # показанная фраза</pr
     <h2><span class="n">08</span>Перенос старых карточек</h2>
     <p>Ревизия Alembic, выполняется при <code>make up</code>. Ей нужен разбор языка, поэтому она вызывает <code>PhraseReader</code> приложения. После применения на проде и dev тело ревизии очищается, как у ревизии переноса на документы.</p>
     <ol>
-      <li><code>source_phrase</code>: текст = <code>context_fragment</code>. Target — символы <code>target_position</code> внутри фразы, если оно есть; иначе <code>read_for</code> по лемме.</li>
+      <li><code>source_phrase</code>: текст = <code>context_fragment</code>. Target — символы <code>target_position</code> внутри фразы, если оно есть; иначе <code>read_for</code> по лемме. Документ склеивает строки фразы пробелом, старая фраза хранила перенос строки — такие тексты считаются одинаковыми. Старая позиция хранила только первое и последнее слово target, середину («catch <b>up</b> on») находит лемма между ними.</li>
       <li><code>polished_phrase</code>: текст = <code>polished_fragment</code>, target — <code>read_for</code>. Не нашёлся — переписанная фраза не переносится, карточка показывает фразу из книги (так же поступает Polish, когда AI теряет target).</li>
       <li>Cloze: старые номера — номера слов по пробелам; переводятся в новые через символы. Если показанная фраза у карточки не переносится, разметка строится заново.</li>
     </ol>
@@ -251,7 +253,7 @@ def phrase(self) -> Phrase: ...            # показанная фраза</pr
     <h2><span class="n">10</span>Что сознательно уходит</h2>
     <div class="scroll"><table>
       <tr><th>Что</th><th>Почему</th></tr>
-      <tr><td>Поиск target регэкспом по тексту (<code>highlight_all_forms</code> для фразы, <code>highlightParts</code>, проверка подстрокой в Polish, набор слов в сохранённых фразах, регэксп в «Добавить слово», <code>findMark</code> по тексту)</td><td>Семь разных правил, расходились между собой: подсвечивалось не то вхождение, неправильные формы терялись. Target теперь номера слов.</td></tr>
+      <tr><td>Поиск target регэкспом по тексту (<code>highlight_all_forms</code> для фразы, <code>highlightParts</code>, проверка подстрокой в Polish, набор слов в сохранённых фразах, регэксп в «Добавить слово»)</td><td>Семь разных правил, расходились между собой: подсвечивалось не то вхождение, неправильные формы терялись. Target теперь номера слов.</td></tr>
       <tr><td>Деление на слова по пробелам (cloze, WordPicker, выбор во флажке)</td><td>Запятая прилипала к слову, номера на фронте и в бэке могли разойтись. Одно правило — в <code>PhraseReader</code>.</td></tr>
       <tr><td><code>surface_form</code></td><td>Это <code>phrase.target_text()</code>.</td></tr>
       <tr><td><code>target_position</code></td><td>Выводится из <code>phrase_position</code> и target фразы из книги.</td></tr>

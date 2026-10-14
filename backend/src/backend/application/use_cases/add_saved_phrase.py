@@ -52,11 +52,11 @@ class AddSavedPhraseUseCase:
         self._review_status = review_status
         self._phrase_reader = phrase_reader
 
-    def execute(self, phrase: str, target: str) -> StoredCandidateDTO:
+    def execute(self, phrase: str, target_words: list[int]) -> StoredCandidateDTO:
         text = " ".join(phrase.split())
         if not text:
             raise InvalidPhraseError("Phrase cannot be empty")
-        read = self._phrase_reader.read_for(text, target)
+        read = self._phrase_reader.read_picked(text, target_words)
 
         source_id = self._saved_phrases_source_id()
         candidate = self._candidate_factory.build(

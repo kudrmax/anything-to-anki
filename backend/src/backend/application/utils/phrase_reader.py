@@ -4,7 +4,12 @@ from typing import TYPE_CHECKING
 
 from backend.application.utils.word_facts import WordFacts
 from backend.domain.exceptions import TargetNotInPhraseError
-from backend.domain.services.phrase_building import build_phrase, target_by_lemma, words_of
+from backend.domain.services.phrase_building import (
+    build_phrase,
+    target_by_lemma,
+    word_spans,
+    words_of,
+)
 from backend.domain.value_objects.phrase import Phrase
 
 if TYPE_CHECKING:
@@ -33,6 +38,13 @@ class PhraseReader:
     def read(self, text: str, target_spans: Sequence[tuple[int, int]]) -> Phrase:
         """The target is the words the given characters of the text touch."""
         return build_phrase(text, self._facts(text), target_spans)
+
+    def read_picked(self, text: str, picked: Sequence[int]) -> Phrase:
+        """The target is the words the user picked, by their numbers in the text."""
+        spans = word_spans(text)
+        if not picked or any(not 0 <= i < len(spans) for i in picked):
+            raise TargetNotInPhraseError()
+        return self.read(text, [spans[i] for i in picked])
 
     def read_for(self, text: str, lemma: str) -> Phrase:
         """A new text of a card: its target is found again by the card's lemma."""

@@ -53,6 +53,15 @@ class TestPhraseReader:
         phrase = _reader({"scatters": "scatter"}).read_for("The wind scatters leaves.", "scatter")
         assert phrase.target_text() == "scatters"
 
+    def test_picked_word_is_the_target_where_it_was_picked(self) -> None:
+        phrase = _reader({}).read_picked("She runs fast she runs more.", [4])
+        assert phrase.target == (4,)
+
+    def test_picking_no_word_or_a_missing_one_is_refused(self) -> None:
+        for picked in ([], [9]):
+            with pytest.raises(TargetNotInPhraseError):
+                _reader({}).read_picked("She runs fast.", picked)
+
     def test_new_text_without_the_target_is_refused(self) -> None:
         with pytest.raises(TargetNotInPhraseError):
             _reader({}).read_for("The wind blew the leaves away.", "scatter")

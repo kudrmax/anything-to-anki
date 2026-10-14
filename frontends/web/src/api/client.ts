@@ -260,16 +260,16 @@ export const api = {
       body: JSON.stringify({ example_text: exampleText }),
     }),
 
-  addSavedPhrase: (phrase: string, target: string) =>
+  addSavedPhrase: (phrase: string, targetWords: number[]) =>
     req<StoredCandidate>('/sources/saved-phrases', {
       method: 'POST',
-      body: JSON.stringify({ phrase, target }),
+      body: JSON.stringify({ phrase, target_words: targetWords }),
     }),
 
-  addManualCandidate: (sourceId: number, surfaceForm: string, selection: DocumentSelection) =>
+  addManualCandidate: (sourceId: number, targetWords: number[], selection: DocumentSelection) =>
     req<StoredCandidate>(`/sources/${sourceId}/candidates/manual`, {
       method: 'POST',
-      body: JSON.stringify({ surface_form: surfaceForm, selection }),
+      body: JSON.stringify({ target_words: targetWords, selection }),
     }),
 
   getMediaStats: () => req<SourceMediaStats[]>('/api/settings/media-stats'),

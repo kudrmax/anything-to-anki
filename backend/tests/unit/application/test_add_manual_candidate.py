@@ -34,7 +34,6 @@ from backend.domain.exceptions import (
     TargetNotInPhraseError,
 )
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbMatch
-from backend.domain.services.phrase_building import target_by_lemma
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -93,16 +92,27 @@ def _select(text: str, phrase: str) -> SelectionDTO:
     )
 
 
-def _read_for(text: str, lemma: str) -> Phrase:
-    found = phrase(text, lemma)
-    if not target_by_lemma(found.words, text, lemma):
+def _picked(selected: str, surface: str) -> list[int]:
+    """Numbers of the words of `surface` where they first stand together in the selection."""
+    found = phrase(selected.strip())
+    words = [found.word_text(i).lower() for i in range(len(found.words))]
+    wanted = surface.lower().split()
+    for first in range(len(words) - len(wanted) + 1):
+        if words[first:first + len(wanted)] == wanted:
+            return list(range(first, first + len(wanted)))
+    return []
+
+
+def _read_picked(text: str, picked: list[int]) -> Phrase:
+    whole = phrase(text)
+    if not picked or any(not 0 <= i < len(whole.words) for i in picked):
         raise TargetNotInPhraseError()
-    return found
+    return whole.with_target(tuple(picked))
 
 
 def _phrase_reader() -> MagicMock:
     reader = MagicMock()
-    reader.read_for.side_effect = _read_for
+    reader.read_picked.side_effect = _read_picked
     return reader
 
 
@@ -184,7 +194,7 @@ class TestGuards:
         with pytest.raises(SourceNotFoundError):
             use_case.execute(
                 source_id=42,
-                surface_form="word",
+                target_words=_picked("word in context", "word"),
                 selection=_select("word in context", "word in context"),
             )
 
@@ -222,7 +232,7 @@ class TestRegularWordPath:
         )
         dto = use_case.execute(
             source_id=1,
-            surface_form="procrastinate",
+            target_words=_picked("I procrastinate today", "procrastinate"),
             selection=_select(text, "I procrastinate today"),
         )
 
@@ -267,7 +277,7 @@ class TestRegularWordPath:
         )
         dto = use_case.execute(
             source_id=1,
-            surface_form="dolor",
+            target_words=_picked("Dolor sit", "dolor"),
             selection=_select(text, "Dolor sit"),
         )
 
@@ -300,7 +310,9 @@ class TestRegularWordPath:
             frequency_provider=frequency_provider,
         )
         dto = use_case.execute(
-            source_id=1, surface_form="word", selection=_select(text, "word")
+            source_id=1,
+            target_words=_picked("word", "word"),
+            selection=_select(text, "word"),
         )
         assert dto.cefr_level is None
         assert dto.is_sweet_spot is False  # 5.5 > 4.5
@@ -338,7 +350,7 @@ class TestRegularWordPath:
         )
         dto = use_case.execute(
             source_id=1,
-            surface_form="unknownword",
+            target_words=_picked("unknownword xyz", "unknownword"),
             selection=_select(text, "unknownword xyz"),
         )
         assert dto.occurrences == 1  # raw text doesn't contain it → max(0, 1) = 1
@@ -370,7 +382,9 @@ class TestRegularWordPath:
             frequency_provider=frequency_provider,
         )
         dto = use_case.execute(
-            source_id=1, surface_form="hello", selection=_select(text, "hello world")
+            source_id=1,
+            target_words=_picked("hello world", "hello"),
+            selection=_select(text, "hello world"),
         )
         assert dto.occurrences == 2
 
@@ -390,7 +404,7 @@ class TestSelection:
         with pytest.raises(InvalidPhraseError):
             use_case.execute(
                 source_id=1,
-                surface_form="dolor",
+                target_words=_picked("lorem ipsum", "dolor"),
                 selection=_select("lorem ipsum dolor", "lorem ipsum"),
             )
         candidate_repo.create_batch.assert_not_called()
@@ -416,7 +430,7 @@ class TestSelection:
 
         use_case.execute(
             source_id=1,
-            surface_form="dolor sit",
+            target_words=_picked(" Dolor  sit amet. "[:-1], "dolor sit"),
             selection=_select("It was Dolor  sit amet.", " Dolor  sit amet. "[:-1]),
         )
 
@@ -462,7 +476,7 @@ class TestFallbackToSurfaceFormAnalysis:
         )
         dto = use_case.execute(
             source_id=1,
-            surface_form="dolor",
+            target_words=_picked("lorem ipsum dolor", "dolor"),
             selection=_select(text, "lorem ipsum dolor"),
         )
         assert dto.lemma == "dolor"
@@ -494,7 +508,9 @@ class TestFallbackToSurfaceFormAnalysis:
             frequency_provider=frequency_provider,
         )
         dto = use_case.execute(
-            source_id=1, surface_form="zzz", selection=_select(text, "zzz in context")
+            source_id=1,
+            target_words=_picked("zzz in context", "zzz"),
+            selection=_select(text, "zzz in context"),
         )
         assert dto.lemma == "zzz"  # surface_lower fallback
         assert dto.pos == "X"
@@ -540,7 +556,7 @@ class TestPhrasalVerbPath:
         )
         dto = use_case.execute(
             source_id=1,
-            surface_form="give up",
+            target_words=_picked("I give up today", "give up"),
             selection=_select(text, "I give up today"),
         )
         assert dto.lemma == "give up"
@@ -584,7 +600,7 @@ class TestPhrasalVerbPath:
         )
         use_case.execute(
             source_id=1,
-            surface_form="give up",
+            target_words=_picked("give UP", "give up"),
             selection=_select(text, "give UP"),
         )
         cefr_classifier.classify.assert_called_once_with("give up", "VB")
@@ -625,7 +641,7 @@ class TestPhrasalVerbPath:
         )
         dto = use_case.execute(
             source_id=1,
-            surface_form="give up",  # lowercase query
+            target_words=_picked("give UP", "give up"),  # lowercase query
             selection=_select(text, "give UP"),
         )
         assert dto.is_phrasal_verb is True

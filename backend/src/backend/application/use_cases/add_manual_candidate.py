@@ -55,7 +55,7 @@ class AddManualCandidateUseCase:
     def execute(
         self,
         source_id: int,
-        surface_form: str,
+        target_words: list[int],
         selection: SelectionDTO,
     ) -> StoredCandidateDTO:
         """The phrase is the selected piece of the document; the target, the picked words in it."""
@@ -66,8 +66,8 @@ class AddManualCandidateUseCase:
             raise SourceHasNoDocumentError(source_id)
         layout = DocumentLayout(document)
         phrase_position = layout.selected(selection.start, selection.end)
-        phrase = self._phrase_reader.read_for(layout.fragment(phrase_position), surface_form)
-        occurrences = max(layout.text.lower().count(surface_form.lower()), 1)
+        phrase = self._phrase_reader.read_picked(layout.fragment(phrase_position), target_words)
+        occurrences = max(layout.text.lower().count(phrase.target_text().lower()), 1)
 
         candidate = replace(
             self._candidate_factory.build(

@@ -14,7 +14,6 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.token_data import TokenData
 from backend.domain.exceptions import InvalidPhraseError, TargetNotInPhraseError
-from backend.domain.services.phrase_building import target_by_lemma
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -32,11 +31,11 @@ PHRASE = "Stop   procrastinating, please."
 _LEMMAS = {"procrastinating": "procrastinate"}
 
 
-def _read_for(text: str, lemma: str) -> Phrase:
-    found = phrase(text, lemma, lemmas=_LEMMAS)
-    if not target_by_lemma(found.words, text, lemma):
+def _read_picked(text: str, picked: list[int]) -> Phrase:
+    whole = phrase(text, lemmas=_LEMMAS)
+    if not picked or any(not 0 <= i < len(whole.words) for i in picked):
         raise TargetNotInPhraseError()
-    return found
+    return whole.with_target(tuple(picked))
 
 
 def _token(index: int, text: str, lemma: str) -> TokenData:
@@ -78,7 +77,7 @@ class _Setup:
         detector = MagicMock()
         detector.detect.return_value = []
         reader = MagicMock()
-        reader.read_for.side_effect = _read_for
+        reader.read_picked.side_effect = _read_picked
         self.use_case = AddSavedPhraseUseCase(
             source_repo=self.source_repo,
             candidate_repo=self.candidate_repo,
@@ -98,7 +97,7 @@ class _Setup:
 def test_phrase_is_saved_to_saved_phrases_source_marked_to_learn() -> None:
     setup = _Setup(existing=_saved_phrases())
 
-    result = setup.use_case.execute(PHRASE, "procrastinating")
+    result = setup.use_case.execute(PHRASE, [1])
 
     candidate = setup.saved_candidate()
     assert candidate.source_id == SAVED_PHRASES_ID
@@ -117,7 +116,7 @@ def test_phrase_is_saved_to_saved_phrases_source_marked_to_learn() -> None:
 def test_saved_phrases_source_is_created_when_missing() -> None:
     setup = _Setup(existing=None)
 
-    setup.use_case.execute(PHRASE, "procrastinating")
+    setup.use_case.execute(PHRASE, [1])
 
     created: Source = setup.source_repo.create.call_args.args[0]
     assert created.role is SourceRole.SAVED_PHRASES
@@ -125,11 +124,11 @@ def test_saved_phrases_source_is_created_when_missing() -> None:
 
 
 @pytest.mark.parametrize(("phrase", "target"), [
-    ("   ", "word"),
-    (PHRASE, ""),
-    (PHRASE, "delay"),
+    ("   ", [0]),
+    (PHRASE, []),
+    (PHRASE, [5]),
 ])
-def test_invalid_phrase_or_target_is_rejected(phrase: str, target: str) -> None:
+def test_invalid_phrase_or_target_is_rejected(phrase: str, target: list[int]) -> None:
     setup = _Setup(existing=_saved_phrases())
 
     with pytest.raises(InvalidPhraseError):

@@ -144,7 +144,7 @@ def add_saved_phrase(
 ) -> StoredCandidateDTO:
     try:
         use_case = container.add_saved_phrase_use_case(session)
-        result = use_case.execute(request.phrase, request.target)
+        result = use_case.execute(request.phrase, request.target_words)
         session.commit()
         return result
     except InvalidPhraseError as e:
@@ -368,7 +368,7 @@ def add_manual_candidate(
 ) -> StoredCandidateDTO:
     try:
         use_case = container.add_manual_candidate_use_case(session)
-        result = use_case.execute(source_id, request.surface_form, request.selection)
+        result = use_case.execute(source_id, request.target_words, request.selection)
         session.commit()
         return result
     except (SourceNotFoundError, SourceHasNoDocumentError) as e:
