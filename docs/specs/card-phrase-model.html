@@ -74,7 +74,7 @@ pre.mermaid { background: var(--surface); border: 1px solid var(--line); border-
     <div class="eyebrow">AnythingToAnki · техническое задание</div>
     <h1>Модель фразы карточки</h1>
     <p class="lead">Фраза карточки описана одним объектом: текст как есть, слова этого текста по символам и target — номера слов. Подсветка, cloze, выбор слов, разделы Ready / Extra и экспорт берут всё из него. Поверх — разделы карточек из <code>candidate-sections.md</code>.</p>
-    <div><span class="status">Версия 1</span></div>
+    <div><span class="status">Версия 2</span></div>
   </header>
 
   <section>
@@ -83,7 +83,7 @@ pre.mermaid { background: var(--surface); border: 1px solid var(--line); border-
       <li><b>Текст фразы — главный.</b> Хранится как есть: с запятыми, кавычками, переносами строк, ручной правкой. Из слов он не собирается.</li>
       <li><b>Слова — места в тексте.</b> Слово — символы <code>[start, end)</code> текста и то, что о нём знает разбор языка. Пунктуация остаётся в тексте и словом не является.</li>
       <li><b>Target и cloze — номера слов</b> этой фразы. Ни один экран и ни одна операция не ищут target в тексте заново.</li>
-      <li><b>Новый текст — новая фраза.</b> Polish, ручная правка, новая граница: текст разбирается, target находится один раз, при создании фразы.</li>
+      <li><b>Новый текст — одна операция «переписать фразу».</b> Polish, ручная правка и любой будущий способ менять текст идут через неё. Target ищется в новом тексте по словарной форме, а не по написанию: Polish может менять формы слов. Не нашёлся — новый текст не принимается, фраза остаётся прежней. Своей логики у отдельных способов нет.</li>
       <li><b>Что пользователь знает — не часть фразы.</b> Фраза хранит свойства слов (уровень, частотность). Новое ли слово, решается при чтении по текущим Known / Unknown words, уровню и порогу частоты.</li>
     </ul>
   </section>
@@ -185,9 +185,8 @@ def phrase(self) -> Phrase: ...            # показанная фраза</pr
     <div class="scroll"><table>
       <tr><th>Use case</th><th>Что делает с фразой</th></tr>
       <tr><td>ProcessSource / AnalyzeText</td><td>Строит <code>source_phrase</code> из уже разобранного документа: слова фрагмента, target — защищённые токены вхождения. Отдельного разбора нет.</td></tr>
-      <tr><td>PolishPhrases</td><td>Ответ AI → <code>read_for(answer, lemma)</code>. Target не найден — ответ отклоняется, как сейчас, когда AI теряет target.</td></tr>
-      <tr><td>EditCardPhrase</td><td>Новый текст → <code>read_for</code>. Target не найден — см. вопрос 1.</td></tr>
-      <tr><td>SetPhraseBoundary</td><td>Новый кусок документа → новая <code>source_phrase</code>; target — то же место в документе, если оно внутри нового куска. Нет — см. вопрос 2.</td></tr>
+      <tr><td>RewritePhrase (новый, общий)</td><td>Новый текст → <code>read_for(text, lemma)</code> → <code>polished_phrase</code>. Target не найден — <code>TargetNotInPhraseError</code>, фраза не меняется. Вызывают PolishPhrases (ответ AI отклоняется, как сейчас при потере target) и EditCardPhrase (пользователь видит «Target is missing from the phrase», текст остаётся в поле).</td></tr>
+      <tr><td>SetPhraseBoundary</td><td>Новый кусок документа → новая <code>source_phrase</code>; target — то же место в документе. Если target не внутри нового куска — граница не применяется: «Target must be inside the phrase».</td></tr>
       <tr><td>AddManualCandidate</td><td>Выделение + выбранные слова → <code>read(text, spans)</code>.</td></tr>
       <tr><td>AddSavedPhrase</td><td>Quick Add шлёт символы выбранных слов, а не склеенную строку → <code>read(text, spans)</code>.</td></tr>
       <tr><td>ReplaceWithExample, тема</td><td>Пример с <code>**bold**</code> → текст без звёздочек + символы выделенного → <code>read</code>.</td></tr>
