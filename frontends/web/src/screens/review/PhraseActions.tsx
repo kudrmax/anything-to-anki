@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { ArrowRight, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
-import type { CandidateStatus, CardState, DecisionButton, FollowUpAction, StoredCandidate } from '@/api/types'
-import { decisionChange, learnConvertsCloze, type Decision } from '@/lib/decision'
+import type { CardButton, CardState, DecisionButton, FollowUpAction, StoredCandidate } from '@/api/types'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { phraseWordTexts } from '@/lib/text/phraseParts'
 import { toggled } from '@/lib/text/words'
@@ -21,12 +20,12 @@ const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string; icon: LucideIc
 
 const UNKNOWN_WORDS_HINT = 'Tap the words you don\'t know'
 
-const LEARN = { status: 'learn', label: 'Learn', kbd: '1' } as const
-const CLOZE = { label: 'Cloze', kbd: '2' } as const
-const OTHER_DECISIONS: { status: Decision; label: string; kbd: string }[] = [
-  { status: 'known', label: 'Know', kbd: '3' },
-  { status: 'skip', label: 'Skip', kbd: '4' },
-]
+const BUTTON_LOOK: Record<DecisionButton, { label: string; kbd: string }> = {
+  learn: { label: 'Learn', kbd: '1' },
+  cloze: { label: 'Cloze', kbd: '2' },
+  known: { label: 'Know', kbd: '3' },
+  skip: { label: 'Skip', kbd: '4' },
+}
 const ALREADY_IN_ANKI = 'Already in Anki'
 
 /** Подпись карточки, решение которой принято не на ней. */
@@ -39,10 +38,6 @@ const ELSEWHERE_LABEL: Record<CardState['elsewhere'] & string, string> = {
   learning: 'Learning from another source',
 }
 
-/** Кнопка, на которую ложится нажатие: отмена решения или Skip — своя кнопка у backend. */
-const buttonOf = (sent: CandidateStatus, skipped: boolean): DecisionButton =>
-  sent === 'pending' ? (skipped ? 'unskip' : 'undo') : sent
-
 interface PhraseActionsProps {
   candidate: StoredCandidate
   review: Review
@@ -52,51 +47,45 @@ interface DecisionButtonsProps extends PhraseActionsProps {
   cloze: ClozeEditor
 }
 
-/** Решения по фразе: Learn 1 · Cloze 2 · Know 3 · Skip 4. */
+/** Решения по фразе: Learn 1 · Cloze 2 · Know 3 · Skip 4. Что делает кнопка, решает backend. */
 export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsProps) {
-  const isRated = candidate.status !== 'pending'
-  const isCloze = candidate.cloze !== null
-  const convertsCloze = learnConvertsCloze(candidate)
-  const decide = (status: Decision) => {
-    if (cloze.active) cloze.cancel()
-    void review.mark(candidate.phrase_id, decisionChange(candidate.status, status, convertsCloze))
-  }
-  const isPrimary = (status: CandidateStatus) => {
-    if (cloze.active) return false
-    if (status === 'learn' && convertsCloze) return false
-    return isRated ? candidate.status === status : status === 'learn'
-  }
-  const variant = (primary: boolean) => (primary ? 'fill' : 'soft')
   const { state } = candidate
-  const works = (status: Decision) =>
-    state.buttons_enabled.includes(buttonOf(decisionChange(candidate.status, status, convertsCloze), candidate.phrase_skipped))
-  const canCloze = candidate.can_cloze && state.buttons_enabled.includes('cloze')
+  const variant = (button: CardButton) => {
+    if (button.button === 'cloze') return isClozePressed(button, cloze.active) ? 'fill' : 'soft'
+    return !cloze.active && button.pressed ? 'fill' : 'soft'
+  }
+  const press = (button: CardButton) => {
+    if (button.action === null) return
+    if (button.button === 'cloze') {
+      cloze.start()
+      return
+    }
+    if (cloze.active) cloze.cancel()
+    void review.mark(candidate.phrase_id, button.action)
+  }
   const note = state.decided_elsewhere ? DECIDED_ELSEWHERE_LABEL[state.decided_elsewhere]
     : state.elsewhere ? ELSEWHERE_LABEL[state.elsewhere] : null
   return (
     <div className={css.decisions}>
       {note && <Text tone="muted" size="s">{note}</Text>}
-      <Button variant={variant(isPrimary(LEARN.status))} kbd={LEARN.kbd} disabled={!works(LEARN.status)} onMouseDown={keepFocusOnMouseDown} onClick={() => decide(LEARN.status)}>
-        {LEARN.label}
-      </Button>
-      <Button
-        variant={variant(isCloze || cloze.active)}
-        kbd={CLOZE.kbd}
-        disabled={!canCloze}
-        title={candidate.can_cloze ? undefined : ALREADY_IN_ANKI}
-        onMouseDown={keepFocusOnMouseDown}
-        onClick={cloze.start}
-      >
-        {CLOZE.label}
-      </Button>
-      {OTHER_DECISIONS.map(decision => (
-        <Button key={decision.status} variant={variant(isPrimary(decision.status))} kbd={decision.kbd} disabled={!works(decision.status)} onMouseDown={keepFocusOnMouseDown} onClick={() => decide(decision.status)}>
-          {decision.label}
+      {state.buttons.map(button => (
+        <Button
+          key={button.button}
+          variant={variant(button)}
+          kbd={BUTTON_LOOK[button.button].kbd}
+          disabled={button.action === null}
+          title={button.button === 'cloze' && !candidate.can_cloze ? ALREADY_IN_ANKI : undefined}
+          onMouseDown={keepFocusOnMouseDown}
+          onClick={() => press(button)}
+        >
+          {BUTTON_LOOK[button.button].label}
         </Button>
       ))}
     </div>
   )
 }
+
+const isClozePressed = (button: CardButton, editing: boolean) => button.pressed || editing
 
 interface PhraseToolsProps extends PhraseActionsProps {
   onEditPhrase: () => void
@@ -109,7 +98,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   const [unknownWords, setUnknownWords] = useState<Set<number>>(new Set())
   const [pickingImage, setPickingImage] = useState(false)
   const id = candidate.phrase_id
-  const isRated = candidate.status !== 'pending'
+  const isRated = candidate.is_done
   const isVideo = review.source?.has_video ?? false
   const isEditing = review.editing?.candidateId === id
   const hasMeaning = Boolean(candidate.meaning?.meaning)

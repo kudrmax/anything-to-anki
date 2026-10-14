@@ -9,8 +9,10 @@ from backend.domain.value_objects.review_card import CardRow
 from backend.domain.value_objects.shown_place import ShownPlace
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
+    CEFRBreakdownModel,
     PhraseModel,
     StoredCandidateModel,
+    cefr_level_of,
     load_phrase,
     load_position,
 )
@@ -88,26 +90,31 @@ class SqlaCardQuery(CardQuery):
     def shown_places(self, source_id: int) -> list[ShownPlace]:
         rows = self._session.execute(
             select(
-                StoredCandidateModel,
                 PhraseModel.id,
+                StoredCandidateModel.id,
+                StoredCandidateModel.is_phrasal_verb,
+                CEFRBreakdownModel,
                 PhraseModel.source_phrase,
                 PhraseModel.phrase_position,
             )
             .join(StoredCandidateModel, StoredCandidateModel.id == PhraseModel.candidate_id)
+            .outerjoin(
+                CEFRBreakdownModel, CEFRBreakdownModel.candidate_id == StoredCandidateModel.id,
+            )
             .where(
                 StoredCandidateModel.source_id == source_id,
                 PhraseModel.shown_by.is_not(None),
                 PhraseModel.phrase_position.is_not(None),
             )
             .order_by(PhraseModel.id)
-        ).unique().all()
+        ).all()
         places: list[ShownPlace] = []
-        for word, phrase_id, source_phrase, stored_position in rows:
+        for phrase_id, word_id, phrasal, breakdown, source_phrase, stored_position in rows:
             position = load_position(stored_position)
             assert position is not None
             places.append(ShownPlace(
-                phrase_id=phrase_id, word_id=word.id, cefr_level=word.word_data().cefr_level,
-                is_phrasal_verb=word.is_phrasal_verb, source_phrase=_required(source_phrase),
+                phrase_id=phrase_id, word_id=word_id, cefr_level=cefr_level_of(breakdown),
+                is_phrasal_verb=phrasal, source_phrase=_required(source_phrase),
                 position=position,
             ))
         return places

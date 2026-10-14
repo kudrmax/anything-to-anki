@@ -121,6 +121,7 @@ class TestSaveCloze:
         dto = self.use_case.execute(PHRASE_ID, GIVE_UP, [3], ClozeHintKind.NONE, None)
         assert dto.reported is True
         assert dto.can_cloze is True
+        assert dto.section == "ready"  # the answer has the card's own section
 
     def test_saved_card_keeps_the_job_status_of_its_phrase(self) -> None:
         job = Job(

@@ -13,7 +13,7 @@ interface PhraseRowProps {
 
 /** Свёрнутая фраза в очереди: одна строка, полный текст — в подсказке. */
 export function PhraseRow({ candidate, onSelect, current = false }: PhraseRowProps) {
-  const rated = candidate.status !== 'pending'
+  const rated = candidate.is_done
   const classes = [css.queueItem, rated && css.queueItemRated, current && css.queueItemCurrent].filter(Boolean).join(' ')
   return (
     <button type="button" className={classes} data-candidate-id={candidate.phrase_id} title={candidate.phrase.text} onClick={() => onSelect(candidate.phrase_id)}>

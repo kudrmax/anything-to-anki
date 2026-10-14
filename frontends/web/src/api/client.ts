@@ -5,7 +5,7 @@ import type {
   BootstrapStatus,
   BootstrapWord,
   CandidateSortOrder,
-  CandidateStatus,
+  DecisionAction,
   CleanupMediaKind,
   ClozeDraft,
   ClozePreview,
@@ -122,7 +122,7 @@ export const api = {
   saveCloze: (phraseId: number, request: SaveClozeRequest) =>
     req<StoredCandidate>(`/phrases/${phraseId}/cloze`, { method: 'PUT', body: JSON.stringify(request) }),
 
-  decidePhrase: (phraseId: number, status: CandidateStatus) =>
+  decidePhrase: (phraseId: number, status: DecisionAction) =>
     req<{ id: number; status: string }>(`/phrases/${phraseId}/decision`, {
       method: 'PUT',
       body: JSON.stringify({ status }),

@@ -165,6 +165,7 @@ class GetSourcesUseCase:
             error_message=source.error_message,
             processing_stage=_stage(operation),
             busy_with=busy_with,
+            learn_count=self._card_query.learn_counts([source.id]).get(source.id, 0),
             created_at=source.created_at,
             candidates=listing.cards,
             progress=ProgressDTO.of(listing.progress),

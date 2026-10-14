@@ -132,6 +132,14 @@ def load_phrase(stored: str | None) -> Phrase | None:
     )
 
 
+def cefr_level_of(breakdown: CEFRBreakdownModel | None) -> str | None:
+    """The word's level by its stored breakdown; None when unknown."""
+    if breakdown is None:
+        return None
+    level = _model_to_breakdown(breakdown).final_level
+    return None if level is CEFRLevel.UNKNOWN else level.name
+
+
 def _required_phrase(stored: str) -> Phrase:
     phrase = load_phrase(stored)
     assert phrase is not None
@@ -430,10 +438,9 @@ class StoredCandidateModel(Base):
         breakdown = (
             _model_to_breakdown(self.cefr_breakdown) if self.cefr_breakdown is not None else None
         )
-        level = breakdown.final_level if breakdown is not None else CEFRLevel.UNKNOWN
         return WordData(
             pos=self.pos,
-            cefr_level=None if level is CEFRLevel.UNKNOWN else level.name,
+            cefr_level=cefr_level_of(self.cefr_breakdown),
             zipf_frequency=self.zipf_frequency,
             usage_distribution=(
                 UsageDistribution(json.loads(self.usage_distribution_json))

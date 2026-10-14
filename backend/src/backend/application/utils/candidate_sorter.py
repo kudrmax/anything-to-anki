@@ -84,6 +84,10 @@ class CandidateSorter:
             sections={c.phrase_id: section_of(c, knowledge, threshold) for c in ordered},
         )
 
+    def section(self, card: ReviewCard) -> CandidateSection:
+        """The section of one card, by what the user knows now."""
+        return section_of(card, self._knowledge.current(), self._threshold_resolver.resolve())
+
     def progress(
         self, cards_by_source: Mapping[int, Sequence[ProgressFacts]],
     ) -> dict[int, DecisionProgress]:

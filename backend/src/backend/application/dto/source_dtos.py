@@ -11,8 +11,13 @@ from backend.application.dto.cefr_dtos import (
 )
 from backend.application.dto.cloze_dtos import CandidateClozeDTO
 from backend.application.dto.document_dtos import DocumentPositionDTO
-from backend.domain.services.card_decision import card_state
+from backend.domain.services.card_decision import (  # Pydantic needs the enums at runtime
+    DecisionAction,
+    DecisionButton,
+    card_state,
+)
 from backend.domain.services.cloze_builder import ClozeBuilder
+from backend.domain.value_objects.elsewhere import Elsewhere  # noqa: TC001 — Pydantic needs it
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
 from backend.domain.value_objects.word_status import WordStatus
@@ -163,27 +168,37 @@ class PhraseDTO(BaseModel):
         )
 
 
+class ButtonDTO(BaseModel):
+    """A decision button of a card: `action` is what a press sends to the decision of the
+    phrase (null — the button is off); `pressed` — it holds the card's decision."""
+
+    button: DecisionButton
+    action: DecisionAction | None
+    pressed: bool
+
+
 class CardStateDTO(BaseModel):
-    """What a card shows of the decision on its word, and which buttons work.
+    """What a card shows of the decision on its word, and what each button does.
 
     `decided_elsewhere`: the decision of the word, made on another of its cards.
     `elsewhere`: the word, open here, is known or learned via another source.
-    `buttons_enabled`: learn | cloze | known | skip | unskip | undo."""
+    `buttons`: Learn, Cloze, Known, Skip, in this order."""
 
     decided_here: bool
-    decided_elsewhere: str | None = None
-    elsewhere: str | None = None
-    buttons_enabled: list[str]
+    decided_elsewhere: WordStatus | None = None
+    elsewhere: Elsewhere | None = None
+    buttons: list[ButtonDTO] = []
 
     @staticmethod
     def of(state: CardState) -> CardStateDTO:
         return CardStateDTO(
             decided_here=state.decided_here,
-            decided_elsewhere=(
-                state.decided_elsewhere.value if state.decided_elsewhere is not None else None
-            ),
-            elsewhere=state.elsewhere.value if state.elsewhere is not None else None,
-            buttons_enabled=sorted(button.value for button in state.buttons_enabled),
+            decided_elsewhere=state.decided_elsewhere,
+            elsewhere=state.elsewhere,
+            buttons=[
+                ButtonDTO(button=b.button, action=b.action, pressed=b.pressed)
+                for b in state.buttons
+            ],
         )
 
 
@@ -218,6 +233,8 @@ class CardDTO(BaseModel):
     is_decision: bool = False
     decision_kind: str | None = None  # learn | cloze, on the decision card
     state: CardStateDTO
+    # Done: the word is decided, the phrase skipped, or the word is done via another source.
+    is_done: bool = False
     is_phrasal_verb: bool = False
     meaning: CandidateMeaningDTO | None = None
     media: CandidateMediaDTO | None = None
@@ -252,6 +269,7 @@ class SourceDetailDTO(BaseModel):
     error_message: str | None
     processing_stage: str | None = None
     busy_with: SourceOperationKind | None = None
+    learn_count: int = 0  # words to learn
     created_at: datetime
     candidates: list[CardDTO]
     progress: ProgressDTO = ProgressDTO()
@@ -320,6 +338,7 @@ def card_to_dto(
         is_decision=occ.is_decision,
         decision_kind=occ.decision_kind.value if occ.decision_kind is not None else None,
         state=CardStateDTO.of(card_state(occ, word, card.elsewhere)),
+        is_done=card.is_done,
         is_phrasal_verb=word.is_phrasal_verb,
         meaning=_meaning_dto(occ.meaning, jobs.of_phrase(phrase_id, JobType.MEANING)),
         media=_media_dto(occ.media, jobs.of_phrase(phrase_id, JobType.MEDIA)),

@@ -91,7 +91,7 @@ class TestCEFRBreakdownPipeline:
             occurrences=1,
             status="pending",
             word_status="pending",
-            state=CardStateDTO(decided_here=False, buttons_enabled=[]),
+            state=CardStateDTO(decided_here=False),
             cefr_breakdown=bd_dto,
         )
         assert candidate_dto.cefr_breakdown is not None

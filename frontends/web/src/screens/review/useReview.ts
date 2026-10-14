@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { CandidateStatus, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, SaveClozeRequest, SourceDetail, SourceDocument, StoredCandidate } from '@/api/types'
+import type { DecisionAction, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, SaveClozeRequest, SourceDetail, SourceDocument, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
@@ -123,10 +123,10 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
    * пересортировывают остальные. Новый порядок и смену фокуса применяем одним рендером, иначе карточка
    * сначала сворачивается на месте; следующую фразу выбираем уже по новому порядку.
    */
-  const settle = useCallback(async (candidateId: number, markedIndex: number, decided: (c: StoredCandidate) => StoredCandidate, advance: boolean) => {
+  const settle = useCallback(async (candidateId: number, markedIndex: number, advance: boolean, saved?: StoredCandidate) => {
     const markedSection = candidatesRef.current.find(c => c.phrase_id === candidateId)?.section ?? null
     const refreshed = await fetchSource().catch(() => null)
-    const fresh = refreshed?.candidates ?? candidatesRef.current.map(c => (c.phrase_id === candidateId ? decided(c) : c))
+    const fresh = refreshed?.candidates ?? candidatesRef.current.map(c => (saved && c.phrase_id === candidateId ? saved : c))
     if (refreshed) applySource(refreshed)
     else setCandidates(fresh)
 
@@ -139,17 +139,18 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     if (nextUrl) play(nextUrl)
   }, [sourceId, sortOrder, play, fetchSource, applySource])
 
-  const mark = useCallback(async (candidateId: number, status: CandidateStatus) => {
+  /** action — что backend сказал слать этой кнопкой; отмена и unskip оставляют фокус на месте. */
+  const mark = useCallback(async (candidateId: number, action: DecisionAction) => {
     stop()
     const markedIndex = candidatesRef.current.findIndex(c => c.phrase_id === candidateId)
 
     try {
-      await api.decidePhrase(candidateId, status)
+      await api.decidePhrase(candidateId, action)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to save the decision')
       return
     }
-    await settle(candidateId, markedIndex, c => ({ ...c, status, cloze: null }), status !== 'pending')
+    await settle(candidateId, markedIndex, action !== 'pending' && action !== 'unskip')
   }, [stop, showToast, settle])
 
   const [clozeEditingId, setClozeEditingId] = useState<number | null>(null)
@@ -173,7 +174,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
       return false
     }
     setClozeEditingId(null)
-    await settle(candidateId, markedIndex, () => saved, true)
+    await settle(candidateId, markedIndex, true, saved)
     return true
   }, [stop, showToast, settle])
 
@@ -387,7 +388,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     meaningImageUrl: mediaUrl(sourceId, candidate.meaning_image_path),
   })
 
-  const learnCount = candidates.filter(c => c.status === 'learn').length
+  const learnCount = source?.learn_count ?? 0
   const readyTotal = source?.progress.total ?? 0
   const readyReviewed = source?.progress.decided ?? 0
 

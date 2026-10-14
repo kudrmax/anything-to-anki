@@ -315,14 +315,17 @@ class TestCardToDtoDecision:
     def test_a_card_done_elsewhere_says_why(self) -> None:
         dto = card_to_dto(card(elsewhere=Elsewhere.LEARNING))
         assert dto.state.elsewhere == "learning"
-        assert "learn" not in dto.state.buttons_enabled
+        assert {b.button: b.action for b in dto.state.buttons}["learn"] is None
+        assert dto.is_done is True
 
     def test_the_decision_card_and_its_kind(self) -> None:
         decided = occurrence(1, 1, is_decision=True, decision_kind=DecisionKind.LEARN)
         dto = card_to_dto(card(word(status=WordStatus.LEARN), decided))
         assert (dto.is_decision, dto.decision_kind) == (True, "learn")
         assert dto.state.decided_here is True
-        assert "undo" in dto.state.buttons_enabled
+        assert [(b.button, b.action, b.pressed) for b in dto.state.buttons][0] == (
+            "learn", "pending", True,
+        )
 
     def test_jobs_of_another_phrase_of_the_word_are_not_this_cards(self) -> None:
         job = replace(_make_job(job_type=JobType.POLISH), phrase_id=2)

@@ -131,6 +131,12 @@ def _cards(client: TestClient, sort: str = "relevance") -> list[dict[str, object
     return cards
 
 
+def _actions(card: dict[str, object]) -> dict[str, object]:
+    state = card["state"]
+    assert isinstance(state, dict)
+    return {b["button"]: b["action"] for b in state["buttons"]}
+
+
 def _board(client: TestClient) -> list[dict[str, object]]:
     groups = client.get("/sources/board").json()["groups"]
     return [summary for group in groups for summary in group["sources"]]
@@ -189,12 +195,36 @@ class TestDecisionsOnCards:
         sibling = _card(client, bench.second_glare)
         assert here["state"] == {
             "decided_here": True, "decided_elsewhere": None, "elsewhere": None,
-            "buttons_enabled": ["cloze", "known", "learn", "skip", "undo"],
+            "buttons": [
+                {"button": "learn", "action": "pending", "pressed": True},
+                {"button": "cloze", "action": "cloze", "pressed": False},
+                {"button": "known", "action": "known", "pressed": False},
+                {"button": "skip", "action": "skip", "pressed": False},
+            ],
         }
         assert sibling["state"] == {
             "decided_here": False, "decided_elsewhere": "learn", "elsewhere": None,
-            "buttons_enabled": [],
+            "buttons": [
+                {"button": "learn", "action": None, "pressed": True},
+                {"button": "cloze", "action": None, "pressed": False},
+                {"button": "known", "action": None, "pressed": False},
+                {"button": "skip", "action": None, "pressed": False},
+            ],
         }
+        assert (here["is_done"], sibling["is_done"]) == (True, True)
+
+    def test_a_skipped_sibling_of_a_decided_word_can_be_unskipped(
+        self, client: TestClient, bench: Bench,
+    ) -> None:
+        client.put(f"/phrases/{bench.second_glare}/decision", json={"status": "skip"})
+        client.put(f"/phrases/{GLARE}/decision", json={"status": "learn"})
+        sibling = _card(client, bench.second_glare)
+        assert _actions(sibling)["skip"] == "unskip"
+        response = client.put(
+            f"/phrases/{bench.second_glare}/decision", json={"status": "unskip"},
+        )
+        assert response.status_code == 200
+        assert _card(client, bench.second_glare)["phrase_skipped"] is False
 
     def test_skip_is_one_card_only(self, client: TestClient, bench: Bench) -> None:
         client.put(f"/phrases/{GLARE}/decision", json={"status": "skip"})
@@ -210,7 +240,8 @@ class TestDecisionsOnCards:
         session.commit()
         card = _card(client, SPARK)
         assert card["state"]["elsewhere"] == "known"  # type: ignore[index]
-        assert card["state"]["buttons_enabled"] == ["known", "skip"]  # type: ignore[index]
+        assert _actions(card) == {"learn": None, "cloze": None, "known": "known", "skip": "skip"}
+        assert card["is_done"] is True
         assert client.get(f"/sources/{SOURCE}").json()["progress"] == {"decided": 0, "total": 2}
         [summary] = _board(client)
         assert summary["progress"] == {"decided": 0, "total": 2}
@@ -295,6 +326,7 @@ class TestDocument:
             [GLARE, bench.second_glare, SPARK],
         )
         assert {h["phrase_id"]: h["word_id"] for h in highlights}[bench.second_glare] == GLARE
+        assert all(h["cefr_level"] is None for h in highlights)  # no breakdown stored
 
 
 class TestBoard:
@@ -305,6 +337,7 @@ class TestBoard:
         [summary] = _board(client)
         assert summary["candidate_count"] == 3
         assert summary["learn_count"] == 1
+        assert client.get(f"/sources/{SOURCE}").json()["learn_count"] == 1
         assert summary["progress"] == {"decided": 2, "total": 3}
 
     def test_board_and_review_agree_on_progress(self, client: TestClient, bench: Bench) -> None:

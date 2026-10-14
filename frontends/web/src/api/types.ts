@@ -246,16 +246,27 @@ export interface CardPhrase {
 /** Where a card stands in review: only the target is new, more words are new, or probably known. */
 export type CandidateSection = 'ready' | 'extra' | 'probably_known'
 
-export type DecisionButton = 'learn' | 'cloze' | 'known' | 'skip' | 'unskip' | 'undo'
+export type DecisionButton = 'learn' | 'cloze' | 'known' | 'skip'
 
-/** Что карточка показывает из решения по слову и какие кнопки работают; считает backend. */
+/** Что шлёт решение фразы: pending отменяет решение карточки, unskip снимает Skip. */
+export type DecisionAction = 'learn' | 'cloze' | 'known' | 'skip' | 'unskip' | 'pending'
+
+/** Кнопка решения: что шлёт нажатие (null — кнопка неактивна) и нажата ли она; решает backend. */
+export interface CardButton {
+  button: DecisionButton
+  action: DecisionAction | null
+  pressed: boolean
+}
+
+/** Что карточка показывает из решения по слову и что делает каждая кнопка; считает backend. */
 export interface CardState {
   decided_here: boolean
   /** Решение слова, принятое на другой его карточке. */
   decided_elsewhere: 'learn' | 'known' | null
   /** Слово открыто здесь, но известно или учится по другому источнику. */
   elsewhere: 'known' | 'learning' | null
-  buttons_enabled: DecisionButton[]
+  /** Learn, Cloze, Known, Skip — в этом порядке. */
+  buttons: CardButton[]
 }
 
 /** Карточка — показанная фраза слова; ключ карточки — phrase_id. */
@@ -288,6 +299,8 @@ export interface StoredCandidate {
   is_decision: boolean
   decision_kind: 'learn' | 'cloze' | null
   state: CardState
+  /** Карточка разобрана: слово решено, фраза пропущена или слово разобрано в другом источнике. */
+  is_done: boolean
   is_phrasal_verb: boolean
   /** Где фраза источника стоит в документе; у примера, темы и сохранённой фразы её нет. */
   phrase_position: DocumentPosition | null
@@ -321,6 +334,9 @@ export interface SourceDetail {
   video_downloaded: boolean
   error_message: string | null
   processing_stage: ProcessingStage | null
+  busy_with: SourceOperationKind | null
+  /** Слов на изучение (не карточек). */
+  learn_count: number
   created_at: string
   candidates: StoredCandidate[]
   /** How many candidates to show before "Show more"; null — show all. */

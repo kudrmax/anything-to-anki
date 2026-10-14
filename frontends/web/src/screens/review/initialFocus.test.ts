@@ -3,7 +3,7 @@ import type { CandidateStatus, StoredCandidate } from '@/api/types'
 import { initialFocusId } from './initialFocus'
 
 const list = (...items: [number, CandidateStatus][]) =>
-  items.map(([id, status]) => ({ phrase_id: id, status }) as StoredCandidate)
+  items.map(([id, status]) => ({ phrase_id: id, status, is_done: status !== 'pending' }) as StoredCandidate)
 
 describe('initialFocusId', () => {
   it('opens the card the link asks for, even a decided one', () => {
@@ -16,5 +16,10 @@ describe('initialFocusId', () => {
 
   it('takes the first pending card without a link', () => {
     expect(initialFocusId(list([1, 'known'], [2, 'pending']), null)).toBe(2)
+  })
+
+  it('passes over a card done via another source', () => {
+    const doneElsewhere = { phrase_id: 1, status: 'pending', is_done: true } as StoredCandidate
+    expect(initialFocusId([doneElsewhere, ...list([2, 'pending'])], null)).toBe(2)
   })
 })

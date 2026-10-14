@@ -5,6 +5,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import pytest
+from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import (
     AlreadyInAnkiError,
@@ -297,3 +298,60 @@ def test_a_card_decided_elsewhere_wants_none(elsewhere: Elsewhere) -> None:
 
 def test_a_skipped_card_wants_none() -> None:
     assert not wants_generation(_phrase(skipped=True), _word(CandidateStatus.PENDING), None)
+
+
+# ── card_state: what each button sends ────────────────────────────────
+
+
+def _buttons(occ: Occurrence, word: StoredCandidate) -> dict[DecisionButton, tuple[object, bool]]:
+    return {b.button: (b.action, b.pressed) for b in card_state(occ, word, None).buttons}
+
+
+def test_an_open_card_sends_each_decision_and_shows_none_pressed() -> None:
+    assert _buttons(_phrase(), _word(CandidateStatus.PENDING)) == {
+        DecisionButton.LEARN: (LEARN, False),
+        DecisionButton.CLOZE: (CLOZE, False),
+        DecisionButton.KNOWN: (KNOWN, False),
+        DecisionButton.SKIP: (SKIP, False),
+    }
+
+
+def test_the_pressed_button_of_the_decision_card_undoes_it() -> None:
+    buttons = _buttons(_decision(), _word(CandidateStatus.LEARN))
+    assert buttons[DecisionButton.LEARN] == (PENDING, True)
+    assert buttons[DecisionButton.KNOWN] == (KNOWN, False)
+    assert buttons[DecisionButton.SKIP] == (SKIP, False)
+
+
+def test_the_skipped_sibling_of_a_decided_word_unskips_and_nothing_else() -> None:
+    buttons = _buttons(_phrase(skipped=True), _word(CandidateStatus.LEARN))
+    assert buttons == {
+        DecisionButton.LEARN: (None, True),
+        DecisionButton.CLOZE: (None, False),
+        DecisionButton.KNOWN: (None, False),
+        DecisionButton.SKIP: (UNSKIP, False),
+    }
+
+
+def test_learn_on_a_cloze_card_makes_it_a_plain_card() -> None:
+    cloze = _decision(DecisionKind.CLOZE, cloze=_cloze())
+    buttons = _buttons(cloze, _word(CandidateStatus.LEARN))
+    assert buttons[DecisionButton.LEARN] == (LEARN, False)
+    assert buttons[DecisionButton.CLOZE] == (CLOZE, True)
+
+
+def test_skip_on_a_skipped_open_card_unskips_it_and_shows_pressed() -> None:
+    buttons = _buttons(_phrase(skipped=True), _word(CandidateStatus.PENDING))
+    assert buttons[DecisionButton.SKIP] == (UNSKIP, True)
+
+
+def test_a_phrase_in_anki_keeps_its_note_type() -> None:
+    exported = _decision(exported=True)
+    buttons = _buttons(exported, _word(CandidateStatus.LEARN))
+    assert buttons[DecisionButton.LEARN] == (None, True)
+    assert buttons[DecisionButton.CLOZE] == (None, False)
+
+
+def _cloze() -> CandidateCloze:
+    from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
+    return CandidateCloze(1, (1,), ClozeHintKind.NONE, None, "He glared at me.")

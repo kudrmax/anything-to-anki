@@ -10,6 +10,6 @@ export function nextFocusId(
   fresh: StoredCandidate[], markedId: number, markedIndex: number, section: CandidateSection | null = null,
 ): number | null {
   const isNext = (c: StoredCandidate) =>
-    c.status === 'pending' && c.phrase_id !== markedId && (section === null || c.section === section)
+    !c.is_done && c.phrase_id !== markedId && (section === null || c.section === section)
   return (fresh.slice(markedIndex).find(isNext) ?? fresh.find(isNext))?.phrase_id ?? null
 }

@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
 
 __all__ = [
+    "ButtonState",
     "CardState",
     "DecisionAction",
     "DecisionButton",
@@ -86,13 +87,32 @@ class DecisionOutcome:
 
 
 @dataclass(frozen=True)
+class ButtonState:
+    """A decision button of a card: the action a press sends (None — the button is off) and
+    whether it shows as pressed, holding the card's decision."""
+
+    button: DecisionButton
+    action: DecisionAction | None
+    pressed: bool
+
+
+# The buttons of a card, in the order the card shows them.
+CARD_BUTTONS = (
+    DecisionButton.LEARN, DecisionButton.CLOZE, DecisionButton.KNOWN, DecisionButton.SKIP,
+)
+
+
+@dataclass(frozen=True)
 class CardState:
-    """What a card shows of the decision and which buttons work; the frontend renders it."""
+    """What a card shows of the decision and which buttons work; the frontend renders it.
+
+    `buttons`: what each button of the card does, by the rules of `decide`."""
 
     decided_here: bool
     decided_elsewhere: WordStatus | None
     elsewhere: Elsewhere | None
     buttons_enabled: frozenset[DecisionButton]
+    buttons: tuple[ButtonState, ...] = ()
 
 
 def word_status_of(word: StoredCandidate) -> WordStatus:
@@ -170,7 +190,45 @@ def card_state(
         decided_elsewhere=status if decided and not occ.is_decision else None,
         elsewhere=elsewhere,
         buttons_enabled=frozenset(enabled),
+        buttons=tuple(_button(occ, status, button, elsewhere) for button in CARD_BUTTONS),
     )
+
+
+def _button(
+    occ: Occurrence, status: WordStatus, button: DecisionButton, elsewhere: Elsewhere | None,
+) -> ButtonState:
+    """A press on the button of the card's decision undoes it, on the decision card only;
+    Learn on a cloze card makes it a plain card; Skip on a skipped phrase unskips it. A
+    refused action turns the button off. Cloze is off once the phrase is in Anki: its markup
+    can't change there."""
+    shown = _shown_decision(occ, status)
+    cloze_card = status is WordStatus.LEARN and occ.is_decision and occ.cloze is not None
+    if button is DecisionButton.CLOZE:
+        allowed = not occ.exported and _allowed(occ, status, DecisionAction.CLOZE, elsewhere)
+        return ButtonState(button, DecisionAction.CLOZE if allowed else None, cloze_card)
+    if button is DecisionButton.SKIP:
+        action = DecisionAction.UNSKIP if occ.skipped else DecisionAction.SKIP
+        pressed = shown is DecisionButton.SKIP
+    elif button is DecisionButton.LEARN and cloze_card and not occ.exported:
+        action, pressed = DecisionAction.LEARN, False
+    else:
+        pressed = shown is button
+        if pressed and not occ.is_decision:
+            # Another card holds the decision: only it undoes it.
+            return ButtonState(button, None, pressed)
+        action = DecisionAction.PENDING if pressed else ACTION_OF_BUTTON[button]
+    return ButtonState(
+        button, action if _allowed(occ, status, action, elsewhere) else None, pressed,
+    )
+
+
+def _shown_decision(occ: Occurrence, status: WordStatus) -> DecisionButton | None:
+    """The button holding what the card shows: the word's decision beats a Skip."""
+    if status is WordStatus.LEARN:
+        return DecisionButton.LEARN
+    if status is WordStatus.KNOWN:
+        return DecisionButton.KNOWN
+    return DecisionButton.SKIP if occ.skipped else None
 
 
 def wants_generation(

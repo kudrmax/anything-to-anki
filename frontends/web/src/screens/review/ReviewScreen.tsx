@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { backIn } from '@/lib/backLink'
-import { decisionChange, learnConvertsCloze, type Decision } from '@/lib/decision'
 import { allowedInClozeMarkup, reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { pastedPicture } from '@/lib/pastedPicture'
 import { phraseListShownPref, sourceTextShownPref } from '@/lib/preferences'
@@ -17,10 +16,10 @@ import { SourceText, type SelectedText, type SelectionPoint } from './SourceText
 import { audioUrlForCandidate, useReview } from './useReview'
 import { useShownCandidates } from './useShownCandidates'
 import { listItems, sectionToggleLabel, visibleCandidates, type ListItem } from './sections'
-import type { CandidateSection } from '@/api/types'
+import type { CandidateSection, DecisionButton } from '@/api/types'
 import css from './review.module.css'
 
-const DECISION: Partial<Record<ReviewAction, Decision>> = { learn: 'learn', known: 'known', skip: 'skip' }
+const DECISION: Partial<Record<ReviewAction, DecisionButton>> = { learn: 'learn', known: 'known', skip: 'skip' }
 type PhoneView = 'card' | 'text' | 'list'
 
 const SOURCES_PATH = '/'
@@ -105,14 +104,16 @@ export function ReviewScreen() {
         if (url) toggleAudio(url)
         return
       }
+      const buttonOf = (key: DecisionButton) => current.state.buttons.find(b => b.button === key)
       if (action === 'cloze') {
-        if (current.can_cloze) startCloze(current.phrase_id)
+        if (buttonOf('cloze')?.action) startCloze(current.phrase_id)
         return
       }
-      const status = DECISION[action]
-      if (!status) return
+      const key = DECISION[action]
+      const sent = key ? buttonOf(key)?.action : null
+      if (!sent) return
       if (clozeEditing) cancelCloze()
-      void mark(current.phrase_id, decisionChange(current.status, status, learnConvertsCloze(current)))
+      void mark(current.phrase_id, sent)
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)

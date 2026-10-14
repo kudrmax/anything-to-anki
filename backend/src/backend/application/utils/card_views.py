@@ -48,13 +48,16 @@ class CardViews:
         return CardListing(cards=self._dtos(arranged), progress=arranged.progress())
 
     def one(self, phrase_id: int) -> CardDTO:
-        """The card of the phrase, as an answer to an action on it."""
+        """The card of the phrase, as an answer to an action on it, with its section."""
         card = self._review_cards.of_phrase(phrase_id)
         if card is None:
             raise PhraseNotFoundError(phrase_id)
         jobs = self._jobs([card])
         reported = self._report_repo.reported_phrase_ids([phrase_id])
-        return card_to_dto(card, jobs, reported=phrase_id in reported)
+        return card_to_dto(
+            card, jobs, reported=phrase_id in reported,
+            section=self._candidate_sorter.section(card),
+        )
 
     def _dtos(self, arranged: ArrangedCards) -> list[CardDTO]:
         jobs = self._jobs(arranged.cards)
