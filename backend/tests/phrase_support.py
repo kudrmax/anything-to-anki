@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from backend.domain.entities.candidate_meaning import CandidateMeaning
+from backend.domain.entities.occurrence import Occurrence
 from backend.domain.services.phrase_building import (
     TokenFacts,
     target_by_lemma,
@@ -16,6 +18,7 @@ from backend.domain.services.phrase_building import (
 )
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase import Phrase
+from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -48,3 +51,33 @@ def phrase(
     words = words_of(text, facts)
     found = target_by_lemma(words, text, target) if target else ()
     return Phrase(text=text, words=words, target=found or (0,))
+
+
+def make_occurrence(
+    source_text: str = "He glared at me.",
+    *,
+    polished_text: str | None = None,
+    meaning_text: str | None = None,
+    candidate_id: int = 1,
+    shown_by: ShownBy | None = None,
+) -> Occurrence:
+    """An occurrence with the given phrase text; the rest is changed with `replace`."""
+    meaning = (
+        CandidateMeaning(
+            candidate_id=candidate_id, meaning=meaning_text, translation=None,
+            synonyms=None, examples=None, ipa=None, generated_at=None,
+        )
+        if meaning_text is not None
+        else None
+    )
+    return Occurrence(
+        candidate_id=candidate_id,
+        origin=OccurrenceOrigin.AUTO,
+        source_phrase=phrase(source_text),
+        phrase_position=None,
+        key=None,
+        fragment_score=None,
+        shown_by=shown_by,
+        polished_phrase=phrase(polished_text) if polished_text is not None else None,
+        meaning=meaning,
+    )

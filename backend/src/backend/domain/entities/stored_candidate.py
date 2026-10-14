@@ -20,7 +20,10 @@ if TYPE_CHECKING:
 
 @dataclass
 class StoredCandidate:
-    """A word candidate persisted after source processing.
+    """A word of a source: one per lemma (and phrasal-verb flag).
+    Its occurrences are `Occurrence`s.
+
+    A word candidate persisted after source processing.
 
     `meaning` and `media` are nested enrichment objects (1:1) that may be None
     if no generation/extraction has been attempted yet. They live in their own
