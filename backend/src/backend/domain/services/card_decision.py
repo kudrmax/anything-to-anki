@@ -55,8 +55,6 @@ class DecisionButton(StrEnum):
     CLOZE = "cloze"
     KNOWN = "known"
     SKIP = "skip"
-    UNSKIP = "unskip"
-    UNDO = "undo"
 
 
 DECIDING = frozenset({DecisionAction.LEARN, DecisionAction.CLOZE, DecisionAction.KNOWN})
@@ -111,8 +109,7 @@ class CardState:
     decided_here: bool
     decided_elsewhere: WordStatus | None
     elsewhere: Elsewhere | None
-    buttons_enabled: frozenset[DecisionButton]
-    buttons: tuple[ButtonState, ...] = ()
+    buttons: tuple[ButtonState, ...]
 
 
 def word_status_of(word: StoredCandidate) -> WordStatus:
@@ -177,19 +174,10 @@ def card_state(
     decided = status is not WordStatus.PENDING
     decided_here = decided and occ.is_decision
     elsewhere = None if decided else learning_or_known_elsewhere
-    enabled = {
-        button for button, action in ACTION_OF_BUTTON.items()
-        if _allowed(occ, status, action, elsewhere)
-    }
-    if occ.skipped:
-        enabled.add(DecisionButton.UNSKIP)
-    if decided_here and not occ.exported:
-        enabled.add(DecisionButton.UNDO)
     return CardState(
         decided_here=decided_here,
         decided_elsewhere=status if decided and not occ.is_decision else None,
         elsewhere=elsewhere,
-        buttons_enabled=frozenset(enabled),
         buttons=tuple(_button(occ, status, button, elsewhere) for button in CARD_BUTTONS),
     )
 

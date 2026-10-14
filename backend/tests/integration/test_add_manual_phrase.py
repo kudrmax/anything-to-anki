@@ -251,9 +251,11 @@ def test_learn_on_a_manual_card_closes_the_word_and_exports_one_phrase(bench: Be
     assert word_view is not None
     sibling = card_state(_of(bench, "glare")[0], word_view, None)
     assert sibling.decided_elsewhere is WordStatus.LEARN
-    assert sibling.buttons_enabled == frozenset()
+    assert {b.action for b in sibling.buttons} == {None}
     decision_card = card_state(_of(bench, "glare")[1], word_view, None)
-    assert DecisionButton.UNDO in decision_card.buttons_enabled
+    learn = next(b for b in decision_card.buttons if b.button is DecisionButton.LEARN)
+    assert learn.pressed
+    assert learn.action is DecisionAction.PENDING
     assert first.id is not None
     with pytest.raises(CardDecisionLockedError):
         decide.execute(first.id, DecisionAction.KNOWN)
