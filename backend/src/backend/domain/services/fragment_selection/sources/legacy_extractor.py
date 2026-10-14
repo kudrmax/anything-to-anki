@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.domain.services.fragment_selection.candidate import Candidate
-from backend.domain.services.fragment_selection.utils import count_content_words
+from backend.domain.services.fragment_selection.utils import count_content_words, sentence_of
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -56,9 +56,7 @@ class LegacyExtractorSource:
             subtree_indices = self._sentence_window(tokens, target_index)
 
         if count_content_words(tokens, subtree_indices) > MAX_FRAGMENT_WORDS:
-            subtree_indices = self._trim_window(
-                tokens, target_index, target.sent_index
-            )
+            subtree_indices = self._trim_window(tokens, target_index)
 
         return sorted(subtree_indices)
 
@@ -75,17 +73,13 @@ class LegacyExtractorSource:
 
     @staticmethod
     def _sentence_window(tokens: list[TokenData], target_index: int) -> set[int]:
-        sent = tokens[target_index].sent_index
-        return {t.index for t in tokens if t.sent_index == sent}
+        return {t.index for t in sentence_of(tokens, target_index)}
 
     @staticmethod
     def _trim_window(
-        tokens: list[TokenData], target_index: int, sent_index: int
+        tokens: list[TokenData], target_index: int
     ) -> set[int]:
-        sent_tokens = sorted(
-            (t for t in tokens if t.sent_index == sent_index),
-            key=lambda t: t.index,
-        )
+        sent_tokens = sentence_of(tokens, target_index)
         if not sent_tokens:
             return {target_index}
         left = max(target_index - WINDOW_HALF_SIZE, sent_tokens[0].index)

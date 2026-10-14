@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.domain.services.fragment_selection.candidate import Candidate
+from backend.domain.services.fragment_selection.utils import sentence_of
 from backend.domain.value_objects.fragment_selection_config import (
     CLAUSE_HEAD_POS,
     DETACHABLE_CLAUSE_DEPS,
@@ -29,9 +30,7 @@ class ClauseCoreSource:
         target_index: int,
     ) -> Iterable[Candidate]:
         sent_index = tokens[target_index].sent_index
-        for token in tokens:
-            if token.sent_index != sent_index:
-                continue
+        for token in sentence_of(tokens, target_index):
             is_root = token.head_index == token.index
             if not is_root and token.pos not in CLAUSE_HEAD_POS:
                 continue
