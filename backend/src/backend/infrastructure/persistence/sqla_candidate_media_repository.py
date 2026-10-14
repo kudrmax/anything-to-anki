@@ -11,13 +11,8 @@ from backend.infrastructure.persistence.models import (
     PhraseModel,
     StoredCandidateModel,
 )
+from backend.infrastructure.persistence.phrase_owners import word_ids_of
 from backend.infrastructure.persistence.phrase_writes import chunks
-from backend.infrastructure.persistence.primary_phrase import (
-    PrimaryPhrases,
-    primary_phrase_id,
-    word_is_active,
-    words_of_source,
-)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -32,15 +27,12 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
 
     def __init__(self, session: Session) -> None:
         self._session = session
-        self._primary = PrimaryPhrases(session)
-
-    # ── by phrase ──────────────────────────────────────────────────────
 
     def get_by_phrase_id(self, phrase_id: int) -> CandidateMedia | None:
         return self.get_by_phrase_ids([phrase_id]).get(phrase_id)
 
     def get_by_phrase_ids(self, phrase_ids: list[int]) -> dict[int, CandidateMedia]:
-        words = self._primary.word_ids(phrase_ids)
+        words = word_ids_of(self._session, phrase_ids)
         if not words:
             return {}
         rows = self._session.scalars(
@@ -95,17 +87,8 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
             )
         self._session.flush()
 
-    # ── by word, through its primary phrase ────────────────────────────
-    # TRANSITIONAL(words-phrases): removed in Task 10
-
-    def get_by_candidate_id(self, candidate_id: int) -> CandidateMedia | None:
-        return self.get_by_candidate_ids([candidate_id]).get(candidate_id)
-
-    def get_all_by_source(self, source_id: int) -> dict[int, CandidateMedia]:
-        return self.get_by_candidate_ids(words_of_source(self._session, source_id))
-
     def get_all_by_source_id(self, source_id: int) -> list[CandidateMedia]:
-        """The media of every phrase of the source, not only of primary ones: all the files."""
+        """The media of every phrase of the source: all its files."""
         rows = self._session.execute(
             select(CandidateMediaModel, PhraseModel.candidate_id)
             .join(PhraseModel, PhraseModel.id == CandidateMediaModel.phrase_id)
@@ -113,33 +96,6 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
             .where(StoredCandidateModel.source_id == source_id)
         ).all()
         return [media.to_entity(word_id) for media, word_id in rows]
-
-    def get_by_candidate_ids(self, candidate_ids: list[int]) -> dict[int, CandidateMedia]:
-        primaries = self._primary.ids(candidate_ids)
-        by_phrase = self.get_by_phrase_ids(list(primaries.values()))
-        return {
-            word_id: by_phrase[phrase_id]
-            for word_id, phrase_id in primaries.items()
-            if phrase_id in by_phrase
-        }
-
-    def upsert(self, media: CandidateMedia) -> None:
-        phrase_id = self._primary.id(media.candidate_id)
-        if phrase_id is not None:
-            self.upsert_for_phrase(phrase_id, media)
-
-    def clear_paths(
-        self,
-        candidate_id: int,
-        *,
-        clear_screenshot: bool,
-        clear_audio: bool,
-    ) -> None:
-        phrase_id = self._primary.id(candidate_id)
-        if phrase_id is not None:
-            self.clear_phrase_paths(
-                phrase_id, clear_screenshot=clear_screenshot, clear_audio=clear_audio,
-            )
 
     def clear_phrase_paths(
         self, phrase_id: int, *, clear_screenshot: bool, clear_audio: bool,
@@ -157,21 +113,3 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
             .values(**values)
         )
         self._session.flush()
-
-    def get_eligible_candidate_ids(
-        self,
-        source_id: int,
-    ) -> list[int]:
-        stmt = (
-            select(StoredCandidateModel.id)
-            .join(PhraseModel, PhraseModel.id == primary_phrase_id(StoredCandidateModel.id))
-            .join(CandidateMediaModel, CandidateMediaModel.phrase_id == PhraseModel.id)
-            .where(
-                StoredCandidateModel.source_id == source_id,
-                word_is_active(),
-                CandidateMediaModel.start_ms.is_not(None),
-                CandidateMediaModel.end_ms.is_not(None),
-                CandidateMediaModel.screenshot_path.is_(None),
-            )
-        )
-        return [row[0] for row in self._session.execute(stmt).all()]

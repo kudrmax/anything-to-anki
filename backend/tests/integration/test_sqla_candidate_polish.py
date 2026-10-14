@@ -88,13 +88,15 @@ class TestCandidatePolishPersistence:
         with self._Session() as s:
             meanings = SqlaCandidateMeaningRepository(s)
             tts = SqlaCandidateTTSRepository(s)
-            meanings.upsert(CandidateMeaning(
+            meanings.upsert_for_phrase(1, CandidateMeaning(
                 candidate_id=1, meaning="m", translation=None, synonyms=None,
                 examples=None, ipa=None, generated_at=_NOW,
             ))
-            tts.upsert(CandidateTTS(candidate_id=1, audio_path="a.m4a", generated_at=_NOW))
-            meanings.delete_by_candidate_id(1)
-            tts.delete_by_candidate_id(1)
+            tts.upsert_for_phrase(
+                1, CandidateTTS(candidate_id=1, audio_path="a.m4a", generated_at=_NOW),
+            )
+            meanings.delete_by_phrase_id(1)
+            tts.delete_by_phrase_id(1)
             s.commit()
-            assert meanings.get_by_candidate_id(1) is None
-            assert tts.get_by_candidate_id(1) is None
+            assert meanings.get_by_phrase_id(1) is None
+            assert tts.get_by_phrase_id(1) is None

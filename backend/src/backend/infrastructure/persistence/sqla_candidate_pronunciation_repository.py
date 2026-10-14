@@ -9,9 +9,7 @@ from backend.domain.ports.candidate_pronunciation_repository import (
 )
 from backend.infrastructure.persistence.models import (
     CandidatePronunciationModel,
-    StoredCandidateModel,
 )
-from backend.infrastructure.persistence.primary_phrase import word_is_active
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -50,14 +48,3 @@ class SqlaCandidatePronunciationRepository(CandidatePronunciationRepository):
             existing.uk_audio_path = pronunciation.uk_audio_path
             existing.generated_at = pronunciation.generated_at
         self._session.flush()
-
-    def get_eligible_candidate_ids(self, source_id: int) -> list[int]:
-        generated = select(CandidatePronunciationModel.candidate_id).where(
-            CandidatePronunciationModel.is_generated(),
-        )
-        stmt = select(StoredCandidateModel.id).where(
-            StoredCandidateModel.source_id == source_id,
-            word_is_active(),
-            StoredCandidateModel.id.not_in(generated),
-        )
-        return [row[0] for row in self._session.execute(stmt).all()]

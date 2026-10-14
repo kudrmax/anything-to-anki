@@ -20,6 +20,3 @@ class CandidatePronunciationRepository(ABC):
 
     @abstractmethod
     def upsert(self, pronunciation: CandidatePronunciation) -> None: ...
-
-    @abstractmethod
-    def get_eligible_candidate_ids(self, source_id: int) -> list[int]: ...

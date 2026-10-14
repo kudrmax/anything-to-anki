@@ -9,7 +9,6 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import (
     CandidateTTSModel,
-    StoredCandidateModel,
 )
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
@@ -54,7 +53,7 @@ class TestUpsert:
             audio_path="/audio/1_tts.m4a",
             generated_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
-        repo.upsert(entity)
+        repo.upsert_for_phrase(1, entity)
 
         model = session.get(CandidateTTSModel, 1)
         assert model is not None
@@ -79,7 +78,7 @@ class TestUpsert:
             audio_path="/new.m4a",
             generated_at=datetime(2026, 6, 1, tzinfo=UTC),
         )
-        repo.upsert(entity)
+        repo.upsert_for_phrase(1, entity)
 
         model = session.get(CandidateTTSModel, 1)
         assert model is not None
@@ -90,10 +89,10 @@ class TestUpsert:
 
 
 @pytest.mark.unit
-class TestGetByCandidateId:
+class TestGetByPhraseId:
     def test_returns_none_for_missing(self, session: Session) -> None:
         repo = SqlaCandidateTTSRepository(session)
-        assert repo.get_by_candidate_id(999) is None
+        assert repo.get_by_phrase_id(999) is None
 
     def test_returns_entity_for_existing(self, session: Session) -> None:
         _insert_candidate(session, 1)
@@ -106,7 +105,7 @@ class TestGetByCandidateId:
         session.flush()
 
         repo = SqlaCandidateTTSRepository(session)
-        result = repo.get_by_candidate_id(1)
+        result = repo.get_by_phrase_id(1)
 
         assert result is not None
         assert result.candidate_id == 1
@@ -118,10 +117,10 @@ class TestGetByCandidateId:
 
 
 @pytest.mark.unit
-class TestGetByCandidateIds:
+class TestGetByPhraseIds:
     def test_empty_ids_returns_empty(self, session: Session) -> None:
         repo = SqlaCandidateTTSRepository(session)
-        assert repo.get_by_candidate_ids([]) == {}
+        assert repo.get_by_phrase_ids([]) == {}
 
     def test_returns_matching_entries(self, session: Session) -> None:
         _insert_candidate(session, 1)
@@ -136,62 +135,8 @@ class TestGetByCandidateIds:
         session.flush()
 
         repo = SqlaCandidateTTSRepository(session)
-        result = repo.get_by_candidate_ids([1, 2, 3])
+        result = repo.get_by_phrase_ids([1, 2, 3])
 
         assert set(result.keys()) == {1, 3}
         assert result[1].audio_path == "/audio/1_tts.m4a"
         assert result[3].audio_path == "/audio/3_tts.m4a"
-
-
-@pytest.mark.unit
-class TestGetEligibleCandidateIds:
-    def test_returns_pending_and_learn_without_tts(self, session: Session) -> None:
-        _insert_candidate(session, 1, source_id=1)  # LEARN by default
-        _insert_candidate(session, 2, source_id=1)
-        # Change candidate 2 to PENDING
-        cand2 = session.get(StoredCandidateModel, 2)
-        assert cand2 is not None
-        cand2.status = CandidateStatus.PENDING.value
-        session.flush()
-
-        repo = SqlaCandidateTTSRepository(session)
-        result = repo.get_eligible_candidate_ids(source_id=1)
-
-        assert set(result) == {1, 2}
-
-    def test_excludes_candidates_with_tts(self, session: Session) -> None:
-        _insert_candidate(session, 1, source_id=1)
-        _insert_candidate(session, 2, source_id=1)
-        # candidate 1 already has TTS
-        session.add(CandidateTTSModel(
-            phrase_id=1,
-            audio_path="/audio.m4a",
-            generated_at=None,
-        ))
-        session.flush()
-
-        repo = SqlaCandidateTTSRepository(session)
-        result = repo.get_eligible_candidate_ids(source_id=1)
-
-        assert result == [2]
-
-    def test_excludes_wrong_source(self, session: Session) -> None:
-        _insert_candidate(session, 1, source_id=1)
-        _insert_candidate(session, 2, source_id=2)
-
-        repo = SqlaCandidateTTSRepository(session)
-        result = repo.get_eligible_candidate_ids(source_id=1)
-
-        assert result == [1]
-
-    def test_excludes_non_active_statuses(self, session: Session) -> None:
-        _insert_candidate(session, 1, source_id=1)
-        cand = session.get(StoredCandidateModel, 1)
-        assert cand is not None
-        cand.status = CandidateStatus.SKIP.value
-        session.flush()
-
-        repo = SqlaCandidateTTSRepository(session)
-        result = repo.get_eligible_candidate_ids(source_id=1)
-
-        assert result == []

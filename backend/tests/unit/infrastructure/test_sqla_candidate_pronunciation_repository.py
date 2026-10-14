@@ -9,7 +9,6 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import (
     CandidatePronunciationModel,
-    StoredCandidateModel,
 )
 from backend.infrastructure.persistence.sqla_candidate_pronunciation_repository import (
     SqlaCandidatePronunciationRepository,
@@ -135,49 +134,8 @@ class TestUpsert:
         assert model.uk_audio_path == "/uk.mp3"
 
 
-class TestGetEligibleCandidateIds:
-    def test_excludes_candidates_with_pronunciation(self, session: Session) -> None:
-        _insert_candidate(session, 1, source_id=1)
-        _insert_candidate(session, 2, source_id=1)
-        # candidate 1 already has pronunciation
-        session.add(CandidatePronunciationModel(
-            candidate_id=1,
-            us_audio_path=None,
-            uk_audio_path=None,
-            generated_at=None,
-        ))
-        session.flush()
-
-        repo = SqlaCandidatePronunciationRepository(session)
-        result = repo.get_eligible_candidate_ids(source_id=1)
-
-        assert result == [2]
-
-    def test_excludes_wrong_source(self, session: Session) -> None:
-        _insert_candidate(session, 1, source_id=1)
-        _insert_candidate(session, 2, source_id=2)
-
-        repo = SqlaCandidatePronunciationRepository(session)
-        result = repo.get_eligible_candidate_ids(source_id=1)
-
-        assert result == [1]
-
-    def test_excludes_non_active_statuses(self, session: Session) -> None:
-        _insert_candidate(session, 1, source_id=1)
-        # Change candidate status to SKIP
-        cand = session.get(StoredCandidateModel, 1)
-        assert cand is not None
-        cand.status = CandidateStatus.SKIP.value
-        session.flush()
-
-        repo = SqlaCandidatePronunciationRepository(session)
-        result = repo.get_eligible_candidate_ids(source_id=1)
-
-        assert result == []
-
-
 class TestRowHoldingOnlyTheIpa:
-    def test_is_not_a_pronunciation_and_stays_eligible(self, session: Session) -> None:
+    def test_is_not_a_pronunciation(self, session: Session) -> None:
         _insert_candidate(session, 1)
         session.add(CandidatePronunciationModel(candidate_id=1, ipa="/ɡleə/"))
         session.flush()
@@ -185,7 +143,6 @@ class TestRowHoldingOnlyTheIpa:
         repo = SqlaCandidatePronunciationRepository(session)
 
         assert repo.get_by_candidate_id(1) is None
-        assert repo.get_eligible_candidate_ids(source_id=1) == [1]
 
     def test_keeps_the_ipa_when_recordings_arrive(self, session: Session) -> None:
         _insert_candidate(session, 1)

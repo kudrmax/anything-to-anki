@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from backend.domain.ports.candidate_cloze_repository import CandidateClozeRepository
 from backend.infrastructure.persistence.models import CandidateClozeModel
-from backend.infrastructure.persistence.primary_phrase import PrimaryPhrases
+from backend.infrastructure.persistence.phrase_owners import word_ids_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -20,13 +20,12 @@ class SqlaCandidateClozeRepository(CandidateClozeRepository):
 
     def __init__(self, session: Session) -> None:
         self._session = session
-        self._primary = PrimaryPhrases(session)
 
     def get_by_phrase_id(self, phrase_id: int) -> CandidateCloze | None:
         model = self._session.get(CandidateClozeModel, phrase_id)
         if model is None:
             return None
-        word_id = self._primary.word_ids([phrase_id])[phrase_id]
+        word_id = word_ids_of(self._session, [phrase_id])[phrase_id]
         return model.to_entity(word_id)
 
     def upsert_for_phrase(self, phrase_id: int, cloze: CandidateCloze) -> None:

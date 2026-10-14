@@ -31,7 +31,7 @@ class TestSqlaCandidateMeaningRepository:
     def test_get_returns_none_when_no_row(self) -> None:
         with self._Session() as s:
             repo = SqlaCandidateMeaningRepository(s)
-            assert repo.get_by_candidate_id(1) is None
+            assert repo.get_by_phrase_id(1) is None
 
     def test_upsert_inserts_new_row(self) -> None:
         with self._Session() as s:
@@ -45,10 +45,10 @@ class TestSqlaCandidateMeaningRepository:
                 ipa="həˈloʊ",
                 generated_at=datetime(2026, 4, 7, tzinfo=UTC),
             )
-            repo.upsert(entity)
+            repo.upsert_for_phrase(1, entity)
             s.commit()
 
-            loaded = repo.get_by_candidate_id(1)
+            loaded = repo.get_by_phrase_id(1)
             assert loaded is not None
             assert loaded.meaning == "hello"
             assert loaded.ipa == "həˈloʊ"
@@ -56,94 +56,49 @@ class TestSqlaCandidateMeaningRepository:
     def test_upsert_updates_existing_row(self) -> None:
         with self._Session() as s:
             repo = SqlaCandidateMeaningRepository(s)
-            repo.upsert(CandidateMeaning(
+            repo.upsert_for_phrase(1, CandidateMeaning(
                 candidate_id=1, meaning="v1", translation=None, synonyms=None, examples=None,
                 ipa=None, generated_at=None,
             ))
             s.commit()
-            repo.upsert(CandidateMeaning(
+            repo.upsert_for_phrase(1, CandidateMeaning(
                 candidate_id=1, meaning="v2", translation=None, synonyms=None, examples=None,
                 ipa=None, generated_at=None,
             ))
             s.commit()
 
-            loaded = repo.get_by_candidate_id(1)
+            loaded = repo.get_by_phrase_id(1)
             assert loaded is not None
             assert loaded.meaning == "v2"
 
-    def test_get_all_by_source_returns_mapping(self) -> None:
+    def test_get_by_phrase_ids_returns_mapping(self) -> None:
         with self._Session() as s:
-            # add another candidate
             insert_word(s, 2, lemma="y", phrase_text="ctx")
             s.commit()
             repo = SqlaCandidateMeaningRepository(s)
-            repo.upsert(CandidateMeaning(
+            repo.upsert_for_phrase(1, CandidateMeaning(
                 candidate_id=1, meaning="m1", translation=None, synonyms=None, examples=None,
                 ipa=None, generated_at=None,
             ))
-            repo.upsert(CandidateMeaning(
+            repo.upsert_for_phrase(2, CandidateMeaning(
                 candidate_id=2, meaning="m2", translation=None, synonyms=None, examples=None,
                 ipa=None, generated_at=None,
             ))
             s.commit()
 
-            mapping = repo.get_all_by_source(source_id=1)
-            assert set(mapping.keys()) == {1, 2}
-            assert mapping[1].meaning == "m1"
-            assert mapping[2].meaning == "m2"
-
-    def test_get_by_candidate_ids_returns_mapping(self) -> None:
-        with self._Session() as s:
-            insert_word(s, 2, lemma="y", phrase_text="ctx")
-            s.commit()
-            repo = SqlaCandidateMeaningRepository(s)
-            repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning="m1", translation=None, synonyms=None, examples=None,
-                ipa=None, generated_at=None,
-            ))
-            repo.upsert(CandidateMeaning(
-                candidate_id=2, meaning="m2", translation=None, synonyms=None, examples=None,
-                ipa=None, generated_at=None,
-            ))
-            s.commit()
-
-            mapping = repo.get_by_candidate_ids([1, 2])
+            mapping = repo.get_by_phrase_ids([1, 2])
             assert set(mapping.keys()) == {1, 2}
             assert mapping[1].meaning == "m1"
 
-    def test_get_by_candidate_ids_empty_list(self) -> None:
+    def test_get_by_phrase_ids_empty_list(self) -> None:
         with self._Session() as s:
             repo = SqlaCandidateMeaningRepository(s)
-            assert repo.get_by_candidate_ids([]) == {}
-
-    def test_get_candidate_ids_without_meaning_returns_only_missing(self) -> None:
-        with self._Session() as s:
-            insert_word(s, 2, lemma="y", phrase_text="ctx")
-            s.commit()
-            repo = SqlaCandidateMeaningRepository(s)
-            # candidate 1 has meaning, candidate 2 does not
-            repo.upsert(CandidateMeaning(
-                candidate_id=1, meaning="x", translation=None, synonyms=None, examples=None,
-                ipa=None, generated_at=None,
-            ))
-            s.commit()
-
-            ids = repo.get_candidate_ids_without_meaning(source_id=1, only_active=True)
-            assert ids == [2]
-
-    def test_count_candidate_ids_without_meaning(self) -> None:
-        with self._Session() as s:
-            insert_word(s, 2, lemma="y", phrase_text="ctx", status="known")
-            s.commit()
-            repo = SqlaCandidateMeaningRepository(s)
-            # 2 candidates, neither has meaning, but only 1 active (PENDING)
-            assert repo.count_candidate_ids_without_meaning(source_id=1, only_active=True) == 1
-            assert repo.count_candidate_ids_without_meaning(source_id=1, only_active=False) == 2
+            assert repo.get_by_phrase_ids([]) == {}
 
     def test_persists_translation_and_synonyms(self) -> None:
         with self._Session() as s:
             repo = SqlaCandidateMeaningRepository(s)
-            repo.upsert(CandidateMeaning(
+            repo.upsert_for_phrase(1, CandidateMeaning(
                 candidate_id=1,
                 meaning="explain in detail",
                 translation="разъяснить",
@@ -154,7 +109,7 @@ class TestSqlaCandidateMeaningRepository:
             ))
             s.commit()
 
-            loaded = repo.get_by_candidate_id(1)
+            loaded = repo.get_by_phrase_id(1)
             assert loaded is not None
             assert loaded.translation == "разъяснить"
             assert loaded.synonyms == "explain, clarify"
@@ -162,18 +117,18 @@ class TestSqlaCandidateMeaningRepository:
     def test_upsert_updates_translation_and_synonyms(self) -> None:
         with self._Session() as s:
             repo = SqlaCandidateMeaningRepository(s)
-            repo.upsert(CandidateMeaning(
+            repo.upsert_for_phrase(1, CandidateMeaning(
                 candidate_id=1, meaning="test", translation="тест", synonyms="check",
                 examples=None, ipa=None, generated_at=None,
             ))
             s.commit()
-            repo.upsert(CandidateMeaning(
+            repo.upsert_for_phrase(1, CandidateMeaning(
                 candidate_id=1, meaning="test", translation="обновлено", synonyms="updated",
                 examples=None, ipa=None, generated_at=None,
             ))
             s.commit()
 
-            loaded = repo.get_by_candidate_id(1)
+            loaded = repo.get_by_phrase_id(1)
             assert loaded is not None
             assert loaded.translation == "обновлено"
             assert loaded.synonyms == "updated"

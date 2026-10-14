@@ -8,7 +8,6 @@ from sqlalchemy import select
 from backend.domain.ports.card_report_repository import CardReportRepository
 from backend.infrastructure.persistence.models import CardReportModel
 from backend.infrastructure.persistence.phrase_writes import chunks
-from backend.infrastructure.persistence.primary_phrase import PrimaryPhrases
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -23,15 +22,11 @@ class SqlaCardReportRepository(CardReportRepository):
         self._session = session
 
     def add(self, report: CardReport) -> CardReport:
-        phrase_id = report.phrase_id
-        if phrase_id is None:
-            # TRANSITIONAL(words-phrases): removed in Task 10
-            phrase_id = PrimaryPhrases(self._session).id(report.candidate_id)
         model = CardReportModel(
             source_id=report.source_id,
             source_title=report.source_title,
             candidate_id=report.candidate_id,
-            phrase_id=phrase_id,
+            phrase_id=report.phrase_id,
             lemma=report.lemma,
             surface_form=report.surface_form,
             context_fragment=report.context_fragment,

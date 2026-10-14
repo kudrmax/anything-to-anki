@@ -20,10 +20,6 @@ class PhraseEnrichmentReset:
         self._meaning_repo = meaning_repo
         self._tts_repo = tts_repo
 
-    def reset(self, candidate_id: int) -> None:
-        self._meaning_repo.delete_by_candidate_id(candidate_id)
-        self._tts_repo.delete_by_candidate_id(candidate_id)
-
     def reset_phrase(self, phrase_id: int) -> None:
         self._meaning_repo.delete_by_phrase_id(phrase_id)
         self._tts_repo.delete_by_phrase_id(phrase_id)
