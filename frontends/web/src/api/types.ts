@@ -20,12 +20,17 @@ export type CandidateSortOrder = 'relevance' | 'chronological' | 'key_words'
 export type Scope = 'all' | 'unsorted' | number
 export type SourceStage = 'in_progress' | 'preparing' | 'ready' | 'reviewed'
 
+/** Решённые карточки среди Ready: одни и те же числа у источника, его ревью и коллекции. */
+export interface Progress {
+  decided: number
+  total: number
+}
+
 export interface ScopeCounts {
   total: number
   reviewed: number
   pending: number
-  candidate_count: number
-  decided_count: number
+  progress: Progress
 }
 
 export interface CollectionNode {
@@ -92,9 +97,7 @@ export interface SourceSummary {
   created_at: string
   candidate_count: number
   learn_count: number
-  /** Сколько фраз уже получили решение: learn, known или skip. */
-  ready_count: number
-  ready_decided_count: number
+  progress: Progress
   processing_stage: ProcessingStage | null
   collection_id: number | null
   collection_path: string[]
@@ -293,8 +296,7 @@ export interface SourceDetail {
   candidates: StoredCandidate[]
   /** How many candidates to show before "Show more"; null — show all. */
   initially_shown_candidates: number | null
-  ready_total: number
-  ready_reviewed: number
+  progress: Progress
 }
 
 export interface AnkiStatus {

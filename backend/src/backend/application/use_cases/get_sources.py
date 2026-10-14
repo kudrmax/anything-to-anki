@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from backend.application.constants import INITIALLY_SHOWN_CANDIDATES
 from backend.application.dto.source_dtos import (
+    ProgressDTO,
     SourceBoardDTO,
     SourceDetailDTO,
     SourceDTO,
@@ -77,7 +78,7 @@ class GetSourcesUseCase:
     def _summary(self, source: Source, tree: CollectionTree) -> SourceDTO:
         assert source.id is not None
         candidates = self._candidate_repo.get_by_source(source.id)
-        ready = self._candidate_sorter.arrange(candidates).ready()
+        progress = self._candidate_sorter.arrange(candidates).progress()
         generation = self._generation_probe.of(source)
         collection_id = source.collection_id
         collection_path = (
@@ -98,8 +99,7 @@ class GetSourcesUseCase:
             created_at=source.created_at,
             candidate_count=len(candidates),
             learn_count=sum(1 for c in candidates if c.status == CandidateStatus.LEARN),
-            ready_count=len(ready),
-            ready_decided_count=sum(1 for c in ready if c.status != CandidateStatus.PENDING),
+            progress=ProgressDTO.of(progress),
             processing_stage=source.processing_stage.value if source.processing_stage else None,
             collection_id=collection_id,
             collection_path=collection_path,
@@ -122,7 +122,6 @@ class GetSourcesUseCase:
             self._candidate_repo.get_by_source(source.id), sort_order,
         )
         candidates = arranged.candidates
-        ready = arranged.ready()
         initially_shown = (
             None if sort_order == CandidateSortOrder.CHRONOLOGICAL
             else INITIALLY_SHOWN_CANDIDATES
@@ -151,7 +150,6 @@ class GetSourcesUseCase:
                 )
                 for c in candidates
             ],
-            ready_total=len(ready),
-            ready_reviewed=sum(1 for c in ready if c.status != CandidateStatus.PENDING),
+            progress=ProgressDTO.of(arranged.progress()),
             initially_shown_candidates=initially_shown,
         )

@@ -12,6 +12,7 @@ from backend.domain.services import candidate_sorting
 from backend.domain.services.candidate_sections import section_of
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+from backend.domain.value_objects.decision_progress import DecisionProgress
 
 if TYPE_CHECKING:
     from backend.application.utils.frequent_word_threshold_resolver import (
@@ -35,6 +36,10 @@ class ArrangedCandidates:
 
     def ready(self) -> list[StoredCandidate]:
         return [c for c in self.candidates if self.section(c) is CandidateSection.READY]
+
+    def progress(self) -> DecisionProgress:
+        """How far the user got: decided cards among the Ready ones; the rest don't count."""
+        return DecisionProgress.of_statuses(c.status for c in self.ready())
 
 
 class CandidateSorter:

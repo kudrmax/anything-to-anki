@@ -203,7 +203,8 @@ class TestUnknownWordsAPI:
 
     def _card(self, client: TestClient) -> dict[str, object]:
         source = client.get("/sources/1").json()
-        return {"section": source["candidates"][0]["section"], "ready": source["ready_total"]}
+        section = source["candidates"][0]["section"]
+        return {"section": section, "ready": source["progress"]["total"]}
 
     def test_card_is_ready_at_first(self, client: TestClient) -> None:
         assert self._card(client) == {"section": "ready", "ready": 1}

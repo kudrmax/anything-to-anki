@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CollectionNode } from '@/api/types'
 import { ScopeHeader } from './ScopeHeader'
 
-const counts = { total: 2, reviewed: 1, pending: 0, candidate_count: 0, decided_count: 0 }
+const counts = { total: 2, reviewed: 1, pending: 0, progress: { decided: 0, total: 0 } }
 const node = (id: number, name: string, depth: number): CollectionNode => ({
   id, name, parent_id: depth === 1 ? null : id - 1, counts, depth, accepts_collections: true, move_targets: [null], children: [],
 })

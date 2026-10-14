@@ -6,7 +6,7 @@ import { SourceRow } from './SourceRow'
 
 const source: SourceSummary = {
   id: 7, title: 'Pilot', status: 'done', kind: 'text', role: 'content', has_video: false, source_url: null,
-  video_downloaded: false, created_at: '2026-10-01T00:00:00Z', candidate_count: 4, learn_count: 0, ready_count: 4, ready_decided_count: 0,
+  video_downloaded: false, created_at: '2026-10-01T00:00:00Z', candidate_count: 4, learn_count: 0, progress: { decided: 0, total: 4 },
   processing_stage: null, collection_id: 11, collection_path: ['Friends', 'Season 1'], stage: 'ready',
   awaiting_generation: false, generation_status: null, generation_error: null, is_permanent: false,
 }

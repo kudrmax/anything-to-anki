@@ -387,8 +387,8 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   })
 
   const learnCount = candidates.filter(c => c.status === 'learn').length
-  const readyTotal = source?.ready_total ?? 0
-  const readyReviewed = source?.ready_reviewed ?? 0
+  const readyTotal = source?.progress.total ?? 0
+  const readyReviewed = source?.progress.decided ?? 0
 
   return {
     sourceId, source, document, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,

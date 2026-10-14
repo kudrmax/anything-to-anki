@@ -18,7 +18,20 @@ if TYPE_CHECKING:
     from backend.domain.entities.job import Job
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.candidate_section import CandidateSection
+    from backend.domain.value_objects.decision_progress import DecisionProgress
     from backend.domain.value_objects.phrase import Phrase
+
+
+class ProgressDTO(BaseModel):
+    """Decided cards among the Ready ones: the same numbers on a source, its review and a
+    collection."""
+
+    decided: int = 0
+    total: int = 0
+
+    @staticmethod
+    def of(progress: DecisionProgress) -> ProgressDTO:
+        return ProgressDTO(decided=progress.decided, total=progress.total)
 
 
 class UpdateTitleRequest(BaseModel):
@@ -42,9 +55,7 @@ class SourceDTO(BaseModel):
     created_at: datetime
     candidate_count: int
     learn_count: int
-    # Cards where only the target is new, and how many of them are decided.
-    ready_count: int = 0
-    ready_decided_count: int = 0
+    progress: ProgressDTO = ProgressDTO()
     processing_stage: str | None = None
     collection_id: int | None = None
     collection_path: list[str] = []  # e.g. ["Friends", "Season 1"]; empty in Unsorted
@@ -191,9 +202,7 @@ class SourceDetailDTO(BaseModel):
     processing_stage: str | None = None
     created_at: datetime
     candidates: list[StoredCandidateDTO]
-    # Cards where only the target is new, and how many of them are decided.
-    ready_total: int = 0
-    ready_reviewed: int = 0
+    progress: ProgressDTO = ProgressDTO()
     # How many candidates to show before "show more"; None — show all.
     initially_shown_candidates: int | None = None
 

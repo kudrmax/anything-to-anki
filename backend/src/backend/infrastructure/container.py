@@ -60,6 +60,7 @@ from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
 from backend.application.utils.phrase_reader import PhraseReader
+from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.application.utils.rewrite_phrase import RewritePhrase
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
@@ -467,7 +468,7 @@ class Container:
         return ListCollectionsUseCase(
             collection_repo=SqlaCollectionRepository(session),
             source_repo=SqlaSourceRepository(session),
-            candidate_repo=SqlaCandidateRepository(session),
+            review_progress=self._review_progress(session),
             generation_probe=self._generation_probe(session),
         )
 
@@ -683,6 +684,11 @@ class Container:
     def _review_status_updater(self, session: Session) -> ReviewStatusUpdater:
         return ReviewStatusUpdater(
             source_repo=SqlaSourceRepository(session),
+            review_progress=self._review_progress(session),
+        )
+
+    def _review_progress(self, session: Session) -> ReviewProgress:
+        return ReviewProgress(
             candidate_repo=SqlaCandidateRepository(session),
             candidate_sorter=self._candidate_sorter(session),
         )

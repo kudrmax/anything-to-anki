@@ -147,8 +147,7 @@ class TestGetSourcesUseCase:
         result = self.use_case.list_all()
         assert result[0].candidate_count == 4
         assert result[0].learn_count == 2
-        assert result[0].ready_count == 4
-        assert result[0].ready_decided_count == 3
+        assert (result[0].progress.decided, result[0].progress.total) == (3, 4)
         # Status is settled when cards or known words change, not when sources are read.
         assert result[0].status == SourceStatus.DONE.value
         self.source_repo.update_status.assert_not_called()

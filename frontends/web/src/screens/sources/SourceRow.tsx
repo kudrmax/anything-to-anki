@@ -68,10 +68,10 @@ const TOUCH = 'touch'
 /** Подпись под шкалой прогресса: что известно о фразах источника. */
 function progressCaption(source: SourceSummary): string {
   if (source.candidate_count === 0) return 'Nothing to learn'
-  if (source.ready_count === 0) return 'Nothing ready'
+  if (source.progress.total === 0) return 'Nothing ready'
   if (source.status === 'reviewed') return `${source.learn_count} to learn`
-  if (source.ready_decided_count > 0) return `${source.ready_decided_count} of ${source.ready_count} decided`
-  return `${source.ready_count} phrases`
+  if (source.progress.decided > 0) return `${source.progress.decided} of ${source.progress.total} decided`
+  return `${source.progress.total} phrases`
 }
 
 export function SourceRow({ source, selected, showPath, primary, onProcess, onGenerate, onCancelGeneration, onRetryGeneration, onReview, onExport, onDelete, onRename, onReprocess, onRowClick, onMoveTo, dragIds, draggable, onLongPress }: SourceRowProps) {
@@ -134,7 +134,7 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
     }
     if (source.status === 'new') return <Text tone="muted" size="s">Not processed yet</Text>
     if (source.status === 'error') return <Text tone="err" size="s">Processing failed</Text>
-    const value = source.status === 'reviewed' ? 1 : source.ready_count > 0 ? source.ready_decided_count / source.ready_count : 0
+    const value = source.status === 'reviewed' ? 1 : source.progress.total > 0 ? source.progress.decided / source.progress.total : 0
     return (
       <>
         <Progress value={value} />

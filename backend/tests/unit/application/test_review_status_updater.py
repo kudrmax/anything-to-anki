@@ -2,6 +2,7 @@ import itertools
 from unittest.mock import MagicMock
 
 import pytest
+from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -44,8 +45,7 @@ class TestReviewStatusUpdater:
         settings_repo.get.return_value = None
         self.updater = ReviewStatusUpdater(
             source_repo=self.source_repo,
-            candidate_repo=self.candidate_repo,
-            candidate_sorter=candidate_sorter(settings_repo),
+            review_progress=ReviewProgress(self.candidate_repo, candidate_sorter(settings_repo)),
         )
 
     def test_saves_the_derived_status_when_it_changes(self) -> None:

@@ -7,17 +7,19 @@ from backend.application.use_cases.list_collections import ListCollectionsUseCas
 from backend.application.utils.topic_generation import TopicGeneration
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.source_fakes import InMemorySourceRepository
 
 
-def _candidates(counts: dict[int, dict[CandidateStatus, int]] | None = None) -> MagicMock:
-    repo = MagicMock()
-    repo.count_by_source_and_status.return_value = counts or {}
-    return repo
+def _progress(by_source: dict[int, DecisionProgress] | None = None) -> MagicMock:
+    progress = MagicMock()
+    progress.of_source.side_effect = lambda source_id: (by_source or {}).get(
+        source_id, DecisionProgress(),
+    )
+    return progress
 
 
 @pytest.mark.unit
@@ -35,7 +37,7 @@ def test_tree_with_subtree_counts_and_drag_hints() -> None:
             Source(id=11, status=SourceStatus.NEW, collection_id=2),
             Source(id=12, status=SourceStatus.ERROR, collection_id=None),
         ]),
-        _candidates(),
+        _progress(),
         probe,
     )
 
@@ -65,7 +67,7 @@ def test_tree_of_full_depth() -> None:
     tree = ListCollectionsUseCase(
         InMemoryCollectionRepository(chain),
         InMemorySourceRepository([Source(id=10, status=SourceStatus.NEW, collection_id=5)]),
-        _candidates(),
+        _progress(),
         probe,
     ).execute()
 
@@ -84,10 +86,9 @@ def test_tree_of_full_depth() -> None:
 
 
 @pytest.mark.unit
-def test_decision_progress_sums_sources_of_the_whole_subtree() -> None:
+def test_progress_sums_the_progress_of_sources_of_the_whole_subtree() -> None:
     probe = MagicMock()
     probe.of.return_value = TopicGeneration()
-    pending, learn, known = CandidateStatus.PENDING, CandidateStatus.LEARN, CandidateStatus.KNOWN
     tree = ListCollectionsUseCase(
         InMemoryCollectionRepository([
             Collection(id=1, name="Books"),
@@ -99,18 +100,18 @@ def test_decision_progress_sums_sources_of_the_whole_subtree() -> None:
             Source(id=11, status=SourceStatus.NEW, collection_id=2),
             Source(id=12, status=SourceStatus.NEW, collection_id=None),
         ]),
-        _candidates({
-            10: {pending: 961, learn: 2},
-            11: {pending: 68, learn: 30, known: 9},
-            12: {known: 4},
+        _progress({
+            10: DecisionProgress(decided=2, total=963),
+            11: DecisionProgress(decided=39, total=107),
+            12: DecisionProgress(decided=4, total=4),
         }),
         probe,
     ).execute()
 
     (books,) = tree.collections
     twig, empty = books.children
-    assert (books.counts.decided_count, books.counts.candidate_count) == (41, 1070)
-    assert (twig.counts.decided_count, twig.counts.candidate_count) == (39, 107)
-    assert (empty.counts.decided_count, empty.counts.candidate_count) == (0, 0)
-    assert (tree.unsorted.decided_count, tree.unsorted.candidate_count) == (4, 4)
-    assert (tree.all.decided_count, tree.all.candidate_count) == (45, 1074)
+    assert (books.counts.progress.decided, books.counts.progress.total) == (41, 1070)
+    assert (twig.counts.progress.decided, twig.counts.progress.total) == (39, 107)
+    assert (empty.counts.progress.decided, empty.counts.progress.total) == (0, 0)
+    assert (tree.unsorted.progress.decided, tree.unsorted.progress.total) == (4, 4)
+    assert (tree.all.progress.decided, tree.all.progress.total) == (45, 1074)
