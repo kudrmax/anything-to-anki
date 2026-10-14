@@ -189,25 +189,61 @@ def _texts(db_session: Session, topic_id: int, lemma: str) -> list[str]:
     ]
 
 
-def test_refreshing_picks_up_a_newly_added_source(
+def test_a_real_phrase_replaces_an_untouched_generated_one(
     db_session: Session, container: Container,
 ) -> None:
     topic_id = _processed_topic(db_session, container)
     assert _by_lemma(db_session, topic_id)["counter-offer"].origin == PhraseOrigin.generated()
-    generated = _texts(db_session, topic_id, "counter-offer")
 
     _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
     db_session.commit()
     summary = container.refresh_topic_use_case(db_session).execute(topic_id)
 
-    assert (summary.words_added, summary.phrases_added) == (0, 1)
-    assert _texts(db_session, topic_id, "counter-offer") == [*generated, LATER_ARTICLE]
+    assert (summary.words_added, summary.phrases_added, summary.phrases_replaced) == (0, 1, 1)
+    assert _texts(db_session, topic_id, "counter-offer") == [LATER_ARTICLE]
+    card = _by_lemma(db_session, topic_id)["counter-offer"]
+    assert card.source_phrase.text == LATER_ARTICLE
+    assert card.origin == PhraseOrigin.from_source("Article")
     [added] = [
         o for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)
         if o.source_phrase.text == LATER_ARTICLE
     ]
     assert added.origin is OccurrenceOrigin.COLLECTED
     assert added.shown_by is not None
+
+
+def test_a_generated_phrase_with_generation_stays_beside_the_real_one(
+    db_session: Session, container: Container,
+) -> None:
+    topic_id = _processed_topic(db_session, container)
+    occurrences = SqlaOccurrenceRepository(db_session)
+    word_ids = {w.lemma: w.id for w in occurrences.word_rows(topic_id)}
+    [generated] = [
+        o for o in occurrences.by_source(topic_id) if o.candidate_id == word_ids["counter-offer"]
+    ]
+    _give_meaning(db_session, generated.id, generated.candidate_id)
+
+    _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
+    db_session.commit()
+    summary = container.refresh_topic_use_case(db_session).execute(topic_id)
+
+    assert (summary.phrases_added, summary.phrases_replaced) == (1, 0)
+    shown = [
+        o.source_phrase.text for o in occurrences.by_source(topic_id)
+        if o.candidate_id == word_ids["counter-offer"] and o.shown_by is not None
+    ]
+    assert shown == [generated.source_phrase.text, LATER_ARTICLE]
+    kept = occurrences.get(generated.id)
+    assert kept is not None
+    assert kept.meaning is not None
+
+
+def _give_meaning(db_session: Session, phrase_id: int, word_id: int) -> None:
+    SqlaCandidateMeaningRepository(db_session).upsert_for_phrase(phrase_id, CandidateMeaning(
+        candidate_id=word_id, meaning="a reply offer", translation=None,
+        synonyms=None, examples=None, ipa=None, generated_at=None,
+    ))
+    db_session.commit()
 
 
 def test_refreshing_keeps_decisions_and_results(
@@ -223,11 +259,7 @@ def test_refreshing_keeps_decisions_and_results(
         {"id": word_ids["counter-offer"]},
     )
     occurrences.set_decision(word_ids["counter-offer"], decided.id, None)
-    SqlaCandidateMeaningRepository(db_session).upsert_for_phrase(decided.id, CandidateMeaning(
-        candidate_id=decided.candidate_id, meaning="a reply offer", translation=None,
-        synonyms=None, examples=None, ipa=None, generated_at=None,
-    ))
-    db_session.commit()
+    _give_meaning(db_session, decided.id, decided.candidate_id)
     before = {o.id: o for o in occurrences.by_source(topic_id)}
 
     _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)

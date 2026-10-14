@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.candidate_status import CandidateStatus
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
+    from backend.domain.value_objects.phrase_origin import PhraseOrigin
 
 
 class CandidateRepository(ABC):
@@ -25,6 +26,10 @@ class CandidateRepository(ABC):
 
     @abstractmethod
     def update_status(self, candidate_id: int, status: CandidateStatus) -> None: ...
+
+    @abstractmethod
+    def set_origin(self, candidate_id: int, origin: PhraseOrigin | None) -> None:
+        """Where the word's collected phrase came from."""
 
     @abstractmethod
     def count_by_status(self, status: CandidateStatus) -> int: ...

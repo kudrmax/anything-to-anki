@@ -24,7 +24,19 @@ def is_touched(o: OccurrenceRow, word_decided: bool) -> bool:
     """Something of the user's is on the phrase: no rebuild deletes it for being gone from
     the analysis, unless asked to rebuild open cards too and it is not untouchable."""
     return (
-        is_untouchable(o)
+        has_user_work(o, word_decided)
+        or o.shown_by is ShownBy.USER
+        or o.origin is not OccurrenceOrigin.AUTO
+    )
+
+
+def has_user_work(o: OccurrenceRow, word_decided: bool) -> bool:
+    """The user did something with the phrase, whatever its origin: decided on it,
+    exported it, edited, generated for it, queued work on it or skipped it."""
+    return (
+        o.is_decision
+        or o.exported
+        or o.edited_by_user
         or o.has_results
         or o.has_active_job
         or o.skipped

@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
+    from backend.domain.value_objects.phrase_origin import PhraseOrigin
 
 DECIDED_STATUSES = (CandidateStatus.LEARN, CandidateStatus.KNOWN)
 COLLECTING_ROLES = (SourceRole.TOPIC.value, SourceRole.SAVED_PHRASES.value)
@@ -101,6 +102,14 @@ class SqlaCandidateRepository(CandidateRepository):
         return found[0] if found else None
 
     # TRANSITIONAL(words-phrases): removed in Task 10
+    def set_origin(self, candidate_id: int, origin: PhraseOrigin | None) -> None:
+        word = self._session.get(StoredCandidateModel, candidate_id)
+        if word is None:
+            return
+        word.origin_kind = origin.kind.value if origin is not None else None
+        word.origin_title = origin.source_title if origin is not None else None
+        self._session.flush()
+
     def update_status(self, candidate_id: int, status: CandidateStatus) -> None:
         """SKIP skips the primary phrase; LEARN and KNOWN make it the phrase of the decision."""
         word = self._session.get(StoredCandidateModel, candidate_id)
