@@ -21,7 +21,7 @@
 **Инвариант отбора** (действует только там, где отбор ставит отметку заново):
 - отбор запускается только при обработке и Rebuild; действия человека снимают отметку только с той фразы, которую заменили, и чужие отметки не трогают;
 - замороженная фраза (решение, генерация, задача, экспорт) сохраняет свою отметку `selection` — приоритет у заморозки;
-- иначе у слова не больше одной `selection`-фразы; ни одной, если example или user-`auto` заменили именно карточку отбора; `manual`-фразы — сверх;
+- иначе у слова не больше одной `selection`-фразы; ни одной, если example или user-`auto` заменили именно карточку отбора (факт хранится: `phrases.replaces_selection`, ставит действие замены; не выводится из состояния); `manual`-фразы — сверх;
 - отбор ставит и снимает только отметки `selection`; `collected`-фразы показаны всегда.
 
 **Решения:**
@@ -134,7 +134,7 @@
 | Таблица | Изменение |
 |---|---|
 | `candidates` (слово) | уникальность `(source_id, lower(lemma), is_phrasal_verb)`; статус — `WordStatus` (pending/learn/known), `CandidateStatus.SKIP` уходит в `phrases.skipped`; фразовые колонки уходят в `phrases`; дубли слов сливаются в миграции |
-| `phrases` | новая, `sqlite_autoincrement`: `candidate_id` (CASCADE), `block`, `line`, `char` (ключ; **один** частичный уникальный индекс `(candidate_id, block, line, char) WHERE origin = 'auto'`), `source_phrase`, `phrase_position`, `polished_phrase`, `polish_reverted`, `fragment_score`, `revision`, `shown_by`, `origin`, `skipped`, `is_decision`, `decision_kind`, `edited_by_user`, `created_at` |
+| `phrases` | новая, `sqlite_autoincrement`: `candidate_id` (CASCADE), `block`, `line`, `char` (ключ; **один** частичный уникальный индекс `(candidate_id, block, line, char) WHERE origin = 'auto'`), `source_phrase`, `phrase_position`, `polished_phrase`, `polish_reverted`, `fragment_score`, `revision`, `shown_by`, `origin`, `skipped`, `is_decision`, `decision_kind`, `edited_by_user`, `replaces_selection`, `created_at` |
 | `phrase_words` | новая: `lemma`, `phrase_id` — индекс для пересчёта разделов по лемме; переписывается одной операцией репозитория «записать текст фразы» при любой его смене (анализ, Polish и откат, граница, example, ручное добавление) |
 | `anki_synced_cards` | + `phrase_id` (FK без CASCADE — `SET NULL`: запись об экспорте не теряется), уникальность по `phrase_id`; `unique` с `candidate_id` снимается (у слитых дублей несколько строк) |
 | `candidate_meanings`, `candidate_media`, `candidate_tts`, `candidate_clozes` | ключ → `phrase_id` |
