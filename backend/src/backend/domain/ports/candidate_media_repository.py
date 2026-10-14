@@ -28,6 +28,12 @@ class CandidateMediaRepository(ABC):
     def upsert_for_phrase(self, phrase_id: int, media: CandidateMedia) -> None: ...
 
     @abstractmethod
+    def clear_phrase_paths(
+        self, phrase_id: int, *, clear_screenshot: bool, clear_audio: bool,
+    ) -> None:
+        """Set the phrase's screenshot_path and/or audio_path to NULL, keeping the row."""
+
+    @abstractmethod
     def set_timecodes(self, times: Mapping[int, tuple[int, int] | None]) -> None:
         """Phrase id → the time of its phrase in the video, None when untimed.
 

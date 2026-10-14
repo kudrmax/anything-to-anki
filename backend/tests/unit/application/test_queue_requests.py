@@ -1,24 +1,34 @@
 """Use cases that put work into the queue or act on it on the user's behalf."""
 from __future__ import annotations
 
+from dataclasses import replace
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
-from backend.application.use_cases.enqueue_candidate_tts import EnqueueCandidateTTSUseCase
+from backend.application.use_cases.enqueue_phrase_tts import EnqueuePhraseTTSUseCase
 from backend.application.use_cases.manage_queue import ManageQueueUseCase
 from backend.application.use_cases.request_video_download import RequestVideoDownloadUseCase
+from backend.application.utils.requested_cards import RequestedCards
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import (
-    CandidateNotFoundError,
+    PhraseNotFoundError,
     SourceHasNoUrlError,
     SourceNotFoundError,
+    SourceOperationBusyError,
     VideoAlreadyDownloadedError,
 )
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_type import JobType
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
+
+from tests.phrase_support import make_occurrence
+
+if TYPE_CHECKING:
+    from backend.domain.entities.occurrence import Occurrence
 
 SOURCE_ID = 42
 
@@ -73,22 +83,42 @@ class TestRequestVideoDownload:
         self.job_repo.enqueue.assert_not_called()
 
 
+def _requested(
+    phrase: Occurrence | None, busy_with: SourceOperationKind | None = None,
+) -> RequestedCards:
+    occurrence_repo, candidate_repo, lock = MagicMock(), MagicMock(), MagicMock()
+    occurrence_repo.get.return_value = phrase
+    candidate_repo.get_by_id.return_value = MagicMock(id=3, source_id=SOURCE_ID)
+    lock.held.return_value = busy_with
+    return RequestedCards(candidate_repo, occurrence_repo, lock)
+
+
+def _shown_phrase() -> Occurrence:
+    return replace(make_occurrence(candidate_id=3), id=7, revision=2)
+
+
 @pytest.mark.unit
-class TestEnqueueCandidateTTS:
-    def test_queues_tts_for_the_card(self) -> None:
-        candidate_repo, job_repo = MagicMock(), MagicMock()
-        candidate_repo.get_by_id.return_value = MagicMock(source_id=SOURCE_ID)
+class TestEnqueuePhraseTTS:
+    def test_queues_tts_for_the_phrase(self) -> None:
+        job_repo = MagicMock()
 
-        EnqueueCandidateTTSUseCase(candidate_repo, job_repo).execute(7)
+        EnqueuePhraseTTSUseCase(_requested(_shown_phrase()), job_repo).execute(7)
 
-        assert _queued(job_repo) == [(JobType.TTS, SOURCE_ID, 7)]
+        [job] = job_repo.enqueue.call_args.args[0]
+        assert (job.job_type, job.source_id, job.candidate_id) == (JobType.TTS, SOURCE_ID, 3)
+        assert (job.phrase_id, job.phrase_revision) == (7, 2)
 
-    def test_missing_card(self) -> None:
-        candidate_repo, job_repo = MagicMock(), MagicMock()
-        candidate_repo.get_by_id.return_value = None
+    def test_missing_phrase(self) -> None:
+        with pytest.raises(PhraseNotFoundError):
+            EnqueuePhraseTTSUseCase(_requested(None), MagicMock()).execute(7)
 
-        with pytest.raises(CandidateNotFoundError):
-            EnqueueCandidateTTSUseCase(candidate_repo, job_repo).execute(7)
+    def test_busy_source(self) -> None:
+        job_repo = MagicMock()
+        cards = _requested(_shown_phrase(), busy_with=SourceOperationKind.REBUILD)
+
+        with pytest.raises(SourceOperationBusyError):
+            EnqueuePhraseTTSUseCase(cards, job_repo).execute(7)
+        job_repo.enqueue.assert_not_called()
 
 
 @pytest.mark.unit

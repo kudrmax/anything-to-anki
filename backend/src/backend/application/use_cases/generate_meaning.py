@@ -5,12 +5,14 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO
 from backend.domain.entities.candidate_meaning import CandidateMeaning
-from backend.domain.exceptions import CandidateNotFoundError
+from backend.domain.exceptions import PhraseChangedError
 
 if TYPE_CHECKING:
+    from backend.application.utils.generation_targets import GenerationCard
+    from backend.application.utils.requested_cards import RequestedCards
     from backend.domain.ports.ai_service import AIService
     from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
-    from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.value_objects.prompts_config import PromptsConfig
 
 
@@ -54,35 +56,29 @@ _EXAMPLES_ACTIONS: frozenset[str] = frozenset({
 
 
 class GenerateMeaningUseCase:
-    """Generates an AI-powered meaning for a word candidate and persists it."""
+    """Generates an AI-powered meaning for one phrase of a word and stores it there."""
 
     def __init__(
         self,
-        candidate_repo: CandidateRepository,
+        cards: RequestedCards,
+        occurrence_repo: OccurrenceRepository,
         meaning_repo: CandidateMeaningRepository,
         ai_service: AIService,
         prompts_config: PromptsConfig,
     ) -> None:
-        self._candidate_repo = candidate_repo
+        self._cards = cards
+        self._occurrence_repo = occurrence_repo
         self._meaning_repo = meaning_repo
         self._ai_service = ai_service
         self._prompts_config = prompts_config
 
-    def execute(self, candidate_id: int) -> GenerateMeaningResponseDTO:
-        candidate = self._candidate_repo.get_by_id(candidate_id)
-        if candidate is None:
-            raise CandidateNotFoundError(candidate_id)
-
-        user_prompt = self._prompts_config.generate_meaning_user_template.format(
-            lemma=candidate.lemma,
-            pos=candidate.pos,
-            context=candidate.phrase.text,
-        )
+    def execute(self, phrase_id: int) -> GenerateMeaningResponseDTO:
+        card = self._cards.card(phrase_id)
         result = self._ai_service.generate_meaning(
-            self._prompts_config.generate_meaning_system, user_prompt
+            self._prompts_config.generate_meaning_system, self._user_prompt(card),
         )
-        self._meaning_repo.upsert(CandidateMeaning(
-            candidate_id=candidate_id,
+        self._store(card, CandidateMeaning(
+            candidate_id=card.word_id,
             meaning=result.meaning,
             translation=result.translation,
             synonyms=result.synonyms,
@@ -91,7 +87,7 @@ class GenerateMeaningUseCase:
             generated_at=datetime.now(tz=UTC),
         ))
         return GenerateMeaningResponseDTO(
-            candidate_id=candidate_id,
+            candidate_id=card.word_id,
             meaning=result.meaning,
             translation=result.translation,
             synonyms=result.synonyms,
@@ -102,7 +98,7 @@ class GenerateMeaningUseCase:
 
     def execute_follow_up(
         self,
-        candidate_id: int,
+        phrase_id: int,
         action: str,
         text: str | None,
     ) -> GenerateMeaningResponseDTO:
@@ -112,11 +108,8 @@ class GenerateMeaningUseCase:
         if action == "free_question" and not text:
             raise ValueError("free_question action requires text")
 
-        candidate = self._candidate_repo.get_by_id(candidate_id)
-        if candidate is None:
-            raise CandidateNotFoundError(candidate_id)
-
-        existing = self._meaning_repo.get_by_candidate_id(candidate_id)
+        card = self._cards.card(phrase_id)
+        existing = self._meaning_repo.get_by_phrase_id(phrase_id)
         current_meaning = (existing.meaning if existing else None) or ""
         current_examples = (existing.examples if existing else None) or ""
 
@@ -125,13 +118,7 @@ class GenerateMeaningUseCase:
             meaning=current_meaning,
             text=text or "",
         )
-
-        user_prompt = self._prompts_config.generate_meaning_user_template.format(
-            lemma=candidate.lemma,
-            pos=candidate.pos,
-            context=candidate.phrase.text,
-        )
-        combined_prompt = f"{user_prompt}\n\n{follow_up_prompt}"
+        combined_prompt = f"{self._user_prompt(card)}\n\n{follow_up_prompt}"
 
         result = self._ai_service.generate_follow_up(
             self._prompts_config.generate_meaning_system, combined_prompt
@@ -172,8 +159,8 @@ class GenerateMeaningUseCase:
             else (existing.ipa or result.ipa)
         )
 
-        self._meaning_repo.upsert(CandidateMeaning(
-            candidate_id=candidate_id,
+        self._store(card, CandidateMeaning(
+            candidate_id=card.word_id,
             meaning=new_meaning,
             translation=new_translation,
             synonyms=new_synonyms,
@@ -182,7 +169,7 @@ class GenerateMeaningUseCase:
             generated_at=datetime.now(tz=UTC),
         ))
         return GenerateMeaningResponseDTO(
-            candidate_id=candidate_id,
+            candidate_id=card.word_id,
             meaning=new_meaning,
             translation=new_translation or "",
             synonyms=new_synonyms or "",
@@ -190,3 +177,16 @@ class GenerateMeaningUseCase:
             ipa=new_ipa,
             tokens_used=result.tokens_used,
         )
+
+    def _user_prompt(self, card: GenerationCard) -> str:
+        return self._prompts_config.generate_meaning_user_template.format(
+            lemma=card.word.lemma,
+            pos=card.word.pos,
+            context=card.phrase.phrase.text,
+        )
+
+    def _store(self, card: GenerationCard, meaning: CandidateMeaning) -> None:
+        """AI took a while: the phrase must still have the text the meaning explains."""
+        if not self._occurrence_repo.holds_revision(card.phrase_id, card.phrase.revision):
+            raise PhraseChangedError(card.phrase_id)
+        self._meaning_repo.upsert_for_phrase(card.phrase_id, meaning)

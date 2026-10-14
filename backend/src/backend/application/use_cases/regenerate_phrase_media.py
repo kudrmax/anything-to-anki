@@ -5,27 +5,31 @@ import os
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from backend.application.utils.media_names import AUDIO_FILE, SCREENSHOT_FILE, phrase_file
 from backend.domain.entities.candidate_media import CandidateMedia
+from backend.domain.exceptions import PhraseChangedError
 from backend.domain.services.document_time import time_of
 
 if TYPE_CHECKING:
+    from backend.application.utils.requested_cards import RequestedCards
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
-    from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.media_extractor import MediaExtractor
+    from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.video_path_resolver import VideoPathResolver
 
 logger = logging.getLogger(__name__)
 
 
-class RegenerateCandidateMediaUseCase:
-    """Regenerates screenshot and audio for a single candidate, taking the time
-    from the document lines its phrase takes now."""
+class RegeneratePhraseMediaUseCase:
+    """Regenerates screenshot and audio for one phrase, taking the time from the document
+    lines the phrase takes now."""
 
     def __init__(
         self,
-        candidate_repo: CandidateRepository,
+        cards: RequestedCards,
+        occurrence_repo: OccurrenceRepository,
         media_repo: CandidateMediaRepository,
         source_repo: SourceRepository,
         document_repo: DocumentRepository,
@@ -33,7 +37,8 @@ class RegenerateCandidateMediaUseCase:
         media_root: str,
         video_path_resolver: VideoPathResolver,
     ) -> None:
-        self._candidate_repo = candidate_repo
+        self._cards = cards
+        self._occurrence_repo = occurrence_repo
         self._media_repo = media_repo
         self._source_repo = source_repo
         self._document_repo = document_repo
@@ -41,14 +46,12 @@ class RegenerateCandidateMediaUseCase:
         self._media_root = media_root
         self._video_path_resolver = video_path_resolver
 
-    def execute(self, candidate_id: int) -> None:
-        candidate = self._candidate_repo.get_by_id(candidate_id)
-        if candidate is None:
-            raise ValueError(f"Candidate {candidate_id} not found")
-
-        source = self._source_repo.get_by_id(candidate.source_id)
-        if source is None:
-            raise ValueError(f"Source {candidate.source_id} not found")
+    def execute(self, phrase_id: int) -> None:
+        card = self._cards.card(phrase_id)
+        source_id = card.word.source_id
+        source = self._source_repo.get_by_id(source_id)
+        if source is None or source.id is None:
+            raise ValueError(f"Source {source_id} not found")
         if not source.has_video:
             raise ValueError(f"Source {source.id} is not a video")
         if source.video_path is None:
@@ -59,17 +62,15 @@ class RegenerateCandidateMediaUseCase:
         if not os.path.exists(resolved_video_path):
             raise ValueError(f"Video file missing for source {source.id}")
 
-        document = self._document_repo.get(candidate.source_id)
-        position = candidate.phrase_position
+        document = self._document_repo.get(source_id)
+        position = card.phrase.phrase_position
         timecodes = time_of(document, position) if document and position else None
         if timecodes is None:
             raise ValueError("Fragment not found in subtitles")
         start_ms, end_ms = timecodes
 
-        out_dir = os.path.join(self._media_root, str(source.id))
-        os.makedirs(out_dir, exist_ok=True)
-        screenshot_path = os.path.join(out_dir, f"{candidate_id}_screenshot.webp")
-        audio_path = os.path.join(out_dir, f"{candidate_id}_audio.m4a")
+        screenshot_path = phrase_file(self._media_root, source.id, phrase_id, SCREENSHOT_FILE)
+        audio_path = phrase_file(self._media_root, source.id, phrase_id, AUDIO_FILE)
 
         midpoint_ms = (start_ms + end_ms) // 2
         self._media_extractor.extract_screenshot(resolved_video_path, midpoint_ms, screenshot_path)
@@ -81,8 +82,10 @@ class RegenerateCandidateMediaUseCase:
             audio_track_index=source.audio_track_index,
         )
 
-        self._media_repo.upsert(CandidateMedia(
-            candidate_id=candidate_id,
+        if not self._occurrence_repo.holds_revision(phrase_id, card.phrase.revision):
+            raise PhraseChangedError(phrase_id)
+        self._media_repo.upsert_for_phrase(phrase_id, CandidateMedia(
+            candidate_id=card.word_id,
             screenshot_path=screenshot_path,
             audio_path=audio_path,
             start_ms=start_ms,
@@ -91,7 +94,6 @@ class RegenerateCandidateMediaUseCase:
         ))
 
         logger.info(
-            "Regenerated media for candidate %d: timecodes=(%d,%d) midpoint=%d",
-            candidate_id, start_ms, end_ms, midpoint_ms,
+            "Regenerated media for phrase %d: timecodes=(%d,%d) midpoint=%d",
+            phrase_id, start_ms, end_ms, midpoint_ms,
         )
-

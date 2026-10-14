@@ -86,8 +86,9 @@ def _insert_job(
 ) -> None:
     session.execute(
         text(
-            "INSERT INTO jobs (id, job_type, candidate_id, source_id, status, created_at) "
-            "VALUES (:id, 'meaning', :cid, :sid, :status, '2026-01-01 00:00:00')"
+            "INSERT INTO jobs (id, job_type, candidate_id, source_id, status, created_at,"
+            " phrase_id, phrase_revision)"
+            " VALUES (:id, 'meaning', :cid, :sid, :status, '2026-01-01 00:00:00', :cid, 0)"
         ),
         {"id": job_id, "cid": candidate_id, "sid": source_id, "status": status},
     )
@@ -171,3 +172,16 @@ class TestGenerationApi:
 
     def test_unknown_source_is_404(self, client: TestClient) -> None:
         assert client.get("/sources/99/generation").status_code == 404
+
+    def test_a_source_being_rebuilt_is_409_and_queues_nothing(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        db_session.execute(text(
+            "INSERT INTO source_operations (source_id, kind, started_at)"
+            " VALUES (1, 'rebuild', '2026-01-01 00:00:00')"
+        ))
+        db_session.commit()
+
+        assert client.post("/sources/1/generation/meaning?scope=missing").status_code == 409
+        assert client.post("/phrases/2/generate-tts").status_code == 409
+        assert _meaning_status(client)["missing"] == 1

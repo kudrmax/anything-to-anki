@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from backend.application.utils.generation_targets import job_of, target_for
-from backend.domain.entities.job import Job
+from backend.application.utils.generation_targets import CardJobs, target_for
+from backend.application.utils.source_free import ensure_source_free
 from backend.domain.exceptions import GenerationBlockedError, SourceNotFoundError
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.card_generation_state import CardGenerationState
@@ -13,10 +13,14 @@ from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
     from backend.application.utils.candidate_sorter import CandidateSorter
-    from backend.application.utils.generation_targets import GenerationTarget
+    from backend.application.utils.generation_targets import (
+        GenerationCard,
+        GenerationCards,
+        GenerationTarget,
+    )
     from backend.domain.entities.stored_candidate import StoredCandidate
-    from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.job_repository import JobRepository
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.value_objects.generation_kind import GenerationKind
 
@@ -39,16 +43,18 @@ class RunGenerationUseCase:
     def __init__(
         self,
         source_repo: SourceRepository,
-        candidate_repo: CandidateRepository,
+        cards: GenerationCards,
         job_repo: JobRepository,
         candidate_sorter: CandidateSorter,
         targets: list[GenerationTarget],
+        lock: SourceOperationLock,
     ) -> None:
         self._source_repo = source_repo
-        self._candidate_repo = candidate_repo
+        self._cards = cards
         self._job_repo = job_repo
         self._candidate_sorter = candidate_sorter
         self._targets = targets
+        self._lock = lock
 
     def execute(
         self,
@@ -61,6 +67,7 @@ class RunGenerationUseCase:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
+        ensure_source_free(self._lock, source_id)
         target = target_for(self._targets, kind, source)
         video_downloading = self._job_repo.has_active_jobs_for_source(
             source_id, frozenset({JobType.VIDEO_DOWNLOAD}),
@@ -69,29 +76,37 @@ class RunGenerationUseCase:
         if blocker is not None:
             raise GenerationBlockedError(source_id, blocker.value)
 
-        candidates = [c for c in self._candidate_repo.get_by_source(source_id) if target.covers(c)]
-        jobs = self._job_repo.get_jobs_for_candidates(
-            [c.id for c in candidates if c.id is not None],
-        )
+        cards = target.cards(self._cards.of_source(source_id))
+        jobs = CardJobs.of(self._job_repo, cards)
         in_scope = _STATES_IN_SCOPE[scope]
-        chosen = [c for c in candidates if target.state(c, job_of(jobs, c, kind)) in in_scope]
+        chosen = [c for c in cards if target.state(c, target.job_of(jobs, c)) in in_scope]
 
         if scope == GenerationScope.ALL:
-            for candidate in chosen:
-                assert candidate.id is not None
-                target.discard(candidate.id)
+            for card in chosen:
+                target.discard(card)
 
-        ordered = self._candidate_sorter.sort(chosen, sort_order)
-        queued = self._queue(source_id, kind, ordered)
+        ordered = self._in_order(chosen, sort_order)
+        queued = len(self._job_repo.enqueue([target.job(c) for c in ordered]))
         logger.info(
             "run_generation: queued (source_id=%d, kind=%s, scope=%s, total=%d, sort_order=%s)",
             source_id, kind.value, scope.value, queued, sort_order.value,
         )
         return queued
 
-    def _queue(
-        self, source_id: int, kind: GenerationKind, candidates: list[StoredCandidate],
-    ) -> int:
-        return len(self._job_repo.enqueue([
-            Job.queued(kind.job_type, source_id, c.id) for c in candidates if c.id is not None
-        ]))
+    def _in_order(
+        self, cards: list[GenerationCard], sort_order: CandidateSortOrder,
+    ) -> list[GenerationCard]:
+        """Words in the order the user picked; the cards of a word together, as made."""
+        by_word: dict[int, list[GenerationCard]] = {}
+        words: list[StoredCandidate] = []
+        for card in cards:
+            if card.word_id not in by_word:
+                by_word[card.word_id] = []
+                words.append(card.word)
+            by_word[card.word_id].append(card)
+        return [
+            card
+            for word in self._candidate_sorter.sort(words, sort_order)
+            if word.id is not None
+            for card in by_word[word.id]
+        ]

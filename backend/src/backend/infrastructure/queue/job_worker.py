@@ -89,8 +89,9 @@ class JobWorker:
         run = ClaimedRun(self._container, jobs)
         head = run.head
         logger.info(
-            "Processing %d job(s) from %d: type=%s candidate=%s source=%d",
-            len(jobs), head.id, head.job_type.value, head.candidate_id, head.source_id,
+            "Processing %d job(s) from %d: type=%s candidate=%s phrase=%s source=%d",
+            len(jobs), head.id, head.job_type.value, head.candidate_id, head.phrase_id,
+            head.source_id,
         )
         if head.job_type is JobType.TTS:
             await self._run_tts_subprocess(head)
@@ -112,7 +113,7 @@ class JobWorker:
             logger.exception("Run from job %d unexpected error", head.id)
             self._fail(jobs, f"{type(exc).__name__}: {exc}")
         else:
-            failed = [j for j in jobs if j.candidate_id in unanswered]
+            failed = [j for j in jobs if j.phrase_id in unanswered]
             self._fail(failed, NO_AI_RESULT_ERROR)
             self._complete([j for j in jobs if j not in failed])
         return True
@@ -122,22 +123,22 @@ class JobWorker:
     # ------------------------------------------------------------------
 
     def _execute(self, run: ClaimedRun) -> set[int]:
-        """Do the run's work. Returns candidates left without a result."""
+        """Do the run's work. Returns the phrases left without a result."""
         head = run.head
         c = self._container
         with run.session() as session:
             match head.job_type:
                 case JobType.MEANING:
                     return set(c.meaning_generation_use_case(session).execute_batch(
-                        run.candidate_ids, run.still_wanted,
+                        run.phrases, run.still_wanted,
                     ))
                 case JobType.POLISH:
                     return set(c.phrase_polish_use_case(session).execute_batch(
-                        run.candidate_ids, run.still_wanted,
+                        run.phrases, run.still_wanted,
                     ))
                 case JobType.MEDIA:
-                    assert head.candidate_id is not None
-                    c.media_extraction_use_case(session).execute_one(head.candidate_id)
+                    for phrase in run.phrases:
+                        c.media_extraction_use_case(session).execute_one(phrase)
                 case JobType.PRONUNCIATION:
                     assert head.candidate_id is not None
                     c.download_pronunciation_use_case(session).execute_one(head.candidate_id)

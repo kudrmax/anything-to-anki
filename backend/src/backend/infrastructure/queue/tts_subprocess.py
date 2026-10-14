@@ -39,13 +39,13 @@ def _claim_next_tts(container: Container) -> Job | None:
 
 
 def _process(container: Container, job: Job) -> None:
-    assert job.candidate_id is not None
-    logger.info("TTS job %d: candidate %d", job.id, job.candidate_id)
+    logger.info("TTS job %d: phrase %s", job.id, job.phrase_id)
     run = ClaimedRun(container, [job])
     error: str | None = None
     try:
         with run.session() as session:
-            container.generate_tts_use_case(session).execute_one(job.candidate_id)
+            for phrase in run.phrases:
+                container.generate_tts_use_case(session).execute_one(phrase)
     except CancelledByUserError:
         logger.info("TTS job %d cancelled, result dropped", job.id)
         return

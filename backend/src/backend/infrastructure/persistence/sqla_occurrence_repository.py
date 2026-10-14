@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from sqlalchemy import exists, or_, select, update
+from sqlalchemy import CursorResult, exists, or_, select, update
 
 from backend.domain.ports.occurrence_repository import OccurrenceRepository
 from backend.domain.value_objects.job_status import JobStatus
@@ -231,6 +231,17 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             model.edited_by_user = True
         self._session.flush()
         self._words.rewrite({model.id: model.shown_text})
+
+    def holds_revision(self, occurrence_id: int, revision: int) -> bool:
+        # A write, not a read: it takes the database's write lock, so no Rebuild can change
+        # the phrase between this check and the commit of the result written after it.
+        result: CursorResult[tuple[()]] = self._session.execute(  # type: ignore[assignment]
+            update(PhraseModel)
+            .where(PhraseModel.id == occurrence_id, PhraseModel.revision == revision)
+            .values(revision=PhraseModel.revision)
+            .execution_options(synchronize_session=False)
+        )
+        return result.rowcount == 1
 
     def set_key(self, occurrence_id: int, key: OccurrenceKey | None) -> None:
         self._session.execute(

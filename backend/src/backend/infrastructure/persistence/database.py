@@ -179,10 +179,11 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
     Two-phase scan on startup:
     Phase 1: for each source_id directory in media_root, verify source exists in DB.
              If not, remove the directory entirely.
-    Phase 2: for each `{candidate_id}_{kind}.{ext}` file in a valid source directory,
-             verify the candidate exists in DB. If not, and no media row points at
-             the file, remove it. (A word merged from several cards keeps the media of
-             the others under their old ids.)
+    Phase 2: for each screenshot or clip in a valid source directory — `p{phrase_id}_{kind}.{ext}`
+             of a phrase, or `{candidate_id}_{kind}.{ext}` named before phrases — remove it
+             only if no path column of the DB points at it and its phrase (or card) is gone.
+             Files are never renamed: a word merged from several cards keeps the media of
+             the others under their old ids, and the DB still points at them.
 
     Orphan DB paths (file missing but DB still has path) are handled by the
     runtime lazy reconciler, not here.
@@ -190,6 +191,8 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
     import re
     import shutil
 
+    from backend.application.utils.media_names import PHRASE_FILE_PREFIX
+    from backend.infrastructure.persistence.models import PhraseModel
     from backend.infrastructure.persistence.sqla_candidate_repository import (
         SqlaCandidateRepository,
     )
@@ -210,7 +213,12 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
         source_repo = SqlaSourceRepository(session)
         candidate_repo = SqlaCandidateRepository(session)
         referenced = _referenced_media_paths(session)
-        file_pattern = re.compile(r"^(\d+)_(screenshot|audio)\.")
+        file_pattern = re.compile(r"^(p?)(\d+)_(screenshot|audio)\.")
+
+        def owner_exists(prefix: str, owner_id: int) -> bool:
+            if prefix == PHRASE_FILE_PREFIX:
+                return session.get(PhraseModel, owner_id) is not None
+            return candidate_repo.get_by_id(owner_id) is not None
 
         for entry in numeric_dirs:
             source_id = int(entry)
@@ -226,31 +234,45 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
                 m = file_pattern.match(fname)
                 if not m:
                     continue  # unknown file, leave it
-                candidate_id = int(m.group(1))
                 fpath = os.path.join(source_dir, fname)
                 if (
-                    candidate_repo.get_by_id(candidate_id) is None
-                    and os.path.realpath(fpath) not in referenced
+                    os.path.realpath(fpath) in referenced
+                    or owner_exists(m.group(1), int(m.group(2)))
                 ):
-                    try:
-                        os.remove(fpath)
-                        logger.info("Reconcile: removed orphan media file %s", fpath)
-                    except OSError:
-                        logger.warning(
-                            "Reconcile: failed to remove orphan file %s", fpath, exc_info=True,
-                        )
+                    continue
+                try:
+                    os.remove(fpath)
+                    logger.info("Reconcile: removed orphan media file %s", fpath)
+                except OSError:
+                    logger.warning(
+                        "Reconcile: failed to remove orphan file %s", fpath, exc_info=True,
+                    )
     finally:
         session.close()
 
 
 def _referenced_media_paths(session: Session) -> set[str]:
-    """Every screenshot and clip a media row points at."""
+    """Every file a path column of the DB points at: screenshots, clips, speech,
+    pronunciations and pictures of words."""
     from sqlalchemy import select
 
-    from backend.infrastructure.persistence.models import CandidateMediaModel
+    from backend.infrastructure.persistence.models import (
+        CandidateMeaningImageModel,
+        CandidateMediaModel,
+        CandidatePronunciationModel,
+        CandidateTTSModel,
+    )
 
+    columns = (
+        CandidateMediaModel.screenshot_path,
+        CandidateMediaModel.audio_path,
+        CandidateTTSModel.audio_path,
+        CandidatePronunciationModel.us_audio_path,
+        CandidatePronunciationModel.uk_audio_path,
+        CandidateMeaningImageModel.image_path,
+    )
     paths: set[str] = set()
-    for column in (CandidateMediaModel.screenshot_path, CandidateMediaModel.audio_path):
+    for column in columns:
         paths.update(
             os.path.realpath(path)
             for path in session.scalars(select(column).where(column.is_not(None)))

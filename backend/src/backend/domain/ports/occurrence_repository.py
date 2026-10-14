@@ -56,6 +56,11 @@ class OccurrenceRepository(ABC):
         `edited_by_user` marks the phrase as cut by the user; the mark is never taken off."""
 
     @abstractmethod
+    def holds_revision(self, occurrence_id: int, revision: int) -> bool:
+        """True when the phrase still exists at this revision of its text; it then stays so
+        until the caller's transaction ends, so a result written meanwhile is for this text."""
+
+    @abstractmethod
     def set_key(self, occurrence_id: int, key: OccurrenceKey | None) -> None:
         """Where the target of the phrase starts in the document."""
 

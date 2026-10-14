@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import replace
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import takewhile
 from typing import TYPE_CHECKING
@@ -12,10 +12,9 @@ from backend.domain.ports.job_repository import DEFAULT_RUN_LIMIT, JobRepository
 from backend.domain.value_objects.failed_job_group import FailedJobGroup
 from backend.domain.value_objects.job_selection import UNKNOWN_JOB_ERROR
 from backend.domain.value_objects.job_status import JobStatus
-from backend.domain.value_objects.job_type import PHRASE_JOB_TYPES, JobType
-from backend.infrastructure.persistence.models import JobModel, PhraseModel
+from backend.domain.value_objects.job_type import JobType
+from backend.infrastructure.persistence.models import JobModel
 from backend.infrastructure.persistence.phrase_writes import chunks
-from backend.infrastructure.persistence.primary_phrase import PrimaryPhrases
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -30,14 +29,34 @@ _ACTIVE_STATUSES = (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
 _QUEUE_ORDER = (JobModel.created_at.asc(), JobModel.id.asc())
 
 
-def _same_key(job_type: str, source_id: int, candidate_id: int | None) -> ColumnElement[bool]:
-    if candidate_id is not None:
-        return and_(JobModel.job_type == job_type, JobModel.candidate_id == candidate_id)
-    return and_(
-        JobModel.job_type == job_type,
-        JobModel.source_id == source_id,
-        JobModel.candidate_id.is_(None),
-    )
+@dataclass(frozen=True)
+class _Key:
+    """What a job works on: its phrase, else its word, else its source."""
+
+    job_type: str
+    source_id: int
+    candidate_id: int | None
+    phrase_id: int | None
+
+    @classmethod
+    def of(cls, job: Job | JobModel) -> _Key:
+        job_type = job.job_type if isinstance(job, JobModel) else job.job_type.value
+        return cls(job_type, job.source_id, job.candidate_id, job.phrase_id)
+
+    def same(self) -> ColumnElement[bool]:
+        if self.phrase_id is not None:
+            return and_(JobModel.job_type == self.job_type, JobModel.phrase_id == self.phrase_id)
+        if self.candidate_id is not None:
+            return and_(
+                JobModel.job_type == self.job_type,
+                JobModel.candidate_id == self.candidate_id,
+                JobModel.phrase_id.is_(None),
+            )
+        return and_(
+            JobModel.job_type == self.job_type,
+            JobModel.source_id == self.source_id,
+            JobModel.candidate_id.is_(None),
+        )
 
 
 def _selected(selection: JobSelection) -> list[ColumnElement[bool]]:
@@ -66,18 +85,16 @@ class SqlaJobRepository(JobRepository):
 
     def enqueue(self, jobs: list[Job]) -> list[Job]:
         models: list[JobModel] = []
-        seen: set[tuple[str, int, int | None]] = set()
+        seen: set[_Key] = set()
         for job in jobs:
-            key = (job.job_type.value, job.source_id, job.candidate_id)
-            if key in seen or self._is_active(*key):
+            key = _Key.of(job)
+            if key in seen or self._is_active(key):
                 continue
             seen.add(key)
             self._session.execute(
-                delete(JobModel).where(
-                    _same_key(*key), JobModel.status == JobStatus.FAILED.value,
-                )
+                delete(JobModel).where(key.same(), JobModel.status == JobStatus.FAILED.value)
             )
-            model = JobModel.from_entity(self._with_phrase(job))
+            model = JobModel.from_entity(job)
             model.status = JobStatus.QUEUED.value
             model.error = None
             model.started_at = None
@@ -85,21 +102,6 @@ class SqlaJobRepository(JobRepository):
         self._session.add_all(models)
         self._session.flush()
         return [m.to_entity() for m in models]
-
-    # TRANSITIONAL(words-phrases): removed in Task 10
-    def _with_phrase(self, job: Job) -> Job:
-        """A phrase job queued by its word works on the word's primary phrase."""
-        if (
-            job.job_type not in PHRASE_JOB_TYPES
-            or job.candidate_id is None
-            or job.phrase_id is not None
-        ):
-            return job
-        phrase_id = PrimaryPhrases(self._session).id(job.candidate_id)
-        phrase = self._session.get(PhraseModel, phrase_id) if phrase_id is not None else None
-        if phrase is None:
-            return job
-        return replace(job, phrase_id=phrase.id, phrase_revision=phrase.revision)
 
     def claim_next_run(
         self,
@@ -152,8 +154,7 @@ class SqlaJobRepository(JobRepository):
         for job in jobs:
             self._session.execute(
                 delete(JobModel).where(
-                    _same_key(job.job_type.value, job.source_id, job.candidate_id),
-                    JobModel.status == JobStatus.FAILED.value,
+                    _Key.of(job).same(), JobModel.status == JobStatus.FAILED.value,
                 )
             )
         self._session.flush()
@@ -219,7 +220,7 @@ class SqlaJobRepository(JobRepository):
         now = datetime.now(tz=UTC)
         retried = 0
         for model in failed:
-            if self._is_active(model.job_type, model.source_id, model.candidate_id):
+            if self._is_active(_Key.of(model)):
                 self._session.delete(model)
                 continue
             model.status = JobStatus.QUEUED.value
@@ -274,6 +275,19 @@ class SqlaJobRepository(JobRepository):
         for job_type_val, status_val, cnt in rows:
             if job_type_val in result and status_val in result[job_type_val]:
                 result[job_type_val][status_val] = cnt
+        return result
+
+    def get_jobs_for_phrases(self, phrase_ids: list[int]) -> dict[int, dict[str, Job]]:
+        result: dict[int, dict[str, Job]] = {}
+        for chunk in chunks(phrase_ids):
+            rows = self._session.scalars(
+                select(JobModel)
+                .where(JobModel.phrase_id.in_(chunk))
+                .order_by(JobModel.status.asc())  # failed first: an active job wins
+            )
+            for model in rows:
+                assert model.phrase_id is not None
+                result.setdefault(model.phrase_id, {})[model.job_type] = model.to_entity()
         return result
 
     def get_jobs_for_candidates(
@@ -358,14 +372,11 @@ class SqlaJobRepository(JobRepository):
 
     # ── Helpers ──────────────────────────────────────────────────────
 
-    def _is_active(self, job_type: str, source_id: int, candidate_id: int | None) -> bool:
+    def _is_active(self, key: _Key) -> bool:
         stmt = (
             select(func.count())
             .select_from(JobModel)
-            .where(
-                _same_key(job_type, source_id, candidate_id),
-                JobModel.status.in_(_ACTIVE_STATUSES),
-            )
+            .where(key.same(), JobModel.status.in_(_ACTIVE_STATUSES))
         )
         return self._session.execute(stmt).scalar_one() > 0
 

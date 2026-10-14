@@ -8,7 +8,11 @@ from backend.infrastructure.persistence.database import (
     create_session_factory,
     reconcile_media_files,
 )
-from backend.infrastructure.persistence.models import Base, CandidateMediaModel
+from backend.infrastructure.persistence.models import (
+    Base,
+    CandidateMediaModel,
+    CandidateTTSModel,
+)
 
 from tests.integration.conftest import insert_source
 from tests.word_support import insert_word
@@ -44,3 +48,32 @@ def test_a_file_the_db_points_at_survives_without_its_card(tmp_path: Path) -> No
 
     assert merged.exists()
     assert not orphan.exists()
+
+
+GONE_PHRASE = 98
+
+
+def test_files_of_phrases_follow_the_paths_the_db_points_at(tmp_path: Path) -> None:
+    factory = create_session_factory(f"sqlite:///{tmp_path / 'app.db'}")
+    Base.metadata.create_all(factory.kw["bind"])
+    media_dir = tmp_path / "media" / str(SOURCE)
+    media_dir.mkdir(parents=True)
+    made = media_dir / f"p{WORD}_screenshot.webp"
+    being_made = media_dir / f"p{WORD}_audio.m4a"
+    of_gone_phrase = media_dir / f"p{GONE_PHRASE}_screenshot.webp"
+    old_clip_spoken = media_dir / f"{MERGED_CARD}_audio.m4a"
+    for path in (made, being_made, of_gone_phrase, old_clip_spoken):
+        path.write_bytes(b"x")
+    with factory() as session:
+        insert_source(session, SOURCE)
+        insert_word(session, WORD, source_id=SOURCE)
+        session.add(CandidateMediaModel(phrase_id=WORD, screenshot_path=str(made)))
+        session.add(CandidateTTSModel(phrase_id=WORD, audio_path=str(old_clip_spoken)))
+        session.commit()
+
+    reconcile_media_files(factory, str(tmp_path / "media"))
+
+    assert made.exists()
+    assert being_made.exists()  # its phrase is still there: the worker may be writing it
+    assert old_clip_spoken.exists()  # the speech row points at it
+    assert not of_gone_phrase.exists()

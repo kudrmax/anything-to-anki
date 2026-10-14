@@ -6,6 +6,7 @@ import os
 import re
 from typing import TYPE_CHECKING
 
+from backend.application.utils.media_names import PHRASE_FILE_PREFIX
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
@@ -15,13 +16,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_FILENAME_PATTERN = re.compile(r"^(\d+)_(screenshot|audio)\.")
+_FILENAME_PATTERN = re.compile(r"^(p?)(\d+)_(screenshot|audio)\.")
 
 
 class LazyMediaReconciler:
     """Background reconciler triggered when a SPECIFIC media file 404s at runtime.
 
-    Each call clears EXACTLY ONE candidate's ONE field (screenshot or audio).
+    Each call clears EXACTLY ONE phrase's ONE field (screenshot or audio): `p{phrase_id}_…`
+    names a phrase, an older `{candidate_id}_…` the word's primary phrase.
     The deduplication key is `(source_id, filename)` so concurrent 404s for the
     same file collapse into one task, but unrelated 404s run independently.
 
@@ -66,8 +68,9 @@ class LazyMediaReconciler:
         m = _FILENAME_PATTERN.match(filename)
         if not m:
             return  # unknown filename shape — leave the DB alone
-        candidate_id = int(m.group(1))
-        kind = m.group(2)
+        of_phrase = m.group(1) == PHRASE_FILE_PREFIX
+        owner_id = int(m.group(2))
+        kind = m.group(3)
 
         # Race protection: maybe the file appeared between the route's check
         # and our async task running. Re-stat before clearing.
@@ -78,16 +81,16 @@ class LazyMediaReconciler:
         session = self._session_factory()
         try:
             media_repo = SqlaCandidateMediaRepository(session)
-            media_repo.clear_paths(
-                candidate_id,
+            clear = media_repo.clear_phrase_paths if of_phrase else media_repo.clear_paths
+            clear(
+                owner_id,
                 clear_screenshot=(kind == "screenshot"),
                 clear_audio=(kind == "audio"),
             )
             session.commit()
             logger.warning(
-                "LazyReconcile: cleared %s_path for candidate %d "
-                "(source %d, file %s missing)",
-                kind, candidate_id, source_id, full,
+                "LazyReconcile: cleared %s_path for %s %d (source %d, file %s missing)",
+                kind, "phrase" if of_phrase else "candidate", owner_id, source_id, full,
             )
         finally:
             session.close()

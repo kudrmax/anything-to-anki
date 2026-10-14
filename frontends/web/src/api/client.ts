@@ -164,16 +164,16 @@ export const api = {
 
   deleteSource: (id: number) => reqVoid(`/sources/${id}`, { method: 'DELETE' }),
 
-  generateMeaning: (candidateId: number, followUpAction?: FollowUpAction, followUpText?: string) =>
-    req<GenerateMeaningResult>(`/candidates/${candidateId}/generate-meaning`, {
+  generateMeaning: (phraseId: number, followUpAction?: FollowUpAction, followUpText?: string) =>
+    req<GenerateMeaningResult>(`/phrases/${phraseId}/generate-meaning`, {
       method: 'POST',
       body: followUpAction
         ? JSON.stringify({ action: followUpAction, ...(followUpText ? { text: followUpText } : {}) })
         : undefined,
     }),
 
-  regenerateCandidateMedia: (candidateId: number) =>
-    req<{ status: string }>(`/candidates/${candidateId}/regenerate-media`, { method: 'POST' }),
+  regeneratePhraseMedia: (phraseId: number) =>
+    req<{ status: string }>(`/phrases/${phraseId}/regenerate-media`, { method: 'POST' }),
 
   searchTargetImages: (candidateId: number, query?: string) =>
     req<ImageSearchResult>(`/candidates/${candidateId}/image-options${query === undefined ? '' : `?${new URLSearchParams({ query })}`}`),
@@ -191,8 +191,8 @@ export const api = {
   downloadVideo: (sourceId: number) =>
     req<{ status: string }>(`/sources/${sourceId}/download-video`, { method: 'POST' }),
 
-  polishPhraseAgain: (candidateId: number) =>
-    req<{ status: string }>(`/candidates/${candidateId}/polish`, { method: 'POST' }),
+  polishPhraseAgain: (phraseId: number) =>
+    req<{ status: string }>(`/phrases/${phraseId}/polish`, { method: 'POST' }),
 
   setPolishReverted: (candidateId: number, reverted: boolean) =>
     req<{ id: number; reverted: boolean }>(`/candidates/${candidateId}/polish/reverted`, {
@@ -206,8 +206,8 @@ export const api = {
       body: JSON.stringify({ phrase }),
     }),
 
-  generateCandidateTTS: (candidateId: number) =>
-    req<{ status: string }>(`/candidates/${candidateId}/generate-tts`, { method: 'POST' }),
+  generatePhraseTTS: (phraseId: number) =>
+    req<{ status: string }>(`/phrases/${phraseId}/generate-tts`, { method: 'POST' }),
 
   enqueueTopicGeneration: (sourceId: number) =>
     req<{ status: string }>(`/sources/${sourceId}/topic-targets/generate`, { method: 'POST' }),

@@ -60,6 +60,23 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
             existing.generated_at = media.generated_at
         self._session.flush()
 
+    def clear_phrase_paths(
+        self, phrase_id: int, *, clear_screenshot: bool, clear_audio: bool,
+    ) -> None:
+        values: dict[str, None] = {}
+        if clear_screenshot:
+            values["screenshot_path"] = None
+        if clear_audio:
+            values["audio_path"] = None
+        if not values:
+            return
+        self._session.execute(
+            update(CandidateMediaModel)
+            .where(CandidateMediaModel.phrase_id == phrase_id)
+            .values(**values)
+        )
+        self._session.flush()
+
     def set_timecodes(self, times: Mapping[int, tuple[int, int] | None]) -> None:
         not_made = (
             CandidateMediaModel.screenshot_path.is_(None)
@@ -128,20 +145,11 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
         clear_screenshot: bool,
         clear_audio: bool,
     ) -> None:
-        values: dict[str, None] = {}
-        if clear_screenshot:
-            values["screenshot_path"] = None
-        if clear_audio:
-            values["audio_path"] = None
         phrase_id = self._primary.id(candidate_id)
-        if not values or phrase_id is None:
-            return
-        self._session.execute(
-            update(CandidateMediaModel)
-            .where(CandidateMediaModel.phrase_id == phrase_id)
-            .values(**values)
-        )
-        self._session.flush()
+        if phrase_id is not None:
+            self.clear_phrase_paths(
+                phrase_id, clear_screenshot=clear_screenshot, clear_audio=clear_audio,
+            )
 
     def get_eligible_candidate_ids(
         self,

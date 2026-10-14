@@ -411,3 +411,11 @@ class DecidedElsewhereError(DomainError):
         super().__init__(reason)
         self.phrase_id = phrase_id
         self.elsewhere = elsewhere
+
+
+class PhraseChangedError(DomainError):
+    """Raised when a phrase changed or went while something was being made for it."""
+
+    def __init__(self, phrase_id: int) -> None:
+        super().__init__(f"Phrase {phrase_id} changed meanwhile, try again")
+        self.phrase_id = phrase_id

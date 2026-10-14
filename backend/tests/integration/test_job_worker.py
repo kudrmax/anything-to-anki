@@ -12,7 +12,8 @@ from backend.domain.entities.job import Job
 from backend.domain.exceptions import PermanentAIError
 from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_status import JobStatus
-from backend.domain.value_objects.job_type import JobType
+from backend.domain.value_objects.job_type import PHRASE_JOB_TYPES, JobType
+from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import JobModel
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
@@ -25,7 +26,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from tests.word_support import insert_word
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Iterator
+    from collections.abc import Awaitable, Callable, Generator, Iterator
     from pathlib import Path
 
     from backend.application.utils.candidate_filter import CandidateFilter
@@ -118,10 +119,20 @@ def container(factory: sessionmaker[Session]) -> _Container:
 
 
 def _enqueue(container: _Container, *jobs: tuple[JobType, int | None]) -> list[Job]:
+    """A phrase job works on the word's own phrase, whose id is the word's."""
     with container.session_scope() as session:
         return SqlaJobRepository(session).enqueue([
-            Job.queued(job_type, SOURCE_ID, candidate_id) for job_type, candidate_id in jobs
+            Job.queued(
+                job_type, SOURCE_ID, candidate_id,
+                phrase_id=candidate_id if job_type in PHRASE_JOB_TYPES else None,
+                phrase_revision=0 if job_type in PHRASE_JOB_TYPES else None,
+            )
+            for job_type, candidate_id in jobs
         ])
+
+
+def _ids(phrases: list[PhraseRef]) -> list[int]:
+    return [p.phrase_id for p in phrases]
 
 
 def _jobs(container: _Container) -> list[tuple[JobType, int | None, JobStatus, str | None]]:
@@ -165,16 +176,58 @@ class TestOrder:
         )
         calls: list[tuple[str, list[int]]] = []
         container.polish.execute_batch.side_effect = (
-            lambda ids, wanted: calls.append(("polish", ids)) or []
+            lambda phrases, wanted: calls.append(("polish", _ids(phrases))) or []
         )
         container.meaning.execute_batch.side_effect = (
-            lambda ids, wanted: calls.append(("meaning", ids)) or []
+            lambda phrases, wanted: calls.append(("meaning", _ids(phrases))) or []
         )
 
         await _drain(JobWorker(container))  # type: ignore[arg-type]
 
         assert calls == [("polish", [1, 2]), ("meaning", [3]), ("polish", [4])]
         assert _jobs(container) == []
+
+
+@pytest.mark.integration
+class TestPhraseGone:
+    async def test_a_job_whose_phrase_a_rebuild_deleted_finishes_without_error(
+        self, container: _Container, factory: sessionmaker[Session],
+    ) -> None:
+        _enqueue(container, (JobType.MEANING, 1))
+
+        def rebuild_deletes_the_phrase(phrases: list[PhraseRef], wanted: object) -> list[int]:
+            with factory() as other:
+                other.execute(text("PRAGMA foreign_keys = ON"))
+                other.execute(text("DELETE FROM phrases WHERE id = 1"))
+                other.commit()
+            return []
+
+        container.meaning.execute_batch.side_effect = rebuild_deletes_the_phrase
+
+        await _drain(JobWorker(container))  # type: ignore[arg-type]
+
+        assert _jobs(container) == []
+
+    async def test_the_worker_hands_the_jobs_phrases_to_the_use_case(
+        self, container: _Container,
+    ) -> None:
+        with container.session_scope() as session:
+            SqlaJobRepository(session).enqueue([
+                Job.queued(JobType.TTS, SOURCE_ID, 1, phrase_id=2, phrase_revision=4),
+            ])
+        container.tts.execute_one.side_effect = lambda ref: None
+
+        with patch.object(JobWorker, "_run_tts_subprocess", _tts_in_process(container)):
+            await _drain(JobWorker(container))  # type: ignore[arg-type]
+
+        container.tts.execute_one.assert_called_once_with(PhraseRef(2, 4))
+
+
+def _tts_in_process(container: _Container) -> Callable[[JobWorker, Job], Awaitable[None]]:
+    async def run(_worker: JobWorker, job: Job) -> None:
+        assert job.id is not None
+        process_tts_run(container, job.id)  # type: ignore[arg-type]
+    return run
 
 
 @pytest.mark.integration
@@ -185,7 +238,7 @@ class TestLifecycle:
         _enqueue(container, (JobType.MEDIA, 1))
         with container.session_scope() as session:
             # e.g. a failure left by an earlier attempt made outside the queue
-            stale = Job.queued(JobType.MEDIA, SOURCE_ID, 1)
+            stale = Job.queued(JobType.MEDIA, SOURCE_ID, 1, phrase_id=1, phrase_revision=0)
             session.add(JobModel.from_entity(stale))
             session.flush()
             session.execute(text(
@@ -219,7 +272,7 @@ class TestLifecycle:
     ) -> None:
         _enqueue(container, (JobType.POLISH, 1), (JobType.POLISH, 2))
 
-        def write_then_raise(ids: list[int], wanted: CandidateFilter) -> list[int]:
+        def write_then_raise(phrases: list[PhraseRef], wanted: CandidateFilter) -> list[int]:
             _write_title(container.polish)
             raise error
 
@@ -289,9 +342,11 @@ class TestCancel:
         jobs = _enqueue(container, (JobType.MEANING, 1), (JobType.MEANING, 2))
         seen: list[set[int]] = []
 
-        def cancel_one(ids: list[int], wanted: Callable[[list[int]], set[int]]) -> list[int]:
+        def cancel_one(
+            phrases: list[PhraseRef], wanted: Callable[[list[int]], set[int]],
+        ) -> list[int]:
             _cancel(container, JobSelection(job_id=jobs[1].id))
-            seen.append(wanted(ids))
+            seen.append(wanted(_ids(phrases)))
             return []
 
         container.meaning.execute_batch.side_effect = cancel_one
@@ -373,7 +428,9 @@ class TestTTSSubprocess:
         processed = process_tts_run(container, first.id)  # type: ignore[arg-type]
 
         assert processed == 2
-        assert [c.args[0] for c in container.tts.execute_one.call_args_list] == [1, 2]
+        assert [c.args[0] for c in container.tts.execute_one.call_args_list] == [
+            PhraseRef(1, 0), PhraseRef(2, 0),
+        ]
         assert _jobs(container) == [
             (JobType.POLISH, 3, JobStatus.QUEUED, None),
             (JobType.TTS, 4, JobStatus.QUEUED, None),

@@ -190,10 +190,10 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     }
   }
 
-  const generate = useCallback((candidateId: number, action?: FollowUpAction, text?: string) =>
+  const generateFor = useCallback((candidateId: number, phraseId: number, action?: FollowUpAction, text?: string) =>
     withBusy(setGeneratingIds, candidateId, async () => {
       try {
-        const res = await api.generateMeaning(candidateId, action, text)
+        const res = await api.generateMeaning(phraseId, action, text)
         setCandidates(prev => prev.map(c => (c.id === candidateId ? {
           ...c,
           meaning: {
@@ -214,6 +214,9 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
       }
     }), [showToast])
 
+  const generate = useCallback((candidateId: number, action?: FollowUpAction, text?: string) =>
+    generateFor(candidateId, phraseOf(candidatesRef.current, candidateId), action, text), [generateFor])
+
   const replaceWithExample = useCallback(async (candidateId: number, exampleText: string) => {
     try {
       const newCandidate = await api.replaceWithExample(phraseOf(candidatesRef.current, candidateId), exampleText)
@@ -225,12 +228,12 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
           : [...rest, newCandidate]
       })
       setCurrentId(newCandidate.id)
-      void generate(newCandidate.id)
+      if (newCandidate.phrase_id != null) void generateFor(newCandidate.id, newCandidate.phrase_id)
       showToast('Phrase replaced — generating meaning...')
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Replace failed')
     }
-  }, [generate, showToast])
+  }, [generateFor, showToast])
 
   const runBatch = async (call: () => Promise<unknown>, fallback: string, options: { vpnAware?: boolean; skipCandidates?: boolean } = {}) => {
     try {
@@ -254,7 +257,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const generateTTS = (candidateId: number) => withBusy(setGeneratingTTSIds, candidateId, async () => {
     try {
-      await api.generateCandidateTTS(candidateId)
+      await api.generatePhraseTTS(phraseOf(candidatesRef.current, candidateId))
       await loadCandidates()
       await loadGeneration()
       showToast('TTS enqueued')
@@ -265,7 +268,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const regenerateMedia = (candidateId: number) => withBusy(setRegeneratingMediaIds, candidateId, async () => {
     try {
-      await api.regenerateCandidateMedia(candidateId)
+      await api.regeneratePhraseMedia(phraseOf(candidatesRef.current, candidateId))
       await loadCandidates()
       showToast('Media regenerated')
     } catch (e) {
@@ -343,7 +346,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const polishAgain = async (candidateId: number) => {
     try {
-      await api.polishPhraseAgain(candidateId)
+      await api.polishPhraseAgain(phraseOf(candidatesRef.current, candidateId))
       await loadCandidates()
       await loadGeneration()
     } catch (e) {

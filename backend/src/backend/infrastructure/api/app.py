@@ -35,7 +35,6 @@ from backend.infrastructure.api.routes import (
 )
 from backend.infrastructure.api.routes.media import router as media_router
 from backend.infrastructure.api.routes.queue import router as queue_router
-from backend.infrastructure.api.routes.tts import router as tts_router
 from backend.infrastructure.logging_setup import configure_logging
 from backend.infrastructure.persistence.database import (
     cleanup_parse_cache,
@@ -119,7 +118,6 @@ app.include_router(export.router)
 app.include_router(stats.router)
 app.include_router(usage.router)
 app.include_router(generation.router)
-app.include_router(tts_router)
 app.include_router(queue_router)
 app.include_router(collections.router)
 app.include_router(bootstrap.router)

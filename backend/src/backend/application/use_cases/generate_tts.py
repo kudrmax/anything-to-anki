@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import random
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from backend.application.utils.media_names import TTS_FILE, phrase_file
 from backend.domain.entities.candidate_tts import CandidateTTS
 
 logger = logging.getLogger(__name__)
@@ -24,58 +24,59 @@ ALL_VOICES: list[str] = [
 _DEFAULT_SPEED: float = 1.0
 
 if TYPE_CHECKING:
-    from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.application.utils.job_phrases import JobPhrases
     from backend.domain.ports.candidate_tts_repository import CandidateTTSRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.tts_generator import TTSGenerator
+    from backend.domain.value_objects.phrase_ref import PhraseRef
 
 
 class GenerateTTSUseCase:
-    """Generates TTS audio for a single candidate."""
+    """Generates TTS audio for one phrase; a phrase a Rebuild changed meanwhile gets none."""
 
     def __init__(
         self,
-        candidate_repo: CandidateRepository,
+        job_phrases: JobPhrases,
         tts_repo: CandidateTTSRepository,
         tts_generator: TTSGenerator,
         settings_repo: SettingsRepository,
         media_root: str,
     ) -> None:
-        self._candidate_repo = candidate_repo
+        self._job_phrases = job_phrases
         self._tts_repo = tts_repo
         self._tts_generator = tts_generator
         self._settings_repo = settings_repo
         self._media_root = media_root
 
-    def execute_one(self, candidate_id: int) -> None:
-        candidate = self._candidate_repo.get_by_id(candidate_id)
-        if candidate is None:
-            logger.warning("generate_tts: candidate %d not found", candidate_id)
+    def execute_one(self, phrase: PhraseRef) -> None:
+        card = self._job_phrases.card(phrase)
+        if card is None:
             return
 
-        text = " ".join(candidate.phrase.text.split())
+        text = " ".join(card.phrase.phrase.text.split())
         if not text:
-            logger.warning("generate_tts: candidate %d has no phrase", candidate_id)
+            logger.warning("generate_tts: phrase %d has no text", card.phrase_id)
             return
 
         voice = self._pick_voice()
         speed = self._get_speed()
-
-        out_dir = os.path.join(self._media_root, str(candidate.source_id))
-        os.makedirs(out_dir, exist_ok=True)
-        out_path = Path(out_dir) / f"{candidate_id}_tts.m4a"
+        out_path = Path(phrase_file(
+            self._media_root, card.word.source_id, card.phrase_id, TTS_FILE,
+        ))
 
         self._tts_generator.generate_audio(text, out_path, voice, speed)
 
-        self._tts_repo.upsert(CandidateTTS(
-            candidate_id=candidate_id,
+        if not self._job_phrases.holds(card):
+            return
+        self._tts_repo.upsert_for_phrase(card.phrase_id, CandidateTTS(
+            candidate_id=card.word_id,
             audio_path=str(out_path),
             generated_at=datetime.now(tz=UTC),
         ))
 
         logger.info(
-            "generate_tts: done (candidate=%d, voice=%s, speed=%.1f)",
-            candidate_id, voice, speed,
+            "generate_tts: done (phrase=%d, voice=%s, speed=%.1f)",
+            card.phrase_id, voice, speed,
         )
 
     def _pick_voice(self) -> str:

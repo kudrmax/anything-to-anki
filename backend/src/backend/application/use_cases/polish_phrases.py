@@ -6,27 +6,27 @@ from typing import TYPE_CHECKING
 
 from backend.application.utils.candidate_filter import CandidateFilter, keep_all
 from backend.domain.exceptions import TargetNotInPhraseError
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.fragment_surroundings import FragmentSurroundings
 
 if TYPE_CHECKING:
+    from backend.application.utils.generation_targets import GenerationCard
+    from backend.application.utils.job_phrases import JobPhrases
     from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
     from backend.application.utils.rewrite_phrase import RewritePhrase
     from backend.domain.entities.source import Source
-    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.ai_service import AIService
-    from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.document_repository import DocumentRepository
+    from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.value_objects.document import Document
+    from backend.domain.value_objects.phrase_ref import PhraseRef
     from backend.domain.value_objects.prompts_config import PromptsConfig
 
 logger = logging.getLogger(__name__)
 
 POLISH_CONTEXT_CHARS = 500
 DEFAULT_CEFR_LEVEL = "B1"
-_ACTIVE_STATUSES = frozenset({CandidateStatus.PENDING, CandidateStatus.LEARN})
 _BOLD_MARKERS = re.compile(r"\*{2}(.+?)\*{2}")
 _WRAPPING_QUOTES = "\"'“”"
 
@@ -34,14 +34,15 @@ _WRAPPING_QUOTES = "\"'“”"
 class PhrasePolishUseCase:
     """Asks AI to rewrite a batch of card phrases into easier ones and stores them.
 
-    Runs in the worker. A card whose phrase AI rewrote loses its meaning and TTS:
-    they were made for the old phrase. An answer that lost the target is
-    discarded and the source phrase stays.
+    Runs in the worker. A phrase AI rewrote loses its meaning and TTS: they were made for
+    the old text. An answer that lost the target is discarded and the source phrase stays.
+    A phrase a Rebuild changed or deleted meanwhile gets nothing.
     """
 
     def __init__(
         self,
-        candidate_repo: CandidateRepository,
+        job_phrases: JobPhrases,
+        occurrence_repo: OccurrenceRepository,
         source_repo: SourceRepository,
         document_repo: DocumentRepository,
         settings_repo: SettingsRepository,
@@ -50,7 +51,8 @@ class PhrasePolishUseCase:
         prompts_config: PromptsConfig,
         rewrite_phrase: RewritePhrase,
     ) -> None:
-        self._candidate_repo = candidate_repo
+        self._job_phrases = job_phrases
+        self._occurrence_repo = occurrence_repo
         self._source_repo = source_repo
         self._document_repo = document_repo
         self._settings_repo = settings_repo
@@ -61,13 +63,13 @@ class PhrasePolishUseCase:
 
     def execute_batch(
         self,
-        candidate_ids: list[int],
+        phrases: list[PhraseRef],
         still_wanted: CandidateFilter = keep_all,
     ) -> list[int]:
-        """Returns the wanted candidates AI gave no answer for."""
+        """Returns the wanted phrases AI gave no answer for."""
         waiting = [
-            c for c in self._candidate_repo.get_by_ids(candidate_ids)
-            if c.id is not None and c.status in _ACTIVE_STATUSES and c.polished_phrase is None
+            c for c in self._job_phrases.cards(phrases)
+            if c.in_play and c.phrase.polished_phrase is None
         ]
         if not waiting:
             logger.info("PhrasePolish batch: nothing left to polish")
@@ -75,36 +77,38 @@ class PhrasePolishUseCase:
 
         sources: dict[int, Source | None] = {}
         for c in waiting:
-            if c.source_id not in sources:
-                sources[c.source_id] = self._source_repo.get_by_id(c.source_id)
-        polishable = [c for c in waiting if (s := sources[c.source_id]) and s.can_polish_phrases]
+            if c.word.source_id not in sources:
+                sources[c.word.source_id] = self._source_repo.get_by_id(c.word.source_id)
+        polishable = [
+            c for c in waiting if (s := sources[c.word.source_id]) and s.can_polish_phrases
+        ]
         if not polishable:
             return []
 
         documents = {
             source_id: self._document_repo.get(source_id)
-            for source_id in {c.source_id for c in polishable}
+            for source_id in {c.word.source_id for c in polishable}
         }
         batch_prompt = "\n\n".join(
-            f"Phrase {i}:\n{self._phrase_prompt(c, documents[c.source_id])}"
+            f"Phrase {i}:\n{self._phrase_prompt(c, documents[c.word.source_id])}"
             for i, c in enumerate(polishable, 1)
         )
         # Errors propagate -> worker marks the jobs failed for retry
         results = self._ai_service.polish_phrases_batch(self._system_prompt(), batch_prompt)
         by_index = {r.phrase_index: r.phrase for r in results}
-        wanted = still_wanted([c.id for c in polishable if c.id is not None])
+        wanted = still_wanted([c.phrase_id for c in polishable])
 
         changed = 0
         unanswered: list[int] = []
         for i, c in enumerate(polishable, 1):
-            if c.id is None or c.id not in wanted:
+            if c.phrase_id not in wanted or not self._job_phrases.holds(c):
                 continue
             answer = by_index.get(i)
             if answer is None:
-                unanswered.append(c.id)
+                unanswered.append(c.phrase_id)
                 continue
-            if self._polish(c, answer) != c.phrase.text:
-                self._enrichment_reset.reset(c.id)
+            if self._polish(c, answer) != c.phrase.phrase.text:
+                self._enrichment_reset.reset_phrase(c.phrase_id)
                 changed += 1
 
         logger.info(
@@ -119,32 +123,34 @@ class PhrasePolishUseCase:
         )
         return self._prompts_config.polish_phrase_system.format(cefr_level=cefr_level)
 
-    def _phrase_prompt(self, candidate: StoredCandidate, document: Document | None) -> str:
+    def _phrase_prompt(self, card: GenerationCard, document: Document | None) -> str:
         around = FragmentSurroundings.around(
-            document, candidate.phrase_position, POLISH_CONTEXT_CHARS,
+            document, card.phrase.phrase_position, POLISH_CONTEXT_CHARS,
         )
-        source = candidate.source_phrase
+        source = card.phrase.source_phrase
         context = f"{around.before}{source.text}{around.after}" if around else source.text
         return self._prompts_config.polish_phrase_user_template.format(
-            lemma=candidate.lemma,
-            pos=candidate.pos,
+            lemma=card.word.lemma,
+            pos=card.word.pos,
             surface_form=source.target_text(),
             phrase=source.text,
             context=" ".join(context.split()),
         )
 
-    def _polish(self, candidate: StoredCandidate, answer: str) -> str:
+    def _polish(self, card: GenerationCard, answer: str) -> str:
         """Stores AI's phrase and returns the text the card shows now. An answer that lost
         the target is discarded: the source phrase stays, marked as polished."""
-        assert candidate.id is not None
         text = " ".join(_BOLD_MARKERS.sub(r"\1", answer).split()).strip(_WRAPPING_QUOTES)
         try:
-            return self._rewrite_phrase.execute(candidate, text).text
+            return self._rewrite_phrase.of_phrase(card.phrase, card.word.lemma, text).text
         except TargetNotInPhraseError:
             logger.warning(
                 "PhrasePolish: answer lost the target, keeping the source phrase "
-                "(candidate=%s, lemma=%r, answer=%r)",
-                candidate.id, candidate.lemma, answer,
+                "(phrase=%s, lemma=%r, answer=%r)",
+                card.phrase_id, card.word.lemma, answer,
             )
-            self._candidate_repo.set_polished_phrase(candidate.id, candidate.source_phrase)
-            return candidate.source_phrase.text
+            source = card.phrase.source_phrase
+            self._occurrence_repo.write_text(
+                card.phrase_id, source, card.phrase.phrase_position, polished=source,
+            )
+            return source.text

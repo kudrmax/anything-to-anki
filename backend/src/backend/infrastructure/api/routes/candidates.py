@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO  # noqa: TC001
 from backend.application.dto.candidate_dtos import (  # noqa: TC001
     EditPhraseRequest,
     RevertPolishRequest,
@@ -18,20 +17,17 @@ from backend.application.dto.cloze_dtos import (  # noqa: TC001
     ClozePreviewDTO,
     PreviewClozeRequest,
 )
-from backend.application.dto.follow_up_dtos import FollowUpRequest  # noqa: TC001
 from backend.application.dto.target_image_dtos import (  # noqa: TC001
     ApplyTargetImageRequest,
     TargetImageOptionsDTO,
 )
 from backend.domain.exceptions import (
-    AIServiceError,
     CandidateNotFoundError,
     CandidateNotPolishedError,
     EmptyReportCommentError,
     ImageSearchError,
     InvalidClozeError,
     InvalidPhraseError,
-    PhrasePolishNotSupportedError,
     UnknownImageUrlError,
     UnknownReportReasonError,
 )
@@ -77,22 +73,6 @@ def report_candidate(
         raise HTTPException(status_code=422, detail=str(e)) from e
 
 
-@router.post("/{candidate_id}/polish", status_code=202)
-def polish_phrase_again(
-    candidate_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, str]:
-    try:
-        container.enqueue_phrase_polish_use_case(session).execute_one(candidate_id)
-        session.commit()
-    except CandidateNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except PhrasePolishNotSupportedError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    return {"status": "queued"}
-
-
 @router.put("/{candidate_id}/polish/reverted")
 def revert_phrase_polish(
     candidate_id: int,
@@ -125,21 +105,6 @@ def edit_card_phrase(
     except InvalidPhraseError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return {"id": candidate_id}
-
-
-@router.post("/{candidate_id}/regenerate-media", status_code=202)
-def regenerate_candidate_media(
-    candidate_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, str]:
-    try:
-        use_case = container.regenerate_candidate_media_use_case(session)
-        use_case.execute(candidate_id)
-        session.commit()
-        return {"status": "regenerated"}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/{candidate_id}/image-options")
@@ -193,31 +158,3 @@ async def paste_target_image(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except OSError as e:
         raise HTTPException(status_code=400, detail=f"Not a picture: {e}") from e
-
-
-@router.post("/{candidate_id}/generate-meaning")
-async def generate_meaning(
-    candidate_id: int,
-    follow_up: FollowUpRequest | None = None,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> GenerateMeaningResponseDTO:
-    try:
-        use_case = container.generate_meaning_use_case(session)
-        if follow_up is not None:
-            result = await asyncio.to_thread(
-                use_case.execute_follow_up,
-                candidate_id,
-                follow_up.action,
-                follow_up.text,
-            )
-        else:
-            result = await asyncio.to_thread(use_case.execute, candidate_id)
-        session.commit()
-        return result
-    except CandidateNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except AIServiceError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e

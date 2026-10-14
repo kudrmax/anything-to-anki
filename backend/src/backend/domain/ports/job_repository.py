@@ -18,10 +18,10 @@ DEFAULT_RUN_LIMIT: int = 1
 class JobRepository(ABC):
     """Port for the job queue backed by SQLite.
 
-    A job is identified by its key: (job_type, candidate_id) for candidate jobs,
-    (job_type, source_id) for source-level jobs. The queue holds at most one
-    active (QUEUED or RUNNING) job per key, and a failed job stays only until
-    the same work is queued again or succeeds.
+    A job is identified by its key: (job_type, phrase_id) for phrase jobs,
+    (job_type, candidate_id) for word jobs, (job_type, source_id) for source-level jobs.
+    The queue holds at most one active (QUEUED or RUNNING) job per key, and a failed job
+    stays only until the same work is queued again or succeeds.
     """
 
     # ── Lifecycle ────────────────────────────────────────────────────
@@ -111,6 +111,10 @@ class JobRepository(ABC):
     ) -> dict[str, dict[str, int]]:
         """Return {job_type: {status: count}}.
         If source_id is None, returns global counts."""
+
+    @abstractmethod
+    def get_jobs_for_phrases(self, phrase_ids: list[int]) -> dict[int, dict[str, Job]]:
+        """Return {phrase_id: {job_type_value: Job}}; an active job wins over a failed one."""
 
     @abstractmethod
     def get_jobs_for_candidates(

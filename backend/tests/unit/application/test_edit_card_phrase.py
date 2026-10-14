@@ -51,7 +51,9 @@ def _use_case(candidate: StoredCandidate | None) -> tuple[EditCardPhraseUseCase,
     candidate_repo.get_by_id.return_value = candidate
     reader = MagicMock()
     reader.read_for.side_effect = _read_for
-    rewrite = RewritePhrase(candidate_repo=candidate_repo, phrase_reader=reader)
+    rewrite = RewritePhrase(
+        candidate_repo=candidate_repo, phrase_reader=reader, occurrence_repo=MagicMock(),
+    )
     use_case = EditCardPhraseUseCase(candidate_repo=candidate_repo, rewrite_phrase=rewrite)
     return use_case, candidate_repo
 

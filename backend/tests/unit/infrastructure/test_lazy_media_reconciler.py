@@ -151,3 +151,24 @@ class TestLazyMediaReconciler:
             (1, "11_screenshot.webp"),
             (2, "10_screenshot.webp"),
         ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_a_missing_file_of_a_phrase_clears_that_phrase(tmp_path: Path) -> None:
+    media_root = tmp_path / "media"
+    (media_root / "1").mkdir(parents=True)
+    session_factory = MagicMock()
+
+    with patch(
+        "backend.infrastructure.services.lazy_media_reconciler.SqlaCandidateMediaRepository"
+    ) as media_cls:
+        reconciler = LazyMediaReconciler(session_factory, str(media_root))
+
+        await reconciler.schedule(1, "p42_screenshot.webp")
+        await asyncio.sleep(0.1)
+
+        media_cls.return_value.clear_phrase_paths.assert_called_once_with(
+            42, clear_screenshot=True, clear_audio=False,
+        )
+        media_cls.return_value.clear_paths.assert_not_called()
