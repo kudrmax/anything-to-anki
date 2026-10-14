@@ -73,6 +73,8 @@
   --meaning-image-h: 180px;
   --image-option-ratio: 4 / 3;
   --field-area: 128px;
+  --add-area: 96px;        /* поле карточки Add в колонке Sources */
+  --add-plus: var(--icon-l);
   --prog: 3px;
   --window-progress-h: 2px;
   --window-progress-color: color-mix(in srgb, var(--ac) 70%, transparent);
@@ -257,7 +259,6 @@
   --source-row-cols: var(--h-word) minmax(0, 1fr) var(--source-progress-w) var(--source-action-w) var(--h);
   --source-row-areas: "type name progress action more";
   --source-row-gap: var(--s5);
-  --source-add-pad: var(--s6);
   --export-row-cols: minmax(0, 1fr) var(--export-translation-w);
   --export-row-areas: "main translation";
   --export-media-cols: minmax(0, 1fr) var(--export-translation-w) var(--thumb-w);
@@ -435,7 +436,6 @@
     --source-row-cols: var(--h-word) minmax(0, 1fr) auto var(--h);
     --source-row-areas: "type name name more" "type progress action action";
     --source-row-gap: var(--s3) var(--s4);
-    --source-add-pad: var(--s5);
     --toast-over-bar: calc(var(--s5) + 2 * var(--h) + 3 * var(--s3) + var(--s3));
     --export-row-cols: minmax(0, 1fr);
     --export-row-areas: "main" "translation";

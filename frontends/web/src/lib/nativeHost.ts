@@ -23,18 +23,6 @@ const droppedPaths = (event: Event): string[] => {
   return Array.isArray(detail) ? detail.filter((path): path is string => typeof path === 'string') : []
 }
 
-/** Файлы, брошенные на другом экране, едут на экран Add в состоянии навигации. */
-export interface DroppedFiles {
-  droppedPaths: string[]
-}
-
-export const droppedFiles = (paths: string[]): DroppedFiles => ({ droppedPaths: paths })
-
-export function droppedPathsIn(state: unknown): string[] {
-  const paths: unknown = typeof state === 'object' && state !== null && 'droppedPaths' in state ? state.droppedPaths : null
-  return Array.isArray(paths) ? paths.filter((path): path is string => typeof path === 'string') : []
-}
-
 export function nativeHost(win: Window = window): NativeHost | null {
   const handler = (win as ShellWindow).webkit?.messageHandlers?.[PICK_FILE_HANDLER]
   if (!handler) return null

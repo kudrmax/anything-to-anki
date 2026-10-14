@@ -1,10 +1,9 @@
-import { act, useEffect } from 'react'
+import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
 import type { InputDescription } from '@/api/types'
-import { droppedFiles } from '@/lib/nativeHost'
 import { AddSourceForm } from './AddSourceForm'
 
 const DROPPED = '/books/novel.epub'
@@ -35,16 +34,6 @@ const answers = new Map<string, InputDescription>([
   ['/no/such/file.epub', NO_FILE],
 ])
 
-const seen: { state: unknown; location: string } = { state: undefined, location: '' }
-function LocationProbe() {
-  const current = useLocation()
-  useEffect(() => {
-    seen.state = current.state
-    seen.location = current.pathname + current.search
-  }, [current])
-  return null
-}
-
 describe('AddSourceForm', () => {
   let host: HTMLDivElement
   let root: Root
@@ -66,11 +55,10 @@ describe('AddSourceForm', () => {
     vi.restoreAllMocks()
   })
 
-  const render = async (entry: string | { pathname: string; search: string; state: unknown } = '/add') => {
+  const render = async () => {
     await act(async () => root.render(
-      <MemoryRouter initialEntries={[entry]}>
+      <MemoryRouter>
         <AddSourceForm onReload={() => Promise.resolve()} onToast={() => {}} />
-        <LocationProbe />
       </MemoryRouter>,
     ))
   }
@@ -102,14 +90,6 @@ describe('AddSourceForm', () => {
     await act(async () => button(mode)!.click())
   }
   const text = () => host.textContent ?? ''
-
-  it('takes dropped paths into the field and clears them from history', async () => {
-    await render({ pathname: '/add', search: '?x=1', state: droppedFiles([DROPPED]) })
-
-    expect(field().value).toBe(DROPPED)
-    expect(seen.state).toBeNull()
-    expect(seen.location).toBe('/add?x=1')
-  })
 
   it('shows nothing to add while the field is empty', async () => {
     await render()
