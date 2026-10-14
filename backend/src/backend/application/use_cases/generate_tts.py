@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from backend.application.utils.media_names import TTS_FILE, phrase_file
+from backend.application.utils.media_names import TTS_FILE
 from backend.domain.entities.candidate_tts import CandidateTTS
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,7 @@ _DEFAULT_SPEED: float = 1.0
 if TYPE_CHECKING:
     from backend.application.utils.job_phrases import JobPhrases
     from backend.domain.ports.candidate_tts_repository import CandidateTTSRepository
+    from backend.domain.ports.media_files import MediaFiles
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.tts_generator import TTSGenerator
     from backend.domain.value_objects.phrase_ref import PhraseRef
@@ -40,13 +41,13 @@ class GenerateTTSUseCase:
         tts_repo: CandidateTTSRepository,
         tts_generator: TTSGenerator,
         settings_repo: SettingsRepository,
-        media_root: str,
+        media_files: MediaFiles,
     ) -> None:
         self._job_phrases = job_phrases
         self._tts_repo = tts_repo
         self._tts_generator = tts_generator
         self._settings_repo = settings_repo
-        self._media_root = media_root
+        self._media_files = media_files
 
     def execute_one(self, phrase: PhraseRef) -> None:
         card = self._job_phrases.card(phrase)
@@ -60,17 +61,17 @@ class GenerateTTSUseCase:
 
         voice = self._pick_voice()
         speed = self._get_speed()
-        out_path = Path(phrase_file(
-            self._media_root, card.word.source_id, card.phrase_id, TTS_FILE,
-        ))
-
-        self._tts_generator.generate_audio(text, out_path, voice, speed)
-
-        if not self._job_phrases.holds(card):
-            return
+        speech = self._media_files.draft(card.word.source_id, card.phrase_id, TTS_FILE)
+        try:
+            self._tts_generator.generate_audio(text, Path(speech.path), voice, speed)
+            if not self._job_phrases.holds(card):
+                return
+            self._media_files.keep(speech)
+        finally:
+            self._media_files.discard(speech)
         self._tts_repo.upsert_for_phrase(card.phrase_id, CandidateTTS(
             candidate_id=card.word_id,
-            audio_path=str(out_path),
+            audio_path=speech.final_path,
             generated_at=datetime.now(tz=UTC),
         ))
 

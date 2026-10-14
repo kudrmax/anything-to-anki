@@ -5,7 +5,7 @@ import os
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from backend.application.utils.media_names import AUDIO_FILE, SCREENSHOT_FILE, phrase_file
+from backend.application.utils.media_names import AUDIO_FILE, SCREENSHOT_FILE
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.exceptions import PhraseChangedError
 from backend.domain.services.document_time import time_of
@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.media_extractor import MediaExtractor
+    from backend.domain.ports.media_files import MediaFiles
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.video_path_resolver import VideoPathResolver
@@ -34,7 +35,7 @@ class RegeneratePhraseMediaUseCase:
         source_repo: SourceRepository,
         document_repo: DocumentRepository,
         media_extractor: MediaExtractor,
-        media_root: str,
+        media_files: MediaFiles,
         video_path_resolver: VideoPathResolver,
     ) -> None:
         self._cards = cards
@@ -43,7 +44,7 @@ class RegeneratePhraseMediaUseCase:
         self._source_repo = source_repo
         self._document_repo = document_repo
         self._media_extractor = media_extractor
-        self._media_root = media_root
+        self._media_files = media_files
         self._video_path_resolver = video_path_resolver
 
     def execute(self, phrase_id: int) -> None:
@@ -69,25 +70,31 @@ class RegeneratePhraseMediaUseCase:
             raise ValueError("Fragment not found in subtitles")
         start_ms, end_ms = timecodes
 
-        screenshot_path = phrase_file(self._media_root, source.id, phrase_id, SCREENSHOT_FILE)
-        audio_path = phrase_file(self._media_root, source.id, phrase_id, AUDIO_FILE)
-
+        screenshot = self._media_files.draft(source.id, phrase_id, SCREENSHOT_FILE)
+        audio = self._media_files.draft(source.id, phrase_id, AUDIO_FILE)
         midpoint_ms = (start_ms + end_ms) // 2
-        self._media_extractor.extract_screenshot(resolved_video_path, midpoint_ms, screenshot_path)
-        self._media_extractor.extract_audio(
-            resolved_video_path,
-            start_ms,
-            end_ms,
-            audio_path,
-            audio_track_index=source.audio_track_index,
-        )
-
-        if not self._occurrence_repo.holds_revision(phrase_id, card.phrase.revision):
-            raise PhraseChangedError(phrase_id)
+        try:
+            self._media_extractor.extract_screenshot(
+                resolved_video_path, midpoint_ms, screenshot.path,
+            )
+            self._media_extractor.extract_audio(
+                resolved_video_path,
+                start_ms,
+                end_ms,
+                audio.path,
+                audio_track_index=source.audio_track_index,
+            )
+            if not self._occurrence_repo.holds_revision(phrase_id, card.phrase.revision):
+                raise PhraseChangedError(phrase_id)
+            self._media_files.keep(screenshot)
+            self._media_files.keep(audio)
+        finally:
+            self._media_files.discard(screenshot)
+            self._media_files.discard(audio)
         self._media_repo.upsert_for_phrase(phrase_id, CandidateMedia(
             candidate_id=card.word_id,
-            screenshot_path=screenshot_path,
-            audio_path=audio_path,
+            screenshot_path=screenshot.final_path,
+            audio_path=audio.final_path,
             start_ms=start_ms,
             end_ms=end_ms,
             generated_at=datetime.now(tz=UTC),

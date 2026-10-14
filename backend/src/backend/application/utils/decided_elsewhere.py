@@ -5,7 +5,10 @@ from typing import TYPE_CHECKING
 from backend.domain.value_objects.elsewhere import Elsewhere
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from backend.application.utils.user_vocabulary import UserVocabulary
+    from backend.domain.value_objects.vocabulary import Vocabulary
 
 
 class DecidedElsewhere:
@@ -17,9 +20,17 @@ class DecidedElsewhere:
         self._vocabulary = vocabulary
 
     def of(self, lemma: str) -> Elsewhere | None:
+        return _elsewhere(self._vocabulary.snapshot(), lemma)
+
+    def of_lemmas(self, lemmas: Iterable[str]) -> dict[str, Elsewhere | None]:
+        """The same for many words, reading what the user knows once."""
         vocabulary = self._vocabulary.snapshot()
-        if vocabulary.is_known(lemma):
-            return Elsewhere.KNOWN
-        if vocabulary.is_learning(lemma):
-            return Elsewhere.LEARNING
-        return None
+        return {lemma: _elsewhere(vocabulary, lemma) for lemma in lemmas}
+
+
+def _elsewhere(vocabulary: Vocabulary, lemma: str) -> Elsewhere | None:
+    if vocabulary.is_known(lemma):
+        return Elsewhere.KNOWN
+    if vocabulary.is_learning(lemma):
+        return Elsewhere.LEARNING
+    return None

@@ -190,10 +190,10 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     }
   }
 
-  const generateFor = useCallback((candidateId: number, phraseId: number, action?: FollowUpAction, text?: string) =>
+  const generate = useCallback((candidateId: number, action?: FollowUpAction, text?: string) =>
     withBusy(setGeneratingIds, candidateId, async () => {
       try {
-        const res = await api.generateMeaning(phraseId, action, text)
+        const res = await api.generateMeaning(phraseOf(candidatesRef.current, candidateId), action, text)
         setCandidates(prev => prev.map(c => (c.id === candidateId ? {
           ...c,
           meaning: {
@@ -214,9 +214,6 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
       }
     }), [showToast])
 
-  const generate = useCallback((candidateId: number, action?: FollowUpAction, text?: string) =>
-    generateFor(candidateId, phraseOf(candidatesRef.current, candidateId), action, text), [generateFor])
-
   const replaceWithExample = useCallback(async (candidateId: number, exampleText: string) => {
     try {
       const newCandidate = await api.replaceWithExample(phraseOf(candidatesRef.current, candidateId), exampleText)
@@ -228,12 +225,12 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
           : [...rest, newCandidate]
       })
       setCurrentId(newCandidate.id)
-      if (newCandidate.phrase_id != null) void generateFor(newCandidate.id, newCandidate.phrase_id)
       showToast('Phrase replaced — generating meaning...')
+      await loadGeneration()
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Replace failed')
     }
-  }, [generateFor, showToast])
+  }, [loadGeneration, showToast])
 
   const runBatch = async (call: () => Promise<unknown>, fallback: string, options: { vpnAware?: boolean; skipCandidates?: boolean } = {}) => {
     try {

@@ -48,7 +48,7 @@ def _card(
         f"Could you {lemma} on that?", candidate_id=cid,
         meaning_text="already done" if with_meaning else None,
     )
-    return GenerationCard(word, replace(shown, id=cid * 10, skipped=skipped))
+    return GenerationCard.of(word, replace(shown, id=cid * 10, skipped=skipped), None)
 
 
 def _refs(*phrase_ids: int) -> list[PhraseRef]:

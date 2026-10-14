@@ -235,6 +235,9 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
     def holds_revision(self, occurrence_id: int, revision: int) -> bool:
         # A write, not a read: it takes the database's write lock, so no Rebuild can change
         # the phrase between this check and the commit of the result written after it.
+        # Relies on pysqlite's default transaction mode: earlier SELECTs of the session run
+        # outside a transaction, so this UPDATE starts one on the latest data (guarded by
+        # test_generation_per_phrase.py::TestStaleJobs::test_a_result_for_a_phrase_rebuilt_…).
         result: CursorResult[tuple[()]] = self._session.execute(  # type: ignore[assignment]
             update(PhraseModel)
             .where(PhraseModel.id == occurrence_id, PhraseModel.revision == revision)

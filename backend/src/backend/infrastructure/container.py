@@ -103,6 +103,7 @@ from backend.infrastructure.adapters.json_phrasal_verb_dictionary import (
     JsonPhrasalVerbDictionary,
 )
 from backend.infrastructure.adapters.local_file_reader import LocalFileReader
+from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
 from backend.infrastructure.adapters.pillow_card_picture_encoder import PillowCardPictureEncoder
 from backend.infrastructure.adapters.regex_format_detector import RegexFormatDetector
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
@@ -607,6 +608,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             topic_target_repo=SqlaTopicTargetRepository(session),
             job_repo=SqlaJobRepository(session),
+            lock=SqlaSourceOperationLock(session),
         )
 
     def generate_topic_targets_use_case(self, session: Session) -> GenerateTopicTargetsUseCase:
@@ -697,6 +699,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             review_status=self._review_status_updater(session),
             phrase_reader=self._phrase_reader,
+            job_repo=SqlaJobRepository(session),
         )
 
     def _threshold_resolver(self, session: Session) -> FrequentWordThresholdResolver:
@@ -879,7 +882,11 @@ class Container:
 
     def _job_phrases(self, session: Session) -> JobPhrases:
         from backend.application.utils.job_phrases import JobPhrases
-        return JobPhrases(SqlaCandidateRepository(session), SqlaOccurrenceRepository(session))
+        return JobPhrases(
+            SqlaCandidateRepository(session),
+            SqlaOccurrenceRepository(session),
+            DecidedElsewhere(self._user_vocabulary(session)),
+        )
 
     def _requested_cards(self, session: Session) -> RequestedCards:
         from backend.application.utils.requested_cards import RequestedCards
@@ -891,7 +898,11 @@ class Container:
 
     def _generation_cards(self, session: Session) -> GenerationCards:
         from backend.application.utils.generation_targets import GenerationCards
-        return GenerationCards(SqlaCandidateRepository(session), SqlaOccurrenceRepository(session))
+        return GenerationCards(
+            SqlaCandidateRepository(session),
+            SqlaOccurrenceRepository(session),
+            DecidedElsewhere(self._user_vocabulary(session)),
+        )
 
     def revert_phrase_polish_use_case(self, session: Session) -> RevertPhrasePolishUseCase:
         from backend.application.use_cases.revert_phrase_polish import (
@@ -971,7 +982,7 @@ class Container:
             media_repo=SqlaCandidateMediaRepository(session),
             source_repo=SqlaSourceRepository(session),
             media_extractor=self._media_extractor,
-            media_root=self._media_root,
+            media_files=LocalMediaFiles(self._media_root),
             video_path_resolver=self._video_path_resolver,
         )
 
@@ -1006,7 +1017,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             document_repo=SqlaDocumentRepository(session),
             media_extractor=self._media_extractor,
-            media_root=self._media_root,
+            media_files=LocalMediaFiles(self._media_root),
             video_path_resolver=self._video_path_resolver,
         )
 
@@ -1110,7 +1121,7 @@ class Container:
             tts_repo=SqlaCandidateTTSRepository(session),
             tts_generator=self.tts_generator,
             settings_repo=SqlaSettingsRepository(session),
-            media_root=self._media_root,
+            media_files=LocalMediaFiles(self._media_root),
         )
 
     def _generation_targets(self, session: Session) -> list[GenerationTarget]:

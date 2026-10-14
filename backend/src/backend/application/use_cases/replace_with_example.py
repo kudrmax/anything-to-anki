@@ -5,10 +5,12 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
+from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.exceptions import AlreadyInAnkiError, PhraseNotFoundError
 from backend.domain.services.topic_phrase_selection import parse_marked_phrase
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
 if TYPE_CHECKING:
@@ -16,6 +18,7 @@ if TYPE_CHECKING:
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
 
 
@@ -28,7 +31,8 @@ class ReplaceWithExampleUseCase:
     stood for it: the selection then shows no other card of the word.
 
     The example comes as AI wrote it: its **bold** words are the target; without them the
-    target is found by the word's dictionary form.
+    target is found by the word's dictionary form. Its meaning is queued at once: the card
+    is useless without it.
     """
 
     def __init__(
@@ -37,11 +41,13 @@ class ReplaceWithExampleUseCase:
         candidate_repo: CandidateRepository,
         review_status: ReviewStatusUpdater,
         phrase_reader: PhraseReader,
+        job_repo: JobRepository,
     ) -> None:
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
         self._review_status = review_status
         self._phrase_reader = phrase_reader
+        self._job_repo = job_repo
 
     def execute(self, occurrence_id: int, example_text: str) -> StoredCandidateDTO:
         stripped = example_text.strip()
@@ -81,6 +87,10 @@ class ReplaceWithExampleUseCase:
             self._occurrences.set_decision(
                 replaced.candidate_id, example.id, replaced.decision_kind,
             )
+        self._job_repo.enqueue([Job.queued(
+            JobType.MEANING, word.source_id, replaced.candidate_id,
+            phrase_id=example.id, phrase_revision=example.revision,
+        )])
         self._review_status.refresh(word.source_id)
         shown = self._candidate_repo.get_by_id(replaced.candidate_id)
         assert shown is not None

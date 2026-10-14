@@ -33,6 +33,7 @@ __all__ = [
     "Elsewhere",
     "card_state",
     "decide",
+    "wants_generation",
     "word_status_of",
 ]
 
@@ -170,6 +171,20 @@ def card_state(
         elsewhere=elsewhere,
         buttons_enabled=frozenset(enabled),
     )
+
+
+def wants_generation(
+    occ: Occurrence, word: StoredCandidate, learning_or_known_elsewhere: Elsewhere | None,
+) -> bool:
+    """The card is one someone decides on or sends to Anki, so ✨ makes things for it: an
+    open card of a pending word not done via another source, or the Learn/Cloze decision
+    card. Skipped cards, other cards of a decided word and Known cards need nothing."""
+    if occ.skipped:
+        return False
+    state = card_state(occ, word, learning_or_known_elsewhere)
+    if state.decided_here:
+        return word_status_of(word) is WordStatus.LEARN
+    return state.decided_elsewhere is None and state.elsewhere is None
 
 
 def _allowed(

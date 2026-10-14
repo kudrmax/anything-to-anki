@@ -129,3 +129,11 @@ def test_generation_of_a_busy_source_is_refused(client: TestClient) -> None:
     response = client.post("/sources/1/generation/meaning?scope=missing")
 
     assert response.status_code == 409
+
+
+@pytest.mark.unit
+def test_topic_generation_of_a_busy_topic_is_refused(client: TestClient) -> None:
+    use_case = _get_mock_container().enqueue_topic_generation_use_case.return_value
+    use_case.execute.side_effect = SourceOperationBusyError(1, "refresh")
+
+    assert client.post("/sources/1/topic-targets/generate").status_code == 409

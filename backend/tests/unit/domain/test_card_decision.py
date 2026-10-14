@@ -18,6 +18,7 @@ from backend.domain.services.card_decision import (
     Elsewhere,
     card_state,
     decide,
+    wants_generation,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind, ShownBy
@@ -266,3 +267,33 @@ def test_a_decided_word_is_not_known_elsewhere() -> None:
     state = card_state(_decision(), _word(CandidateStatus.LEARN), Elsewhere.LEARNING)
 
     assert state.elsewhere is None
+
+
+# ── wants_generation: the cards ✨ works on ───────────────────────────
+
+
+def test_an_open_card_of_a_pending_word_wants_generation() -> None:
+    assert wants_generation(_phrase(), _word(CandidateStatus.PENDING), None)
+
+
+@pytest.mark.parametrize("kind", [DecisionKind.LEARN, DecisionKind.CLOZE])
+def test_the_learn_decision_card_wants_generation(kind: DecisionKind) -> None:
+    assert wants_generation(_decision(kind), _word(CandidateStatus.LEARN), None)
+
+
+@pytest.mark.parametrize("status", [CandidateStatus.LEARN, CandidateStatus.KNOWN])
+def test_a_sibling_of_a_decided_word_wants_none(status: CandidateStatus) -> None:
+    assert not wants_generation(_phrase(), _word(status), None)
+
+
+def test_the_known_decision_card_wants_none() -> None:
+    assert not wants_generation(_decision(None), _word(CandidateStatus.KNOWN), None)
+
+
+@pytest.mark.parametrize("elsewhere", [Elsewhere.KNOWN, Elsewhere.LEARNING])
+def test_a_card_decided_elsewhere_wants_none(elsewhere: Elsewhere) -> None:
+    assert not wants_generation(_phrase(), _word(CandidateStatus.PENDING), elsewhere)
+
+
+def test_a_skipped_card_wants_none() -> None:
+    assert not wants_generation(_phrase(skipped=True), _word(CandidateStatus.PENDING), None)

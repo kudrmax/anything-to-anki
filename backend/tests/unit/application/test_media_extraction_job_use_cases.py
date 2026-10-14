@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -16,11 +16,9 @@ from backend.domain.exceptions import (
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.phrase_ref import PhraseRef
+from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
 
 from tests.phrase_support import make_occurrence, phrase
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 WORD_ID = 10
 PHRASE_ID = 17
@@ -42,7 +40,20 @@ def _card(media: CandidateMedia | None) -> GenerationCard:
         status=CandidateStatus.LEARN,
     )
     shown = replace(make_occurrence("hello world", candidate_id=WORD_ID), id=PHRASE_ID)
-    return GenerationCard(word, replace(shown, media=media))
+    return GenerationCard.of(word, replace(shown, media=media), None)
+
+
+def _write(path: str, content: bytes) -> None:
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_bytes(content)
+
+
+def _folder(tmp_path: Path) -> dict[str, bytes]:
+    """The media files of source 1, by name."""
+    folder = tmp_path / "media" / "1"
+    if not folder.exists():
+        return {}
+    return {p.name: p.read_bytes() for p in folder.iterdir()}
 
 
 def _video(tmp_path: Path) -> str:
@@ -75,6 +86,12 @@ class TestMediaExtractionUseCase:
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = source
         media_extractor = MagicMock()
+        media_extractor.extract_screenshot.side_effect = (
+            lambda _video, _ms, path: _write(path, b"new frame")
+        )
+        media_extractor.extract_audio.side_effect = (
+            lambda _video, _start, _end, path, audio_track_index: _write(path, b"new clip")
+        )
         video_path_resolver = MagicMock()
         video_path_resolver.resolve.side_effect = lambda path, _method: path
 
@@ -83,7 +100,7 @@ class TestMediaExtractionUseCase:
             media_repo=media_repo,
             source_repo=source_repo,
             media_extractor=media_extractor,
-            media_root=str(tmp_path / "media"),
+            media_files=LocalMediaFiles(str(tmp_path / "media")),
             video_path_resolver=video_path_resolver,
         )
         return uc, media_repo, media_extractor
@@ -98,17 +115,17 @@ class TestMediaExtractionUseCase:
 
         screenshot = str(tmp_path / "media" / "1" / f"p{PHRASE_ID}_screenshot.webp")
         audio = str(tmp_path / "media" / "1" / f"p{PHRASE_ID}_audio.m4a")
-        media_extractor.extract_screenshot.assert_called_once_with(
-            video, 1500, screenshot,
-        )
-        media_extractor.extract_audio.assert_called_once_with(
-            video, 1000, 2000, audio, audio_track_index=0,
-        )
+        assert media_extractor.extract_screenshot.call_args.args[:2] == (video, 1500)
+        assert media_extractor.extract_audio.call_args.args[:3] == (video, 1000, 2000)
+        assert media_extractor.extract_audio.call_args.kwargs == {"audio_track_index": 0}
         phrase_id, upserted = media_repo.upsert_for_phrase.call_args.args
         assert phrase_id == PHRASE_ID
         assert upserted.candidate_id == WORD_ID
         assert (upserted.screenshot_path, upserted.audio_path) == (screenshot, audio)
         assert (upserted.start_ms, upserted.end_ms) == (1000, 2000)
+        assert _folder(tmp_path) == {
+            f"p{PHRASE_ID}_screenshot.webp": b"new frame", f"p{PHRASE_ID}_audio.m4a": b"new clip",
+        }
 
     def test_a_phrase_gone_or_changed_before_the_job_gets_nothing(self, tmp_path: Path) -> None:
         uc, media_repo, media_extractor = self._make_uc(tmp_path, card=None)
@@ -119,13 +136,18 @@ class TestMediaExtractionUseCase:
         media_repo.upsert_for_phrase.assert_not_called()
 
     def test_a_phrase_changed_while_cutting_keeps_its_media(self, tmp_path: Path) -> None:
+        video = _video(tmp_path)
+        fresh = {f"p{PHRASE_ID}_screenshot.webp": b"fresh", f"p{PHRASE_ID}_audio.m4a": b"fresh"}
+        for name, content in fresh.items():
+            _write(str(tmp_path / "media" / "1" / name), content)
         uc, media_repo, _ = self._make_uc(
-            tmp_path, _card(_media()), _make_source(_video(tmp_path)), holds=False,
+            tmp_path, _card(_media()), _make_source(video), holds=False,
         )
 
         uc.execute_one(REF)
 
         media_repo.upsert_for_phrase.assert_not_called()
+        assert _folder(tmp_path) == fresh
 
     def test_execute_one_raises_invalid_timecodes(self, tmp_path: Path) -> None:
         uc, _, _ = self._make_uc(tmp_path, _card(None))
@@ -173,3 +195,14 @@ class TestMediaExtractionUseCase:
 
         with pytest.raises(OSError, match="ffmpeg crashed"):
             uc.execute_one(REF)
+        assert _folder(tmp_path) == {}
+
+    def test_a_failure_after_the_frame_leaves_no_file_behind(self, tmp_path: Path) -> None:
+        uc, _, media_extractor = self._make_uc(
+            tmp_path, _card(_media()), _make_source(_video(tmp_path)),
+        )
+        media_extractor.extract_audio.side_effect = OSError("no audio track")
+
+        with pytest.raises(OSError, match="no audio track"):
+            uc.execute_one(REF)
+        assert _folder(tmp_path) == {}

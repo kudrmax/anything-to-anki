@@ -10,6 +10,7 @@ from backend.application.utils.generation_targets import GenerationCard
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.phrase_ref import PhraseRef
+from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
 
 from tests.phrase_support import make_occurrence, phrase
 
@@ -20,14 +21,16 @@ def deps(tmp_path: Path) -> dict:
     job_phrases.holds.return_value = True
     tts_repo = MagicMock()
     tts_generator = MagicMock()
+    tts_generator.generate_audio.side_effect = (
+        lambda _text, path, _voice, _speed: path.write_bytes(b"speech")
+    )
     settings_repo = MagicMock()
-    media_root = str(tmp_path)
     return {
         "job_phrases": job_phrases,
         "tts_repo": tts_repo,
         "tts_generator": tts_generator,
         "settings_repo": settings_repo,
-        "media_root": media_root,
+        "media_files": LocalMediaFiles(str(tmp_path)),
     }
 
 
@@ -51,7 +54,7 @@ def _make_candidate(
     shown = replace(
         make_occurrence(context_fragment, candidate_id=candidate_id), id=candidate_id,
     )
-    return GenerationCard(word, shown)
+    return GenerationCard.of(word, shown, None)
 
 
 @pytest.mark.unit
@@ -66,7 +69,8 @@ def test_generate_tts_calls_generator(deps: dict, tmp_path: Path) -> None:
     deps["tts_generator"].generate_audio.assert_called_once()
     call_args = deps["tts_generator"].generate_audio.call_args
     assert call_args[0][0] == "She couldn't help but procrastinate."
-    assert str(call_args[0][1]).endswith("p1_tts.m4a")
+    assert str(call_args[0][1]).endswith(".m4a")
+    assert (tmp_path / "10" / "p1_tts.m4a").read_bytes() == b"speech"
     assert call_args[0][2] in ALL_VOICES
     assert call_args[0][3] == 1.0
 
@@ -194,7 +198,7 @@ def test_output_directory_created_under_media_root(deps: dict, tmp_path: Path) -
     call_args = deps["tts_generator"].generate_audio.call_args
     out_path = Path(str(call_args[0][1]))
     assert out_path.parent == tmp_path / "42"
-    assert out_path.name == "p5_tts.m4a"
+    assert [p.name for p in (tmp_path / "42").iterdir()] == ["p5_tts.m4a"]
 
 
 @pytest.mark.unit

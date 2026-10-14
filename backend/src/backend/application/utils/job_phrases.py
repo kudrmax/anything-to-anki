@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from backend.application.utils.generation_targets import GenerationCard
 
 if TYPE_CHECKING:
+    from backend.application.utils.decided_elsewhere import DecidedElsewhere
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
@@ -23,10 +24,14 @@ class JobPhrases:
     """
 
     def __init__(
-        self, candidate_repo: CandidateRepository, occurrence_repo: OccurrenceRepository,
+        self,
+        candidate_repo: CandidateRepository,
+        occurrence_repo: OccurrenceRepository,
+        decided_elsewhere: DecidedElsewhere,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._occurrence_repo = occurrence_repo
+        self._decided_elsewhere = decided_elsewhere
 
     def cards(self, phrases: list[PhraseRef]) -> list[GenerationCard]:
         """The cards of the phrases still at their jobs' revision, in the jobs' order."""
@@ -46,8 +51,12 @@ class JobPhrases:
                 sorted({occurrence.candidate_id for occurrence in current}),
             )
         }
+        elsewhere = self._decided_elsewhere.of_lemmas({word.lemma for word in words.values()})
         return [
-            GenerationCard(words[occurrence.candidate_id], occurrence)
+            GenerationCard.of(
+                words[occurrence.candidate_id], occurrence,
+                elsewhere.get(words[occurrence.candidate_id].lemma),
+            )
             for occurrence in current
             if occurrence.candidate_id in words
         ]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
@@ -15,12 +16,11 @@ from backend.domain.exceptions import (
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
+from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
 
 from tests.phrase_support import make_occurrence
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from backend.domain.entities.candidate_media import CandidateMedia
 
 
@@ -78,6 +78,13 @@ class _Setup:
         resolver = MagicMock()
         resolver.resolve.side_effect = lambda path, _method: path
         self.extractor = MagicMock()
+        self.extractor.extract_screenshot.side_effect = (
+            lambda _video, _ms, path: Path(path).write_bytes(b"new frame")
+        )
+        self.extractor.extract_audio.side_effect = (
+            lambda _video, _start, _end, path, audio_track_index:
+            Path(path).write_bytes(b"new clip")
+        )
         self.media_repo = MagicMock()
         self.use_case = RegeneratePhraseMediaUseCase(
             cards=RequestedCards(candidate_repo, self.occurrence_repo, lock),
@@ -86,10 +93,14 @@ class _Setup:
             source_repo=source_repo,
             document_repo=document_repo,
             media_extractor=self.extractor,
-            media_root=str(self.media_root),
+            media_files=LocalMediaFiles(str(self.media_root)),
             video_path_resolver=resolver,
         )
         self.video = str(video)
+
+    def files(self) -> dict[str, bytes]:
+        folder = self.media_root / str(SOURCE_ID)
+        return {p.name: p.read_bytes() for p in folder.iterdir()} if folder.exists() else {}
 
 
 @pytest.mark.unit
@@ -101,10 +112,9 @@ class TestRegeneratePhraseMedia:
 
         folder = setup.media_root / str(SOURCE_ID)
         screenshot = setup.extractor.extract_screenshot.call_args
-        shot = str(folder / f"p{PHRASE_ID}_screenshot.webp")
-        assert screenshot.args == (setup.video, 3500, shot)
+        assert screenshot.args[:2] == (setup.video, 3500)
         audio = setup.extractor.extract_audio.call_args
-        assert audio.args == (setup.video, 3000, 4000, str(folder / f"p{PHRASE_ID}_audio.m4a"))
+        assert audio.args[:3] == (setup.video, 3000, 4000)
         assert audio.kwargs == {"audio_track_index": None}
         phrase_id, upserted = setup.media_repo.upsert_for_phrase.call_args.args
         media: CandidateMedia = upserted
@@ -112,6 +122,9 @@ class TestRegeneratePhraseMedia:
         assert (media.candidate_id, media.start_ms, media.end_ms) == (WORD_ID, 3000, 4000)
         assert media.screenshot_path == str(folder / f"p{PHRASE_ID}_screenshot.webp")
         assert media.audio_path == str(folder / f"p{PHRASE_ID}_audio.m4a")
+        assert setup.files() == {
+            f"p{PHRASE_ID}_screenshot.webp": b"new frame", f"p{PHRASE_ID}_audio.m4a": b"new clip",
+        }
 
     def test_uses_source_audio_track_index(self, tmp_path: Path) -> None:
         setup = _Setup(tmp_path, audio_track_index=2)
@@ -154,7 +167,11 @@ class TestRegeneratePhraseMedia:
 
     def test_a_phrase_changed_meanwhile_keeps_its_media(self, tmp_path: Path) -> None:
         setup = _Setup(tmp_path, holds=False)
+        folder = setup.media_root / str(SOURCE_ID)
+        folder.mkdir(parents=True)
+        (folder / f"p{PHRASE_ID}_screenshot.webp").write_bytes(b"fresh")
 
         with pytest.raises(PhraseChangedError):
             setup.use_case.execute(PHRASE_ID)
         setup.media_repo.upsert_for_phrase.assert_not_called()
+        assert setup.files() == {f"p{PHRASE_ID}_screenshot.webp": b"fresh"}

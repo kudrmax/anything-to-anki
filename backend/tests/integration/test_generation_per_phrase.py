@@ -11,6 +11,7 @@ from backend.application.utils.job_phrases import JobPhrases
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.prompts_config import PromptsConfig
+from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
 from backend.infrastructure.persistence.database import create_session_factory
 from backend.infrastructure.persistence.models import (
     Base,
@@ -63,7 +64,7 @@ def factory(tmp_path: Path) -> sessionmaker[Session]:
     Base.metadata.create_all(session_factory.kw["bind"])
     with session_factory() as session:
         insert_source(session, SOURCE)
-        insert_word(session, WORD, source_id=SOURCE, status="learn", lemma="glare")
+        insert_word(session, WORD, source_id=SOURCE, lemma="glare")
         session.execute(
             text(
                 "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by,"
@@ -96,7 +97,11 @@ def _meaning_use_case(session: Session, ai_service: MagicMock) -> MeaningGenerat
 
 
 def _job_phrases(session: Session) -> JobPhrases:
-    return JobPhrases(SqlaCandidateRepository(session), SqlaOccurrenceRepository(session))
+    decided_elsewhere = MagicMock()
+    decided_elsewhere.of_lemmas.side_effect = lambda lemmas: dict.fromkeys(lemmas)
+    return JobPhrases(
+        SqlaCandidateRepository(session), SqlaOccurrenceRepository(session), decided_elsewhere,
+    )
 
 
 def _meanings(factory: sessionmaker[Session]) -> dict[int, str | None]:
@@ -211,23 +216,86 @@ class TestJobsWriteToTheirOwnPhrase:
     def test_speech_lands_on_the_phrase_of_the_job(
         self, factory: sessionmaker[Session], tmp_path: Path,
     ) -> None:
-        generator = MagicMock()
-        settings = MagicMock()
-        settings.get.return_value = None
+        generator = _speaking(b"speech")
 
         with factory() as session:
-            GenerateTTSUseCase(
-                job_phrases=_job_phrases(session),
-                tts_repo=SqlaCandidateTTSRepository(session),
-                tts_generator=generator,
-                settings_repo=settings,
-                media_root=str(tmp_path / "media"),
-            ).execute_one(PhraseRef(OTHER_PHRASE, 0))
+            _tts_use_case(session, generator, tmp_path).execute_one(PhraseRef(OTHER_PHRASE, 0))
             session.commit()
 
         assert generator.generate_audio.call_args.args[0] == "She glared back at him"
+        final = _speech_folder(tmp_path) / f"p{OTHER_PHRASE}_tts.m4a"
         with factory() as session:
             rows = list(session.scalars(select(CandidateTTSModel)))
-        assert [(row.phrase_id, row.audio_path) for row in rows] == [
-            (OTHER_PHRASE, str(tmp_path / "media" / str(SOURCE) / f"p{OTHER_PHRASE}_tts.m4a")),
-        ]
+        assert [(row.phrase_id, row.audio_path) for row in rows] == [(OTHER_PHRASE, str(final))]
+        assert final.read_bytes() == b"speech"
+        assert sorted(p.name for p in _speech_folder(tmp_path).iterdir()) == [final.name]
+
+
+class TestStaleFiles:
+    """A file made for a phrase a Rebuild changed meanwhile never replaces the phrase's file."""
+
+    def test_stale_speech_leaves_the_file_of_the_phrase_alone(
+        self, factory: sessionmaker[Session], tmp_path: Path,
+    ) -> None:
+        final = _speech_folder(tmp_path) / f"p{PRIMARY}_tts.m4a"
+        final.parent.mkdir(parents=True)
+        final.write_bytes(b"fresh")
+
+        def speak_while_rebuilt(_text: str, path: Path, _voice: str, _speed: float) -> None:
+            path.write_bytes(b"stale")
+            with factory() as other:
+                _bump_revision(other)
+                other.commit()
+
+        generator = MagicMock()
+        generator.generate_audio.side_effect = speak_while_rebuilt
+
+        with factory() as session:
+            _tts_use_case(session, generator, tmp_path).execute_one(PhraseRef(PRIMARY, 0))
+            session.commit()
+
+        assert final.read_bytes() == b"fresh"
+        assert sorted(p.name for p in final.parent.iterdir()) == [final.name]
+        with factory() as session:
+            assert list(session.scalars(select(CandidateTTSModel))) == []
+
+    def test_a_failed_speech_leaves_no_file_behind(
+        self, factory: sessionmaker[Session], tmp_path: Path,
+    ) -> None:
+        def speak_then_fail(_text: str, path: Path, _voice: str, _speed: float) -> None:
+            path.write_bytes(b"half")
+            raise RuntimeError("kokoro crashed")
+
+        generator = MagicMock()
+        generator.generate_audio.side_effect = speak_then_fail
+
+        with factory() as session, pytest.raises(RuntimeError):
+            _tts_use_case(session, generator, tmp_path).execute_one(PhraseRef(PRIMARY, 0))
+
+        assert list(_speech_folder(tmp_path).iterdir()) == []
+
+
+def _speech_folder(tmp_path: Path) -> Path:
+    return tmp_path / "media" / str(SOURCE)
+
+
+def _speaking(content: bytes) -> MagicMock:
+    generator = MagicMock()
+    generator.generate_audio.side_effect = (
+        lambda _text, path, _voice, _speed: path.write_bytes(content)
+    )
+    return generator
+
+
+def _tts_use_case(
+    session: Session, generator: MagicMock, tmp_path: Path,
+) -> GenerateTTSUseCase:
+    settings = MagicMock()
+    settings.get.return_value = None
+    return GenerateTTSUseCase(
+        job_phrases=_job_phrases(session),
+        tts_repo=SqlaCandidateTTSRepository(session),
+        tts_generator=generator,
+        settings_repo=settings,
+        media_files=LocalMediaFiles(str(tmp_path / "media")),
+    )

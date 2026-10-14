@@ -5,13 +5,14 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.job import Job
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.services.card_decision import wants_generation
 from backend.domain.value_objects.card_generation_state import CardGenerationState
 from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_kind import GenerationKind
 from backend.domain.value_objects.job_status import JobStatus
 
 if TYPE_CHECKING:
+    from backend.application.utils.decided_elsewhere import DecidedElsewhere
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.entities.source import Source
     from backend.domain.entities.stored_candidate import StoredCandidate
@@ -19,14 +20,25 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.value_objects.elsewhere import Elsewhere
 
 
 @dataclass(frozen=True)
 class GenerationCard:
-    """A shown phrase of a word: what the ✨ menu works on."""
+    """A shown phrase of a word: what the ✨ menu works on.
+
+    `in_play`: someone decides on the card or sends it to Anki (`wants_generation`).
+    """
 
     word: StoredCandidate
     phrase: Occurrence
+    in_play: bool
+
+    @classmethod
+    def of(
+        cls, word: StoredCandidate, phrase: Occurrence, elsewhere: Elsewhere | None,
+    ) -> GenerationCard:
+        return cls(word, phrase, wants_generation(phrase, word, elsewhere))
 
     @property
     def word_id(self) -> int:
@@ -37,11 +49,6 @@ class GenerationCard:
     def phrase_id(self) -> int:
         assert self.phrase.id is not None
         return self.phrase.id
-
-    @property
-    def in_play(self) -> bool:
-        """The word is not known and the phrase is not skipped."""
-        return self.word.status is not CandidateStatus.KNOWN and not self.phrase.skipped
 
 
 @dataclass(frozen=True)
@@ -63,18 +70,27 @@ class GenerationCards:
     """The cards of a source: every shown phrase with its word, words in source order."""
 
     def __init__(
-        self, candidate_repo: CandidateRepository, occurrence_repo: OccurrenceRepository,
+        self,
+        candidate_repo: CandidateRepository,
+        occurrence_repo: OccurrenceRepository,
+        decided_elsewhere: DecidedElsewhere,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._occurrence_repo = occurrence_repo
+        self._decided_elsewhere = decided_elsewhere
 
     def of_source(self, source_id: int) -> list[GenerationCard]:
         shown = self._occurrence_repo.shown_by_word(source_id)
+        words = [
+            word for word in self._candidate_repo.get_by_source(source_id)
+            if word.id is not None and word.id in shown
+        ]
+        elsewhere = self._decided_elsewhere.of_lemmas({word.lemma for word in words})
         return [
-            GenerationCard(word, phrase)
-            for word in self._candidate_repo.get_by_source(source_id)
+            GenerationCard.of(word, phrase, elsewhere.get(word.lemma))
+            for word in words
             if word.id is not None
-            for phrase in shown.get(word.id, [])
+            for phrase in shown[word.id]
         ]
 
 

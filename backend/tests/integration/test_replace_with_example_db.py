@@ -18,6 +18,8 @@ from backend.domain.exceptions import (
 from backend.domain.services.export_readiness import missing_parts
 from backend.domain.services.phrase_building import target_by_lemma
 from backend.domain.value_objects.export_group import ExportGroup
+from backend.domain.value_objects.job_status import JobStatus
+from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import (
     DecisionKind,
     OccurrenceOrigin,
@@ -32,6 +34,7 @@ from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCan
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
 )
+from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
@@ -85,6 +88,7 @@ class Bench:
             candidate_repo=SqlaCandidateRepository(session),
             review_status=self.review_status,
             phrase_reader=reader,
+            job_repo=SqlaJobRepository(session),
         )
 
     def replace(self, phrase_id: int, example: str = "She runs every morning.") -> Occurrence:
@@ -169,6 +173,15 @@ def test_the_answer_is_the_example_card_when_the_word_shows_another_phrase(
     assert result.phrase_id == example.id
     assert result.phrase.text == "She runs every morning."
     assert result.meaning is None
+
+
+def test_the_example_gets_its_meaning_queued(bench: Bench) -> None:
+    example = bench.replace(CARD)
+
+    jobs = SqlaJobRepository(bench.session).get_jobs_by_status([JobStatus.QUEUED])
+    assert [(j.job_type, j.candidate_id, j.phrase_id, j.phrase_revision) for j in jobs] == [
+        (JobType.MEANING, WORD, example.id, example.revision),
+    ]
 
 
 def test_bold_words_are_the_target_and_the_markup_goes(bench: Bench) -> None:

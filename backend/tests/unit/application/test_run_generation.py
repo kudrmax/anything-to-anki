@@ -32,6 +32,7 @@ from backend.domain.exceptions import (
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content import Kind
+from backend.domain.value_objects.elsewhere import Elsewhere
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_kind import GenerationKind
@@ -39,7 +40,11 @@ from backend.domain.value_objects.generation_scope import GenerationScope
 from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
-from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.phrase_origin_kind import (
+    DecisionKind,
+    OccurrenceOrigin,
+    ShownBy,
+)
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
 
@@ -82,6 +87,7 @@ def _phrase(
     media: CandidateMedia | None = None,
     revision: int = 0,
     skipped: bool = False,
+    decision: DecisionKind | None = None,
 ) -> Occurrence:
     """The n-th shown phrase of word `cid`; its id is cid * 10 + n."""
     return Occurrence(
@@ -95,6 +101,8 @@ def _phrase(
         revision=revision,
         shown_by=ShownBy.SELECTION,
         skipped=skipped,
+        is_decision=decision is not None,
+        decision_kind=decision,
         meaning=_meaning(cid) if meaning else None,
         media=media,
     )
@@ -123,6 +131,7 @@ class _Setup:
         source: Source | None = None,
         video_downloading: bool = False,
         busy_with: SourceOperationKind | None = None,
+        elsewhere: dict[str, Elsewhere] | None = None,
     ) -> None:
         self.source_repo = MagicMock()
         self.source_repo.get_by_id.return_value = source or _source()
@@ -157,7 +166,13 @@ class _Setup:
             PronunciationTarget(),
             TTSTarget(),
         ]
-        generation_cards = GenerationCards(self.candidate_repo, self.occurrence_repo)
+        decided_elsewhere = MagicMock()
+        decided_elsewhere.of_lemmas.side_effect = lambda lemmas: {
+            lemma: (elsewhere or {}).get(lemma) for lemma in lemmas
+        }
+        generation_cards = GenerationCards(
+            self.candidate_repo, self.occurrence_repo, decided_elsewhere,
+        )
         self.run = RunGenerationUseCase(
             source_repo=self.source_repo, cards=generation_cards,
             job_repo=self.job_repo, candidate_sorter=sorter, targets=targets, lock=self.lock,
@@ -325,6 +340,46 @@ class TestGenerationByPhrase:
         assert setup.run.execute(
             SOURCE_ID, GenerationKind.PRONUNCIATION, GenerationScope.MISSING,
         ) == 0
+
+
+@pytest.mark.unit
+class TestCardsNobodyDecidesOn:
+    def _learned_with_a_sibling(self) -> _Setup:
+        return _Setup([(
+            _word(1, CandidateStatus.LEARN),
+            [_phrase(1, 0, decision=DecisionKind.LEARN), _phrase(1, 1)],
+        )])
+
+    def test_only_the_decision_card_of_a_learned_word_gets_generation(self) -> None:
+        setup = self._learned_with_a_sibling()
+
+        setup.run.execute(SOURCE_ID, GenerationKind.MEANING, GenerationScope.MISSING)
+
+        assert setup.queued_phrases() == [10]
+
+    def test_the_status_counts_only_the_decision_card(self) -> None:
+        meaning = self._learned_with_a_sibling().kind_status(GenerationKind.MEANING)
+
+        assert (meaning.total, meaning.missing) == (1, 1)
+
+    def test_a_cloze_decision_card_gets_generation(self) -> None:
+        setup = _Setup([
+            (_word(1, CandidateStatus.LEARN), [_phrase(1, decision=DecisionKind.CLOZE)]),
+        ])
+
+        setup.run.execute(SOURCE_ID, GenerationKind.MEANING, GenerationScope.MISSING)
+
+        assert setup.queued_phrases() == [10]
+
+    @pytest.mark.parametrize("elsewhere", [Elsewhere.KNOWN, Elsewhere.LEARNING])
+    def test_a_card_decided_elsewhere_gets_nothing(self, elsewhere: Elsewhere) -> None:
+        setup = _Setup([_one(1), _one(2)], elsewhere={"stale1": elsewhere})
+
+        setup.run.execute(SOURCE_ID, GenerationKind.MEANING, GenerationScope.MISSING)
+
+        assert setup.queued_phrases() == [20]
+        meaning = setup.kind_status(GenerationKind.MEANING)
+        assert meaning.total == 1
 
 
 @pytest.mark.unit

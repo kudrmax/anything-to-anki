@@ -5,7 +5,7 @@ import os
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from backend.application.utils.media_names import AUDIO_FILE, SCREENSHOT_FILE, phrase_file
+from backend.application.utils.media_names import AUDIO_FILE, SCREENSHOT_FILE
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.exceptions import (
     BadVideoFormatError,
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from backend.application.utils.job_phrases import JobPhrases
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.media_extractor import MediaExtractor
+    from backend.domain.ports.media_files import MediaFiles
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.video_path_resolver import VideoPathResolver
     from backend.domain.value_objects.phrase_ref import PhraseRef
@@ -39,14 +40,14 @@ class MediaExtractionUseCase:
         media_repo: CandidateMediaRepository,
         source_repo: SourceRepository,
         media_extractor: MediaExtractor,
-        media_root: str,
+        media_files: MediaFiles,
         video_path_resolver: VideoPathResolver,
     ) -> None:
         self._job_phrases = job_phrases
         self._media_repo = media_repo
         self._source_repo = source_repo
         self._media_extractor = media_extractor
-        self._media_root = media_root
+        self._media_files = media_files
         self._video_path_resolver = video_path_resolver
 
     def execute_one(self, phrase: PhraseRef) -> None:
@@ -70,25 +71,27 @@ class MediaExtractionUseCase:
 
         start_ms = media.start_ms
         end_ms = media.end_ms
-        screenshot_path = phrase_file(
-            self._media_root, source.id, card.phrase_id, SCREENSHOT_FILE,
-        )
-        audio_path = phrase_file(self._media_root, source.id, card.phrase_id, AUDIO_FILE)
-
-        ts_ms = (start_ms + end_ms) // 2
-        # Transient errors (subprocess.TimeoutExpired, OSError) propagate → worker retries
-        self._media_extractor.extract_screenshot(resolved_video_path, ts_ms, screenshot_path)
-        self._media_extractor.extract_audio(
-            resolved_video_path, start_ms, end_ms, audio_path,
-            audio_track_index=source.audio_track_index,
-        )
-
-        if not self._job_phrases.holds(card):
-            return
+        screenshot = self._media_files.draft(source.id, card.phrase_id, SCREENSHOT_FILE)
+        audio = self._media_files.draft(source.id, card.phrase_id, AUDIO_FILE)
+        try:
+            ts_ms = (start_ms + end_ms) // 2
+            # Transient errors (subprocess.TimeoutExpired, OSError) propagate → worker retries
+            self._media_extractor.extract_screenshot(resolved_video_path, ts_ms, screenshot.path)
+            self._media_extractor.extract_audio(
+                resolved_video_path, start_ms, end_ms, audio.path,
+                audio_track_index=source.audio_track_index,
+            )
+            if not self._job_phrases.holds(card):
+                return
+            self._media_files.keep(screenshot)
+            self._media_files.keep(audio)
+        finally:
+            self._media_files.discard(screenshot)
+            self._media_files.discard(audio)
         self._media_repo.upsert_for_phrase(card.phrase_id, CandidateMedia(
             candidate_id=card.word_id,
-            screenshot_path=screenshot_path,
-            audio_path=audio_path,
+            screenshot_path=screenshot.final_path,
+            audio_path=audio.final_path,
             start_ms=start_ms,
             end_ms=end_ms,
             generated_at=datetime.now(tz=UTC),

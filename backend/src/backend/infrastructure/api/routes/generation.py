@@ -51,7 +51,9 @@ def enqueue_topic_generation(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except SourceNotTopicError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except (TopicTargetsAlreadyGeneratedError, GenerationAlreadyRunningError) as e:
+    except (
+        TopicTargetsAlreadyGeneratedError, GenerationAlreadyRunningError, SourceOperationBusyError,
+    ) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return {"status": "queued"}
 

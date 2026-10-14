@@ -179,8 +179,9 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
     Two-phase scan on startup:
     Phase 1: for each source_id directory in media_root, verify source exists in DB.
              If not, remove the directory entirely.
-    Phase 2: for each screenshot or clip in a valid source directory — `p{phrase_id}_{kind}.{ext}`
-             of a phrase, or `{candidate_id}_{kind}.{ext}` named before phrases — remove it
+    Phase 2: for each screenshot, clip or speech in a valid source directory —
+             `p{phrase_id}_{kind}.{ext}` of a phrase, or `{candidate_id}_{kind}.{ext}` named
+             before phrases — remove it
              only if no path column of the DB points at it and its phrase (or card) is gone.
              Files are never renamed: a word merged from several cards keeps the media of
              the others under their old ids, and the DB still points at them.
@@ -213,7 +214,7 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
         source_repo = SqlaSourceRepository(session)
         candidate_repo = SqlaCandidateRepository(session)
         referenced = _referenced_media_paths(session)
-        file_pattern = re.compile(r"^(p?)(\d+)_(screenshot|audio)\.")
+        file_pattern = re.compile(r"^(p?)(\d+)_(screenshot|audio|tts)\.")
 
         def owner_exists(prefix: str, owner_id: int) -> bool:
             if prefix == PHRASE_FILE_PREFIX:

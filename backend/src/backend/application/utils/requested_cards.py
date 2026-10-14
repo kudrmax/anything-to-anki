@@ -34,4 +34,5 @@ class RequestedCards:
         if phrase is None or word is None:
             raise PhraseNotFoundError(phrase_id)
         ensure_source_free(self._lock, word.source_id)
-        return GenerationCard(word, phrase)
+        # A card asked for by hand is made for whatever it is.
+        return GenerationCard(word, phrase, in_play=True)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.job import Job
 from backend.domain.exceptions import (
     GenerationAlreadyRunningError,
@@ -15,6 +16,7 @@ from backend.domain.value_objects.source_role import SourceRole
 
 if TYPE_CHECKING:
     from backend.domain.ports.job_repository import JobRepository
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.topic_target_repository import TopicTargetRepository
 
@@ -31,10 +33,12 @@ class EnqueueTopicGenerationUseCase:
         source_repo: SourceRepository,
         topic_target_repo: TopicTargetRepository,
         job_repo: JobRepository,
+        lock: SourceOperationLock,
     ) -> None:
         self._source_repo = source_repo
         self._topic_target_repo = topic_target_repo
         self._job_repo = job_repo
+        self._lock = lock
 
     def execute(self, source_id: int) -> None:
         source = self._source_repo.get_by_id(source_id)
@@ -42,6 +46,7 @@ class EnqueueTopicGenerationUseCase:
             raise SourceNotFoundError(source_id)
         if source.role is not SourceRole.TOPIC:
             raise SourceNotTopicError(source_id)
+        ensure_source_free(self._lock, source_id)
         if self._topic_target_repo.has_targets(source_id):
             raise TopicTargetsAlreadyGeneratedError(source_id)
         if self._job_repo.has_active_jobs_for_source(source_id, _TOPIC_JOB_TYPES):
