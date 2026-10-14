@@ -37,6 +37,7 @@ BENCH_LINES = ("I just witnessed", "this guy bench-pressing the moon.")
 CATCHING_UP = "We are catching up on the news."
 BROUGHT_UP = "She brought it up again."
 DONG = "The dong sounded twice."
+WITH_WIT = "Then, with that final display of wit."
 
 
 def _alembic_config(db_url: str) -> Config:
@@ -103,7 +104,7 @@ def _seed_old_cards(db_url: str) -> None:
             Paragraph(lines=tuple(Line(line) for line in BENCH_LINES), mode=ParagraphMode.FLOW),
             *(
                 Paragraph(lines=(Line(line),), mode=ParagraphMode.FLOW)
-                for line in (CATCHING_UP, BROUGHT_UP)
+                for line in (CATCHING_UP, BROUGHT_UP, WITH_WIT)
             ),
         )))
         second_bank = TWO_BANKS.rindex("bank")
@@ -138,6 +139,13 @@ def _seed_old_cards(db_url: str) -> None:
             target_position=_first_to_last(4, BROUGHT_UP, "brought", "up"),
         )
         _add_candidate(conn, 8, "dong", DONG, polished="The bell rang with a ding-dong.")
+        # A wrong old position: "wit" inside "with", not the word "wit" further on.
+        inside_with = WITH_WIT.index("with")
+        _add_candidate(
+            conn, 9, "wit", WITH_WIT, surface_form="wit",
+            phrase_position=_whole_line(5, WITH_WIT),
+            target_position=_span(5, inside_with, inside_with + len("wit")),
+        )
         # Old cloze numbers count words by spaces: "Well", "—", "she", "gave", "it", "up."
         conn.execute(text(
             "INSERT INTO candidate_clozes (candidate_id, hidden_word_indices, hint_kind, phrase)"
@@ -194,6 +202,12 @@ def test_multi_line_phrase_takes_its_target_from_the_document(db_url: str) -> No
     source, _ = _phrases(db_url)[5]
     assert source.text == "\n".join(BENCH_LINES)
     assert source.target_text() == "bench-pressing"
+
+
+def test_position_on_a_piece_of_a_word_is_not_trusted(db_url: str) -> None:
+    source, _ = _phrases(db_url)[9]
+    assert source.target_text() == "wit"
+    assert source.target == (len(source.words) - 1,)
 
 
 def test_three_word_phrasal_verb_targets_all_its_words(db_url: str) -> None:

@@ -113,8 +113,10 @@ def _carry_over(bind: Connection) -> None:
                 try:
                     spans = _target_spans(text, t_start - start, t_end - start)
                     phrase = reader.read(text, spans)
-                    counts["target_from_document"] += 1
-                    return _whole_target(phrase, row["lemma"])
+                    if _covers_words(phrase, t_start - start, t_end - start):
+                        counts["target_from_document"] += 1
+                        return _whole_target(phrase, row["lemma"])
+                    counts["position_inside_a_word"] += 1
                 except TargetNotInPhraseError:
                     pass
         found = by_lemma(text, row["surface_form"], row["lemma"])
@@ -174,6 +176,23 @@ def _whole_target(phrase: Phrase, lemma: str) -> Phrase:
     if len(found) <= len(phrase.target):
         return phrase
     return phrase.with_target(tuple(first + i for i in found))
+
+
+def _covers_words(phrase: Phrase, start: int, end: int) -> bool:
+    """The old position stands on whole words or on parts of them split by a hyphen or an
+    apostrophe ("bench" of "bench-pressing"), not on a piece of a word ("wit" of "with")."""
+    import re
+
+    for index in phrase.target:
+        word = phrase.words[index]
+        lo, hi = max(word.start, start), min(word.end, end)
+        if (lo, hi) == (word.start, word.end):
+            continue
+        piece = phrase.text[lo:hi]
+        parts = re.split(r"(?=['’])|-", phrase.text[word.start:word.end])
+        if piece not in parts:
+            return False
+    return True
 
 
 def _same_text(fragment: str, text: str) -> bool:
