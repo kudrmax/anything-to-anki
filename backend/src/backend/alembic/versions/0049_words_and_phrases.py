@@ -536,6 +536,9 @@ def _drop_card_columns() -> None:
         batch.add_column(
             sa.Column("known_added", sa.Boolean(), nullable=False, server_default="0"),
         )
+        batch.add_column(
+            sa.Column("was_unknown", sa.Boolean(), nullable=False, server_default="0"),
+        )
     with op.batch_alter_table("jobs") as batch:
         batch.create_foreign_key(
             "fk_jobs_phrase_id_phrases", "phrases", ["phrase_id"], ["id"], ondelete="CASCADE",

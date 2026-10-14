@@ -24,10 +24,16 @@ class CandidateRepository(ABC):
 
     @abstractmethod
     def set_word_status(
-        self, candidate_id: int, status: WordStatus, *, known_added: bool = False,
+        self,
+        candidate_id: int,
+        status: WordStatus,
+        *,
+        known_added: bool = False,
+        was_unknown: bool = False,
     ) -> None:
         """The decision on the word; the phrase of the decision is the phrases' business.
-        `known_added`: a Known decision that put the lemma into the user's Known."""
+        `known_added`: a Known decision that put the lemma into the user's Known;
+        `was_unknown`: the user had marked it unknown before that."""
 
     @abstractmethod
     def get_by_source(self, source_id: int) -> list[StoredCandidate]:

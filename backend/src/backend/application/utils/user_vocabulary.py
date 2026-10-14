@@ -55,6 +55,10 @@ class UserVocabulary:
         """Takes back a Known a card decision added; not the user removing it from Known."""
         self.__known.remove_by_lemma(lemma, pos)
 
+    def restore_unknown(self, lemma: str) -> None:
+        """Puts back an Unknown a card decision took away."""
+        self.__unknown.add(lemma)
+
     def start_learning(self, lemma: str) -> None:
         """A new Learn is a new intent: lifts an earlier removal from Known."""
         self.__removals.discard(lemma)

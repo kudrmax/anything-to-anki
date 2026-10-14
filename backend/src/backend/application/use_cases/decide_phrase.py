@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.word_decision import WordDecision
@@ -20,6 +21,18 @@ if TYPE_CHECKING:
     from backend.domain.services.card_decision import DecisionAction, DecisionOutcome
 
 DECIDED = frozenset({WordStatus.LEARN, WordStatus.KNOWN})
+
+
+@dataclass(frozen=True)
+class _KnownMark:
+    """What a Known decision changed in the user's lists, to take back when it is left:
+    it added the lemma to Known (`added`), taking it out of Unknown (`was_unknown`)."""
+
+    added: bool = False
+    was_unknown: bool = False
+
+
+_NO_MARK = _KnownMark()
 
 
 class DecidePhraseUseCase:
@@ -60,26 +73,32 @@ class DecidePhraseUseCase:
             self._decided_elsewhere.of(word.lemma) if before is WordStatus.PENDING else None
         )
         outcome = decide(occ, before, action, elsewhere)
-        known_added = self._adds_known(word, before, outcome.word_status)
-        self._write(occ, before, outcome, known_added)
-        self._follow(word, before, outcome.word_status, known_added)
+        mark = self._known_mark(word, before, outcome.word_status)
+        self._write(occ, before, outcome, mark)
+        self._follow(word, before, outcome.word_status, mark)
 
-    def _adds_known(self, word: StoredCandidate, before: WordStatus, after: WordStatus) -> bool:
-        """Whether the word's Known puts the lemma into the user's Known: not when the user
-        knew it before this decision (another source, the settings)."""
+    def _known_mark(
+        self, word: StoredCandidate, before: WordStatus, after: WordStatus,
+    ) -> _KnownMark:
+        """What the word's Known changes: nothing when the user knew the lemma before this
+        decision (another source, the settings)."""
         if after is not WordStatus.KNOWN:
-            return False
+            return _NO_MARK
         if before is WordStatus.KNOWN:
-            return word.known_added
-        return not self._vocabulary.is_known(word.lemma)
+            return _KnownMark(word.known_added, word.was_unknown)
+        vocabulary = self._vocabulary.snapshot()
+        if vocabulary.is_known(word.lemma):
+            return _NO_MARK
+        return _KnownMark(added=True, was_unknown=vocabulary.is_unknown(word.lemma))
 
     def _write(
-        self, occ: Occurrence, before: WordStatus, outcome: DecisionOutcome, known_added: bool,
+        self, occ: Occurrence, before: WordStatus, outcome: DecisionOutcome, mark: _KnownMark,
     ) -> None:
         assert occ.id is not None
         if outcome.word_status is not before:
             self._candidates.set_word_status(
-                occ.candidate_id, outcome.word_status, known_added=known_added,
+                occ.candidate_id, outcome.word_status,
+                known_added=mark.added, was_unknown=mark.was_unknown,
             )
         if (outcome.is_decision, outcome.decision_kind) != (occ.is_decision, occ.decision_kind):
             self._occurrences.set_decision(
@@ -91,17 +110,19 @@ class DecidePhraseUseCase:
             self._cloze_repo.delete_by_phrase_id(occ.id)
 
     def _follow(
-        self, word: StoredCandidate, before: WordStatus, after: WordStatus, known_added: bool,
+        self, word: StoredCandidate, before: WordStatus, after: WordStatus, mark: _KnownMark,
     ) -> None:
         """The review status changes with any action; knowledge (known or learning) only with
         the word's status, and then in every source showing the lemma."""
         if after is before:
             self._review_status.refresh(word.source_id)
             return
-        if known_added:
+        if mark.added:
             self._vocabulary.mark_known(word.lemma, word.pos)
         elif before is WordStatus.KNOWN and word.known_added:
             self._vocabulary.forget_known(word.lemma, word.pos)
+            if word.was_unknown:
+                self._vocabulary.restore_unknown(word.lemma)
         if after is WordStatus.LEARN:
             self._vocabulary.start_learning(word.lemma)
         self._remember_decision(word, before, after)

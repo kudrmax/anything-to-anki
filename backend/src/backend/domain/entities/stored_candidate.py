@@ -45,7 +45,8 @@ class StoredCandidate:
     frame of the phrase is in `media`.
 
     `known_added`: the word's Known decision put the lemma into the user's Known — undoing
-    it forgets the lemma; a lemma known before the decision stays known.
+    it forgets the lemma; a lemma known before the decision stays known. `was_unknown`: the
+    user had marked the lemma unknown before that Known — undoing it marks it unknown again.
 
     `phrase_position` places the source phrase in the source's document. A phrase
     that isn't there (an example, a topic's or a saved phrase) has none.
@@ -62,6 +63,7 @@ class StoredCandidate:
     status: CandidateStatus
     is_phrasal_verb: bool = False
     known_added: bool = False
+    was_unknown: bool = False
     # TRANSITIONAL(words-phrases): removed in Task 10
     meaning: CandidateMeaning | None = None
     media: CandidateMedia | None = None

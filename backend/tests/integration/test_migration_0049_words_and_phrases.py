@@ -268,7 +268,8 @@ def test_one_word_per_lemma_and_every_card_is_a_phrase(db_url: str) -> None:
 
 def test_no_old_known_word_claims_it_added_the_lemma_to_known(db_url: str) -> None:
     """Undoing an old Known never forgets the lemma: who added it is not known."""
-    assert _rows(db_url, "SELECT id FROM candidates WHERE known_added != 0") == []
+    marked = "SELECT id FROM candidates WHERE known_added != 0 OR was_unknown != 0"
+    assert _rows(db_url, marked) == []
 
 
 def test_duplicate_of_an_exported_card_becomes_its_manual_phrase(db_url: str) -> None:
