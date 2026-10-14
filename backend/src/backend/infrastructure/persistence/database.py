@@ -140,6 +140,20 @@ def reset_stuck_processing(session_factory: sessionmaker[Session]) -> None:
         session.close()
 
 
+def release_source_operations(session_factory: sessionmaker[Session]) -> None:
+    """No long operation survives a restart: every source is free again."""
+    from backend.infrastructure.persistence.sqla_source_operation_lock import (
+        SqlaSourceOperationLock,
+    )
+
+    session = session_factory()
+    try:
+        SqlaSourceOperationLock(session).clear_all()
+        session.commit()
+    finally:
+        session.close()
+
+
 def cleanup_enrichment_cache(session_factory: sessionmaker[Session]) -> None:
     """Delete all enrichment_cache rows on startup. Data is expendable."""
     from backend.infrastructure.persistence.sqla_enrichment_cache_repository import (
@@ -162,7 +176,9 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
     Phase 1: for each source_id directory in media_root, verify source exists in DB.
              If not, remove the directory entirely.
     Phase 2: for each `{candidate_id}_{kind}.{ext}` file in a valid source directory,
-             verify the candidate exists in DB. If not, remove the file.
+             verify the candidate exists in DB. If not, and no media row points at
+             the file, remove it. (A word merged from several cards keeps the media of
+             the others under their old ids.)
 
     Orphan DB paths (file missing but DB still has path) are handled by the
     runtime lazy reconciler, not here.
@@ -189,6 +205,7 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
     try:
         source_repo = SqlaSourceRepository(session)
         candidate_repo = SqlaCandidateRepository(session)
+        referenced = _referenced_media_paths(session)
         file_pattern = re.compile(r"^(\d+)_(screenshot|audio)\.")
 
         for entry in numeric_dirs:
@@ -206,8 +223,11 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
                 if not m:
                     continue  # unknown file, leave it
                 candidate_id = int(m.group(1))
-                if candidate_repo.get_by_id(candidate_id) is None:
-                    fpath = os.path.join(source_dir, fname)
+                fpath = os.path.join(source_dir, fname)
+                if (
+                    candidate_repo.get_by_id(candidate_id) is None
+                    and os.path.realpath(fpath) not in referenced
+                ):
                     try:
                         os.remove(fpath)
                         logger.info("Reconcile: removed orphan media file %s", fpath)
@@ -217,3 +237,19 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
                         )
     finally:
         session.close()
+
+
+def _referenced_media_paths(session: Session) -> set[str]:
+    """Every screenshot and clip a media row points at."""
+    from sqlalchemy import select
+
+    from backend.infrastructure.persistence.models import CandidateMediaModel
+
+    paths: set[str] = set()
+    for column in (CandidateMediaModel.screenshot_path, CandidateMediaModel.audio_path):
+        paths.update(
+            os.path.realpath(path)
+            for path in session.scalars(select(column).where(column.is_not(None)))
+            if path
+        )
+    return paths
