@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import zlib
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -15,6 +16,8 @@ from backend.infrastructure.persistence.models import DocumentParseModel
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session, sessionmaker
 
+logger = logging.getLogger(__name__)
+
 # Rows deleted per statement: far below SQLite's limit of bound parameters.
 DELETE_CHUNK_SIZE = 500
 
@@ -23,6 +26,7 @@ type _TokenRow = list[int | str | bool | list[int]]
 
 class SqlaParseCache(ParseCache):
     """Parses in `document_parses`: tokens as a JSON list of their fields, zlib-compressed.
+    A document keeps only the parse of the newest version; an unreadable parse is a miss.
 
     Every call is its own short transaction, so an analysis holds no lock on the database.
     """
@@ -36,13 +40,33 @@ class SqlaParseCache(ParseCache):
             data = stored.tokens if stored is not None else None
         if data is None:
             return None
-        return [_token(row) for row in json.loads(zlib.decompress(data))]
+        try:
+            return [_token(row) for row in json.loads(zlib.decompress(data))]
+        except (zlib.error, ValueError):
+            logger.warning(
+                "Parse cache: unreadable parse dropped (document_hash=%s, version=%s)",
+                document_hash, analyzer_version, exc_info=True,
+            )
+            self._drop(document_hash, analyzer_version)
+            return None
+
+    def _drop(self, document_hash: str, analyzer_version: str) -> None:
+        with self._session_factory() as session:
+            session.execute(delete(DocumentParseModel).where(
+                DocumentParseModel.document_hash == document_hash,
+                DocumentParseModel.analyzer_version == analyzer_version,
+            ))
+            session.commit()
 
     def put(self, document_hash: str, analyzer_version: str, tokens: list[TokenData]) -> None:
         data = zlib.compress(
             json.dumps([_row(token) for token in tokens], separators=(",", ":")).encode(),
         )
         with self._session_factory() as session:
+            session.execute(delete(DocumentParseModel).where(
+                DocumentParseModel.document_hash == document_hash,
+                DocumentParseModel.analyzer_version != analyzer_version,
+            ))
             session.execute(
                 insert(DocumentParseModel)
                 .values(

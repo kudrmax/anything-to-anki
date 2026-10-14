@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from backend.domain.ports.document_analyzer import AnalyzedDocument, DocumentAnalyzer
 from backend.domain.services.document_layout import DocumentLayout
+from backend.domain.value_objects.document import Paragraph, block_text
 
 if TYPE_CHECKING:
     from backend.domain.ports.parse_cache import ParseCache
@@ -14,9 +15,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Ends each part of the hashed input; it never occurs in a document's text.
+PART_END = "\0"
+
+
 def document_hash(document: Document) -> str:
-    """The document as the analyzer reads it: its plain text."""
-    return hashlib.sha256(document.text.encode()).hexdigest()
+    """The input the analyzer parses: each block's text with its kind and paragraph mode
+    (a paragraph of separate lines is parsed line by line)."""
+    digest = hashlib.sha256()
+    for block in document.blocks:
+        mode = block.mode.value if isinstance(block, Paragraph) else ""
+        digest.update(f"{type(block).__name__}:{mode}{PART_END}{block_text(block)}{PART_END}".encode())
+    return digest.hexdigest()
 
 
 class CachingDocumentAnalyzer(DocumentAnalyzer):

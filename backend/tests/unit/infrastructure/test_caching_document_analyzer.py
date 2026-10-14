@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import zlib
 from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.token_data import TokenData
 from backend.domain.ports.document_analyzer import AnalyzedDocument, DocumentAnalyzer
 from backend.domain.services.document_layout import DocumentLayout
-from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
+from backend.domain.value_objects.document import (
+    Document,
+    Heading,
+    Line,
+    Paragraph,
+    ParagraphMode,
+)
 from backend.infrastructure.adapters.caching_document_analyzer import (
     CachingDocumentAnalyzer,
     document_hash,
@@ -131,6 +138,56 @@ class TestCachingDocumentAnalyzer:
         assert row.document_hash == document_hash(document)
         assert row.analyzer_version == VERSION
         assert not row.tokens.startswith(b"[")
+
+
+    def test_old_version_of_a_parse_is_dropped_when_a_new_one_is_stored(
+        self, session_factory: sessionmaker[Session],
+    ) -> None:
+        document, other = _document("Glare hurts"), _document("Other text")
+        _analyzer(session_factory, _CountingAnalyzer()).analyze(document)
+        _analyzer(session_factory, _CountingAnalyzer()).analyze(other)
+
+        _analyzer(session_factory, _CountingAnalyzer(), NEW_VERSION).analyze(document)
+
+        with session_factory() as session:
+            rows = {
+                (row.document_hash, row.analyzer_version)
+                for row in session.scalars(select(DocumentParseModel))
+            }
+        assert rows == {
+            (document_hash(document), NEW_VERSION), (document_hash(other), VERSION),
+        }
+
+    @pytest.mark.parametrize("broken", [b"not zlib", zlib.compress(b"not json")])
+    def test_unreadable_parse_is_parsed_again_and_replaced(
+        self, session_factory: sessionmaker[Session], broken: bytes,
+    ) -> None:
+        document = _document("Glare hurts")
+        _analyzer(session_factory, _CountingAnalyzer()).analyze(document)
+        with session_factory() as session:
+            session.scalars(select(DocumentParseModel)).one().tokens = broken
+            session.commit()
+        inner = _CountingAnalyzer()
+
+        analyzed = _analyzer(session_factory, inner).analyze(document)
+        cached = _analyzer(session_factory, _CountingAnalyzer()).analyze(document)
+
+        assert inner.calls == 1
+        assert cached.tokens == analyzed.tokens
+
+
+@pytest.mark.unit
+class TestDocumentHash:
+    def test_paragraph_of_lines_and_flowing_text_are_different_inputs(self) -> None:
+        text_ = "Glare hurts"
+        lines = Document((Paragraph(lines=(Line(text_),), mode=ParagraphMode.LINES),))
+        flow = Document((Paragraph(lines=(Line(text_),), mode=ParagraphMode.FLOW),))
+        heading = Document((Heading(1, text_),))
+
+        assert len({document_hash(lines), document_hash(flow), document_hash(heading)}) == 3
+
+    def test_same_document_has_the_same_hash(self) -> None:
+        assert document_hash(_document("Glare hurts")) == document_hash(_document("Glare hurts"))
 
 
 @pytest.mark.unit
