@@ -71,6 +71,23 @@ class SqlaCandidateRepository(CandidateRepository):
         )
         return result or 0
 
+    def count_by_source_and_status(self) -> dict[int, dict[CandidateStatus, int]]:
+        from backend.domain.value_objects.candidate_status import CandidateStatus
+
+        rows = (
+            self._session.query(
+                StoredCandidateModel.source_id,
+                StoredCandidateModel.status,
+                func.count(StoredCandidateModel.id),
+            )
+            .group_by(StoredCandidateModel.source_id, StoredCandidateModel.status)
+            .all()
+        )
+        counts: dict[int, dict[CandidateStatus, int]] = {}
+        for source_id, status, count in rows:
+            counts.setdefault(source_id, {})[CandidateStatus(status)] = count
+        return counts
+
     def count_all(self) -> int:
         result = self._session.query(func.count(StoredCandidateModel.id)).scalar()
         return result or 0

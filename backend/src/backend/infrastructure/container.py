@@ -453,6 +453,7 @@ class Container:
         return ListCollectionsUseCase(
             collection_repo=SqlaCollectionRepository(session),
             source_repo=SqlaSourceRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
             generation_probe=self._generation_probe(session),
         )
 
