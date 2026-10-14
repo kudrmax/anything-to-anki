@@ -10,6 +10,7 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 
+from tests.phrase_support import phrase
 from tests.vocabulary_support import user_vocabulary
 
 
@@ -41,7 +42,7 @@ def _make_candidate(
         pos=pos,
         cefr_level="B2",
         zipf_frequency=3.5,
-        context_fragment="a test fragment",
+        source_phrase=phrase("a test fragment", "test"),
         occurrences=1,
         status=status,
     )

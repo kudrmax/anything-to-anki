@@ -10,6 +10,7 @@ from backend.application.use_cases.regenerate_candidate_media import (
 from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
+
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:

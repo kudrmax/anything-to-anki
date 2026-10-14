@@ -19,6 +19,8 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
 
+from tests.phrase_support import phrase
+
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
@@ -49,7 +51,7 @@ def test_replacement_keeps_cefr_level_after_reload(db_session: Session, source_i
             pos="NOUN",
             cefr_level="B1",
             zipf_frequency=4.0,
-            context_fragment="in advance of the meeting",
+            source_phrase=phrase("in advance of the meeting", "advance"),
             occurrences=1,
             status=CandidateStatus.PENDING,
             cefr_breakdown=_breakdown(),
@@ -58,14 +60,19 @@ def test_replacement_keeps_cefr_level_after_reload(db_session: Session, source_i
     ])[0]
     assert original.id is not None
 
-    result = ReplaceWithExampleUseCase(candidate_repo=repo, review_status=MagicMock()).execute(
-        candidate_id=original.id, example_text="She paid in advance.",
+    reader = MagicMock()
+    reader.read_for.side_effect = lambda text, lemma: phrase(text, lemma)
+    use_case = ReplaceWithExampleUseCase(
+        candidate_repo=repo, review_status=MagicMock(), phrase_reader=reader,
     )
+    result = use_case.execute(candidate_id=original.id, example_text="She paid in advance.")
     db_session.expire_all()
 
     reloaded = repo.get_by_id(result.id)
     assert reloaded is not None
     assert reloaded.cefr_level == "B1"
+    assert reloaded.source_phrase.text == "She paid in advance."
+    assert reloaded.source_phrase.target_text() == "advance"
     assert reloaded.cefr_breakdown is not None
     assert reloaded.cefr_breakdown.decision_method == "priority"
     assert reloaded.usage_distribution == UsageDistribution(groups=USAGE_GROUPS)

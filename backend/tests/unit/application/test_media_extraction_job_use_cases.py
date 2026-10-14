@@ -12,6 +12,7 @@ from backend.domain.exceptions import (
     PermanentMediaError,
 )
 from backend.domain.value_objects.candidate_status import CandidateStatus
+
 from tests.phrase_support import phrase
 
 

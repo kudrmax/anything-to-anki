@@ -5,24 +5,27 @@ import pytest
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.phrase_words import PhraseWord, PhraseWords
+from backend.domain.value_objects.phrase import Phrase
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.candidate_sorter_support import candidate_sorter
+from tests.phrase_support import phrase
 
 
 def _candidate(status: CandidateStatus, *, other_new_words: int = 0) -> StoredCandidate:
     return StoredCandidate(
         id=next(_IDS), source_id=7, lemma="pursuit", pos="NOUN", cefr_level="B2",
-        zipf_frequency=3.5, context_fragment="the pursuit of", occurrences=1, status=status,
-        phrase_words=PhraseWords(
-            phrase="the pursuit of",
-            words=tuple(PhraseWord(f"strange{i}", rare=True) for i in range(other_new_words)),
-        ),
+        zipf_frequency=3.5, occurrences=1, status=status,
+        source_phrase=_phrase(other_new_words),
     )
 
 
 _IDS = itertools.count(1)
+
+
+def _phrase(other_new_words: int) -> Phrase:
+    strange = [f"strange{i}" for i in range(other_new_words)]
+    return phrase(" ".join(["the pursuit of", *strange]), "pursuit", new=strange)
 
 
 def _source(status: SourceStatus) -> MagicMock:

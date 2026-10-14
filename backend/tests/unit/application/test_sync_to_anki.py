@@ -21,6 +21,7 @@ from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.phrase_support import phrase
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.unit.application.source_fakes import InMemorySourceRepository
@@ -64,7 +65,7 @@ def _make_candidate(
         pos="NOUN",
         cefr_level="B2",
         zipf_frequency=3.5,
-        context_fragment=f"context with {lemma} here",
+        source_phrase=phrase(f"context with {lemma} here", lemma),
         occurrences=1,
         status=status,
         meaning=meaning_obj,
@@ -297,7 +298,7 @@ class TestSyncToAnkiUseCase:
             pos=candidate.pos,
             cefr_level=candidate.cefr_level,
             zipf_frequency=candidate.zipf_frequency,
-            context_fragment=candidate.context_fragment,
+            source_phrase=candidate.source_phrase,
             occurrences=candidate.occurrences,
             status=candidate.status,
             meaning=candidate.meaning,
@@ -533,7 +534,7 @@ class TestSyncToAnkiUseCase:
             pos="NOUN",
             cefr_level="B2",
             zipf_frequency=3.5,
-            context_fragment="context with thug here",
+            source_phrase=phrase("context with thug here", "thug"),
             occurrences=1,
             status=CandidateStatus.LEARN,
             meaning=CandidateMeaning(

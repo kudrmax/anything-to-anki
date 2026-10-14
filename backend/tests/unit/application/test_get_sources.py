@@ -2,7 +2,6 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.get_sources import GetSourcesUseCase
-from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.application.utils.topic_generation import TopicGenerationProbe
 from backend.domain.entities.collection import Collection
@@ -17,6 +16,7 @@ from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.candidate_sorter_support import candidate_sorter
+from tests.phrase_support import phrase
 
 
 @pytest.mark.unit
@@ -46,7 +46,6 @@ class TestGetSourcesUseCase:
             generation_probe=TopicGenerationProbe(self.job_repo, self.topic_target_repo),
             report_repo=self.report_repo,
             anki_sync_repo=self.anki_sync_repo,
-            review_status=ReviewStatusUpdater(self.source_repo, self.candidate_repo, sorter),
         )
 
     def test_list_all(self) -> None:
@@ -73,7 +72,7 @@ class TestGetSourcesUseCase:
         # A source with a ready card left to decide is ready for review.
         self.candidate_repo.get_by_source.return_value = [StoredCandidate(
             id=1, source_id=1, lemma="word", pos="NOUN", cefr_level="B2",
-            zipf_frequency=4.0, context_fragment="ctx", occurrences=1,
+            zipf_frequency=4.0, source_phrase=phrase("a word", "word"), occurrences=1,
             status=CandidateStatus.PENDING,
         )]
 
@@ -136,7 +135,7 @@ class TestGetSourcesUseCase:
         ]
         make_candidate = lambda status: StoredCandidate(  # noqa: E731
             id=1, source_id=1, lemma="word", pos="NOUN", cefr_level="B2",
-            zipf_frequency=4.0, context_fragment="ctx",
+            zipf_frequency=4.0, source_phrase=phrase("a word", "word"),
             occurrences=1, status=status,
         )
         self.candidate_repo.get_by_source.return_value = [
@@ -150,8 +149,9 @@ class TestGetSourcesUseCase:
         assert result[0].learn_count == 2
         assert result[0].ready_count == 4
         assert result[0].ready_decided_count == 3
-        assert result[0].status == SourceStatus.PARTIALLY_REVIEWED.value
-        self.source_repo.update_status.assert_called_once_with(1, SourceStatus.PARTIALLY_REVIEWED)
+        # Status is settled when cards or known words change, not when sources are read.
+        assert result[0].status == SourceStatus.DONE.value
+        self.source_repo.update_status.assert_not_called()
 
     def test_get_by_id_found(self) -> None:
         self.source_repo.get_by_id.return_value = Source(
@@ -195,7 +195,7 @@ class TestGetSourcesUseCase:
         self.candidate_repo.get_by_source.return_value = [
             StoredCandidate(
                 id=cid, source_id=1, lemma=lemma, pos="NOUN", cefr_level="B2",
-                zipf_frequency=3.5, context_fragment=f"a {lemma}",
+                zipf_frequency=3.5, source_phrase=phrase(f"a {lemma}", lemma),
                 occurrences=1, status=CandidateStatus.LEARN,
             )
             for cid, lemma in [(1, "burnout"), (2, "lizard")]

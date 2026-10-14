@@ -27,10 +27,11 @@ _SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?…])\s+|\n+")
 
 @dataclass(frozen=True)
 class MarkedPhrase:
-    """A sentence and the target inside it."""
+    """A sentence and the target inside it: its text and where the bold parts stand."""
 
     text: str
     target: str
+    spans: tuple[tuple[int, int], ...]
 
 
 @dataclass(frozen=True)
@@ -42,15 +43,32 @@ class FoundSentence:
 
 
 def parse_marked_phrase(marked: str) -> MarkedPhrase | None:
-    """Split a sentence with a **bold** target into plain text and the target."""
-    match = _MARKED_TARGET.search(marked)
-    if match is None:
+    """Split a sentence with a **bold** target into plain text, the target and its place."""
+    text = ""
+    parts: list[str] = []
+    spans: list[tuple[int, int]] = []
+    position = 0
+    for match in _MARKED_TARGET.finditer(marked):
+        text += marked[position:match.start()]
+        part = match.group(1)
+        lead = len(part) - len(part.lstrip())
+        start = len(text) + lead
+        end = start + len(part.strip())
+        if end > start:
+            parts.append(part.strip())
+            spans.append((start, end))
+        text += part
+        position = match.end()
+    text += marked[position:]
+    stripped = text.strip()
+    if not spans or not stripped:
         return None
-    target = match.group(1).strip()
-    text = _MARKED_TARGET.sub(lambda m: m.group(1), marked).strip()
-    if not target or not text:
-        return None
-    return MarkedPhrase(text=text, target=target)
+    shift = len(text) - len(text.lstrip())
+    return MarkedPhrase(
+        text=stripped,
+        target=" ".join(parts),
+        spans=tuple((start - shift, end - shift) for start, end in spans),
+    )
 
 
 def _word_count(text: str) -> int:

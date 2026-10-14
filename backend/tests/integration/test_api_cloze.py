@@ -15,6 +15,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests.phrase_support import phrase
+
 GIVE_UP = "She finally gave up smoking last year."
 SOURCE_ID = 1
 CANDIDATE_ID = 1
@@ -38,11 +40,12 @@ def client() -> Generator[TestClient, None, None]:
     SqlaCandidateRepository(session).create_batch([
         StoredCandidate(
             source_id=source.id, lemma=lemma, pos="VERB", cefr_level="B1",
-            zipf_frequency=4.0, context_fragment=GIVE_UP,
-            occurrences=1, status=CandidateStatus.PENDING, surface_form=surface,
+            zipf_frequency=4.0,
+            source_phrase=phrase(GIVE_UP, lemma, lemmas={"gave": "give", "smoking": "smoke"}),
+            occurrences=1, status=CandidateStatus.PENDING,
             is_phrasal_verb=" " in lemma,
         )
-        for lemma, surface in [("give up", "gave up"), ("smoke", "smoking")]
+        for lemma in ["give up", "smoke"]
     ])
     session.add(AnkiSyncedCardModel(candidate_id=SYNCED_CANDIDATE_ID, anki_note_id=777))
     session.commit()

@@ -11,6 +11,7 @@ from backend.infrastructure.persistence.sqla_candidate_meaning_repository import
 )
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+
 from tests.phrase_support import phrase
 
 CTX = dump_phrase(phrase("ctx"))

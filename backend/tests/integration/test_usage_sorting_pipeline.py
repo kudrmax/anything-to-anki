@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
@@ -16,6 +17,7 @@ from backend.infrastructure.persistence.sqla_settings_repository import (
 )
 
 from tests.candidate_sorter_support import threshold_resolver
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -26,7 +28,9 @@ class TestUsageSortingPipeline:
     def test_usage_distribution_stored_and_sorted(self, db_session: Session) -> None:
         """Settings roundtrip for usage_group_order."""
         settings_repo = SqlaSettingsRepository(db_session)
-        settings_uc = ManageSettingsUseCase(settings_repo, threshold_resolver(settings_repo))
+        settings_uc = ManageSettingsUseCase(
+            settings_repo, threshold_resolver(settings_repo), MagicMock(),
+        )
         custom_order = [
             "informal",
             "neutral",
@@ -56,7 +60,7 @@ class TestUsageSortingPipeline:
             pos="JJ",
             cefr_level="B1",
             zipf_frequency=4.5,
-            context_fragment="that's cool",
+            source_phrase=phrase("that's cool", "cool"),
             occurrences=1,
             status=CandidateStatus.PENDING,
             usage_distribution=UsageDistribution({"neutral": 0.6, "informal": 0.4}),
@@ -76,7 +80,7 @@ class TestUsageSortingPipeline:
             pos="NN",
             cefr_level="B1",
             zipf_frequency=3.0,
-            context_fragment="some context",
+            source_phrase=phrase("some context"),
             occurrences=1,
             status=CandidateStatus.PENDING,
             usage_distribution=None,

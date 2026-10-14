@@ -10,9 +10,10 @@ from backend.domain.exceptions import CandidateNotFoundError, ImageSearchError
 from backend.domain.ports.settings_repository import SettingsRepository
 from backend.domain.ports.target_image_source import TargetImageSource
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from tests.phrase_support import phrase
 from backend.domain.value_objects.image_option import ImageOption
 from backend.domain.value_objects.image_provider import ImageProvider
+
+from tests.phrase_support import phrase
 
 pytestmark = pytest.mark.unit
 

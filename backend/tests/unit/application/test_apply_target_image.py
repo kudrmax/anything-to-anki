@@ -15,6 +15,7 @@ from backend.domain.ports.card_picture_encoder import CardPictureEncoder
 from backend.domain.ports.file_downloader import FileDownloader
 from backend.domain.ports.target_image_source import TargetImageSource
 from backend.domain.value_objects.candidate_status import CandidateStatus
+
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:

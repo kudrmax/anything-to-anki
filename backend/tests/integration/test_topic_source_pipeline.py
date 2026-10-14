@@ -31,6 +31,8 @@ from backend.infrastructure.persistence.sqla_topic_target_repository import (
     SqlaTopicTargetRepository,
 )
 
+from tests.phrase_support import phrase
+
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
@@ -78,9 +80,8 @@ def _add_memoir_with_candidate(session: Session) -> None:
             pos="VERB",
             cefr_level="B2",
             zipf_frequency=3.6,
-            context_fragment=MEMOIR_FRAGMENT,
+            source_phrase=phrase(MEMOIR_FRAGMENT, "negotiate"),
             occurrences=1,
-            surface_form="negotiate",
             status=CandidateStatus.PENDING,
         ),
     ])
@@ -98,8 +99,8 @@ def _add_topic(session: Session) -> int:
         ("salary", "My **salary** is paid every month."),
     ]
     SqlaTopicTargetRepository(session).create_batch([
-        TopicTarget(source_id=topic_id, position=i, phrase=phrase, example=example)
-        for i, (phrase, example) in enumerate(examples)
+        TopicTarget(source_id=topic_id, position=i, phrase=target, example=example)
+        for i, (target, example) in enumerate(examples)
     ])
     return topic_id
 
@@ -136,15 +137,18 @@ def test_topic_borrows_phrases_and_falls_back_to_generated(
     assert set(candidates) == {"negotiate", "meet halfway", "counter-offer"}
 
     negotiate = candidates["negotiate"]
-    assert negotiate.context_fragment == MEMOIR_FRAGMENT
+    assert negotiate.source_phrase.text == MEMOIR_FRAGMENT
+    assert negotiate.source_phrase.target_text() == "negotiate"
     assert negotiate.origin == PhraseOrigin.from_source("Memoir")
 
     meet_halfway = candidates["meet halfway"]
-    assert meet_halfway.context_fragment == "In the end we agreed to meet halfway on the price."
+    assert meet_halfway.source_phrase.text == "In the end we agreed to meet halfway on the price."
+    assert meet_halfway.source_phrase.target_text() == "meet halfway"
     assert meet_halfway.origin == PhraseOrigin.from_source("Novel")
 
     counter_offer = candidates["counter-offer"]
-    assert counter_offer.context_fragment == LATER_ARTICLE
+    assert counter_offer.source_phrase.text == LATER_ARTICLE
+    assert counter_offer.source_phrase.target_text() == "counter-offer"
     assert counter_offer.origin == PhraseOrigin.from_source("Subtitles")
 
     topic = SqlaSourceRepository(db_session).get_by_id(topic_id)
@@ -166,7 +170,7 @@ def test_reprocessing_picks_up_a_newly_added_source(
     process.execute(topic_id)
 
     counter_offer = _by_lemma(db_session, topic_id)["counter-offer"]
-    assert counter_offer.context_fragment == LATER_ARTICLE
+    assert counter_offer.source_phrase.text == LATER_ARTICLE
     assert counter_offer.origin == PhraseOrigin.from_source("Article")
 
 

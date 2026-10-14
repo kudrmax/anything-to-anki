@@ -8,9 +8,9 @@ from backend.application.use_cases.polish_phrases import PhrasePolishUseCase
 from backend.application.utils.rewrite_phrase import RewritePhrase
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.exceptions import TargetNotInPhraseError
 from backend.domain.services.phrase_building import target_by_lemma
+from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition

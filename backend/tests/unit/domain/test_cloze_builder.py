@@ -89,7 +89,8 @@ def test_cloze_text_uses_same_number_for_separated_parts() -> None:
 
 
 def test_cloze_text_keeps_inner_apostrophe_and_outer_quotes() -> None:
-    assert builder.cloze_text(phrase('He said "don\'t" twice'), (2,)) == 'He said "{{c1::don\'t}}" twice'
+    cloze = builder.cloze_text(phrase('He said "don\'t" twice'), (2,))
+    assert cloze == 'He said "{{c1::don\'t}}" twice'
 
 
 def test_cloze_text_escapes_anki_syntax() -> None:

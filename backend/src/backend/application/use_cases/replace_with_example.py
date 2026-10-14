@@ -43,7 +43,7 @@ class ReplaceWithExampleUseCase:
             raise CandidateNotFoundError(candidate_id)
         marked = parse_marked_phrase(stripped)
         phrase = (
-            self._phrase_reader.read_for(marked.text, marked.target)
+            self._phrase_reader.read(marked.text, marked.spans)
             if marked is not None
             else self._phrase_reader.read_for(stripped, original.lemma)
         )

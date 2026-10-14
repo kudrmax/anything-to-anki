@@ -11,6 +11,8 @@ from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_origin import PhraseOrigin
 
+from tests.phrase_support import phrase
+
 pytestmark = pytest.mark.unit
 
 
@@ -46,11 +48,12 @@ def test_collocation_lemma_is_lemmatised_phrase() -> None:
         _token(2, "decision", "decision", ws=""),
     ]
     candidate = _factory([context, surface]).build(
-        source_id=1, surface_form="made a decision", context_fragment="We made a decision",
+        source_id=1, phrase=phrase("We made a decision", "made a decision"),
         occurrences=1, origin=PhraseOrigin.generated(),
     )
     assert candidate.lemma == "make a decision"
-    assert candidate.surface_form == "made a decision"
+    assert candidate.source_phrase.text == "We made a decision"
+    assert candidate.source_phrase.target_text() == "made a decision"
     assert candidate.is_phrasal_verb is False
     assert candidate.cefr_level is None
     assert candidate.origin == PhraseOrigin.generated()
@@ -62,7 +65,7 @@ def test_noun_phrase_keeps_its_words() -> None:
         _token(1, "salaries", "salary", ws=""),
     ]
     candidate = _factory([surface, surface]).build(
-        source_id=1, surface_form="starting salaries", context_fragment="starting salaries",
+        source_id=1, phrase=phrase("starting salaries", "starting salaries"),
         occurrences=1,
     )
     assert candidate.lemma == "starting salaries"
@@ -72,10 +75,11 @@ def test_hyphenated_word_is_one_target() -> None:
     surface = [_token(0, "counter", "counter", ws=""), _token(1, "-", "-", punct=True, ws=""),
                _token(2, "offer", "offer", ws="")]
     candidate = _factory([surface, surface]).build(
-        source_id=1, surface_form="counter-offer", context_fragment="counter-offer",
+        source_id=1, phrase=phrase("counter-offer", "counter-offer"),
         occurrences=1,
     )
     assert candidate.lemma == "counter-offer"
+    assert candidate.source_phrase.target == (0,)
 
 
 def test_separated_phrasal_verb_picked_by_its_parts() -> None:
@@ -88,7 +92,8 @@ def test_separated_phrasal_verb_picked_by_its_parts() -> None:
         ),
     ]
     candidate = factory.build(
-        source_id=1, surface_form="give up", context_fragment="give it up", occurrences=1,
+        source_id=1, phrase=phrase("give it up", "give up"), occurrences=1,
     )
     assert candidate.lemma == "give up"
     assert candidate.is_phrasal_verb is True
+    assert candidate.source_phrase.target == (0, 2)

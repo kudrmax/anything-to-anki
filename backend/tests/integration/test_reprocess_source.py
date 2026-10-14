@@ -33,8 +33,12 @@ from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
 )
 
+from tests.phrase_support import phrase
+
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
+SENTENCE = "She tends to procrastinate when facing deadlines."
 
 
 def _create_processed_source(db_session: Session) -> int:
@@ -56,7 +60,7 @@ def _create_processed_source(db_session: Session) -> int:
             pos="VERB",
             cefr_level="C1",
             zipf_frequency=3.2,
-            context_fragment="She tends to procrastinate when facing deadlines.",
+            source_phrase=phrase(SENTENCE, "procrastinate"),
             occurrences=1,
             status=CandidateStatus.LEARN,
         ),
@@ -66,7 +70,7 @@ def _create_processed_source(db_session: Session) -> int:
             pos="NOUN",
             cefr_level="B2",
             zipf_frequency=4.5,
-            context_fragment="She tends to procrastinate when facing deadlines.",
+            source_phrase=phrase(SENTENCE, "deadlines"),
             occurrences=1,
             status=CandidateStatus.KNOWN,
         ),
@@ -76,7 +80,7 @@ def _create_processed_source(db_session: Session) -> int:
             pos="VERB",
             cefr_level="A2",
             zipf_frequency=5.1,
-            context_fragment="She tends to procrastinate when facing deadlines.",
+            source_phrase=phrase(SENTENCE, "tends"),
             occurrences=1,
             status=CandidateStatus.SKIP,
         ),
@@ -275,7 +279,7 @@ def test_finalize_restores_enrichment(db_session: Session) -> None:
             pos="VERB",
             cefr_level="C2",
             zipf_frequency=3.2,
-            context_fragment="She tends to procrastinate when facing deadlines.",
+            source_phrase=phrase(SENTENCE, "procrastinate"),
             occurrences=1,
             status=CandidateStatus.PENDING,
         ),

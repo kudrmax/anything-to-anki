@@ -109,12 +109,12 @@ def _carry_over(bind: Connection) -> None:
         if layout is not None and place is not None and target is not None:
             start, _ = layout.span(place)
             t_start, t_end = layout.span(target)
-            if layout.fragment(place) == text:
+            if _same_text(layout.fragment(place), text):
                 try:
                     spans = _target_spans(text, t_start - start, t_end - start)
                     phrase = reader.read(text, spans)
                     counts["target_from_document"] += 1
-                    return phrase
+                    return _whole_target(phrase, row["lemma"])
                 except TargetNotInPhraseError:
                     pass
         found = by_lemma(text, row["surface_form"], row["lemma"])
@@ -162,6 +162,24 @@ def _carry_over(bind: Connection) -> None:
                     counts["cloze_moved"] += 1
                     break
     logger.info("0048: carried %d cards over: %s", len(rows), dict(counts))
+
+
+def _whole_target(phrase: Phrase, lemma: str) -> Phrase:
+    """The old position kept only the target's first and last words; the middle of
+    "catch up on" is found by the lemma between them."""
+    from backend.domain.services.phrase_building import target_by_lemma
+
+    first, last = phrase.target[0], phrase.target[-1]
+    found = target_by_lemma(phrase.words[first:last + 1], phrase.text, lemma)
+    if len(found) <= len(phrase.target):
+        return phrase
+    return phrase.with_target(tuple(first + i for i in found))
+
+
+def _same_text(fragment: str, text: str) -> bool:
+    """The document joins a phrase's lines with spaces where the old phrase kept line
+    breaks; the characters still stand in the same places."""
+    return len(fragment) == len(text) and fragment.split() == text.split()
 
 
 def _target_spans(text: str, start: int, end: int) -> list[tuple[int, int]]:

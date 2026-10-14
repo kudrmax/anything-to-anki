@@ -19,6 +19,7 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
 )
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:

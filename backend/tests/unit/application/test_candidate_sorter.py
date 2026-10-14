@@ -7,6 +7,7 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.document_position import DocumentPosition
 
 from tests.candidate_sorter_support import candidate_sorter
+from tests.phrase_support import phrase
 
 SOURCE_TEXT = "The scythe was sharp. The feast was long. A scythe again."
 
@@ -21,7 +22,7 @@ def _make(
         pos="NOUN",
         cefr_level="B2",
         zipf_frequency=zipf,
-        context_fragment=fragment,
+        source_phrase=phrase(fragment, lemma, new=(lemma,)),
         occurrences=occurrences,
         status=CandidateStatus.PENDING,
         is_phrasal_verb=False,

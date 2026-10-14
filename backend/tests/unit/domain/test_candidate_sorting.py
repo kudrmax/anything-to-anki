@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.services.candidate_sections import extra_words, section_of
+from backend.domain.services.candidate_sections import new_words, section_of
 from backend.domain.services.candidate_sorting import (
     decided_last,
     sort_by_key_words,
@@ -11,11 +13,26 @@ from backend.domain.services.candidate_sorting import (
 )
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
-from backend.domain.value_objects.phrase_words import PhraseWord, PhraseWords
 from backend.domain.value_objects.usage_distribution import UsageDistribution
+from backend.domain.value_objects.user_knowledge import UserKnowledge
 from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY, Vocabulary
+
+from tests.phrase_support import phrase
+
+if TYPE_CHECKING:
+    from backend.domain.value_objects.phrase import Phrase
+
+FREQUENT_ZIPF = 4.5
+
+
+def _knowledge(vocabulary: Vocabulary = EMPTY_VOCABULARY) -> UserKnowledge:
+    return UserKnowledge(vocabulary, CEFRLevel.B1, FREQUENT_ZIPF)
+
+
+KNOWLEDGE = _knowledge()
 
 
 def _make(
@@ -38,16 +55,18 @@ def _make(
         pos=pos,
         cefr_level=cefr,
         zipf_frequency=zipf,
-        context_fragment=context_fragment or f"context for {lemma}",
-        phrase_words=PhraseWords(
-            phrase=context_fragment or f"context for {lemma}",
-            words=tuple(PhraseWord(lemma=f"strange{i}", rare=True) for i in range(unknowns)),
-        ),
+        source_phrase=_phrase(lemma, context_fragment, unknowns),
         occurrences=occurrences,
         status=CandidateStatus.PENDING,
         is_phrasal_verb=is_phrasal_verb,
         usage_distribution=usage_distribution,
     )
+
+
+def _phrase(lemma: str, context_fragment: str, unknowns: int) -> Phrase:
+    strange = [f"strange{i}" for i in range(unknowns)]
+    text = " ".join([context_fragment or f"context for {lemma}", *strange])
+    return phrase(text, lemma, new=strange)
 
 
 @pytest.mark.unit
@@ -271,7 +290,9 @@ class TestSortByRelevanceGroups:
     THRESHOLD = FrequentWordThreshold.from_key("4.5")
 
     def _lemmas(self, candidates: list[StoredCandidate]) -> list[str]:
-        result = sort_by_relevance(candidates, frequent_threshold=self.THRESHOLD)
+        result = sort_by_relevance(
+            candidates, frequent_threshold=self.THRESHOLD, knowledge=KNOWLEDGE,
+        )
         return [c.lemma for c in result]
 
     def test_too_frequent_word_goes_below_rarer_one(self) -> None:
@@ -328,7 +349,9 @@ class TestSortByKeyWords:
     THRESHOLD = FrequentWordThreshold.from_key("4.5")
 
     def _lemmas(self, candidates: list[StoredCandidate]) -> list[str]:
-        result = sort_by_key_words(candidates, frequent_threshold=self.THRESHOLD)
+        result = sort_by_key_words(
+            candidates, frequent_threshold=self.THRESHOLD, knowledge=KNOWLEDGE,
+        )
         return [c.lemma for c in result]
 
     def test_more_occurrences_go_first(self) -> None:
@@ -354,8 +377,10 @@ class TestSortByKeyWords:
     def test_cleaner_phrase_goes_first_on_equal_word(self) -> None:
         dirty = _make("scythe", 2.6, occurrences=5, unknowns=1)
         clean = _make("scythe", 2.6, occurrences=5)
-        result = sort_by_key_words([dirty, clean], frequent_threshold=self.THRESHOLD)
-        assert [len(c.phrase_words.words) for c in result if c.phrase_words] == [0, 1]
+        result = sort_by_key_words(
+            [dirty, clean], frequent_threshold=self.THRESHOLD, knowledge=KNOWLEDGE,
+        )
+        assert [len(new_words(c, KNOWLEDGE)) for c in result] == [0, 1]
 
     def test_too_frequent_word_goes_below_even_if_repeated(self) -> None:
         frequent = _make("concept", 4.77, occurrences=9)
@@ -398,7 +423,7 @@ class TestSections:
         self, candidates: list[StoredCandidate], vocabulary: Vocabulary = EMPTY_VOCABULARY,
     ) -> list[str]:
         result = sort_by_relevance(
-            candidates, frequent_threshold=self.THRESHOLD, vocabulary=vocabulary,
+            candidates, frequent_threshold=self.THRESHOLD, knowledge=_knowledge(vocabulary),
         )
         return [c.lemma for c in result]
 
@@ -423,29 +448,28 @@ class TestSections:
 
     def test_unknown_word_holds_phrase_back_even_if_common(self) -> None:
         held = _make("scythe", 2.6)
-        held.phrase_words = PhraseWords(
-            phrase="context for scythe", words=(PhraseWord(lemma="context", rare=False),),
-        )
         ready = _make("feast", 3.95)
         unknown = Vocabulary.of(known=set(), unknown={"context"})
         assert self._lemmas([held, ready], unknown) == ["feast", "scythe"]
 
     def test_section_of_each_kind(self) -> None:
         threshold = self.THRESHOLD
-        assert section_of(_make("feast", 3.95), EMPTY_VOCABULARY, threshold) is (
+        assert section_of(_make("feast", 3.95), KNOWLEDGE, threshold) is (
             CandidateSection.READY
         )
-        assert section_of(_make("scythe", 2.6, unknowns=1), EMPTY_VOCABULARY, threshold) is (
+        assert section_of(_make("scythe", 2.6, unknowns=1), KNOWLEDGE, threshold) is (
             CandidateSection.EXTRA
         )
-        assert section_of(_make("concept", 4.77, unknowns=1), EMPTY_VOCABULARY, threshold) is (
+        assert section_of(_make("concept", 4.77, unknowns=1), KNOWLEDGE, threshold) is (
             CandidateSection.PROBABLY_KNOWN
         )
 
-    def test_extra_words_are_listed_once(self) -> None:
+    def test_new_words_are_listed_once(self) -> None:
         candidate = _make("scythe", 2.6)
-        candidate.phrase_words = PhraseWords(
-            phrase="x",
-            words=(PhraseWord("grim", True), PhraseWord("grim", True), PhraseWord("the", False)),
-        )
-        assert extra_words(candidate, EMPTY_VOCABULARY) == ["grim"]
+        candidate.source_phrase = phrase("grim grim the scythe", "scythe", new=["grim"])
+        assert new_words(candidate, KNOWLEDGE) == ["grim"]
+
+    def test_new_target_is_not_an_extra_word(self) -> None:
+        candidate = _make("scythe", 2.6)
+        candidate.source_phrase = phrase("the scythe", "scythe", new=["scythe"])
+        assert new_words(candidate, KNOWLEDGE) == []

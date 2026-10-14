@@ -8,7 +8,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.domain.services.phrase_building import TokenFacts, target_by_lemma, word_spans, words_of
+from backend.domain.services.phrase_building import (
+    TokenFacts,
+    target_by_lemma,
+    word_spans,
+    words_of,
+)
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase import Phrase
 

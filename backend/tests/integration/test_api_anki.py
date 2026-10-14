@@ -7,14 +7,14 @@ import pytest
 from backend.application.utils.anki_note_settings import AnkiFieldNames
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.models import SourceModel, StoredCandidateModel
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
+
+from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -62,31 +62,6 @@ def db_session(client: TestClient) -> Generator[Session, None, None]:
     yield session
     session.close()
     engine.dispose()
-
-
-def _seed_source_with_candidate(
-    session: Session,
-    lemma: str = "burnout",
-    status: str = "learn",
-) -> tuple[int, int]:
-    """Insert a source + one candidate directly into the DB. Returns (source_id, candidate_id)."""
-    source = SourceModel(title="test text", status=SourceStatus.DONE.value)
-    session.add(source)
-    session.flush()
-
-    candidate = StoredCandidateModel(
-        source_id=source.id,
-        lemma=lemma,
-        pos="NOUN",
-        zipf_frequency=3.5,
-        is_sweet_spot=True,
-        context_fragment=f"context with {lemma} here",
-        occurrences=1,
-        status=status,
-    )
-    session.add(candidate)
-    session.commit()
-    return source.id, candidate.id
 
 
 _DEFAULT_CLOZE_FIELDS = AnkiFieldNames.read(MagicMock(**{"get.return_value": None})).cloze_fields()
@@ -245,7 +220,7 @@ class TestSyncToAnkiAPI:
                     StoredCandidate(
                         id=1, source_id=source_id, lemma="burnout", pos="NOUN",
                         cefr_level="B2", zipf_frequency=3.5,
-                        context_fragment="burnout is exhausting",
+                        source_phrase=phrase("burnout is exhausting", "burnout"),
                         occurrences=1, status=CandidateStatus.LEARN,
                     )
                 ],
@@ -276,7 +251,7 @@ class TestSyncToAnkiAPI:
                 StoredCandidate(
                     id=1, source_id=source_id, lemma="burnout", pos="NOUN",
                     cefr_level="B2", zipf_frequency=3.5,
-                    context_fragment="burnout is exhausting",
+                    source_phrase=phrase("burnout is exhausting", "burnout"),
                     occurrences=1, status=CandidateStatus.LEARN,
                 )
             ],

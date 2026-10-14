@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, InstanceOf, field_validator
 
 from backend.application.dto.cefr_dtos import CEFRBreakdownDTO
 from backend.application.dto.document_dtos import DocumentPositionDTO
@@ -42,7 +42,7 @@ class WordCandidateDTO(BaseModel):
     cefr_level: str | None
     zipf_frequency: float
     is_sweet_spot: bool
-    phrase: Phrase
+    phrase: InstanceOf[Phrase]
     occurrences: int
     is_phrasal_verb: bool = False
     cefr_breakdown: CEFRBreakdownDTO | None = None

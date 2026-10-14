@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 _WORD = re.compile(r"(?:[^\W_]|['’-])+")
 _EDGE = "'’-"
 _LEMMA_SEPARATOR = " "
+_HYPHEN = "-"
 
 
 @dataclass(frozen=True)
@@ -79,14 +80,15 @@ def build_phrase(
 
 
 def target_by_lemma(words: Sequence[Word], text: str, lemma: str) -> tuple[int, ...]:
-    """The first place the target stands in the words, by dictionary form or as written:
-    "give up" finds "gave … up"; its parts in another order only when not in order.
-    Nothing when it is not there."""
+    """The first place the target stands in the words, by dictionary form, as written or
+    as a part of a hyphenated word: "give up" finds "gave … up", "dong" finds "ding-dong";
+    its parts in another order only when not in order. Nothing when it is not there."""
     wanted = lemma.lower().split(_LEMMA_SEPARATOR)
 
     def matches(index: int, part: str) -> bool:
         word = words[index]
-        return part in (word.lemma, text[word.start:word.end].lower())
+        written = text[word.start:word.end].lower()
+        return part in (word.lemma, written) or part in written.split(_HYPHEN)
 
     for first in range(len(words)):
         if not matches(first, wanted[0]):

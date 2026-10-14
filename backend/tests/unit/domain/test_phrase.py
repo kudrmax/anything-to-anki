@@ -108,6 +108,11 @@ class TestTargetByLemma:
         words = words_of(text, _tokens(text))
         assert target_by_lemma(words, text, "scatter") == ()
 
+    def test_finds_a_part_of_a_hyphenated_word(self) -> None:
+        text = "The bell rang with a ding-dong."
+        words = words_of(text, _tokens(text))
+        assert target_by_lemma(words, text, "dong") == (5,)
+
     def test_matches_the_word_as_written_too(self) -> None:
         text = "The pants are blue."
         words = words_of(text, _tokens(text, {"pants": "pant"}))

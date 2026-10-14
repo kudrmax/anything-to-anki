@@ -126,7 +126,10 @@ class TopicPhraseCollector:
                 target.id,
             )
             return None
-        phrase = self._phrase(example.text, example.target)
+        try:
+            phrase = self._phrase_reader.read(example.text, example.spans)
+        except TargetNotInPhraseError:
+            phrase = None
         if phrase is None:
             logger.warning(
                 "topic_phrase_collector: marked target not among the words (target_id=%s)",
