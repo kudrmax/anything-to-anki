@@ -61,9 +61,9 @@ export function CollectionTree(props: CollectionTreeProps) {
     if (e.key === 'Escape') finish(false)
   }
   /** Поле встаёт на место имени: стрелка, иконка и отступ остаются, строка не прыгает. */
-  const editorRow = (depth: 0 | 1, count?: number) => (
-    <div className={[css.row, depth === 1 && css.leaf, css.editing].filter(Boolean).join(' ')}>
-      {depth === 0 && <span className={css.twisty} />}
+  const editorRow = (count?: number) => (
+    <div className={`${css.row} ${css.editing}`}>
+      <span className={css.twisty} />
       <span className={css.icon}><Icon as={Folder} size="s" /></span>
       <input
         ref={armEditor}
@@ -87,10 +87,11 @@ export function CollectionTree(props: CollectionTreeProps) {
   }
   const carries = (e: DragEvent, mime: string) => e.dataTransfer.types.includes(mime)
 
-  /** Зона считается по самому событию: состояние hover могло не успеть обновиться. */
-  const zoneOf = (e: DragEvent, node: CollectionNode): DropZone => {
+  /** Зона считается по самому событию: состояние hover могло не успеть обновиться. Середина строки — «внутрь», только если туда можно. */
+  const zoneOf = (e: DragEvent, node: CollectionNode, draggedId: number): DropZone => {
     const box = e.currentTarget.getBoundingClientRect()
-    return zoneAt(e.clientY - box.top, box.height, node.accepts_collections)
+    const nestable = collectionDrop(tree.collections, draggedId, node.id, 'inside') !== null
+    return zoneAt(e.clientY - box.top, box.height, nestable)
   }
   // Переход курсора на дочерний элемент строки — не уход со строки.
   const leave = (e: DragEvent) => {
@@ -101,7 +102,7 @@ export function CollectionTree(props: CollectionTreeProps) {
   const overNode = (e: DragEvent, node: CollectionNode) => {
     if (carries(e, SOURCES_MIME)) { e.preventDefault(); setHover({ id: node.id, zone: 'inside' }); return }
     if (!carries(e, COLLECTION_MIME) || draggedId === null) return
-    const zone = zoneOf(e, node)
+    const zone = zoneOf(e, node, draggedId)
     if (!collectionDrop(tree.collections, draggedId, node.id, zone)) { setHover(null); return }
     e.preventDefault()
     setHover({ id: node.id, zone })
@@ -112,7 +113,7 @@ export function CollectionTree(props: CollectionTreeProps) {
     const sources = sourcesIn(e)
     if (sources) props.onDropSources(sources, node.id)
     else if (draggedId !== null) {
-      const target = collectionDrop(tree.collections, draggedId, node.id, zoneOf(e, node))
+      const target = collectionDrop(tree.collections, draggedId, node.id, zoneOf(e, node, draggedId))
       if (target) props.onMove(draggedId, target.parentId, target.position)
     }
     setHover(null)
@@ -126,10 +127,10 @@ export function CollectionTree(props: CollectionTreeProps) {
     onDelete: () => props.onDelete(node.id),
   })
 
-  const row = (node: CollectionNode, depth: 0 | 1) => {
+  const row = (node: CollectionNode) => {
     const selected = scope === node.id
     const zone = hover?.id === node.id ? hover.zone : null
-    const classes = [css.row, depth === 1 && css.leaf, selected && css.on, zone && css[zone]].filter(Boolean).join(' ')
+    const classes = [css.row, selected && css.on, zone && css[zone]].filter(Boolean).join(' ')
     const collapsed = isCollapsed(node.id)
     const renaming = editing?.kind === 'rename' && editing.id === node.id
     const hasChildren = node.children.length > 0
@@ -137,14 +138,14 @@ export function CollectionTree(props: CollectionTreeProps) {
     const stop = (e: { stopPropagation: () => void }) => e.stopPropagation()
     return (
       <div key={node.id}>
-        {renaming ? editorRow(depth, node.counts.total) : <div className={css.cell}>
+        {renaming ? editorRow(node.counts.total) : <div className={css.cell}>
           <Menu openOn="contextmenu" align="start" items={menuFor(node)} trigger={
             <div
               className={classes}
               role="treeitem"
               aria-selected={selected}
               aria-expanded={hasChildren ? !collapsed : undefined}
-              aria-level={depth + 1}
+              aria-level={node.depth}
               tabIndex={0}
               draggable={draggable}
               onClick={() => onSelect(node.id)}
@@ -156,7 +157,7 @@ export function CollectionTree(props: CollectionTreeProps) {
               onDragLeave={leave}
               onDrop={e => dropOnNode(e, node)}
             >
-              {depth === 0 && (hasChildren
+              {hasChildren
                 ? <button
                     type="button"
                     className={css.twisty}
@@ -165,7 +166,7 @@ export function CollectionTree(props: CollectionTreeProps) {
                     onDoubleClick={stop}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation() }}
                   ><Icon as={collapsed ? ChevronRight : ChevronDown} size="s" /></button>
-                : <span className={css.twisty} />)}
+                : <span className={css.twisty} />}
               <span className={css.icon}><Icon as={selected ? FolderOpen : Folder} size="s" /></span>
               <span className={css.name}>{node.name}</span>
               <span className={css.trail} onClick={stop} onDoubleClick={stop}>
@@ -186,8 +187,8 @@ export function CollectionTree(props: CollectionTreeProps) {
         </div>}
         {((hasChildren && !collapsed) || creatingInside) && (
           <div className={css.children} role="group">
-            {!collapsed && node.children.map(child => row(child, 1))}
-            {creatingInside && editorRow(1)}
+            {!collapsed && node.children.map(row)}
+            {creatingInside && editorRow()}
           </div>
         )}
       </div>
@@ -221,8 +222,8 @@ export function CollectionTree(props: CollectionTreeProps) {
         <span>Collections</span>
         <IconButton icon={Plus} label="New collection" onClick={() => startCreate(null)} />
       </div>
-      {tree.collections.map(node => row(node, 0))}
-      {editing?.kind === 'create' && editing.parentId === null && editorRow(0)}
+      {tree.collections.map(row)}
+      {editing?.kind === 'create' && editing.parentId === null && editorRow()}
       {tree.collections.length === 0 && editing === null && <p className={css.empty}>Group sources into collections and subcollections</p>}
     </nav>
   )

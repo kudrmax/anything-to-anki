@@ -10,9 +10,10 @@ const counts = { total: 3, reviewed: 1, pending: 0 }
 const tree: CollectionTree = {
   all: counts,
   unsorted: counts,
+  max_depth: 5,
   collections: [{
-    id: 10, name: 'Friends', parent_id: null, counts, accepts_collections: true, can_be_nested: false,
-    children: [{ id: 11, name: 'Season 1', parent_id: 10, counts, accepts_collections: false, can_be_nested: true, children: [] }],
+    id: 10, name: 'Friends', parent_id: null, counts, depth: 1, accepts_collections: true, move_targets: [null],
+    children: [{ id: 11, name: 'Season 1', parent_id: 10, counts, depth: 2, accepts_collections: true, move_targets: [null, 10], children: [] }],
   }],
 }
 

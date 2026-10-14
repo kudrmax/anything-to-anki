@@ -23,17 +23,14 @@ export function findNode(tree: CollectionNode[], id: number): CollectionNode | n
 const siblingsOf = (tree: CollectionNode[], parentId: number | null): CollectionNode[] =>
   parentId === null ? tree : findNode(tree, parentId)?.children ?? []
 
-/** Куда встанет перетаскиваемая коллекция; null — бросить нельзя (правила приходят флагами из backend). */
+/** Куда встанет перетаскиваемая коллекция; null — бросить нельзя: допустимых родителей перечисляет backend. */
 export function collectionDrop(tree: CollectionNode[], draggedId: number, overId: number, zone: DropZone): { parentId: number | null; position: number } | null {
   const dragged = findNode(tree, draggedId)
   const over = findNode(tree, overId)
   if (!dragged || !over || dragged.id === over.id) return null
-  if (zone === 'inside') {
-    if (!over.accepts_collections || !dragged.can_be_nested) return null
-    return { parentId: over.id, position: over.children.filter(c => c.id !== dragged.id).length }
-  }
-  const parentId = over.parent_id
-  if (parentId !== null && !dragged.can_be_nested) return null
+  const parentId = zone === 'inside' ? over.id : over.parent_id
+  if (!dragged.move_targets.includes(parentId)) return null
+  if (zone === 'inside') return { parentId, position: over.children.filter(c => c.id !== dragged.id).length }
   const siblings = siblingsOf(tree, parentId).filter(c => c.id !== dragged.id)
   const index = siblings.findIndex(c => c.id === over.id)
   return { parentId, position: zone === 'before' ? index : index + 1 }

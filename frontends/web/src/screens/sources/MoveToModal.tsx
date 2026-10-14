@@ -1,15 +1,16 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { Folder, FolderTree, Inbox, type LucideIcon } from 'lucide-react'
 import type { CollectionNode, CollectionTree } from '@/api/types'
+import { findNode } from '@/lib/treeDrop'
 import { Button, Field, Icon, Modal } from '@/ui'
 import css from './sources.module.css'
 
 interface MoveToModalProps {
   tree: CollectionTree
   title: string
-  /** Узел, которого нет среди целей: сама переносимая коллекция. */
+  /** Переносимая коллекция: её поддерева нет среди целей. */
   excludeId?: number
-  /** Переносим коллекцию: цели — верхний уровень и коллекции, принимающие подколлекции. */
+  /** Переносим коллекцию: цели — верхний уровень и коллекции, доступны только её move_targets. */
   collectionsOnly?: boolean
   onPick: (collectionId: number | null, name: string) => void
   onClose: () => void
@@ -18,7 +19,10 @@ interface MoveToModalProps {
 interface Target {
   id: number | null
   name: string
-  parent: string | null
+  /** Путь к цели при поиске, когда отступов нет. */
+  path: string[]
+  /** Уровень отступа в списке: Unsorted, Top level и верхний уровень — 0. */
+  indent: number
   icon: LucideIcon
   disabled: boolean
   current: boolean
@@ -27,35 +31,29 @@ interface Target {
 const TOP_LEVEL = 'Top level'
 const UNSORTED = 'Unsorted'
 
-function findNode(nodes: CollectionNode[], id: number): CollectionNode | undefined {
-  for (const node of nodes) {
-    if (node.id === id) return node
-    const child = findNode(node.children, id)
-    if (child) return child
-  }
-  return undefined
+/** Все коллекции в порядке дерева, без поддерева исключённой. */
+function flatten(nodes: CollectionNode[], excludeId: number | undefined, path: string[] = []): { node: CollectionNode; path: string[] }[] {
+  return nodes
+    .filter(node => node.id !== excludeId)
+    .flatMap(node => [{ node, path }, ...flatten(node.children, excludeId, [...path, node.name])])
 }
 
 function targetsOf(tree: CollectionTree, excludeId: number | undefined, collectionsOnly: boolean): Target[] {
-  const target = (node: CollectionNode, parent: string | null, disabled = false, current = false): Target =>
-    ({ id: node.id, name: node.name, parent, icon: Folder, disabled, current })
-
+  const collections = flatten(tree.collections, excludeId)
   if (collectionsOnly) {
-    const moving = excludeId === undefined ? undefined : findNode(tree.collections, excludeId)
-    const nestable = moving?.can_be_nested ?? true
+    const moving = excludeId === undefined ? null : findNode(tree.collections, excludeId)
+    const allowed = (id: number | null) => moving?.move_targets.includes(id) ?? true
+    const current = (id: number | null) => moving !== null && moving.parent_id === id
     return [
-      { id: null, name: TOP_LEVEL, parent: null, icon: FolderTree, disabled: false, current: moving?.parent_id === null },
-      ...tree.collections
-        .filter(node => node.accepts_collections && node.id !== excludeId)
-        .map(node => target(node, null, !nestable, node.id === moving?.parent_id)),
+      { id: null, name: TOP_LEVEL, path: [], indent: 0, icon: FolderTree, disabled: !allowed(null), current: current(null) },
+      ...collections.map(({ node, path }) => ({
+        id: node.id, name: node.name, path, indent: node.depth - 1, icon: Folder, disabled: !allowed(node.id), current: current(node.id),
+      })),
     ]
   }
   return [
-    { id: null, name: UNSORTED, parent: null, icon: Inbox, disabled: false, current: false },
-    ...tree.collections.filter(node => node.id !== excludeId).flatMap(node => [
-      target(node, null),
-      ...node.children.filter(child => child.id !== excludeId).map(child => target(child, node.name)),
-    ]),
+    { id: null, name: UNSORTED, path: [], indent: 0, icon: Inbox, disabled: false, current: false },
+    ...collections.map(({ node, path }) => ({ id: node.id, name: node.name, path, indent: node.depth - 1, icon: Folder, disabled: false, current: false })),
   ]
 }
 
@@ -114,12 +112,12 @@ export function MoveToModal({ tree, title, excludeId, collectionsOnly = false, o
         onChange={e => onSearch(e.target.value)}
         onKeyDown={onKeyDown}
       />
-      {nestingBlocked && <p className={css.moveNote}>A collection with subcollections can only stay at the top level.</p>}
+      {nestingBlocked && <p className={css.moveNote}>Collections nest at most {tree.max_depth} levels deep.</p>}
       <div className={css.options} id={listId} role="listbox" aria-label={title}>
         {matches.length === 0 && <p className={css.moveEmpty}>Nothing matches “{search.trim()}”</p>}
         {matches.map((target, index) => {
-          const nested = target.parent !== null
-          const classes = [css.option, nested && !query && css.optionSub, index === cursor && css.optionOn].filter(Boolean).join(' ')
+          const classes = [css.option, index === cursor && css.optionOn].filter(Boolean).join(' ')
+          const indent = query ? 0 : target.indent
           return (
             <button
               key={target.id ?? 'root'}
@@ -131,12 +129,13 @@ export function MoveToModal({ tree, title, excludeId, collectionsOnly = false, o
               tabIndex={-1}
               disabled={target.disabled}
               className={classes}
+              style={{ '--indent': indent } as CSSProperties}
               onMouseMove={() => { if (!target.disabled && index !== cursor) setCursor(index) }}
               onClick={() => pick(target)}
             >
               <span className={css.optionIcon}><Icon as={target.icon} size="s" /></span>
               <span className={css.optionName}>
-                {nested && query && <span className={css.optionParent}>{target.parent} / </span>}
+                {query && target.path.length > 0 && <span className={css.optionParent}>{target.path.join(' / ')} / </span>}
                 {target.name}
               </span>
               {target.current && <span className={css.optionHint}>Current</span>}

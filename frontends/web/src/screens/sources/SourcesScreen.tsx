@@ -45,6 +45,14 @@ type Naming = { kind: 'rename'; node: CollectionNode } | { kind: 'create'; paren
 const sourcesWord = (n: number) => (n === 1 ? '1 source' : `${n} sources`)
 
 /** Путь узла для хлебных крошек: родитель, затем сам узел. */
+/** Путь к узлу для шапки: от корня к родителю. */
+function ancestorsOf(collections: CollectionNode[], node: CollectionNode): CollectionNode[] {
+  const parentOf = (child: CollectionNode) => child.parent_id === null ? null : findNode(collections, child.parent_id)
+  const path: CollectionNode[] = []
+  for (let parent = parentOf(node); parent; parent = parentOf(parent)) path.unshift(parent)
+  return path
+}
+
 export function SourcesScreen() {
   const [scope, setScope] = useScope()
   const [query, setQuery] = useState('')
@@ -110,6 +118,7 @@ export function SourcesScreen() {
   useEffect(() => nativeHost()?.onFileDrop(paths => navigate(ADD_PATH, { state: droppedFiles(paths) })), [navigate])
 
   const node = typeof scope === 'number' && tree ? findNode(tree.collections, scope) : null
+  const ancestors = tree && node ? ancestorsOf(tree.collections, node) : []
   const counts = node?.counts ?? (tree ? (scope === 'unsorted' ? tree.unsorted : tree.all) : NO_COUNTS)
   const title = node?.name ?? board.board?.title ?? (typeof scope === 'number' ? '' : SCOPE_TITLE[scope])
   const nameOf = (collectionId: number | null) =>
@@ -252,8 +261,8 @@ export function SourcesScreen() {
         <div className={css.main}>
           <ScopeHeader
             title={title}
-            parent={tree && node?.parent_id != null ? findNode(tree.collections, node.parent_id) : null}
-            onOpenParent={open}
+            ancestors={ancestors}
+            onOpenAncestor={open}
             counts={counts}
             node={node}
             processing={processingAll}
