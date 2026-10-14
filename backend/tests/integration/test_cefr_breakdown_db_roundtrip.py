@@ -75,7 +75,7 @@ class TestCEFRBreakdownDBRoundtrip:
             status=WordStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
         )
-        created = store_cards(repo._session, [candidate])
+        created = store_cards(db_session, [candidate])
         assert len(created) == 1
 
         loaded = repo.get_by_source(1)
@@ -99,7 +99,7 @@ class TestCEFRBreakdownDBRoundtrip:
             status=WordStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
         )
-        store_cards(repo._session, [candidate])
+        store_cards(db_session, [candidate])
 
         loaded = repo.get_by_source(1)[0]
         assert loaded.cefr_breakdown is not None
@@ -123,7 +123,7 @@ class TestCEFRBreakdownDBRoundtrip:
             status=WordStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
         )
-        store_cards(repo._session, [candidate])
+        store_cards(db_session, [candidate])
 
         loaded = repo.get_by_source(1)[0]
         bd = loaded.cefr_breakdown
@@ -148,7 +148,7 @@ class TestCEFRBreakdownDBRoundtrip:
             status=WordStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
         )
-        store_cards(repo._session, [candidate])
+        store_cards(db_session, [candidate])
 
         loaded = repo.get_by_source(1)[0]
         bd = loaded.cefr_breakdown
@@ -172,7 +172,7 @@ class TestCEFRBreakdownDBRoundtrip:
             status=WordStatus.PENDING,
             cefr_breakdown=None,
         )
-        store_cards(repo._session, [candidate])
+        store_cards(db_session, [candidate])
 
         loaded = repo.get_by_source(1)[0]
         assert loaded.cefr_breakdown is None
@@ -184,7 +184,6 @@ class TestCEFRBreakdownDBRoundtrip:
             StoredCandidateModel,
         )
 
-        repo = SqlaCandidateRepository(db_session)
         candidate = SeedWord(
             source_id=1,
             lemma="gone",
@@ -196,7 +195,7 @@ class TestCEFRBreakdownDBRoundtrip:
             status=WordStatus.PENDING,
             cefr_breakdown=_make_breakdown(),
         )
-        created = store_cards(repo._session, [candidate])
+        created = store_cards(db_session, [candidate])
         cid = created[0].id
 
         # Verify breakdown exists
@@ -230,7 +229,7 @@ class TestCEFRBreakdownDBRoundtrip:
             status=WordStatus.PENDING,
             cefr_breakdown=_make_breakdown(),  # Cambridge knows B1
         )
-        store_cards(repo._session, [candidate])
+        store_cards(db_session, [candidate])
 
         loaded = repo.get_by_source(1)[0]
         # Runtime resolver sees Cambridge=B1 → final_level=B1, NOT stored "C2"

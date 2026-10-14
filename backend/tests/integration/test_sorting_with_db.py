@@ -74,8 +74,7 @@ class TestSortingWithDb:
     """Verify that candidates survive DB roundtrip and sort correctly."""
 
     def test_relevance_sort_after_db_roundtrip(self, db_session: Session) -> None:
-        repo = SqlaCandidateRepository(db_session)
-        store_cards(repo._session, [
+        store_cards(db_session, [
             _make_candidate(1, "dirty_word", 4.0, unknowns=2),
             _make_candidate(1, "rare_word", 2.0, cefr="C1"),
             _make_candidate(1, "common_word", 5.0, cefr="A2"),
@@ -90,8 +89,7 @@ class TestSortingWithDb:
         assert dirty.phrase == _make_candidate(1, "dirty_word", 4.0, unknowns=2).source_phrase
 
     def test_chronological_sort_after_db_roundtrip(self, db_session: Session) -> None:
-        repo = SqlaCandidateRepository(db_session)
-        store_cards(repo._session, [
+        store_cards(db_session, [
             _make_candidate(1, "third", 4.0, position=DocumentPosition(2, 0, 0, 0, 5)),
             _make_candidate(1, "first", 4.0, position=DocumentPosition(0, 1, 4, 1, 9)),
             _make_candidate(1, "second", 4.0, position=DocumentPosition(0, 2, 0, 2, 5)),
@@ -102,7 +100,7 @@ class TestSortingWithDb:
     def test_is_sweet_spot_computed_after_load(self, db_session: Session) -> None:
         """is_sweet_spot is computed from zipf, not read from DB column."""
         repo = SqlaCandidateRepository(db_session)
-        store_cards(repo._session, [
+        store_cards(db_session, [
             _make_candidate(1, "mid_word", 4.0),      # MID -> sweet spot
             _make_candidate(1, "common_word", 5.0),    # COMMON -> not sweet spot
         ])

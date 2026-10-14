@@ -12,7 +12,6 @@ from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import SourceModel
-from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
@@ -48,8 +47,7 @@ def client() -> Generator[TestClient, None, None]:
         source.id, Document((Paragraph(lines=(Line(text),), mode=ParagraphMode.FLOW),)),
     )
     phrase_start = text.index("the pursuit of")
-    repo = SqlaCandidateRepository(session)
-    store_cards(repo._session, [
+    store_cards(session, [
         SeedWord(
             source_id=source.id, lemma="pursuit", pos="NOUN",
             cefr_level="B2", zipf_frequency=3.5,

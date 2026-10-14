@@ -10,6 +10,8 @@ from backend.application.use_cases.get_source_document import GetSourceDocumentU
 from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.exceptions import InvalidPhraseError
+from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
+from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document import (
     Document,
     Heading,
@@ -135,3 +137,32 @@ def test_selection_across_blocks_is_rejected(db_session: Session, source_id: int
         _set_boundary(db_session).execute(candidate.phrase_id, SelectionDTO(
             start_block=0, start_line=0, start_char=0, end_block=1, end_line=0, end_char=5,
         ))
+
+
+def _breakdown(level: CEFRLevel) -> CEFRBreakdown:
+    vote = SourceVote(
+        source_name="Cambridge Dictionary", distribution={level: 1.0}, top_level=level,
+    )
+    return CEFRBreakdown(
+        final_level=level, decision_method="priority", priority_votes=[vote], votes=[],
+    )
+
+
+def test_a_mark_has_the_level_of_its_stored_breakdown(
+    db_session: Session, source_id: int,
+) -> None:
+    SqlaDocumentRepository(db_session).save(source_id, DOCUMENT)
+    rated, unrated, unknown = store_cards(db_session, [
+        replace(
+            _candidate(source_id, "pursuit", "pursuit"), cefr_breakdown=_breakdown(CEFRLevel.C1),
+        ),
+        _candidate(source_id, "give up", "gave up"),
+        replace(
+            _candidate(source_id, "happiness", "happiness"),
+            cefr_breakdown=_breakdown(CEFRLevel.UNKNOWN),
+        ),
+    ])
+
+    levels = {p.word_id: p.cefr_level for p in SqlaCardQuery(db_session).shown_places(source_id)}
+
+    assert levels == {rated.id: "C1", unrated.id: None, unknown.id: None}
