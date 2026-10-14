@@ -103,6 +103,7 @@
   --sources-cols: var(--tree-w) minmax(0, 1fr);
   --move-list-h: 360px;
   --tree-drop-line: 2px;
+  --stale-delay: 150ms;
 
   /* сетка */
   --nav-h: 52px;

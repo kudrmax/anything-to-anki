@@ -31,12 +31,15 @@
 .phoneOnly { display: var(--phone-display); }
 
 /* шапка области: крошки, название, прогресс | действия */
-.scopeHeader { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--s4) var(--gap); margin-bottom: var(--s6); }
+.scopeHeader { display: flex; align-items: center; justify-content: space-between; gap: var(--s4) var(--gap); margin-bottom: var(--s6); }
 .scopeLead { flex: 1 1 var(--header-lead-min); min-width: 0; display: flex; flex-direction: column; gap: var(--s2); }
-.crumbs { display: flex; align-items: center; gap: var(--s2); min-width: 0; font-size: var(--fs-s); color: var(--tx3); }
-.crumbs > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.scopeTitle { min-width: 0; font: var(--fw-b) var(--fs-h1)/var(--lh-tight) var(--ui); letter-spacing: var(--ls-tight); color: var(--tx); overflow-wrap: break-word; }
-.scopeProgress { font-size: var(--fs-s); color: var(--tx3); }
+.scopeTitle { display: flex; align-items: center; gap: var(--s2); min-width: 0; height: var(--h); font: var(--fw-b) var(--fs-h1)/var(--lh-tight) var(--ui); letter-spacing: var(--ls-tight); color: var(--tx); white-space: nowrap; }
+.scopeParent { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font: inherit; font-weight: var(--fw); color: var(--tx3); border-radius: var(--s2); transition: color var(--t); }
+.scopeParent:hover { color: var(--tx); }
+.scopeSep { display: grid; place-items: center; flex: none; color: var(--tx3); }
+.scopeName { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.scopeProgress { font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); }
+.scopeSlot { width: var(--h); height: var(--h); flex: none; }
 .scopeActions { display: flex; align-items: center; gap: var(--gap); flex: none; }
 
 /* панель выбора: прилипает к низу колонки списка */
@@ -61,3 +64,7 @@
 .scopePicker { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s3); width: 100%; height: var(--h); margin-bottom: var(--s5); padding: 0 var(--s4); border-radius: var(--rc); background: var(--soft); color: var(--tx); font-size: var(--fs-c); font-weight: var(--fw-m); text-align: left; }
 .scopePicker > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pickerBody { display: flex; flex-direction: column; gap: var(--s6); }
+
+/* при переключении области остаётся прошлый список, а не пустой кадр; приглушается, только если загрузка затянулась */
+.listArea { transition: opacity var(--t); }
+.stale { opacity: var(--o-kbd); transition-delay: var(--stale-delay); }

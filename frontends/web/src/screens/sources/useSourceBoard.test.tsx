@@ -84,6 +84,27 @@ describe('useSourceBoard', () => {
     expect(latest.board?.title).toBe('B')
   })
 
+  it('keeps the previous board on screen while the next scope loads', async () => {
+    const resolvers: Record<string, (b: SourceBoard) => void> = {}
+    vi.spyOn(api, 'getSourceBoard').mockImplementation(scope => new Promise(resolve => {
+      resolvers[String(scope)] = resolve
+    }))
+
+    await render('all')
+    await flush()
+    await act(async () => resolvers.all(board('A')))
+    expect(latest.stale).toBe(false)
+
+    await render('unsorted')
+    await flush()
+    expect(latest.board?.title).toBe('A')
+    expect(latest.stale).toBe(true)
+
+    await act(async () => resolvers.unsorted(board('B')))
+    expect(latest.board?.title).toBe('B')
+    expect(latest.stale).toBe(false)
+  })
+
   it('says how many sources a batch process could not start', async () => {
     vi.spyOn(api, 'getSourceBoard').mockResolvedValue(board('A'))
     vi.spyOn(api, 'processSources').mockResolvedValue({ started: [1], skipped: [2, 3] })

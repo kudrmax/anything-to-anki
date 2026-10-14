@@ -97,6 +97,34 @@ describe('SourcesScreen', () => {
     expect(button('Continue', row('Second')).className).not.toMatch(/fill/)
   })
 
+  it('keeps one header layout for every scope: nothing moves when switching', async () => {
+    const shape = () => {
+      const header = host.querySelector('header')!
+      const lead = header.firstElementChild!
+      const actions = header.lastElementChild!
+      return {
+        leadLines: lead.children.length,
+        actionSlots: actions.children.length,
+        search: !!host.querySelector('input[type="search"]'),
+      }
+    }
+    await render('/')
+    const all = shape()
+    act(() => root.unmount())
+    root = createRoot(host)
+    await render('/?scope=11')
+    expect(shape()).toEqual(all)
+    expect(host.querySelector('h1')?.textContent).toBe('FriendsSeason 1')
+    expect(all).toEqual({ leadLines: 2, actionSlots: 2, search: true })
+  })
+
+  it('opens the parent from the path in the header', async () => {
+    await render('/?scope=11')
+    act(() => button('Friends', host.querySelector('h1')!).click())
+    await settle()
+    expect(seen.location).toBe('/?scope=10')
+  })
+
   it('falls back to All when the scope in the URL does not exist', async () => {
     await render('/?scope=999')
     await settle()

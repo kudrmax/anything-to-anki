@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { CollectionNode, CollectionTree as Tree, Scope, ScopeCounts, SourceStage } from '@/api/types'
+import type { CollectionNode, Scope, ScopeCounts, SourceStage } from '@/api/types'
 import { useStats } from '@/hooks/useStats'
 import { backTo } from '@/lib/backLink'
 import { usePhone } from '@/lib/device'
@@ -45,11 +45,6 @@ type Naming = { kind: 'rename'; node: CollectionNode } | { kind: 'create'; paren
 const sourcesWord = (n: number) => (n === 1 ? '1 source' : `${n} sources`)
 
 /** Путь узла для хлебных крошек: родитель, затем сам узел. */
-function pathOf(tree: Tree, node: CollectionNode): string[] {
-  const parent = node.parent_id === null ? null : findNode(tree.collections, node.parent_id)
-  return parent ? [parent.name, node.name] : [node.name]
-}
-
 export function SourcesScreen() {
   const [scope, setScope] = useScope()
   const [query, setQuery] = useState('')
@@ -117,7 +112,6 @@ export function SourcesScreen() {
   const node = typeof scope === 'number' && tree ? findNode(tree.collections, scope) : null
   const counts = node?.counts ?? (tree ? (scope === 'unsorted' ? tree.unsorted : tree.all) : NO_COUNTS)
   const title = node?.name ?? board.board?.title ?? (typeof scope === 'number' ? '' : SCOPE_TITLE[scope])
-  const path = tree && node ? pathOf(tree, node) : [title]
   const nameOf = (collectionId: number | null) =>
     collectionId === null ? UNSORTED : (tree && findNode(tree.collections, collectionId)?.name) ?? ''
 
@@ -258,7 +252,8 @@ export function SourcesScreen() {
         <div className={css.main}>
           <ScopeHeader
             title={title}
-            path={path}
+            parent={tree && node?.parent_id != null ? findNode(tree.collections, node.parent_id) : null}
+            onOpenParent={open}
             counts={counts}
             node={node}
             processing={processingAll}
@@ -269,17 +264,16 @@ export function SourcesScreen() {
             onMoveTo={() => node && setMoveTarget({ kind: 'collection', id: node.id })}
             onDelete={() => node && deleteCollection(node.id)}
           />
-          {(counts.total > 0 || query) && (
-            <Field
-              className={css.search}
-              type="search"
-              aria-label="Search sources"
-              placeholder={`Search in ${title}`}
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Escape') setQuery('') }}
-            />
-          )}
+          <Field
+            className={css.search}
+            type="search"
+            aria-label="Search sources"
+            placeholder={`Search in ${title}`}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') setQuery('') }}
+          />
+          <div className={board.stale ? `${css.listArea} ${css.stale}` : css.listArea} aria-busy={board.stale}>
           {empty}
           {groups.length > 0 && (
             <div role="listbox" aria-multiselectable="true" aria-labelledby={listLabel}>
@@ -317,6 +311,7 @@ export function SourcesScreen() {
               })}
             </div>
           )}
+          </div>
           {selectedIds.length > 0 && (
             <SelectionBar
               count={selectedIds.length}

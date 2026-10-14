@@ -20,6 +20,7 @@ interface Callbacks {
 
 export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
   const [board, setBoard] = useState<SourceBoard | null>(null)
+  const [boardKey, setBoardKey] = useState<string | null>(null)
   const callbacks = useRef(props)
   useLayoutEffect(() => {
     callbacks.current = props
@@ -27,13 +28,14 @@ export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
   const inFlight = useRef<AbortController | null>(null)
 
   /** Только последний запрос вправе обновить доску; фоновые опросы молчат об ошибках. */
+  const key = `${String(scope)}\u0000${query}`
   const load = useCallback(async (quiet = false) => {
     inFlight.current?.abort()
     const controller = new AbortController()
     inFlight.current = controller
     try {
       const loaded = await api.getSourceBoard(scope, query, controller.signal)
-      if (!controller.signal.aborted) setBoard(loaded)
+      if (!controller.signal.aborted) { setBoard(loaded); setBoardKey(key) }
     } catch (e) {
       if (controller.signal.aborted) return
       if (e instanceof Error && e.message.startsWith(NOT_FOUND)) callbacks.current.onMissingScope()
@@ -41,9 +43,7 @@ export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
     } finally {
       if (inFlight.current === controller) inFlight.current = null
     }
-  }, [scope, query])
-
-  useEffect(() => { setBoard(null) }, [scope])
+  }, [scope, query, key])
 
   useEffect(() => {
     const timer = setTimeout(() => void load(), query ? SEARCH_DELAY_MS : 0)
@@ -79,6 +79,8 @@ export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
 
   return {
     board,
+    /** На экране ещё прошлая область: новая грузится, пустого кадра не бывает. */
+    stale: board !== null && boardKey !== key,
     reload,
     process: (id: number) => act(() => api.processSource(id)),
     processPending: () => start(() => api.processPending(scope)),
