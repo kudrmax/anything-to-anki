@@ -22,6 +22,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.dto.candidate_dtos import SelectionDTO
+from backend.application.dto.source_dtos import CardDTO, card_to_dto
 from backend.application.use_cases.add_manual_candidate import (
     AddManualCandidateUseCase,
 )
@@ -42,7 +43,9 @@ from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.format import Format
+from backend.domain.value_objects.review_card import ReviewCard
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.word_status import WordStatus
 
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
@@ -173,10 +176,27 @@ def _make_use_case(
         review_status=review_status or MagicMock(),
         phrase_reader=_phrase_reader(),
         lock=free_lock(),
+        card_views=_card_views(repo),
     )
 
 
 NEW_WORD_ID = 100
+NEW_PHRASE_ID = 200
+
+
+def _card_views(repo: MagicMock) -> MagicMock:
+    """Answers with the card of the phrase the use case added."""
+    views = MagicMock()
+
+    def one(phrase_id: int) -> CardDTO:
+        (added,) = repo.occurrences.add.call_args[0]
+        return card_to_dto(ReviewCard(
+            word=_saved(repo), occurrence=replace(added, id=phrase_id),
+            word_status=WordStatus.PENDING,
+        ))
+
+    views.one.side_effect = one
+    return views
 
 
 def _mock_repo_save() -> MagicMock:
@@ -184,6 +204,7 @@ def _mock_repo_save() -> MagicMock:
     repo = MagicMock()
     repo.occurrences.word_rows.return_value = []
     repo.add_word.return_value = NEW_WORD_ID
+    repo.occurrences.add.side_effect = lambda occurrence: replace(occurrence, id=NEW_PHRASE_ID)
     repo.get_by_id.side_effect = lambda _word_id: _saved(repo)
     return repo
 

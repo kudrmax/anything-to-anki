@@ -117,7 +117,7 @@ export const api = {
     req<StoredCandidate[]>(`/sources/${id}/candidates?sort=${sort}`),
 
   previewCloze: (id: number, draft: Partial<ClozeDraft>, signal?: AbortSignal) =>
-    req<ClozePreview>(`/candidates/${id}/cloze/preview`, { method: 'POST', body: JSON.stringify(draft), signal }),
+    req<ClozePreview>(`/phrases/${id}/cloze/preview`, { method: 'POST', body: JSON.stringify(draft), signal }),
 
   saveCloze: (phraseId: number, request: SaveClozeRequest) =>
     req<StoredCandidate>(`/phrases/${phraseId}/cloze`, { method: 'PUT', body: JSON.stringify(request) }),
@@ -175,14 +175,14 @@ export const api = {
   regeneratePhraseMedia: (phraseId: number) =>
     req<{ status: string }>(`/phrases/${phraseId}/regenerate-media`, { method: 'POST' }),
 
-  searchTargetImages: (candidateId: number, query?: string) =>
-    req<ImageSearchResult>(`/candidates/${candidateId}/image-options${query === undefined ? '' : `?${new URLSearchParams({ query })}`}`),
+  searchTargetImages: (wordId: number, query?: string) =>
+    req<ImageSearchResult>(`/candidates/${wordId}/image-options${query === undefined ? '' : `?${new URLSearchParams({ query })}`}`),
 
-  applyTargetImage: (candidateId: number, url: string) =>
-    req<{ status: string }>(`/candidates/${candidateId}/image`, { method: 'PUT', body: JSON.stringify({ url }) }),
+  applyTargetImage: (wordId: number, url: string) =>
+    req<{ status: string }>(`/candidates/${wordId}/image`, { method: 'PUT', body: JSON.stringify({ url }) }),
 
-  pasteTargetImage: (candidateId: number, picture: Blob) =>
-    req<{ status: string }>(`/candidates/${candidateId}/image/pasted`, {
+  pasteTargetImage: (wordId: number, picture: Blob) =>
+    req<{ status: string }>(`/candidates/${wordId}/image/pasted`, {
       method: 'PUT',
       headers: { 'Content-Type': picture.type, ...buildHeaders() },
       body: picture,
@@ -194,14 +194,14 @@ export const api = {
   polishPhraseAgain: (phraseId: number) =>
     req<{ status: string }>(`/phrases/${phraseId}/polish`, { method: 'POST' }),
 
-  setPolishReverted: (candidateId: number, reverted: boolean) =>
-    req<{ id: number; reverted: boolean }>(`/candidates/${candidateId}/polish/reverted`, {
+  setPolishReverted: (phraseId: number, reverted: boolean) =>
+    req<{ id: number; reverted: boolean }>(`/phrases/${phraseId}/polish/reverted`, {
       method: 'PUT',
       body: JSON.stringify({ reverted }),
     }),
 
-  editPhrase: (candidateId: number, phrase: string) =>
-    req<{ id: number }>(`/candidates/${candidateId}/phrase`, {
+  editPhrase: (phraseId: number, phrase: string) =>
+    req<{ id: number }>(`/phrases/${phraseId}/phrase`, {
       method: 'PUT',
       body: JSON.stringify({ phrase }),
     }),
@@ -249,8 +249,8 @@ export const api = {
       body: JSON.stringify({ selection }),
     }),
 
-  reportCandidate: (candidateId: number, reasons: string[], comment: string, unknownWords: number[]) =>
-    req<unknown>(`/candidates/${candidateId}/report`, {
+  reportCandidate: (phraseId: number, reasons: string[], comment: string, unknownWords: number[]) =>
+    req<unknown>(`/phrases/${phraseId}/report`, {
       method: 'POST',
       body: JSON.stringify({ reasons, comment, unknown_words: unknownWords }),
     }),

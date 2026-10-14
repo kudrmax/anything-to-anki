@@ -40,6 +40,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 )
 from sqlalchemy import select, text
 
+from tests.card_support import card_views
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 from tests.word_support import insert_word
@@ -91,6 +92,7 @@ class Bench:
             phrase_reader=reader,
             job_repo=SqlaJobRepository(session),
             lock=free_lock(),
+            card_views=card_views(session),
         )
 
     def replace(self, phrase_id: int, example: str = "She runs every morning.") -> Occurrence:
@@ -158,7 +160,7 @@ def test_the_example_is_a_new_phrase_of_the_word_shown_instead_of_the_card(bench
 def test_the_answer_is_the_word_seen_through_the_example(bench: Bench) -> None:
     result = bench.use_case.execute(CARD, "She runs every morning.")
 
-    assert result.id == WORD
+    assert result.word_id == WORD
     assert result.phrase.text == "She runs every morning."
     assert result.phrase_id != CARD
 
@@ -174,7 +176,8 @@ def test_the_answer_is_the_example_card_when_the_word_shows_another_phrase(
     example = bench.occurrences.of_word(WORD)[-1]
     assert result.phrase_id == example.id
     assert result.phrase.text == "She runs every morning."
-    assert result.meaning is None
+    assert result.meaning is not None
+    assert (result.meaning.meaning, result.meaning.status) == (None, "queued")
 
 
 def test_the_example_gets_its_meaning_queued(bench: Bench) -> None:

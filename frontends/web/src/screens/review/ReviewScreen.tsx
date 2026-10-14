@@ -53,7 +53,7 @@ export function ReviewScreen() {
   // На телефоне карточка занимает экран, а текст источника и список открываются на её месте.
   const [phoneView, setPhoneView] = useState<PhoneView>('card')
   const togglePhoneView = (view: PhoneView) => setPhoneView(prev => (prev === view ? 'card' : view))
-  const current = candidates.find(c => c.id === currentId) ?? null
+  const current = candidates.find(c => c.phrase_id === currentId) ?? null
   // Разделы есть во всех сортировках, кроме порядка текста; Probably known свёрнут, пока его не открыли.
   const sectioned = review.sortOrder !== 'chronological'
   const [openedSections, setOpenedSections] = useState<ReadonlySet<CandidateSection>>(new Set())
@@ -75,9 +75,9 @@ export function ReviewScreen() {
 
   // Держим карточку в поле зрения: и когда список только появился (ревью открыли ссылкой на карточку),
   // и когда фоновое обновление переставило её в списке.
-  const currentIndex = visible.findIndex(c => c.id === currentId)
-  const prevId = visible[currentIndex - 1]?.id ?? null
-  const nextId = currentIndex >= 0 ? visible[currentIndex + 1]?.id ?? null : null
+  const currentIndex = visible.findIndex(c => c.phrase_id === currentId)
+  const prevId = visible[currentIndex - 1]?.phrase_id ?? null
+  const nextId = currentIndex >= 0 ? visible[currentIndex + 1]?.phrase_id ?? null : null
   const { loading } = review
   useEffect(() => {
     if (loading) return
@@ -106,13 +106,13 @@ export function ReviewScreen() {
         return
       }
       if (action === 'cloze') {
-        if (current.can_cloze) startCloze(current.id)
+        if (current.can_cloze) startCloze(current.phrase_id)
         return
       }
       const status = DECISION[action]
       if (!status) return
       if (clozeEditing) cancelCloze()
-      void mark(current.id, decisionChange(current.status, status, learnConvertsCloze(current)))
+      void mark(current.phrase_id, decisionChange(current.status, status, learnConvertsCloze(current)))
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -125,7 +125,7 @@ export function ReviewScreen() {
       const picture = pastedPicture(e)
       if (!picture) return
       e.preventDefault()
-      void pasteImage(current.id, picture)
+      void pasteImage(current.phrase_id, picture)
     }
     document.addEventListener('paste', onPaste)
     return () => document.removeEventListener('paste', onPaste)
@@ -251,7 +251,7 @@ export function ReviewScreen() {
           <div className={css.listPanel}>
             {items.map(item => item.kind === 'section'
               ? sectionToggle(item.section, item.count, item.open)
-              : <PhraseRow key={item.candidate.id} candidate={item.candidate} current={item.candidate.id === currentId} onSelect={showCard} />)}
+              : <PhraseRow key={item.candidate.phrase_id} candidate={item.candidate} current={item.candidate.phrase_id === currentId} onSelect={showCard} />)}
             {list.hiddenCount > 0 && (
               <Button variant="link" onClick={list.showMore}>Show {list.nextPageCount} more · {list.hiddenCount} left</Button>
             )}
@@ -261,9 +261,9 @@ export function ReviewScreen() {
           {items.map(item => {
             if (item.kind === 'section') return sectionToggle(item.section, item.count, item.open)
             const { candidate } = item
-            return candidate.id === currentId
-              ? <PhraseCard key={candidate.id} candidate={candidate} review={review} />
-              : <PhraseRow key={candidate.id} candidate={candidate} onSelect={setCurrentId} />
+            return candidate.phrase_id === currentId
+              ? <PhraseCard key={candidate.phrase_id} candidate={candidate} review={review} />
+              : <PhraseRow key={candidate.phrase_id} candidate={candidate} onSelect={setCurrentId} />
           })}
         </div>
         {list.hiddenCount > 0 && (

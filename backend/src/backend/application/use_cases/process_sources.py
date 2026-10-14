@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.process_source import ProcessSourceUseCase
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.application.utils.topic_generation import TopicGenerationProbe
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.value_objects.source_scope import SourceScope
 
 logger = logging.getLogger(__name__)
@@ -33,16 +34,23 @@ class ProcessSourcesUseCase:
         scope_resolver: SourceScopeResolver,
         generation_probe: TopicGenerationProbe,
         process_source: ProcessSourceUseCase,
+        lock: SourceOperationLock,
     ) -> None:
+        self._lock = lock
         self._scope_resolver = scope_resolver
         self._generation_probe = generation_probe
         self._process_source = process_source
 
     def pending_in(self, scope: SourceScope) -> list[int]:
+        busy = self._lock.operations()
         return [
             s.id for s in reversed(self._scope_resolver.sources(scope))
             if s.id is not None
-            and is_pending(s.status, awaiting_generation=self._generation_probe.of(s).awaiting)
+            and is_pending(
+                s.status,
+                awaiting_generation=self._generation_probe.of(s).awaiting,
+                busy=s.id in busy,
+            )
         ]
 
     def start(self, source_ids: Sequence[int]) -> StartedSourcesDTO:

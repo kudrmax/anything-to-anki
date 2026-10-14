@@ -31,10 +31,10 @@ from backend.application.dto.rebuild_dtos import (  # noqa: TC001
     SourceOperationDTO,
 )
 from backend.application.dto.source_dtos import (  # noqa: TC001
+    CardDTO,
     SourceBoardDTO,
     SourceDetailDTO,
     SourceDTO,
-    StoredCandidateDTO,
     UpdateTitleRequest,
 )
 from backend.application.source_intake.typed_input import typed_input
@@ -156,7 +156,7 @@ def add_saved_phrase(
     request: AddSavedPhraseRequest,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> StoredCandidateDTO:
+) -> CardDTO:
     try:
         use_case = container.add_saved_phrase_use_case(session)
         result = use_case.execute(request.phrase, request.target_words)
@@ -386,7 +386,7 @@ def add_manual_candidate(
     request: AddManualCandidateRequest,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> StoredCandidateDTO:
+) -> CardDTO:
     try:
         use_case = container.add_manual_candidate_use_case(session)
         result = use_case.execute(source_id, request.target_words, request.selection)

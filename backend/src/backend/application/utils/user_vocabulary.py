@@ -75,7 +75,7 @@ class UserVocabulary:
             return False
         if self.__removals.contains(lemma):
             return False
-        self.__known.add(lemma, pos)
+        self.__known.add(lemma, pos, from_anki=True)
         return True
 
     def mark_unknown(self, lemma: str) -> None:

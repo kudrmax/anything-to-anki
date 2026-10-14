@@ -10,6 +10,8 @@ from backend.application.utils.topic_generation import TopicGeneration
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import SourceAlreadyProcessedError
+from backend.domain.value_objects.held_operation import HeldOperation
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
@@ -41,11 +43,17 @@ class TestProcessSources:
         probe = MagicMock()
         probe.of.return_value = TopicGeneration()
         self.process = MagicMock()
-        self.use_case = ProcessSourcesUseCase(resolver, probe, self.process)
+        self.lock = MagicMock()
+        self.lock.operations.return_value = {}
+        self.use_case = ProcessSourcesUseCase(resolver, probe, self.process, self.lock)
 
     def test_pending_only_in_scope_oldest_first(self) -> None:
         assert self.use_case.pending_in(SourceScope.collection(1)) == [1, 2]
         assert self.use_case.pending_in(SourceScope.all()) == [1, 2, 4]
+
+    def test_a_source_held_by_an_operation_is_not_pending(self) -> None:
+        self.lock.operations.return_value = {1: HeldOperation(SourceOperationKind.PROCESS)}
+        assert self.use_case.pending_in(SourceScope.all()) == [2, 4]
 
     def test_start_skips_sources_that_cannot_start(self) -> None:
         self.process.start.side_effect = [SourceAlreadyProcessedError(1), None]

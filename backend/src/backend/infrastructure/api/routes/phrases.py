@@ -9,19 +9,31 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO  # noqa: TC001
 from backend.application.dto.candidate_dtos import (  # noqa: TC001
     DecidePhraseRequest,
+    EditPhraseRequest,
     ReplaceWithExampleRequest,
+    RevertPolishRequest,
     SetPhraseBoundaryRequest,
 )
-from backend.application.dto.cloze_dtos import SaveClozeRequest  # noqa: TC001
+from backend.application.dto.card_report_dtos import (  # noqa: TC001
+    CardReportDTO,
+    ReportCandidateRequest,
+)
+from backend.application.dto.cloze_dtos import (  # noqa: TC001
+    ClozePreviewDTO,
+    PreviewClozeRequest,
+    SaveClozeRequest,
+)
 from backend.application.dto.follow_up_dtos import FollowUpRequest  # noqa: TC001
-from backend.application.dto.source_dtos import StoredCandidateDTO  # noqa: TC001
+from backend.application.dto.source_dtos import CardDTO  # noqa: TC001
 from backend.domain.exceptions import (
     AIServiceError,
     AlreadyInAnkiError,
+    CandidateNotPolishedError,
     CardDecisionLockedError,
     ClozeNotAllowedError,
     ClozePhraseChangedError,
     DecidedElsewhereError,
+    EmptyReportCommentError,
     InvalidClozeError,
     InvalidPhraseError,
     PhraseChangedError,
@@ -29,6 +41,7 @@ from backend.domain.exceptions import (
     PhrasePolishNotSupportedError,
     SourceHasNoDocumentError,
     SourceOperationBusyError,
+    UnknownReportReasonError,
 )
 from backend.domain.services.card_decision import DecisionAction
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
@@ -75,7 +88,7 @@ def save_cloze(
     request: SaveClozeRequest,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> StoredCandidateDTO:
+) -> CardDTO:
     try:
         candidate = container.save_cloze_use_case(session).execute(
             phrase_id,
@@ -92,6 +105,75 @@ def save_cloze(
         raise HTTPException(status_code=422, detail=str(e)) from e
     session.commit()
     return candidate
+
+
+@router.post("/{phrase_id}/cloze/preview")
+def preview_cloze(
+    phrase_id: int,
+    request: PreviewClozeRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> ClozePreviewDTO:
+    try:
+        return container.preview_cloze_use_case(session).execute(phrase_id, request)
+    except PhraseNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except InvalidClozeError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@router.post("/{phrase_id}/report", status_code=201)
+def report_phrase(
+    phrase_id: int,
+    request: ReportCandidateRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> CardReportDTO:
+    try:
+        report = container.report_candidate_use_case(session).execute(phrase_id, request)
+    except PhraseNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except (EmptyReportCommentError, UnknownReportReasonError) as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    session.commit()
+    return report
+
+
+@router.put("/{phrase_id}/polish/reverted")
+def revert_phrase_polish(
+    phrase_id: int,
+    request: RevertPolishRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, Any]:
+    try:
+        container.revert_phrase_polish_use_case(session).execute(phrase_id, request.reverted)
+    except PhraseNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except (CandidateNotPolishedError, SourceOperationBusyError) as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    session.commit()
+    return {"id": phrase_id, "reverted": request.reverted}
+
+
+@router.put("/{phrase_id}/phrase")
+def edit_phrase(
+    phrase_id: int,
+    request: EditPhraseRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, Any]:
+    """The text of the card's phrase, rewritten by hand."""
+    try:
+        container.edit_card_phrase_use_case(session).execute(phrase_id, request.phrase)
+    except PhraseNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except SourceOperationBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except InvalidPhraseError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    session.commit()
+    return {"id": phrase_id}
 
 
 @router.put("/{phrase_id}/phrase-boundary")
@@ -122,7 +204,7 @@ def replace_with_example(
     request: ReplaceWithExampleRequest,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> StoredCandidateDTO:
+) -> CardDTO:
     try:
         result = container.replace_with_example_use_case(session).execute(
             phrase_id, request.example_text,

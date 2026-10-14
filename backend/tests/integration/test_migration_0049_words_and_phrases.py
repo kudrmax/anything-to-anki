@@ -24,6 +24,7 @@ REVISION_UNDER_TEST = "0049"
 CONTENT_SOURCE = 11
 TOPIC_SOURCE = 12
 EXPORTED_PAIR_SOURCE = 13
+PROCESSING_SOURCE = 14
 
 CARD_A = 1  # auto, LEARN, cloze, meaning, synced note 111, running MEANING job
 CARD_B = 2  # same lemma as A in another case, PENDING, meaning
@@ -185,6 +186,22 @@ def _seed(conn: Connection) -> None:
         conn, CARD_TOPIC, TOPIC_SOURCE, "serendipity", "pending",
         _stored_phrase("What a serendipity.", "serendipity"), None,
     )
+    conn.execute(
+        text(
+            "UPDATE candidates SET origin_kind = 'source', origin_title = 'Book'"
+            " WHERE id = :id"
+        ),
+        {"id": CARD_TOPIC},
+    )
+    _source(conn, PROCESSING_SOURCE, "content")
+    conn.execute(
+        text(
+            "UPDATE sources SET status = 'processing', processing_stage = 'analyzing_text'"
+            " WHERE id = :id"
+        ),
+        {"id": PROCESSING_SOURCE},
+    )
+    conn.execute(text("INSERT INTO known_words (lemma, created_at) VALUES ('old', '2026-01-01')"))
 
     _source(conn, EXPORTED_PAIR_SOURCE, "content")
     _card(
@@ -365,6 +382,28 @@ def test_only_an_example_that_took_a_skipped_original_replaces_a_selection(
 def test_topic_phrase_is_collected(db_url: str) -> None:
     topic = _phrase_of(db_url, CARD_TOPIC, "What a serendipity")
     assert (topic["origin"], topic["shown_by"]) == ("collected", "user")
+
+
+def test_a_collected_phrase_keeps_where_its_card_came_from(db_url: str) -> None:
+    topic = _phrase_of(db_url, CARD_TOPIC, "What a serendipity")
+    assert (topic["collected_kind"], topic["collected_title"]) == ("source", "Book")
+    a = _phrase_of(db_url, CARD_A, LINE_0)
+    assert (a["collected_kind"], a["collected_title"]) == (None, None)
+
+
+def test_a_source_left_processing_is_new_again_and_no_stage_is_stored(db_url: str) -> None:
+    [source] = _rows(db_url, "SELECT status FROM sources WHERE id = :id", id=PROCESSING_SOURCE)
+    assert source["status"] == "new"
+    columns = {c["name"] for c in inspect(create_engine(db_url)).get_columns("sources")}
+    assert "processing_stage" not in columns
+    operation_columns = {
+        c["name"] for c in inspect(create_engine(db_url)).get_columns("source_operations")
+    }
+    assert "stage" in operation_columns
+
+
+def test_old_known_words_are_not_from_anki(db_url: str) -> None:
+    assert _rows(db_url, "SELECT from_anki FROM known_words") == [{"from_anki": 0}]
 
 
 def test_target_on_the_next_line_is_keyed_on_that_line(db_url: str) -> None:

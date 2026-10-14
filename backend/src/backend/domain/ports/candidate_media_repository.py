@@ -28,6 +28,13 @@ class CandidateMediaRepository(ABC):
     def upsert_for_phrase(self, phrase_id: int, media: CandidateMedia) -> None: ...
 
     @abstractmethod
+    def clear_phrase_paths(
+        self, phrase_id: int, *, clear_screenshot: bool, clear_audio: bool,
+    ) -> None:
+        """The phrase's screenshot and/or clip paths become NULL; its timecodes stay, so the
+        files can be cut again."""
+
+    @abstractmethod
     def clear_missing_file(self, path: str) -> None:
         """Every row pointing at the file — as its screenshot or its clip — loses that path;
         the rows themselves and their timecodes stay."""

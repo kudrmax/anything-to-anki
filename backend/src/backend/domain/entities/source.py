@@ -9,7 +9,6 @@ from backend.domain.value_objects.source_role import SourceRole
 if TYPE_CHECKING:
     from backend.domain.value_objects.content import Kind
     from backend.domain.value_objects.format import Format
-    from backend.domain.value_objects.processing_stage import ProcessingStage
     from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -29,7 +28,6 @@ class Source:
     video_path: str | None = None
     audio_track_index: int | None = None
     collection_id: int | None = None
-    processing_stage: ProcessingStage | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
     format: Format | None = None
     kind: Kind | None = None

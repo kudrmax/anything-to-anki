@@ -3,7 +3,7 @@ import type { CandidateStatus, StoredCandidate } from '@/api/types'
 import { nextFocusId } from './nextFocus'
 
 const list = (...items: [number, CandidateStatus][]) =>
-  items.map(([id, status]) => ({ id, status }) as StoredCandidate)
+  items.map(([id, status]) => ({ phrase_id: id, status }) as StoredCandidate)
 
 describe('nextFocusId', () => {
   it('takes the pending phrase that now stands where the marked one stood', () => {
@@ -33,8 +33,8 @@ describe('nextFocusId', () => {
 
   it('stays in the section of the marked phrase', () => {
     const fresh = [
-      { id: 1, status: 'learn', section: 'ready' },
-      { id: 2, status: 'pending', section: 'extra' },
+      { phrase_id: 1, status: 'learn', section: 'ready' },
+      { phrase_id: 2, status: 'pending', section: 'extra' },
     ] as StoredCandidate[]
     expect(nextFocusId(fresh, 1, 0, 'ready')).toBeNull()
     expect(nextFocusId(fresh, 1, 0)).toBe(2)

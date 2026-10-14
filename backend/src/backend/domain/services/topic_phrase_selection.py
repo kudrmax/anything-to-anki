@@ -82,7 +82,7 @@ def pick_best_candidate_phrase(
     """Pick the phrase that is easiest to learn from: fewest new words, then shortest."""
     return min(
         candidates,
-        key=lambda c: (len(new_words(c, knowledge)), len(c.phrase.words)),
+        key=lambda c: (len(new_words(c.phrase, knowledge)), len(c.phrase.words)),
         default=None,
     )
 

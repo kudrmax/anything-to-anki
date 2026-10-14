@@ -110,7 +110,13 @@ export interface SourceSummary {
   is_permanent: boolean
   /** Как привести источник в актуальное состояние; решает backend. */
   available_operation: 'rebuild' | 'refresh' | null
+  /** Операция, которой занят источник; другую сейчас не начать. */
+  busy_with: SourceOperationKind | null
+  /** Почему операция не предлагается, пока источник занят. */
+  operation_hint: string | null
 }
+
+export type SourceOperationKind = 'process' | 'rebuild' | 'preview' | 'refresh'
 
 export type GenerationStatus = 'queued' | 'running' | 'failed'
 
@@ -240,10 +246,22 @@ export interface CardPhrase {
 /** Where a card stands in review: only the target is new, more words are new, or probably known. */
 export type CandidateSection = 'ready' | 'extra' | 'probably_known'
 
+export type DecisionButton = 'learn' | 'cloze' | 'known' | 'skip' | 'unskip' | 'undo'
+
+/** Что карточка показывает из решения по слову и какие кнопки работают; считает backend. */
+export interface CardState {
+  decided_here: boolean
+  /** Решение слова, принятое на другой его карточке. */
+  decided_elsewhere: 'learn' | 'known' | null
+  /** Слово открыто здесь, но известно или учится по другому источнику. */
+  elsewhere: 'known' | 'learning' | null
+  buttons_enabled: DecisionButton[]
+}
+
+/** Карточка — показанная фраза слова; ключ карточки — phrase_id. */
 export interface StoredCandidate {
-  id: number
-  /** Фраза, которую показывает карточка: решения, cloze, граница и пример идут по ней. */
-  phrase_id: number | null
+  phrase_id: number
+  word_id: number
   lemma: string
   pos: string
   cefr_level: string | null
@@ -262,7 +280,14 @@ export interface StoredCandidate {
   polish_status: EnrichmentStatus | null
   section: CandidateSection | null
   occurrences: number
+  /** Решение, которое показывает карточка: решение слова важнее Skip фразы. */
   status: CandidateStatus
+  word_status: 'pending' | 'learn' | 'known'
+  phrase_skipped: boolean
+  /** Фраза решения: она уходит в Anki. */
+  is_decision: boolean
+  decision_kind: 'learn' | 'cloze' | null
+  state: CardState
   is_phrasal_verb: boolean
   /** Где фраза источника стоит в документе; у примера, темы и сохранённой фразы её нет. */
   phrase_position: DocumentPosition | null
@@ -312,6 +337,8 @@ export interface AnkiStatus {
 
 export interface CardPreview {
   candidate_id: number
+  /** Карточка списка ревью, откуда пришла заметка: фраза решения. */
+  phrase_id: number
   lemma: string
   sentence: string
   meaning: string | null
@@ -422,6 +449,8 @@ export interface KnownWord {
   lemma: string
   pos: string | null
   created_at: string
+  /** Слово стало известным, когда его заметка в Anki выучилась. */
+  from_anki: boolean
 }
 
 export interface Stats {
@@ -519,7 +548,8 @@ export interface DocumentBlock {
 }
 
 export interface Highlight {
-  candidate_id: number
+  phrase_id: number
+  word_id: number
   position: DocumentPosition
   cefr_level: string | null
   is_phrasal_verb: boolean

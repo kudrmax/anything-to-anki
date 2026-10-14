@@ -59,7 +59,7 @@ class TestUserVocabulary:
 
     def test_a_mature_word_becomes_known(self) -> None:
         assert self.vocabulary.mark_mature("gull", "NOUN") is True
-        self.known.add.assert_called_once_with("gull", "NOUN")
+        self.known.add.assert_called_once_with("gull", "NOUN", from_anki=True)
         self.removals.discard.assert_not_called()
 
     def test_maturity_leaves_an_unknown_word_alone(self) -> None:

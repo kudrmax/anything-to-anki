@@ -6,8 +6,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.exceptions import SourceOperationBusyError
+from backend.domain.value_objects.held_operation import HeldOperation
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import ShownBy
+from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 from tests.source_rebuild_support import LINES, SOURCE, Bench, at, time_of_line, word
@@ -63,9 +65,27 @@ def test_processing_takes_the_source(bench: Bench) -> None:
     bench.process().start(SOURCE)
 
     assert bench.lock.held(SOURCE) is SourceOperationKind.PROCESS
-    assert bench.status() == "processing"
+    assert bench.status() == "new"  # the status is an outcome; the lock shows the process
     with pytest.raises(SourceOperationBusyError):
         bench.rebuild().execute(SOURCE, include_open=False)
+
+
+def test_the_stage_of_a_process_is_on_its_operation(bench: Bench) -> None:
+    seen: list[HeldOperation | None] = []
+    analyse = bench.analyze_text.execute.side_effect
+
+    def analyse_and_look(*args: object) -> object:
+        seen.append(bench.lock.operations().get(SOURCE))
+        return analyse(*args)
+
+    bench.analyze_text.execute.side_effect = analyse_and_look
+    process = bench.process()
+    process.start(SOURCE)
+    bench.session.commit()
+    process.execute(SOURCE)
+
+    assert seen == [HeldOperation(SourceOperationKind.PROCESS, ProcessingStage.ANALYZING_TEXT)]
+    assert bench.lock.operations() == {}
 
 
 def test_a_failed_processing_frees_the_source(bench: Bench) -> None:

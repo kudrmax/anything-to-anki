@@ -13,14 +13,34 @@ if TYPE_CHECKING:
 _REBUILDABLE_STATUSES = REVIEWABLE_STATUSES | {SourceStatus.ERROR}
 
 
-def available_operation(source: Source) -> SourceOperationKind | None:
-    """What a processed source can be brought up to date with.
+_BUSY_NAME: dict[SourceOperationKind, str] = {
+    SourceOperationKind.PROCESS: "processing",
+    SourceOperationKind.REBUILD: "rebuild",
+    SourceOperationKind.PREVIEW: "rebuild preview",
+    SourceOperationKind.REFRESH: "refresh",
+}
+
+
+def available_operation(
+    source: Source, busy_with: SourceOperationKind | None = None,
+) -> SourceOperationKind | None:
+    """What a processed source can be brought up to date with; nothing while another
+    operation holds it.
 
     A source with its own text is rebuilt; a topic is refreshed from the other sources,
     adding phrases only; the saved phrases have nothing to update.
     """
+    if busy_with is not None:
+        return None
     if source.role is SourceRole.CONTENT and source.status in _REBUILDABLE_STATUSES:
         return SourceOperationKind.REBUILD
     if source.role is SourceRole.TOPIC and source.status in REVIEWABLE_STATUSES:
         return SourceOperationKind.REFRESH
     return None
+
+
+def operation_hint(busy_with: SourceOperationKind | None) -> str | None:
+    """Why no operation is offered on a busy source."""
+    if busy_with is None:
+        return None
+    return f"Wait until the {_BUSY_NAME[busy_with]} finishes"

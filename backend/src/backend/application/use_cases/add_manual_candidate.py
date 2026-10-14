@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
 from backend.application.utils.candidate_factory import CandidateFactory
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.occurrence import Occurrence
@@ -14,6 +13,8 @@ from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, Sh
 
 if TYPE_CHECKING:
     from backend.application.dto.candidate_dtos import SelectionDTO
+    from backend.application.dto.source_dtos import CardDTO
+    from backend.application.utils.card_views import CardViews
     from backend.application.utils.phrase_reader import PhraseReader
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.entities.occurrence import OccurrenceKey
@@ -53,8 +54,10 @@ class AddManualCandidateUseCase:
         review_status: ReviewStatusUpdater,
         phrase_reader: PhraseReader,
         lock: SourceOperationLock,
+        card_views: CardViews,
     ) -> None:
         self._lock = lock
+        self._card_views = card_views
         self._source_repo = source_repo
         self._document_repo = document_repo
         self._candidate_repo = candidate_repo
@@ -73,8 +76,9 @@ class AddManualCandidateUseCase:
         source_id: int,
         target_words: list[int],
         selection: SelectionDTO,
-    ) -> StoredCandidateDTO:
-        """The phrase is the selected piece of the document; the target, the picked words in it."""
+    ) -> CardDTO:
+        """The phrase is the selected piece of the document; the target, the picked words in it.
+        Answers with the card of that phrase."""
         if self._source_repo.get_by_id(source_id) is None:
             raise SourceNotFoundError(source_id)
         ensure_source_free(self._lock, source_id)
@@ -96,13 +100,11 @@ class AddManualCandidateUseCase:
         word_id = self._word_of(candidate)
         if word_id is None:
             word_id = self._candidate_repo.add_word(candidate)
-            self._add_phrase(word_id, candidate, key)
+            phrase_id = self._add_phrase(word_id, candidate, key)
         else:
-            self._show_at(word_id, candidate, key)
+            phrase_id = self._show_at(word_id, candidate, key)
         self._review_status.refresh(source_id)
-        saved = self._candidate_repo.get_by_id(word_id)
-        assert saved is not None
-        return stored_candidate_to_dto(saved)
+        return self._card_views.one(phrase_id)
 
     def _word_of(self, candidate: StoredCandidate) -> int | None:
         key = WordKey.of(candidate.lemma, candidate.is_phrasal_verb)
@@ -111,7 +113,7 @@ class AddManualCandidateUseCase:
             None,
         )
 
-    def _show_at(self, word_id: int, candidate: StoredCandidate, key: OccurrenceKey) -> None:
+    def _show_at(self, word_id: int, candidate: StoredCandidate, key: OccurrenceKey) -> int:
         existing = next(
             (
                 o for o in self._occurrences.of_word(word_id)
@@ -126,17 +128,17 @@ class AddManualCandidateUseCase:
             None,
         )
         if existing is None:
-            self._add_phrase(word_id, candidate, key)
-            return
+            return self._add_phrase(word_id, candidate, key)
         assert existing.id is not None
         if existing.shown_by is ShownBy.SELECTION:
             self._occurrences.set_replaces_selection(existing.id, True)
         self._occurrences.set_shown([existing.id], ShownBy.USER)
         if existing.skipped:
             self._occurrences.set_skipped(existing.id, False)
+        return existing.id
 
-    def _add_phrase(self, word_id: int, candidate: StoredCandidate, key: OccurrenceKey) -> None:
-        self._occurrences.add(Occurrence(
+    def _add_phrase(self, word_id: int, candidate: StoredCandidate, key: OccurrenceKey) -> int:
+        added = self._occurrences.add(Occurrence(
             candidate_id=word_id,
             origin=OccurrenceOrigin.MANUAL,
             source_phrase=candidate.source_phrase,
@@ -145,4 +147,6 @@ class AddManualCandidateUseCase:
             fragment_score=None,
             shown_by=ShownBy.USER,
         ))
+        assert added.id is not None
+        return added.id
 

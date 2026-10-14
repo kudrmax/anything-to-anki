@@ -5,13 +5,13 @@ from typing import TYPE_CHECKING
 
 from backend.application.constants import CLOZE_DEFAULT_HINT_SETTING, DEFAULT_CLOZE_HINT
 from backend.application.dto.cloze_dtos import ClozeFrontPartDTO, ClozePreviewDTO, ClozeWordDTO
-from backend.domain.exceptions import CandidateNotFoundError
+from backend.domain.exceptions import PhraseNotFoundError
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
 if TYPE_CHECKING:
     from backend.application.dto.cloze_dtos import PreviewClozeRequest
     from backend.domain.entities.candidate_cloze import CandidateCloze
-    from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.services.cloze_builder import ClozeBuilder
     from backend.domain.value_objects.phrase import Phrase
@@ -28,34 +28,34 @@ class PreviewClozeUseCase:
 
     def __init__(
         self,
-        candidate_repo: CandidateRepository,
+        occurrence_repo: OccurrenceRepository,
         settings_repo: SettingsRepository,
         builder: ClozeBuilder,
     ) -> None:
-        self._candidate_repo = candidate_repo
+        self._occurrences = occurrence_repo
         self._settings_repo = settings_repo
         self._builder = builder
 
-    def execute(self, candidate_id: int, request: PreviewClozeRequest) -> ClozePreviewDTO:
-        candidate = self._candidate_repo.get_by_id(candidate_id)
-        if candidate is None:
-            raise CandidateNotFoundError(candidate_id)
-        saved = self._builder.effective(candidate)
-        phrase = candidate.phrase
+    def execute(self, phrase_id: int, request: PreviewClozeRequest) -> ClozePreviewDTO:
+        occ = self._occurrences.get(phrase_id)
+        if occ is None:
+            raise PhraseNotFoundError(phrase_id)
+        phrase = occ.phrase
+        saved = self._builder.effective_for(phrase, occ.cloze)
         words = self._builder.words(phrase)
 
         indices = self._indices(request, saved, phrase)
         if indices:
             self._builder.validate(phrase, indices)
         hidden = self._builder.hidden_words(phrase, indices)
-        available = self._builder.available_hints(candidate.meaning, hidden)
+        available = self._builder.available_hints(occ.meaning, hidden)
         kind = self._hint_kind(request, saved)
         if kind not in available:
             kind = ClozeHintKind.NONE
         custom = request.custom_hint
         if custom is None and saved is not None:
             custom = saved.custom_hint
-        hints = self._builder.gap_hints(kind, candidate.meaning, phrase, indices, custom)
+        hints = self._builder.gap_hints(kind, occ.meaning, phrase, indices, custom)
 
         return ClozePreviewDTO(
             phrase=phrase.text,

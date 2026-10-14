@@ -15,7 +15,7 @@ const isAbort = (e: unknown): boolean => e instanceof DOMException && e.name ===
  * Сменилась фраза карточки (polish, откат, фоновая генерация) — черновик сбрасывается к умолчаниям новой фразы.
  */
 export function useClozeEditor(candidate: StoredCandidate, review: Review) {
-  const active = review.clozeEditingId === candidate.id
+  const active = review.clozeEditingId === candidate.phrase_id
   const [draft, setDraft] = useState<ClozeDraft | null>(null)
   const [preview, setPreview] = useState<ClozePreview | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -27,7 +27,7 @@ export function useClozeEditor(candidate: StoredCandidate, review: Review) {
     const controller = new AbortController()
     inFlight.current = controller
     try {
-      const next = await api.previewCloze(candidate.id, request, controller.signal)
+      const next = await api.previewCloze(candidate.phrase_id, request, controller.signal)
       if (inFlight.current !== controller) return
       setPreview(next)
       setDraft({ hidden_word_indices: next.hidden_word_indices, hint_kind: next.hint_kind, custom_hint: next.custom_hint })
@@ -38,7 +38,7 @@ export function useClozeEditor(candidate: StoredCandidate, review: Review) {
     } finally {
       if (inFlight.current === controller) inFlight.current = null
     }
-  }, [candidate.id])
+  }, [candidate.phrase_id])
 
   const phrase = candidate.phrase.text
   useEffect(() => {
@@ -78,7 +78,7 @@ export function useClozeEditor(candidate: StoredCandidate, review: Review) {
     if (!draft || !preview || !canSave) return
     setSaving(true)
     try {
-      await review.saveCloze(candidate.id, clozeSaveRequest(draft, preview))
+      await review.saveCloze(candidate.phrase_id, clozeSaveRequest(draft, preview))
     } finally {
       setSaving(false)
     }
@@ -87,7 +87,7 @@ export function useClozeEditor(candidate: StoredCandidate, review: Review) {
   return {
     active, draft, preview, error, saving, canSave,
     toggleWord, setHintKind, setCustomHint, save,
-    start: () => review.startCloze(candidate.id),
+    start: () => review.startCloze(candidate.phrase_id),
     cancel: review.cancelCloze,
   }
 }

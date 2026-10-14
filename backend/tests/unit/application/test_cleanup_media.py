@@ -28,6 +28,13 @@ def _make_candidate(cid: int, screenshot_path: str | None, audio_path: str | Non
     return c
 
 
+def _phrases(candidate_repo: MagicMock) -> MagicMock:
+    """The phrases of the source: the same test doubles, which carry media and an id."""
+    repo = MagicMock()
+    repo.by_source.side_effect = lambda _source_id: candidate_repo.get_by_source.return_value
+    return repo
+
+
 @pytest.mark.unit
 class TestCleanupMedia:
     def test_all_removes_files_and_clears_db(self, tmp_path: Path) -> None:
@@ -46,6 +53,7 @@ class TestCleanupMedia:
 
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
+            occurrence_repo=_phrases(candidate_repo),
             media_repo=media_repo,
             image_repo=MagicMock(),
             media_root=str(media_root),
@@ -54,7 +62,7 @@ class TestCleanupMedia:
 
         assert not shot.exists()
         assert not audio.exists()
-        media_repo.clear_paths.assert_called_once_with(
+        media_repo.clear_phrase_paths.assert_called_once_with(
             10, clear_screenshot=True, clear_audio=True
         )
         # Empty source dir is removed
@@ -76,6 +84,7 @@ class TestCleanupMedia:
 
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
+            occurrence_repo=_phrases(candidate_repo),
             media_repo=media_repo,
             image_repo=MagicMock(),
             media_root=str(media_root),
@@ -84,7 +93,7 @@ class TestCleanupMedia:
 
         assert not shot.exists()
         assert audio.exists()
-        media_repo.clear_paths.assert_called_once_with(
+        media_repo.clear_phrase_paths.assert_called_once_with(
             10, clear_screenshot=True, clear_audio=False
         )
         assert source_dir.exists()  # non-empty
@@ -105,6 +114,7 @@ class TestCleanupMedia:
 
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
+            occurrence_repo=_phrases(candidate_repo),
             media_repo=media_repo,
             image_repo=MagicMock(),
             media_root=str(media_root),
@@ -113,7 +123,7 @@ class TestCleanupMedia:
 
         assert shot.exists()
         assert not audio.exists()
-        media_repo.clear_paths.assert_called_once_with(
+        media_repo.clear_phrase_paths.assert_called_once_with(
             10, clear_screenshot=False, clear_audio=True
         )
 
@@ -129,20 +139,21 @@ class TestCleanupMedia:
 
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
+            occurrence_repo=_phrases(candidate_repo),
             media_repo=media_repo,
             image_repo=MagicMock(),
             media_root=str(media_root),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.ALL)
 
-        media_repo.clear_paths.assert_called_once()
+        media_repo.clear_phrase_paths.assert_called_once()
 
     def test_candidate_without_media_skipped(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"
         source_dir = media_root / "1"
         source_dir.mkdir(parents=True)
 
-        # Candidate with no media row at all (media=None)
+        # A phrase with no media row at all (media=None)
         candidate = MagicMock()
         candidate.id = 10
         candidate.media = None
@@ -153,14 +164,15 @@ class TestCleanupMedia:
 
         uc = CleanupMediaUseCase(
             candidate_repo=candidate_repo,
+            occurrence_repo=_phrases(candidate_repo),
             media_repo=media_repo,
             image_repo=MagicMock(),
             media_root=str(media_root),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.ALL)
 
-        # No DB call since candidate has no media row
-        media_repo.clear_paths.assert_not_called()
+        # No DB call since the phrase has no media row
+        media_repo.clear_phrase_paths.assert_not_called()
 
 
 @pytest.mark.unit
@@ -172,6 +184,7 @@ class TestCleanupMeaningImages:
         candidate_repo.get_by_source.return_value = [candidate]
         return CleanupMediaUseCase(
             candidate_repo=candidate_repo,
+            occurrence_repo=_phrases(candidate_repo),
             media_repo=MagicMock(),
             image_repo=image_repo,
             media_root=str(media_root),

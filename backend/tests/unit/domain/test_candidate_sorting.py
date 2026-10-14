@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import itertools
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import pytest
+from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.candidate_sections import new_words, section_of
 from backend.domain.services.candidate_sorting import (
-    decided_last,
     sort_by_key_words,
     sort_by_relevance,
     sort_chronologically,
@@ -16,9 +18,12 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
+from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.review_card import ReviewCard
 from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.domain.value_objects.user_knowledge import UserKnowledge
 from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY, Vocabulary
+from backend.domain.value_objects.word_status import WordStatus
 
 from tests.phrase_support import phrase
 
@@ -47,20 +52,51 @@ def _make(
     pos: str = "NOUN",
     unknowns: int = 0,
     position: DocumentPosition | None = None,
-) -> StoredCandidate:
-    return StoredCandidate(
-        source_id=1,
-        phrase_position=position,
-        lemma=lemma,
-        pos=pos,
-        cefr_level=cefr,
-        zipf_frequency=zipf,
-        source_phrase=_phrase(lemma, context_fragment, unknowns),
-        occurrences=occurrences,
-        status=CandidateStatus.PENDING,
-        is_phrasal_verb=is_phrasal_verb,
-        usage_distribution=usage_distribution,
+    shown: Phrase | None = None,
+) -> ReviewCard:
+    """A card of its own word; ids follow the order cards are made."""
+    card_id = next(_IDS)
+    text = shown or _phrase(lemma, context_fragment, unknowns)
+    return ReviewCard(
+        word=StoredCandidate(
+            id=card_id,
+            source_id=1,
+            lemma=lemma,
+            pos=pos,
+            cefr_level=cefr,
+            zipf_frequency=zipf,
+            source_phrase=text,
+            occurrences=occurrences,
+            status=CandidateStatus.PENDING,
+            is_phrasal_verb=is_phrasal_verb,
+            usage_distribution=usage_distribution,
+        ),
+        occurrence=Occurrence(
+            id=card_id, candidate_id=card_id, origin=OccurrenceOrigin.AUTO,
+            source_phrase=text, phrase_position=position, key=None, fragment_score=None,
+            shown_by=ShownBy.SELECTION,
+        ),
+        word_status=WordStatus.PENDING,
     )
+
+
+_IDS = itertools.count(1)
+
+
+def _with_id(card: ReviewCard, card_id: int) -> ReviewCard:
+    return ReviewCard(
+        word=replace(card.word, id=card_id),
+        occurrence=replace(card.occurrence, id=card_id, candidate_id=card_id),
+        word_status=card.word_status,
+    )
+
+
+def _decided(card: ReviewCard, status: WordStatus) -> ReviewCard:
+    return replace(card, word_status=status)
+
+
+def _skipped(card: ReviewCard) -> ReviewCard:
+    return replace(card, occurrence=replace(card.occurrence, skipped=True))
 
 
 def _phrase(lemma: str, context_fragment: str, unknowns: int) -> Phrase:
@@ -136,15 +172,12 @@ class TestSortByRelevance:
         assert len(result) == 1
         assert result[0].lemma == "only"
 
-    def test_stable_sort(self) -> None:
-        """Two candidates with identical sort keys preserve original order."""
+    def test_identical_keys_keep_the_order_words_were_made(self) -> None:
+        """Two cards with identical sort keys go by their words' ids, whatever the input."""
         a = _make("alpha", 4.0)
         b = _make("beta", 4.0)
-        result = sort_by_relevance([a, b])
-        assert [c.lemma for c in result] == ["alpha", "beta"]
-        # Reversed input → reversed output
-        result2 = sort_by_relevance([b, a])
-        assert [c.lemma for c in result2] == ["beta", "alpha"]
+        assert [c.lemma for c in sort_by_relevance([a, b])] == ["alpha", "beta"]
+        assert [c.lemma for c in sort_by_relevance([b, a])] == ["alpha", "beta"]
 
     def test_all_five_bands(self) -> None:
         """One candidate per band, verify order ULTRA_COMMON → COMMON → MID → LOW → RARE."""
@@ -179,10 +212,8 @@ class TestSortChronologically:
         assert [c.lemma for c in result] == ["placed", "example"]
 
     def test_tiebreaker_by_id(self) -> None:
-        c1 = _make("a", 4.0, position=_at(0, 0, 0))
-        c1.id = 10
-        c2 = _make("b", 4.0, position=_at(0, 0, 0))
-        c2.id = 5
+        c1 = _with_id(_make("a", 4.0, position=_at(0, 0, 0)), 10)
+        c2 = _with_id(_make("b", 4.0, position=_at(0, 0, 0)), 5)
         result = sort_chronologically([c1, c2])
         assert [c.lemma for c in result] == ["b", "a"]
 
@@ -191,10 +222,8 @@ class TestSortChronologically:
 
     def test_phrases_without_places_keep_the_order_they_were_added(self) -> None:
         """A topic's phrases have no document: they stay as collected."""
-        c1 = _make("alpha", 4.0)
-        c1.id = 20
-        c2 = _make("beta", 4.0)
-        c2.id = 10
+        c1 = _with_id(_make("alpha", 4.0), 20)
+        c2 = _with_id(_make("beta", 4.0), 10)
         result = sort_chronologically([c1, c2])
         assert [c.lemma for c in result] == ["beta", "alpha"]
 
@@ -380,7 +409,7 @@ class TestSortByKeyWords:
         result = sort_by_key_words(
             [dirty, clean], frequent_threshold=self.THRESHOLD, knowledge=KNOWLEDGE,
         )
-        assert [len(new_words(c, KNOWLEDGE)) for c in result] == [0, 1]
+        assert [len(new_words(c.phrase, KNOWLEDGE)) for c in result] == [0, 1]
 
     def test_too_frequent_word_goes_below_even_if_repeated(self) -> None:
         frequent = _make("concept", 4.77, occurrences=9)
@@ -398,18 +427,12 @@ class TestSortByKeyWords:
 
 
 @pytest.mark.unit
-class TestDecidedLast:
-    def test_decided_go_below_pending_keeping_order(self) -> None:
-        candidates = [_make(name, 4.0) for name in ("a", "b", "c", "d", "e")]
-        decided = {
-            "a": CandidateStatus.SKIP,
-            "c": CandidateStatus.LEARN,
-            "d": CandidateStatus.KNOWN,
-        }
-        for candidate in candidates:
-            candidate.status = decided.get(candidate.lemma, CandidateStatus.PENDING)
-        result = decided_last(candidates)
-        assert [c.lemma for c in result] == ["b", "e", "a", "c", "d"]
+class TestDoneLastInTextOrder:
+    def test_done_cards_go_below_open_ones_keeping_order(self) -> None:
+        a, b, c, d, e = (_make(name, 4.0) for name in ("a", "b", "c", "d", "e"))
+        cards = [_skipped(a), b, _decided(c, WordStatus.LEARN), _decided(d, WordStatus.KNOWN), e]
+        result = sort_chronologically(cards)
+        assert [card.lemma for card in result] == ["b", "e", "a", "c", "d"]
 
 
 @pytest.mark.unit
@@ -420,7 +443,7 @@ class TestSections:
     THRESHOLD = FrequentWordThreshold.from_key("4.5")
 
     def _lemmas(
-        self, candidates: list[StoredCandidate], vocabulary: Vocabulary = EMPTY_VOCABULARY,
+        self, candidates: list[ReviewCard], vocabulary: Vocabulary = EMPTY_VOCABULARY,
     ) -> list[str]:
         result = sort_by_relevance(
             candidates, frequent_threshold=self.THRESHOLD, knowledge=_knowledge(vocabulary),
@@ -428,14 +451,12 @@ class TestSections:
         return [c.lemma for c in result]
 
     def test_decided_ready_card_stays_above_pending_extra_one(self) -> None:
-        decided = _make("feast", 3.95)
-        decided.status = CandidateStatus.LEARN
+        decided = _decided(_make("feast", 3.95), WordStatus.LEARN)
         extra = _make("scythe", 2.6, unknowns=1)
         assert self._lemmas([extra, decided]) == ["feast", "scythe"]
 
     def test_decided_card_goes_below_pending_one_of_its_section(self) -> None:
-        decided = _make("feast", 3.95)
-        decided.status = CandidateStatus.SKIP
+        decided = _skipped(_make("feast", 3.95))
         pending = _make("gallows", 2.4)
         assert self._lemmas([decided, pending]) == ["gallows", "feast"]
 
@@ -465,11 +486,11 @@ class TestSections:
         )
 
     def test_new_words_are_listed_once(self) -> None:
-        candidate = _make("scythe", 2.6)
-        candidate.source_phrase = phrase("grim grim the scythe", "scythe", new=["grim"])
-        assert new_words(candidate, KNOWLEDGE) == ["grim"]
+        candidate = _make(
+            "scythe", 2.6, shown=phrase("grim grim the scythe", "scythe", new=["grim"]),
+        )
+        assert new_words(candidate.phrase, KNOWLEDGE) == ["grim"]
 
     def test_new_target_is_not_an_extra_word(self) -> None:
-        candidate = _make("scythe", 2.6)
-        candidate.source_phrase = phrase("the scythe", "scythe", new=["scythe"])
-        assert new_words(candidate, KNOWLEDGE) == []
+        candidate = _make("scythe", 2.6, shown=phrase("the scythe", "scythe", new=["scythe"]))
+        assert new_words(candidate.phrase, KNOWLEDGE) == []

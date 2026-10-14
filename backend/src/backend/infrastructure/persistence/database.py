@@ -4,10 +4,8 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
-from sqlalchemy import create_engine, event, update
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
-
-from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
     import sqlite3
@@ -122,22 +120,6 @@ def create_session_factory(db_url: str | None = None) -> sessionmaker[Session]:
     event.listen(engine, "connect", _enable_sqlite_foreign_keys)
     event.listen(engine, "connect", _wait_for_locks)
     return sessionmaker(bind=engine)
-
-
-def reset_stuck_processing(session_factory: sessionmaker[Session]) -> None:
-    """Reset sources stuck in PROCESSING status back to NEW (after crash recovery)."""
-    from backend.infrastructure.persistence.models import SourceModel
-
-    session = session_factory()
-    try:
-        session.execute(
-            update(SourceModel)
-            .where(SourceModel.status == SourceStatus.PROCESSING.value)
-            .values(status=SourceStatus.NEW.value, processing_stage=None)
-        )
-        session.commit()
-    finally:
-        session.close()
 
 
 def release_source_operations(session_factory: sessionmaker[Session]) -> None:

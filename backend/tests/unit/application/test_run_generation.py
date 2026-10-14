@@ -9,6 +9,7 @@ import pytest
 from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
 from backend.application.use_cases.get_generation_status import GetGenerationStatusUseCase
 from backend.application.use_cases.run_generation import RunGenerationUseCase
+from backend.application.utils.candidate_sorter import ArrangedCards
 from backend.application.utils.generation_targets import (
     GenerationCards,
     MeaningTarget,
@@ -52,6 +53,7 @@ from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from backend.application.dto.generation_dtos import GenerationKindStatusDTO
+    from backend.domain.value_objects.review_card import ReviewCard
 
 SOURCE_ID = 9
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
@@ -158,7 +160,9 @@ class _Setup:
         self.lock = MagicMock()
         self.lock.held.return_value = busy_with
         sorter = MagicMock()
-        sorter.sort.side_effect = lambda cs, _order: list(reversed(cs))
+        sorter.arrange.side_effect = lambda cs, _order: ArrangedCards(
+            cards=_words_reversed(cs), sections={},
+        )
         targets = [
             PolishTarget(self.occurrence_repo),
             MeaningTarget(self.meaning_repo),
@@ -193,6 +197,14 @@ class _Setup:
 
     def queued_phrases(self) -> list[int | None]:
         return [phrase_id for _, phrase_id, _ in self.queued()]
+
+
+def _words_reversed(cards: list[ReviewCard]) -> list[ReviewCard]:
+    """The sorter of these tests: words in reverse order, the cards of each as made."""
+    by_word: dict[int, list[ReviewCard]] = {}
+    for card in cards:
+        by_word.setdefault(card.word_id, []).append(card)
+    return [card for word_id in reversed(by_word) for card in by_word[word_id]]
 
 
 def _one(

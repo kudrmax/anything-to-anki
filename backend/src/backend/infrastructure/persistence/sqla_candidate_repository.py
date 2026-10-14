@@ -89,6 +89,9 @@ class SqlaCandidateRepository(CandidateRepository):
                 decision_kind=DecisionKind.LEARN if decided else None,
                 polished_phrase=candidate.polished_phrase,
                 polish_reverted=candidate.polish_reverted,
+                collected_from=(
+                    candidate.origin if origin is OccurrenceOrigin.COLLECTED else None
+                ),
             ))
             created.append(self._view([word])[0])
         return created

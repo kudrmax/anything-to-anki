@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_stage import SourceStage
 from backend.domain.value_objects.source_status import SourceStatus
 
@@ -18,6 +19,17 @@ def stage_of(status: SourceStatus, *, awaiting_generation: bool) -> SourceStage:
     return _STAGE_BY_STATUS.get(status, SourceStage.PREPARING)
 
 
-def is_pending(status: SourceStatus, *, awaiting_generation: bool) -> bool:
-    """Processing can start right now: a topic has to get its targets from AI first."""
-    return status in _STARTABLE and not awaiting_generation
+PROCESSING = "processing"
+
+
+def is_pending(
+    status: SourceStatus, *, awaiting_generation: bool, busy: bool = False,
+) -> bool:
+    """Processing can start right now: a topic has to get its targets from AI first, and
+    no operation may hold the source."""
+    return status in _STARTABLE and not awaiting_generation and not busy
+
+
+def shown_status(status: SourceStatus, busy_with: SourceOperationKind | None) -> str:
+    """The status a source shows: 'processing' while it is processed, else its outcome."""
+    return PROCESSING if busy_with is SourceOperationKind.PROCESS else status.value

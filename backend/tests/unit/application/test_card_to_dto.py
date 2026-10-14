@@ -1,24 +1,32 @@
-"""Tests for stored_candidate_to_dto and status derivation functions."""
+"""Tests for card_to_dto: a card of the review list as the API shows it."""
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import pytest
-from backend.application.dto.source_dtos import stored_candidate_to_dto
+from backend.application.dto.source_dtos import CardJobs, card_to_dto
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.job import Job
-from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
+from backend.domain.value_objects.elsewhere import Elsewhere
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
+from backend.domain.value_objects.phrase_origin_kind import DecisionKind
+from backend.domain.value_objects.word_status import WordStatus
 
+from tests.card_support import card, occurrence, word
 from tests.phrase_support import phrase
 
+if TYPE_CHECKING:
+    from backend.domain.value_objects.review_card import ReviewCard
+
 NOW = datetime(2025, 1, 1, tzinfo=UTC)
+WORD_JOB_TYPES = (JobType.PRONUNCIATION,)
 
 
 def _make_candidate(
@@ -27,20 +35,10 @@ def _make_candidate(
     meaning: CandidateMeaning | None = None,
     media: CandidateMedia | None = None,
     pronunciation: CandidatePronunciation | None = None,
-) -> StoredCandidate:
-    return StoredCandidate(
-        id=cid,
-        source_id=10,
-        lemma="test",
-        pos="NOUN",
-        cefr_level="B2",
-        zipf_frequency=3.5,
-        source_phrase=phrase("a test", "test"),
-        occurrences=1,
-        status=CandidateStatus.PENDING,
-        meaning=meaning,
-        media=media,
-        pronunciation=pronunciation,
+) -> ReviewCard:
+    return card(
+        word(cid, pronunciation=pronunciation),
+        occurrence(cid, cid, meaning=meaning, media=media),
     )
 
 
@@ -61,27 +59,30 @@ def _make_job(
         error=error,
         created_at=NOW,
         started_at=None,
+        phrase_id=None if job_type in WORD_JOB_TYPES else candidate_id,
     )
 
 
-def _jobs_dict(jobs: list[Job]) -> dict[int, dict[str, Job]]:
-    result: dict[int, dict[str, Job]] = {}
+def _jobs_dict(jobs: list[Job]) -> CardJobs:
+    phrases: dict[int, dict[str, Job]] = {}
+    words: dict[int, dict[str, Job]] = {}
     for j in jobs:
-        cid = j.candidate_id
-        if cid is not None:
-            result.setdefault(cid, {})[j.job_type.value] = j
-    return result
+        if j.phrase_id is not None:
+            phrases.setdefault(j.phrase_id, {})[j.job_type.value] = j
+        elif j.candidate_id is not None:
+            words.setdefault(j.candidate_id, {})[j.job_type.value] = j
+    return CardJobs(of_phrases=phrases, of_words=words)
 
 
 @pytest.mark.unit
-class TestStoredCandidateToDtoStatusDerivation:
-    """Test all branches of status derivation in stored_candidate_to_dto."""
+class TestCardToDtoStatusDerivation:
+    """Test all branches of status derivation in card_to_dto."""
 
     # --- No jobs, no enrichment data ---
 
     def test_no_jobs_no_enrichment_data(self) -> None:
         c = _make_candidate()
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=None)
+        dto = card_to_dto(c)
         assert dto.meaning is None
         assert dto.media is None
         assert dto.pronunciation is None
@@ -94,7 +95,7 @@ class TestStoredCandidateToDtoStatusDerivation:
             synonyms=None, examples=None, ipa=None, generated_at=NOW,
         )
         c = _make_candidate(meaning=meaning)
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=None)
+        dto = card_to_dto(c)
         assert dto.meaning is not None
         assert dto.meaning.status == "done"
         assert dto.meaning.error is None
@@ -105,7 +106,7 @@ class TestStoredCandidateToDtoStatusDerivation:
             start_ms=None, end_ms=None, generated_at=NOW,
         )
         c = _make_candidate(media=media)
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=None)
+        dto = card_to_dto(c)
         assert dto.media is not None
         assert dto.media.status == "done"
 
@@ -115,7 +116,7 @@ class TestStoredCandidateToDtoStatusDerivation:
             start_ms=1000, end_ms=5000, generated_at=None,
         )
         c = _make_candidate(media=media)
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=None)
+        dto = card_to_dto(c)
         assert dto.media is not None
         assert dto.media.status == "idle"
 
@@ -125,7 +126,7 @@ class TestStoredCandidateToDtoStatusDerivation:
             generated_at=NOW,
         )
         c = _make_candidate(pronunciation=pron)
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=None)
+        dto = card_to_dto(c)
         assert dto.pronunciation is not None
         assert dto.pronunciation.status == "done"
 
@@ -134,7 +135,7 @@ class TestStoredCandidateToDtoStatusDerivation:
     def test_meaning_job_queued_no_data(self) -> None:
         job = _make_job(job_type=JobType.MEANING, status=JobStatus.QUEUED)
         c = _make_candidate()
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=_jobs_dict([job]))
+        dto = card_to_dto(c, _jobs_dict([job]))
         assert dto.meaning is not None
         assert dto.meaning.status == "queued"
         assert dto.meaning.meaning is None
@@ -142,7 +143,7 @@ class TestStoredCandidateToDtoStatusDerivation:
     def test_meaning_job_running_no_data(self) -> None:
         job = _make_job(job_type=JobType.MEANING, status=JobStatus.RUNNING)
         c = _make_candidate()
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=_jobs_dict([job]))
+        dto = card_to_dto(c, _jobs_dict([job]))
         assert dto.meaning is not None
         assert dto.meaning.status == "running"
 
@@ -152,7 +153,7 @@ class TestStoredCandidateToDtoStatusDerivation:
             error="AI service unavailable",
         )
         c = _make_candidate()
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=_jobs_dict([job]))
+        dto = card_to_dto(c, _jobs_dict([job]))
         assert dto.meaning is not None
         assert dto.meaning.status == "failed"
         assert dto.meaning.error == "AI service unavailable"
@@ -160,7 +161,7 @@ class TestStoredCandidateToDtoStatusDerivation:
     def test_media_job_queued_no_data(self) -> None:
         job = _make_job(job_type=JobType.MEDIA, status=JobStatus.QUEUED)
         c = _make_candidate()
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=_jobs_dict([job]))
+        dto = card_to_dto(c, _jobs_dict([job]))
         assert dto.media is not None
         assert dto.media.status == "queued"
         assert dto.media.screenshot_path is None
@@ -168,7 +169,7 @@ class TestStoredCandidateToDtoStatusDerivation:
     def test_pronunciation_job_running_no_data(self) -> None:
         job = _make_job(job_type=JobType.PRONUNCIATION, status=JobStatus.RUNNING)
         c = _make_candidate()
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=_jobs_dict([job]))
+        dto = card_to_dto(c, _jobs_dict([job]))
         assert dto.pronunciation is not None
         assert dto.pronunciation.status == "running"
 
@@ -181,7 +182,7 @@ class TestStoredCandidateToDtoStatusDerivation:
         )
         job = _make_job(job_type=JobType.MEANING, status=JobStatus.RUNNING)
         c = _make_candidate(meaning=meaning)
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=_jobs_dict([job]))
+        dto = card_to_dto(c, _jobs_dict([job]))
         assert dto.meaning is not None
         # Job status overrides "done" from existing data
         assert dto.meaning.status == "running"
@@ -193,7 +194,7 @@ class TestStoredCandidateToDtoStatusDerivation:
         )
         job = _make_job(job_type=JobType.MEDIA, status=JobStatus.FAILED, error="timeout")
         c = _make_candidate(media=media)
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=_jobs_dict([job]))
+        dto = card_to_dto(c, _jobs_dict([job]))
         assert dto.media is not None
         assert dto.media.status == "failed"
         assert dto.media.error == "timeout"
@@ -205,7 +206,7 @@ class TestStoredCandidateToDtoStatusDerivation:
         )
         job = _make_job(job_type=JobType.PRONUNCIATION, status=JobStatus.QUEUED)
         c = _make_candidate(pronunciation=pron)
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=_jobs_dict([job]))
+        dto = card_to_dto(c, _jobs_dict([job]))
         assert dto.pronunciation is not None
         assert dto.pronunciation.status == "queued"
 
@@ -223,9 +224,7 @@ class TestStoredCandidateToDtoStatusDerivation:
             error="not found", job_id=102,
         )
         c = _make_candidate()
-        dto = stored_candidate_to_dto(
-            c, jobs_by_candidate=_jobs_dict([meaning_job, media_job, pron_job]),
-        )
+        dto = card_to_dto(c, _jobs_dict([meaning_job, media_job, pron_job]))
         assert dto.meaning is not None
         assert dto.meaning.status == "running"
         assert dto.media is not None
@@ -242,7 +241,7 @@ class TestStoredCandidateToDtoStatusDerivation:
             synonyms=None, examples=None, ipa=None, generated_at=NOW,
         )
         c = _make_candidate(meaning=meaning)
-        dto = stored_candidate_to_dto(c, jobs_by_candidate={})
+        dto = card_to_dto(c, CardJobs())
         assert dto.meaning is not None
         assert dto.meaning.status == "done"
 
@@ -257,41 +256,76 @@ class TestStoredCandidateToDtoStatusDerivation:
         job = _make_job(
             job_type=JobType.MEANING, status=JobStatus.RUNNING, candidate_id=999,
         )
-        dto = stored_candidate_to_dto(c, jobs_by_candidate=_jobs_dict([job]))
+        dto = card_to_dto(c, _jobs_dict([job]))
         # No matching job for candidate 1 → status from data
         assert dto.meaning is not None
         assert dto.meaning.status == "done"
 
 
 @pytest.mark.unit
-class TestStoredCandidateToDtoCloze:
-    def _candidate(
-        self, cloze: CandidateCloze | None, status: CandidateStatus = CandidateStatus.LEARN,
-    ) -> StoredCandidate:
-        return StoredCandidate(
-            id=1, source_id=10, lemma="give up", pos="VERB", cefr_level="B1",
-            zipf_frequency=4.0,
-            source_phrase=phrase(
-                "She finally gave up smoking.", "give up", lemmas={"gave": "give"},
+class TestCardToDtoCloze:
+    TEXT = "She finally gave up smoking."
+
+    def _card(
+        self, cloze: CandidateCloze | None, status: WordStatus = WordStatus.LEARN,
+        *, is_decision: bool = True, exported: bool = False,
+    ) -> ReviewCard:
+        return card(
+            word(1, "give up", status=status),
+            occurrence(
+                1, 1, phrase(self.TEXT, "give up", lemmas={"gave": "give"}), cloze=cloze,
+                is_decision=is_decision, exported=exported,
+                decision_kind=DecisionKind.CLOZE if is_decision else None,
             ),
-            occurrences=1, status=status, cloze=cloze,
         )
 
-    def test_stored_candidate_dto_has_effective_cloze_and_can_cloze(self) -> None:
+    def test_the_decision_card_has_its_effective_cloze_and_can_cloze(self) -> None:
         stale = CandidateCloze(1, (0,), ClozeHintKind.FIRST_LETTER, None, "Old phrase.")
-        dto = stored_candidate_to_dto(self._candidate(stale))
+        dto = card_to_dto(self._card(stale))
         assert dto.cloze is not None
         assert dto.cloze.hidden_word_indices == [2, 3]
         assert dto.cloze.hint_kind == "first_letter"
         assert dto.cloze.custom_hint is None
         assert dto.can_cloze is True
 
-        synced = stored_candidate_to_dto(self._candidate(None), synced_ids={1})
-        assert synced.cloze is None
-        assert synced.can_cloze is False
+        exported = card_to_dto(self._card(None, exported=True))
+        assert exported.cloze is None
+        assert exported.can_cloze is False
 
-    def test_cloze_is_shown_only_for_learn(self) -> None:
-        text = "She finally gave up smoking."
-        cloze = CandidateCloze(1, (2, 3), ClozeHintKind.NONE, None, text)
-        dto = stored_candidate_to_dto(self._candidate(cloze, CandidateStatus.SKIP))
-        assert dto.cloze is None
+    def test_cloze_is_shown_only_on_the_learn_decision_card(self) -> None:
+        cloze = CandidateCloze(1, (2, 3), ClozeHintKind.NONE, None, self.TEXT)
+        assert card_to_dto(self._card(cloze, WordStatus.KNOWN)).cloze is None
+        assert card_to_dto(self._card(cloze, is_decision=False)).cloze is None
+
+
+@pytest.mark.unit
+class TestCardToDtoDecision:
+    def test_a_card_carries_its_phrase_and_its_word(self) -> None:
+        dto = card_to_dto(card(word(7), occurrence(42, 7)))
+        assert (dto.phrase_id, dto.word_id) == (42, 7)
+
+    def test_the_word_decision_beats_a_skip_of_the_phrase(self) -> None:
+        skipped = occurrence(1, 1, skipped=True)
+        assert card_to_dto(card(word(), skipped)).status == "skip"
+        learned = card_to_dto(card(word(status=WordStatus.LEARN), skipped))
+        assert (learned.status, learned.word_status, learned.phrase_skipped) == (
+            "learn", "learn", True,
+        )
+
+    def test_a_card_done_elsewhere_says_why(self) -> None:
+        dto = card_to_dto(card(elsewhere=Elsewhere.LEARNING))
+        assert dto.state.elsewhere == "learning"
+        assert "learn" not in dto.state.buttons_enabled
+
+    def test_the_decision_card_and_its_kind(self) -> None:
+        decided = occurrence(1, 1, is_decision=True, decision_kind=DecisionKind.LEARN)
+        dto = card_to_dto(card(word(status=WordStatus.LEARN), decided))
+        assert (dto.is_decision, dto.decision_kind) == (True, "learn")
+        assert dto.state.decided_here is True
+        assert "undo" in dto.state.buttons_enabled
+
+    def test_jobs_of_another_phrase_of_the_word_are_not_this_cards(self) -> None:
+        job = replace(_make_job(job_type=JobType.POLISH), phrase_id=2)
+        assert card_to_dto(card(), _jobs_dict([job])).polish_status is None
+        other = card_to_dto(card(word(), occurrence(2, 1)), _jobs_dict([job]))
+        assert other.polish_status == "queued"

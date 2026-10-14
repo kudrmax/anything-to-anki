@@ -41,9 +41,10 @@ class AnkiStatusDTO(BaseModel):
 
 
 class CardPreviewDTO(BaseModel):
-    """Preview of a generated Anki card."""
+    """Preview of a generated Anki card: the word's phrase of the decision."""
 
     candidate_id: int
+    phrase_id: int  # the card of the review list it comes from
     lemma: str
     sentence: str        # card phrase with <b>word</b>; for a cloze card the hidden words in <b>
     meaning: str | None  # None if not yet fetched from dictionary

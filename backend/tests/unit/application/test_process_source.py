@@ -37,13 +37,13 @@ class TestProcessSourceStart:
             topic_phrase_collector=self.collector,
         )
 
-    def test_start_takes_the_source_and_shows_it_processing(self) -> None:
+    def test_start_takes_the_source_and_leaves_its_status(self) -> None:
         self.source_repo.get_by_id.return_value = _source(SourceStatus.NEW)
 
         self.use_case.start(1)
 
         self.lock.acquire.assert_called_once_with(1, SourceOperationKind.PROCESS)
-        self.source_repo.update_status.assert_called_once_with(1, SourceStatus.PROCESSING)
+        self.source_repo.update_status.assert_not_called()
 
     def test_start_not_found(self) -> None:
         self.source_repo.get_by_id.return_value = None

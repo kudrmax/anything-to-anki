@@ -51,9 +51,10 @@ class BlockDTO(BaseModel):
 
 
 class HighlightDTO(BaseModel):
-    """A target to mark on the source screen."""
+    """A target of a card to mark on the source screen."""
 
-    candidate_id: int
+    phrase_id: int
+    word_id: int
     position: DocumentPositionDTO
     cefr_level: str | None
     is_phrasal_verb: bool

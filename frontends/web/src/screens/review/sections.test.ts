@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { CandidateSection, StoredCandidate } from '@/api/types'
 import { listItems, visibleCandidates } from './sections'
 
-const card = (id: number, section: CandidateSection) => ({ id, section }) as StoredCandidate
+const card = (id: number, section: CandidateSection) => ({ phrase_id: id, section }) as StoredCandidate
 const CARDS = [card(1, 'ready'), card(2, 'extra'), card(3, 'extra'), card(4, 'probably_known')]
 const rows = (open: CandidateSection[], shownCount = CARDS.length) => {
   const opened = new Set(open)
   const shown = visibleCandidates(CARDS, opened).slice(0, shownCount)
-  return listItems(CARDS, shown, opened).map(item => (item.kind === 'section' ? `${item.section}${item.open ? '-' : '+'}` : item.candidate.id))
+  return listItems(CARDS, shown, opened).map(item => (item.kind === 'section' ? `${item.section}${item.open ? '-' : '+'}` : item.candidate.phrase_id))
 }
 
 describe('listItems', () => {

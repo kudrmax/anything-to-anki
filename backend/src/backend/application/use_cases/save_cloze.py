@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.exceptions import (
@@ -15,11 +14,11 @@ from backend.domain.services.card_decision import DecisionAction
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
 if TYPE_CHECKING:
+    from backend.application.dto.source_dtos import CardDTO
     from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
+    from backend.application.utils.card_views import CardViews
     from backend.domain.ports.candidate_cloze_repository import CandidateClozeRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
-    from backend.domain.ports.card_report_repository import CardReportRepository
-    from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.services.cloze_builder import ClozeBuilder
@@ -33,8 +32,7 @@ class SaveClozeUseCase:
         occurrence_repo: OccurrenceRepository,
         candidate_repo: CandidateRepository,
         cloze_repo: CandidateClozeRepository,
-        job_repo: JobRepository,
-        report_repo: CardReportRepository,
+        card_views: CardViews,
         decide_phrase: DecidePhraseUseCase,
         builder: ClozeBuilder,
         lock: SourceOperationLock,
@@ -43,8 +41,7 @@ class SaveClozeUseCase:
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
         self._cloze_repo = cloze_repo
-        self._job_repo = job_repo
-        self._report_repo = report_repo
+        self._card_views = card_views
         self._decide_phrase = decide_phrase
         self._builder = builder
 
@@ -55,8 +52,8 @@ class SaveClozeUseCase:
         hidden_word_indices: list[int],
         hint_kind: ClozeHintKind,
         custom_hint: str | None,
-    ) -> StoredCandidateDTO:
-        """Returns the word as it is after saving.
+    ) -> CardDTO:
+        """Returns the card as it is after saving.
 
         `phrase` is the card phrase the user picked the words in: if the card shows another
         one by now (polish landed or was reverted), the indices point at other words."""
@@ -89,12 +86,4 @@ class SaveClozeUseCase:
             custom_hint=custom if hint_kind is ClozeHintKind.CUSTOM else None,
             phrase=phrase,
         ))
-        word_id = occ.candidate_id
-        saved = self._candidate_repo.get_by_id(word_id)
-        assert saved is not None
-        return stored_candidate_to_dto(
-            saved,
-            self._job_repo.get_jobs_for_candidates([word_id]),
-            self._report_repo.reported_candidate_ids([word_id]),
-            synced_ids=set(),
-        )
+        return self._card_views.one(occurrence_id)

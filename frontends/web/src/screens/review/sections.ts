@@ -33,18 +33,18 @@ export const visibleCandidates = (candidates: StoredCandidate[], open: ReadonlyS
 export function listItems(
   candidates: StoredCandidate[], shown: StoredCandidate[], open: ReadonlySet<CandidateSection>,
 ): ListItem[] {
-  const shownIds = new Set(shown.map(c => c.id))
+  const shownIds = new Set(shown.map(c => c.phrase_id))
   const ready = candidates.filter(isReady)
-  const items: ListItem[] = ready.filter(c => shownIds.has(c.id)).map(candidate => ({ kind: 'candidate', candidate }))
-  let reached = ready.every(c => shownIds.has(c.id))
+  const items: ListItem[] = ready.filter(c => shownIds.has(c.phrase_id)).map(candidate => ({ kind: 'candidate', candidate }))
+  let reached = ready.every(c => shownIds.has(c.phrase_id))
   for (const section of FOLDED_SECTIONS) {
     const cards = candidates.filter(c => c.section === section)
     if (!reached || cards.length === 0) continue
     const isOpen = open.has(section)
     items.push({ kind: 'section', section, count: cards.length, open: isOpen })
     if (!isOpen) continue
-    items.push(...cards.filter(c => shownIds.has(c.id)).map(candidate => ({ kind: 'candidate' as const, candidate })))
-    reached = cards.every(c => shownIds.has(c.id))
+    items.push(...cards.filter(c => shownIds.has(c.phrase_id)).map(candidate => ({ kind: 'candidate' as const, candidate })))
+    reached = cards.every(c => shownIds.has(c.phrase_id))
   }
   return items
 }

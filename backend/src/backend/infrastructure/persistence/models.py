@@ -61,7 +61,6 @@ from backend.domain.value_objects.phrase_origin_kind import (
     OccurrenceOrigin,
     ShownBy,
 )
-from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_eviction import SourceEviction
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
@@ -218,7 +217,6 @@ class SourceModel(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="new")
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    processing_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     video_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     audio_track_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     collection_id: Mapped[int | None] = mapped_column(
@@ -241,9 +239,6 @@ class SourceModel(Base):
             status=SourceStatus(self.status),
             source_url=self.source_url,
             error_message=self.error_message,
-            processing_stage=(
-                ProcessingStage(self.processing_stage) if self.processing_stage else None
-            ),
             video_path=self.video_path,
             audio_track_index=self.audio_track_index,
             collection_id=self.collection_id,
@@ -539,6 +534,8 @@ class PhraseModel(Base):
     replaces_selection: Mapped[bool] = mapped_column(
         nullable=False, default=False, server_default="0",
     )
+    collected_kind: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    collected_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
@@ -576,6 +573,14 @@ class PhraseModel(Base):
             replaces_selection=self.replaces_selection,
             polished_phrase=load_phrase(self.polished_phrase),
             polish_reverted=self.polish_reverted,
+            collected_from=(
+                PhraseOrigin(
+                    kind=PhraseOriginKind(self.collected_kind),
+                    source_title=self.collected_title,
+                )
+                if self.collected_kind is not None
+                else None
+            ),
         )
 
     @staticmethod
@@ -599,6 +604,12 @@ class PhraseModel(Base):
             decision_kind=occurrence.decision_kind.value if occurrence.decision_kind else None,
             edited_by_user=occurrence.edited_by_user,
             replaces_selection=occurrence.replaces_selection,
+            collected_kind=(
+                occurrence.collected_from.kind.value if occurrence.collected_from else None
+            ),
+            collected_title=(
+                occurrence.collected_from.source_title if occurrence.collected_from else None
+            ),
         )
 
 
@@ -658,6 +669,8 @@ class SourceOperationModel(Base):
         autoincrement=False,
     )
     kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    # What a running process is doing now; other operations have no stages.
+    stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     started_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
 
 
@@ -713,6 +726,8 @@ class KnownWordModel(Base):
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
+    # Anki said the word is learned: its note matured.
+    from_anki: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="0")
 
     __table_args__ = (UniqueConstraint("lemma", "pos", name="uq_known_word_lemma_pos"),)
 
@@ -722,6 +737,7 @@ class KnownWordModel(Base):
             lemma=self.lemma,
             pos=self.pos,
             created_at=self.created_at,
+            from_anki=self.from_anki,
         )
 
 

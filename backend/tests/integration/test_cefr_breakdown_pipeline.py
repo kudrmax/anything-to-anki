@@ -2,7 +2,7 @@
 
 Verifies the full pipeline:
   classify_detailed() → WordDTO → StoredCandidate
-  → CEFRBreakdownModel (DB) → StoredCandidate → StoredCandidateDTO (API)
+  → CEFRBreakdownModel (DB) → StoredCandidate → CardDTO (API)
 
 This test catches missing breakdown propagation in any layer.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 from backend.application.dto.analysis_dtos import WordDTO
-from backend.application.dto.source_dtos import PhraseDTO, StoredCandidateDTO
+from backend.application.dto.source_dtos import CardDTO, CardStateDTO, PhraseDTO
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
 from tests.integration.dict_cache_support import make_voting_classifier
@@ -70,7 +70,7 @@ class TestCEFRBreakdownPipeline:
         assert restored.final_level == original.final_level
 
     def test_breakdown_in_stored_candidate_dto(self) -> None:
-        """StoredCandidateDTO must carry cefr_breakdown."""
+        """CardDTO must carry cefr_breakdown."""
         from backend.application.dto.cefr_dtos import breakdown_to_dto
 
         classifier = make_voting_classifier()
@@ -78,8 +78,9 @@ class TestCEFRBreakdownPipeline:
         bd_dto = breakdown_to_dto(breakdown)
 
         # Simulate what get_sources._candidate_to_dto does
-        candidate_dto = StoredCandidateDTO(
-            id=1,
+        candidate_dto = CardDTO(
+            phrase_id=1,
+            word_id=1,
             lemma="happy",
             pos="JJ",
             cefr_level="A2",
@@ -89,6 +90,8 @@ class TestCEFRBreakdownPipeline:
             source_phrase=PhraseDTO.of(phrase("I am happy", "happy")),
             occurrences=1,
             status="pending",
+            word_status="pending",
+            state=CardStateDTO(decided_here=False, buttons_enabled=[]),
             cefr_breakdown=bd_dto,
         )
         assert candidate_dto.cefr_breakdown is not None

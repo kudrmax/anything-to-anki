@@ -72,7 +72,7 @@ def _candidate_in_source(client: TestClient, candidate_id: int) -> dict[str, Any
     response = client.get(f"/sources/{SOURCE_ID}")
     assert response.status_code == 200
     candidates: list[dict[str, Any]] = response.json()["candidates"]
-    return next(c for c in candidates if c["id"] == candidate_id)
+    return next(c for c in candidates if c["phrase_id"] == candidate_id)
 
 
 @pytest.mark.integration
@@ -155,7 +155,7 @@ class TestSaveClozeAPI:
 @pytest.mark.integration
 class TestPreviewClozeAPI:
     def test_preview_defaults_to_target(self, client: TestClient) -> None:
-        response = client.post(f"/candidates/{CANDIDATE_ID}/cloze/preview", json={})
+        response = client.post(f"/phrases/{CANDIDATE_ID}/cloze/preview", json={})
         assert response.status_code == 200
         body = response.json()
         assert [w["text"] for w in body["words"]][:4] == ["She", "finally", "gave", "up"]
@@ -173,7 +173,7 @@ class TestPreviewClozeAPI:
     def test_preview_uses_default_hint_setting(self, client: TestClient) -> None:
         settings = client.patch("/api/settings", json={"cloze_default_hint": "first_letter"})
         assert settings.status_code == 200
-        response = client.post(f"/candidates/{CANDIDATE_ID}/cloze/preview", json={})
+        response = client.post(f"/phrases/{CANDIDATE_ID}/cloze/preview", json={})
         assert {"text": "[g… u…]", "is_gap": True} in response.json()["front"]
 
     def test_default_hint_setting_rejects_custom(self, client: TestClient) -> None:
@@ -182,10 +182,10 @@ class TestPreviewClozeAPI:
 
     def test_preview_rejects_out_of_range_indices(self, client: TestClient) -> None:
         response = client.post(
-            f"/candidates/{CANDIDATE_ID}/cloze/preview", json={"hidden_word_indices": [42]},
+            f"/phrases/{CANDIDATE_ID}/cloze/preview", json={"hidden_word_indices": [42]},
         )
         assert response.status_code == 422
 
     def test_preview_missing_candidate_is_404(self, client: TestClient) -> None:
-        response = client.post("/candidates/999/cloze/preview", json={})
+        response = client.post("/phrases/999/cloze/preview", json={})
         assert response.status_code == 404

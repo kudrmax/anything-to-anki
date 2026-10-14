@@ -23,6 +23,7 @@ from backend.domain.value_objects.document_position import DocumentPosition
 from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.models import PhraseWordModel
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
@@ -66,15 +67,15 @@ def test_marks_that_would_overlap_keep_the_first(db_session: Session, source_id:
     ])
 
     screen = GetSourceDocumentUseCase(
-        SqlaDocumentRepository(db_session), SqlaCandidateRepository(db_session),
+        SqlaDocumentRepository(db_session), SqlaCardQuery(db_session),
     ).execute(source_id)
 
     assert [b.type for b in screen.blocks] == ["heading", "paragraph"]
     assert [line.text for line in screen.blocks[1].lines] == [
         "He gave up the relentless pursuit", "of happiness.",
     ]
-    assert [h.candidate_id for h in screen.highlights] == [give_up.id, pursuit.id]
-    assert give.id not in {h.candidate_id for h in screen.highlights}
+    assert [h.word_id for h in screen.highlights] == [give_up.id, pursuit.id]
+    assert give.id not in {h.word_id for h in screen.highlights}
 
 
 def test_selected_phrase_replaces_the_old_one(db_session: Session, source_id: int) -> None:

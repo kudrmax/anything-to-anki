@@ -135,13 +135,21 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
         clear_screenshot: bool,
         clear_audio: bool,
     ) -> None:
+        phrase_id = self._primary.id(candidate_id)
+        if phrase_id is not None:
+            self.clear_phrase_paths(
+                phrase_id, clear_screenshot=clear_screenshot, clear_audio=clear_audio,
+            )
+
+    def clear_phrase_paths(
+        self, phrase_id: int, *, clear_screenshot: bool, clear_audio: bool,
+    ) -> None:
         values: dict[str, None] = {}
         if clear_screenshot:
             values["screenshot_path"] = None
         if clear_audio:
             values["audio_path"] = None
-        phrase_id = self._primary.id(candidate_id)
-        if not values or phrase_id is None:
+        if not values:
             return
         self._session.execute(
             update(CandidateMediaModel)

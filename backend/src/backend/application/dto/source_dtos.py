@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import datetime  # noqa: TC003
 from typing import TYPE_CHECKING
 
@@ -10,17 +11,26 @@ from backend.application.dto.cefr_dtos import (
 )
 from backend.application.dto.cloze_dtos import CandidateClozeDTO
 from backend.application.dto.document_dtos import DocumentPositionDTO
+from backend.domain.services.card_decision import card_state
 from backend.domain.services.cloze_builder import ClozeBuilder
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
+from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
+    from backend.domain.entities.candidate_meaning import CandidateMeaning
+    from backend.domain.entities.candidate_media import CandidateMedia
+    from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
+    from backend.domain.entities.candidate_tts import CandidateTTS
     from backend.domain.entities.job import Job
-    from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.services.card_decision import CardState
     from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.decision_progress import DecisionProgress
     from backend.domain.value_objects.phrase import Phrase
+    from backend.domain.value_objects.review_card import ReviewCard
+
+DONE = "done"
+IDLE = "idle"
 
 
 class ProgressDTO(BaseModel):
@@ -46,6 +56,7 @@ class SourceDTO(BaseModel):
 
     id: int
     title: str
+    # The outcome of the source, or 'processing' while it is being processed.
     status: str
     stage: str  # 'in_progress' | 'preparing' | 'ready' | 'reviewed'
     kind: str | None  # 'text' | 'book' | 'subtitles' | 'song'; none for a topic or saved phrases
@@ -54,8 +65,8 @@ class SourceDTO(BaseModel):
     source_url: str | None = None
     video_downloaded: bool = False
     created_at: datetime
-    candidate_count: int
-    learn_count: int
+    candidate_count: int  # cards: shown phrases
+    learn_count: int  # words to learn
     progress: ProgressDTO = ProgressDTO()
     processing_stage: str | None = None
     collection_id: int | None = None
@@ -67,6 +78,10 @@ class SourceDTO(BaseModel):
     is_permanent: bool = False
     # How the source is brought up to date: 'rebuild' | 'refresh', or nothing to offer.
     available_operation: SourceOperationKind | None = None
+    # The operation the source is busy with; no other one may start meanwhile.
+    busy_with: SourceOperationKind | None = None
+    # Why no operation is offered while the source is busy.
+    operation_hint: str | None = None
 
 
 class SourceGroupDTO(BaseModel):
@@ -148,12 +163,35 @@ class PhraseDTO(BaseModel):
         )
 
 
-class StoredCandidateDTO(BaseModel):
-    """A persisted word candidate."""
+class CardStateDTO(BaseModel):
+    """What a card shows of the decision on its word, and which buttons work.
 
-    id: int
-    # The phrase the card shows: decisions, cloze, boundary and examples go by it.
-    phrase_id: int | None = None
+    `decided_elsewhere`: the decision of the word, made on another of its cards.
+    `elsewhere`: the word, open here, is known or learned via another source.
+    `buttons_enabled`: learn | cloze | known | skip | unskip | undo."""
+
+    decided_here: bool
+    decided_elsewhere: str | None = None
+    elsewhere: str | None = None
+    buttons_enabled: list[str]
+
+    @staticmethod
+    def of(state: CardState) -> CardStateDTO:
+        return CardStateDTO(
+            decided_here=state.decided_here,
+            decided_elsewhere=(
+                state.decided_elsewhere.value if state.decided_elsewhere is not None else None
+            ),
+            elsewhere=state.elsewhere.value if state.elsewhere is not None else None,
+            buttons_enabled=sorted(button.value for button in state.buttons_enabled),
+        )
+
+
+class CardDTO(BaseModel):
+    """A card of the review list: one shown phrase of a word."""
+
+    phrase_id: int
+    word_id: int
     lemma: str
     pos: str
     cefr_level: str | None
@@ -172,7 +210,14 @@ class StoredCandidateDTO(BaseModel):
     # ready | extra | probably_known; None when the card was not arranged with its source
     section: str | None = None
     occurrences: int
+    # The decision the card shows: pending | learn | known | skip; the word's beats a Skip.
     status: str
+    word_status: str  # pending | learn | known
+    phrase_skipped: bool = False
+    # This card's phrase is the one of the word's decision, the one that goes to Anki.
+    is_decision: bool = False
+    decision_kind: str | None = None  # learn | cloze, on the decision card
+    state: CardStateDTO
     is_phrasal_verb: bool = False
     meaning: CandidateMeaningDTO | None = None
     media: CandidateMediaDTO | None = None
@@ -182,9 +227,10 @@ class StoredCandidateDTO(BaseModel):
     cefr_breakdown: CEFRBreakdownDTO | None = None
     usage_distribution: dict[str, float] | None = None
     frequency_band: str | None = None
+    # Where a collected phrase was found: another source, or AI made it.
     origin: PhraseOriginDTO | None = None
     cloze: CandidateClozeDTO | None = None
-    # False once the card is in Anki: its note type can no longer change.
+    # False once the phrase is in Anki: its note type can no longer change.
     can_cloze: bool = True
     # Where the source phrase stands in the source's document; none for an example
     phrase_position: DocumentPositionDTO | None = None
@@ -205,8 +251,9 @@ class SourceDetailDTO(BaseModel):
     video_downloaded: bool = False
     error_message: str | None
     processing_stage: str | None = None
+    busy_with: SourceOperationKind | None = None
     created_at: datetime
-    candidates: list[StoredCandidateDTO]
+    candidates: list[CardDTO]
     progress: ProgressDTO = ProgressDTO()
     # How many candidates to show before "show more"; None — show all.
     initially_shown_candidates: int | None = None
@@ -215,251 +262,169 @@ class SourceDetailDTO(BaseModel):
 SourceDetailDTO.model_rebuild()
 
 
-def _derive_meaning_status(
-    c: StoredCandidate,
-    jobs_by_candidate: dict[int, dict[str, Job]] | None,
-) -> tuple[str, str | None]:
-    """Return (status, error) for the meaning enrichment."""
-    if jobs_by_candidate and c.id is not None:
-        jobs_for_cand = jobs_by_candidate.get(c.id, {})
-        job = jobs_for_cand.get("meaning")
-        if job is not None:
-            return job.status.value, job.error
-    if c.meaning is not None and c.meaning.meaning is not None:
-        return "done", None
-    return "done", None  # no job and no meaning = just not started, show as done
+@dataclass(frozen=True)
+class CardJobs:
+    """Jobs to show on cards: of phrases by phrase id, of words by word id."""
+
+    of_phrases: dict[int, dict[str, Job]] = field(default_factory=dict)
+    of_words: dict[int, dict[str, Job]] = field(default_factory=dict)
+
+    def of_phrase(self, phrase_id: int, job_type: JobType) -> Job | None:
+        return self.of_phrases.get(phrase_id, {}).get(job_type.value)
+
+    def of_word(self, word_id: int, job_type: JobType) -> Job | None:
+        return self.of_words.get(word_id, {}).get(job_type.value)
 
 
-def _derive_media_status(
-    c: StoredCandidate,
-    jobs_by_candidate: dict[int, dict[str, Job]] | None,
-) -> tuple[str, str | None]:
-    """Return (status, error) for the media enrichment."""
-    if jobs_by_candidate and c.id is not None:
-        jobs_for_cand = jobs_by_candidate.get(c.id, {})
-        job = jobs_for_cand.get("media")
-        if job is not None:
-            return job.status.value, job.error
-    if c.media is not None and c.media.screenshot_path is not None:
-        return "done", None
-    if c.media is not None and c.media.start_ms is not None:
-        return "idle", None
-    return "done", None
-
-
-def _derive_pronunciation_status(
-    c: StoredCandidate,
-    jobs_by_candidate: dict[int, dict[str, Job]] | None,
-) -> tuple[str, str | None]:
-    """Return (status, error) for the pronunciation enrichment."""
-    if jobs_by_candidate and c.id is not None:
-        jobs_for_cand = jobs_by_candidate.get(c.id, {})
-        job = jobs_for_cand.get("pronunciation")
-        if job is not None:
-            return job.status.value, job.error
-    if c.pronunciation is not None and (
-        c.pronunciation.us_audio_path is not None
-        or c.pronunciation.uk_audio_path is not None
-    ):
-        return "done", None
-    return "done", None
-
-
-def _derive_tts_status(
-    c: StoredCandidate,
-    jobs_by_candidate: dict[int, dict[str, Job]] | None,
-) -> tuple[str, str | None]:
-    """Return (status, error) for the TTS enrichment."""
-    if jobs_by_candidate and c.id is not None:
-        jobs_for_cand = jobs_by_candidate.get(c.id, {})
-        job = jobs_for_cand.get("tts")
-        if job is not None:
-            return job.status.value, job.error
-    if c.tts is not None and c.tts.audio_path is not None:
-        return "done", None
-    return "done", None
-
-
-def _polish_status(
-    c: StoredCandidate,
-    jobs_by_candidate: dict[int, dict[str, Job]] | None,
-) -> str | None:
-    if not jobs_by_candidate or c.id is None:
-        return None
-    job = jobs_by_candidate.get(c.id, {}).get(JobType.POLISH.value)
-    return job.status.value if job is not None else None
-
-
-def stored_candidate_to_dto(
-    c: StoredCandidate,
-    jobs_by_candidate: dict[int, dict[str, Job]] | None = None,
-    reported_ids: set[int] | None = None,
-    synced_ids: set[int] | None = None,
+def card_to_dto(
+    card: ReviewCard,
+    jobs: CardJobs | None = None,
+    *,
+    reported: bool = False,
     section: CandidateSection | None = None,
-) -> StoredCandidateDTO:
-    """Canonical converter: StoredCandidate entity → StoredCandidateDTO.
+) -> CardDTO:
+    """Canonical converter: a card → CardDTO. Every use case answering with a card uses it.
 
-    Every use case that needs to serialise a StoredCandidate MUST use this
-    function instead of hand-rolling the mapping.
-
-    ``jobs_by_candidate`` maps candidate_id → {job_type_value: Job}.
-    When provided, enrichment status/error are derived from jobs.
-
-    ``synced_ids`` are the candidates already in Anki; they can't become cloze cards.
+    Results and jobs of the phrase go with the card; the pronunciation, picture and facts
+    are the word's.
     """
     from backend.application.dto.cefr_dtos import breakdown_to_dto
 
-    meaning_dto: CandidateMeaningDTO | None = None
-    if c.meaning is not None:
-        m_status, m_error = _derive_meaning_status(c, jobs_by_candidate)
-        meaning_dto = CandidateMeaningDTO(
-            meaning=c.meaning.meaning,
-            translation=c.meaning.translation,
-            synonyms=c.meaning.synonyms,
-            examples=c.meaning.examples,
-            ipa=c.meaning.ipa,
-            status=m_status,
-            error=m_error,
-            generated_at=c.meaning.generated_at,
-        )
-    else:
-        # No meaning row, but maybe there's a queued/running/failed job
-        if jobs_by_candidate and c.id is not None:
-            jobs_for_cand = jobs_by_candidate.get(c.id, {})
-            job = jobs_for_cand.get("meaning")
-            if job is not None:
-                meaning_dto = CandidateMeaningDTO(
-                    meaning=None,
-                    translation=None,
-                    synonyms=None,
-                    examples=None,
-                    ipa=None,
-                    status=job.status.value,
-                    error=job.error,
-                    generated_at=None,
-                )
-
-    media_dto: CandidateMediaDTO | None = None
-    if c.media is not None:
-        md_status, md_error = _derive_media_status(c, jobs_by_candidate)
-        media_dto = CandidateMediaDTO(
-            screenshot_path=c.media.screenshot_path,
-            audio_path=c.media.audio_path,
-            start_ms=c.media.start_ms,
-            end_ms=c.media.end_ms,
-            status=md_status,
-            error=md_error,
-            generated_at=c.media.generated_at,
-        )
-    else:
-        if jobs_by_candidate and c.id is not None:
-            jobs_for_cand = jobs_by_candidate.get(c.id, {})
-            job = jobs_for_cand.get("media")
-            if job is not None:
-                media_dto = CandidateMediaDTO(
-                    screenshot_path=None,
-                    audio_path=None,
-                    start_ms=None,
-                    end_ms=None,
-                    status=job.status.value,
-                    error=job.error,
-                    generated_at=None,
-                )
-
-    pronunciation_dto: CandidatePronunciationDTO | None = None
-    if c.pronunciation is not None:
-        p_status, p_error = _derive_pronunciation_status(c, jobs_by_candidate)
-        pronunciation_dto = CandidatePronunciationDTO(
-            us_audio_path=c.pronunciation.us_audio_path,
-            uk_audio_path=c.pronunciation.uk_audio_path,
-            status=p_status,
-            error=p_error,
-            generated_at=c.pronunciation.generated_at,
-        )
-    else:
-        if jobs_by_candidate and c.id is not None:
-            jobs_for_cand = jobs_by_candidate.get(c.id, {})
-            job = jobs_for_cand.get("pronunciation")
-            if job is not None:
-                pronunciation_dto = CandidatePronunciationDTO(
-                    us_audio_path=None,
-                    uk_audio_path=None,
-                    status=job.status.value,
-                    error=job.error,
-                    generated_at=None,
-                )
-
-    tts_dto: CandidateTTSDTO | None = None
-    if c.tts is not None:
-        t_status, t_error = _derive_tts_status(c, jobs_by_candidate)
-        tts_dto = CandidateTTSDTO(
-            audio_path=c.tts.audio_path,
-            status=t_status,
-            error=t_error,
-            generated_at=c.tts.generated_at,
-        )
-    else:
-        if jobs_by_candidate and c.id is not None:
-            jobs_for_cand = jobs_by_candidate.get(c.id, {})
-            job = jobs_for_cand.get("tts")
-            if job is not None:
-                tts_dto = CandidateTTSDTO(
-                    audio_path=None,
-                    status=job.status.value,
-                    error=job.error,
-                    generated_at=None,
-                )
-
-    breakdown_dto: CEFRBreakdownDTO | None = None
-    if c.cefr_breakdown is not None:
-        breakdown_dto = breakdown_to_dto(c.cefr_breakdown)
-
-    return StoredCandidateDTO(
-        id=c.id,  # type: ignore[arg-type]
-        phrase_id=c.phrase_id,
-        lemma=c.lemma,
-        pos=c.pos,
-        cefr_level=c.cefr_level,
-        zipf_frequency=c.zipf_frequency,
-        is_sweet_spot=c.is_sweet_spot,
-        reported=reported_ids is not None and c.id in reported_ids,
-        phrase=PhraseDTO.of(c.phrase),
-        source_phrase=PhraseDTO.of(c.source_phrase),
+    jobs = jobs or CardJobs()
+    word, occ = card.word, card.occurrence
+    phrase_id, word_id = card.phrase_id, card.word_id
+    polished = occ.polished_phrase
+    return CardDTO(
+        phrase_id=phrase_id,
+        word_id=word_id,
+        lemma=word.lemma,
+        pos=word.pos,
+        cefr_level=word.cefr_level,
+        zipf_frequency=word.zipf_frequency,
+        is_sweet_spot=word.is_sweet_spot,
+        reported=reported,
+        phrase=PhraseDTO.of(occ.phrase),
+        source_phrase=PhraseDTO.of(occ.source_phrase),
         polished_phrase=(
-            PhraseDTO.of(c.polished_phrase) if c.polished_phrase and c.is_polished else None
-        ),
-        polish_reverted=c.polish_reverted,
-        polish_status=_polish_status(c, jobs_by_candidate),
-        section=section.value if section is not None else None,
-        occurrences=c.occurrences,
-        status=c.status.value,
-        is_phrasal_verb=c.is_phrasal_verb,
-        meaning=meaning_dto,
-        media=media_dto,
-        meaning_image_path=c.meaning_image.image_path if c.meaning_image else None,
-        pronunciation=pronunciation_dto,
-        tts=tts_dto,
-        cefr_breakdown=breakdown_dto,
-        usage_distribution=c.usage_distribution.to_dict() if c.usage_distribution else None,
-        frequency_band=c.frequency_band.name,
-        origin=(
-            PhraseOriginDTO(kind=c.origin.kind.value, source_title=c.origin.source_title)
-            if c.origin is not None
+            PhraseDTO.of(polished)
+            if polished is not None and polished.text != occ.source_phrase.text
             else None
         ),
-        cloze=_cloze_dto(c),
-        can_cloze=synced_ids is None or c.id not in synced_ids,
+        polish_reverted=occ.polish_reverted,
+        polish_status=_status_of(jobs.of_phrase(phrase_id, JobType.POLISH)),
+        section=section.value if section is not None else None,
+        occurrences=word.occurrences,
+        status=card.shown_status.value,
+        word_status=card.word_status.value,
+        phrase_skipped=occ.skipped,
+        is_decision=occ.is_decision,
+        decision_kind=occ.decision_kind.value if occ.decision_kind is not None else None,
+        state=CardStateDTO.of(card_state(occ, word, card.elsewhere)),
+        is_phrasal_verb=word.is_phrasal_verb,
+        meaning=_meaning_dto(occ.meaning, jobs.of_phrase(phrase_id, JobType.MEANING)),
+        media=_media_dto(occ.media, jobs.of_phrase(phrase_id, JobType.MEDIA)),
+        meaning_image_path=word.meaning_image.image_path if word.meaning_image else None,
+        pronunciation=_pronunciation_dto(
+            word.pronunciation, jobs.of_word(word_id, JobType.PRONUNCIATION),
+        ),
+        tts=_tts_dto(occ.tts, jobs.of_phrase(phrase_id, JobType.TTS)),
+        cefr_breakdown=(
+            breakdown_to_dto(word.cefr_breakdown) if word.cefr_breakdown is not None else None
+        ),
+        usage_distribution=(
+            word.usage_distribution.to_dict() if word.usage_distribution else None
+        ),
+        frequency_band=word.frequency_band.name,
+        origin=(
+            PhraseOriginDTO(
+                kind=occ.collected_from.kind.value,
+                source_title=occ.collected_from.source_title,
+            )
+            if occ.collected_from is not None
+            else None
+        ),
+        cloze=_cloze_dto(card),
+        can_cloze=not occ.exported,
         phrase_position=(
-            DocumentPositionDTO.from_position(c.phrase_position) if c.phrase_position else None
+            DocumentPositionDTO.from_position(occ.phrase_position)
+            if occ.phrase_position
+            else None
         ),
     )
 
 
-def _cloze_dto(c: StoredCandidate) -> CandidateClozeDTO | None:
-    """A cloze card is a candidate to learn with markup; markup on any other status is moot."""
-    if c.status != CandidateStatus.LEARN:
+def _status_of(job: Job | None) -> str | None:
+    return job.status.value if job is not None else None
+
+
+def _meaning_dto(meaning: CandidateMeaning | None, job: Job | None) -> CandidateMeaningDTO | None:
+    """An active or failed job tells the status; without one, what there is is done."""
+    if meaning is None and job is None:
         return None
-    cloze = ClozeBuilder().effective(c)
+    return CandidateMeaningDTO(
+        meaning=meaning.meaning if meaning else None,
+        translation=meaning.translation if meaning else None,
+        synonyms=meaning.synonyms if meaning else None,
+        examples=meaning.examples if meaning else None,
+        ipa=meaning.ipa if meaning else None,
+        status=job.status.value if job is not None else DONE,
+        error=job.error if job is not None else None,
+        generated_at=meaning.generated_at if meaning else None,
+    )
+
+
+def _media_dto(media: CandidateMedia | None, job: Job | None) -> CandidateMediaDTO | None:
+    """Timecodes without a picture yet: the clip can be cut, nobody asked for it."""
+    if media is None and job is None:
+        return None
+    if job is not None:
+        status = job.status.value
+    elif media is not None and media.screenshot_path is None and media.start_ms is not None:
+        status = IDLE
+    else:
+        status = DONE
+    return CandidateMediaDTO(
+        screenshot_path=media.screenshot_path if media else None,
+        audio_path=media.audio_path if media else None,
+        start_ms=media.start_ms if media else None,
+        end_ms=media.end_ms if media else None,
+        status=status,
+        error=job.error if job is not None else None,
+        generated_at=media.generated_at if media else None,
+    )
+
+
+def _pronunciation_dto(
+    pronunciation: CandidatePronunciation | None, job: Job | None,
+) -> CandidatePronunciationDTO | None:
+    if pronunciation is None and job is None:
+        return None
+    return CandidatePronunciationDTO(
+        us_audio_path=pronunciation.us_audio_path if pronunciation else None,
+        uk_audio_path=pronunciation.uk_audio_path if pronunciation else None,
+        status=job.status.value if job is not None else DONE,
+        error=job.error if job is not None else None,
+        generated_at=pronunciation.generated_at if pronunciation else None,
+    )
+
+
+def _tts_dto(tts: CandidateTTS | None, job: Job | None) -> CandidateTTSDTO | None:
+    if tts is None and job is None:
+        return None
+    return CandidateTTSDTO(
+        audio_path=tts.audio_path if tts else None,
+        status=job.status.value if job is not None else DONE,
+        error=job.error if job is not None else None,
+        generated_at=tts.generated_at if tts else None,
+    )
+
+
+def _cloze_dto(card: ReviewCard) -> CandidateClozeDTO | None:
+    """A cloze card is the Learn decision card with markup; markup anywhere else is moot."""
+    occ = card.occurrence
+    if card.word_status is not WordStatus.LEARN or not occ.is_decision:
+        return None
+    cloze = ClozeBuilder().effective_for(occ.phrase, occ.cloze)
     if cloze is None:
         return None
     return CandidateClozeDTO(

@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
+from backend.application.utils.review_cards import ReviewCards
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.candidate_sorting import sort_by_relevance, sort_chronologically
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -12,10 +14,14 @@ from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.user_knowledge import UserKnowledge
 from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+from backend.infrastructure.persistence.sqla_occurrence_repository import (
+    SqlaOccurrenceRepository,
+)
 
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
+    from backend.domain.value_objects.review_card import ReviewCard
     from sqlalchemy.orm import Session
 
 KNOWLEDGE = UserKnowledge(EMPTY_VOCABULARY, CEFRLevel.B1, frequent_zipf=4.5)
@@ -50,6 +56,14 @@ def _make_candidate(
     )
 
 
+def _cards(session: Session) -> list[ReviewCard]:
+    elsewhere = MagicMock()
+    elsewhere.of_lemmas.return_value = {}
+    return ReviewCards(
+        SqlaCandidateRepository(session), SqlaOccurrenceRepository(session), elsewhere,
+    ).of_source(1)
+
+
 @pytest.fixture(autouse=True)
 def _existing_source(source_id: int) -> int:
     return source_id
@@ -68,13 +82,12 @@ class TestSortingWithDb:
             _make_candidate(1, "mid_phrasal", 4.0, is_phrasal_verb=True),
             _make_candidate(1, "mid_regular", 4.0, cefr="B1"),
         ])
-        loaded = repo.get_by_source(1)
-        sorted_candidates = sort_by_relevance(loaded, knowledge=KNOWLEDGE)
+        sorted_candidates = sort_by_relevance(_cards(db_session), knowledge=KNOWLEDGE)
         assert [c.lemma for c in sorted_candidates] == [
             "common_word", "mid_regular", "rare_word", "mid_phrasal", "dirty_word",
         ]
         dirty = sorted_candidates[-1]
-        assert dirty.phrase == _make_candidate(1, "dirty_word", 4.0, unknowns=2).phrase
+        assert dirty.phrase == _make_candidate(1, "dirty_word", 4.0, unknowns=2).source_phrase
 
     def test_chronological_sort_after_db_roundtrip(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
@@ -83,8 +96,7 @@ class TestSortingWithDb:
             _make_candidate(1, "first", 4.0, position=DocumentPosition(0, 1, 4, 1, 9)),
             _make_candidate(1, "second", 4.0, position=DocumentPosition(0, 2, 0, 2, 5)),
         ])
-        loaded = repo.get_by_source(1)
-        sorted_candidates = sort_chronologically(loaded)
+        sorted_candidates = sort_chronologically(_cards(db_session))
         assert [c.lemma for c in sorted_candidates] == ["first", "second", "third"]
 
     def test_is_sweet_spot_computed_after_load(self, db_session: Session) -> None:

@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_tts import CandidateTTS
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
+    from backend.domain.value_objects.phrase_origin import PhraseOrigin
     from backend.domain.value_objects.phrase_origin_kind import (
         DecisionKind,
         OccurrenceOrigin,
@@ -33,6 +34,7 @@ class Occurrence:
     The meaning, media, tts and cloze are attached by the repository.
     `exported` means a row of `anki_synced_cards` points here. `replaces_selection`: the
     user put this phrase in place of the word's selection card, so the selection shows none.
+    `collected_from`: where a collected phrase was found — another source, or AI made it.
     """
 
     candidate_id: int
@@ -50,6 +52,7 @@ class Occurrence:
     replaces_selection: bool = False
     polished_phrase: Phrase | None = None
     polish_reverted: bool = False
+    collected_from: PhraseOrigin | None = None
     id: int | None = None
     meaning: CandidateMeaning | None = None
     media: CandidateMedia | None = None

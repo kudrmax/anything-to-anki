@@ -30,13 +30,13 @@ export function ImagePicker({ candidate, review, onClose }: ImagePickerProps) {
   const [failed, setFailed] = useState(false)
   const latestSearch = useRef(0)
   const { findImages, applyImage } = review
-  const applying = review.busy.image.has(candidate.id)
+  const applying = review.busy.image.has(candidate.phrase_id)
 
   const search = async (text?: string) => {
     const searchId = ++latestSearch.current
     setOptions(null)
     setFailed(false)
-    const found = await findImages(candidate.id, text)
+    const found = await findImages(candidate.phrase_id, text)
     if (searchId !== latestSearch.current) return
     if (!found) {
       setFailed(true)
@@ -49,7 +49,7 @@ export function ImagePicker({ candidate, review, onClose }: ImagePickerProps) {
   useEffect(() => {
     void search()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- первый поиск — один раз на открытие окна
-  }, [candidate.id])
+  }, [candidate.phrase_id])
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -57,7 +57,7 @@ export function ImagePicker({ candidate, review, onClose }: ImagePickerProps) {
   }
 
   const pick = async (url: string) => {
-    await applyImage(candidate.id, url)
+    await applyImage(candidate.phrase_id, url)
     onClose()
   }
 

@@ -24,6 +24,7 @@ class ManageKnownWordsUseCase:
                 lemma=w.lemma,
                 pos=w.pos,
                 created_at=w.created_at,
+                from_anki=w.from_anki,
             )
             for w in words
         ]

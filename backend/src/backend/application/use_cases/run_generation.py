@@ -6,10 +6,12 @@ from typing import TYPE_CHECKING
 from backend.application.utils.generation_targets import CardJobs, target_for
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.exceptions import GenerationBlockedError, SourceNotFoundError
+from backend.domain.services.card_decision import word_status_of
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.card_generation_state import CardGenerationState
 from backend.domain.value_objects.generation_scope import GenerationScope
 from backend.domain.value_objects.job_type import JobType
+from backend.domain.value_objects.review_card import ReviewCard
 
 if TYPE_CHECKING:
     from backend.application.utils.candidate_sorter import CandidateSorter
@@ -18,7 +20,6 @@ if TYPE_CHECKING:
         GenerationCards,
         GenerationTarget,
     )
-    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
@@ -96,17 +97,16 @@ class RunGenerationUseCase:
     def _in_order(
         self, cards: list[GenerationCard], sort_order: CandidateSortOrder,
     ) -> list[GenerationCard]:
-        """Words in the order the user picked; the cards of a word together, as made."""
-        by_word: dict[int, list[GenerationCard]] = {}
-        words: list[StoredCandidate] = []
-        for card in cards:
-            if card.word_id not in by_word:
-                by_word[card.word_id] = []
-                words.append(card.word)
-            by_word[card.word_id].append(card)
-        return [
-            card
-            for word in self._candidate_sorter.sort(words, sort_order)
-            if word.id is not None
-            for card in by_word[word.id]
-        ]
+        """Cards in the order the user picked, as the review list shows them: the cards of
+        a word together."""
+        by_phrase = {card.phrase_id: card for card in cards}
+        arranged = self._candidate_sorter.arrange(
+            [
+                ReviewCard(
+                    word=card.word, occurrence=card.phrase, word_status=word_status_of(card.word),
+                )
+                for card in cards
+            ],
+            sort_order,
+        )
+        return [by_phrase[card.phrase_id] for card in arranged.cards]

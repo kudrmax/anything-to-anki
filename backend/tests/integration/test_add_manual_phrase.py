@@ -86,6 +86,7 @@ class Manual:
             review_status=MagicMock(),
             phrase_reader=reader,
             lock=free_lock(),
+            card_views=MagicMock(),
         )
 
     def add(self, line: int, word_index: int) -> None:

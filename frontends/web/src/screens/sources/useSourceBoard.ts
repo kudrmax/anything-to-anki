@@ -53,7 +53,7 @@ export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
   const reload = useCallback(async () => { await load(); callbacks.current.onChanged() }, [load])
 
   const sources = board?.groups.flatMap(g => g.sources) ?? []
-  const anyBusy = sources.some(s => s.status === 'processing' || s.generation_status === 'queued' || s.generation_status === 'running')
+  const anyBusy = sources.some(s => s.busy_with !== null || s.generation_status === 'queued' || s.generation_status === 'running')
   useEffect(() => {
     if (!anyBusy) return
     const timer = setInterval(() => {

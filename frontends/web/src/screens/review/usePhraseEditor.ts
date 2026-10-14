@@ -19,7 +19,7 @@ export function usePhraseEditor(candidate: StoredCandidate, review: Review) {
       return
     }
     setSaving(true)
-    const saved = await review.editPhrase(candidate.id, draft)
+    const saved = await review.editPhrase(candidate.phrase_id, draft)
     setSaving(false)
     if (saved) setDraft(null)
   }

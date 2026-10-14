@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.collection import Collection
     from backend.domain.entities.source import Source
     from backend.domain.ports.collection_repository import CollectionRepository
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
 
 
@@ -31,7 +32,9 @@ class ListCollectionsUseCase:
         source_repo: SourceRepository,
         review_progress: ReviewProgress,
         generation_probe: TopicGenerationProbe,
+        lock: SourceOperationLock,
     ) -> None:
+        self._lock = lock
         self._collection_repo = collection_repo
         self._source_repo = source_repo
         self._review_progress = review_progress
@@ -40,13 +43,16 @@ class ListCollectionsUseCase:
     def execute(self) -> CollectionTreeDTO:
         tree = CollectionTree(self._collection_repo.list_all())
         sources = self._source_repo.list_all()
+        busy = self._lock.operations()
         pending = {
             s.id for s in sources
-            if is_pending(s.status, awaiting_generation=self._generation_probe.of(s).awaiting)
+            if is_pending(
+                s.status,
+                awaiting_generation=self._generation_probe.of(s).awaiting,
+                busy=s.id in busy,
+            )
         }
-        progress = {
-            s.id: self._review_progress.of_source(s.id) for s in sources if s.id is not None
-        }
+        progress = self._review_progress.of_sources([s.id for s in sources if s.id is not None])
 
         def counts(selected: list[Source]) -> ScopeCountsDTO:
             decisions = sum(

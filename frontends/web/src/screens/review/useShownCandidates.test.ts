@@ -3,9 +3,9 @@ import type { StoredCandidate } from '@/api/types'
 import { shownCandidates } from './useShownCandidates'
 
 const candidates = (count: number) =>
-  Array.from({ length: count }, (_, i) => ({ id: i + 1 }) as StoredCandidate)
+  Array.from({ length: count }, (_, i) => ({ phrase_id: i + 1 }) as StoredCandidate)
 
-const ids = (list: StoredCandidate[]) => list.map(c => c.id)
+const ids = (list: StoredCandidate[]) => list.map(c => c.phrase_id)
 
 describe('shownCandidates', () => {
   it('shows the first page and counts the rest', () => {

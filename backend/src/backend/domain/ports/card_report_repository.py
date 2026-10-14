@@ -18,5 +18,5 @@ class CardReportRepository(ABC):
         """Newest first."""
 
     @abstractmethod
-    def reported_candidate_ids(self, candidate_ids: list[int]) -> set[int]:
-        """Which of the given candidates have at least one report."""
+    def reported_phrase_ids(self, phrase_ids: list[int]) -> set[int]:
+        """The phrases among the given ones the user has complained about."""

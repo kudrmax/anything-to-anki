@@ -14,7 +14,7 @@ interface PolishComparisonProps {
 
 /** Фраза, которую упростил AI или поправил пользователь: оригинал из книги, правки и откат. */
 export function PolishComparison({ candidate, polished, review, onDone }: PolishComparisonProps) {
-  const id = candidate.id
+  const id = candidate.phrase_id
   const reverted = candidate.polish_reverted
   return (
     <div className={css.polish}>

@@ -17,6 +17,11 @@ of the domain's DocumentLayout.
 
 `enrichment_cache` goes with Reprocess, its only user: Rebuild keeps everything in place.
 
+A collected phrase keeps where its card came from (another source, or AI) on itself, so a
+real phrase beside a generated one is labelled as what it is. A source's status becomes an
+outcome only: one left processing is new again, and the stage of a running process lives
+with its operation in `source_operations`. Known words learn whether Anki matured them.
+
 One-way: merged words and re-keyed results cannot be split back into cards.
 """
 from __future__ import annotations
@@ -37,6 +42,8 @@ PHRASE_LEVEL_JOB_TYPES = ("polish", "meaning", "media", "tts")
 DECIDED_STATUSES = ("learn", "known")
 SKIP_STATUS = "skip"
 PENDING_STATUS = "pending"
+NEW_STATUS = "new"
+PROCESSING_STATUS = "processing"
 COLLECTED_ROLES = ("topic", "saved_phrases")
 ORIGIN_AUTO = "auto"
 ORIGIN_MANUAL = "manual"
@@ -81,6 +88,7 @@ def upgrade() -> None:
     _notes_from_exports(conn, now)
     _rekey_results()
     _drop_card_columns()
+    _sources_without_processing(conn)
     _create_indexes()
     _fill_phrase_words(conn)
     op.drop_table("_card_phrase")
@@ -118,6 +126,8 @@ def _create_tables() -> None:
         sa.Column("decision_kind", sa.String(10), nullable=True),
         sa.Column("edited_by_user", sa.Boolean(), nullable=False, server_default="0"),
         sa.Column("replaces_selection", sa.Boolean(), nullable=False, server_default="0"),
+        sa.Column("collected_kind", sa.String(10), nullable=True),
+        sa.Column("collected_title", sa.String(200), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sqlite_autoincrement=True,
     )
@@ -152,6 +162,7 @@ def _create_tables() -> None:
             autoincrement=False,
         ),
         sa.Column("kind", sa.String(20), nullable=False),
+        sa.Column("stage", sa.String(30), nullable=True),
         sa.Column("started_at", sa.DateTime(), nullable=False),
     )
     op.create_table(
@@ -171,6 +182,11 @@ def _add_phrase_columns() -> None:
     op.add_column("jobs", sa.Column("phrase_revision", sa.Integer(), nullable=True))
     op.add_column("card_reports", sa.Column("phrase_id", sa.Integer(), nullable=True))
     op.add_column("anki_synced_cards", sa.Column("phrase_id", sa.Integer(), nullable=True))
+    # Known words matured in Anki say so; who added the old ones is not known.
+    op.add_column(
+        "known_words",
+        sa.Column("from_anki", sa.Boolean(), nullable=False, server_default="0"),
+    )
 
 
 # ── step 3: one phrase per card ───────────────────────────────────────
@@ -199,7 +215,7 @@ def _create_phrases(conn: sa.Connection, now: datetime) -> None:
     }
     rows = conn.execute(sa.text(
         "SELECT c.id, c.source_id, c.status, c.source_phrase, c.polished_phrase,"
-        " c.polish_reverted, c.phrase_position, s.role"
+        " c.polish_reverted, c.phrase_position, c.origin_kind, c.origin_title, s.role"
         " FROM candidates c JOIN sources s ON s.id = c.source_id ORDER BY c.id"
     )).all()
     for row in rows:
@@ -213,10 +229,11 @@ def _create_phrases(conn: sa.Connection, now: datetime) -> None:
             sa.text(
                 "INSERT INTO phrases (candidate_id, block, line, char, source_phrase,"
                 " phrase_position, polished_phrase, polish_reverted, revision, shown_by,"
-                " origin, skipped, is_decision, edited_by_user, created_at)"
+                " origin, skipped, is_decision, edited_by_user, collected_kind,"
+                " collected_title, created_at)"
                 " VALUES (:candidate_id, :block, :line, :char, :source_phrase,"
                 " :phrase_position, :polished_phrase, :polish_reverted, 0, :shown_by,"
-                " :origin, :skipped, 0, 0, :created_at)"
+                " :origin, :skipped, 0, 0, :collected_kind, :collected_title, :created_at)"
             ),
             {
                 "candidate_id": row.id,
@@ -230,6 +247,8 @@ def _create_phrases(conn: sa.Connection, now: datetime) -> None:
                 "shown_by": SHOWN_BY_SELECTION if origin == ORIGIN_AUTO else SHOWN_BY_USER,
                 "origin": origin,
                 "skipped": row.status == SKIP_STATUS,
+                "collected_kind": row.origin_kind,
+                "collected_title": row.origin_title,
                 "created_at": now,
             },
         )
@@ -544,6 +563,17 @@ def _drop_card_columns() -> None:
             "fk_jobs_phrase_id_phrases", "phrases", ["phrase_id"], ["id"], ondelete="CASCADE",
         )
         batch.create_index("ix_jobs_phrase_id", ["phrase_id"])
+
+
+def _sources_without_processing(conn: sa.Connection) -> None:
+    """A source's status is an outcome, not a lock: one left processing is new again, as the
+    startup reset made it; the stage of a running process lives with its operation."""
+    conn.execute(
+        sa.text("UPDATE sources SET status = :new WHERE status = :processing"),
+        {"new": NEW_STATUS, "processing": PROCESSING_STATUS},
+    )
+    with op.batch_alter_table("sources") as batch:
+        batch.drop_column("processing_stage")
 
 
 def _rebuild_anki_synced_cards() -> None:

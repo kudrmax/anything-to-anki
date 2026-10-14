@@ -16,6 +16,7 @@ from backend.application.dto.analysis_dtos import (
     WordDTO,
 )
 from backend.application.dto.document_dtos import DocumentPositionDTO
+from backend.application.utils.decided_elsewhere import DecidedElsewhere
 from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.application.utils.source_rebuilder import SourceRebuilder
@@ -28,7 +29,7 @@ from backend.infrastructure.persistence.database import (
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
-from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
@@ -154,8 +155,9 @@ def _rebuilder(
         review_status=ReviewStatusUpdater(
             source_repo=sources,
             review_progress=ReviewProgress(
-                candidate_repo=SqlaCandidateRepository(session),
+                card_query=SqlaCardQuery(session),
                 candidate_sorter=candidate_sorter(settings),
+                decided_elsewhere=DecidedElsewhere(user_vocabulary()),
             ),
             occurrence_repo=worker,  # type: ignore[arg-type]
         ),

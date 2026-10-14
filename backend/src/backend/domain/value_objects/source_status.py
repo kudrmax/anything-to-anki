@@ -4,10 +4,10 @@ from enum import Enum
 
 
 class SourceStatus(Enum):
-    """Status of a text source in the processing pipeline."""
+    """What became of a source: an outcome. A running operation is not a status — the
+    source's operation lock holds it."""
 
     NEW = "new"
-    PROCESSING = "processing"
     DONE = "done"
     ERROR = "error"
     PARTIALLY_REVIEWED = "partially_reviewed"

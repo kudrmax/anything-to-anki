@@ -1,22 +1,45 @@
+from __future__ import annotations
+
 from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.get_sources import GetSourcesUseCase
+from backend.application.utils.card_views import CardViews
+from backend.application.utils.review_cards import ReviewCards
+from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.application.utils.topic_generation import TopicGenerationProbe
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
-from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import SourceNotFoundError
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
+from backend.domain.value_objects.held_operation import HeldOperation
+from backend.domain.value_objects.review_card import CardRow
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.word_status import WordStatus
 
 from tests.candidate_sorter_support import candidate_sorter
+from tests.card_support import occurrence, word
 from tests.phrase_support import phrase
+
+
+def _row(
+    source_id: int, phrase_id: int, status: WordStatus = WordStatus.PENDING,
+) -> CardRow:
+    return CardRow(
+        source_id=source_id, word_id=phrase_id, phrase_id=phrase_id, lemma=f"word{phrase_id}",
+        pos="NOUN", zipf_frequency=4.0, word_status=status, skipped=False,
+        phrase=phrase(f"a word{phrase_id}", f"word{phrase_id}"),
+    )
+
+
+def _text(source_id: int, status: SourceStatus = SourceStatus.DONE) -> Source:
+    return Source(id=source_id, status=status, format=Format.PLAIN, kind=Kind.TEXT)
 
 
 @pytest.mark.unit
@@ -24,38 +47,47 @@ class TestGetSourcesUseCase:
     def setup_method(self) -> None:
         self.source_repo = MagicMock()
         self.candidate_repo = MagicMock()
+        self.candidate_repo.get_by_source.return_value = []
+        self.occurrence_repo = MagicMock()
+        self.occurrence_repo.shown_by_word.return_value = {}
         self.settings_repo = MagicMock()
         self.settings_repo.get.return_value = None
         self.job_repo = MagicMock()
+        self.job_repo.get_jobs_for_phrases.return_value = {}
         self.job_repo.get_jobs_for_candidates.return_value = {}
         self.report_repo = MagicMock()
-        self.report_repo.reported_candidate_ids.return_value = set()
-        self.anki_sync_repo = MagicMock()
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        self.report_repo.reported_phrase_ids.return_value = set()
+        self.card_query = MagicMock()
+        self.card_query.shown_cards.return_value = {}
+        self.card_query.learn_counts.return_value = {}
         self.collection_repo = MagicMock()
         self.collection_repo.list_all.return_value = []
         self.topic_target_repo = MagicMock()
         self.topic_target_repo.has_targets.return_value = False
+        self.lock = MagicMock()
+        self.lock.operations.return_value = {}
+        elsewhere = MagicMock()
+        elsewhere.of_lemmas.side_effect = lambda lemmas: dict.fromkeys(lemmas)
         sorter = candidate_sorter(self.settings_repo)
         self.use_case = GetSourcesUseCase(
             source_repo=self.source_repo,
-            candidate_repo=self.candidate_repo,
-            candidate_sorter=sorter,
-            job_repo=self.job_repo,
             scope_resolver=SourceScopeResolver(self.source_repo, self.collection_repo),
             generation_probe=TopicGenerationProbe(self.job_repo, self.topic_target_repo),
-            report_repo=self.report_repo,
-            anki_sync_repo=self.anki_sync_repo,
+            review_progress=ReviewProgress(self.card_query, sorter, elsewhere),
+            card_query=self.card_query,
+            card_views=CardViews(
+                review_cards=ReviewCards(self.candidate_repo, self.occurrence_repo, elsewhere),
+                candidate_sorter=sorter,
+                job_repo=self.job_repo,
+                report_repo=self.report_repo,
+            ),
+            lock=self.lock,
         )
 
     def test_list_all(self) -> None:
         self.source_repo.list_all.return_value = [
-            Source(id=1, status=SourceStatus.NEW, format=Format.PLAIN, kind=Kind.TEXT,
-                   ),
-            Source(id=2, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
-                   ),
+            _text(1, SourceStatus.NEW), _text(2),
         ]
-        self.candidate_repo.get_by_source.return_value = []
         result = self.use_case.list_all()
         assert len(result) == 2
         assert result[0].id == 1
@@ -70,11 +102,7 @@ class TestGetSourcesUseCase:
             Source(id=3, title="Essay", status=SourceStatus.PARTIALLY_REVIEWED),
         ]
         # A source with a ready card left to decide is ready for review.
-        self.candidate_repo.get_by_source.return_value = [StoredCandidate(
-            id=1, source_id=1, lemma="word", pos="NOUN", cefr_level="B2",
-            zipf_frequency=4.0, source_phrase=phrase("a word", "word"), occurrences=1,
-            status=CandidateStatus.PENDING,
-        )]
+        self.card_query.shown_cards.return_value = {1: [_row(1, 1)]}
 
         board = self.use_case.board(SourceScope.collection(1))
 
@@ -88,6 +116,15 @@ class TestGetSourcesUseCase:
         found = self.use_case.board(SourceScope.all(), query="SONO")
         assert [s.title for g in found.groups for s in g.sources] == ["Sonogram"]
 
+    def test_the_board_reads_all_its_sources_at_once(self) -> None:
+        self.source_repo.list_all.return_value = [_text(1), _text(2), _text(3)]
+        self.use_case.board(SourceScope.all())
+        self.card_query.shown_cards.assert_called_once_with([1, 2, 3])
+        self.card_query.learn_counts.assert_called_once_with([1, 2, 3])
+        self.lock.operations.assert_called_once_with()
+        self.candidate_repo.get_by_source.assert_not_called()
+        self.occurrence_repo.shown_by_word.assert_not_called()
+
     def test_topic_without_targets_awaits_generation(self) -> None:
         from datetime import UTC, datetime
 
@@ -96,10 +133,10 @@ class TestGetSourcesUseCase:
         from backend.domain.value_objects.job_type import JobType
 
         self.source_repo.list_all.return_value = [
-            Source(id=5, status=SourceStatus.NEW, role=SourceRole.TOPIC, topic_query="salary talk",
-                   ),
+            Source(
+                id=5, status=SourceStatus.NEW, role=SourceRole.TOPIC, topic_query="salary talk",
+            ),
         ]
-        self.candidate_repo.get_by_source.return_value = []
         self.job_repo.get_jobs_by_status.return_value = [
             Job(id=1, job_type=JobType.TOPIC_TARGETS, candidate_id=None, source_id=5,
                 status=JobStatus.FAILED, error="timeout",
@@ -114,12 +151,11 @@ class TestGetSourcesUseCase:
 
     def test_topic_with_targets_and_regular_sources_need_no_generation(self) -> None:
         self.source_repo.list_all.return_value = [
-            Source(id=5, status=SourceStatus.NEW, role=SourceRole.TOPIC, topic_query="salary talk",
-                   ),
-            Source(id=6, status=SourceStatus.NEW, format=Format.PLAIN, kind=Kind.TEXT,
-                   ),
+            Source(
+                id=5, status=SourceStatus.NEW, role=SourceRole.TOPIC, topic_query="salary talk",
+            ),
+            _text(6, SourceStatus.NEW),
         ]
-        self.candidate_repo.get_by_source.return_value = []
         self.topic_target_repo.has_targets.return_value = True
 
         result = self.use_case.list_all()
@@ -128,22 +164,15 @@ class TestGetSourcesUseCase:
         assert [dto.generation_status for dto in result] == [None, None]
         self.job_repo.get_jobs_by_status.assert_not_called()
 
-    def test_list_all_learn_count(self) -> None:
-        self.source_repo.list_all.return_value = [
-            Source(id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
-                   ),
-        ]
-        make_candidate = lambda status: StoredCandidate(  # noqa: E731
-            id=1, source_id=1, lemma="word", pos="NOUN", cefr_level="B2",
-            zipf_frequency=4.0, source_phrase=phrase("a word", "word"),
-            occurrences=1, status=status,
-        )
-        self.candidate_repo.get_by_source.return_value = [
-            make_candidate(CandidateStatus.LEARN),
-            make_candidate(CandidateStatus.LEARN),
-            make_candidate(CandidateStatus.PENDING),
-            make_candidate(CandidateStatus.KNOWN),
-        ]
+    def test_list_all_counts_cards_and_learn_words(self) -> None:
+        self.source_repo.list_all.return_value = [_text(1)]
+        self.card_query.shown_cards.return_value = {1: [
+            _row(1, 1, WordStatus.LEARN),
+            _row(1, 2, WordStatus.LEARN),
+            _row(1, 3),
+            _row(1, 4, WordStatus.KNOWN),
+        ]}
+        self.card_query.learn_counts.return_value = {1: 2}
         result = self.use_case.list_all()
         assert result[0].candidate_count == 4
         assert result[0].learn_count == 2
@@ -152,56 +181,44 @@ class TestGetSourcesUseCase:
         assert result[0].status == SourceStatus.DONE.value
         self.source_repo.update_status.assert_not_called()
 
+    def test_a_busy_source_says_with_what_and_offers_no_operation(self) -> None:
+        self.source_repo.list_all.return_value = [_text(1)]
+        self.lock.operations.return_value = {1: HeldOperation(SourceOperationKind.REBUILD)}
+        [dto] = self.use_case.list_all()
+        assert dto.busy_with is SourceOperationKind.REBUILD
+        assert dto.available_operation is None
+        assert dto.operation_hint == "Wait until the rebuild finishes"
+
     def test_get_by_id_found(self) -> None:
-        self.source_repo.get_by_id.return_value = Source(
-            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
-            )
-        self.candidate_repo.get_by_source.return_value = []
+        self.source_repo.get_by_id.return_value = _text(1)
         result = self.use_case.get_by_id(1)
         assert result.id == 1
 
     def test_get_by_id_shows_first_fifteen_candidates_by_relevance(self) -> None:
-        self.source_repo.get_by_id.return_value = Source(
-            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
-            )
-        self.candidate_repo.get_by_source.return_value = []
+        self.source_repo.get_by_id.return_value = _text(1)
         assert self.use_case.get_by_id(1).initially_shown_candidates == 15
 
     def test_get_by_id_shows_all_candidates_in_text_order(self) -> None:
-        from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
-
-        self.source_repo.get_by_id.return_value = Source(
-            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
-            )
-        self.candidate_repo.get_by_source.return_value = []
+        self.source_repo.get_by_id.return_value = _text(1)
         result = self.use_case.get_by_id(1, sort_order=CandidateSortOrder.CHRONOLOGICAL)
         assert result.initially_shown_candidates is None
 
     def test_get_by_id_shows_first_fifteen_candidates_by_key_words(self) -> None:
-        from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
-
-        self.source_repo.get_by_id.return_value = Source(
-            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
-            )
-        self.candidate_repo.get_by_source.return_value = []
+        self.source_repo.get_by_id.return_value = _text(1)
         result = self.use_case.get_by_id(1, sort_order=CandidateSortOrder.KEY_WORDS)
         assert result.initially_shown_candidates == 15
 
-    def test_get_by_id_forbids_cloze_for_synced_candidates(self) -> None:
-        self.source_repo.get_by_id.return_value = Source(
-            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
-            )
+    def test_get_by_id_forbids_cloze_for_phrases_in_anki(self) -> None:
+        self.source_repo.get_by_id.return_value = _text(1)
         self.candidate_repo.get_by_source.return_value = [
-            StoredCandidate(
-                id=cid, source_id=1, lemma=lemma, pos="NOUN", cefr_level="B2",
-                zipf_frequency=3.5, source_phrase=phrase(f"a {lemma}", lemma),
-                occurrences=1, status=CandidateStatus.LEARN,
-            )
-            for cid, lemma in [(1, "burnout"), (2, "lizard")]
+            word(1, "burnout", status=WordStatus.LEARN),
+            word(2, "lizard", status=WordStatus.LEARN),
         ]
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}
+        self.occurrence_repo.shown_by_word.return_value = {
+            1: [occurrence(1, 1, exported=True)], 2: [occurrence(2, 2)],
+        }
         result = self.use_case.get_by_id(1)
-        can_cloze = {c.id: c.can_cloze for c in result.candidates}
+        can_cloze = {c.phrase_id: c.can_cloze for c in result.candidates}
         assert can_cloze == {1: False, 2: True}
 
     def test_get_by_id_not_found(self) -> None:

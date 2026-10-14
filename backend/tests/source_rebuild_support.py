@@ -17,6 +17,7 @@ from backend.application.dto.analysis_dtos import (
 from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.rebuild_source import RebuildSourceUseCase
+from backend.application.utils.decided_elsewhere import DecidedElsewhere
 from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.application.utils.source_rebuilder import SourceRebuilder
@@ -31,6 +32,7 @@ from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
@@ -147,7 +149,9 @@ class Bench:
             review_status=ReviewStatusUpdater(
                 source_repo=self.sources,
                 review_progress=ReviewProgress(
-                    candidate_repo=self.candidates, candidate_sorter=candidate_sorter(settings),
+                    card_query=SqlaCardQuery(self.session),
+                    candidate_sorter=candidate_sorter(settings),
+                    decided_elsewhere=DecidedElsewhere(self.vocabulary),
                 ),
                 occurrence_repo=self.occurrences,
             ),

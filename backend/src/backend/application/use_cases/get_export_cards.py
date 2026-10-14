@@ -109,6 +109,7 @@ class GetExportCardsUseCase:
 
         return CardPreviewDTO(
             candidate_id=candidate.id,  # type: ignore[arg-type]
+            phrase_id=decision.id,  # type: ignore[arg-type]
             lemma=candidate.lemma,
             sentence=sentence,
             meaning=(

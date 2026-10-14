@@ -10,6 +10,7 @@ from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
+from tests.card_support import card
 from tests.phrase_support import phrase
 
 
@@ -62,14 +63,14 @@ def _make_stored_candidate(with_breakdown: bool = True) -> StoredCandidate:
     )
 
 
-class TestStoredCandidateToDto:
-    """stored_candidate_to_dto must include CEFR breakdown."""
+class TestCardToDto:
+    """card_to_dto must include the word's CEFR breakdown."""
 
     def test_breakdown_included(self) -> None:
-        from backend.application.dto.source_dtos import stored_candidate_to_dto
+        from backend.application.dto.source_dtos import card_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=True)
-        dto = stored_candidate_to_dto(candidate)
+        dto = card_to_dto(card(candidate))
 
         assert dto.cefr_breakdown is not None
         assert dto.cefr_breakdown.decision_method == "priority"
@@ -78,18 +79,18 @@ class TestStoredCandidateToDto:
         assert len(dto.cefr_breakdown.votes) == 3
 
     def test_no_breakdown_is_none(self) -> None:
-        from backend.application.dto.source_dtos import stored_candidate_to_dto
+        from backend.application.dto.source_dtos import card_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=False)
-        dto = stored_candidate_to_dto(candidate)
+        dto = card_to_dto(card(candidate))
 
         assert dto.cefr_breakdown is None
 
     def test_efllex_has_distribution(self) -> None:
-        from backend.application.dto.source_dtos import stored_candidate_to_dto
+        from backend.application.dto.source_dtos import card_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=True)
-        dto = stored_candidate_to_dto(candidate)
+        dto = card_to_dto(card(candidate))
 
         assert dto.cefr_breakdown is not None
         efllex_vote = next(v for v in dto.cefr_breakdown.votes if v.source_name == "EFLLex")
@@ -98,10 +99,10 @@ class TestStoredCandidateToDto:
         assert "B1" in efllex_vote.distribution
 
     def test_non_efllex_has_no_distribution(self) -> None:
-        from backend.application.dto.source_dtos import stored_candidate_to_dto
+        from backend.application.dto.source_dtos import card_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=True)
-        dto = stored_candidate_to_dto(candidate)
+        dto = card_to_dto(card(candidate))
 
         assert dto.cefr_breakdown is not None
         cefrpy_vote = next(v for v in dto.cefr_breakdown.votes if v.source_name == "CEFRpy")

@@ -28,7 +28,7 @@ export function ExportCardRow({ card, sourceId, withMedia, player }: ExportCardR
   const classes = [css.row, withMedia && css.withMedia].filter(Boolean).join(' ')
 
   return (
-    <div className={classes} onClick={() => navigate(`/sources/${sourceId}/review?candidate=${card.candidate_id}`)}>
+    <div className={classes} onClick={() => navigate(`/sources/${sourceId}/review?candidate=${card.phrase_id}`)}>
       <div className={css.main}>
         {/* sentence и meaning приходят из backend готовым HTML с выделенным словом */}
         <div className={css.sentenceRow}>

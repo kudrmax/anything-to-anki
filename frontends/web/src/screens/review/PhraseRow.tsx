@@ -16,7 +16,7 @@ export function PhraseRow({ candidate, onSelect, current = false }: PhraseRowPro
   const rated = candidate.status !== 'pending'
   const classes = [css.queueItem, rated && css.queueItemRated, current && css.queueItemCurrent].filter(Boolean).join(' ')
   return (
-    <button type="button" className={classes} data-candidate-id={candidate.id} title={candidate.phrase.text} onClick={() => onSelect(candidate.id)}>
+    <button type="button" className={classes} data-candidate-id={candidate.phrase_id} title={candidate.phrase.text} onClick={() => onSelect(candidate.phrase_id)}>
       {rated && <StatusDot tone={TONE[candidate.status]} />}
       <span className={css.queueText}>
         {phraseParts(candidate.phrase).map((part, i) =>

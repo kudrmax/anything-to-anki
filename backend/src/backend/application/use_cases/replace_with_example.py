@@ -1,23 +1,21 @@
 """Use case: show one of the AI-generated examples instead of a card's phrase."""
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.exceptions import AlreadyInAnkiError, PhraseNotFoundError
 from backend.domain.services.topic_phrase_selection import parse_marked_phrase
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
 if TYPE_CHECKING:
+    from backend.application.dto.source_dtos import CardDTO
+    from backend.application.utils.card_views import CardViews
     from backend.application.utils.phrase_reader import PhraseReader
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
-    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
@@ -45,15 +43,18 @@ class ReplaceWithExampleUseCase:
         phrase_reader: PhraseReader,
         job_repo: JobRepository,
         lock: SourceOperationLock,
+        card_views: CardViews,
     ) -> None:
         self._lock = lock
+        self._card_views = card_views
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
         self._review_status = review_status
         self._phrase_reader = phrase_reader
         self._job_repo = job_repo
 
-    def execute(self, occurrence_id: int, example_text: str) -> StoredCandidateDTO:
+    def execute(self, occurrence_id: int, example_text: str) -> CardDTO:
+        """Answers with the example's card: the ✨ that follows the replacement reaches it."""
         stripped = example_text.strip()
         if not stripped:
             msg = "example_text must not be empty"
@@ -97,27 +98,7 @@ class ReplaceWithExampleUseCase:
             phrase_id=example.id, phrase_revision=example.revision,
         )])
         self._review_status.refresh(word.source_id)
-        shown = self._candidate_repo.get_by_id(replaced.candidate_id)
-        assert shown is not None
-        return stored_candidate_to_dto(_seen_through(shown, example))
-
-
-# TRANSITIONAL(words-phrases): removed in Task 10 — the answer is the example's card there
-def _seen_through(word: StoredCandidate, example: Occurrence) -> StoredCandidate:
-    """The word as the example's card: the ✨ that follows the replacement reaches it."""
-    return replace(
-        word,
-        phrase_id=example.id,
-        status=CandidateStatus.PENDING if word.status is CandidateStatus.SKIP else word.status,
-        source_phrase=example.source_phrase,
-        polished_phrase=example.polished_phrase,
-        polish_reverted=example.polish_reverted,
-        phrase_position=example.phrase_position,
-        meaning=example.meaning,
-        media=example.media,
-        tts=example.tts,
-        cloze=example.cloze,
-    )
+        return self._card_views.one(example.id)
 
 
 def _stands_for_selection(replaced: Occurrence) -> bool:

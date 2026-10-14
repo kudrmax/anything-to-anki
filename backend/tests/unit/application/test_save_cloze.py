@@ -6,6 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.save_cloze import SaveClozeUseCase
+from backend.application.utils.card_views import CardViews
+from backend.application.utils.review_cards import ReviewCards
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.job import Job
@@ -27,6 +29,7 @@ from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.word_status import WordStatus
 
+from tests.candidate_sorter_support import candidate_sorter
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 
@@ -63,9 +66,14 @@ class TestSaveCloze:
         self.occurrence_repo = MagicMock()
         self.cloze_repo = MagicMock()
         self.job_repo = MagicMock()
+        self.job_repo.get_jobs_for_phrases.return_value = {}
         self.job_repo.get_jobs_for_candidates.return_value = {}
         self.report_repo = MagicMock()
-        self.report_repo.reported_candidate_ids.return_value = set()
+        self.report_repo.reported_phrase_ids.return_value = set()
+        settings = MagicMock()
+        settings.get.return_value = None
+        elsewhere = MagicMock()
+        elsewhere.of.return_value = None
         self.candidate_repo.get_by_id.return_value = _word()
         self.occurrence_repo.get.return_value = _phrase()
         self.decide = MagicMock()
@@ -73,8 +81,12 @@ class TestSaveCloze:
             occurrence_repo=self.occurrence_repo,
             candidate_repo=self.candidate_repo,
             cloze_repo=self.cloze_repo,
-            job_repo=self.job_repo,
-            report_repo=self.report_repo,
+            card_views=CardViews(
+                review_cards=ReviewCards(self.candidate_repo, self.occurrence_repo, elsewhere),
+                candidate_sorter=candidate_sorter(settings),
+                job_repo=self.job_repo,
+                report_repo=self.report_repo,
+            ),
             decide_phrase=self.decide,
             builder=ClozeBuilder(),
             lock=free_lock(),
@@ -104,19 +116,21 @@ class TestSaveCloze:
         stored = self.cloze_repo.upsert_for_phrase.call_args.args[1]
         assert stored.custom_hint is None
 
-    def test_saved_candidate_stays_reported(self) -> None:
-        self.report_repo.reported_candidate_ids.return_value = {1}
+    def test_saved_card_stays_reported(self) -> None:
+        self.report_repo.reported_phrase_ids.return_value = {PHRASE_ID}
         dto = self.use_case.execute(PHRASE_ID, GIVE_UP, [3], ClozeHintKind.NONE, None)
         assert dto.reported is True
         assert dto.can_cloze is True
 
-    def test_saved_candidate_keeps_job_status(self) -> None:
+    def test_saved_card_keeps_the_job_status_of_its_phrase(self) -> None:
         job = Job(
             id=7, job_type=JobType.MEANING, candidate_id=1, source_id=5,
             status=JobStatus.RUNNING, error=None, created_at=datetime(2026, 1, 1, tzinfo=UTC),
-            started_at=None,
+            started_at=None, phrase_id=PHRASE_ID,
         )
-        self.job_repo.get_jobs_for_candidates.return_value = {1: {JobType.MEANING.value: job}}
+        self.job_repo.get_jobs_for_phrases.return_value = {
+            PHRASE_ID: {JobType.MEANING.value: job},
+        }
         dto = self.use_case.execute(PHRASE_ID, GIVE_UP, [3], ClozeHintKind.NONE, None)
         assert dto.meaning is not None
         assert dto.meaning.status == "running"

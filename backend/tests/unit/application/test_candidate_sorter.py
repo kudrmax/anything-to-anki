@@ -1,12 +1,14 @@
 from unittest.mock import MagicMock
 
 import pytest
-from backend.domain.entities.stored_candidate import StoredCandidate
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.document_position import DocumentPosition
+from backend.domain.value_objects.review_card import ReviewCard
+from backend.domain.value_objects.word_status import WordStatus
 
 from tests.candidate_sorter_support import candidate_sorter
+from tests.card_support import card, occurrence, word
 from tests.phrase_support import phrase
 
 SOURCE_TEXT = "The scythe was sharp. The feast was long. A scythe again."
@@ -14,18 +16,14 @@ SOURCE_TEXT = "The scythe was sharp. The feast was long. A scythe again."
 
 def _make(
     lemma: str, zipf: float, occurrences: int, fragment: str, block: int,
-) -> StoredCandidate:
-    return StoredCandidate(
-        source_id=1,
-        phrase_position=DocumentPosition(block, 0, 0, 0, len(fragment)),
-        lemma=lemma,
-        pos="NOUN",
-        cefr_level="B2",
-        zipf_frequency=zipf,
-        source_phrase=phrase(fragment, lemma, new=(lemma,)),
-        occurrences=occurrences,
-        status=CandidateStatus.PENDING,
-        is_phrasal_verb=False,
+) -> ReviewCard:
+    word_id = block + 1
+    return card(
+        word(word_id, lemma, zipf_frequency=zipf, occurrences=occurrences),
+        occurrence(
+            word_id, word_id, phrase(fragment, lemma, new=(lemma,)),
+            phrase_position=DocumentPosition(block, 0, 0, 0, len(fragment)),
+        ),
     )
 
 
@@ -39,8 +37,8 @@ class TestCandidateSorter:
         self.scythe = _make("scythe", 2.6, occurrences=2, fragment="A scythe again.", block=1)
 
     def _lemmas(self, order: CandidateSortOrder) -> list[str]:
-        result = self.sorter.sort([self.scythe, self.feast], order)
-        return [c.lemma for c in result]
+        result = self.sorter.arrange([self.scythe, self.feast], order)
+        return [c.lemma for c in result.cards]
 
     def test_relevance_puts_more_common_word_first(self) -> None:
         assert self._lemmas(CandidateSortOrder.RELEVANCE) == ["feast", "scythe"]
@@ -50,3 +48,15 @@ class TestCandidateSorter:
 
     def test_chronological_follows_the_document(self) -> None:
         assert self._lemmas(CandidateSortOrder.CHRONOLOGICAL) == ["feast", "scythe"]
+
+    def test_every_card_gets_its_section_and_progress_counts_ready_ones(self) -> None:
+        learned = card(
+            word(3, "gallows", status=WordStatus.LEARN),
+            occurrence(3, 3, phrase("the gallows stood", "gallows")),
+        )
+        dirty = card(word(4, "ember"), occurrence(4, 4, phrase("an ember zephyr", "ember",
+                                                               new=("zephyr",))))
+        arranged = self.sorter.arrange([learned, dirty])
+        assert arranged.section(learned) is CandidateSection.READY
+        assert arranged.section(dirty) is CandidateSection.EXTRA
+        assert (arranged.progress().decided, arranged.progress().total) == (1, 1)

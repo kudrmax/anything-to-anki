@@ -40,7 +40,6 @@ from backend.infrastructure.persistence.database import (
     cleanup_parse_cache,
     reconcile_media_files,
     release_source_operations,
-    reset_stuck_processing,
     run_alembic_migrations,
 )
 
@@ -57,7 +56,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     if ":memory:" not in db_url:
         run_alembic_migrations(db_url)
-    reset_stuck_processing(session_factory)
     release_source_operations(session_factory)
     cleanup_parse_cache(session_factory)
     data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))

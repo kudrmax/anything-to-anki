@@ -24,7 +24,7 @@ class TestDeriveReviewStatus:
         assert result == SourceStatus.PARTIALLY_REVIEWED
 
     @pytest.mark.parametrize(
-        "status", [SourceStatus.NEW, SourceStatus.PROCESSING, SourceStatus.ERROR],
+        "status", [SourceStatus.NEW, SourceStatus.ERROR],
     )
     def test_sources_outside_review_keep_their_status(self, status: SourceStatus) -> None:
         assert derive_review_status(status, DecisionProgress(decided=1, total=1)) == status

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GripVertical } from 'lucide-react'
-import type { FrequentWordThresholdOption, NoteTypeCheck, NoteTypeKind, Settings } from '@/api/types'
+import type { FrequentWordThresholdOption, KnownWord, NoteTypeCheck, NoteTypeKind, Settings } from '@/api/types'
 import { CLOZE_DEFAULT_HINT_OPTIONS } from '@/lib/clozeHints'
 import { autoPlayAudioPref, type ThemePref } from '@/lib/preferences'
 import { formatBytes } from '@/lib/text/format'
@@ -392,10 +392,16 @@ function WordList({ words, hint, empty, deletingId, onRemove }: WordListProps) {
 const KNOWN_WORDS_HINT = "Known words won't be suggested when processing new sources."
 const UNKNOWN_WORDS_HINT = 'Phrases with these words never count as ready: only their target should be new.'
 
+const FROM_ANKI = 'from Anki'
+
+/** «lemma · POS · from Anki»: пометка — у слов, ставших известными по зрелости в Anki. */
+const knownWordLabel = (word: KnownWord): string =>
+  [word.lemma, word.pos, word.from_anki ? FROM_ANKI : null].filter(Boolean).join(' · ')
+
 export function KnownWords({ store }: { store: SettingsStore }) {
   return (
     <WordList
-      words={store.knownWords.map(word => ({ id: word.id, label: word.pos ? `${word.lemma} · ${word.pos}` : word.lemma }))}
+      words={store.knownWords.map(word => ({ id: word.id, label: knownWordLabel(word) }))}
       hint={KNOWN_WORDS_HINT}
       empty={`No known words yet. ${KNOWN_WORDS_HINT}`}
       deletingId={store.deletingId}

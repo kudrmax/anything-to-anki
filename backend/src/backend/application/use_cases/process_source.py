@@ -32,8 +32,8 @@ class ProcessSourceUseCase:
     """Processes a new source: a rebuild of a source with nothing in it yet.
 
     `start` takes the source and must be committed before `execute`, which frees it
-    whatever happens. PROCESSING is only what the source shows meanwhile: the lock is what
-    keeps other operations off it.
+    whatever happens. The source's status stays its last outcome meanwhile: the lock is
+    what shows it is being processed and keeps other operations off it.
     """
 
     def __init__(
@@ -53,8 +53,7 @@ class ProcessSourceUseCase:
         self._topic_phrase_collector = topic_phrase_collector
 
     def start(self, source_id: int) -> None:
-        """Validate the source, take it and show it PROCESSING. Call before launching the
-        background task."""
+        """Validate the source and take it. Call before launching the background task."""
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
@@ -64,7 +63,6 @@ class ProcessSourceUseCase:
             raise TopicTargetsMissingError(source_id)
         if not self._lock.acquire(source_id, SourceOperationKind.PROCESS):
             raise SourceOperationBusyError(source_id, self._lock.held(source_id))
-        self._source_repo.update_status(source_id, SourceStatus.PROCESSING)
 
     def _topic_ready(self, source_id: int) -> bool:
         return (
@@ -78,9 +76,7 @@ class ProcessSourceUseCase:
             "process_source: stage transition (source_id=%d, stage=%s)",
             source_id, stage.value,
         )
-        self._source_repo.update_status(
-            source_id, SourceStatus.PROCESSING, processing_stage=stage,
-        )
+        self._lock.set_stage(source_id, stage)
         self._unit_of_work.commit()
 
     def execute(self, source_id: int) -> None:

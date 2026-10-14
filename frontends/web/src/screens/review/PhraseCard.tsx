@@ -89,7 +89,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   const [definition, ...context] = paragraphs
 
   return (
-    <article className={clozeEditor.active ? `${css.card} ${css.clozeEditing}` : css.card} data-candidate-id={candidate.id}>
+    <article className={clozeEditor.active ? `${css.card} ${css.clozeEditing}` : css.card} data-candidate-id={candidate.phrase_id}>
       <header className={css.cardHead}>
         <CardPhrase candidate={candidate} editor={phraseEditor} cloze={clozeEditor} />
         {hasMeta && (
@@ -130,7 +130,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
           <div className={css.status}>
             <StatusText status={meaning?.status} error={meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
             {action && (
-              <Button variant="accent-link" busy={review.busy.generating.has(candidate.id)} onClick={() => void review.generate(candidate.id)}>
+              <Button variant="accent-link" busy={review.busy.generating.has(candidate.phrase_id)} onClick={() => void review.generate(candidate.phrase_id)}>
                 {action === 'retry' ? 'Retry' : 'Generate meaning'}
               </Button>
             )}
@@ -144,7 +144,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             {examples.map((line, i) => (
               <li key={i} className={css.example}>
                 <span><RichText text={line} candidate={candidate} /></span>
-                <button type="button" className={css.useExample} onClick={() => void review.replaceWithExample(candidate.id, line.trim())}>
+                <button type="button" className={css.useExample} onClick={() => void review.replaceWithExample(candidate.phrase_id, line.trim())}>
                   Use as phrase
                 </button>
               </li>

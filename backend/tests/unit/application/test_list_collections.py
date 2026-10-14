@@ -8,6 +8,8 @@ from backend.application.utils.topic_generation import TopicGeneration
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
 from backend.domain.value_objects.decision_progress import DecisionProgress
+from backend.domain.value_objects.held_operation import HeldOperation
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
@@ -16,10 +18,17 @@ from tests.unit.application.source_fakes import InMemorySourceRepository
 
 def _progress(by_source: dict[int, DecisionProgress] | None = None) -> MagicMock:
     progress = MagicMock()
-    progress.of_source.side_effect = lambda source_id: (by_source or {}).get(
-        source_id, DecisionProgress(),
-    )
+    progress.of_sources.side_effect = lambda source_ids: {
+        source_id: (by_source or {}).get(source_id, DecisionProgress())
+        for source_id in source_ids
+    }
     return progress
+
+
+def _free() -> MagicMock:
+    lock = MagicMock()
+    lock.operations.return_value = {}
+    return lock
 
 
 @pytest.mark.unit
@@ -39,6 +48,7 @@ def test_tree_with_subtree_counts_and_drag_hints() -> None:
         ]),
         _progress(),
         probe,
+        _free(),
     )
 
     tree = use_case.execute()
@@ -69,6 +79,7 @@ def test_tree_of_full_depth() -> None:
         InMemorySourceRepository([Source(id=10, status=SourceStatus.NEW, collection_id=5)]),
         _progress(),
         probe,
+        _free(),
     ).execute()
 
     levels = []
@@ -106,6 +117,7 @@ def test_progress_sums_the_progress_of_sources_of_the_whole_subtree() -> None:
             12: DecisionProgress(decided=4, total=4),
         }),
         probe,
+        _free(),
     ).execute()
 
     (books,) = tree.collections
@@ -115,3 +127,21 @@ def test_progress_sums_the_progress_of_sources_of_the_whole_subtree() -> None:
     assert (empty.counts.progress.decided, empty.counts.progress.total) == (0, 0)
     assert (tree.unsorted.progress.decided, tree.unsorted.progress.total) == (4, 4)
     assert (tree.all.progress.decided, tree.all.progress.total) == (45, 1074)
+
+
+@pytest.mark.unit
+def test_a_source_being_processed_is_not_pending() -> None:
+    probe = MagicMock()
+    probe.of.return_value = TopicGeneration()
+    lock = _free()
+    lock.operations.return_value = {10: HeldOperation(SourceOperationKind.PROCESS)}
+    tree = ListCollectionsUseCase(
+        InMemoryCollectionRepository([]),
+        InMemorySourceRepository([
+            Source(id=10, status=SourceStatus.NEW), Source(id=11, status=SourceStatus.NEW),
+        ]),
+        _progress(),
+        probe,
+        lock,
+    ).execute()
+    assert tree.all.pending == 1

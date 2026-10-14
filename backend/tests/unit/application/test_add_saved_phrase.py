@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
+from backend.application.dto.source_dtos import card_to_dto
 from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -17,8 +18,11 @@ from backend.domain.exceptions import InvalidPhraseError, TargetNotInPhraseError
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 from backend.domain.value_objects.source_role import SourceRole
+from backend.domain.value_objects.word_status import WordStatus
 
+from tests.card_support import card, occurrence, word
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
@@ -27,6 +31,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.unit
 
 SAVED_PHRASES_ID = 7
+SAVED_PHRASE_ID = 41
 PHRASE = "Stop   procrastinating, please."
 _LEMMAS = {"procrastinating": "procrastinate"}
 
@@ -65,6 +70,15 @@ class _Setup:
         self.source_repo.create.side_effect = lambda s: _saved_phrases(SAVED_PHRASES_ID + 1)
         self.candidate_repo = MagicMock()
         self.candidate_repo.create_batch.side_effect = _saved
+        self.occurrence_repo = MagicMock()
+        self.occurrence_repo.of_word.side_effect = lambda word_id: [
+            occurrence(SAVED_PHRASE_ID - 1, word_id), occurrence(SAVED_PHRASE_ID, word_id),
+        ]
+        self.card_views = MagicMock()
+        self.card_views.one.side_effect = lambda phrase_id: card_to_dto(card(
+            word(100, status=WordStatus.LEARN),
+            occurrence(phrase_id, 100, is_decision=True, decision_kind=DecisionKind.LEARN),
+        ))
         self.review_status = MagicMock()
         text_analyzer = MagicMock()
         text_analyzer.analyze.return_value = [_token(1, "procrastinating", "procrastinate")]
@@ -87,6 +101,8 @@ class _Setup:
             phrasal_verb_detector=detector,
             review_status=self.review_status,
             phrase_reader=reader,
+            occurrence_repo=self.occurrence_repo,
+            card_views=self.card_views,
         )
 
     def saved_candidate(self) -> StoredCandidate:
@@ -108,6 +124,7 @@ def test_phrase_is_saved_to_saved_phrases_source_marked_to_learn() -> None:
     assert candidate.phrase_position is None
     assert candidate.occurrences == 1
     assert result.status == "learn"
+    setup.card_views.one.assert_called_once_with(SAVED_PHRASE_ID)
     setup.source_repo.get_first_by_role.assert_called_once_with(SourceRole.SAVED_PHRASES)
     setup.source_repo.create.assert_not_called()
     setup.review_status.refresh.assert_called_once_with(SAVED_PHRASES_ID)

@@ -82,12 +82,12 @@ function listMarkers(blocks: readonly DocumentBlock[]): (string | null)[] {
 export function SourceText({ document, candidates, focusId, onWordClick, onTextSelected }: SourceTextProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const marks = useMemo<LineMark[]>(
-    () => document.highlights.map(h => ({ candidateId: h.candidate_id, position: h.position })),
+    () => document.highlights.map(h => ({ candidateId: h.phrase_id, position: h.position })),
     [document],
   )
   const markers = useMemo(() => listMarkers(document.blocks), [document])
-  const ratedIds = useMemo(() => new Set(candidates.filter(c => c.status !== 'pending').map(c => c.id)), [candidates])
-  const focused = candidates.find(c => c.id === focusId)
+  const ratedIds = useMemo(() => new Set(candidates.filter(c => c.status !== 'pending').map(c => c.phrase_id)), [candidates])
+  const focused = candidates.find(c => c.phrase_id === focusId)
   const fragment = focused?.phrase_position ?? null
 
   // Держим слово текущей фразы в видимой части колонки.

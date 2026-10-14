@@ -124,9 +124,9 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
    * сначала сворачивается на месте; следующую фразу выбираем уже по новому порядку.
    */
   const settle = useCallback(async (candidateId: number, markedIndex: number, decided: (c: StoredCandidate) => StoredCandidate, advance: boolean) => {
-    const markedSection = candidatesRef.current.find(c => c.id === candidateId)?.section ?? null
+    const markedSection = candidatesRef.current.find(c => c.phrase_id === candidateId)?.section ?? null
     const refreshed = await fetchSource().catch(() => null)
-    const fresh = refreshed?.candidates ?? candidatesRef.current.map(c => (c.id === candidateId ? decided(c) : c))
+    const fresh = refreshed?.candidates ?? candidatesRef.current.map(c => (c.phrase_id === candidateId ? decided(c) : c))
     if (refreshed) applySource(refreshed)
     else setCandidates(fresh)
 
@@ -134,17 +134,17 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     const focusId = nextFocusId(fresh, candidateId, markedIndex, sortOrder === 'chronological' ? null : markedSection)
     if (focusId === null) return
     setCurrentId(focusId)
-    const focus = fresh.find(c => c.id === focusId)
+    const focus = fresh.find(c => c.phrase_id === focusId)
     const nextUrl = focus && autoPlayAudioPref.read() ? audioUrlForCandidate(focus, sourceId) : null
     if (nextUrl) play(nextUrl)
   }, [sourceId, sortOrder, play, fetchSource, applySource])
 
   const mark = useCallback(async (candidateId: number, status: CandidateStatus) => {
     stop()
-    const markedIndex = candidatesRef.current.findIndex(c => c.id === candidateId)
+    const markedIndex = candidatesRef.current.findIndex(c => c.phrase_id === candidateId)
 
     try {
-      await api.decidePhrase(phraseOf(candidatesRef.current, candidateId), status)
+      await api.decidePhrase(candidateId, status)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to save the decision')
       return
@@ -164,10 +164,10 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   /** true — разметка сохранена и ревью ушло к следующей фразе; при ошибке показывает её. */
   const saveCloze = useCallback(async (candidateId: number, request: SaveClozeRequest): Promise<boolean> => {
     stop()
-    const markedIndex = candidatesRef.current.findIndex(c => c.id === candidateId)
+    const markedIndex = candidatesRef.current.findIndex(c => c.phrase_id === candidateId)
     let saved: StoredCandidate
     try {
-      saved = await api.saveCloze(phraseOf(candidatesRef.current, candidateId), request)
+      saved = await api.saveCloze(candidateId, request)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to save the cloze')
       return false
@@ -193,8 +193,8 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   const generate = useCallback((candidateId: number, action?: FollowUpAction, text?: string) =>
     withBusy(setGeneratingIds, candidateId, async () => {
       try {
-        const res = await api.generateMeaning(phraseOf(candidatesRef.current, candidateId), action, text)
-        setCandidates(prev => prev.map(c => (c.id === candidateId ? {
+        const res = await api.generateMeaning(candidateId, action, text)
+        setCandidates(prev => prev.map(c => (c.phrase_id === candidateId ? {
           ...c,
           meaning: {
             meaning: res.meaning,
@@ -216,15 +216,10 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const replaceWithExample = useCallback(async (candidateId: number, exampleText: string) => {
     try {
-      const newCandidate = await api.replaceWithExample(phraseOf(candidatesRef.current, candidateId), exampleText)
-      setCandidates(prev => {
-        const rest = prev.map(c => (c.id === candidateId ? { ...c, status: 'skip' as const } : c))
-        // TRANSITIONAL(words-phrases): removed in Task 10 — the example is a phrase of the same word, so it comes back with the word's id
-        return rest.some(c => c.id === newCandidate.id)
-          ? rest.map(c => (c.id === newCandidate.id ? newCandidate : c))
-          : [...rest, newCandidate]
-      })
-      setCurrentId(newCandidate.id)
+      const newCandidate = await api.replaceWithExample(candidateId, exampleText)
+      // Пример — новая фраза слова: он встаёт на место заменённой карточки, которая больше не показана.
+      setCandidates(prev => prev.map(c => (c.phrase_id === candidateId ? newCandidate : c)))
+      setCurrentId(newCandidate.phrase_id)
       showToast('Phrase replaced — generating meaning...')
       await loadGeneration()
     } catch (e) {
@@ -254,7 +249,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const generateTTS = (candidateId: number) => withBusy(setGeneratingTTSIds, candidateId, async () => {
     try {
-      await api.generatePhraseTTS(phraseOf(candidatesRef.current, candidateId))
+      await api.generatePhraseTTS(candidateId)
       await loadCandidates()
       await loadGeneration()
       showToast('TTS enqueued')
@@ -265,7 +260,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const regenerateMedia = (candidateId: number) => withBusy(setRegeneratingMediaIds, candidateId, async () => {
     try {
-      await api.regeneratePhraseMedia(phraseOf(candidatesRef.current, candidateId))
+      await api.regeneratePhraseMedia(candidateId)
       await loadCandidates()
       showToast('Media regenerated')
     } catch (e) {
@@ -275,7 +270,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const findImages = async (candidateId: number, query?: string): Promise<ImageSearchResult | null> => {
     try {
-      return await api.searchTargetImages(candidateId, query)
+      return await api.searchTargetImages(wordOf(candidatesRef.current, candidateId), query)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Picture search failed')
       return null
@@ -284,7 +279,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const applyImage = (candidateId: number, url: string) => withBusy(setApplyingImageIds, candidateId, async () => {
     try {
-      await api.applyTargetImage(candidateId, url)
+      await api.applyTargetImage(wordOf(candidatesRef.current, candidateId), url)
       await loadCandidates()
       showToast('Picture added')
     } catch (e) {
@@ -294,7 +289,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const pasteImage = (candidateId: number, picture: Blob) => withBusy(setApplyingImageIds, candidateId, async () => {
     try {
-      await api.pasteTargetImage(candidateId, picture)
+      await api.pasteTargetImage(wordOf(candidatesRef.current, candidateId), picture)
       await loadCandidates()
       showToast('Picture pasted')
     } catch (e) {
@@ -303,7 +298,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   })
 
   const startEditing = (candidateId: number) => {
-    const candidate = candidates.find(c => c.id === candidateId)
+    const candidate = candidates.find(c => c.phrase_id === candidateId)
     if (!candidate) return
     setEditing({ candidateId, lemma: candidate.lemma, pos: candidate.pos, originalFragment: candidate.source_phrase.text })
   }
@@ -317,7 +312,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   const setBoundary = async (selection: DocumentSelection): Promise<boolean> => {
     if (!editing) return false
     try {
-      await api.setPhraseBoundary(phraseOf(candidatesRef.current, editing.candidateId), selection)
+      await api.setPhraseBoundary(editing.candidateId, selection)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to save the boundary')
       return false
@@ -333,7 +328,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
       const result = await api.addManualCandidate(sourceId, targetWords, selection)
       window.getSelection()?.removeAllRanges()
       await loadCandidates()
-      setCurrentId(result.id)
+      setCurrentId(result.phrase_id)
       return true
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to add the word')
@@ -343,7 +338,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const polishAgain = async (candidateId: number) => {
     try {
-      await api.polishPhraseAgain(phraseOf(candidatesRef.current, candidateId))
+      await api.polishPhraseAgain(candidateId)
       await loadCandidates()
       await loadGeneration()
     } catch (e) {
@@ -377,7 +372,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     try {
       await api.reportCandidate(candidateId, reasons, comment, unknownWords)
       if (unknownWords.length > 0) await loadCandidates()
-      else setCandidates(prev => prev.map(c => (c.id === candidateId ? { ...c, reported: true } : c)))
+      else setCandidates(prev => prev.map(c => (c.phrase_id === candidateId ? { ...c, reported: true } : c)))
       showToast('Report saved')
       return true
     } catch (e) {
@@ -412,9 +407,9 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
 export type Review = ReturnType<typeof useReview>
 
-// TRANSITIONAL(words-phrases): removed in Task 11 — cards are keyed by phrase_id there
-function phraseOf(candidates: StoredCandidate[], candidateId: number): number {
-  const phraseId = candidates.find(c => c.id === candidateId)?.phrase_id
-  if (phraseId == null) throw new Error('The card has no phrase')
-  return phraseId
+/** Слово карточки: картинка — свойство слова, а не фразы. */
+function wordOf(candidates: StoredCandidate[], candidateId: number): number {
+  const wordId = candidates.find(c => c.phrase_id === candidateId)?.word_id
+  if (wordId == null) throw new Error('The card is not in the list')
+  return wordId
 }

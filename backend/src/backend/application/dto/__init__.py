@@ -10,10 +10,10 @@ from backend.application.dto.candidate_dtos import DecidePhraseRequest
 from backend.application.dto.known_word_dtos import KnownWordDTO
 from backend.application.dto.settings_dtos import SettingsDTO, UpdateSettingsRequest
 from backend.application.dto.source_dtos import (
+    CardDTO,
     SourceDetailDTO,
     SourceDTO,
-    StoredCandidateDTO,
-    stored_candidate_to_dto,
+    card_to_dto,
 )
 
 __all__ = [
@@ -26,8 +26,8 @@ __all__ = [
     "SettingsDTO",
     "SourceDTO",
     "SourceDetailDTO",
-    "StoredCandidateDTO",
-    "stored_candidate_to_dto",
+    "CardDTO",
+    "card_to_dto",
     "SyncResultDTO",
     "UpdateSettingsRequest",
     "OccurrenceDTO",
