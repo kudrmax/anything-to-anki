@@ -24,6 +24,8 @@ export interface ScopeCounts {
   total: number
   reviewed: number
   pending: number
+  candidate_count: number
+  decided_count: number
 }
 
 export interface CollectionNode {
@@ -31,16 +33,19 @@ export interface CollectionNode {
   name: string
   parent_id: number | null
   counts: ScopeCounts
-  /** Может принять подколлекции. */
+  /** Глубина узла: верхний уровень — 1. */
+  depth: number
+  /** Может получить новую подколлекцию. */
   accepts_collections: boolean
-  /** Может сама стать подколлекцией. */
-  can_be_nested: boolean
+  /** Все допустимые новые родители, включая текущего; null — верхний уровень. */
+  move_targets: (number | null)[]
   children: CollectionNode[]
 }
 
 export interface CollectionTree {
   all: ScopeCounts
   unsorted: ScopeCounts
+  max_depth: number
   collections: CollectionNode[]
 }
 

@@ -4,16 +4,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CollectionNode, CollectionTree } from '@/api/types'
 import { MoveToModal } from './MoveToModal'
 
-const counts = { total: 1, reviewed: 0, pending: 1 }
-const node = (id: number, name: string, parentId: number | null, children: CollectionNode[] = []): CollectionNode => ({
-  id, name, parent_id: parentId, counts, accepts_collections: parentId === null, can_be_nested: children.length === 0, children,
+const counts = { total: 1, reviewed: 0, pending: 1, candidate_count: 0, decided_count: 0 }
+const node = (id: number, name: string, parentId: number | null, depth: number, moveTargets: (number | null)[], children: CollectionNode[] = []): CollectionNode => ({
+  id, name, parent_id: parentId, counts, depth, accepts_collections: true, move_targets: moveTargets, children,
 })
+// Friends › Season 1 › Episodes › Ep 1; Season 2; Podcasts. Цели переноса задаёт backend.
 const tree: CollectionTree = {
   all: counts,
   unsorted: counts,
+  max_depth: 4,
   collections: [
-    node(1, 'Friends', null, [node(11, 'Season 1', 1), node(12, 'Season 2', 1)]),
-    node(2, 'Podcasts', null),
+    node(1, 'Friends', null, 1, [null, 2], [
+      node(11, 'Season 1', 1, 2, [null, 1, 12, 2], [
+        node(111, 'Episodes', 11, 3, [null, 1, 11, 12, 2], [
+          node(1111, 'Ep 1', 111, 4, [null, 1, 11, 111, 12, 2]),
+        ]),
+      ]),
+      node(12, 'Season 2', 1, 2, [null, 1, 11, 111, 2]),
+    ]),
+    node(2, 'Podcasts', null, 1, [null, 1, 11, 111, 12]),
   ],
 }
 
@@ -45,9 +54,18 @@ describe('MoveToModal', () => {
   }
   const press = (key: string) => act(() => { input().dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })) })
 
-  it('offers Unsorted and every node for sources', () => {
+  it('offers Unsorted and every node of every level for sources', () => {
     render()
-    expect(labels()).toEqual(['Unsorted', 'Friends', 'Season 1', 'Season 2', 'Podcasts'])
+    expect(labels()).toEqual(['Unsorted', 'Friends', 'Season 1', 'Episodes', 'Ep 1', 'Season 2', 'Podcasts'])
+  })
+
+  it('indents options by depth and drops the indent while searching', () => {
+    render()
+    const indents = () => options().map(o => o.style.getPropertyValue('--indent'))
+    expect(indents()).toEqual(['0', '0', '1', '2', '3', '1', '0'])
+    typeInto('ep')
+    expect(labels()).toEqual(['Friends / Season 1 / Episodes', 'Friends / Season 1 / Episodes / Ep 1'])
+    expect(indents()).toEqual(['0', '0'])
   })
 
   it('focuses the search', () => {
@@ -77,27 +95,35 @@ describe('MoveToModal', () => {
     expect(onPick).toHaveBeenCalledWith(null, 'Unsorted')
   })
 
-  it('offers Top level and collections that accept collections when moving a collection', () => {
+  it('enables exactly the move targets the backend listed', () => {
     render({ collectionsOnly: true, excludeId: 12 })
-    expect(labels()).toEqual(['Top level', 'Friends' + 'Current', 'Podcasts'])
+    expect(labels()).toEqual(['Top level', 'Friends' + 'Current', 'Season 1', 'Episodes', 'Ep 1', 'Podcasts'])
+    const enabled = options().filter(o => !o.disabled).map(o => o.textContent)
+    expect(enabled).toEqual(['Top level', 'Friends' + 'Current', 'Season 1', 'Episodes', 'Podcasts'])
+    expect(document.body.textContent).toContain('Collections nest at most 4 levels deep.')
     press('Enter')
     expect(onPick).toHaveBeenCalledWith(null, 'Top level')
   })
 
-  it('hides the moving collection itself', () => {
-    render({ collectionsOnly: true, excludeId: 2 })
-    expect(labels()).toEqual(['Top level' + 'Current', 'Friends'])
+  it('hides the moving collection with its whole subtree', () => {
+    render({ collectionsOnly: true, excludeId: 11 })
+    expect(labels()).toEqual(['Top level', 'Friends' + 'Current', 'Season 2', 'Podcasts'])
   })
 
-  it('keeps a collection with subcollections at the top level', () => {
+  it('skips disabled targets with the keyboard', () => {
     render({ collectionsOnly: true, excludeId: 1 })
+    expect(labels()).toEqual(['Top level' + 'Current', 'Podcasts'])
     const [top, podcasts] = options()
     expect(top.disabled).toBe(false)
-    expect(podcasts.disabled).toBe(true)
+    expect(podcasts.disabled).toBe(false)
+    render({ collectionsOnly: true, excludeId: 2 })
+    expect(options().filter(o => o.disabled).map(o => o.textContent)).toEqual(['Ep 1'])
+    press('ArrowDown')
+    press('ArrowDown')
+    press('ArrowDown')
     press('ArrowDown')
     press('Enter')
-    expect(onPick).not.toHaveBeenCalled()
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onPick).toHaveBeenCalledWith(12, 'Season 2')
   })
 
   it('Escape closes', () => {

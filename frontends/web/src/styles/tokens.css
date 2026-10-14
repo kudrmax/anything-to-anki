@@ -73,6 +73,7 @@
   --image-option-ratio: 4 / 3;
   --field-area: 128px;
   --prog: 3px;
+  --progress-track: var(--soft);
   --measure: 64ch;
   --fact-label-w: 84px;
   --focus-leading-trim: calc((1 - var(--lh-focus)) * var(--fs-focus) / 2);
@@ -95,11 +96,31 @@
   --switch-travel: calc(var(--switch-w) - var(--switch-knob) - 2 * var(--s2));
   --h-row: 56px;
   --h-row-s: 44px;
-  --tree-w: 240px;
+  --tree-w: 320px;
+  /* строка дерева ниже обычного контрола: дерево плотное, как боковая панель */
+  --tree-h: 30px;
+  /* хвост строки: полоска решений, процент, число источников — колонки ровные по всему дереву */
+  --tree-bar-w: 28px;
+  --tree-percent-w: 4ch;
+  --tree-count-w: 2ch;
   --tree-twisty: 20px;
-  --tree-indent: 16px;
-  /* направляющая детей — по центру иконки родителя: поле строки + стрелка + зазор + пол-иконки */
-  --tree-guide-x: calc(var(--s2) + var(--tree-twisty) + var(--s3) + var(--icon-s) / 2);
+  /* шаг уровня: иконка ребёнка правее иконки родителя на ширину слота */
+  --tree-indent: calc(var(--s2) + var(--tree-twisty));
+  /* линия детей — по центру иконки родителя, отсчёт от левого края ребёнка */
+  --tree-guide-left: calc(var(--s2) + var(--tree-twisty) / 2 - var(--bw) / 2 - var(--tree-indent));
+  /* отвод от линии до строки ребёнка */
+  --tree-tick: calc(-1 * var(--tree-guide-left));
+  /* линия начинается чуть ниже иконки родителя */
+  --tree-guide-top: calc(var(--icon-s) / 2 - var(--tree-h) / 2);
+  --tree-line: color-mix(in srgb, var(--tx3) 45%, transparent);
+  /* отвод — по середине строки; уголок последнего ребёнка — от верха строки (или от иконки родителя) до середины */
+  --tree-tick-top: calc(var(--tree-h) / 2 - var(--bw) / 2);
+  --tree-elbow-h: calc(var(--tree-h) / 2 + var(--s1) + var(--bw) / 2);
+  --tree-elbow-h-first: calc(var(--tree-h) / 2 - var(--tree-guide-top) + var(--bw) / 2);
+  /* предок в пути шапки: длиннее — многоточие, открытой коллекции остаётся место */
+  --scope-crumb-max: calc(var(--h) * 5);
+  /* предки в пути сжимаются раньше имени открытой коллекции */
+  --scope-crumb-shrink: 100;
   --sources-cols: var(--tree-w) minmax(0, 1fr);
   --move-list-h: 360px;
   --tree-drop-line: 2px;
@@ -298,6 +319,7 @@
 @media (max-width: 640px) {
   :root {
     --h: 40px;
+    --tree-h: var(--h);
     --page-x: 16px;
     --page-top: 16px;
     --sheet-pad: 0px;

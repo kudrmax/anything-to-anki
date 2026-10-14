@@ -8,13 +8,14 @@ from backend.domain.exceptions import CollectionNotFoundError
 from backend.domain.services.collection_tree import CollectionTree
 
 if TYPE_CHECKING:
+    from backend.domain.entities.collection import Collection
     from backend.domain.ports.collection_repository import CollectionRepository
     from backend.domain.ports.source_repository import SourceRepository
 
 
 class RestoreCollectionUseCase:
-    """Undo of a delete: the collection, the subcollections deleted with it and the sources come
-    back. A source the user has moved since stays where they put it."""
+    """Undo of a delete: the collection, its subtree deleted with it and the sources come back.
+    A source the user has moved since stays where they put it."""
 
     def __init__(
         self, collection_repo: CollectionRepository, source_repo: SourceRepository,
@@ -26,15 +27,13 @@ class RestoreCollectionUseCase:
         node = self._collection_repo.get_by_id(collection_id)
         if node is None or node.deleted_at is None:
             raise CollectionNotFoundError(collection_id)
-        tree = CollectionTree(self._collection_repo.list_all())
+        live = self._collection_repo.list_all()
+        tree = CollectionTree(live)
         tree.check_parent(node.parent_id)
         tree.check_name(node.name, node.parent_id)
 
-        deleted_with_it = [
-            c for c in self._collection_repo.list_all(include_deleted=True)
-            if c.parent_id == collection_id and c.deleted_at == node.deleted_at
-        ]
-        revived = [replace(c, deleted_at=None) for c in [node, *deleted_with_it]]
+        revived = [replace(c, deleted_at=None) for c in [node, *self._deleted_with(node)]]
+        CollectionTree([*live, *revived]).check_fits(collection_id)
         self._collection_repo.save(revived)
 
         where_now = {s.id: s.collection_id for s in self._source_repo.list_all()}
@@ -45,3 +44,17 @@ class RestoreCollectionUseCase:
         }
         self._source_repo.set_collections(back)
         return collection_to_dto(revived[0])
+
+    def _deleted_with(self, node: Collection) -> list[Collection]:
+        """Descendants of `node` deleted in the same operation, at any depth."""
+        same_stamp = [
+            c for c in self._collection_repo.list_all(include_deleted=True)
+            if c.deleted_at == node.deleted_at and c.id != node.id
+        ]
+        found: list[Collection] = []
+        frontier = {node.id}
+        while frontier:
+            level = [c for c in same_stamp if c.parent_id in frontier and c not in found]
+            found += level
+            frontier = {c.id for c in level}
+        return found
