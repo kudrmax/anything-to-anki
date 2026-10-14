@@ -221,7 +221,7 @@ describe('SourcesScreen', () => {
     expect(host.textContent).not.toContain('No sources here')
     await act(async () => resolveTree(tree))
     await settle()
-    expect(host.textContent).toContain('Drag sources here or use Move to…')
+    expect(host.textContent).toContain('Drag sources onto it in the tree')
   })
 
   it('on a phone an empty collection points to Move to only', async () => {
@@ -229,8 +229,8 @@ describe('SourcesScreen', () => {
     try {
       vi.mocked(api.getSourceBoard).mockResolvedValue({ title: 'Season 1', groups: [] })
       await render('/?scope=11')
-      expect(host.textContent).toContain('Use Move to… to add sources')
-      expect(host.textContent).not.toContain('Drag sources here')
+      expect(host.textContent).toContain('choose Move to…')
+      expect(host.textContent).not.toContain('Drag sources')
     } finally {
       document.documentElement.style.removeProperty('--desktop-display')
     }

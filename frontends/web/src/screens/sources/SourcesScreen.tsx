@@ -215,7 +215,18 @@ export function SourcesScreen() {
   const empty = (() => {
     if (!board.board || !tree || groups.length > 0) return null
     if (query.trim()) return <Empty flush>Nothing matches “{query.trim()}”</Empty>
-    if (node) return <Empty flush>{isPhone ? 'Use Move to… to add sources' : 'Drag sources here or use Move to…'}</Empty>
+    if (node) {
+      // Внутри пустой коллекции перетаскивать нечего: источники берут в другом разделе.
+      const from: Scope = tree.unsorted.total > 0 ? 'unsorted' : 'all'
+      return (
+        <Empty flush>
+          <div className={css.emptyStart}>
+            <span>{node.name} is empty. {isPhone ? 'Open a source’s menu and choose Move to…' : 'Drag sources onto it in the tree, or choose Move to… in a source’s menu.'}</span>
+            <Button onClick={() => open(from)}>{from === 'unsorted' ? 'Open Unsorted' : 'Open all sources'}</Button>
+          </div>
+        </Empty>
+      )
+    }
     if (tree.all.total === 0) {
       return (
         <Empty flush>
