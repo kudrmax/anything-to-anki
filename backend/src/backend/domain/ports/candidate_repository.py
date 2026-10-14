@@ -32,6 +32,10 @@ class CandidateRepository(ABC):
     def count_all(self) -> int: ...
 
     @abstractmethod
+    def count_by_source_and_status(self) -> dict[int, dict[CandidateStatus, int]]:
+        """Candidates of every source by status; statuses with none are left out."""
+
+    @abstractmethod
     def update_phrase(
         self, candidate_id: int, context_fragment: str, phrase_position: DocumentPosition,
     ) -> None:

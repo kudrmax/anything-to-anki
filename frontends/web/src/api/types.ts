@@ -24,6 +24,8 @@ export interface ScopeCounts {
   total: number
   reviewed: number
   pending: number
+  candidate_count: number
+  decided_count: number
 }
 
 export interface CollectionNode {

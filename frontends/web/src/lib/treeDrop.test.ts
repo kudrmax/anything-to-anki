@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { CollectionNode } from '@/api/types'
 import { collectionDrop, zoneAt } from './treeDrop'
 
-const counts = { total: 0, reviewed: 0, pending: 0 }
+const counts = { total: 0, reviewed: 0, pending: 0, candidate_count: 0, decided_count: 0 }
 
 /** move_targets задаются явно: их считает backend, фронт лишь сверяется с ними. */
 const node = (id: number, parent: number | null, depth: number, moveTargets: (number | null)[], children: CollectionNode[] = []): CollectionNode => ({

@@ -14,6 +14,7 @@ from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.services.source_stage import stage_of
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.source_stage import STAGE_ORDER
 
 if TYPE_CHECKING:
@@ -77,6 +78,7 @@ class GetSourcesUseCase:
     def _summary(self, source: Source, tree: CollectionTree) -> SourceDTO:
         assert source.id is not None
         candidates = self._candidate_repo.get_by_source(source.id)
+        progress = DecisionProgress.of_statuses(c.status for c in candidates)
         generation = self._generation_probe.of(source)
         collection_id = source.collection_id
         collection_path = (
@@ -95,9 +97,9 @@ class GetSourcesUseCase:
             source_url=source.source_url,
             video_downloaded=source.video_path is not None,
             created_at=source.created_at,
-            candidate_count=len(candidates),
+            candidate_count=progress.total,
             learn_count=sum(1 for c in candidates if c.status == CandidateStatus.LEARN),
-            decided_count=sum(1 for c in candidates if c.status != CandidateStatus.PENDING),
+            decided_count=progress.decided,
             processing_stage=source.processing_stage.value if source.processing_stage else None,
             collection_id=collection_id,
             collection_path=collection_path,

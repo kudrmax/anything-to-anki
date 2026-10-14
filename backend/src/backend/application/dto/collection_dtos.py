@@ -53,6 +53,9 @@ class ScopeCountsDTO(BaseModel):
     total: int
     reviewed: int
     pending: int
+    # Candidates of all the scope's sources and how many of them are decided, as on a source.
+    candidate_count: int
+    decided_count: int
 
 
 class CollectionNodeDTO(BaseModel):
