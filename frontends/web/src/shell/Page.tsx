@@ -32,7 +32,7 @@ export function Page({ header, aside, banner, asideHidden = false, wide = false,
 
 export function Aside({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <section>
+    <section className={css.asideSection}>
       {title && <h3 className={css.asideTitle}>{title}</h3>}
       {children}
     </section>
