@@ -86,7 +86,7 @@ def row(
 
 def data(*, pos: str = "VERB", zipf: float = 3.0, count: int = 1) -> WordData:
     return WordData(
-        pos=pos, cefr_level="B2", cefr_breakdown=None, zipf_frequency=zipf,
+        pos=pos, cefr_level=None, cefr_breakdown=None, zipf_frequency=zipf,
         usage_distribution=None, occurrence_count=count,
     )
 
@@ -124,6 +124,6 @@ def built(
     zipf: float = 3.0,
 ) -> BuiltWord:
     return BuiltWord(
-        lemma=lemma, is_phrasal_verb=False, pos=pos, cefr_level="B2", cefr_breakdown=None,
+        lemma=lemma, is_phrasal_verb=False, pos=pos, cefr_level=None, cefr_breakdown=None,
         zipf_frequency=zipf, usage_distribution=None, occurrences=tuple(occurrences),
     )

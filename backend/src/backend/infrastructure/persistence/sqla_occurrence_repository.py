@@ -4,12 +4,14 @@ import json
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from sqlalchemy import delete, exists, insert, or_, select, update
+from sqlalchemy import exists, or_, select, update
 
 from backend.domain.ports.occurrence_repository import OccurrenceRepository
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.word_row import WordRow
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
     AnkiSyncedCardModel,
     CandidateClozeModel,
@@ -19,13 +21,14 @@ from backend.infrastructure.persistence.models import (
     CandidateTTSModel,
     JobModel,
     PhraseModel,
-    PhraseWordModel,
     StoredCandidateModel,
     dump_phrase,
     dump_position,
     load_phrase,
     load_position,
 )
+from backend.infrastructure.persistence.phrase_writes import PhraseWords, drop_results
+from backend.infrastructure.persistence.rebuild_plan_writer import RebuildPlanWriter
 
 if TYPE_CHECKING:
     from sqlalchemy import ColumnElement
@@ -36,14 +39,12 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
     from backend.domain.entities.candidate_tts import CandidateTTS
     from backend.domain.entities.occurrence import Occurrence
+    from backend.domain.services.rebuild_plan import RebuildPlan
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 
 ACTIVE_JOB_STATUSES = (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
-RESULT_MODELS = (
-    CandidateMeaningModel, CandidateMediaModel, CandidateTTSModel, CandidateClozeModel,
-)
 
 
 @dataclass(frozen=True)
@@ -111,27 +112,6 @@ class PhraseResultsReader:
         return list(self._session.scalars(select(model).where(model.phrase_id.in_(phrase_ids))))
 
 
-class PhraseWords:
-    """Keeps `phrase_words` equal to the words of the text a phrase shows."""
-
-    def __init__(self, session: Session) -> None:
-        self._session = session
-
-    def rewrite(self, phrase: PhraseModel) -> None:
-        self._session.execute(
-            delete(PhraseWordModel).where(PhraseWordModel.phrase_id == phrase.id)
-        )
-        lemmas = sorted({word[_WORD_LEMMA] for word in json.loads(phrase.shown_text)["words"]})
-        if lemmas:
-            self._session.execute(
-                insert(PhraseWordModel),
-                [{"phrase_id": phrase.id, "lemma": lemma} for lemma in lemmas],
-            )
-
-
-_WORD_LEMMA = 2
-
-
 class SqlaOccurrenceRepository(OccurrenceRepository):
     """SQLAlchemy implementation of OccurrenceRepository."""
 
@@ -139,6 +119,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         self._session = session
         self._results = PhraseResultsReader(session)
         self._words = PhraseWords(session)
+        self._plans = RebuildPlanWriter(session, self._words)
 
     def by_source(self, source_id: int) -> list[Occurrence]:
         return self._occurrences(self._of_source(source_id))
@@ -204,7 +185,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         model = PhraseModel.from_entity(occurrence)
         self._session.add(model)
         self._session.flush()
-        self._words.rewrite(model)
+        self._words.rewrite({model.id: model.shown_text})
         return model.to_entity()
 
     def write_text(
@@ -227,7 +208,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         if bump_revision:
             model.revision += 1
         self._session.flush()
-        self._words.rewrite(model)
+        self._words.rewrite({model.id: model.shown_text})
 
     def set_shown(self, ids: list[int], shown_by: ShownBy | None) -> None:
         if not ids:
@@ -264,15 +245,34 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         self._session.flush()
 
     def reset_results(self, occurrence_id: int) -> None:
-        for model in RESULT_MODELS:
-            self._session.execute(delete(model).where(model.phrase_id == occurrence_id))
+        drop_results(self._session, [occurrence_id])
         phrase = self._session.get(PhraseModel, occurrence_id)
         if phrase is not None:
             phrase.polished_phrase = None
             phrase.polish_reverted = False
             self._session.flush()
-            self._words.rewrite(phrase)
+            self._words.rewrite({phrase.id: phrase.shown_text})
         self._session.flush()
+
+    def word_rows(self, source_id: int) -> list[WordRow]:
+        words = self._session.scalars(
+            select(StoredCandidateModel)
+            .where(StoredCandidateModel.source_id == source_id)
+            .order_by(StoredCandidateModel.id)
+        ).unique()
+        return [
+            WordRow(
+                id=word.id,
+                lemma=word.lemma,
+                is_phrasal_verb=word.is_phrasal_verb,
+                status=WordStatus(word.status),
+                data=word.word_data(),
+            )
+            for word in words
+        ]
+
+    def apply_plan(self, plan: RebuildPlan) -> None:
+        self._plans.apply(plan)
 
     def shown_by_word(self, source_id: int) -> dict[int, list[Occurrence]]:
         by_word: dict[int, list[Occurrence]] = {}

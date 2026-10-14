@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from backend.domain.value_objects.cefr_level import CEFRLevel
+
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import OccurrenceKey
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
@@ -43,14 +45,21 @@ class WordData:
             return NotImplemented
         return (
             self.pos == other.pos
-            and self.cefr_level == other.cefr_level
+            and _level(self.cefr_level) == _level(other.cefr_level)
             and self.zipf_frequency == other.zipf_frequency
             and self.occurrence_count == other.occurrence_count
             and _groups(self.usage_distribution) == _groups(other.usage_distribution)
         )
 
     def __hash__(self) -> int:
-        return hash((self.pos, self.cefr_level, self.zipf_frequency, self.occurrence_count))
+        return hash(
+            (self.pos, _level(self.cefr_level), self.zipf_frequency, self.occurrence_count),
+        )
+
+
+def _level(cefr_level: str | None) -> str | None:
+    """An unknown level is no level."""
+    return None if cefr_level == CEFRLevel.UNKNOWN.name else cefr_level
 
 
 def _groups(usage: UsageDistribution | None) -> dict[str, float] | None:

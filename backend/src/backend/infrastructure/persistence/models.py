@@ -38,12 +38,14 @@ from backend.domain.entities.topic_target import TopicTarget
 from backend.domain.entities.unknown_word import UnknownWord
 from backend.domain.entities.word_decision import WordDecision
 from backend.domain.value_objects.ai_feature import AIFeature
+from backend.domain.value_objects.built_analysis import WordData
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.format import Format
+from backend.domain.value_objects.frequency_band import FrequencyBand
 from backend.domain.value_objects.phrase import Phrase, Word
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
 from backend.domain.value_objects.phrase_origin_kind import (
@@ -443,6 +445,36 @@ class StoredCandidateModel(Base):
             polished_phrase=load_phrase(primary.polished_phrase),
             polish_reverted=primary.polish_reverted,
             phrase_position=load_position(primary.phrase_position),
+        )
+
+    def word_data(self) -> WordData:
+        """What the analysis said of the word, as stored."""
+        breakdown = (
+            _model_to_breakdown(self.cefr_breakdown) if self.cefr_breakdown is not None else None
+        )
+        level = breakdown.final_level if breakdown is not None else CEFRLevel.UNKNOWN
+        return WordData(
+            pos=self.pos,
+            cefr_level=None if level is CEFRLevel.UNKNOWN else level.name,
+            zipf_frequency=self.zipf_frequency,
+            usage_distribution=(
+                UsageDistribution(json.loads(self.usage_distribution_json))
+                if self.usage_distribution_json is not None
+                else None
+            ),
+            occurrence_count=self.occurrences,
+            cefr_breakdown=breakdown,
+        )
+
+    def write_data(self, data: WordData) -> None:
+        self.pos = data.pos
+        self.zipf_frequency = data.zipf_frequency
+        self.is_sweet_spot = FrequencyBand.from_zipf(data.zipf_frequency).is_sweet_spot
+        self.occurrences = data.occurrence_count
+        groups = data.usage_distribution.to_dict() if data.usage_distribution else None
+        self.usage_distribution_json = json.dumps(groups) if groups else None
+        self.cefr_breakdown = (
+            _breakdown_to_model(data.cefr_breakdown) if data.cefr_breakdown is not None else None
         )
 
     def _origin(self) -> PhraseOrigin | None:

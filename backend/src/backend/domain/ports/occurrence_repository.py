@@ -5,10 +5,12 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import Occurrence
+    from backend.domain.services.rebuild_plan import RebuildPlan
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.occurrence_row import OccurrenceRow
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.phrase_origin_kind import DecisionKind, ShownBy
+    from backend.domain.value_objects.word_row import WordRow
 
 
 class OccurrenceRepository(ABC):
@@ -61,3 +63,12 @@ class OccurrenceRepository(ABC):
     @abstractmethod
     def shown_by_word(self, source_id: int) -> dict[int, list[Occurrence]]:
         """Shown phrases of the source with their results, by word id."""
+
+    @abstractmethod
+    def word_rows(self, source_id: int) -> list[WordRow]:
+        """Every word of the source, light."""
+
+    @abstractmethod
+    def apply_plan(self, plan: RebuildPlan) -> None:
+        """Write a rebuild plan in the caller's transaction: words, phrases, their words
+        and the selection marks."""
