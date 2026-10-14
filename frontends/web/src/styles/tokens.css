@@ -96,6 +96,8 @@
   --h-row: 56px;
   --h-row-s: 44px;
   --tree-w: 320px;
+  /* строка дерева ниже обычного контрола: дерево плотное, как боковая панель */
+  --tree-h: 30px;
   --tree-twisty: 20px;
   /* шаг уровня: иконка ребёнка правее иконки родителя на ширину слота */
   --tree-indent: calc(var(--s2) + var(--tree-twisty));
@@ -104,12 +106,12 @@
   /* отвод от линии до строки ребёнка */
   --tree-tick: calc(-1 * var(--tree-guide-left));
   /* линия начинается чуть ниже иконки родителя */
-  --tree-guide-top: calc(var(--icon-s) / 2 - var(--h) / 2);
+  --tree-guide-top: calc(var(--icon-s) / 2 - var(--tree-h) / 2);
   --tree-line: color-mix(in srgb, var(--tx3) 45%, transparent);
   /* отвод — по середине строки; уголок последнего ребёнка — от верха строки (или от иконки родителя) до середины */
-  --tree-tick-top: calc(var(--h) / 2 - var(--bw) / 2);
-  --tree-elbow-h: calc(var(--h) / 2 + var(--s1) + var(--bw) / 2);
-  --tree-elbow-h-first: calc(var(--h) / 2 - var(--tree-guide-top) + var(--bw) / 2);
+  --tree-tick-top: calc(var(--tree-h) / 2 - var(--bw) / 2);
+  --tree-elbow-h: calc(var(--tree-h) / 2 + var(--s1) + var(--bw) / 2);
+  --tree-elbow-h-first: calc(var(--tree-h) / 2 - var(--tree-guide-top) + var(--bw) / 2);
   /* предок в пути шапки: длиннее — многоточие, открытой коллекции остаётся место */
   --scope-crumb-max: calc(var(--h) * 5);
   /* предки в пути сжимаются раньше имени открытой коллекции */
@@ -312,6 +314,7 @@
 @media (max-width: 640px) {
   :root {
     --h: 40px;
+    --tree-h: var(--h);
     --page-x: 16px;
     --page-top: 16px;
     --sheet-pad: 0px;
