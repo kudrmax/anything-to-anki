@@ -33,7 +33,7 @@ def chunks(ids: Sequence[int]) -> Iterator[list[int]]:
 
 
 class PhraseWords:
-    """Keeps `phrase_words` equal to the words of the text a phrase shows."""
+    """Keeps `phrase_words` equal to the words of the text a phrase shows, lowercase."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -47,7 +47,9 @@ class PhraseWords:
         rows = [
             {"phrase_id": phrase_id, "lemma": lemma}
             for phrase_id, stored in shown_texts.items()
-            for lemma in sorted({word[_WORD_LEMMA] for word in json.loads(stored)["words"]})
+            for lemma in sorted(
+                {word[_WORD_LEMMA].lower() for word in json.loads(stored)["words"]},
+            )
         ]
         if rows:
             self._session.execute(insert(PhraseWordModel), rows)

@@ -726,6 +726,25 @@ class TestSyncChecksProgressInAnki:
         with pytest.raises(AnkiNotAvailableError):
             self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
 
+    def test_anki_failing_during_the_check_does_not_stop_the_export(self) -> None:
+        self.known_from_anki.run.side_effect = AnkiNotAvailableError()
+        self.candidate_repo.get_by_source.return_value = [
+            _make_candidate(1, "burnout", CandidateStatus.LEARN),
+        ]
+
+        result = self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+
+        assert result.added == 1
+        assert result.matured == 0
+
+    def test_anki_failing_during_the_check_of_an_empty_export_is_no_error(self) -> None:
+        self.known_from_anki.run.side_effect = AnkiNotAvailableError()
+
+        result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
+
+        assert result.total == 0
+        assert result.matured == 0
+
     def test_an_exported_word_is_learning_not_known(self) -> None:
         self.candidate_repo.get_by_source.return_value = [
             _make_candidate(1, "burnout", CandidateStatus.LEARN),

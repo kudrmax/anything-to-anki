@@ -52,14 +52,24 @@ class UserVocabulary:
         self.__known.add(lemma, pos)
 
     def forget_known(self, lemma: str, pos: str | None) -> None:
+        """Takes back a Known a card decision added; not the user removing it from Known."""
         self.__known.remove_by_lemma(lemma, pos)
-        self.__removals.add(lemma)
+
+    def start_learning(self, lemma: str) -> None:
+        """A new Learn is a new intent: lifts an earlier removal from Known."""
+        self.__removals.discard(lemma)
 
     def mark_mature(self, lemma: str, pos: str | None) -> bool:
-        """Anki says the word is learned: Known, unless the user marked it unknown or took it
-        out of Known. Returns whether it was applied."""
-        unknown = {word.lower() for word in self.__unknown.lemmas()}
-        if lemma.lower() in unknown or self.__removals.contains(lemma):
+        """Anki says the word is learned: Known, unless it is known already, the user marked it
+        unknown or took it out of Known in the settings. Returns whether it was applied."""
+        vocabulary = Vocabulary.of(
+            known={word for word, _ in self.__known.get_all_pairs()},
+            unknown=self.__unknown.lemmas(),
+        )
+        key = lemma.lower()
+        if key in vocabulary.known or key in vocabulary.unknown:
+            return False
+        if self.__removals.contains(lemma):
             return False
         self.__known.add(lemma, pos)
         return True
@@ -75,6 +85,7 @@ class UserVocabulary:
         return self.__unknown.list_all()
 
     def remove_known(self, known_word_id: int) -> None:
+        """The user takes the word out of Known: Anki maturity will not put it back."""
         word = self.__known.get_by_id(known_word_id)
         self.__known.remove(known_word_id)
         if word is not None:

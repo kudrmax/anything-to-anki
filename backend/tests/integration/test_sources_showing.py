@@ -4,6 +4,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.phrase import Phrase, Word
+from backend.infrastructure.persistence.models import dump_phrase
+from backend.infrastructure.persistence.phrase_writes import PhraseWords
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
@@ -44,3 +48,19 @@ def test_only_sources_whose_shown_phrases_have_the_lemma(db_session: Session) ->
 
 def test_no_lemmas_no_sources(db_session: Session) -> None:
     assert SqlaOccurrenceRepository(db_session).sources_showing(set()) == set()
+
+
+def test_phrase_words_are_kept_lowercase(db_session: Session) -> None:
+    """A phrase stored with a capitalised lemma (older data) still lands lowercase."""
+    insert_source(db_session, 1)
+    insert_word(db_session, 1, source_id=1, lemma="paris")
+    stored = Phrase(
+        text="Paris", words=(Word(0, 5, "Paris", CEFRLevel.A1, 3.0, content=True),),
+        target=(0,),
+    )
+
+    PhraseWords(db_session).rewrite({1: dump_phrase(stored)})
+
+    lemmas = db_session.scalars(text("SELECT lemma FROM phrase_words WHERE phrase_id = 1"))
+    assert all(lemma == lemma.lower() for lemma in lemmas)
+    assert SqlaOccurrenceRepository(db_session).sources_showing({"Paris"}) == {1}

@@ -68,6 +68,7 @@ class Bench:
         self.decisions = MagicMock()
         self.review_status = MagicMock()
         self.learning = SqlaLearningQuery(session)
+        self.unknown: set[str] = set()
 
     def _add_phrase(self, text: str) -> int:
         added = self.occurrences.add(Occurrence(
@@ -79,7 +80,9 @@ class Bench:
         return added.id
 
     def use_case(self) -> DecidePhraseUseCase:
-        vocabulary = user_vocabulary(self.known_words, removals=self.removals)
+        vocabulary = user_vocabulary(
+            self.known_words, self.unknown, learning_query=self.learning, removals=self.removals,
+        )
         return DecidePhraseUseCase(
             occurrence_repo=self.occurrences,
             candidate_repo=self.candidates,
@@ -87,7 +90,7 @@ class Bench:
             decision_repo=self.decisions,
             review_status=self.review_status,
             cloze_repo=self.clozes,
-            decided_elsewhere=DecidedElsewhere(vocabulary, self.learning),
+            decided_elsewhere=DecidedElsewhere(vocabulary),
         )
 
     def decide(self, phrase_id: int, action: DecisionAction) -> None:
@@ -175,7 +178,7 @@ def test_known_is_undone_on_the_decision_phrase(bench: Bench) -> None:
     assert bench.word_status() is WordStatus.PENDING
     assert not bench.phrase(FIRST).is_decision
     bench.known_words.remove_by_lemma.assert_called_once_with(LEMMA, "VERB")
-    bench.removals.add.assert_called_once_with(LEMMA)
+    bench.removals.add.assert_not_called()
     bench.decisions.forget.assert_called_once_with(LEMMA)
 
 
@@ -204,7 +207,16 @@ def test_leaving_known_forgets_the_known_this_decision_added(
     bench.decide(FIRST, undo)
 
     bench.known_words.remove_by_lemma.assert_called_once_with(LEMMA, "VERB")
-    bench.removals.add.assert_called_once_with(LEMMA)
+    bench.removals.add.assert_not_called()
+
+
+@pytest.mark.parametrize("action", [LEARN, CLOZE])
+def test_a_learn_decision_lifts_a_removal_from_known(
+    bench: Bench, action: DecisionAction,
+) -> None:
+    bench.decide(FIRST, action)
+
+    bench.removals.discard.assert_called_once_with(LEMMA)
 
 
 def test_the_decision_changes_on_its_card(bench: Bench) -> None:
@@ -332,6 +344,21 @@ def test_learn_on_a_word_learning_in_another_source_is_refused(
 
     assert refused.value.elsewhere is Elsewhere.LEARNING
     assert str(refused.value) == "Already learning from another source"
+
+
+def test_learn_on_a_word_marked_unknown_but_learning_elsewhere_is_allowed(
+    bench: Bench, db_session: Session,
+) -> None:
+    """Unknown > Known > learning: the user's "I don't know it" wins here too."""
+    from tests.integration.conftest import insert_source
+
+    insert_source(db_session, 2)
+    insert_word(db_session, 50, source_id=2, lemma=LEMMA, status="learn")
+    bench.unknown.add(LEMMA)
+
+    bench.decide(FIRST, LEARN)
+
+    assert bench.word_status() is WordStatus.LEARN
 
 
 def test_an_unknown_phrase_is_not_found(bench: Bench) -> None:

@@ -598,7 +598,9 @@ def _fill_phrase_words(conn: sa.Connection) -> None:
             if row.polished_phrase is not None and not row.polish_reverted
             else row.source_phrase
         )
-        lemmas = sorted({word[WORD_INDEX_LEMMA] for word in json.loads(shown)["words"]})
+        lemmas = sorted({
+            word[WORD_INDEX_LEMMA].lower() for word in json.loads(shown)["words"]
+        })
         if lemmas:
             conn.execute(
                 sa.text("INSERT INTO phrase_words (phrase_id, lemma) VALUES (:p, :l)"),

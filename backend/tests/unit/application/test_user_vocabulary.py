@@ -44,10 +44,18 @@ class TestUserVocabulary:
         self.vocabulary.mark_known("gull", None)
         self.removals.discard.assert_called_once_with("gull")
 
-    def test_forgetting_known_remembers_the_removal(self) -> None:
+    def test_forgetting_a_known_a_card_added_is_no_removal(self) -> None:
         self.vocabulary.forget_known("feast", None)
         self.known.remove_by_lemma.assert_called_once_with("feast", None)
-        self.removals.add.assert_called_once_with("feast")
+        self.removals.add.assert_not_called()
+
+    def test_a_new_learn_intent_lifts_an_earlier_removal(self) -> None:
+        self.vocabulary.start_learning("gull")
+        self.removals.discard.assert_called_once_with("gull")
+
+    def test_maturity_does_not_count_a_word_already_known(self) -> None:
+        assert self.vocabulary.mark_mature("feast", "NOUN") is False
+        self.known.add.assert_not_called()
 
     def test_a_mature_word_becomes_known(self) -> None:
         assert self.vocabulary.mark_mature("gull", "NOUN") is True

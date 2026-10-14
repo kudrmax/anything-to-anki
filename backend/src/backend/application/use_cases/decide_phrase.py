@@ -102,6 +102,8 @@ class DecidePhraseUseCase:
             self._vocabulary.mark_known(word.lemma, word.pos)
         elif before is WordStatus.KNOWN and word.known_added:
             self._vocabulary.forget_known(word.lemma, word.pos)
+        if after is WordStatus.LEARN:
+            self._vocabulary.start_learning(word.lemma)
         self._remember_decision(word, before, after)
         self._review_status.refresh(word.source_id)
         self._review_status.refresh_showing({word.lemma.lower()})

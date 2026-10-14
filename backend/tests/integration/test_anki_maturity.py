@@ -7,16 +7,23 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.check_anki_progress import CheckAnkiProgressUseCase
+from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
+from backend.application.utils.decided_elsewhere import DecidedElsewhere
 from backend.application.utils.known_from_anki import RefreshKnownFromAnki
 from backend.application.utils.user_vocabulary import UserVocabulary
 from backend.domain.exceptions import AnkiNotAvailableError
 from backend.domain.ports.anki_connector import AnkiConnector
+from backend.domain.services.card_decision import DecisionAction
 from backend.domain.value_objects.note_maturity import NoteCards
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import AnkiNoteModel
 from backend.infrastructure.persistence.sqla_anki_note_repository import SqlaAnkiNoteRepository
 from backend.infrastructure.persistence.sqla_anki_sync_repository import SqlaAnkiSyncRepository
+from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
+    SqlaCandidateClozeRepository,
+)
+from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_known_word_removal_repository import (
     SqlaKnownWordRemovalRepository,
 )
@@ -24,6 +31,9 @@ from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
+from backend.infrastructure.persistence.sqla_occurrence_repository import (
+    SqlaOccurrenceRepository,
+)
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from backend.infrastructure.persistence.sqla_unknown_word_repository import (
     SqlaUnknownWordRepository,
@@ -72,6 +82,28 @@ class Bench:
 
     def check(self) -> int:
         return CheckAnkiProgressUseCase(self.anki, self.refresh()).execute().matured
+
+    def decide(self, phrase_id: int, action: DecisionAction) -> None:
+        """A decision on a card, as the review screen makes it."""
+        DecidePhraseUseCase(
+            occurrence_repo=SqlaOccurrenceRepository(self.session),
+            candidate_repo=SqlaCandidateRepository(self.session),
+            vocabulary=self.vocabulary,
+            decision_repo=MagicMock(),
+            review_status=self.review_status,
+            cloze_repo=SqlaCandidateClozeRepository(self.session),
+            decided_elsewhere=DecidedElsewhere(self.vocabulary),
+        ).execute(phrase_id, action)
+
+    def export(self, word_id: int, lemma: str, note_id: int) -> None:
+        """What a successful export of the word's decision phrase writes."""
+        SqlaAnkiSyncRepository(self.session).mark_synced(word_id, note_id, word_id)
+        self.notes.add(note_id, lemma, "NOUN")
+
+    def remove_in_settings(self, lemma: str) -> None:
+        known = self.known.add(lemma, None)
+        assert known.id is not None
+        self.vocabulary.remove_known(known.id)
 
     def exported_learn_word(self, word_id: int, lemma: str, note_id: int) -> None:
         insert_word(self.session, word_id, lemma=lemma, status=WordStatus.LEARN.value)
@@ -218,22 +250,9 @@ def test_a_mature_word_the_user_marked_unknown_stays_unknown(bench: Bench) -> No
     assert not bench.is_known("glare")
 
 
-def test_a_word_the_user_removed_from_known_is_not_put_back(bench: Bench) -> None:
-    bench.exported_learn_word(1, "glare", NOTE)
-    bench.vocabulary.mark_known("glare", "NOUN")
-    bench.vocabulary.forget_known("glare", "NOUN")
-    bench.anki.note_cards.return_value = {NOTE: MATURE}
-
-    assert bench.check() == 0
-
-    assert not bench.is_known("glare")
-
-
 def test_a_word_removed_from_known_in_settings_is_not_put_back(bench: Bench) -> None:
     bench.exported_learn_word(1, "glare", NOTE)
-    known = bench.known.add("glare", None)
-    assert known.id is not None
-    bench.vocabulary.remove_known(known.id)
+    bench.remove_in_settings("glare")
     bench.anki.note_cards.return_value = {NOTE: MATURE}
 
     assert bench.check() == 0
@@ -243,15 +262,51 @@ def test_a_word_removed_from_known_in_settings_is_not_put_back(bench: Bench) -> 
 
 def test_marking_a_removed_word_known_again_lets_maturity_through(bench: Bench) -> None:
     bench.exported_learn_word(1, "glare", NOTE)
-    bench.vocabulary.mark_known("glare", "NOUN")
-    bench.vocabulary.forget_known("glare", "NOUN")
-    bench.vocabulary.mark_known("glare", "NOUN")
-    bench.vocabulary.forget_known("glare", "NOUN")
-    removals = bench.session.execute(text("SELECT count(*) FROM known_word_removals")).scalar()
-    assert removals == 1
-
+    bench.remove_in_settings("glare")
     bench.vocabulary.mark_known("glare", None)
-    assert bench.session.execute(text("SELECT count(*) FROM known_word_removals")).scalar() == 0
+    bench.vocabulary.forget_known("glare", None)
+    bench.anki.note_cards.return_value = {NOTE: MATURE}
+
+    assert bench.check() == 1
+
+    assert bench.is_known("glare")
+
+
+def test_leaving_known_on_the_card_does_not_block_its_own_maturity(bench: Bench) -> None:
+    """Known → Learn → export → mature → Known: a card decision is no settings removal."""
+    insert_word(bench.session, 1, lemma="glare")
+    bench.decide(1, DecisionAction.KNOWN)
+    bench.decide(1, DecisionAction.LEARN)
+    assert not bench.is_known("glare")
+    removals = bench.session.execute(text("SELECT count(*) FROM known_word_removals")).scalar()
+    assert removals == 0
+
+    bench.export(1, "glare", NOTE)
+    bench.anki.note_cards.return_value = {NOTE: MATURE}
+
+    assert bench.check() == 1
+    assert bench.is_known("glare")
+
+
+def test_a_learn_decision_after_a_settings_removal_lets_maturity_through(bench: Bench) -> None:
+    bench.remove_in_settings("glare")
+    insert_word(bench.session, 1, lemma="glare")
+    bench.decide(1, DecisionAction.LEARN)
+    bench.export(1, "glare", NOTE)
+    bench.anki.note_cards.return_value = {NOTE: MATURE}
+
+    assert bench.check() == 1
+    assert bench.is_known("glare")
+
+
+def test_a_word_already_known_is_not_counted_again(bench: Bench) -> None:
+    bench.exported_learn_word(1, "glare", NOTE)
+    bench.known.add("glare", "VERB")
+    bench.anki.note_cards.return_value = {NOTE: MATURE}
+
+    assert bench.check() == 0
+
+    assert bench.note(NOTE).matured_at is not None
 
 
 def test_each_note_is_promoted_once(bench: Bench) -> None:
@@ -278,3 +333,13 @@ def test_checking_progress_with_anki_offline_is_an_error(bench: Bench) -> None:
         bench.check()
     bench.anki.note_cards.assert_not_called()
     assert bench.is_learning("glare")
+
+
+def test_anki_failing_during_the_check_is_anki_not_available(bench: Bench) -> None:
+    bench.exported_learn_word(1, "glare", NOTE)
+    bench.anki.note_cards.side_effect = AnkiNotAvailableError()
+
+    with pytest.raises(AnkiNotAvailableError):
+        bench.check()
+    assert bench.note(NOTE).matured_at is None
+    assert bench.note(NOTE).deleted_at is None

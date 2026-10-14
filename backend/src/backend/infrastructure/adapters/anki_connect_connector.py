@@ -6,6 +6,7 @@ from typing import cast
 
 import httpx
 
+from backend.domain.exceptions import AnkiNotAvailableError
 from backend.domain.ports.anki_connector import AnkiConnector
 from backend.domain.value_objects.note_maturity import NoteCards
 
@@ -164,9 +165,13 @@ class AnkiConnectConnector(AnkiConnector):
         self._invoke("storeMediaFile", filename=filename, data=data)
 
     def note_cards(self, note_ids: list[int]) -> dict[int, NoteCards]:
+        try:
+            cards = self._cards_of(note_ids)
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise AnkiNotAvailableError() from exc
         intervals: dict[int, list[int]] = {}
         suspended: dict[int, int] = {}
-        for card in self._cards_of(note_ids):
+        for card in cards:
             note = int(cast("int", card["note"]))
             intervals.setdefault(note, [])
             suspended.setdefault(note, 0)

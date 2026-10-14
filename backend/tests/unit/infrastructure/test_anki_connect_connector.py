@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, call, patch
 
 import httpx
 import pytest
+from backend.domain.exceptions import AnkiNotAvailableError
 from backend.infrastructure.adapters.anki_connect_connector import AnkiConnectConnector
 
 if TYPE_CHECKING:
@@ -387,6 +388,14 @@ class TestNoteCards:
 
         assert self._connector(fake).note_cards([]) == {}
         assert fake.calls == []
+
+    @pytest.mark.parametrize("failure", [
+        httpx.ConnectError("refused"), RuntimeError("AnkiConnect error: boom"),
+    ])
+    def test_a_failing_anki_is_not_available(self, failure: Exception) -> None:
+        connector = AnkiConnectConnector(url="http://test")
+        with patch(_HTTPX_POST, side_effect=failure), pytest.raises(AnkiNotAvailableError):
+            connector.note_cards([1])
 
     def test_asks_in_batches(self) -> None:
         notes = list(range(1, 502))

@@ -37,7 +37,7 @@ class GetBootstrapWordsUseCase:
 
         entries = self._index_repo.get_all_entries()
         vocabulary = self._vocabulary.snapshot()
-        decided_lemmas = set(vocabulary.known | vocabulary.unknown)
+        decided_lemmas = set(vocabulary.known | vocabulary.unknown | vocabulary.learning)
 
         selector = BootstrapWordSelector()
         selected = selector.select_words(

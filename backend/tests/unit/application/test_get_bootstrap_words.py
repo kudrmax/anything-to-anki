@@ -69,6 +69,23 @@ class TestGetBootstrapWordsUseCase:
         lemmas = {w.lemma for w in result}
         assert "elaborate" not in lemmas
 
+    def test_excludes_words_being_learned(self) -> None:
+        self.settings_repo.get.return_value = "B1"
+        self.known_word_repo.get_all_pairs.return_value = set()
+        self.index_repo.get_all_entries.return_value = [
+            _entry("elaborate", CEFRLevel.B2, 3.8),
+            _entry("nuance", CEFRLevel.C1, 4.2),
+        ]
+        use_case = GetBootstrapWordsUseCase(
+            index_repo=self.index_repo,
+            vocabulary=user_vocabulary(self.known_word_repo, learning_lemmas={"nuance"}),
+            settings_repo=self.settings_repo,
+        )
+
+        lemmas = {w.lemma for w in use_case.execute(excluded_lemmas=[])}
+
+        assert lemmas == {"elaborate"}
+
     def test_passes_excluded_lemmas(self) -> None:
         self.settings_repo.get.return_value = "B1"
         self.known_word_repo.get_all_pairs.return_value = set()

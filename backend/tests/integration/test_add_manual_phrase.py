@@ -25,7 +25,6 @@ from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
-from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
 
 from tests.phrase_support import phrase
 from tests.source_rebuild_support import LINES, SOURCE, Bench, at, word
@@ -239,7 +238,7 @@ def test_learn_on_a_manual_card_closes_the_word_and_exports_one_phrase(bench: Be
         occurrence_repo=bench.occurrences, candidate_repo=bench.candidates,
         vocabulary=vocabulary, decision_repo=MagicMock(), review_status=MagicMock(),
         cloze_repo=SqlaCandidateClozeRepository(bench.session),
-        decided_elsewhere=DecidedElsewhere(vocabulary, SqlaLearningQuery(bench.session)),
+        decided_elsewhere=DecidedElsewhere(vocabulary),
     )
 
     decide.execute(manual.id, DecisionAction.LEARN)

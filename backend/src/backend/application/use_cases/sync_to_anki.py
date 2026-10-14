@@ -118,11 +118,11 @@ class SyncToAnkiUseCase:
         )
         available = self._connector.is_available()
         if total == 0:
-            matured = self._known_from_anki.run() if available else 0
+            matured = self._check_progress() if available else 0
             return SyncResultDTO(total=0, added=0, skipped=0, errors=0, matured=matured)
         if not available:
             raise AnkiNotAvailableError()
-        matured = self._known_from_anki.run()
+        matured = self._check_progress()
 
         settings = AnkiNoteSettings.read(self._settings_repo)
         fields = settings.fields
@@ -161,6 +161,14 @@ class SyncToAnkiUseCase:
             skipped_lemmas=tally.skipped_lemmas, error_lemmas=tally.error_lemmas,
             matured=matured,
         )
+
+    def _check_progress(self) -> int:
+        """Maturity is a side check: Anki failing in it does not stop the export."""
+        try:
+            return self._known_from_anki.run()
+        except AnkiNotAvailableError:
+            logger.warning("sync_to_anki: progress check in Anki failed", exc_info=True)
+            return 0
 
     def _add(
         self,

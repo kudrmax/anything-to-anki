@@ -13,21 +13,29 @@ from backend.application.utils.user_vocabulary import UserVocabulary
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from backend.domain.ports.learning_query import LearningQuery
+
 
 def user_vocabulary(
     known_word_repo: MagicMock | None = None,
     unknown_lemmas: Iterable[str] = (),
     *,
     learning_lemmas: Iterable[str] = (),
+    learning_query: LearningQuery | None = None,
     removals: MagicMock | None = None,
 ) -> UserVocabulary:
+    """`learning_query`: a real query in place of the given learning lemmas."""
     known = known_word_repo if known_word_repo is not None else MagicMock()
     if isinstance(known.get_all_pairs.return_value, MagicMock):
         known.get_all_pairs.return_value = set()
     unknown = MagicMock()
     unknown.lemmas.return_value = set(unknown_lemmas)
-    learning = MagicMock()
-    learning.learning_lemmas.return_value = frozenset(learning_lemmas)
+    learning: LearningQuery | MagicMock
+    if learning_query is not None:
+        learning = learning_query
+    else:
+        learning = MagicMock()
+        learning.learning_lemmas.return_value = frozenset(learning_lemmas)
     if removals is None:
         removals = MagicMock()
         removals.contains.return_value = False
