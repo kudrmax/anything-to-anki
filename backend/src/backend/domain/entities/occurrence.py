@@ -73,7 +73,10 @@ class Occurrence:
         return (
             self.polished_phrase is not None
             or (self.meaning is not None and bool(self.meaning.meaning))
-            or (self.media is not None and self.media.screenshot_path is not None)
+            or (
+                self.media is not None
+                and (self.media.screenshot_path is not None or self.media.audio_path is not None)
+            )
             or (self.tts is not None and self.tts.audio_path is not None)
             or self.cloze is not None
         )
