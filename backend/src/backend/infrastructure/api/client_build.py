@@ -27,9 +27,21 @@ def bundle_name(index_html: str) -> str | None:
     return match.group(1) if match else None
 
 
-def current_build(dist: Path) -> str | None:
-    index = dist / "index.html"
-    return bundle_name(index.read_text()) if index.is_file() else None
+class _BuildOnDisk:
+    """The build the server hands out now: a rebuild while it runs changes it, and a page
+    opened after the rebuild must not be told it is old."""
+
+    def __init__(self, dist: Path) -> None:
+        self._index = dist / "index.html"
+        self._read_at: float | None = None
+        self._build: str | None = None
+
+    def get(self) -> str | None:
+        modified = self._index.stat().st_mtime if self._index.is_file() else None
+        if modified != self._read_at:
+            self._read_at = modified
+            self._build = bundle_name(self._index.read_text()) if modified is not None else None
+        return self._build
 
 
 class StaleClientMiddleware(BaseHTTPMiddleware):
@@ -38,15 +50,16 @@ class StaleClientMiddleware(BaseHTTPMiddleware):
     Only fetch requests are checked: pictures and audio carry no build.
     """
 
-    def __init__(self, app: ASGIApp, build: str) -> None:
+    def __init__(self, app: ASGIApp, dist: Path) -> None:
         super().__init__(app)
-        self._build = build
+        self._build = _BuildOnDisk(dist)
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
         if request.headers.get("Sec-Fetch-Dest") != _FETCH_DEST:
             return response
-        if request.headers.get(CLIENT_BUILD_HEADER) != self._build:
+        build = self._build.get()
+        if build is not None and request.headers.get(CLIENT_BUILD_HEADER) != build:
             response.headers["Clear-Site-Data"] = CLEAR_CACHE
             response.headers[STALE_CLIENT_HEADER] = "1"
         return response
