@@ -1,3 +1,5 @@
+import dataclasses
+
 import pytest
 from backend.domain.entities.source import Source
 from backend.domain.value_objects.content import Kind
@@ -36,11 +38,9 @@ class TestSourceRepositoryUpdateSource:
         assert done.status == SourceStatus.DONE
         assert done.processing_stage == ProcessingStage.ANALYZING_TEXT
 
-        # Reset to initial state and persist via update_source
-        reset = done.reset_to_initial_state()
-        assert reset.status == SourceStatus.NEW
-        assert reset.processing_stage is None
-        assert reset.error_message is None
+        reset = dataclasses.replace(
+            done, status=SourceStatus.NEW, processing_stage=None, error_message=None,
+        )
 
         repo.update_source(reset)
 
