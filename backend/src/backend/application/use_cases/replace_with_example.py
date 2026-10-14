@@ -1,17 +1,20 @@
 """Use case: show one of the AI-generated examples instead of a card's phrase."""
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.exceptions import AlreadyInAnkiError, PhraseNotFoundError
 from backend.domain.services.topic_phrase_selection import parse_marked_phrase
+from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
 if TYPE_CHECKING:
     from backend.application.utils.phrase_reader import PhraseReader
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
+    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
 
@@ -81,7 +84,25 @@ class ReplaceWithExampleUseCase:
         self._review_status.refresh(word.source_id)
         shown = self._candidate_repo.get_by_id(replaced.candidate_id)
         assert shown is not None
-        return stored_candidate_to_dto(shown)
+        return stored_candidate_to_dto(_seen_through(shown, example))
+
+
+# TRANSITIONAL(words-phrases): removed in Task 10 — the answer is the example's card there
+def _seen_through(word: StoredCandidate, example: Occurrence) -> StoredCandidate:
+    """The word as the example's card: the ✨ that follows the replacement reaches it."""
+    return replace(
+        word,
+        phrase_id=example.id,
+        status=CandidateStatus.PENDING if word.status is CandidateStatus.SKIP else word.status,
+        source_phrase=example.source_phrase,
+        polished_phrase=example.polished_phrase,
+        polish_reverted=example.polish_reverted,
+        phrase_position=example.phrase_position,
+        meaning=example.meaning,
+        media=example.media,
+        tts=example.tts,
+        cloze=example.cloze,
+    )
 
 
 def _stands_for_selection(replaced: Occurrence) -> bool:

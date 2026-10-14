@@ -157,6 +157,20 @@ def test_the_answer_is_the_word_seen_through_the_example(bench: Bench) -> None:
     assert result.phrase_id != CARD
 
 
+def test_the_answer_is_the_example_card_when_the_word_shows_another_phrase(
+    bench: Bench,
+) -> None:
+    """The ✨ that follows the replacement must reach the example, not the word's other card."""
+    bench.add_manual()
+
+    result = bench.use_case.execute(CARD, "She runs every morning.")
+
+    example = bench.occurrences.of_word(WORD)[-1]
+    assert result.phrase_id == example.id
+    assert result.phrase.text == "She runs every morning."
+    assert result.meaning is None
+
+
 def test_bold_words_are_the_target_and_the_markup_goes(bench: Bench) -> None:
     example = bench.replace(CARD, "Run fast, she **runs** every morning.")
 
