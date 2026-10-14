@@ -1,24 +1,35 @@
 """A topic source collects real phrases from the other sources, offline.
 
 Real spaCy, dictionaries and SQLite: targets are stored as if AI had already
-generated them, then processing runs without AI. Topics are not rebuilt.
+generated them, then processing runs without AI. Topics are not rebuilt: a refresh
+adds the phrases later sources give their targets, and changes nothing the topic has.
 """
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 import pytest
+from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.topic_target import TopicTarget
-from backend.domain.exceptions import RebuildNotSupportedError, TopicTargetsMissingError
+from backend.domain.exceptions import (
+    RebuildNotSupportedError,
+    RefreshNotSupportedError,
+    TopicTargetsMissingError,
+)
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.phrase_origin import PhraseOrigin
+from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.container import Container
+from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
+    SqlaCandidateMeaningRepository,
+)
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
@@ -26,10 +37,14 @@ from backend.infrastructure.persistence.sqla_document_repository import SqlaDocu
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
+from backend.infrastructure.persistence.sqla_occurrence_repository import (
+    SqlaOccurrenceRepository,
+)
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from backend.infrastructure.persistence.sqla_topic_target_repository import (
     SqlaTopicTargetRepository,
 )
+from sqlalchemy import text
 
 from tests.phrase_support import phrase
 
@@ -156,14 +171,97 @@ def test_topic_borrows_phrases_and_falls_back_to_generated(
     assert topic.status == SourceStatus.DONE
 
 
-def test_a_topic_is_not_rebuilt(db_session: Session, container: Container) -> None:
+def _processed_topic(db_session: Session, container: Container) -> int:
     topic_id = _add_topic(db_session)
     process = container.process_source_use_case(db_session)
     process.start(topic_id)
+    db_session.commit()
     process.execute(topic_id)
+    return topic_id
+
+
+def _texts(db_session: Session, topic_id: int, lemma: str) -> list[str]:
+    word_ids = {w.lemma: w.id for w in SqlaOccurrenceRepository(db_session).word_rows(topic_id)}
+    return [
+        o.source_phrase.text
+        for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)
+        if o.candidate_id == word_ids[lemma]
+    ]
+
+
+def test_refreshing_picks_up_a_newly_added_source(
+    db_session: Session, container: Container,
+) -> None:
+    topic_id = _processed_topic(db_session, container)
+    assert _by_lemma(db_session, topic_id)["counter-offer"].origin == PhraseOrigin.generated()
+    generated = _texts(db_session, topic_id, "counter-offer")
+
+    _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
+    db_session.commit()
+    summary = container.refresh_topic_use_case(db_session).execute(topic_id)
+
+    assert (summary.words_added, summary.phrases_added) == (0, 1)
+    assert _texts(db_session, topic_id, "counter-offer") == [*generated, LATER_ARTICLE]
+    [added] = [
+        o for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)
+        if o.source_phrase.text == LATER_ARTICLE
+    ]
+    assert added.origin is OccurrenceOrigin.COLLECTED
+    assert added.shown_by is not None
+
+
+def test_refreshing_keeps_decisions_and_results(
+    db_session: Session, container: Container,
+) -> None:
+    topic_id = _processed_topic(db_session, container)
+    occurrences = SqlaOccurrenceRepository(db_session)
+    before = {o.id: o for o in occurrences.by_source(topic_id)}
+    word_ids = {w.lemma: w.id for w in occurrences.word_rows(topic_id)}
+    decided = next(o for o in before.values() if o.candidate_id == word_ids["counter-offer"])
+    db_session.execute(
+        text("UPDATE candidates SET status = 'learn' WHERE id = :id"),
+        {"id": word_ids["counter-offer"]},
+    )
+    occurrences.set_decision(word_ids["counter-offer"], decided.id, None)
+    SqlaCandidateMeaningRepository(db_session).upsert_for_phrase(decided.id, CandidateMeaning(
+        candidate_id=decided.candidate_id, meaning="a reply offer", translation=None,
+        synonyms=None, examples=None, ipa=None, generated_at=None,
+    ))
+    db_session.commit()
+    before = {o.id: o for o in occurrences.by_source(topic_id)}
+
+    _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
+    db_session.commit()
+    container.refresh_topic_use_case(db_session).execute(topic_id)
+
+    after = {o.id: o for o in occurrences.by_source(topic_id)}
+    assert {i: after[i] for i in before} == before
+    [word] = [w for w in occurrences.word_rows(topic_id) if w.lemma == "counter-offer"]
+    assert word.status is WordStatus.LEARN
+
+
+def test_a_second_refresh_adds_nothing(db_session: Session, container: Container) -> None:
+    topic_id = _processed_topic(db_session, container)
+    _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
+    db_session.commit()
+    container.refresh_topic_use_case(db_session).execute(topic_id)
+    before = [o.id for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)]
+
+    summary = container.refresh_topic_use_case(db_session).execute(topic_id)
+
+    assert (summary.words_added, summary.phrases_added) == (0, 0)
+    assert [o.id for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)] == before
+
+
+def test_a_topic_is_refreshed_not_rebuilt(db_session: Session, container: Container) -> None:
+    topic_id = _processed_topic(db_session, container)
 
     with pytest.raises(RebuildNotSupportedError):
         container.rebuild_source_use_case(db_session).execute(topic_id, include_open=False)
+    with pytest.raises(RefreshNotSupportedError):
+        container.refresh_topic_use_case(db_session).execute(
+            _add_source(db_session, "Novel", Kind.TEXT, NOVEL_TEXT),
+        )
 
 
 def test_topic_cannot_be_processed_before_targets_exist(

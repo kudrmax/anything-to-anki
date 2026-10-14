@@ -21,7 +21,7 @@ const source = (id: number, title: string, status: SourceSummary['status']): Sou
   id, title, status, kind: 'text', role: 'content', has_video: false, source_url: null, video_downloaded: false,
   created_at: '2026-10-01T00:00:00Z', candidate_count: 4, learn_count: 0, progress: { decided: 1, total: 4 }, processing_stage: null,
   collection_id: null, collection_path: [], stage: 'ready', awaiting_generation: false, generation_status: null,
-  generation_error: null, is_permanent: false,
+  generation_error: null, is_permanent: false, available_operation: null,
 })
 
 const board: SourceBoard = {

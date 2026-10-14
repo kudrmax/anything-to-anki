@@ -74,6 +74,14 @@ class RebuildNotSupportedError(DomainError):
         self.source_id = source_id
 
 
+class RefreshNotSupportedError(DomainError):
+    """Raised when refreshing a source that is not a processed topic."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Only a processed topic can be refreshed: {source_id}")
+        self.source_id = source_id
+
+
 class InvalidCandidateStatusError(DomainError):
     """Raised when an invalid candidate status is provided."""
 

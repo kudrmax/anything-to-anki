@@ -12,6 +12,7 @@ from backend.application.dto.source_dtos import (
     stored_candidate_to_dto,
 )
 from backend.domain.exceptions import SourceNotFoundError
+from backend.domain.services.source_operations import available_operation
 from backend.domain.services.source_stage import stage_of
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.candidate_status import CandidateStatus
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.services.collection_tree import CollectionTree
+    from backend.domain.value_objects.source_operation_kind import SourceOperationKind
     from backend.domain.value_objects.source_scope import SourceScope
 
 
@@ -107,6 +109,7 @@ class GetSourcesUseCase:
             generation_status=generation.status,
             generation_error=generation.error,
             is_permanent=source.is_permanent,
+            available_operation=_value(available_operation(source)),
         )
 
     def get_by_id(
@@ -153,3 +156,7 @@ class GetSourcesUseCase:
             progress=ProgressDTO.of(arranged.progress()),
             initially_shown_candidates=initially_shown,
         )
+
+
+def _value(kind: SourceOperationKind | None) -> str | None:
+    return kind.value if kind is not None else None

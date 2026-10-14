@@ -62,8 +62,10 @@ class SourceDTO(BaseModel):
     awaiting_generation: bool = False
     generation_status: str | None = None  # 'queued' | 'running' | 'failed'
     generation_error: str | None = None
-    # Built-in source: it can't be deleted or reprocessed.
+    # Built-in source: it can't be deleted.
     is_permanent: bool = False
+    # How the source is brought up to date: 'rebuild' | 'refresh', or nothing to offer.
+    available_operation: str | None = None
 
 
 class SourceGroupDTO(BaseModel):

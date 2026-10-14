@@ -42,6 +42,7 @@ from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.process_sources import ProcessSourcesUseCase
 from backend.application.use_cases.rebuild_source import RebuildSourceUseCase
+from backend.application.use_cases.refresh_topic import RefreshTopicUseCase
 from backend.application.use_cases.rename_collection import RenameCollectionUseCase
 from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
@@ -528,6 +529,17 @@ class Container:
             lock=SqlaSourceOperationLock(session),
             unit_of_work=SqlaUnitOfWork(session),
             rebuilder=self._source_rebuilder(session),
+        )
+
+    def refresh_topic_use_case(self, session: Session) -> RefreshTopicUseCase:
+        return RefreshTopicUseCase(
+            source_repo=SqlaSourceRepository(session),
+            candidate_repo=SqlaCandidateRepository(session),
+            occurrence_repo=SqlaOccurrenceRepository(session),
+            lock=SqlaSourceOperationLock(session),
+            unit_of_work=SqlaUnitOfWork(session),
+            collector=self._topic_phrase_collector(session),
+            review_status=self._review_status_updater(session),
         )
 
     def _source_rebuilder(self, session: Session) -> SourceRebuilder:

@@ -9,3 +9,4 @@ class SourceOperationKind(StrEnum):
     PROCESS = "process"
     REBUILD = "rebuild"
     PREVIEW = "preview"
+    REFRESH = "refresh"

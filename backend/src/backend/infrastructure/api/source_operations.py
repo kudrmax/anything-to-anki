@@ -7,7 +7,11 @@ from typing import TYPE_CHECKING
 from backend.application.dto.rebuild_dtos import OperationState, SourceOperationDTO
 
 if TYPE_CHECKING:
-    from backend.application.dto.rebuild_dtos import RebuildPreviewDTO, RebuildSummaryDTO
+    from backend.application.dto.rebuild_dtos import (
+        RebuildPreviewDTO,
+        RebuildSummaryDTO,
+        TopicRefreshSummaryDTO,
+    )
     from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 
@@ -25,7 +29,7 @@ class SourceOperationRegistry:
     def started(self, source_id: int, kind: SourceOperationKind) -> SourceOperationDTO:
         with self._guard:
             operation = SourceOperationDTO(
-                operation_id=next(self._ids), kind=kind.value, state=OperationState.RUNNING,
+                operation_id=next(self._ids), kind=kind, state=OperationState.RUNNING,
             )
             self._last[source_id] = operation
             return operation
@@ -37,9 +41,11 @@ class SourceOperationRegistry:
         *,
         preview: RebuildPreviewDTO | None = None,
         summary: RebuildSummaryDTO | None = None,
+        refresh: TopicRefreshSummaryDTO | None = None,
     ) -> None:
         self._update(source_id, operation_id, {
             "state": OperationState.DONE, "preview": preview, "summary": summary,
+            "refresh": refresh,
         })
 
     def failed(self, source_id: int, operation_id: int, error: str) -> None:

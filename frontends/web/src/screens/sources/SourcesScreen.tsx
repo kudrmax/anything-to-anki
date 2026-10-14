@@ -299,6 +299,7 @@ export function SourcesScreen() {
                         onDelete={deleteSource}
                         onRename={(id, newTitle) => void board.rename(id, newTitle)}
                         onRebuild={id => void board.rebuild(id)}
+                        onRefresh={id => void board.refresh(id)}
                         onRowClick={rowClick}
                         onMoveTo={id => setMoveTarget({ kind: 'sources', ids: [id] })}
                         dragIds={() => dragIds(source.id)}

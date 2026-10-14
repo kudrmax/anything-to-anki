@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
+
 if TYPE_CHECKING:
     from backend.domain.services.rebuild_plan import RebuildPlan
 
@@ -59,6 +61,13 @@ class RebuildSummaryDTO(BaseModel):
     counts: RebuildCountsDTO
 
 
+class TopicRefreshSummaryDTO(BaseModel):
+    """What refreshing a topic added; nothing it had is changed."""
+
+    words_added: int
+    phrases_added: int
+
+
 class OperationState(StrEnum):
     RUNNING = "running"
     DONE = "done"
@@ -69,8 +78,9 @@ class SourceOperationDTO(BaseModel):
     """The last long operation started on a source, and its result once done."""
 
     operation_id: int
-    kind: str
+    kind: SourceOperationKind
     state: OperationState
     preview: RebuildPreviewDTO | None = None
     summary: RebuildSummaryDTO | None = None
+    refresh: TopicRefreshSummaryDTO | None = None
     error: str | None = None

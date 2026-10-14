@@ -108,6 +108,8 @@ export interface SourceSummary {
   generation_error: string | null
   /** Встроенный источник: его нельзя удалить и переобработать. */
   is_permanent: boolean
+  /** Как привести источник в актуальное состояние; решает backend. */
+  available_operation: 'rebuild' | 'refresh' | null
 }
 
 export type GenerationStatus = 'queued' | 'running' | 'failed'
@@ -476,7 +478,7 @@ export interface GenerationOverview {
 /** Долгая операция над источником (Rebuild или его превью), запущенная в фоне. */
 export interface SourceOperation {
   operation_id: number
-  kind: 'process' | 'rebuild' | 'preview'
+  kind: 'process' | 'rebuild' | 'preview' | 'refresh'
   state: 'running' | 'done' | 'error'
   error: string | null
 }

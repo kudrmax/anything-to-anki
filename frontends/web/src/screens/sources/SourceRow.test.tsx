@@ -8,7 +8,7 @@ const source: SourceSummary = {
   id: 7, title: 'Pilot', status: 'done', kind: 'text', role: 'content', has_video: false, source_url: null,
   video_downloaded: false, created_at: '2026-10-01T00:00:00Z', candidate_count: 4, learn_count: 0, progress: { decided: 0, total: 4 },
   processing_stage: null, collection_id: 11, collection_path: ['Friends', 'Season 1'], stage: 'ready',
-  awaiting_generation: false, generation_status: null, generation_error: null, is_permanent: false,
+  awaiting_generation: false, generation_status: null, generation_error: null, is_permanent: false, available_operation: null,
 }
 
 describe('SourceRow', () => {
@@ -32,7 +32,7 @@ describe('SourceRow', () => {
     <SourceRow
       source={source} selected={false} showPath={showPath} primary={false}
       onProcess={noop} onGenerate={noop} onCancelGeneration={noop} onRetryGeneration={noop}
-      onReview={onReview} onExport={noop} onDelete={noop} onRename={noop} onRebuild={noop}
+      onReview={onReview} onExport={noop} onDelete={noop} onRename={noop} onRebuild={noop} onRefresh={noop}
       onRowClick={() => takenBySelection} onMoveTo={noop} dragIds={() => [source.id]}
       draggable onLongPress={onLongPress}
     />,

@@ -22,6 +22,7 @@ interface SourceRowProps {
   onDelete: (id: number) => void
   onRename: (id: number, title: string) => void
   onRebuild: (id: number) => void
+  onRefresh: (id: number) => void
   /** true — клик ушёл на выбор строки, открывать источник не нужно. */
   onRowClick: (e: MouseEvent, id: number) => boolean
   onMoveTo: (id: number) => void
@@ -74,7 +75,7 @@ function progressCaption(source: SourceSummary): string {
   return `${source.progress.total} phrases`
 }
 
-export function SourceRow({ source, selected, showPath, primary, onProcess, onGenerate, onCancelGeneration, onRetryGeneration, onReview, onExport, onDelete, onRename, onRebuild, onRowClick, onMoveTo, dragIds, draggable, onLongPress }: SourceRowProps) {
+export function SourceRow({ source, selected, showPath, primary, onProcess, onGenerate, onCancelGeneration, onRetryGeneration, onReview, onExport, onDelete, onRename, onRebuild, onRefresh, onRowClick, onMoveTo, dragIds, draggable, onLongPress }: SourceRowProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(source.title)
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -101,7 +102,8 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
     ...(canExport ? [{ label: 'Export', icon: Upload, onSelect: () => onExport(source.id) }] : []),
     { label: 'Rename', icon: Pencil, onSelect: startEditing },
     { label: 'Move to…', icon: FolderInput, onSelect: () => onMoveTo(source.id) },
-    ...(isProcessing || source.status === 'new' || source.is_permanent ? [] : [{ label: 'Rebuild', icon: RefreshCw, onSelect: () => onRebuild(source.id) }]),
+    ...(source.available_operation === 'rebuild' ? [{ label: 'Rebuild', icon: RefreshCw, onSelect: () => onRebuild(source.id) }] : []),
+    ...(source.available_operation === 'refresh' ? [{ label: 'Refresh', icon: RefreshCw, onSelect: () => onRefresh(source.id) }] : []),
     ...(isProcessing || source.is_permanent ? [] : [{ label: 'Delete', icon: Trash2, danger: true, separated: true, onSelect: () => onDelete(source.id) }]),
   ]
 

@@ -230,6 +230,9 @@ export const api = {
       body: JSON.stringify({ include_open: includeOpen }),
     }),
 
+  refreshTopic: (sourceId: number) =>
+    req<SourceOperation>(`/sources/${sourceId}/refresh`, { method: 'POST' }),
+
   getStats: () => req<Stats>('/stats'),
 
   getUsage: (period: UsagePeriod, timezone: string) =>
