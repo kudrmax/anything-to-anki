@@ -59,6 +59,9 @@ LINE_SEPARATOR_LENGTH = 1
 PHRASE_COLUMNS = ("source_phrase", "polished_phrase", "polish_reverted", "phrase_position")
 # Where a collected phrase came from: now `phrases.collected_kind/collected_title`.
 WORD_ORIGIN_COLUMNS = ("origin_kind", "origin_title")
+# Batch operations reflect only the table they rebuild: following its foreign keys would
+# reflect `collections`, whose expression index SQLAlchemy can't read.
+OWN_TABLE_ONLY = {"resolve_fks": False}
 WORD_INDEX_START = 0
 WORD_INDEX_LEMMA = 2
 
@@ -239,7 +242,7 @@ def _create_phrases(conn: sa.Connection, now: datetime) -> None:
                 " VALUES (:candidate_id, :block, :line, :char, :source_phrase,"
                 " :phrase_position, :polished_phrase, :polish_reverted, 0, :shown_by,"
                 " :origin, :skipped, 0, 0, :collected_kind, :collected_title, :created_at)"
-            ),
+            ).bindparams(sa.bindparam("created_at", type_=sa.DateTime())),
             {
                 "candidate_id": row.id,
                 "block": key[0] if key else None,
@@ -481,7 +484,7 @@ def _notes_from_exports(conn: sa.Connection, now: datetime) -> None:
             "INSERT OR IGNORE INTO anki_notes (note_id, lemma, pos, matured_at)"
             " SELECT a.anki_note_id, c.lemma, c.pos, :now FROM anki_synced_cards a"
             " JOIN candidates c ON c.id = a.candidate_id ORDER BY a.id"
-        ),
+        ).bindparams(sa.bindparam("now", type_=sa.DateTime())),
         {"now": now},
     )
 
@@ -554,6 +557,7 @@ def _rekey(table: str, columns: list[sa.Column[Any]]) -> None:
 def _drop_card_columns() -> None:
     with op.batch_alter_table(
         "candidates", recreate="always", table_kwargs={"sqlite_autoincrement": True},
+        reflect_kwargs=OWN_TABLE_ONLY,
     ) as batch:
         for column in (*PHRASE_COLUMNS, *WORD_ORIGIN_COLUMNS):
             batch.drop_column(column)
@@ -563,7 +567,7 @@ def _drop_card_columns() -> None:
         batch.add_column(
             sa.Column("was_unknown", sa.Boolean(), nullable=False, server_default="0"),
         )
-    with op.batch_alter_table("jobs") as batch:
+    with op.batch_alter_table("jobs", reflect_kwargs=OWN_TABLE_ONLY) as batch:
         batch.create_foreign_key(
             "fk_jobs_phrase_id_phrases", "phrases", ["phrase_id"], ["id"], ondelete="CASCADE",
         )
@@ -591,7 +595,7 @@ def _sources_without_processing(conn: sa.Connection) -> None:
         sa.text("UPDATE sources SET status = :new WHERE status = :processing"),
         {"new": NEW_STATUS, "processing": PROCESSING_STATUS},
     )
-    with op.batch_alter_table("sources") as batch:
+    with op.batch_alter_table("sources", reflect_kwargs=OWN_TABLE_ONLY) as batch:
         batch.drop_column("processing_stage")
 
 
