@@ -18,9 +18,6 @@ from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
-from backend.infrastructure.persistence.sqla_known_word_removal_repository import (
-    SqlaKnownWordRemovalRepository,
-)
 from backend.infrastructure.persistence.sqla_known_word_repository import SqlaKnownWordRepository
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
@@ -353,7 +350,6 @@ def _decide_phrase(session: Session) -> DecidePhraseUseCase:
         known_word_repo=SqlaKnownWordRepository(session),
         unknown_word_repo=SqlaUnknownWordRepository(session),
         learning_query=SqlaLearningQuery(session),
-        removal_repo=SqlaKnownWordRemovalRepository(session),
     )
     return DecidePhraseUseCase(
         occurrence_repo=SqlaOccurrenceRepository(session),
@@ -531,7 +527,6 @@ def test_new_tables_exist(db_url: str) -> None:
     names = set(inspect(create_engine(db_url)).get_table_names())
     assert {
         "phrases", "phrase_words", "anki_notes", "document_parses", "source_operations",
-        "known_word_removals",
     } <= names
     assert "_card_phrase" not in names
     candidate_columns = {

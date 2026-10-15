@@ -35,10 +35,6 @@ class SqlaKnownWordRepository(KnownWordRepository):
         self._session.flush()
         return model.to_entity()
 
-    def get_by_id(self, known_word_id: int) -> KnownWord | None:
-        model = self._session.get(KnownWordModel, known_word_id)
-        return model.to_entity() if model is not None else None
-
     def remove(self, known_word_id: int) -> None:
         model = self._session.get(KnownWordModel, known_word_id)
         if model is not None:

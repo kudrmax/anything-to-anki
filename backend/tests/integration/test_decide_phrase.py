@@ -64,8 +64,6 @@ class Bench:
         self.second = self._add_phrase("She glared back.")
         self.known_words = MagicMock()
         self.known_words.get_all_pairs.return_value = set()
-        self.removals = MagicMock()
-        self.removals.contains.return_value = False
         self.decisions = MagicMock()
         self.review_status = MagicMock()
         self.learning = SqlaLearningQuery(session)
@@ -82,7 +80,7 @@ class Bench:
 
     def use_case(self) -> DecidePhraseUseCase:
         vocabulary = user_vocabulary(
-            self.known_words, self.unknown, learning_query=self.learning, removals=self.removals,
+            self.known_words, self.unknown, learning_query=self.learning,
         )
         return DecidePhraseUseCase(
             occurrence_repo=self.occurrences,
@@ -180,7 +178,6 @@ def test_known_is_undone_on_the_decision_phrase(bench: Bench) -> None:
     assert bench.word_status() is WordStatus.PENDING
     assert not bench.phrase(FIRST).is_decision
     bench.known_words.remove_by_lemma.assert_called_once_with(LEMMA, "VERB")
-    bench.removals.add.assert_not_called()
     bench.decisions.forget.assert_called_once_with(LEMMA)
 
 
@@ -196,7 +193,6 @@ def test_leaving_known_keeps_a_word_the_user_knew_before_the_decision(
 
     bench.known_words.add.assert_not_called()
     bench.known_words.remove_by_lemma.assert_not_called()
-    bench.removals.add.assert_not_called()
 
 
 @pytest.mark.parametrize("undo", [PENDING, LEARN, SKIP])
@@ -209,16 +205,6 @@ def test_leaving_known_forgets_the_known_this_decision_added(
     bench.decide(FIRST, undo)
 
     bench.known_words.remove_by_lemma.assert_called_once_with(LEMMA, "VERB")
-    bench.removals.add.assert_not_called()
-
-
-@pytest.mark.parametrize("action", [LEARN, CLOZE])
-def test_a_learn_decision_lifts_a_removal_from_known(
-    bench: Bench, action: DecisionAction,
-) -> None:
-    bench.decide(FIRST, action)
-
-    bench.removals.discard.assert_called_once_with(LEMMA)
 
 
 def test_the_decision_changes_on_its_card(bench: Bench) -> None:

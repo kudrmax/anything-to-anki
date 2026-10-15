@@ -128,8 +128,6 @@ class DecidePhraseUseCase:
             self._vocabulary.forget_known(word.lemma, word.pos)
             if word.was_unknown:
                 self._vocabulary.restore_unknown(word.lemma)
-        if after is WordStatus.LEARN:
-            self._vocabulary.start_learning(word.lemma)
         self._remember_decision(word, before, after)
         self._review_status.refresh(word.source_id)
         self._review_status.refresh_showing({word.lemma.lower()})

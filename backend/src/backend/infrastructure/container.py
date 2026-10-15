@@ -160,9 +160,6 @@ from backend.infrastructure.persistence.sqla_collection_repository import (
 )
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
-from backend.infrastructure.persistence.sqla_known_word_removal_repository import (
-    SqlaKnownWordRemovalRepository,
-)
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
@@ -424,7 +421,6 @@ class Container:
             phrase_reader=self._phrase_reader,
             occurrence_repo=SqlaOccurrenceRepository(session),
             card_views=self._card_views(session),
-            vocabulary=self._user_vocabulary(session),
         )
 
     def analyze_text_use_case(self) -> AnalyzeTextUseCase:
@@ -776,7 +772,6 @@ class Container:
             known_word_repo=SqlaKnownWordRepository(session),
             unknown_word_repo=SqlaUnknownWordRepository(session),
             learning_query=SqlaLearningQuery(session),
-            removal_repo=SqlaKnownWordRemovalRepository(session),
         )
 
     @property

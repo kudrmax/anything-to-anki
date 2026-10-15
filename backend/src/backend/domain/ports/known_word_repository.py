@@ -15,9 +15,6 @@ class KnownWordRepository(ABC):
         """`from_anki`: the word's note matured in Anki."""
 
     @abstractmethod
-    def get_by_id(self, known_word_id: int) -> KnownWord | None: ...
-
-    @abstractmethod
     def remove(self, known_word_id: int) -> None: ...
 
     @abstractmethod

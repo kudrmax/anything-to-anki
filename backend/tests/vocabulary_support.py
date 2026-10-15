@@ -22,7 +22,6 @@ def user_vocabulary(
     *,
     learning_lemmas: Iterable[str] = (),
     learning_query: LearningQuery | None = None,
-    removals: MagicMock | None = None,
 ) -> UserVocabulary:
     """`learning_query`: a real query in place of the given learning lemmas."""
     known = known_word_repo if known_word_repo is not None else MagicMock()
@@ -36,7 +35,4 @@ def user_vocabulary(
     else:
         learning = MagicMock()
         learning.learning_lemmas.return_value = frozenset(learning_lemmas)
-    if removals is None:
-        removals = MagicMock()
-        removals.contains.return_value = False
-    return UserVocabulary(known, unknown, learning, removals)
+    return UserVocabulary(known, unknown, learning)

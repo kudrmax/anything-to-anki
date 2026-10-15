@@ -174,11 +174,6 @@ def _create_tables() -> None:
         sa.Column("started_at", sa.DateTime(), nullable=False),
     )
     op.create_table(
-        "known_word_removals",
-        sa.Column("lemma", sa.String(100), primary_key=True),
-        sa.Column("removed_at", sa.DateTime(), nullable=False),
-    )
-    op.create_table(
         "_card_phrase",
         sa.Column("candidate_id_old", sa.Integer(), primary_key=True, autoincrement=False),
         sa.Column("phrase_id", sa.Integer(), nullable=False),

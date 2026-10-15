@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from backend.application.utils.card_views import CardViews
     from backend.application.utils.phrase_reader import PhraseReader
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
-    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.cefr_classifier import CEFRClassifier
     from backend.domain.ports.frequency_provider import FrequencyProvider
@@ -45,11 +44,9 @@ class AddSavedPhraseUseCase:
         phrase_reader: PhraseReader,
         occurrence_repo: OccurrenceRepository,
         card_views: CardViews,
-        vocabulary: UserVocabulary,
     ) -> None:
         self._source_repo = source_repo
         self._occurrences = occurrence_repo
-        self._vocabulary = vocabulary
         self._card_views = card_views
         self._collected = CollectedPhrases(candidate_repo, occurrence_repo)
         self._candidate_factory = CandidateFactory(
@@ -76,7 +73,6 @@ class AddSavedPhraseUseCase:
         self._review_status.refresh(source_id)
         stored = self._occurrences.get(phrase_id)
         if stored is not None and stored.is_decision:
-            self._vocabulary.start_learning(card.word.lemma)
             self._review_status.refresh_showing({card.word.lemma.lower()})
         return self._card_views.one(phrase_id)
 

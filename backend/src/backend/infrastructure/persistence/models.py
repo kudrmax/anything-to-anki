@@ -657,15 +657,6 @@ class SourceOperationModel(Base):
     started_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
 
 
-class KnownWordRemovalModel(Base):
-    """A lemma the user removed from Known: Anki maturity never puts it back."""
-
-    __tablename__ = "known_word_removals"
-
-    lemma: Mapped[str] = mapped_column(String(100), primary_key=True)
-    removed_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
-
-
 class TopicTargetModel(Base):
     """SQLAlchemy model for targets generated for a topic source."""
 
