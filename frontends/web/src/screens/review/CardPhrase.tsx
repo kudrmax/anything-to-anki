@@ -1,6 +1,7 @@
 import type { KeyboardEvent } from 'react'
 import type { StoredCandidate } from '@/api/types'
 import { phraseParts } from '@/lib/text/phraseParts'
+import { canEditCloze } from './canEditCloze'
 import { ClozePhrase } from './ClozePhrase'
 import type { ClozeEditor } from './useClozeEditor'
 import type { PhraseEditor } from './usePhraseEditor'
@@ -56,8 +57,9 @@ export function CardPhrase({ candidate, editor, cloze }: CardPhraseProps) {
   }
 
   if (candidate.cloze) {
+    const editable = canEditCloze(candidate.state)
     return (
-      <p className={`${css.phrase} ${css.clozeSaved}`} title={candidate.can_cloze ? 'Click to change the hidden words' : undefined} onClick={candidate.can_cloze ? cloze.start : undefined}>
+      <p className={`${css.phrase} ${css.clozeSaved}`} title={editable ? 'Click to change the hidden words' : undefined} onClick={editable ? cloze.start : undefined}>
         {phraseParts(candidate.phrase, new Set(candidate.cloze.hidden_word_indices)).map((part, i) => {
           if (part.hidden) return <span key={i} className={css.clozeGap}>{part.text}</span>
           return part.target ? <b key={i} className={`${phrase.target} ${phrase.targetCurrent}`}>{part.text}</b> : part.text
