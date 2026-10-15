@@ -10,6 +10,7 @@ from backend.application.use_cases.check_anki_progress import CheckAnkiProgressU
 from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
 from backend.application.utils.decided_elsewhere import DecidedElsewhere
+from backend.application.utils.export_queue import ExportQueue
 from backend.application.utils.known_from_anki import RefreshKnownFromAnki
 from backend.application.utils.user_vocabulary import UserVocabulary
 from backend.domain.exceptions import AnkiNotAvailableError
@@ -17,7 +18,7 @@ from backend.domain.ports.anki_connector import AnkiConnector
 from backend.domain.services.card_decision import DecisionAction
 from backend.domain.value_objects.note_maturity import NoteCards
 from backend.domain.value_objects.word_status import WordStatus
-from backend.infrastructure.persistence.models import AnkiNoteModel
+from backend.infrastructure.persistence.models import AnkiNoteModel, dump_phrase
 from backend.infrastructure.persistence.sqla_anki_note_repository import SqlaAnkiNoteRepository
 from backend.infrastructure.persistence.sqla_anki_sync_repository import SqlaAnkiSyncRepository
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
@@ -41,7 +42,8 @@ from backend.infrastructure.persistence.sqla_unknown_word_repository import (
 from sqlalchemy import text
 
 from tests.lock_support import free_lock
-from tests.word_support import insert_word, phrase_id_of
+from tests.phrase_support import phrase
+from tests.word_support import CREATED_AT, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -49,6 +51,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.integration
 
 NOTE = 900
+OTHER_PHRASE = 5000
 MATURE = NoteCards(intervals=(30,), suspended=0)
 YOUNG = NoteCards(intervals=(3,), suspended=0)
 
@@ -187,6 +190,33 @@ def test_the_learning_list_tells_words_in_anki_from_words_waiting(bench: Bench) 
 
     assert learning.in_anki == ["glare"]
     assert learning.awaiting_export == ["linger"]
+
+
+def test_a_decision_phrase_waits_for_export_though_another_phrase_was_exported(
+    bench: Bench,
+) -> None:
+    """A word merged from cards keeps the export record of a phrase that is not its
+    decision: the decision phrase still goes to Anki."""
+    insert_word(bench.session, 1, lemma="linger", status=WordStatus.LEARN.value)
+    bench.session.execute(
+        text(
+            "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, skipped,"
+            " is_decision, created_at)"
+            " VALUES (:id, 1, :phrase, 'manual', 'user', 0, 0, :created_at)"
+        ),
+        {"id": OTHER_PHRASE, "phrase": dump_phrase(phrase("We linger.", "linger")),
+         "created_at": CREATED_AT},
+    )
+    SqlaAnkiSyncRepository(bench.session).mark_synced(1, NOTE, OTHER_PHRASE)
+
+    assert bench.learning.awaiting_export() == frozenset({"linger"})
+    queue = ExportQueue(
+        SqlaCandidateRepository(bench.session), SqlaAnkiSyncRepository(bench.session),
+        SqlaOccurrenceRepository(bench.session),
+    )
+    batch = queue.for_source(1)
+    assert [card.phrase_id for card in batch.pending] == [phrase_id_of(1)]
+    assert batch.exported_count == 0
 
 
 # ── maturity ──────────────────────────────────────────────────────────

@@ -104,17 +104,20 @@ class ExportQueue:
         return self._split([w for w in learn if w.source_id in source_ids])
 
     def _split(self, learn: list[StoredCandidate]) -> ExportBatch:
-        word_ids = [w.id for w in learn if w.id is not None]
-        exported = self._anki_sync_repo.get_synced_candidate_ids(word_ids)
-        waiting = [w for w in learn if w.id not in exported]
-        decisions = self._occurrences.decision_phrases(
-            [w.id for w in waiting if w.id is not None],
+        """A word is exported when the phrase of its decision is: a word merged from cards
+        may hold the export record of another phrase."""
+        decisions = self._occurrences.decision_phrases([w.id for w in learn if w.id is not None])
+        exported = self._anki_sync_repo.get_synced_phrase_ids(
+            [phrase.id for phrase in decisions.values() if phrase.id is not None],
         )
         pending: list[ExportCard] = []
-        for word in waiting:
+        exported_count = 0
+        for word in learn:
             phrase = decisions.get(word.id) if word.id is not None else None
             if phrase is None:
                 logger.warning("export: learn word %s has no decision phrase", word.id)
-                continue
-            pending.append(ExportCard(word=word, phrase=phrase))
-        return ExportBatch(pending=pending, exported_count=len(learn) - len(waiting))
+            elif phrase.id in exported:
+                exported_count += 1
+            else:
+                pending.append(ExportCard(word=word, phrase=phrase))
+        return ExportBatch(pending=pending, exported_count=exported_count)

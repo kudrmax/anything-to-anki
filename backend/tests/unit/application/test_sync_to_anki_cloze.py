@@ -98,7 +98,7 @@ class TestSyncToAnkiCloze:
         self.settings_repo = MagicMock()
         self.settings_repo.get.return_value = None
         self.anki_sync_repo = MagicMock()
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        self.anki_sync_repo.get_synced_phrase_ids.return_value = set()
         self.renderer = MagicMock()
         self.renderer.render_recognition.return_value = NoteTemplates("F", "B", "C")
         self.renderer.render_cloze.return_value = NoteTemplates("CF", "CB", "C")

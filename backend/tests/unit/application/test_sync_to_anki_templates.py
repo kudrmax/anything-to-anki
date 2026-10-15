@@ -71,7 +71,7 @@ class TestSyncToAnkiTemplates:
 
         anki_connector.is_available.return_value = True
         anki_connector.get_model_field_names.return_value = _EveryField()
-        anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        anki_sync_repo.get_synced_phrase_ids.return_value = set()
         anki_connector.add_notes.return_value = [12345]
 
         use_case = SyncToAnkiUseCase(

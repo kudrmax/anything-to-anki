@@ -93,7 +93,7 @@ class TestSyncToAnkiUseCase:
         )
         self.settings_repo.get.return_value = None  # use default deck
         self.anki_connector.get_model_field_names.return_value = _EveryField()
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        self.anki_sync_repo.get_synced_phrase_ids.return_value = set()
         self.use_case = SyncToAnkiUseCase(
             export_queue=ExportQueue(
                 self.cards.words, self.anki_sync_repo, self.cards,
@@ -148,7 +148,8 @@ class TestSyncToAnkiUseCase:
             _make_candidate(1, "burnout", WordStatus.LEARN),
             _make_candidate(2, "relentless", WordStatus.LEARN),
         ])
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}  # burnout already exported
+        # burnout already exported
+        self.anki_sync_repo.get_synced_phrase_ids.return_value = {phrase_id_of(1)}
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [99999]
 
@@ -167,7 +168,7 @@ class TestSyncToAnkiUseCase:
         self.cards.put([
             _make_candidate(1, "burnout", WordStatus.LEARN),
         ])
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}
+        self.anki_sync_repo.get_synced_phrase_ids.return_value = {phrase_id_of(1)}
 
         result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
 
@@ -384,7 +385,7 @@ class TestSyncToAnkiUseCase:
         candidate2 = _make_candidate(20, "pursuit", WordStatus.LEARN, source_id=2)
 
         self.cards.put([candidate1, candidate2])
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        self.anki_sync_repo.get_synced_phrase_ids.return_value = set()
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -399,8 +400,8 @@ class TestSyncToAnkiUseCase:
         fresh = _make_candidate(20, "pursuit", WordStatus.LEARN, source_id=2)
 
         self.cards.put([exported, fresh])
-        self.anki_sync_repo.get_synced_candidate_ids.side_effect = (
-            lambda ids: {10} & set(ids)
+        self.anki_sync_repo.get_synced_phrase_ids.side_effect = (
+            lambda ids: {phrase_id_of(10)} & set(ids)
         )
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
@@ -583,7 +584,7 @@ class TestSyncRefusesIncompleteNoteType:
         names = {"anki_note_type": "Main"}
         settings_repo.get.side_effect = lambda key, default=None: names.get(key)
         anki_sync_repo = MagicMock()
-        anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        anki_sync_repo.get_synced_phrase_ids.return_value = set()
         use_case = SyncToAnkiUseCase(
             export_queue=ExportQueue(
                 cards.words, anki_sync_repo, cards,
@@ -627,7 +628,7 @@ class TestSyncCollectionScope:
             _make_candidate(2, "pursuit", WordStatus.LEARN, meaning="done", source_id=2),
         ])
         anki_sync_repo = MagicMock()
-        anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        anki_sync_repo.get_synced_phrase_ids.return_value = set()
         connector = MagicMock()
         connector.is_available.return_value = True
         connector.get_model_field_names.return_value = _EveryField()
@@ -676,7 +677,7 @@ class TestSyncChecksProgressInAnki:
         settings_repo = MagicMock()
         settings_repo.get.return_value = None
         anki_sync_repo = MagicMock()
-        anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        anki_sync_repo.get_synced_phrase_ids.return_value = set()
         renderer = MagicMock()
         renderer.render_recognition.return_value = NoteTemplates("F", "B", "")
         self.anki_note_repo = MagicMock()

@@ -24,6 +24,7 @@ from tests.phrase_support import phrase
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.unit.application.source_fakes import InMemorySourceRepository
+from tests.word_support import phrase_id_of
 
 
 def _make_candidate(
@@ -91,7 +92,7 @@ class TestGetExportCardsExecute:
     def setup_method(self) -> None:
         self.cards = ExportCards()
         self.anki_sync_repo = MagicMock()
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        self.anki_sync_repo.get_synced_phrase_ids.return_value = set()
         self.source_repo = MagicMock()
         self.source_repo.get_by_id.return_value = _make_source_mock(1, "Test Source")
         self.use_case = GetExportCardsUseCase(
@@ -127,7 +128,9 @@ class TestGetExportCardsExecute:
             _make_candidate("relentless", WordStatus.LEARN, candidate_id=2),
             _make_candidate("pursuit", WordStatus.LEARN, candidate_id=3),
         ])
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1, 3}
+        self.anki_sync_repo.get_synced_phrase_ids.return_value = {
+            phrase_id_of(1), phrase_id_of(3),
+        }
 
         result = self.use_case.execute(source_id=1)
 
@@ -138,7 +141,7 @@ class TestGetExportCardsExecute:
         self.cards.put([
             _make_candidate("burnout", WordStatus.LEARN, candidate_id=1),
         ])
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}
+        self.anki_sync_repo.get_synced_phrase_ids.return_value = {phrase_id_of(1)}
 
         result = self.use_case.execute(source_id=1)
 
@@ -383,7 +386,7 @@ class TestGetExportCardsAllScope:
     def setup_method(self) -> None:
         self.cards = ExportCards()
         self.anki_sync_repo = MagicMock()
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        self.anki_sync_repo.get_synced_phrase_ids.return_value = set()
         self.source_repo = MagicMock()
         self.use_case = GetExportCardsUseCase(
             export_queue=ExportQueue(
@@ -419,7 +422,7 @@ class TestGetExportCardsAllScope:
             _make_candidate("burnout", WordStatus.LEARN, source_id=1, candidate_id=1),
             _make_candidate("relentless", WordStatus.LEARN, source_id=2, candidate_id=2),
         ])
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}
+        self.anki_sync_repo.get_synced_phrase_ids.return_value = {phrase_id_of(1)}
         self.source_repo.get_by_id.side_effect = lambda sid: _make_source_mock(sid, f"S{sid}")
 
         result = self.use_case.execute_scope(SourceScope.all())
@@ -452,7 +455,7 @@ class TestGetExportCardsCollectionScope:
     def setup_method(self) -> None:
         self.cards = ExportCards()
         self.anki_sync_repo = MagicMock()
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        self.anki_sync_repo.get_synced_phrase_ids.return_value = set()
         self.cards.put([
             _make_candidate("burnout", WordStatus.LEARN, source_id=1, candidate_id=1),
             _make_candidate("pursuit", WordStatus.LEARN, source_id=2, candidate_id=2),
