@@ -285,7 +285,8 @@ def _line_lengths(document_json: str) -> dict[int, list[int]]:
 def _target_key(
     position_json: str, phrase_json: str, lengths: dict[int, list[int]],
 ) -> tuple[int, int, int]:
-    """Frozen: where the first target word starts — block, line, char.
+    """Frozen: where the first target word starts — block, line, char — by the rule the
+    analysis keys an occurrence with (the earliest target word, as DocumentLayout.target_key).
 
     The phrase text is the document text from the position's start; lines of a block
     are joined by one separator character.
@@ -293,7 +294,7 @@ def _target_key(
     block, start_line, start_char = json.loads(position_json)[:3]
     phrase = json.loads(phrase_json)
     target, words = phrase["target"], phrase["words"]
-    offset = words[target[0]][WORD_INDEX_START] if target and words else 0
+    offset = min(words[i][WORD_INDEX_START] for i in target) if target and words else 0
     line, char = start_line, start_char + offset
     block_lines = lengths.get(block, [])
     while line < len(block_lines) - 1 and char >= block_lines[line]:

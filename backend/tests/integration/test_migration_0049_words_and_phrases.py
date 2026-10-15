@@ -64,7 +64,8 @@ CARD_M = 13  # pronunciation and picture
 CARD_N = 14  # same lemma as M, newer, its own pronunciation and picture
 CARD_O = 15  # KNOWN, its Known put the lemma into known words
 CARD_P = 16  # KNOWN, its lemma is not in known words
-CARD_COUNT = 16
+CARD_Q = 17  # phrasal verb whose stored target lists the particle first
+CARD_COUNT = 17
 
 NOTE_A = 111
 NOTE_G = 222
@@ -282,6 +283,12 @@ def _seed(conn: Connection) -> None:
     conn.execute(text(
         "INSERT INTO known_words (lemma, pos, created_at) VALUES ('ponder', 'VERB', '2026-01-01')"
     ))
+    gave_it_up = json.loads(_stored_phrase("They gave it up.", "gave"))
+    gave_it_up["target"] = [3, 1]
+    _card(
+        conn, CARD_Q, EXPORTED_PAIR_SOURCE, "give up", "pending", json.dumps(gave_it_up),
+        [0, CARD_Q, 0, CARD_Q, 16],
+    )
 
 
 @pytest.fixture
@@ -311,7 +318,7 @@ def test_one_word_per_lemma_and_every_card_is_a_phrase(db_url: str) -> None:
     words = _rows(db_url, "SELECT id, lemma, status FROM candidates ORDER BY id")
     assert [w["id"] for w in words] == [
         CARD_A, CARD_D, CARD_TOPIC, CARD_SPANNING, CARD_H, CARD_I, CARD_L, CARD_N, CARD_O,
-        CARD_P,
+        CARD_P, CARD_Q,
     ]
     assert len(_rows(db_url, "SELECT id FROM phrases")) == CARD_COUNT
 
@@ -480,6 +487,13 @@ def test_old_known_words_are_not_from_anki(db_url: str) -> None:
 def test_target_on_the_next_line_is_keyed_on_that_line(db_url: str) -> None:
     spanning = _phrase_of(db_url, CARD_SPANNING, "glared at me. Then")
     assert (spanning["block"], spanning["line"], spanning["char"]) == (PARAGRAPH, 1, 0)
+
+
+def test_the_key_is_where_the_first_word_of_the_target_starts(db_url: str) -> None:
+    """As the analysis keys an occurrence: the earliest target word, in whatever order the
+    stored target lists them."""
+    q = _phrase_of(db_url, CARD_Q, "They gave it up")
+    assert (q["block"], q["line"], q["char"]) == (0, CARD_Q, "They gave it up.".index("gave"))
 
 
 def test_phrase_words_are_the_words_of_the_shown_text(db_url: str) -> None:
