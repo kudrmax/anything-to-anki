@@ -17,6 +17,9 @@
 .synonyms { font-size: var(--fs-m); color: var(--tx3); }
 .decisions { order: var(--decisions-order); position: var(--decisions-position); bottom: 0; z-index: 1; display: flex; flex-wrap: nowrap; gap: var(--s3); margin: var(--decisions-mt) 0 0; padding: var(--decisions-pad); border-top: var(--decisions-bw) solid var(--line); border-radius: var(--decisions-radius); background: var(--decisions-bg); box-shadow: var(--decisions-shadow); }
 .decisions > button { flex: var(--decision-flex); justify-content: center; height: var(--decision-h); }
+/* подпись решения, принятого на другой карточке: своей строкой над кнопками */
+.decisionNote { order: var(--decisions-order); margin-top: var(--decisions-mt); }
+.decisionNote + .decisions { margin-top: var(--s2); }
 .definition { font-size: var(--fs-h1); line-height: var(--lh); }
 .meaningImage { display: block; max-width: 100%; max-height: var(--meaning-image-h); width: auto; align-self: flex-start; object-fit: contain; border-radius: var(--rc); }
 .context { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }

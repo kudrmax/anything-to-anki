@@ -66,22 +66,24 @@ export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsPro
   const note = state.decided_elsewhere ? DECIDED_ELSEWHERE_LABEL[state.decided_elsewhere]
     : state.elsewhere ? ELSEWHERE_LABEL[state.elsewhere] : null
   return (
-    <div className={css.decisions}>
-      {note && <Text tone="muted" size="s">{note}</Text>}
-      {state.buttons.map(button => (
-        <Button
-          key={button.button}
-          variant={variant(button)}
-          kbd={BUTTON_LOOK[button.button].kbd}
-          disabled={button.action === null}
-          title={button.button === 'cloze' && !candidate.can_cloze ? ALREADY_IN_ANKI : undefined}
-          onMouseDown={keepFocusOnMouseDown}
-          onClick={() => press(button)}
-        >
-          {BUTTON_LOOK[button.button].label}
-        </Button>
-      ))}
-    </div>
+    <>
+      {note && <div className={css.decisionNote}><Text tone="muted" size="s">{note}</Text></div>}
+      <div className={css.decisions}>
+        {state.buttons.map(button => (
+          <Button
+            key={button.button}
+            variant={variant(button)}
+            kbd={BUTTON_LOOK[button.button].kbd}
+            disabled={button.action === null}
+            title={button.button === 'cloze' && !candidate.can_cloze ? ALREADY_IN_ANKI : undefined}
+            onMouseDown={keepFocusOnMouseDown}
+            onClick={() => press(button)}
+          >
+            {BUTTON_LOOK[button.button].label}
+          </Button>
+        ))}
+      </div>
+    </>
   )
 }
 
