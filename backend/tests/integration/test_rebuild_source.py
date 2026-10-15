@@ -17,6 +17,7 @@ from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import JobModel
 from sqlalchemy import select, text
 
+from tests.rebuild_support import text_phrase
 from tests.source_rebuild_support import (
     LINES,
     SOURCE,
@@ -368,6 +369,22 @@ def test_a_made_clip_keeps_the_time_it_was_cut_at(video: Bench) -> None:
 
     video.rebuild().execute(SOURCE, include_open=False)
 
+    assert video.times(phrase.id) == (10, 20)
+
+
+@pytest.mark.parametrize("include_open", [False, True])
+def test_a_made_clip_keeps_its_time_when_its_phrase_gets_new_facts(
+    video: Bench, include_open: bool,
+) -> None:
+    video.processed(word("glare", at(0)))
+    phrase = video.phrase_on("glare", 0)
+    video.give_clip(phrase.id, 10, 20)
+    same_text = at(0).model_copy(update={"phrase": text_phrase(LINES[0], variant=True)})
+    video.analysis = [word("glare", same_text)]
+
+    summary = video.rebuild().execute(SOURCE, include_open=include_open)
+
+    assert summary.counts.cards_text_reset == 0
     assert video.times(phrase.id) == (10, 20)
 
 
