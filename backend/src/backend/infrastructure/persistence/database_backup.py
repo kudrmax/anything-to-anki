@@ -50,7 +50,7 @@ class DatabaseBackup:
         return target
 
     def _retire_old(self) -> None:
-        backups = sorted(self._dir.glob(f"{BACKUP_PREFIX}*{BACKUP_SUFFIX}"))
+        backups = _copies(self._dir)
         old = backups[: max(len(backups) - self._keep, 0)]
         retired = self._dir / RETIRED_DIR_NAME
         retired.mkdir(exist_ok=True)
@@ -60,7 +60,19 @@ class DatabaseBackup:
         self._delete_oldest_retired(retired)
 
     def _delete_oldest_retired(self, retired: Path) -> None:
-        copies = sorted(retired.glob(f"{BACKUP_PREFIX}*{BACKUP_SUFFIX}"))
+        copies = _copies(retired)
         for copy in copies[: max(len(copies) - self._keep, 0)]:
             copy.unlink()
             logger.info("Oldest database backup deleted: %s", copy)
+
+
+def _copies(folder: Path) -> list[Path]:
+    """The copies this class took in the folder, oldest first; any other file is left out."""
+    taken: list[tuple[datetime, Path]] = []
+    for path in folder.glob(f"{BACKUP_PREFIX}*{BACKUP_SUFFIX}"):
+        stamp = path.name.removeprefix(BACKUP_PREFIX).removesuffix(BACKUP_SUFFIX)
+        try:
+            taken.append((datetime.strptime(stamp, BACKUP_TIME_FORMAT), path))  # noqa: DTZ007 — compared with each other only
+        except ValueError:
+            continue
+    return [path for _, path in sorted(taken)]

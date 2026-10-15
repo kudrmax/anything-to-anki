@@ -82,6 +82,26 @@ def test_the_moved_aside_backups_keep_only_the_newest_too(tmp_path: Path) -> Non
     assert [p.name for p in retired] == [p.name for p in taken[2:BACKUPS_KEPT + 2]]
 
 
+def test_a_file_not_named_as_a_backup_is_never_moved_counted_or_deleted(tmp_path: Path) -> None:
+    db_path = tmp_path / "app.db"
+    _upgrade(db_path, OLDER_REVISION)
+    backups = db_path.parent / "backups"
+    (backups / ".trash").mkdir(parents=True)
+    foreign = [backups / "app-before-upgrade.db", backups / ".trash" / "app-keep-me.db"]
+    for path in foreign:
+        path.write_bytes(b"mine")
+    backup = DatabaseBackup(db_path)
+
+    taken = [backup.take() for _ in range(2 * BACKUPS_KEPT + 1)]
+
+    assert all(path.read_bytes() == b"mine" for path in foreign)
+    assert sorted(p for p in backups.glob("app-*.db") if p not in foreign) == (
+        taken[-BACKUPS_KEPT:]
+    )
+    retired = sorted(p.name for p in (backups / ".trash").iterdir() if p not in foreign)
+    assert retired == [p.name for p in taken[1:BACKUPS_KEPT + 1]]
+
+
 def test_connections_wait_for_a_locked_database(tmp_path: Path) -> None:
     factory = create_session_factory(f"sqlite:///{tmp_path / 'app.db'}")
     with factory() as session:
