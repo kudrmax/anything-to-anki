@@ -287,6 +287,18 @@ def test_a_source_without_its_own_text_is_not_rebuilt(db_session: Session, role:
     assert bench.lock.held(SOURCE) is None
 
 
+def test_a_source_never_processed_is_not_rebuilt(db_session: Session) -> None:
+    """Rebuild is what the source offers once processed; a new one is processed instead."""
+    bench = Bench(db_session, status="new")
+
+    with pytest.raises(RebuildNotSupportedError):
+        bench.rebuild().execute(SOURCE, include_open=False)
+    with pytest.raises(RebuildNotSupportedError):
+        bench.rebuild().preview(SOURCE)
+
+    assert bench.lock.held(SOURCE) is None
+
+
 # ── source status ─────────────────────────────────────────────────────
 
 

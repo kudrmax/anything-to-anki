@@ -13,6 +13,7 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     SourceOperationBusyError,
 )
+from backend.domain.services.source_operations import available_operation
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 if TYPE_CHECKING:
@@ -47,7 +48,7 @@ class RebuildSourceUseCase:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
-        if not source.has_text:
+        if available_operation(source) is not SourceOperationKind.REBUILD:
             raise RebuildNotSupportedError(source_id)
         if not self._lock.acquire(source_id, kind):
             raise SourceOperationBusyError(source_id, self._lock.held(source_id))

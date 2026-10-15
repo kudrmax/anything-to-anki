@@ -232,9 +232,9 @@ class TestSourcesAPI:
         assert response.status_code == 202
 
     def test_rebuild_runs_in_the_background_and_holds_the_source(
-        self, client: TestClient, spawned: list[object],
+        self, client: TestClient, db_session: Session, spawned: list[object],
     ) -> None:
-        source_id = self._new_source(client)
+        source_id = self._processed_source(client, db_session)
 
         started = client.post(f"/sources/{source_id}/rebuild", json={"include_open": True})
 
@@ -249,9 +249,9 @@ class TestSourcesAPI:
         assert client.post(f"/sources/{source_id}/rebuild", json={}).status_code == 409
 
     def test_rebuild_preview_runs_in_the_background(
-        self, client: TestClient, spawned: list[object],
+        self, client: TestClient, db_session: Session, spawned: list[object],
     ) -> None:
-        source_id = self._new_source(client)
+        source_id = self._processed_source(client, db_session)
 
         started = client.post(f"/sources/{source_id}/rebuild/preview")
 
@@ -325,6 +325,21 @@ class TestSourcesAPI:
         )
         source_id: int = create.json()["source_ids"][0]
         return source_id
+
+    def _processed_source(self, client: TestClient, db_session: Session) -> int:
+        source_id = self._new_source(client)
+        db_session.query(SourceModel).filter_by(id=source_id).update({"status": "done"})
+        db_session.commit()
+        return source_id
+
+    def test_a_new_source_offers_no_rebuild(
+        self, client: TestClient, spawned: list[object],
+    ) -> None:
+        source_id = self._new_source(client)
+
+        assert client.post(f"/sources/{source_id}/rebuild/preview").status_code == 400
+        assert client.post(f"/sources/{source_id}/rebuild", json={}).status_code == 400
+        assert spawned == []
 
     def test_process_not_found(self, client: TestClient) -> None:
         response = client.post("/sources/999/process")

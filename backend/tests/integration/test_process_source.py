@@ -74,7 +74,7 @@ def test_processing_takes_the_source(bench: Bench) -> None:
     assert bench.lock.held(SOURCE) is SourceOperationKind.PROCESS
     assert bench.status() == "new"  # the status is an outcome; the lock shows the process
     with pytest.raises(SourceOperationBusyError):
-        bench.rebuild().execute(SOURCE, include_open=False)
+        bench.process().start(SOURCE)
 
 
 def test_the_stage_of_a_process_is_on_its_operation(bench: Bench) -> None:

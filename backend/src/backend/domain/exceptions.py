@@ -73,10 +73,11 @@ class SourceOperationBusyError(DomainError):
 
 
 class RebuildNotSupportedError(DomainError):
-    """Raised when rebuilding a source with no text of its own: a topic or saved phrases."""
+    """Raised when the source offers no rebuild: it has no text of its own (a topic, saved
+    phrases) or was never processed."""
 
     def __init__(self, source_id: int) -> None:
-        super().__init__(f"Only a source with its own text can be rebuilt: {source_id}")
+        super().__init__(f"Only a processed source with its own text can be rebuilt: {source_id}")
         self.source_id = source_id
 
 
