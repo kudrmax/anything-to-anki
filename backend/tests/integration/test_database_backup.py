@@ -70,6 +70,18 @@ def test_only_the_newest_backups_stay_the_rest_are_moved_aside(tmp_path: Path) -
     assert [p.name for p in retired] == [p.name for p in taken[:2]]
 
 
+def test_the_moved_aside_backups_keep_only_the_newest_too(tmp_path: Path) -> None:
+    db_path = tmp_path / "app.db"
+    _upgrade(db_path, OLDER_REVISION)
+    backup = DatabaseBackup(db_path)
+
+    taken = [backup.take() for _ in range(2 * BACKUPS_KEPT + 2)]
+
+    assert _backups(db_path) == taken[-BACKUPS_KEPT:]
+    retired = sorted((db_path.parent / "backups" / ".trash").iterdir())
+    assert [p.name for p in retired] == [p.name for p in taken[2:BACKUPS_KEPT + 2]]
+
+
 def test_connections_wait_for_a_locked_database(tmp_path: Path) -> None:
     factory = create_session_factory(f"sqlite:///{tmp_path / 'app.db'}")
     with factory() as session:

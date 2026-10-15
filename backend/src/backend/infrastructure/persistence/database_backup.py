@@ -22,7 +22,8 @@ class DatabaseBackup:
     """Copies of the database taken before migrations change it.
 
     Copies live in `backups/` next to the database as `app-<UTC>.db`; only the newest
-    `BACKUPS_KEPT` stay there, older ones are moved to `backups/.trash/`, never deleted.
+    `BACKUPS_KEPT` stay there, older ones are moved to `backups/.trash/`, which keeps its
+    newest `BACKUPS_KEPT` as well: older copies there are deleted.
     """
 
     def __init__(self, db_path: Path, keep: int = BACKUPS_KEPT) -> None:
@@ -51,10 +52,15 @@ class DatabaseBackup:
     def _retire_old(self) -> None:
         backups = sorted(self._dir.glob(f"{BACKUP_PREFIX}*{BACKUP_SUFFIX}"))
         old = backups[: max(len(backups) - self._keep, 0)]
-        if not old:
-            return
         retired = self._dir / RETIRED_DIR_NAME
         retired.mkdir(exist_ok=True)
         for backup in old:
             backup.rename(retired / backup.name)
             logger.info("Old database backup moved to %s", retired / backup.name)
+        self._delete_oldest_retired(retired)
+
+    def _delete_oldest_retired(self, retired: Path) -> None:
+        copies = sorted(retired.glob(f"{BACKUP_PREFIX}*{BACKUP_SUFFIX}"))
+        for copy in copies[: max(len(copies) - self._keep, 0)]:
+            copy.unlink()
+            logger.info("Oldest database backup deleted: %s", copy)
