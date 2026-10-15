@@ -447,7 +447,6 @@ class StoredCandidateModel(Base):
         else:
             _write_breakdown(self.cefr_breakdown, data.cefr_breakdown)
 
-
     @staticmethod
     def from_entity(candidate: StoredCandidate) -> StoredCandidateModel:
         """The word; its phrases are stored separately."""

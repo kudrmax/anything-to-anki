@@ -580,6 +580,8 @@ export interface SourceOperation {
   operation_id: number
   kind: SourceOperationKind
   state: 'running' | 'done' | 'error'
+  /** Что сказать, пока операция идёт; пишет backend. */
+  caption: string
   preview: RebuildPreview | null
   summary: RebuildSummary | null
   refresh: TopicRefreshSummary | null

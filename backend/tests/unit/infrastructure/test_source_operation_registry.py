@@ -8,6 +8,12 @@ SOURCE = 1
 
 @pytest.mark.unit
 class TestSourceOperationRegistry:
+    def test_a_started_operation_says_what_runs(self) -> None:
+        registry = SourceOperationRegistry()
+        started = registry.started(SOURCE, SourceOperationKind.PREVIEW)
+        assert started.state is OperationState.RUNNING
+        assert started.caption == "Checking what a rebuild changes…"
+
     def test_a_failed_operation_keeps_its_error(self) -> None:
         registry = SourceOperationRegistry()
         started = registry.started(SOURCE, SourceOperationKind.REBUILD)

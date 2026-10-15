@@ -13,7 +13,7 @@ const CHANGES: RebuildCounts = {
   words_added: 3, words_removed: 1, cards_new_phrase: 2, cards_text_reset: 4, cards_without_generation: 5, nothing_to_update: false,
 }
 const operation = (kind: SourceOperation['kind'], state: SourceOperation['state'], extra: Partial<SourceOperation> = {}): SourceOperation => ({
-  operation_id: 1, kind, state, preview: null, summary: null, refresh: null, error: null, ...extra,
+  operation_id: 1, kind, state, caption: `${kind} caption`, preview: null, summary: null, refresh: null, error: null, ...extra,
 })
 
 describe('RebuildDialog', () => {
@@ -53,7 +53,9 @@ describe('RebuildDialog', () => {
     const state = vi.spyOn(api, 'getOperation').mockResolvedValueOnce(operation('preview', 'running'))
     open()
     await press('Preview')
-    expect(dialog().textContent).toContain('Analyzing the source')
+    expect(dialog().textContent).toContain('preview caption')
+    expect(button('Close')).toBeDefined()
+    expect(button('Cancel')).toBeUndefined()
 
     state.mockResolvedValue(operation('preview', 'done', { preview: { without_open: NOTHING, with_open: CHANGES } }))
     await poll()
@@ -91,5 +93,42 @@ describe('RebuildDialog', () => {
     await poll()
     expect(dialog().textContent).toContain('1 word and 4 phrases added')
     expect(onFinished).toHaveBeenCalledTimes(1)
+  })
+
+  const previewed = async (preview: SourceOperation['preview']) => {
+    vi.spyOn(api, 'previewRebuild').mockResolvedValue(operation('preview', 'running'))
+    const state = vi.spyOn(api, 'getOperation').mockResolvedValue(operation('preview', 'done', { preview }))
+    open()
+    await press('Preview')
+    await poll()
+    return state
+  }
+
+  it('offers no Rebuild when there is nothing to update', async () => {
+    await previewed({ without_open: NOTHING, with_open: NOTHING })
+    expect(dialog().textContent).toContain('Nothing to update')
+    expect(button('Rebuild')).toBeUndefined()
+  })
+
+  it('shows the error when the applied rebuild fails', async () => {
+    const state = await previewed({ without_open: CHANGES, with_open: CHANGES })
+    vi.spyOn(api, 'rebuildSource').mockResolvedValue(operation('rebuild', 'running', { operation_id: 2 }))
+    state.mockResolvedValue(operation('rebuild', 'error', { operation_id: 2, error: 'UNIQUE constraint failed' }))
+    await press('Rebuild')
+    await poll()
+    expect(dialog().querySelector('[role="alert"]')?.textContent).toContain('UNIQUE constraint failed')
+    expect(onFinished).not.toHaveBeenCalled()
+  })
+
+  it('stops following when another operation took the source over', async () => {
+    vi.spyOn(api, 'previewRebuild').mockResolvedValue(operation('preview', 'running'))
+    const state = vi.spyOn(api, 'getOperation').mockResolvedValue(operation('rebuild', 'done', { operation_id: 9 }))
+    open()
+    await press('Preview')
+    await poll()
+    expect(dialog().querySelector('[role="alert"]')?.textContent).toContain('Another operation ran on this source')
+    const calls = state.mock.calls.length
+    await poll()
+    expect(state.mock.calls.length).toBe(calls)
   })
 })

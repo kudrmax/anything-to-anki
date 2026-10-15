@@ -28,9 +28,7 @@ class SourceOperationRegistry:
 
     def started(self, source_id: int, kind: SourceOperationKind) -> SourceOperationDTO:
         with self._guard:
-            operation = SourceOperationDTO(
-                operation_id=next(self._ids), kind=kind, state=OperationState.RUNNING,
-            )
+            operation = SourceOperationDTO.running(next(self._ids), kind)
             self._last[source_id] = operation
             return operation
 

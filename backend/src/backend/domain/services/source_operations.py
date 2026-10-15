@@ -40,3 +40,16 @@ def operation_hint(busy_with: SourceOperationKind | None) -> str | None:
     if busy_with is None:
         return None
     return f"Wait until the {_BUSY_NAME[busy_with]} finishes"
+
+
+_BUSY_CAPTION: dict[SourceOperationKind, str] = {
+    SourceOperationKind.PROCESS: "Processing…",
+    SourceOperationKind.REBUILD: "Rebuilding…",
+    SourceOperationKind.PREVIEW: "Checking what a rebuild changes…",
+    SourceOperationKind.REFRESH: "Refreshing…",
+}
+
+
+def busy_caption(kind: SourceOperationKind) -> str:
+    """What the user is told while the operation runs."""
+    return _BUSY_CAPTION[kind]

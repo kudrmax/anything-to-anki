@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
+from backend.domain.services.source_operations import busy_caption
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
 
 if TYPE_CHECKING:
@@ -82,7 +83,16 @@ class SourceOperationDTO(BaseModel):
     operation_id: int
     kind: SourceOperationKind
     state: OperationState
+    # What the user is told while it runs.
+    caption: str = ""
     preview: RebuildPreviewDTO | None = None
     summary: RebuildSummaryDTO | None = None
     refresh: TopicRefreshSummaryDTO | None = None
     error: str | None = None
+
+    @staticmethod
+    def running(operation_id: int, kind: SourceOperationKind) -> SourceOperationDTO:
+        return SourceOperationDTO(
+            operation_id=operation_id, kind=kind, state=OperationState.RUNNING,
+            caption=busy_caption(kind),
+        )

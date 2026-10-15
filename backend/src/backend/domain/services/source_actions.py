@@ -8,13 +8,14 @@ from backend.domain.exceptions import (
     PermanentSourceError,
     SourceIsProcessingError,
 )
+from backend.domain.services.source_operations import busy_caption
 from backend.domain.services.source_review_status import REVIEWABLE_STATUSES
-from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
     from backend.domain.entities.source import Source
     from backend.domain.value_objects.decision_progress import DecisionProgress
+    from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 EXPORTABLE_STATUSES = frozenset({SourceStatus.PARTIALLY_REVIEWED, SourceStatus.REVIEWED})
 COMPLETE = 1.0
@@ -54,14 +55,6 @@ def review_fraction(status: SourceStatus, progress: DecisionProgress) -> float:
     return progress.decided / progress.total if progress.total else NOTHING_DONE
 
 
-_BUSY_CAPTION: dict[SourceOperationKind, str] = {
-    SourceOperationKind.PROCESS: "Processing…",
-    SourceOperationKind.REBUILD: "Rebuilding…",
-    SourceOperationKind.PREVIEW: "Checking what a rebuild changes…",
-    SourceOperationKind.REFRESH: "Refreshing…",
-}
-
-
 def progress_caption(
     status: SourceStatus,
     cards: int,
@@ -71,7 +64,7 @@ def progress_caption(
 ) -> str:
     """The line under a source's progress: what it is busy with, or where its review is."""
     if busy_with is not None:
-        return _BUSY_CAPTION[busy_with]
+        return busy_caption(busy_with)
     if cards == 0:
         return "Nothing to learn"
     if progress.total == 0:

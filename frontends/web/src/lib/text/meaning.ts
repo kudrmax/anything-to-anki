@@ -1,4 +1,3 @@
-
 export const FREQ_BAND_LABEL: Record<string, string> = {
   ULTRA_COMMON: 'Ultra Common',
   COMMON: 'Common',

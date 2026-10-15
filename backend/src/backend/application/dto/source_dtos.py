@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime  # noqa: TC003
-from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
@@ -18,8 +17,11 @@ from backend.domain.services.card_decision import (  # Pydantic needs the enums 
     card_state,
 )
 from backend.domain.services.cloze_builder import ClozeBuilder
+from backend.domain.services.meaning_action import (  # Pydantic needs it at runtime
+    MeaningAction,
+    meaning_action,
+)
 from backend.domain.value_objects.elsewhere import Elsewhere  # noqa: TC001 — Pydantic needs it
-from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
 from backend.domain.value_objects.word_status import WordStatus
@@ -38,13 +40,6 @@ if TYPE_CHECKING:
 
 DONE = "done"
 IDLE = "idle"
-
-
-class MeaningAction(StrEnum):
-    """What a card without a meaning text offers."""
-
-    GENERATE = "generate"
-    RETRY = "retry"
 
 
 class ProgressDTO(BaseModel):
@@ -332,7 +327,7 @@ def card_to_dto(
     word, occ = card.word, card.occurrence
     phrase_id, word_id = card.phrase_id, card.word_id
     polished = occ.polished_phrase
-    meaning = _meaning_dto(occ.meaning, jobs.of_phrase(phrase_id, JobType.MEANING))
+    meaning_job = jobs.of_phrase(phrase_id, JobType.MEANING)
     return CardDTO(
         phrase_id=phrase_id,
         word_id=word_id,
@@ -361,8 +356,10 @@ def card_to_dto(
         state=CardStateDTO.of(card_state(occ, word, card.elsewhere)),
         is_done=card.is_done,
         is_phrasal_verb=word.is_phrasal_verb,
-        meaning=meaning,
-        meaning_action=_meaning_action(meaning),
+        meaning=_meaning_dto(occ.meaning, meaning_job),
+        meaning_action=meaning_action(
+            occ.meaning, meaning_job.status if meaning_job is not None else None,
+        ),
         media=_media_dto(occ.media, jobs.of_phrase(phrase_id, JobType.MEDIA)),
         meaning_image_path=word.meaning_image.image_path if word.meaning_image else None,
         pronunciation=_pronunciation_dto(
@@ -412,15 +409,6 @@ def _meaning_dto(meaning: CandidateMeaning | None, job: Job | None) -> Candidate
         error=job.error if job is not None else None,
         generated_at=meaning.generated_at if meaning else None,
     )
-
-
-def _meaning_action(meaning: CandidateMeaningDTO | None) -> MeaningAction | None:
-    """Nothing while the meaning is there or being made; a retry after a failure."""
-    if meaning is not None and (meaning.meaning or meaning.status == JobStatus.RUNNING.value):
-        return None
-    if meaning is not None and meaning.status == JobStatus.FAILED.value:
-        return MeaningAction.RETRY
-    return MeaningAction.GENERATE
 
 
 def _media_dto(media: CandidateMedia | None, job: Job | None) -> CandidateMediaDTO | None:

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/api/client'
-import type { RebuildCounts, SourceOperation, SourceSummary, TopicRefreshSummary } from '@/api/types'
+import type { RebuildCounts, SourceSummary, TopicRefreshSummary } from '@/api/types'
 import { Banner, Button, DividerRow, Modal, Spinner, Switch, Text } from '@/ui'
 import { useSourceOperation } from './useSourceOperation'
 import css from './sources.module.css'
@@ -17,12 +17,6 @@ interface RebuildDialogProps {
 }
 
 const ALSO_UNREVIEWED = 'Also unreviewed cards'
-const RUNNING_LABEL: Record<SourceOperation['kind'], string> = {
-  process: 'Processing…',
-  preview: 'Analyzing the source… It may take a minute.',
-  rebuild: 'Rebuilding…',
-  refresh: 'Refreshing…',
-}
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
@@ -72,7 +66,7 @@ export function RebuildDialog({ sourceId, title, operation, onFinished, onClose 
 
   const counts = preview && (includeOpen ? preview.with_open : preview.without_open)
   const running = run.phase === 'running'
-  const close = <Button variant="link" onClick={onClose}>{finished ? 'Close' : 'Cancel'}</Button>
+  const close = <Button variant="link" onClick={onClose}>{finished || running ? 'Close' : 'Cancel'}</Button>
 
   const footer = (() => {
     if (finished || running) return close
@@ -88,7 +82,7 @@ export function RebuildDialog({ sourceId, title, operation, onFinished, onClose 
 
   const body = (() => {
     if (run.phase === 'failed') return <Banner tone="err">{run.error}</Banner>
-    if (running) return <span className={css.caption}><Spinner /><Text tone="muted">{RUNNING_LABEL[run.kind]}</Text></span>
+    if (running) return <span className={css.caption}><Spinner /><Text tone="muted">{run.caption}</Text></span>
     if (finished && run.operation.summary) return <Lines lines={summaryLines(run.operation.summary.counts)} />
     if (finished && run.operation.refresh) return <Lines lines={refreshLines(run.operation.refresh)} />
     if (operation === 'refresh') {
