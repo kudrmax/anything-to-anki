@@ -6,7 +6,7 @@ import { CLOZE_DEFAULT_HINT_OPTIONS } from '@/lib/clozeHints'
 import { autoPlayAudioPref, type ThemePref } from '@/lib/preferences'
 import { formatBytes } from '@/lib/text/format'
 import { useTheme } from '@/lib/theme'
-import { Button, Chip, DividerRow, Empty, Field, Icon, Label, Range, RemovableChip, Segmented, Select, Spinner, Stack, Switch, Text } from '@/ui'
+import { Button, Chip, DividerRow, Empty, GroupLabel, Field, Icon, Label, Range, RemovableChip, Segmented, Select, Spinner, Stack, Switch, Text } from '@/ui'
 import type { SettingsStore, TemplatePart } from './useSettings'
 import css from './settings.module.css'
 
@@ -407,6 +407,31 @@ export function KnownWords({ store }: { store: SettingsStore }) {
       deletingId={store.deletingId}
       onRemove={id => void store.deleteWord(id)}
     />
+  )
+}
+
+const LEARNING_HINT = 'Words you are learning. They become known once Anki says you have learned them; until then they are not suggested as new.'
+
+/** «Учу» — только для просмотра: в Anki и ждут экспорта. */
+export function LearningWordsList({ store }: { store: SettingsStore }) {
+  const { in_anki: inAnki, awaiting_export: awaiting } = store.learningWords
+  if (inAnki.length === 0 && awaiting.length === 0) return <Empty>Nothing to learn yet. Mark words as Learn in review.</Empty>
+  const groups = [
+    { title: 'In Anki', words: inAnki },
+    { title: 'Waiting for export', words: awaiting },
+  ].filter(group => group.words.length > 0)
+  return (
+    <>
+      <p className={css.hint}>{LEARNING_HINT}</p>
+      {groups.map(group => (
+        <section key={group.title} className={css.learningGroup}>
+          <GroupLabel>{group.title} · {group.words.length}</GroupLabel>
+          <div className={css.words}>
+            {group.words.map(lemma => <span key={lemma} className={css.learningWord}>{lemma}</span>)}
+          </div>
+        </section>
+      ))}
+    </>
   )
 }
 

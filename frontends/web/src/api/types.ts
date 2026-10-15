@@ -108,9 +108,11 @@ export interface SourceSummary {
   generation_error: string | null
   /** Как привести источник в актуальное состояние; решает backend. */
   available_operation: 'rebuild' | 'refresh' | null
+  /** false — источник занят другой операцией: пункт виден, но недоступен. */
+  can_start_operation: boolean
   /** Операция, которой занят источник; другую сейчас не начать. */
   busy_with: SourceOperationKind | null
-  /** Почему операция не предлагается, пока источник занят. */
+  /** Почему операция сейчас недоступна. */
   operation_hint: string | null
   /** Что источник позволяет сейчас; решает backend. */
   can_review: boolean
@@ -118,6 +120,8 @@ export interface SourceSummary {
   can_delete: boolean
   /** Доля разобранного, 0..1; разобранный источник — 1. */
   review_fraction: number
+  /** Подпись под шкалой: чем занят источник или где его разбор. */
+  progress_caption: string
 }
 
 export type SourceOperationKind = 'process' | 'rebuild' | 'preview' | 'refresh'
@@ -309,6 +313,8 @@ export interface StoredCandidate {
   /** Где фраза источника стоит в документе; у примера, темы и сохранённой фразы её нет. */
   phrase_position: DocumentPosition | null
   meaning: CandidateMeaning | null
+  /** Что предложить, пока текста значения нет: сгенерировать или повторить; решает backend. */
+  meaning_action: 'generate' | 'retry' | null
   media: CandidateMedia | null
   /** Картинка-значение target'а: идёт на оборот карточки, кадр из видео — в media. */
   meaning_image_path: string | null
@@ -411,6 +417,19 @@ export interface SyncResult {
   errors: number
   skipped_lemmas: string[]
   error_lemmas: string[]
+  /** Слова, выученные в Anki: теперь Known. */
+  matured: number
+}
+
+/** Итог «Check progress in Anki»: сколько слов стали Known. */
+export interface AnkiProgress {
+  matured: number
+}
+
+/** Слова «учу», только для просмотра: заметки в Anki и Learn, ещё не экспортированные. */
+export interface LearningWords {
+  in_anki: string[]
+  awaiting_export: string[]
 }
 
 export interface Settings {
@@ -526,11 +545,44 @@ export interface GenerationOverview {
   in_progress: boolean
 }
 
-/** Долгая операция над источником (Rebuild или его превью), запущенная в фоне. */
+/** Что меняет Rebuild — числа для человека; считает backend. */
+export interface RebuildCounts {
+  words_added: number
+  words_removed: number
+  /** Карточки получат другую фразу без генерации. */
+  cards_new_phrase: number
+  /** У карточек изменился текст: их генерация сбросится. */
+  cards_text_reset: number
+  /** Показанные карточки без генерации после Rebuild. */
+  cards_without_generation: number
+  nothing_to_update: boolean
+}
+
+/** Превью Rebuild: без галочки «Also unreviewed cards» и с ней. */
+export interface RebuildPreview {
+  without_open: RebuildCounts
+  with_open: RebuildCounts
+}
+
+export interface RebuildSummary {
+  include_open: boolean
+  counts: RebuildCounts
+}
+
+export interface TopicRefreshSummary {
+  words_added: number
+  phrases_added: number
+  phrases_replaced: number
+}
+
+/** Долгая операция над источником (Rebuild, его превью, Refresh темы), запущенная в фоне. */
 export interface SourceOperation {
   operation_id: number
-  kind: 'process' | 'rebuild' | 'preview' | 'refresh'
+  kind: SourceOperationKind
   state: 'running' | 'done' | 'error'
+  preview: RebuildPreview | null
+  summary: RebuildSummary | null
+  refresh: TopicRefreshSummary | null
   error: string | null
 }
 

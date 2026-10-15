@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { BootstrapStatus, NoteTypeCheck, NoteTypeKind, CleanupMediaKind, FrequentWordThresholdOption, KnownWord, Settings, SourceMediaStats, UnknownWord } from '@/api/types'
+import type { BootstrapStatus, NoteTypeCheck, NoteTypeKind, CleanupMediaKind, FrequentWordThresholdOption, KnownWord, LearningWords, Settings, SourceMediaStats, UnknownWord } from '@/api/types'
 
 const BOOTSTRAP_POLL_MS = 2000
 const FLASH_MS = 2000
@@ -16,6 +16,7 @@ export function useSettings() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [knownWords, setKnownWords] = useState<KnownWord[]>([])
   const [unknownWords, setUnknownWords] = useState<UnknownWord[]>([])
+  const [learningWords, setLearningWords] = useState<LearningWords>({ in_anki: [], awaiting_export: [] })
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [noteTypes, setNoteTypes] = useState<NoteTypeCheck[] | null>(null)
   const [noteTypesError, setNoteTypesError] = useState<string | null>(null)
@@ -76,11 +77,12 @@ export function useSettings() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [settings, words, unknown, thresholds] = await Promise.all([
-          api.getSettings(), api.getKnownWords(), api.getUnknownWords(), api.getFrequentWordThresholds(),
+        const [settings, words, unknown, thresholds, learning] = await Promise.all([
+          api.getSettings(), api.getKnownWords(), api.getUnknownWords(), api.getFrequentWordThresholds(), api.getLearningWords(),
         ])
         setForm(settings)
         setKnownWords(words)
+        setLearningWords(learning)
         setUnknownWords(unknown)
         setFrequentWordThresholds(thresholds)
       } catch (e) {
@@ -180,7 +182,7 @@ export function useSettings() {
 
   return {
     form, loading, saving, saved, saveError, setField, save,
-    knownWords, deletingId, deleteWord, unknownWords, deleteUnknownWord,
+    knownWords, deletingId, deleteWord, unknownWords, deleteUnknownWord, learningWords,
     noteTypes, noteTypesError, fixingNoteType, fixNoteType,
     copiedTemplate, copyTemplate,
     bootstrapStatus, buildBootstrap,

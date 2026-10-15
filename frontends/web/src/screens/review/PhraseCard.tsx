@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Brackets, Target, Volume2 } from 'lucide-react'
 import type { CandidateCloze, EnrichmentStatus, PhraseOrigin, StoredCandidate } from '@/api/types'
 import { CLOZE_HINT_LABEL } from '@/lib/clozeHints'
-import { FREQ_BAND_LABEL, isDivider, meaningAction, meaningParts, mediaUrl, nonEmptyLines, primaryUsageGroup } from '@/lib/text/meaning'
+import { FREQ_BAND_LABEL, isDivider, meaningParts, mediaUrl, nonEmptyLines, primaryUsageGroup } from '@/lib/text/meaning'
 import { Button, Chip, Icon, MediaThumb, Spinner, Text } from '@/ui'
 import { targetText } from '@/lib/text/phraseParts'
 import { CardPhrase } from './CardPhrase'
@@ -80,7 +80,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
     </Chip>
   )
 
-  const action = meaningAction(meaning)
+  const action = candidate.meaning_action
   const hasMeta = Boolean(meaning?.ipa || usUrl || ukUrl || ttsUrl)
     || isActive(candidate.pronunciation?.status) || isActive(candidate.tts?.status)
   const paragraphs = meaning?.meaning ? nonEmptyLines(meaning.meaning) : []

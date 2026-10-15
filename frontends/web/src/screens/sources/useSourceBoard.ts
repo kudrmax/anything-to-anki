@@ -94,8 +94,6 @@ export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
     generate: (id: number) => act(() => api.enqueueTopicGeneration(id)),
     cancelGeneration: (id: number) => act(() => api.cancelQueue({ job_type: TOPIC_JOB_TYPE, source_id: id })),
     retryGeneration: (id: number) => act(() => api.retryQueue({ job_type: TOPIC_JOB_TYPE, source_id: id })),
-    rebuild: (id: number) => act(() => api.rebuildSource(id, false)),
-    refresh: (id: number) => act(() => api.refreshTopic(id)),
     vpnBlocked: sources.some(s => s.generation_status === 'failed' && isVpnErrorText(s.generation_error)),
   }
 }

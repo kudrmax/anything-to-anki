@@ -14,6 +14,8 @@ const GROUPS: { group: ExportGroup; title: string; hint: string; action: string;
 ]
 
 const cardsLabel = (count: number) => `${count} ${count === 1 ? 'card' : 'cards'}`
+const maturedLabel = (count: number) => `${count} ${count === 1 ? 'word' : 'words'} learned in Anki → Known`
+const CHECK_PROGRESS = 'Check progress in Anki'
 
 /** Общий экспорт и экспорт источника — разные экземпляры: состояние одного не переходит в другой. */
 export function ExportScreen() {
@@ -42,12 +44,20 @@ function ExportView({ sourceId, scope }: { sourceId: number | undefined; scope: 
     .some(section => section.cards.some(card => card.screenshot_url || card.audio_url))
   const ankiLabel = ankiStatus === null ? 'Checking…' : ankiStatus.available ? 'Anki connected' : 'Anki unavailable'
 
+  const checkButton = (
+    <Button variant="link" busy={exporter.checking} disabled={!exporter.canCheck} onClick={() => void exporter.checkProgress()}>
+      {CHECK_PROGRESS}
+    </Button>
+  )
+
   const header = (
     <PageHeader
       title={title}
       back={back}
       meta={<><StatusDot tone={ankiStatus === null ? 'idle' : ankiStatus.available ? 'ok' : 'err'} />{ankiLabel}</>}
-    />
+    >
+      {totalCards > 0 && checkButton}
+    </PageHeader>
   )
 
   const aside = (
@@ -58,6 +68,7 @@ function ExportView({ sourceId, scope }: { sourceId: number | undefined; scope: 
         <Stat small value={settings?.anki_note_type ?? '—'} label="note type" />
         {exportedCount > 0 && <Stat small value={exportedCount} label="already exported" wide />}
       </StatGrid>
+      {exporter.matured !== null && <Text tone={exporter.matured > 0 ? 'ok' : 'muted'} size="s">{maturedLabel(exporter.matured)}</Text>}
       {result && (
         <StatGrid>
           <Stat value={result.added} label="added" />
@@ -81,9 +92,14 @@ function ExportView({ sourceId, scope }: { sourceId: number | undefined; scope: 
     <Page wide header={header} aside={aside} banner={(exporter.error || ankiStatus?.available === false) ? banner : undefined}>
       {totalCards === 0 && (
         <Empty flush>
-          {exportedCount > 0
-            ? 'Everything marked for learning is already in Anki.'
-            : 'No words marked for learning. Go to the review page and mark words as “Learn”.'}
+          <div className={css.emptyStart}>
+            <span>
+              {exportedCount > 0
+                ? 'Everything marked for learning is already in Anki.'
+                : 'No words marked for learning. Go to the review page and mark words as “Learn”.'}
+            </span>
+            {checkButton}
+          </div>
         </Empty>
       )}
       {GROUPS.filter(({ group }) => counts[group] > 0).map(({ group, title, hint, action, variant }) => (

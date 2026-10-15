@@ -21,8 +21,8 @@ interface SourceRowProps {
   onExport: (id: number) => void
   onDelete: (id: number) => void
   onRename: (id: number, title: string) => void
-  onRebuild: (id: number) => void
-  onRefresh: (id: number) => void
+  /** Rebuild или Refresh — какой из них, говорит available_operation. */
+  onOperation: (id: number) => void
   /** true — клик ушёл на выбор строки, открывать источник не нужно. */
   onRowClick: (e: MouseEvent, id: number) => boolean
   onMoveTo: (id: number) => void
@@ -62,20 +62,16 @@ const GENERATION_LABEL: Record<GenerationState, string> = {
   failed: 'Generation failed',
 }
 
+const OPERATION_LABEL: Record<NonNullable<SourceSummary['available_operation']>, string> = {
+  rebuild: 'Rebuild…',
+  refresh: 'Refresh…',
+}
+
 const stop = (e: MouseEvent) => e.stopPropagation()
 const LONG_PRESS_MS = 500
 const TOUCH = 'touch'
 
-/** Подпись под шкалой прогресса: что известно о фразах источника. */
-function progressCaption(source: SourceSummary): string {
-  if (source.candidate_count === 0) return 'Nothing to learn'
-  if (source.progress.total === 0) return 'Nothing ready'
-  if (source.status === 'reviewed') return `${source.learn_count} to learn`
-  if (source.progress.decided > 0) return `${source.progress.decided} of ${source.progress.total} decided`
-  return `${source.progress.total} phrases`
-}
-
-export function SourceRow({ source, selected, showPath, primary, onProcess, onGenerate, onCancelGeneration, onRetryGeneration, onReview, onExport, onDelete, onRename, onRebuild, onRefresh, onRowClick, onMoveTo, dragIds, draggable, onLongPress }: SourceRowProps) {
+export function SourceRow({ source, selected, showPath, primary, onProcess, onGenerate, onCancelGeneration, onRetryGeneration, onReview, onExport, onDelete, onRename, onOperation, onRowClick, onMoveTo, dragIds, draggable, onLongPress }: SourceRowProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(source.title)
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -100,8 +96,13 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
     ...(source.can_export ? [{ label: 'Export', icon: Upload, onSelect: () => onExport(source.id) }] : []),
     { label: 'Rename', icon: Pencil, onSelect: startEditing },
     { label: 'Move to…', icon: FolderInput, onSelect: () => onMoveTo(source.id) },
-    ...(source.available_operation === 'rebuild' ? [{ label: 'Rebuild', icon: RefreshCw, onSelect: () => onRebuild(source.id) }] : []),
-    ...(source.available_operation === 'refresh' ? [{ label: 'Refresh', icon: RefreshCw, onSelect: () => onRefresh(source.id) }] : []),
+    ...(source.available_operation ? [{
+      label: OPERATION_LABEL[source.available_operation],
+      icon: RefreshCw,
+      disabled: !source.can_start_operation,
+      hint: source.operation_hint ?? undefined,
+      onSelect: () => onOperation(source.id),
+    }] : []),
     ...(source.can_delete ? [{ label: 'Delete', icon: Trash2, danger: true, separated: true, onSelect: () => onDelete(source.id) }] : []),
   ]
 
@@ -137,7 +138,10 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
     return (
       <>
         <Progress value={source.review_fraction} />
-        <Text tone="muted" size="s">{progressCaption(source)}</Text>
+        <span className={css.caption}>
+          {source.busy_with && <Spinner />}
+          <Text tone="muted" size="s">{source.progress_caption}</Text>
+        </span>
       </>
     )
   })()

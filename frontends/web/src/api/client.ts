@@ -1,5 +1,6 @@
 import type {
   AIUsageStats,
+  AnkiProgress,
   AnkiStatus,
   AnkiTemplates,
   BootstrapStatus,
@@ -28,6 +29,7 @@ import type {
   GlobalExport,
   ImageSearchResult,
   KnownWord,
+  LearningWords,
   ReportReason,
   QueueActionResult,
   QueueSelection,
@@ -128,8 +130,9 @@ export const api = {
       body: JSON.stringify({ status }),
     }),
 
-
   getAnkiStatus: () => req<AnkiStatus>('/anki/status'),
+
+  checkAnkiProgress: () => req<AnkiProgress>('/anki/check-progress', { method: 'POST' }),
 
   getExportCards: (sourceId?: number, scope: Scope = 'all') =>
     req<GlobalExport>(
@@ -154,6 +157,8 @@ export const api = {
 
   getKnownWords: () => req<KnownWord[]>('/known-words'),
 
+  getLearningWords: () => req<LearningWords>('/vocabulary/learning'),
+
   deleteKnownWord: (id: number) =>
     req<{ deleted: number }>(`/known-words/${id}`, { method: 'DELETE' }),
 
@@ -176,13 +181,13 @@ export const api = {
     req<{ status: string }>(`/phrases/${phraseId}/regenerate-media`, { method: 'POST' }),
 
   searchTargetImages: (wordId: number, query?: string) =>
-    req<ImageSearchResult>(`/candidates/${wordId}/image-options${query === undefined ? '' : `?${new URLSearchParams({ query })}`}`),
+    req<ImageSearchResult>(`/words/${wordId}/image-options${query === undefined ? '' : `?${new URLSearchParams({ query })}`}`),
 
   applyTargetImage: (wordId: number, url: string) =>
-    req<{ status: string }>(`/candidates/${wordId}/image`, { method: 'PUT', body: JSON.stringify({ url }) }),
+    req<{ status: string }>(`/words/${wordId}/image`, { method: 'PUT', body: JSON.stringify({ url }) }),
 
   pasteTargetImage: (wordId: number, picture: Blob) =>
-    req<{ status: string }>(`/candidates/${wordId}/image/pasted`, {
+    req<{ status: string }>(`/words/${wordId}/image/pasted`, {
       method: 'PUT',
       headers: { 'Content-Type': picture.type, ...buildHeaders() },
       body: picture,
@@ -224,6 +229,9 @@ export const api = {
   cancelGeneration: (sourceId: number, kind: GenerationKind) =>
     req<{ cancelled: number }>(`/sources/${sourceId}/generation/${kind}/cancel`, { method: 'POST' }),
 
+  previewRebuild: (sourceId: number) =>
+    req<SourceOperation>(`/sources/${sourceId}/rebuild/preview`, { method: 'POST' }),
+
   rebuildSource: (sourceId: number, includeOpen: boolean) =>
     req<SourceOperation>(`/sources/${sourceId}/rebuild`, {
       method: 'POST',
@@ -232,6 +240,8 @@ export const api = {
 
   refreshTopic: (sourceId: number) =>
     req<SourceOperation>(`/sources/${sourceId}/refresh`, { method: 'POST' }),
+
+  getOperation: (sourceId: number) => req<SourceOperation>(`/sources/${sourceId}/operation`),
 
   getStats: () => req<Stats>('/stats'),
 

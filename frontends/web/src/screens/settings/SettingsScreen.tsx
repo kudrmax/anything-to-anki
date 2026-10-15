@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Page, PageHeader } from '@/shell'
 import { Button, Empty, Spinner, Text } from '@/ui'
-import { AiModel, Anki, Appearance, Books, KnownWords, MediaStorage, Pictures, ReviewPrefs, Tts, UnknownWords, Vocabulary } from './SettingsSections'
+import { AiModel, Anki, Appearance, Books, KnownWords, LearningWordsList, MediaStorage, Pictures, ReviewPrefs, Tts, UnknownWords, Vocabulary } from './SettingsSections'
 import { useSettings } from './useSettings'
 import css from './settings.module.css'
 
@@ -40,6 +40,7 @@ export function SettingsScreen() {
     { id: 'pictures', title: 'Pictures', content: <Pictures store={store} form={form} />, saved: true },
     { id: 'books', title: 'Books', content: <Books store={store} form={form} />, saved: true },
     { id: 'known-words', title: 'Known words', content: <KnownWords store={store} />, count: store.knownWords.length },
+    { id: 'learning', title: 'Learning', content: <LearningWordsList store={store} />, count: store.learningWords.in_anki.length + store.learningWords.awaiting_export.length },
     { id: 'unknown-words', title: 'Unknown words', content: <UnknownWords store={store} />, count: store.unknownWords.length },
     { id: 'media-storage', title: 'Media storage', content: <MediaStorage store={store} /> },
   ]

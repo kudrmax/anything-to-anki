@@ -8,7 +8,7 @@ const source: SourceSummary = {
   id: 7, title: 'Pilot', status: 'done', kind: 'text', role: 'content', has_video: false, source_url: null,
   video_downloaded: false, created_at: '2026-10-01T00:00:00Z', candidate_count: 4, learn_count: 0, progress: { decided: 0, total: 4 },
   processing_stage: null, collection_id: 11, collection_path: ['Friends', 'Season 1'], stage: 'ready',
-  awaiting_generation: false, generation_status: null, generation_error: null, available_operation: null, busy_with: null, operation_hint: null,
+  awaiting_generation: false, generation_status: null, generation_error: null, available_operation: null, can_start_operation: true, busy_with: null, operation_hint: null, progress_caption: '4 phrases',
   can_review: true, can_export: false, can_delete: true, review_fraction: 0,
 }
 
@@ -17,12 +17,14 @@ describe('SourceRow', () => {
   let root: Root
   const onReview = vi.fn()
   const onLongPress = vi.fn()
+  const onOperation = vi.fn()
   const noop = () => {}
 
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     onReview.mockReset()
     onLongPress.mockReset()
+    onOperation.mockReset()
     host = document.createElement('div')
     root = createRoot(host)
   })
@@ -33,7 +35,7 @@ describe('SourceRow', () => {
     <SourceRow
       source={shown} selected={false} showPath={showPath} primary={false}
       onProcess={noop} onGenerate={noop} onCancelGeneration={noop} onRetryGeneration={noop}
-      onReview={onReview} onExport={noop} onDelete={noop} onRename={noop} onRebuild={noop} onRefresh={noop}
+      onReview={onReview} onExport={noop} onDelete={noop} onRename={noop} onOperation={onOperation}
       onRowClick={() => takenBySelection} onMoveTo={noop} dragIds={() => [source.id]}
       draggable onLongPress={onLongPress}
     />,
@@ -111,5 +113,34 @@ describe('SourceRow', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  const openMenu = () => act(() => (host.querySelector('[aria-label="More"]') as HTMLElement).click())
+  const menuItem = (label: string) =>
+    [...host.querySelectorAll('[role="menuitem"]')].find(item => item.textContent?.startsWith(label)) as HTMLButtonElement | undefined
+
+  it('offers the operation the backend names', () => {
+    render(false, false, { ...source, available_operation: 'rebuild' })
+    openMenu()
+    act(() => menuItem('Rebuild…')?.click())
+    expect(onOperation).toHaveBeenCalledWith(7)
+    expect(menuItem('Refresh…')).toBeUndefined()
+  })
+
+  it('keeps the operation visible but unavailable with the backend hint while the source is busy', () => {
+    render(false, false, {
+      ...source, available_operation: 'rebuild', can_start_operation: false, busy_with: 'preview',
+      operation_hint: 'Wait until the rebuild preview finishes', progress_caption: 'Checking what a rebuild changes…',
+    })
+    expect(host.textContent).toContain('Checking what a rebuild changes…')
+    openMenu()
+    const item = menuItem('Rebuild…')
+    expect(item?.disabled).toBe(true)
+    expect(item?.textContent).toContain('Wait until the rebuild preview finishes')
+  })
+
+  it('shows the caption the backend wrote', () => {
+    render(false, false, { ...source, progress_caption: '2 of 4 decided' })
+    expect(host.textContent).toContain('2 of 4 decided')
   })
 })

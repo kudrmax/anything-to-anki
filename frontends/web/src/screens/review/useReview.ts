@@ -112,6 +112,14 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     return () => clearInterval(interval)
   }, [inProgress, loadCandidates, loadGeneration])
 
+  // Пока источник занят (Rebuild, Refresh), карточки перечитываются; последнее чтение — уже после операции.
+  const busyWith = source?.busy_with ?? null
+  useEffect(() => {
+    if (busyWith === null) return
+    const interval = setInterval(() => void loadCandidates(), POLL_INTERVAL_MS)
+    return () => clearInterval(interval)
+  }, [busyWith, loadCandidates])
+
   // Свежий список для mark(), чтобы не пересоздавать обработчик на каждое изменение.
   const candidatesRef = useRef<StoredCandidate[]>(candidates)
   useEffect(() => { candidatesRef.current = candidates }, [candidates])
@@ -195,25 +203,14 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     withBusy(setGeneratingIds, candidateId, async () => {
       try {
         const res = await api.generateMeaning(candidateId, action, text)
-        setCandidates(prev => prev.map(c => (c.phrase_id === candidateId ? {
-          ...c,
-          meaning: {
-            meaning: res.meaning,
-            translation: res.translation,
-            synonyms: res.synonyms,
-            examples: res.examples,
-            ipa: res.ipa,
-            status: 'done' as const,
-            error: null,
-            generated_at: null,
-          },
-        } : c)))
+        // Карточку с новым значением и тем, что она теперь предлагает, отдаёт backend.
+        await loadCandidates()
         showToast(`Tokens used: ${res.tokens_used}`)
       } catch (e) {
         if (isVpnError(e)) setVpnBlocked(true)
         else showToast(e instanceof Error ? e.message : action ? 'Follow-up failed' : 'Generation failed')
       }
-    }), [showToast])
+    }), [showToast, loadCandidates])
 
   const replaceWithExample = useCallback(async (candidateId: number, exampleText: string) => {
     try {

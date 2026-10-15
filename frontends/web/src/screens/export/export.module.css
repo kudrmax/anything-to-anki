@@ -22,3 +22,6 @@
 .media { grid-area: media; }
 .sentenceRow { display: flex; align-items: baseline; gap: var(--s3); }
 .sentenceRow > .sentence { flex: 1; min-width: 0; }
+
+/* пустой экран: текст и «Check progress in Anki» под ним */
+.emptyStart { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s5); }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { CollectionNode, Scope, ScopeCounts, SourceStage } from '@/api/types'
+import type { CollectionNode, Scope, ScopeCounts, SourceStage, SourceSummary } from '@/api/types'
 import { useStats } from '@/hooks/useStats'
 import { backTo } from '@/lib/backLink'
 import { usePhone } from '@/lib/device'
@@ -15,6 +15,7 @@ import { Banner, Button, Empty, Field, Stat, StatGrid, Toast, ToastStack, UndoTo
 import { CollectionTree } from './CollectionTree'
 import { MoveToModal } from './MoveToModal'
 import { NameModal } from './NameModal'
+import { RebuildDialog } from './RebuildDialog'
 import { ScopeHeader } from './ScopeHeader'
 import { ScopePicker } from './ScopePicker'
 import { SelectionBar } from './SelectionBar'
@@ -40,6 +41,7 @@ const END_POSITION = Number.MAX_SAFE_INTEGER
 
 type MoveTarget = { kind: 'sources'; ids: number[] } | { kind: 'collection'; id: number } | null
 type Naming = { kind: 'rename'; node: CollectionNode } | { kind: 'create'; parent: CollectionNode } | null
+type Operating = { id: number; title: string; operation: NonNullable<SourceSummary['available_operation']> } | null
 
 const sourcesWord = (n: number) => (n === 1 ? '1 source' : `${n} sources`)
 
@@ -57,6 +59,7 @@ export function SourcesScreen() {
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION)
   const [moveTarget, setMoveTarget] = useState<MoveTarget>(null)
   const [naming, setNaming] = useState<Naming>(null)
+  const [operating, setOperating] = useState<Operating>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [processingAll, setProcessingAll] = useState(false)
   const [toast, showToast] = useToast()
@@ -87,6 +90,7 @@ export function SourcesScreen() {
   })
 
   const tree = collections.tree
+  const reloadBoard = useCallback(() => void boardReload.current(), [])
   const open = (next: Scope) => {
     setPickerOpen(false)
     setScope(next)
@@ -298,8 +302,7 @@ export function SourcesScreen() {
                         onExport={exportSource}
                         onDelete={deleteSource}
                         onRename={(id, newTitle) => void board.rename(id, newTitle)}
-                        onRebuild={id => void board.rebuild(id)}
-                        onRefresh={id => void board.refresh(id)}
+                        onOperation={() => source.available_operation && setOperating({ id: source.id, title: source.title, operation: source.available_operation })}
                         onRowClick={rowClick}
                         onMoveTo={id => setMoveTarget({ kind: 'sources', ids: [id] })}
                         dragIds={() => dragIds(source.id)}
@@ -324,6 +327,15 @@ export function SourcesScreen() {
           )}
         </div>
       </div>
+      {operating && (
+        <RebuildDialog
+          sourceId={operating.id}
+          title={operating.title}
+          operation={operating.operation}
+          onFinished={reloadBoard}
+          onClose={() => { setOperating(null); void board.reload() }}
+        />
+      )}
       {moveTarget && tree && (
         <MoveToModal
           tree={tree}
