@@ -64,7 +64,7 @@ def test_polish_again_drops_old_polish_and_queues_the_phrase() -> None:
     use_case.execute(PHRASE_ID)
 
     occurrence_repo.write_text.assert_called_once_with(
-        PHRASE_ID, shown.source_phrase, None, polished=None, bump_revision=True,
+        PHRASE_ID, shown.source_phrase, None, polished=None,
     )
     [job] = job_repo.enqueue.call_args.args[0]
     assert (job.job_type, job.candidate_id, job.phrase_id, job.phrase_revision) == (

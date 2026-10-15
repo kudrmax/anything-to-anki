@@ -39,7 +39,7 @@ class EnqueuePhrasePolishUseCase:
             raise PhrasePolishNotSupportedError(source_id)
         self._occurrence_repo.write_text(
             card.phrase_id, card.phrase.source_phrase, card.phrase.phrase_position,
-            polished=None, bump_revision=True,
+            polished=None,
         )
         written = self._occurrence_repo.get(card.phrase_id)
         assert written is not None

@@ -17,7 +17,9 @@ from backend.application.utils.generation_targets import GenerationCard, PolishT
 from backend.application.utils.job_phrases import JobPhrases
 from backend.application.utils.requested_cards import RequestedCards
 from backend.application.utils.rewrite_phrase import RewritePhrase
+from backend.domain.entities.job import Job
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
+from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.prompts_config import PromptsConfig
 from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
@@ -254,7 +256,9 @@ def _polish_lands(session: Session) -> None:
     occurrences = SqlaOccurrenceRepository(session)
     occurrence = occurrences.get(PRIMARY)
     assert occurrence is not None
-    RewritePhrase(_reader(), occurrences).of_phrase(occurrence, "glare", PHRASE_TEXT)
+    RewritePhrase(_reader(), occurrences).of_phrase(
+        occurrence, "glare", PHRASE_TEXT, by_user=False,
+    )
 
 
 def _revert_polish(session: Session) -> None:
@@ -326,6 +330,57 @@ class TestTextWritesOutdateJobs:
         with factory() as session:
             [job] = SqlaJobRepository(session).get_jobs_for_phrases([PRIMARY])[PRIMARY].values()
         assert job.phrase_revision == _revision(factory) == 1
+
+
+def _queue_meaning(session: Session) -> None:
+    SqlaJobRepository(session).enqueue([Job.queued(
+        JobType.MEANING, SOURCE, WORD, phrase_id=PRIMARY, phrase_revision=0,
+    )])
+
+
+def _queued(factory: sessionmaker[Session]) -> dict[str, Job]:
+    with factory() as session:
+        return SqlaJobRepository(session).get_jobs_for_phrases([PRIMARY]).get(PRIMARY, {})
+
+
+class TestQueuedJobsFollowTheText:
+    """Jobs still waiting in the queue are made for the text the phrase shows when they
+    run; only a running one was made for the old text."""
+
+    def test_a_meaning_queued_behind_a_polish_runs_on_the_polished_text(
+        self, factory: sessionmaker[Session],
+    ) -> None:
+        with factory() as session:
+            _enqueue_polish(session)
+            _queue_meaning(session)
+            session.commit()
+        with factory() as session:
+            _polish_lands(session)
+            session.commit()
+        meaning = _queued(factory)["meaning"]
+        ai_service = MagicMock()
+        ai_service.generate_meanings_batch.return_value = _answer()
+
+        with factory() as session:
+            assert meaning.phrase_revision is not None
+            _meaning_use_case(session, ai_service).execute_batch(
+                [PhraseRef(PRIMARY, meaning.phrase_revision)],
+            )
+            session.commit()
+
+        assert _meanings(factory) == {PRIMARY: "to look angrily"}
+        assert PHRASE_TEXT in ai_service.generate_meanings_batch.call_args.args[1]
+
+    def test_a_hand_edit_drops_a_queued_polish(self, factory: sessionmaker[Session]) -> None:
+        with factory() as session:
+            _enqueue_polish(session)
+            session.commit()
+        assert "polish" in _queued(factory)
+        with factory() as session:
+            _edit(session)
+            session.commit()
+
+        assert "polish" not in _queued(factory)
 
 
 class TestJobsWriteToTheirOwnPhrase:

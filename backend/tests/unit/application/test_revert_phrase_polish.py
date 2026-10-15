@@ -54,7 +54,7 @@ def test_revert_switches_the_phrase_and_drops_its_enrichments() -> None:
 
     occurrences.write_text.assert_called_once_with(
         PHRASE_ID, SOURCE, None, polished=phrase("The air was stale.", "stale"),
-        polish_reverted=True, bump_revision=True,
+        polish_reverted=True, by_user=True,
     )
     reset.reset_phrase.assert_called_once_with(PHRASE_ID)
 

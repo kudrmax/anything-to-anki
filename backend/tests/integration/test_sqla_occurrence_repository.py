@@ -11,6 +11,7 @@ from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.document_position import DocumentPosition
+from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind, ShownBy
@@ -25,10 +26,11 @@ from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
+from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from tests.integration.conftest import insert_source
 from tests.phrase_support import make_occurrence, phrase
@@ -114,18 +116,76 @@ def test_write_text_with_a_reverted_polish_keeps_the_words_of_the_source(
     assert _words(db_session, phrase_id) == {"he", "glared", "at", "me"}
 
 
-def test_write_text_bumps_the_revision_only_when_asked(
+def test_a_write_that_changes_the_shown_text_bumps_the_revision(
     repo: SqlaOccurrenceRepository,
 ) -> None:
     phrase_id = _added(repo)
 
-    repo.write_text(phrase_id, phrase("He glared."), POSITION)
-    repo.write_text(phrase_id, phrase("He glared again."), POSITION, bump_revision=True)
+    repo.write_text(phrase_id, phrase("He glared again."), POSITION)
 
     stored = repo.get(phrase_id)
     assert stored is not None
     assert stored.revision == 1
     assert stored.source_phrase.text == "He glared again."
+
+
+def test_a_write_that_keeps_the_shown_text_does_not_bump(
+    repo: SqlaOccurrenceRepository,
+) -> None:
+    phrase_id = _added(repo)
+    same = phrase("He glared at me.")
+
+    repo.write_text(phrase_id, same, POSITION, polished=same)
+    repo.write_text(phrase_id, same, POSITION, polished=phrase("He stared."), polish_reverted=True)
+
+    stored = repo.get(phrase_id)
+    assert stored is not None
+    assert stored.revision == 0
+
+
+def _job(session: Session, phrase_id: int, job_type: JobType, status: JobStatus) -> None:
+    SqlaJobRepository(session).enqueue([Job.queued(
+        job_type, SOURCE, WORD, phrase_id=phrase_id, phrase_revision=0,
+    )])
+    session.execute(
+        update(JobModel)
+        .where(JobModel.phrase_id == phrase_id, JobModel.job_type == job_type.value)
+        .values(status=status.value)
+    )
+
+
+def _jobs(session: Session, phrase_id: int) -> dict[str, tuple[str, int | None]]:
+    return {
+        job.job_type: (job.status, job.phrase_revision)
+        for job in session.scalars(select(JobModel).where(JobModel.phrase_id == phrase_id))
+    }
+
+
+def test_queued_jobs_of_a_phrase_follow_its_new_text_running_ones_do_not(
+    repo: SqlaOccurrenceRepository, db_session: Session,
+) -> None:
+    phrase_id = _added(repo)
+    _job(db_session, phrase_id, JobType.MEANING, JobStatus.QUEUED)
+    _job(db_session, phrase_id, JobType.MEDIA, JobStatus.QUEUED)
+    _job(db_session, phrase_id, JobType.TTS, JobStatus.RUNNING)
+
+    repo.write_text(phrase_id, phrase("He glared again."), POSITION)
+
+    assert _jobs(db_session, phrase_id) == {
+        "meaning": ("queued", 1), "media": ("queued", 1), "tts": ("running", 0),
+    }
+
+
+@pytest.mark.parametrize(("by_user", "polish_left"), [(True, False), (False, True)])
+def test_only_the_user_s_text_drops_a_queued_polish(
+    repo: SqlaOccurrenceRepository, db_session: Session, by_user: bool, polish_left: bool,
+) -> None:
+    phrase_id = _added(repo)
+    _job(db_session, phrase_id, JobType.POLISH, JobStatus.QUEUED)
+
+    repo.write_text(phrase_id, phrase("He glared again."), POSITION, by_user=by_user)
+
+    assert ("polish" in _jobs(db_session, phrase_id)) is polish_left
 
 
 def test_set_shown_and_skipped(repo: SqlaOccurrenceRepository) -> None:

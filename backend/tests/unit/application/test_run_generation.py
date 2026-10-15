@@ -266,7 +266,7 @@ class TestRunGeneration:
         setup.run.execute(SOURCE_ID, GenerationKind.POLISH, GenerationScope.ALL)
 
         setup.occurrence_repo.write_text.assert_called_once_with(
-            10, shown.source_phrase, None, polished=None, bump_revision=True,
+            10, shown.source_phrase, None, polished=None,
         )
         assert setup.queued_phrases() == [10]
 
