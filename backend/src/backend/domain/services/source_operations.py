@@ -21,17 +21,13 @@ _BUSY_NAME: dict[SourceOperationKind, str] = {
 }
 
 
-def available_operation(
-    source: Source, busy_with: SourceOperationKind | None = None,
-) -> SourceOperationKind | None:
-    """What a processed source can be brought up to date with; nothing while another
-    operation holds it.
+def available_operation(source: Source) -> SourceOperationKind | None:
+    """What a processed source can be brought up to date with. While another operation
+    holds the source, it is still offered, but can't start (see `operation_hint`).
 
     A source with its own text is rebuilt; a topic is refreshed from the other sources,
     adding phrases only; the saved phrases have nothing to update.
     """
-    if busy_with is not None:
-        return None
     if source.role is SourceRole.CONTENT and source.status in _REBUILDABLE_STATUSES:
         return SourceOperationKind.REBUILD
     if source.role is SourceRole.TOPIC and source.status in REVIEWABLE_STATUSES:
@@ -40,7 +36,7 @@ def available_operation(
 
 
 def operation_hint(busy_with: SourceOperationKind | None) -> str | None:
-    """Why no operation is offered on a busy source."""
+    """Why the operation can't start on a busy source."""
     if busy_with is None:
         return None
     return f"Wait until the {_BUSY_NAME[busy_with]} finishes"

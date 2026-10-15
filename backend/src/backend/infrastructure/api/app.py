@@ -19,7 +19,6 @@ from backend.infrastructure.api.dependencies import get_session_factory
 from backend.infrastructure.api.routes import (
     anki,
     bootstrap,
-    candidates,
     card_reports,
     collections,
     export,
@@ -32,6 +31,7 @@ from backend.infrastructure.api.routes import (
     unknown_words,
     usage,
     vocabulary,
+    words,
 )
 from backend.infrastructure.api.routes.media import router as media_router
 from backend.infrastructure.api.routes.queue import router as queue_router
@@ -104,7 +104,7 @@ app.add_middleware(
 
 app.include_router(sources.router)
 app.include_router(media_router)
-app.include_router(candidates.router)
+app.include_router(words.router)
 app.include_router(phrases.router)
 app.include_router(card_reports.router)
 app.include_router(known_words.router)

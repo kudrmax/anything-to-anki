@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from backend.infrastructure.container import Container
 
 # Actions on a word of a source; its cards (phrases) have theirs under /phrases.
-router = APIRouter(prefix="/candidates", tags=["candidates"])
+router = APIRouter(prefix="/words", tags=["words"])
 
 
 @router.get("/{candidate_id}/image-options")

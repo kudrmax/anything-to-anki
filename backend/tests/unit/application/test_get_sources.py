@@ -199,13 +199,38 @@ class TestGetSourcesUseCase:
         assert started.review_fraction == 0.5
         assert reviewed.review_fraction == 1.0
 
-    def test_a_busy_source_says_with_what_and_offers_no_operation(self) -> None:
+    def test_a_busy_source_offers_its_operation_but_it_cant_start(self) -> None:
         self.source_repo.list_all.return_value = [_text(1)]
         self.lock.operations.return_value = {1: HeldOperation(SourceOperationKind.REBUILD)}
         [dto] = self.use_case.list_all()
         assert dto.busy_with is SourceOperationKind.REBUILD
-        assert dto.available_operation is None
+        assert dto.available_operation is SourceOperationKind.REBUILD
+        assert dto.can_start_operation is False
         assert dto.operation_hint == "Wait until the rebuild finishes"
+        assert dto.progress_caption == "Rebuilding…"
+
+    def test_a_free_source_can_start_its_operation(self) -> None:
+        self.source_repo.list_all.return_value = [_text(1)]
+        self.lock.operations.return_value = {}
+        [dto] = self.use_case.list_all()
+        assert dto.available_operation is SourceOperationKind.REBUILD
+        assert dto.can_start_operation is True
+        assert dto.operation_hint is None
+
+    def test_the_caption_says_where_the_review_is(self) -> None:
+        self.source_repo.list_all.return_value = [
+            _text(1), _text(2), _text(3, SourceStatus.PARTIALLY_REVIEWED),
+            _text(4, SourceStatus.REVIEWED),
+        ]
+        self.lock.operations.return_value = {}
+        self.card_query.shown_cards.return_value = {
+            2: [_row(2, 1), _row(2, 2)],
+            3: [_row(3, 3, WordStatus.LEARN), _row(3, 4)],
+            4: [_row(4, 5, WordStatus.LEARN)],
+        }
+        self.card_query.learn_counts.return_value = {4: 1}
+        captions = [dto.progress_caption for dto in self.use_case.list_all()]
+        assert captions == ["Nothing to learn", "2 phrases", "1 of 2 decided", "1 to learn"]
 
     def test_get_by_id_found(self) -> None:
         self.source_repo.get_by_id.return_value = _text(1)

@@ -221,18 +221,18 @@ class TestCardReportsAPI:
 @pytest.mark.integration
 class TestTargetImageAPI:
     def test_refuses_to_download_a_url_no_source_handed_out(self, client: TestClient) -> None:
-        response = client.put("/candidates/1/image", json={"url": "https://evil.example/x.jpg"})
+        response = client.put("/words/1/image", json={"url": "https://evil.example/x.jpg"})
 
         assert response.status_code == 400
 
     def test_unknown_candidate(self, client: TestClient) -> None:
-        response = client.get("/candidates/999/image-options")
+        response = client.get("/words/999/image-options")
 
         assert response.status_code == 404
 
     def test_pasting_for_an_unknown_candidate(self, client: TestClient) -> None:
         response = client.put(
-            "/candidates/999/image/pasted",
+            "/words/999/image/pasted",
             content=b"picture",
             headers={"Content-Type": "image/png"},
         )

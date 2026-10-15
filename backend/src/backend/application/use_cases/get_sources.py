@@ -15,6 +15,7 @@ from backend.domain.services.source_actions import (
     can_delete,
     can_export,
     can_review,
+    progress_caption,
     review_fraction,
 )
 from backend.domain.services.source_operations import available_operation, operation_hint
@@ -136,13 +137,17 @@ class GetSourcesUseCase:
             generation_status=generation.status,
             generation_error=generation.error,
             is_permanent=source.is_permanent,
-            available_operation=available_operation(source, busy_with),
+            available_operation=available_operation(source),
+            can_start_operation=busy_with is None,
             busy_with=busy_with,
             operation_hint=operation_hint(busy_with),
             can_review=can_review(source.status),
             can_export=can_export(source.status),
             can_delete=can_delete(source, busy_with),
             review_fraction=review_fraction(source.status, progress),
+            progress_caption=progress_caption(
+                source.status, len(cards), progress, learn_count, busy_with,
+            ),
         )
 
     def get_by_id(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime  # noqa: TC003
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
@@ -18,6 +19,7 @@ from backend.domain.services.card_decision import (  # Pydantic needs the enums 
 )
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.elsewhere import Elsewhere  # noqa: TC001 — Pydantic needs it
+from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
 from backend.domain.value_objects.word_status import WordStatus
@@ -36,6 +38,13 @@ if TYPE_CHECKING:
 
 DONE = "done"
 IDLE = "idle"
+
+
+class MeaningAction(StrEnum):
+    """What a card without a meaning text offers."""
+
+    GENERATE = "generate"
+    RETRY = "retry"
 
 
 class ProgressDTO(BaseModel):
@@ -83,15 +92,19 @@ class SourceDTO(BaseModel):
     is_permanent: bool = False
     # How the source is brought up to date: 'rebuild' | 'refresh', or nothing to offer.
     available_operation: SourceOperationKind | None = None
+    # False while another operation holds the source: the offered one can't start.
+    can_start_operation: bool = True
     # The operation the source is busy with; no other one may start meanwhile.
     busy_with: SourceOperationKind | None = None
-    # Why no operation is offered while the source is busy.
+    # Why the offered operation can't start while the source is busy.
     operation_hint: str | None = None
     can_review: bool = False
     can_export: bool = False
     can_delete: bool = False
     # How far the review has got, 0..1; a reviewed source is complete.
     review_fraction: float = 0.0
+    # The line under the progress: what the source is busy with, or where its review is.
+    progress_caption: str = ""
 
 
 class SourceGroupDTO(BaseModel):
@@ -242,6 +255,8 @@ class CardDTO(BaseModel):
     is_done: bool = False
     is_phrasal_verb: bool = False
     meaning: CandidateMeaningDTO | None = None
+    # What to offer on a card without a meaning text: 'generate' | 'retry'; none otherwise.
+    meaning_action: MeaningAction | None = None
     media: CandidateMediaDTO | None = None
     meaning_image_path: str | None = None
     pronunciation: CandidatePronunciationDTO | None = None
@@ -317,6 +332,7 @@ def card_to_dto(
     word, occ = card.word, card.occurrence
     phrase_id, word_id = card.phrase_id, card.word_id
     polished = occ.polished_phrase
+    meaning = _meaning_dto(occ.meaning, jobs.of_phrase(phrase_id, JobType.MEANING))
     return CardDTO(
         phrase_id=phrase_id,
         word_id=word_id,
@@ -345,7 +361,8 @@ def card_to_dto(
         state=CardStateDTO.of(card_state(occ, word, card.elsewhere)),
         is_done=card.is_done,
         is_phrasal_verb=word.is_phrasal_verb,
-        meaning=_meaning_dto(occ.meaning, jobs.of_phrase(phrase_id, JobType.MEANING)),
+        meaning=meaning,
+        meaning_action=_meaning_action(meaning),
         media=_media_dto(occ.media, jobs.of_phrase(phrase_id, JobType.MEDIA)),
         meaning_image_path=word.meaning_image.image_path if word.meaning_image else None,
         pronunciation=_pronunciation_dto(
@@ -395,6 +412,15 @@ def _meaning_dto(meaning: CandidateMeaning | None, job: Job | None) -> Candidate
         error=job.error if job is not None else None,
         generated_at=meaning.generated_at if meaning else None,
     )
+
+
+def _meaning_action(meaning: CandidateMeaningDTO | None) -> MeaningAction | None:
+    """Nothing while the meaning is there or being made; a retry after a failure."""
+    if meaning is not None and (meaning.meaning or meaning.status == JobStatus.RUNNING.value):
+        return None
+    if meaning is not None and meaning.status == JobStatus.FAILED.value:
+        return MeaningAction.RETRY
+    return MeaningAction.GENERATE
 
 
 def _media_dto(media: CandidateMedia | None, job: Job | None) -> CandidateMediaDTO | None:

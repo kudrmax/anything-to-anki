@@ -332,3 +332,30 @@ class TestCardToDtoDecision:
         assert card_to_dto(card(), _jobs_dict([job])).polish_status is None
         other = card_to_dto(card(word(), occurrence(2, 1)), _jobs_dict([job]))
         assert other.polish_status == "queued"
+
+
+@pytest.mark.unit
+class TestMeaningAction:
+    """What a card offers about its meaning; the web shows it as is."""
+
+    def test_a_card_without_a_meaning_offers_generation(self) -> None:
+        assert card_to_dto(_make_candidate()).meaning_action == "generate"
+
+    def test_a_queued_meaning_still_offers_generation(self) -> None:
+        job = _make_job(job_type=JobType.MEANING, status=JobStatus.QUEUED)
+        assert card_to_dto(_make_candidate(), _jobs_dict([job])).meaning_action == "generate"
+
+    def test_a_failed_meaning_offers_a_retry(self) -> None:
+        job = _make_job(job_type=JobType.MEANING, status=JobStatus.FAILED, error="boom")
+        assert card_to_dto(_make_candidate(), _jobs_dict([job])).meaning_action == "retry"
+
+    def test_nothing_while_the_meaning_is_being_made(self) -> None:
+        job = _make_job(job_type=JobType.MEANING, status=JobStatus.RUNNING)
+        assert card_to_dto(_make_candidate(), _jobs_dict([job])).meaning_action is None
+
+    def test_nothing_once_the_meaning_is_there(self) -> None:
+        meaning = CandidateMeaning(
+            candidate_id=1, meaning="a test", translation=None,
+            synonyms=None, examples=None, ipa=None, generated_at=NOW,
+        )
+        assert card_to_dto(_make_candidate(meaning=meaning)).meaning_action is None
