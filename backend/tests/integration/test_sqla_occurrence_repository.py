@@ -167,25 +167,15 @@ def test_queued_jobs_of_a_phrase_follow_its_new_text_running_ones_do_not(
     phrase_id = _added(repo)
     _job(db_session, phrase_id, JobType.MEANING, JobStatus.QUEUED)
     _job(db_session, phrase_id, JobType.MEDIA, JobStatus.QUEUED)
+    _job(db_session, phrase_id, JobType.POLISH, JobStatus.QUEUED)
     _job(db_session, phrase_id, JobType.TTS, JobStatus.RUNNING)
 
     repo.write_text(phrase_id, phrase("He glared again."), POSITION)
 
     assert _jobs(db_session, phrase_id) == {
-        "meaning": ("queued", 1), "media": ("queued", 1), "tts": ("running", 0),
+        "meaning": ("queued", 1), "media": ("queued", 1), "polish": ("queued", 1),
+        "tts": ("running", 0),
     }
-
-
-@pytest.mark.parametrize(("by_user", "polish_left"), [(True, False), (False, True)])
-def test_only_the_user_s_text_drops_a_queued_polish(
-    repo: SqlaOccurrenceRepository, db_session: Session, by_user: bool, polish_left: bool,
-) -> None:
-    phrase_id = _added(repo)
-    _job(db_session, phrase_id, JobType.POLISH, JobStatus.QUEUED)
-
-    repo.write_text(phrase_id, phrase("He glared again."), POSITION, by_user=by_user)
-
-    assert ("polish" in _jobs(db_session, phrase_id)) is polish_left
 
 
 def test_set_shown_and_skipped(repo: SqlaOccurrenceRepository) -> None:

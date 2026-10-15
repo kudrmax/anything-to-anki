@@ -39,6 +39,6 @@ class RevertPhrasePolishUseCase:
         if occ.polish_reverted != reverted:
             self._occurrences.write_text(
                 phrase_id, occ.source_phrase, occ.phrase_position,
-                polished=polished, polish_reverted=reverted, by_user=True,
+                polished=polished, polish_reverted=reverted,
             )
             self._enrichment_reset.reset_phrase(phrase_id)

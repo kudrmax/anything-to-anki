@@ -48,16 +48,14 @@ class OccurrenceRepository(ABC):
         *,
         polished: Phrase | None = None,
         polish_reverted: bool = False,
-        by_user: bool = False,
         edited_by_user: bool = False,
     ) -> None:
         """The only way to change a phrase's text; rewrites its words from the text it shows.
 
         When the text the phrase shows changes, its revision goes up: a running job was made
-        for the old text and ends without writing, while its queued meaning, speech and clip
-        follow the new text. `by_user`: the user wrote this text (edit, boundary, revert), so
-        a queued polish goes rather than overwrite it. `edited_by_user` marks the phrase as
-        cut by the user; the mark is never taken off."""
+        for the old text and ends without writing, while its queued jobs follow the new text
+        (a queued polish still skips a phrase that has a polished text by then).
+        `edited_by_user` marks the phrase as cut by the user; the mark is never taken off."""
 
     @abstractmethod
     def holds_revision(self, occurrence_id: int, revision: int) -> bool:

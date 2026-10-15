@@ -43,4 +43,4 @@ class EditCardPhraseUseCase:
             raise InvalidPhraseError("Phrase cannot be empty")
         if edited == occ.phrase.text:
             return
-        self._rewrite_phrase.of_phrase(occ, word.lemma, edited, by_user=True)
+        self._rewrite_phrase.of_phrase(occ, word.lemma, edited)

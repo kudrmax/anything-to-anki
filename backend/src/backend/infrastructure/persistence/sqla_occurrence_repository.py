@@ -4,11 +4,10 @@ import json
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CursorResult, delete, exists, or_, select, update
+from sqlalchemy import CursorResult, exists, or_, select, update
 
 from backend.domain.ports.occurrence_repository import OccurrenceRepository
 from backend.domain.value_objects.job_status import JobStatus
-from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.word_row import WordRow
@@ -51,8 +50,6 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 
 ACTIVE_JOB_STATUSES = (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
-# Made from the text the phrase shows when they run: queued ones follow a new text.
-TEXT_FOLLOWING_JOBS = (JobType.MEANING, JobType.TTS, JobType.MEDIA)
 
 
 @dataclass(frozen=True)
@@ -219,7 +216,6 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         *,
         polished: Phrase | None = None,
         polish_reverted: bool = False,
-        by_user: bool = False,
         edited_by_user: bool = False,
     ) -> None:
         model = self._session.get(PhraseModel, occurrence_id)
@@ -232,28 +228,23 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         model.polish_reverted = polish_reverted
         if _text_of(model.shown_text) != shown_before:
             model.revision += 1
-            self._jobs_follow_new_text(occurrence_id, model.revision, by_user=by_user)
+            self._queued_jobs_follow(occurrence_id, model.revision)
         if edited_by_user:
             model.edited_by_user = True
         self._session.flush()
         self._words.rewrite({model.id: model.shown_text})
 
-    def _jobs_follow_new_text(self, occurrence_id: int, revision: int, *, by_user: bool) -> None:
-        queued = (JobModel.phrase_id == occurrence_id) & (
-            JobModel.status == JobStatus.QUEUED.value
-        )
+    def _queued_jobs_follow(self, occurrence_id: int, revision: int) -> None:
+        """Queued jobs read the phrase when they run, so they work on the new text."""
         self._session.execute(
             update(JobModel)
-            .where(queued, JobModel.job_type.in_([t.value for t in TEXT_FOLLOWING_JOBS]))
+            .where(
+                JobModel.phrase_id == occurrence_id,
+                JobModel.status == JobStatus.QUEUED.value,
+            )
             .values(phrase_revision=revision)
             .execution_options(synchronize_session=False)
         )
-        if by_user:
-            self._session.execute(
-                delete(JobModel)
-                .where(queued, JobModel.job_type == JobType.POLISH.value)
-                .execution_options(synchronize_session=False)
-            )
 
     def holds_revision(self, occurrence_id: int, revision: int) -> bool:
         # A write, not a read: it takes the database's write lock, so no Rebuild can change

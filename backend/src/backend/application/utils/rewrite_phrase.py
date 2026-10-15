@@ -23,15 +23,12 @@ class RewritePhrase:
         self._occurrence_repo = occurrence_repo
         self._phrase_reader = phrase_reader
 
-    def of_phrase(
-        self, occurrence: Occurrence, lemma: str, text: str, *, by_user: bool,
-    ) -> Phrase:
-        """The new text of one phrase of the word `lemma`; `by_user`: written by hand, not
-        by AI."""
+    def of_phrase(self, occurrence: Occurrence, lemma: str, text: str) -> Phrase:
+        """The new text of one phrase of the word `lemma`."""
         assert occurrence.id is not None
         phrase = self._phrase_reader.read_for(text, lemma)
         self._occurrence_repo.write_text(
             occurrence.id, occurrence.source_phrase, occurrence.phrase_position,
-            polished=phrase, by_user=by_user,
+            polished=phrase,
         )
         return phrase

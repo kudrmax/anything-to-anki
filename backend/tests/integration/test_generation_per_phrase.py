@@ -1,6 +1,7 @@
 """Generation results belong to phrases: the job's phrase, at the revision it expects."""
 from __future__ import annotations
 
+import dataclasses
 import json
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
@@ -10,6 +11,7 @@ from backend.application.dto.candidate_dtos import SelectionDTO
 from backend.application.use_cases.edit_card_phrase import EditCardPhraseUseCase
 from backend.application.use_cases.enqueue_phrase_polish import EnqueuePhrasePolishUseCase
 from backend.application.use_cases.generate_tts import GenerateTTSUseCase
+from backend.application.use_cases.polish_phrases import PhrasePolishUseCase
 from backend.application.use_cases.revert_phrase_polish import RevertPhrasePolishUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
@@ -21,6 +23,7 @@ from backend.domain.entities.job import Job
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_ref import PhraseRef
+from backend.domain.value_objects.polished_phrase import PolishedPhrase
 from backend.domain.value_objects.prompts_config import PromptsConfig
 from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
 from backend.infrastructure.persistence.database import create_session_factory
@@ -256,9 +259,7 @@ def _polish_lands(session: Session) -> None:
     occurrences = SqlaOccurrenceRepository(session)
     occurrence = occurrences.get(PRIMARY)
     assert occurrence is not None
-    RewritePhrase(_reader(), occurrences).of_phrase(
-        occurrence, "glare", PHRASE_TEXT, by_user=False,
-    )
+    RewritePhrase(_reader(), occurrences).of_phrase(occurrence, "glare", PHRASE_TEXT)
 
 
 def _revert_polish(session: Session) -> None:
@@ -371,16 +372,69 @@ class TestQueuedJobsFollowTheText:
         assert _meanings(factory) == {PRIMARY: "to look angrily"}
         assert PHRASE_TEXT in ai_service.generate_meanings_batch.call_args.args[1]
 
-    def test_a_hand_edit_drops_a_queued_polish(self, factory: sessionmaker[Session]) -> None:
+    def test_a_queued_polish_does_nothing_after_a_hand_edit(
+        self, factory: sessionmaker[Session],
+    ) -> None:
+        """The hand edit fills the polished text, so the polish has nothing left to do."""
         with factory() as session:
             _enqueue_polish(session)
             session.commit()
-        assert "polish" in _queued(factory)
         with factory() as session:
             _edit(session)
             session.commit()
+        ai_service = MagicMock()
 
-        assert "polish" not in _queued(factory)
+        _run_queued_polish(factory, ai_service)
+
+        ai_service.polish_phrases_batch.assert_not_called()
+        assert _shown_text(factory) == PHRASE_TEXT
+
+    def test_a_queued_polish_polishes_the_new_text_after_a_boundary_change(
+        self, factory: sessionmaker[Session],
+    ) -> None:
+        with factory() as session:
+            _enqueue_polish(session)
+            session.commit()
+        with factory() as session:
+            _set_boundary(session)
+            session.commit()
+        ai_service = MagicMock()
+        ai_service.polish_phrases_batch.return_value = [PolishedPhrase(1, POLISHED_TEXT)]
+
+        _run_queued_polish(factory, ai_service)
+
+        assert PHRASE_TEXT in ai_service.polish_phrases_batch.call_args.args[1]
+        assert _shown_text(factory) == POLISHED_TEXT
+
+
+POLISHED_TEXT = "He glared at me angrily."
+POLISH_CONFIG = dataclasses.replace(CONFIG, polish_phrase_user_template="{phrase}")
+
+
+def _run_queued_polish(factory: sessionmaker[Session], ai_service: MagicMock) -> None:
+    polish = _queued(factory)["polish"]
+    assert polish.phrase_revision == _revision(factory)
+    with factory() as session:
+        occurrences = SqlaOccurrenceRepository(session)
+        PhrasePolishUseCase(
+            job_phrases=_job_phrases(session),
+            occurrence_repo=occurrences,
+            source_repo=SqlaSourceRepository(session),
+            document_repo=SqlaDocumentRepository(session),
+            settings_repo=MagicMock(get=MagicMock(return_value="B1")),
+            enrichment_reset=MagicMock(),
+            ai_service=ai_service,
+            prompts_config=POLISH_CONFIG,
+            rewrite_phrase=RewritePhrase(_reader(), occurrences),
+        ).execute_batch([PhraseRef(PRIMARY, polish.phrase_revision)])
+        session.commit()
+
+
+def _shown_text(factory: sessionmaker[Session]) -> str:
+    with factory() as session:
+        found = SqlaOccurrenceRepository(session).get(PRIMARY)
+        assert found is not None
+        return found.phrase.text
 
 
 class TestJobsWriteToTheirOwnPhrase:

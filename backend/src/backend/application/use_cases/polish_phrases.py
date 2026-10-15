@@ -142,9 +142,7 @@ class PhrasePolishUseCase:
         the target is discarded: the source phrase stays, marked as polished."""
         text = " ".join(_BOLD_MARKERS.sub(r"\1", answer).split()).strip(_WRAPPING_QUOTES)
         try:
-            return self._rewrite_phrase.of_phrase(
-                card.phrase, card.word.lemma, text, by_user=False,
-            ).text
+            return self._rewrite_phrase.of_phrase(card.phrase, card.word.lemma, text).text
         except TargetNotInPhraseError:
             logger.warning(
                 "PhrasePolish: answer lost the target, keeping the source phrase "
