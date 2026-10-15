@@ -4,13 +4,35 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from alembic import command
 from alembic.config import Config
+from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
+from backend.application.utils.decided_elsewhere import DecidedElsewhere
+from backend.application.utils.user_vocabulary import UserVocabulary
+from backend.domain.services.card_decision import DecisionAction
 from backend.infrastructure.persistence import database
+from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
+    SqlaCandidateClozeRepository,
+)
+from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+from backend.infrastructure.persistence.sqla_known_word_removal_repository import (
+    SqlaKnownWordRemovalRepository,
+)
+from backend.infrastructure.persistence.sqla_known_word_repository import SqlaKnownWordRepository
+from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
+from backend.infrastructure.persistence.sqla_occurrence_repository import (
+    SqlaOccurrenceRepository,
+)
+from backend.infrastructure.persistence.sqla_unknown_word_repository import (
+    SqlaUnknownWordRepository,
+)
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.orm import Session
 
+from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
@@ -40,7 +62,9 @@ CARD_L = 11  # LEARN, not exported
 CARD_K = 12  # exported, PENDING again, same lemma as L, newer
 CARD_M = 13  # pronunciation and picture
 CARD_N = 14  # same lemma as M, newer, its own pronunciation and picture
-CARD_COUNT = 14
+CARD_O = 15  # KNOWN, its Known put the lemma into known words
+CARD_P = 16  # KNOWN, its lemma is not in known words
+CARD_COUNT = 16
 
 NOTE_A = 111
 NOTE_G = 222
@@ -250,6 +274,14 @@ def _seed(conn: Connection) -> None:
             ),
             {"c": card_id, "p": f"/img/{card_id}.webp"},
         )
+    for card_id, lemma in ((CARD_O, "ponder"), (CARD_P, "muse")):
+        _card(
+            conn, card_id, EXPORTED_PAIR_SOURCE, lemma, "known",
+            _stored_phrase(f"They {lemma}.", lemma), [0, card_id, 0, card_id, 12],
+        )
+    conn.execute(text(
+        "INSERT INTO known_words (lemma, pos, created_at) VALUES ('ponder', 'VERB', '2026-01-01')"
+    ))
 
 
 @pytest.fixture
@@ -278,15 +310,54 @@ def _phrase_of(db_url: str, word_id: int, text_start: str) -> dict[str, object]:
 def test_one_word_per_lemma_and_every_card_is_a_phrase(db_url: str) -> None:
     words = _rows(db_url, "SELECT id, lemma, status FROM candidates ORDER BY id")
     assert [w["id"] for w in words] == [
-        CARD_A, CARD_D, CARD_TOPIC, CARD_SPANNING, CARD_H, CARD_I, CARD_L, CARD_N,
+        CARD_A, CARD_D, CARD_TOPIC, CARD_SPANNING, CARD_H, CARD_I, CARD_L, CARD_N, CARD_O,
+        CARD_P,
     ]
     assert len(_rows(db_url, "SELECT id FROM phrases")) == CARD_COUNT
 
 
-def test_no_old_known_word_claims_it_added_the_lemma_to_known(db_url: str) -> None:
-    """Undoing an old Known never forgets the lemma: who added it is not known."""
-    marked = "SELECT id FROM candidates WHERE known_added != 0 OR was_unknown != 0"
-    assert _rows(db_url, marked) == []
+def test_an_old_known_word_added_its_lemma_to_known_when_known_words_hold_it(
+    db_url: str,
+) -> None:
+    """As before the migration, undoing an old Known forgets the lemma it put in Known;
+    whether the lemma was unknown before is not known, so nothing goes back to Unknown."""
+    rows = _rows(
+        db_url, "SELECT id, known_added, was_unknown FROM candidates"
+        " WHERE known_added != 0 OR was_unknown != 0",
+    )
+    assert rows == [{"id": CARD_O, "known_added": 1, "was_unknown": 0}]
+
+
+def test_undoing_a_migrated_known_takes_the_lemma_out_of_known(db_url: str) -> None:
+    engine = create_engine(db_url)
+    phrase_id = _phrase_of(db_url, CARD_O, "They ponder")["id"]
+    assert isinstance(phrase_id, int)
+    with Session(engine) as session:
+        _decide_phrase(session).execute(phrase_id, DecisionAction.PENDING)
+        session.commit()
+    assert _rows(db_url, "SELECT lemma FROM known_words WHERE lemma = 'ponder'") == []
+    assert _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_O) == [
+        {"status": "pending"},
+    ]
+
+
+def _decide_phrase(session: Session) -> DecidePhraseUseCase:
+    vocabulary = UserVocabulary(
+        known_word_repo=SqlaKnownWordRepository(session),
+        unknown_word_repo=SqlaUnknownWordRepository(session),
+        learning_query=SqlaLearningQuery(session),
+        removal_repo=SqlaKnownWordRemovalRepository(session),
+    )
+    return DecidePhraseUseCase(
+        occurrence_repo=SqlaOccurrenceRepository(session),
+        candidate_repo=SqlaCandidateRepository(session),
+        vocabulary=vocabulary,
+        decision_repo=MagicMock(),
+        review_status=MagicMock(),
+        cloze_repo=SqlaCandidateClozeRepository(session),
+        decided_elsewhere=DecidedElsewhere(vocabulary),
+        lock=free_lock(),
+    )
 
 
 def test_duplicate_of_an_exported_card_becomes_its_manual_phrase(db_url: str) -> None:
@@ -403,7 +474,7 @@ def test_a_source_left_processing_is_new_again_and_no_stage_is_stored(db_url: st
 
 
 def test_old_known_words_are_not_from_anki(db_url: str) -> None:
-    assert _rows(db_url, "SELECT from_anki FROM known_words") == [{"from_anki": 0}]
+    assert {r["from_anki"] for r in _rows(db_url, "SELECT from_anki FROM known_words")} == {0}
 
 
 def test_target_on_the_next_line_is_keyed_on_that_line(db_url: str) -> None:

@@ -43,6 +43,7 @@ PHRASE_LEVEL_JOB_TYPES = ("polish", "meaning", "media", "tts")
 DECIDED_STATUSES = ("learn", "known")
 SKIP_STATUS = "skip"
 PENDING_STATUS = "pending"
+KNOWN_STATUS = "known"
 NEW_STATUS = "new"
 PROCESSING_STATUS = "processing"
 COLLECTED_ROLES = ("topic", "saved_phrases")
@@ -91,6 +92,7 @@ def upgrade() -> None:
     _notes_from_exports(conn, now)
     _rekey_results()
     _drop_card_columns()
+    _known_words_added_by_cards(conn)
     _sources_without_processing(conn)
     _create_indexes()
     _fill_phrase_words(conn)
@@ -554,7 +556,6 @@ def _drop_card_columns() -> None:
     ) as batch:
         for column in (*PHRASE_COLUMNS, *WORD_ORIGIN_COLUMNS):
             batch.drop_column(column)
-        # Unknown for old Known words: off, so undoing one never forgets a word known before.
         batch.add_column(
             sa.Column("known_added", sa.Boolean(), nullable=False, server_default="0"),
         )
@@ -566,6 +567,20 @@ def _drop_card_columns() -> None:
             "fk_jobs_phrase_id_phrases", "phrases", ["phrase_id"], ["id"], ondelete="CASCADE",
         )
         batch.create_index("ix_jobs_phrase_id", ["phrase_id"])
+
+
+def _known_words_added_by_cards(conn: sa.Connection) -> None:
+    """An old Known whose lemma is in Known put it there, as undoing it always assumed: undo
+    still forgets it. Whether the lemma was unknown before is not known, so `was_unknown`
+    stays off."""
+    conn.execute(
+        sa.text(
+            "UPDATE candidates SET known_added = 1 WHERE status = :known AND EXISTS"
+            " (SELECT 1 FROM known_words k WHERE k.lemma = candidates.lemma"
+            " AND k.pos IS candidates.pos)"
+        ),
+        {"known": KNOWN_STATUS},
+    )
 
 
 def _sources_without_processing(conn: sa.Connection) -> None:
