@@ -9,7 +9,8 @@ anything-to-anki/
 ├── config/                               # Конфигурация (prompts.yaml и др.)
 ├── data/                                 # Данные этой рабочей копии (в .gitignore)
 │   ├── app.db                            # SQLite: данные приложения и очередь job'ов
-│   ├── media/                            # Скриншоты и аудио из видео
+│   ├── backups/                          # Копии app.db перед миграцией (последние 5)
+│   ├── media/                            # Скриншоты и аудио фраз (p{phrase_id}_…)
 │   └── videos/                           # Скачанные видео
 ├── .venv/                                # Python-окружение копии (в .gitignore), создаёт make setup
 ├── .logs/ и .pids/                       # Логи и PID-файлы запущенных процессов (в .gitignore)
@@ -38,3 +39,5 @@ anything-to-anki/
 - `infrastructure/` — adapters, api, persistence, queue, services, config, container
 
 Подробная таблица слоёв — `docs/architecture.md`.
+
+**Слова и фразы:** слово — таблица `candidates`, фраза — `phrases`, карточка = показанная фраза. Отбор, защита и план пересборки — `domain/services/` (`phrase_selection`, `phrase_protection`, `rebuild_plan`); пересборка — `application/use_cases/rebuild_source.py` (`RebuildSource`, `PreviewRebuild`), обновление темы — `refresh_topic.py`, решения — `decide_phrase.py`, зрелость в Anki — `check_anki_progress.py`. Кэш разбора — `CachingDocumentAnalyzer` в `infrastructure/adapters/`, таблица `document_parses`. Модель и поведение — `docs/architecture.md` и `docs/specs/words-phrases-rebuild.md`.

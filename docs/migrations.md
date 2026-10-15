@@ -30,3 +30,11 @@ alembic -c alembic.ini upgrade head
 - **Данные мигрировать тоже через Alembic** — отдельной data-миграцией (см. `0004_migrate_candidate_enrichments_data.py` как пример)
 - **Не переименовывать существующие ревизии** — линия истории важна, `alembic_version` в БД ссылается на конкретные id
 - При старте приложения `run_alembic_migrations()` автоматически дотягивает БД до `head` — никаких ручных `alembic upgrade` на prod не нужно
+
+## Миграция 0049: слова и фразы
+
+`0049_words_and_phrases` сливает карточки в слова (`candidates`, одно на лемму источника) и фразы (`phrases`), переносит результаты генерации, задачи и `anki_synced_cards` на `phrase_id`, убирает `enrichment_cache`.
+
+- Перед миграцией `DatabaseBackup` копирует БД в `data/backups/app-<UTC>.db`; хранятся последние 5 (`BACKUPS_KEPT`), старые уходят в `backups/.trash/`, не удаляются.
+- Миграция **односторонняя**: откат данных невозможен, вернуться можно только из копии.
+- Есть opt-in тест на копии prod-БД (только чтение, миграция идёт на копии во временной папке): `MIGRATION_PROD_COPY=1 DICTIONARIES_DIR=... .venv/bin/python -m pytest backend/tests/integration/test_migration_0049_on_prod_copy.py -q -s`. Пока не запускался. БД должна быть на ревизии 0048.
