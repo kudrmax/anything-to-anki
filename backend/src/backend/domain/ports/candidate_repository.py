@@ -18,15 +18,8 @@ class CandidateRepository(ABC):
         occurrence repository."""
 
     @abstractmethod
-    def set_word_status(
-        self,
-        candidate_id: int,
-        status: WordStatus,
-        *,
-        was_unknown: bool = False,
-    ) -> None:
-        """The decision on the word; the phrase of the decision is the phrases' business.
-        `was_unknown`: the user had marked it unknown before a Known decision."""
+    def set_word_status(self, candidate_id: int, status: WordStatus) -> None:
+        """The decision on the word; the phrase of the decision is the phrases' business."""
 
     @abstractmethod
     def word_id(self, source_id: int, key: WordKey) -> int | None:

@@ -50,10 +50,6 @@ class UserVocabulary:
         """Takes back the Known of a card."""
         self.__known.remove_by_lemma(lemma, pos)
 
-    def restore_unknown(self, lemma: str) -> None:
-        """Puts back an Unknown a card decision took away."""
-        self.__unknown.add(lemma)
-
     def mark_mature(self, lemma: str, pos: str | None) -> bool:
         """Anki says the word is learned: Known, unless it is known already or the user marked it
         unknown. Returns whether it was applied."""

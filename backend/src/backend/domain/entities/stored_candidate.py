@@ -19,9 +19,6 @@ class StoredCandidate:
 
     `pronunciation` and `meaning_image` belong to the word and are loaded with it; they may
     be None when nothing was made yet.
-
-    `was_unknown`: the user had marked the lemma unknown before its Known — undoing it marks
-    it unknown again.
     """
 
     source_id: int
@@ -32,7 +29,6 @@ class StoredCandidate:
     occurrences: int
     status: WordStatus
     is_phrasal_verb: bool = False
-    was_unknown: bool = False
     pronunciation: CandidatePronunciation | None = None
     meaning_image: CandidateMeaningImage | None = None
     id: int | None = None

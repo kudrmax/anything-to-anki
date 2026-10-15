@@ -349,34 +349,3 @@ def test_anki_failing_during_the_check_is_anki_not_available(bench: Bench) -> No
         bench.check()
     assert bench.note(NOTE).matured_at is None
     assert bench.note(NOTE).deleted_at is None
-
-
-# ── Known on a card of a word the user marked unknown ─────────────────
-
-
-@pytest.mark.parametrize("leave", [
-    DecisionAction.PENDING, DecisionAction.LEARN, DecisionAction.SKIP,
-])
-def test_leaving_known_restores_a_word_the_user_marked_unknown(
-    bench: Bench, leave: DecisionAction,
-) -> None:
-    bench.vocabulary.mark_unknown("glare")
-    insert_word(bench.session, 1, lemma="glare")
-    bench.decide(phrase_id_of(1), DecisionAction.KNOWN)
-    assert bench.is_known("glare")
-    assert not bench.vocabulary.snapshot().is_unknown("glare")
-
-    bench.decide(phrase_id_of(1), leave)
-
-    assert bench.vocabulary.snapshot().is_unknown("glare")
-    assert not bench.is_known("glare")
-
-
-def test_leaving_known_does_not_mark_unknown_a_word_that_was_not(bench: Bench) -> None:
-    insert_word(bench.session, 1, lemma="glare")
-    bench.decide(phrase_id_of(1), DecisionAction.KNOWN)
-
-    bench.decide(phrase_id_of(1), DecisionAction.PENDING)
-
-    assert not bench.vocabulary.snapshot().is_unknown("glare")
-    assert not bench.is_known("glare")

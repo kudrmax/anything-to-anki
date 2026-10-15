@@ -383,8 +383,6 @@ class StoredCandidateModel(Base):
     occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False, default=False)
-    # The lemma was in the user's Unknown before the word's Known (undo puts it back there).
-    was_unknown: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="0")
     usage_distribution_json: Mapped[str | None] = mapped_column(
         "usage_distribution", Text, nullable=True
     )
@@ -405,7 +403,6 @@ class StoredCandidateModel(Base):
             occurrences=data.occurrence_count,
             is_phrasal_verb=self.is_phrasal_verb,
             status=WordStatus(self.status),
-            was_unknown=self.was_unknown,
             cefr_breakdown=data.cefr_breakdown,
             usage_distribution=data.usage_distribution,
         )

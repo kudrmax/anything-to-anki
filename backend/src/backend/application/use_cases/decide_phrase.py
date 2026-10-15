@@ -65,21 +65,13 @@ class DecidePhraseUseCase:
             self._decided_elsewhere.of(word.lemma) if before is WordStatus.PENDING else None
         )
         outcome = decide(occ, before, action, elsewhere)
-        was_unknown = (
-            outcome.word_status is WordStatus.KNOWN
-            and self._vocabulary.snapshot().is_unknown(word.lemma)
-        )
-        self._write(occ, before, outcome, was_unknown)
+        self._write(occ, before, outcome)
         self._follow(word, before, outcome.word_status)
 
-    def _write(
-        self, occ: Occurrence, before: WordStatus, outcome: DecisionOutcome, was_unknown: bool,
-    ) -> None:
+    def _write(self, occ: Occurrence, before: WordStatus, outcome: DecisionOutcome) -> None:
         assert occ.id is not None
         if outcome.word_status is not before:
-            self._candidates.set_word_status(
-                occ.candidate_id, outcome.word_status, was_unknown=was_unknown,
-            )
+            self._candidates.set_word_status(occ.candidate_id, outcome.word_status)
         if (outcome.is_decision, outcome.decision_kind) != (occ.is_decision, occ.decision_kind):
             self._occurrences.set_decision(
                 occ.candidate_id, occ.id if outcome.is_decision else None, outcome.decision_kind,
@@ -99,8 +91,6 @@ class DecidePhraseUseCase:
             self._vocabulary.mark_known(word.lemma, word.pos)
         elif before is WordStatus.KNOWN:
             self._vocabulary.forget_known(word.lemma, word.pos)
-            if word.was_unknown:
-                self._vocabulary.restore_unknown(word.lemma)
         self._remember_decision(word, before, after)
         self._review_status.refresh(word.source_id)
         self._review_status.refresh_showing({word.lemma.lower()})
