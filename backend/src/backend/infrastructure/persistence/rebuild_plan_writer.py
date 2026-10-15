@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from backend.domain.services.rebuild_plan import (
         NewWord,
         OccurrenceInsert,
+        OccurrenceRekey,
         OccurrenceScoreUpdate,
         OccurrenceTextUpdate,
         RebuildPlan,
@@ -47,6 +48,7 @@ class RebuildPlanWriter:
     def apply(self, plan: RebuildPlan) -> list[int]:
         """Returns the ids of the inserted phrases, in the order of the plan's inserts."""
         self._delete_phrases(plan.occ_to_delete)
+        self._rekey(plan.occ_to_rekey)
         self._delete_words(plan.words_to_delete)
         self._update_words(plan.words_to_update)
         self._create_words(plan.source_id, plan.words_to_create)
@@ -61,6 +63,17 @@ class RebuildPlanWriter:
     def _delete_phrases(self, ids: Sequence[int]) -> None:
         for chunk in chunks(ids):
             self._session.execute(delete(PhraseModel).where(PhraseModel.id.in_(chunk)))
+
+    def _rekey(self, rekeys: Sequence[OccurrenceRekey]) -> None:
+        if rekeys:
+            self._session.execute(
+                update(PhraseModel),
+                [
+                    {"id": r.occurrence_id, "block": r.key.block, "line": r.key.line,
+                     "char": r.key.char}
+                    for r in rekeys
+                ],
+            )
 
     def _delete_words(self, ids: Sequence[int]) -> None:
         for chunk in chunks(ids):

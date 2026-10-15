@@ -58,6 +58,14 @@ class OccurrenceTextUpdate:
 
 
 @dataclass(frozen=True)
+class OccurrenceRekey:
+    """A phrase found again where its key moved within its line: it takes the new key."""
+
+    occurrence_id: int
+    key: OccurrenceKey
+
+
+@dataclass(frozen=True)
 class OccurrenceScoreUpdate:
     occurrence_id: int
     fragment_score: float
@@ -88,6 +96,7 @@ class RebuildPlan:
     occ_to_insert: tuple[OccurrenceInsert, ...] = ()
     occ_to_update_text: tuple[OccurrenceTextUpdate, ...] = ()
     occ_to_update_score: tuple[OccurrenceScoreUpdate, ...] = ()
+    occ_to_rekey: tuple[OccurrenceRekey, ...] = ()
     occ_to_delete: tuple[int, ...] = ()
     selection_changes: tuple[SelectionChange, ...] = ()
     counts: RebuildCounts = RebuildCounts()
@@ -98,7 +107,7 @@ class RebuildPlan:
         return not (
             self.words_to_create or self.words_to_update or self.words_to_delete
             or self.occ_to_insert or self.occ_to_update_text or self.occ_to_update_score
-            or self.occ_to_delete or self.selection_changes
+            or self.occ_to_rekey or self.occ_to_delete or self.selection_changes
         )
 
 
@@ -111,7 +120,10 @@ def plan_rebuild(
 ) -> RebuildPlan:
     """Match a fresh analysis to the stored words and phrases of a source.
 
-    Auto phrases match by their key, keeping their ids; manual, example and collected ones
+    Auto phrases match by their key, keeping their ids; one whose key the analysis does not
+    have is the free occurrence of its word on its line with the same text, if there is one
+    (the nearest), and takes its key — an older analysis or a migrated card may have keyed
+    the same place differently. Manual, example and collected ones
     are not part of the plan, and an auto occurrence where the word already has one of
     them is not created. Untouchable phrases keep everything; a touched phrase with the
     same text gets its new score, and its new words unless polished; a touched phrase whose
@@ -148,6 +160,7 @@ class _Planner:
         self._inserts: list[OccurrenceInsert] = []
         self._text_updates: list[OccurrenceTextUpdate] = []
         self._score_updates: list[OccurrenceScoreUpdate] = []
+        self._rekeys: list[OccurrenceRekey] = []
         self._deletes: list[int] = []
         self._selection: list[SelectionChange] = []
         self._next_placeholder = -1
@@ -164,6 +177,7 @@ class _Planner:
             occ_to_insert=tuple(self._inserts),
             occ_to_update_text=tuple(self._text_updates),
             occ_to_update_score=tuple(self._score_updates),
+            occ_to_rekey=tuple(self._rekeys),
             occ_to_delete=tuple(self._deletes),
             selection_changes=tuple(self._selection),
             counts=RebuildCounts(
@@ -177,6 +191,7 @@ class _Planner:
 
     def word(self, w: WordRow, rows: list[OccurrenceRow], b: BuiltWord | None) -> None:
         analysed = _by_key(b)
+        rows = [self._found_again(o) for o in _moved_keys(rows, analysed)]
         after: list[OccurrenceRow] = []
         for o in sorted(rows, key=lambda o: o.id):
             kept = self._phrase(o, analysed.get(o.key) if o.key is not None else None, w)
@@ -199,6 +214,14 @@ class _Planner:
             lemma=b.lemma, is_phrasal_verb=b.is_phrasal_verb, data=b.data,
         ))
         self._select(b.key, None, False, [], [], fresh)
+
+    def _found_again(self, moved: tuple[OccurrenceRow, OccurrenceKey | None]) -> OccurrenceRow:
+        o, key = moved
+        if key is None:
+            return o
+        assert o.id > 0
+        self._rekeys.append(OccurrenceRekey(occurrence_id=o.id, key=key))
+        return replace(o, key=key)
 
     def _phrase(
         self, o: OccurrenceRow, analysed: BuiltOccurrence | None, w: WordRow,
@@ -302,6 +325,31 @@ class _Planner:
         placeholder = self._next_placeholder
         self._next_placeholder -= 1
         return placeholder
+
+
+def _moved_keys(
+    rows: list[OccurrenceRow], analysed: dict[OccurrenceKey, BuiltOccurrence],
+) -> list[tuple[OccurrenceRow, OccurrenceKey | None]]:
+    """Every phrase with the key it is found at again, when its own key is not analysed: the
+    nearest occurrence on its line with its text that no phrase of the word holds."""
+    held = {o.key for o in rows if o.key is not None}
+    free = [key for key in analysed if key not in held]
+    moved: list[tuple[OccurrenceRow, OccurrenceKey | None]] = []
+    for o in sorted(rows, key=lambda o: o.id):
+        if o.origin is not OccurrenceOrigin.AUTO or o.key is None or o.key in analysed:
+            moved.append((o, None))
+            continue
+        own = o.key
+        same_place = [
+            key for key in free
+            if (key.block, key.line) == (own.block, own.line)
+            and OccurrenceRow.hash_text(analysed[key].phrase.text) == o.text_hash
+        ]
+        found = min(same_place, key=lambda key: (abs(key.char - own.char), key.char), default=None)
+        if found is not None:
+            free.remove(found)
+        moved.append((o, found))
+    return moved
 
 
 def _by_key(b: BuiltWord | None) -> dict[OccurrenceKey, BuiltOccurrence]:

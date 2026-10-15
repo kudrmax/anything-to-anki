@@ -6,10 +6,11 @@ import random
 from dataclasses import dataclass, field, replace
 
 import pytest
+from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.services.phrase_protection import is_touched, is_untouchable
 from backend.domain.services.phrase_selection import is_frozen, select_phrases
-from backend.domain.services.rebuild_plan import RebuildPlan, plan_rebuild
-from backend.domain.value_objects.built_analysis import BuiltWord, WordKey
+from backend.domain.services.rebuild_plan import OccurrenceRekey, RebuildPlan, plan_rebuild
+from backend.domain.value_objects.built_analysis import BuiltOccurrence, BuiltWord, WordKey
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
@@ -73,6 +74,8 @@ class Store:
             )
         for occurrence_id in plan.occ_to_delete:
             del self.rows[occurrence_id]
+        for rekey in plan.occ_to_rekey:
+            self.rows[rekey.occurrence_id] = replace(self.rows[rekey.occurrence_id], key=rekey.key)
         for text_update in plan.occ_to_update_text:
             old = self.rows[text_update.occurrence_id]
             reset = text_update.reset_results
@@ -458,3 +461,72 @@ def test_a_stale_breakdown_is_rewritten_but_rounding_is_no_change() -> None:
 
     assert same.is_empty
     assert [u.data.cefr_breakdown for u in changed.words_to_update] == [stale]
+
+
+# ── a key that moved within its line ─────────────────────────────────────────
+
+
+def _at(line: int, char: int, *, text: str = TEXTS[0]) -> BuiltOccurrence:
+    return replace(occ(line, text=text), key=OccurrenceKey(block=0, line=line, char=char))
+
+
+@pytest.mark.parametrize("include_open", [False, True])
+def test_a_phrase_whose_key_moved_within_its_line_is_found_again_by_its_text(
+    include_open: bool,
+) -> None:
+    """A phrase keyed by another rule (an older analysis, a migrated card) is the
+    occurrence on its line with the same text: it keeps its id and results."""
+    stored = row(id=5, line=2, shown=SELECTION, has_results=True, text=TEXTS[0])
+    moved = OccurrenceKey(block=0, line=2, char=4)
+
+    result = plan([stored], [word()], [built("glare", _at(2, 4))], include_open=include_open)
+
+    assert result.occ_to_delete == ()
+    assert result.occ_to_insert == ()
+    assert result.occ_to_rekey == (OccurrenceRekey(occurrence_id=5, key=moved),)
+
+
+def test_a_phrase_with_another_text_on_its_line_is_not_that_occurrence() -> None:
+    stored = row(id=5, line=2, shown=SELECTION, text=TEXTS[0])
+
+    result = plan([stored], [word()], [built("glare", _at(2, 4, text=TEXTS[1]))])
+
+    assert result.occ_to_rekey == ()
+    assert result.occ_to_delete == (5,)
+    assert [i.occurrence.key.char for i in result.occ_to_insert] == [4]
+
+
+def test_a_moved_key_goes_to_the_nearest_free_occurrence_of_its_line() -> None:
+    stored = [row(id=5, line=2, text=TEXTS[0], has_results=True), row(id=6, line=3)]
+
+    result = plan(stored, [word()], [built("glare", _at(2, 9), _at(2, 3), occ(3))])
+
+    assert result.occ_to_rekey == (
+        OccurrenceRekey(occurrence_id=5, key=OccurrenceKey(block=0, line=2, char=3)),
+    )
+    assert [i.occurrence.key.char for i in result.occ_to_insert] == [9]
+
+
+def test_a_moved_key_never_takes_an_occurrence_another_phrase_holds() -> None:
+    stored = [
+        row(id=5, line=2, text=TEXTS[0]),
+        replace(row(id=6, line=2, text=TEXTS[0]), key=OccurrenceKey(block=0, line=2, char=4)),
+    ]
+
+    result = plan(stored, [word()], [built("glare", _at(2, 4))])
+
+    assert result.occ_to_rekey == ()
+    assert result.occ_to_delete == (5,)
+
+
+@pytest.mark.parametrize("include_open", [False, True])
+def test_after_a_moved_key_is_found_a_second_rebuild_changes_nothing(
+    include_open: bool,
+) -> None:
+    store = Store(
+        rows={5: row(id=5, line=2, shown=SELECTION, has_results=True)}, words={1: word()},
+    )
+    analysed = [built("glare", _at(2, 4))]
+    store.apply(store.plan(analysed, include_open))
+
+    assert store.plan(analysed, include_open).is_empty

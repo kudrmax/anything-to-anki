@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.candidate_meaning import CandidateMeaning
+from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.services.phrase_selection import SelectionChange
 from backend.domain.services.rebuild_plan import OccurrenceInsert, RebuildPlan, plan_rebuild
 from backend.domain.value_objects.built_analysis import WordKey
@@ -262,3 +263,20 @@ def test_a_book_sized_word_is_written_in_chunks(
     assert {p.fragment_score for p in phrases.values()} == {0.4}
     assert _rebuild(repo, []).words_to_delete != ()
     assert _phrases(db_session) == {}
+
+
+def test_a_phrase_found_again_where_its_key_moved_takes_the_key_with_its_results(
+    repo: SqlaOccurrenceRepository, db_session: Session,
+) -> None:
+    _rebuild(repo, [built("glare", occ(0, 0.5))])
+    [before] = _phrases(db_session).values()
+    _meaning(db_session, before.id, before.candidate_id)
+    moved = replace(occ(0, 0.5), key=OccurrenceKey(block=0, line=0, char=3))
+
+    for include_open in (False, True):
+        _rebuild(repo, [built("glare", moved)], include_open=include_open)
+
+        [after] = _phrases(db_session).values()
+        assert (after.id, after.block, after.line, after.char) == (before.id, 0, 0, 3)
+        assert SqlaCandidateMeaningRepository(db_session).get_by_phrase_id(after.id) is not None
+    assert _plan(repo, [built("glare", moved)], include_open=True).is_empty
