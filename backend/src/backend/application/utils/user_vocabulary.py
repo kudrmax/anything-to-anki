@@ -47,7 +47,7 @@ class UserVocabulary:
         self.__known.add(lemma, pos)
 
     def forget_known(self, lemma: str, pos: str | None) -> None:
-        """Takes back a Known a card decision added."""
+        """Takes back the Known of a card."""
         self.__known.remove_by_lemma(lemma, pos)
 
     def restore_unknown(self, lemma: str) -> None:

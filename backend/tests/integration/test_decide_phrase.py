@@ -182,17 +182,16 @@ def test_known_is_undone_on_the_decision_phrase(bench: Bench) -> None:
 
 
 @pytest.mark.parametrize("undo", [PENDING, LEARN, SKIP])
-def test_leaving_known_keeps_a_word_the_user_knew_before_the_decision(
+def test_leaving_known_forgets_a_word_the_user_knew_before_the_card(
     bench: Bench, undo: DecisionAction,
 ) -> None:
-    """Known via another source or the settings: this card's Known did not add it."""
-    bench.known_words.get_all_pairs.return_value = {(LEMMA, None)}
+    """Known via another source or the settings: leaving this card's Known still forgets it."""
+    bench.known_words.get_all_pairs.return_value = {(LEMMA, "VERB")}
     bench.decide(FIRST, KNOWN)
 
     bench.decide(FIRST, undo)
 
-    bench.known_words.add.assert_not_called()
-    bench.known_words.remove_by_lemma.assert_not_called()
+    bench.known_words.remove_by_lemma.assert_called_once_with(LEMMA, "VERB")
 
 
 @pytest.mark.parametrize("undo", [PENDING, LEARN, SKIP])

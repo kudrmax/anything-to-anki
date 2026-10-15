@@ -40,13 +40,12 @@ class SqlaCandidateRepository(CandidateRepository):
         candidate_id: int,
         status: WordStatus,
         *,
-        known_added: bool = False,
         was_unknown: bool = False,
     ) -> None:
         self._session.execute(
             update(StoredCandidateModel)
             .where(StoredCandidateModel.id == candidate_id)
-            .values(status=status.value, known_added=known_added, was_unknown=was_unknown)
+            .values(status=status.value, was_unknown=was_unknown)
         )
         self._session.flush()
 

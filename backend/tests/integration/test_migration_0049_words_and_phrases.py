@@ -320,18 +320,6 @@ def test_one_word_per_lemma_and_every_card_is_a_phrase(db_url: str) -> None:
     assert len(_rows(db_url, "SELECT id FROM phrases")) == CARD_COUNT
 
 
-def test_an_old_known_word_added_its_lemma_to_known_when_known_words_hold_it(
-    db_url: str,
-) -> None:
-    """As before the migration, undoing an old Known forgets the lemma it put in Known;
-    whether the lemma was unknown before is not known, so nothing goes back to Unknown."""
-    rows = _rows(
-        db_url, "SELECT id, known_added, was_unknown FROM candidates"
-        " WHERE known_added != 0 OR was_unknown != 0",
-    )
-    assert rows == [{"id": CARD_O, "known_added": 1, "was_unknown": 0}]
-
-
 def test_undoing_a_migrated_known_takes_the_lemma_out_of_known(db_url: str) -> None:
     engine = create_engine(db_url)
     phrase_id = _phrase_of(db_url, CARD_O, "They ponder")["id"]

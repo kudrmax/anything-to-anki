@@ -23,12 +23,10 @@ class CandidateRepository(ABC):
         candidate_id: int,
         status: WordStatus,
         *,
-        known_added: bool = False,
         was_unknown: bool = False,
     ) -> None:
         """The decision on the word; the phrase of the decision is the phrases' business.
-        `known_added`: a Known decision that put the lemma into the user's Known;
-        `was_unknown`: the user had marked it unknown before that."""
+        `was_unknown`: the user had marked it unknown before a Known decision."""
 
     @abstractmethod
     def word_id(self, source_id: int, key: WordKey) -> int | None:

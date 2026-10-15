@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.application.utils.source_free import ensure_source_free
@@ -23,18 +22,6 @@ if TYPE_CHECKING:
     from backend.domain.services.card_decision import DecisionAction, DecisionOutcome
 
 DECIDED = frozenset({WordStatus.LEARN, WordStatus.KNOWN})
-
-
-@dataclass(frozen=True)
-class _KnownMark:
-    """What a Known decision changed in the user's lists, to take back when it is left:
-    it added the lemma to Known (`added`), taking it out of Unknown (`was_unknown`)."""
-
-    added: bool = False
-    was_unknown: bool = False
-
-
-_NO_MARK = _KnownMark()
 
 
 class DecidePhraseUseCase:
@@ -78,32 +65,20 @@ class DecidePhraseUseCase:
             self._decided_elsewhere.of(word.lemma) if before is WordStatus.PENDING else None
         )
         outcome = decide(occ, before, action, elsewhere)
-        mark = self._known_mark(word, before, outcome.word_status)
-        self._write(occ, before, outcome, mark)
-        self._follow(word, before, outcome.word_status, mark)
-
-    def _known_mark(
-        self, word: StoredCandidate, before: WordStatus, after: WordStatus,
-    ) -> _KnownMark:
-        """What the word's Known changes: nothing when the user knew the lemma before this
-        decision (another source, the settings)."""
-        if after is not WordStatus.KNOWN:
-            return _NO_MARK
-        if before is WordStatus.KNOWN:
-            return _KnownMark(word.known_added, word.was_unknown)
-        vocabulary = self._vocabulary.snapshot()
-        if vocabulary.is_known(word.lemma):
-            return _NO_MARK
-        return _KnownMark(added=True, was_unknown=vocabulary.is_unknown(word.lemma))
+        was_unknown = (
+            outcome.word_status is WordStatus.KNOWN
+            and self._vocabulary.snapshot().is_unknown(word.lemma)
+        )
+        self._write(occ, before, outcome, was_unknown)
+        self._follow(word, before, outcome.word_status)
 
     def _write(
-        self, occ: Occurrence, before: WordStatus, outcome: DecisionOutcome, mark: _KnownMark,
+        self, occ: Occurrence, before: WordStatus, outcome: DecisionOutcome, was_unknown: bool,
     ) -> None:
         assert occ.id is not None
         if outcome.word_status is not before:
             self._candidates.set_word_status(
-                occ.candidate_id, outcome.word_status,
-                known_added=mark.added, was_unknown=mark.was_unknown,
+                occ.candidate_id, outcome.word_status, was_unknown=was_unknown,
             )
         if (outcome.is_decision, outcome.decision_kind) != (occ.is_decision, occ.decision_kind):
             self._occurrences.set_decision(
@@ -114,17 +89,15 @@ class DecidePhraseUseCase:
         if outcome.drop_cloze and occ.cloze is not None:
             self._cloze_repo.delete_by_phrase_id(occ.id)
 
-    def _follow(
-        self, word: StoredCandidate, before: WordStatus, after: WordStatus, mark: _KnownMark,
-    ) -> None:
+    def _follow(self, word: StoredCandidate, before: WordStatus, after: WordStatus) -> None:
         """The review status changes with any action; knowledge (known or learning) only with
         the word's status, and then in every source showing the lemma."""
         if after is before:
             self._review_status.refresh(word.source_id)
             return
-        if mark.added:
+        if after is WordStatus.KNOWN:
             self._vocabulary.mark_known(word.lemma, word.pos)
-        elif before is WordStatus.KNOWN and word.known_added:
+        elif before is WordStatus.KNOWN:
             self._vocabulary.forget_known(word.lemma, word.pos)
             if word.was_unknown:
                 self._vocabulary.restore_unknown(word.lemma)
