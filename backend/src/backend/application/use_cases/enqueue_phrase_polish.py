@@ -39,9 +39,11 @@ class EnqueuePhrasePolishUseCase:
             raise PhrasePolishNotSupportedError(source_id)
         self._occurrence_repo.write_text(
             card.phrase_id, card.phrase.source_phrase, card.phrase.phrase_position,
-            polished=None,
+            polished=None, bump_revision=True,
         )
+        written = self._occurrence_repo.get(card.phrase_id)
+        assert written is not None
         self._job_repo.enqueue([Job.queued(
             JobType.POLISH, source_id, card.word_id,
-            phrase_id=card.phrase_id, phrase_revision=card.phrase.revision,
+            phrase_id=card.phrase_id, phrase_revision=written.revision,
         )])

@@ -29,6 +29,6 @@ class RewritePhrase:
         phrase = self._phrase_reader.read_for(text, lemma)
         self._occurrence_repo.write_text(
             occurrence.id, occurrence.source_phrase, occurrence.phrase_position,
-            polished=phrase,
+            polished=phrase, bump_revision=phrase.text != occurrence.phrase.text,
         )
         return phrase

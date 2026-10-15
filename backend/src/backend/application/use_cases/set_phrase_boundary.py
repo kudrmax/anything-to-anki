@@ -67,7 +67,9 @@ class SetPhraseBoundaryUseCase:
             phrase = self._phrase_reader.read(
                 text, self._target_in(layout, occ, layout.span(position)),
             )
-        self._occurrences.write_text(occurrence_id, phrase, position, edited_by_user=True)
+        self._occurrences.write_text(
+            occurrence_id, phrase, position, bump_revision=True, edited_by_user=True,
+        )
         if occ.key is None or occ.phrase_position is None:
             self._occurrences.set_key(occurrence_id, layout.target_key(position, phrase))
         logger.info("Set phrase %d: %r", occurrence_id, text)

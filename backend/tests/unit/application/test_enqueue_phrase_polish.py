@@ -58,16 +58,17 @@ def test_video_source_is_refused() -> None:
 @pytest.mark.unit
 def test_polish_again_drops_old_polish_and_queues_the_phrase() -> None:
     use_case, occurrence_repo, job_repo = _use_case()
+    shown = occurrence_repo.get.return_value
+    occurrence_repo.get.side_effect = [shown, replace(shown, polished_phrase=None, revision=2)]
 
     use_case.execute(PHRASE_ID)
 
-    shown = occurrence_repo.get.return_value
     occurrence_repo.write_text.assert_called_once_with(
-        PHRASE_ID, shown.source_phrase, None, polished=None,
+        PHRASE_ID, shown.source_phrase, None, polished=None, bump_revision=True,
     )
     [job] = job_repo.enqueue.call_args.args[0]
     assert (job.job_type, job.candidate_id, job.phrase_id, job.phrase_revision) == (
-        JobType.POLISH, WORD_ID, PHRASE_ID, 1,
+        JobType.POLISH, WORD_ID, PHRASE_ID, 2,
     )
 
 

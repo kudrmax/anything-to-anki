@@ -266,9 +266,20 @@ class TestRunGeneration:
         setup.run.execute(SOURCE_ID, GenerationKind.POLISH, GenerationScope.ALL)
 
         setup.occurrence_repo.write_text.assert_called_once_with(
-            10, shown.source_phrase, None, polished=None,
+            10, shown.source_phrase, None, polished=None, bump_revision=True,
         )
         assert setup.queued_phrases() == [10]
+
+    def test_regenerated_polish_is_queued_at_the_revision_its_discard_left(self) -> None:
+        shown = replace(_phrase(1), polished_phrase=phrase("The air was bad", "bad"))
+        setup = _Setup([(_word(1), [shown])])
+        setup.occurrence_repo.shown_by_word.side_effect = [
+            {1: [shown]}, {1: [replace(shown, polished_phrase=None, revision=1)]},
+        ]
+
+        setup.run.execute(SOURCE_ID, GenerationKind.POLISH, GenerationScope.ALL)
+
+        assert setup.queued() == [(1, 10, 1)]
 
     def test_nothing_to_queue_creates_no_jobs(self) -> None:
         setup = _Setup([_one(1, meaning=True)])

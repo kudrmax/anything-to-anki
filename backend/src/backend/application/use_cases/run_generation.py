@@ -84,6 +84,7 @@ class RunGenerationUseCase:
         if scope == GenerationScope.ALL:
             for card in chosen:
                 target.discard(card)
+            chosen = self._as_now(source_id, chosen)
 
         ordered = self._in_order(chosen, sort_order)
         queued = len(self._job_repo.enqueue([target.job(c) for c in ordered]))
@@ -92,6 +93,12 @@ class RunGenerationUseCase:
             source_id, kind.value, scope.value, queued, sort_order.value,
         )
         return queued
+
+    def _as_now(self, source_id: int, cards: list[GenerationCard]) -> list[GenerationCard]:
+        """The cards as their discards left them: a job carries the revision of the text it
+        is queued for."""
+        ids = {card.phrase_id for card in cards}
+        return [card for card in self._cards.of_source(source_id) if card.phrase_id in ids]
 
     def _in_order(
         self, cards: list[GenerationCard], sort_order: CandidateSortOrder,

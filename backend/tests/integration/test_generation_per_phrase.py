@@ -1,13 +1,22 @@
 """Generation results belong to phrases: the job's phrase, at the revision it expects."""
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
+from backend.application.dto.candidate_dtos import SelectionDTO
+from backend.application.use_cases.edit_card_phrase import EditCardPhraseUseCase
+from backend.application.use_cases.enqueue_phrase_polish import EnqueuePhrasePolishUseCase
 from backend.application.use_cases.generate_tts import GenerateTTSUseCase
+from backend.application.use_cases.revert_phrase_polish import RevertPhrasePolishUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
+from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
+from backend.application.utils.generation_targets import GenerationCard, PolishTarget
 from backend.application.utils.job_phrases import JobPhrases
+from backend.application.utils.requested_cards import RequestedCards
+from backend.application.utils.rewrite_phrase import RewritePhrase
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.prompts_config import PromptsConfig
@@ -27,12 +36,16 @@ from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCan
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
 )
+from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
+from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
+from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from sqlalchemy import select, text, update
 
 from tests.integration.conftest import insert_source
+from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 from tests.word_support import CREATED_AT, insert_word, phrase_id_of
 
@@ -193,6 +206,126 @@ class TestStaleJobs:
             session.commit()
 
         assert _meanings(factory) == {PRIMARY: "to look angrily"}
+
+
+PHRASE_TEXT = "He glared at me."
+DOCUMENT = {
+    "blocks": [{"type": "paragraph", "mode": "flow", "lines": [{"text": PHRASE_TEXT}]}],
+}
+
+
+def _reader() -> MagicMock:
+    reader = MagicMock()
+    reader.read_for.side_effect = lambda text_, _lemma: phrase(text_, "glared")
+    return reader
+
+
+def _polished(session: Session) -> None:
+    session.execute(
+        update(PhraseModel).where(PhraseModel.id == PRIMARY).values(
+            polished_phrase=dump_phrase(phrase("He glared.", "glared")),
+        )
+    )
+
+
+def _set_boundary(session: Session) -> None:
+    session.execute(
+        text("INSERT INTO source_documents (source_id, document) VALUES (:s, :d)"),
+        {"s": SOURCE, "d": json.dumps(DOCUMENT)},
+    )
+    SetPhraseBoundaryUseCase(
+        SqlaOccurrenceRepository(session), SqlaCandidateRepository(session),
+        SqlaDocumentRepository(session), _reader(), free_lock(),
+    ).execute(PRIMARY, SelectionDTO(
+        start_block=0, start_line=0, start_char=0,
+        end_block=0, end_line=0, end_char=len(PHRASE_TEXT),
+    ))
+
+
+def _edit(session: Session) -> None:
+    occurrences = SqlaOccurrenceRepository(session)
+    EditCardPhraseUseCase(
+        occurrences, SqlaCandidateRepository(session),
+        RewritePhrase(_reader(), occurrences), free_lock(),
+    ).execute(PRIMARY, PHRASE_TEXT)
+
+
+def _polish_lands(session: Session) -> None:
+    occurrences = SqlaOccurrenceRepository(session)
+    occurrence = occurrences.get(PRIMARY)
+    assert occurrence is not None
+    RewritePhrase(_reader(), occurrences).of_phrase(occurrence, "glare", PHRASE_TEXT)
+
+
+def _revert_polish(session: Session) -> None:
+    RevertPhrasePolishUseCase(
+        SqlaOccurrenceRepository(session), SqlaCandidateRepository(session),
+        MagicMock(), free_lock(),
+    ).execute(PRIMARY, reverted=True)
+
+
+def _enqueue_polish(session: Session) -> None:
+    occurrences = SqlaOccurrenceRepository(session)
+    candidates = SqlaCandidateRepository(session)
+    EnqueuePhrasePolishUseCase(
+        RequestedCards(candidates, occurrences, free_lock()), occurrences,
+        SqlaSourceRepository(session), SqlaJobRepository(session),
+    ).execute(PRIMARY)
+
+
+def _discard_polish(session: Session) -> None:
+    occurrences = SqlaOccurrenceRepository(session)
+    occurrence = occurrences.get(PRIMARY)
+    word = SqlaCandidateRepository(session).get_by_id(WORD)
+    assert occurrence is not None and word is not None
+    PolishTarget(occurrences).discard(GenerationCard(word, occurrence, in_play=True))
+
+
+def _revision(factory: sessionmaker[Session]) -> int:
+    with factory() as session:
+        found = session.get(PhraseModel, PRIMARY)
+        assert found is not None
+        return found.revision
+
+
+class TestTextWritesOutdateJobs:
+    """A job queued before the user (or a landed polish) changed the phrase's text finishes
+    without writing: its result was made for the old text."""
+
+    @pytest.mark.parametrize(
+        "write",
+        [_set_boundary, _edit, _polish_lands, _revert_polish, _enqueue_polish, _discard_polish],
+        ids=["boundary", "edit", "polish", "revert", "enqueue_polish", "discard_polish"],
+    )
+    def test_a_job_queued_before_the_write_finishes_without_writing(
+        self, factory: sessionmaker[Session], write: Callable[[Session], None],
+    ) -> None:
+        with factory() as session:
+            _polished(session)
+            session.commit()
+        ai_service = _meanwhile(factory, write)
+
+        with factory() as session:
+            unanswered = _meaning_use_case(session, ai_service).execute_batch(
+                [PhraseRef(PRIMARY, 0)],
+            )
+            session.commit()
+
+        assert unanswered == []
+        assert _meanings(factory) == {}
+        assert _revision(factory) == 1
+
+    def test_a_polish_queued_by_hand_carries_the_revision_after_its_write(
+        self, factory: sessionmaker[Session],
+    ) -> None:
+        with factory() as session:
+            _polished(session)
+            _enqueue_polish(session)
+            session.commit()
+
+        with factory() as session:
+            [job] = SqlaJobRepository(session).get_jobs_for_phrases([PRIMARY])[PRIMARY].values()
+        assert job.phrase_revision == _revision(factory) == 1
 
 
 class TestJobsWriteToTheirOwnPhrase:
