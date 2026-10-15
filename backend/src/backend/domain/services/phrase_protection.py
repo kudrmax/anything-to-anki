@@ -10,9 +10,11 @@ if TYPE_CHECKING:
 
 
 def is_untouchable(o: OccurrenceRow) -> bool:
-    """A rebuild never changes the text or results of the phrase, nor deletes it."""
+    """A phrase the user marked or made their own: a rebuild never changes its text or
+    results, nor deletes it."""
     return (
         o.is_decision
+        or o.skipped
         or o.exported
         or o.edited_by_user
         or o.shown_by is ShownBy.USER

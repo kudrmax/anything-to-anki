@@ -332,10 +332,32 @@ def test_an_untouched_word_the_analysis_lost_goes_with_its_phrases() -> None:
 
 
 def test_a_word_with_a_touched_phrase_stays_without_include_open() -> None:
-    skipped = row(id=1, shown=SELECTION, skipped=True)
+    generated = row(id=1, shown=SELECTION, has_results=True)
 
-    assert plan([skipped], [word()], []).words_to_delete == ()
-    assert plan([skipped], [word()], [], include_open=True).words_to_delete == (1,)
+    assert plan([generated], [word()], []).words_to_delete == ()
+    assert plan([generated], [word()], [], include_open=True).words_to_delete == (1,)
+
+
+def test_include_open_keeps_a_skipped_phrase_the_analysis_lost_and_its_word() -> None:
+    skipped = row(id=1, shown=SELECTION, skipped=True, has_results=True)
+
+    result = plan([skipped], [word()], [], include_open=True)
+
+    assert result.occ_to_delete == ()
+    assert result.words_to_delete == ()
+    assert result.is_empty
+
+
+def test_include_open_keeps_the_old_text_and_results_of_a_skipped_phrase() -> None:
+    skipped = row(id=1, score=0.5, shown=SELECTION, skipped=True, has_results=True)
+    analysed = [built("glare", occ(1, 0.5, text="She glared back."))]
+
+    result = plan([skipped], [word()], analysed, include_open=True)
+
+    assert result.occ_to_update_text == ()
+    assert result.occ_to_delete == ()
+    assert result.words_to_delete == ()
+    assert result.counts.cards_text_reset == 0
 
 
 def test_a_polished_phrase_keeps_its_words() -> None:

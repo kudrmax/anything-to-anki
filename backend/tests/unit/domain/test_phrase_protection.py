@@ -37,9 +37,8 @@ def test_a_hidden_phrase_of_a_decided_word_is_not_touched() -> None:
 @pytest.mark.parametrize("touched", [
     row(id=1, has_results=True),
     row(id=1, has_job=True),
-    row(id=1, skipped=True),
 ])
-def test_results_job_and_skip_touch_a_phrase_without_freezing_its_text(
+def test_results_and_a_job_touch_a_phrase_without_freezing_its_text(
     touched: OccurrenceRow,
 ) -> None:
     assert is_touched(touched, word_decided=False)
@@ -48,6 +47,7 @@ def test_results_job_and_skip_touch_a_phrase_without_freezing_its_text(
 
 @pytest.mark.parametrize("untouchable", [
     row(id=1, is_decision=True),
+    row(id=1, skipped=True),
     row(id=1, exported=True),
     row(id=1, edited=True),
     row(id=1, shown=USER),

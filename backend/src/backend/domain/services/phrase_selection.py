@@ -5,6 +5,7 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from backend.domain.services.phrase_protection import is_untouchable
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
 if TYPE_CHECKING:
@@ -29,16 +30,9 @@ class SelectionChange:
 def is_frozen(o: OccurrenceRow, include_open: bool) -> bool:
     """A shown phrase the selection does not take its mark from.
 
-    Results and a running job freeze it unless open cards are rebuilt too; the rest always.
+    An untouchable phrase always; results and a running job unless open cards are rebuilt too.
     """
-    always = (
-        o.is_decision
-        or o.exported
-        or o.skipped
-        or o.edited_by_user
-        or o.origin is not OccurrenceOrigin.AUTO
-    )
-    return always or (not include_open and (o.has_results or o.has_active_job))
+    return is_untouchable(o) or (not include_open and (o.has_results or o.has_active_job))
 
 
 def select_phrases(
