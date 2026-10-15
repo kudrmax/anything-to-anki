@@ -293,15 +293,19 @@ class CEFRBreakdownModel(Base):
 
 def _breakdown_to_model(breakdown: CEFRBreakdown) -> CEFRBreakdownModel:
     """Map domain CEFRBreakdown to SQLAlchemy model: what `CEFRBreakdown.reduced` keeps."""
+    model = CEFRBreakdownModel()
+    _write_breakdown(model, breakdown)
+    return model
+
+
+def _write_breakdown(model: CEFRBreakdownModel, breakdown: CEFRBreakdown) -> None:
     reduced = breakdown.reduced()
-    return CEFRBreakdownModel(
-        decision_method=breakdown.decision_method,
-        cambridge=reduced.level_of(CAMBRIDGE),
-        cefrpy=reduced.level_of(CEFRPY),
-        efllex_distribution=json.dumps(dict(reduced.efllex)) if reduced.efllex else None,
-        oxford=reduced.level_of(OXFORD),
-        kelly=reduced.level_of(KELLY),
-    )
+    model.decision_method = breakdown.decision_method
+    model.cambridge = reduced.level_of(CAMBRIDGE)
+    model.cefrpy = reduced.level_of(CEFRPY)
+    model.efllex_distribution = json.dumps(dict(reduced.efllex)) if reduced.efllex else None
+    model.oxford = reduced.level_of(OXFORD)
+    model.kelly = reduced.level_of(KELLY)
 
 
 def _model_to_breakdown(model: CEFRBreakdownModel) -> CEFRBreakdown:
@@ -434,9 +438,14 @@ class StoredCandidateModel(Base):
         self.occurrences = data.occurrence_count
         groups = data.usage_distribution.to_dict() if data.usage_distribution else None
         self.usage_distribution_json = json.dumps(groups) if groups else None
-        self.cefr_breakdown = (
-            _breakdown_to_model(data.cefr_breakdown) if data.cefr_breakdown is not None else None
-        )
+        # The stored breakdown is rewritten in place: a new row for the word would be
+        # inserted before the old one is deleted and break the one-per-word index.
+        if data.cefr_breakdown is None:
+            self.cefr_breakdown = None
+        elif self.cefr_breakdown is None:
+            self.cefr_breakdown = _breakdown_to_model(data.cefr_breakdown)
+        else:
+            _write_breakdown(self.cefr_breakdown, data.cefr_breakdown)
 
 
     @staticmethod

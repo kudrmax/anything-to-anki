@@ -201,6 +201,20 @@ def test_word_data_follows_the_analysis(repo: SqlaOccurrenceRepository) -> None:
     assert _plan(repo, analysed).is_empty
 
 
+def test_a_word_with_a_stored_cefr_breakdown_gets_the_new_one(
+    repo: SqlaOccurrenceRepository,
+) -> None:
+    before = breakdown(CEFRLevel.B2, {CEFRLevel.B2: 1.0})
+    after = breakdown(CEFRLevel.C1, {CEFRLevel.C1: 1.0})
+    _rebuild(repo, [replace(built("glare", occ(0, 0.5)), cefr_breakdown=before)])
+
+    _rebuild(repo, [replace(built("glare", occ(0, 0.5)), cefr_breakdown=after)])
+
+    [stored] = repo.word_rows(SOURCE)
+    assert stored.data.cefr_breakdown is not None
+    assert stored.data.cefr_breakdown.reduced() == after.reduced()
+
+
 def test_an_insert_at_a_taken_key_keeps_the_stored_phrase_and_its_id(
     repo: SqlaOccurrenceRepository, db_session: Session,
 ) -> None:
