@@ -88,6 +88,26 @@ class TestFullPipeline:
                 assert layout.fragment(position) == occurrence.phrase.text
                 assert position.block == 1
 
+    def test_an_occurrence_is_keyed_where_the_target_of_its_phrase_starts(self) -> None:
+        """One rule for every key — the analysis, a hand-added phrase, a migrated card —
+        even where a phrase word is not one token ("self-esteem")."""
+        document = _prose("Her fragile self-esteem collapsed under relentless scrutiny.")
+        response = self.use_case.execute(document, B1)
+
+        layout = DocumentLayout(document)
+        keyed = {
+            word.lemma: (
+                occurrence.key.to_key(),
+                layout.target_key(occurrence.phrase_position.to_position(), occurrence.phrase),
+            )
+            for word in response.words
+            for occurrence in word.occurrences
+        }
+        assert "esteem" in keyed
+        assert {lemma: own for lemma, (own, _) in keyed.items()} == {
+            lemma: rule for lemma, (_, rule) in keyed.items()
+        }
+
     def test_target_is_the_candidate_word_in_its_phrase(self) -> None:
         response = self.use_case.execute(_prose(PROSE), B1)
 

@@ -14,7 +14,6 @@ from backend.application.dto.analysis_dtos import (
 )
 from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.application.utils.word_knowledge import WordKnowledge
-from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.services.candidate_filter import CandidateFilter
 from backend.domain.services.fragment_selection import (
     FragmentSelectionConfig,
@@ -244,15 +243,15 @@ class _Occurrences:
             unknown_counter=self._unknown_counter(occurrence.protected_indices),
         )
         position = _position(self._layout, self._tokens, selected.indices)
+        phrase = _phrase(
+            self._layout, position, self._tokens, selected.indices, occurrence, self.knowledge,
+        )
         return OccurrenceDTO(
-            phrase=_phrase(
-                self._layout, position, self._tokens, selected.indices, occurrence,
-                self.knowledge,
-            ),
+            phrase=phrase,
             phrase_position=DocumentPositionDTO.from_position(position),
-            key=OccurrenceKeyDTO.from_key(
-                _key(self._layout, self._tokens, occurrence.protected_indices),
-            ),
+            # The one rule of a key, as for a phrase added by hand: where the phrase's target
+            # starts — a phrase word may hold several tokens ("self-esteem").
+            key=OccurrenceKeyDTO.from_key(self._layout.target_key(position, phrase)),
             fragment_score=selected.score.as_number(),
         )
 
@@ -272,15 +271,6 @@ def _most_frequent_form(found: list[_Occurrence]) -> _Form:
     tag = min(tags, key=lambda t: (-tags[t], t))
     parts = Counter(occurrence.pos for occurrence in found if occurrence.tag == tag)
     return _Form(pos=min(parts, key=lambda p: (-parts[p], p)), tag=tag)
-
-
-def _key(
-    layout: DocumentLayout, tokens: list[TokenData], target_indices: Iterable[int],
-) -> OccurrenceKey:
-    """Where the first word of the target starts: block, line, character of the line."""
-    start = min(tokens[i].char_start for i in target_indices if tokens[i].text.strip())
-    place = layout.position(start, start)
-    return OccurrenceKey(block=place.block, line=place.start_line, char=place.start_char)
 
 
 def _position(

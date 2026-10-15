@@ -2,7 +2,8 @@
 
 The cards are what the real analysis cuts from the fixture text; after the migration, a
 Rebuild preview of the unchanged text neither deletes them nor adds a phrase where they are,
-with or without "Also unreviewed cards".
+with or without "Also unreviewed cards" — also where a phrase word is more than one token
+of the analysis ("self-esteem").
 """
 from __future__ import annotations
 
@@ -56,6 +57,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.integration
 
 SOURCE = 100  # migrations seed sources of their own
+HYPHENATED = "esteem"
 DOCUMENT = Document((
     Heading(level=1, text="A reluctant morning"),
     Paragraph(
@@ -67,7 +69,7 @@ DOCUMENT = Document((
     ),
     Paragraph(
         lines=(
-            Line("He glared at the reluctant stranger."),
+            Line("He glared at the reluctant stranger with his fragile self-esteem."),
             Line("They lingered beside the dilapidated cottage until dusk."),
         ),
         mode=ParagraphMode.LINES,
@@ -189,6 +191,7 @@ def test_a_rebuild_of_the_unchanged_text_keeps_every_migrated_phrase_in_place(
         plan = rebuilder.plan(analysed, include_open)
 
     assert len(phrases) == len(words)
+    assert HYPHENATED in {w.lemma for w in words}
     assert {p.origin for p in phrases} == {"auto"}
     word_keys = {
         row.id: row.key
@@ -203,3 +206,4 @@ def test_a_rebuild_of_the_unchanged_text_keeps_every_migrated_phrase_in_place(
     assert plan.words_to_create == ()
     assert migrated_places.isdisjoint(inserted_places)
     assert plan.occ_to_update_text == ()
+    assert plan.occ_to_rekey == ()
