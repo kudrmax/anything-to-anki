@@ -425,7 +425,7 @@ export function LearningWordsList({ store }: { store: SettingsStore }) {
       <p className={css.hint}>{LEARNING_HINT}</p>
       {groups.map(group => (
         <section key={group.title} className={css.learningGroup}>
-          <GroupLabel>{group.title} · {group.words.length}</GroupLabel>
+          <GroupLabel flush>{group.title} · {group.words.length}</GroupLabel>
           <div className={css.words}>
             {group.words.map(lemma => <span key={lemma} className={css.learningWord}>{lemma}</span>)}
           </div>
