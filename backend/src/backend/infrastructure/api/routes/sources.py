@@ -5,6 +5,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy.orm import Session, sessionmaker  # noqa: TC002 — FastAPI reads route annotations
 
 from backend.application.dto.add_source_dtos import (
     AddSourceRequest,
@@ -76,8 +77,6 @@ from backend.infrastructure.persistence.sqla_source_operation_lock import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
-
-    from sqlalchemy.orm import Session
 
     from backend.infrastructure.container import Container
 
@@ -207,7 +206,7 @@ async def process_pending(
     scope: str = "all",
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-    session_factory: object = Depends(get_session_factory),  # noqa: B008
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
 ) -> StartedSourcesDTO:
     use_case = container.process_sources_use_case(session)
     try:
@@ -224,7 +223,7 @@ async def process_batch(
     request: SourceIdsRequest,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-    session_factory: object = Depends(get_session_factory),  # noqa: B008
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
 ) -> StartedSourcesDTO:
     result = container.process_sources_use_case(session).start(
         list(dict.fromkeys(request.source_ids)),
@@ -247,7 +246,9 @@ def delete_batch(
     return result
 
 
-def _launch(source_ids: list[int], container: Container, session_factory: object) -> None:
+def _launch(
+    source_ids: list[int], container: Container, session_factory: sessionmaker[Session],
+) -> None:
     for source_id in source_ids:
         _in_background(_process_background(source_id, container, session_factory))
 
@@ -289,7 +290,7 @@ async def process_source(
     source_id: int,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-    session_factory: object = Depends(get_session_factory),  # noqa: B008
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
 ) -> dict[str, str]:
     try:
         use_case = container.process_source_use_case(session)
@@ -327,12 +328,12 @@ def download_video(
 async def _process_background(
     source_id: int,
     container: Container,
-    session_factory: object,
+    session_factory: sessionmaker[Session],
 ) -> None:
     entered = False
     bg_session: Session | None = None
     try:
-        bg_session = session_factory()  # type: ignore[operator]
+        bg_session = session_factory()
         use_case = container.process_source_use_case(bg_session)
         entered = True
         await asyncio.to_thread(use_case.execute, source_id)
@@ -344,7 +345,7 @@ async def _process_background(
         if not entered:
             _free(source_id, session_factory)
         # Mark source as ERROR in a fresh session
-        err_session: Session = session_factory()  # type: ignore[operator]
+        err_session: Session = session_factory()
         try:
             import traceback
             error_detail = traceback.format_exc()
@@ -418,7 +419,7 @@ async def preview_rebuild(
     source_id: int,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-    session_factory: object = Depends(get_session_factory),  # noqa: B008
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
 ) -> SourceOperationDTO:
     """Starts the analysis of a rebuild; its counts come with the operation's state."""
     operation = _start_rebuild(source_id, SourceOperationKind.PREVIEW, session, container)
@@ -441,7 +442,7 @@ async def rebuild_source(
     request: RebuildRequest,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-    session_factory: object = Depends(get_session_factory),  # noqa: B008
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
 ) -> SourceOperationDTO:
     operation = _start_rebuild(source_id, SourceOperationKind.REBUILD, session, container)
 
@@ -463,7 +464,7 @@ async def refresh_topic(
     source_id: int,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-    session_factory: object = Depends(get_session_factory),  # noqa: B008
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
 ) -> SourceOperationDTO:
     """Adds to a topic the phrases its targets now have in the other sources."""
     try:
@@ -516,7 +517,7 @@ def _start_rebuild(
 async def _operation_background(
     source_id: int,
     operation_id: int,
-    session_factory: object,
+    session_factory: sessionmaker[Session],
     prepare: Callable[[Session], Callable[[], None]],
 ) -> None:
     """`prepare` builds the run in the background session; the run frees the source
@@ -524,7 +525,7 @@ async def _operation_background(
     entered = False
     bg_session: Session | None = None
     try:
-        bg_session = session_factory()  # type: ignore[operator]
+        bg_session = session_factory()
         run = prepare(bg_session)
         entered = True
         await asyncio.to_thread(run)
@@ -538,10 +539,10 @@ async def _operation_background(
             bg_session.close()
 
 
-def _free(source_id: int, session_factory: object) -> None:
+def _free(source_id: int, session_factory: sessionmaker[Session]) -> None:
     """Release a source whose operation never started running."""
     try:
-        session: Session = session_factory()  # type: ignore[operator]
+        session: Session = session_factory()
     except Exception:
         logger.exception("Failed to free source %d", source_id)
         return

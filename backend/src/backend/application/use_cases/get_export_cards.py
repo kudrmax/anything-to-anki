@@ -108,8 +108,8 @@ class GetExportCardsUseCase:
         )
 
         return CardPreviewDTO(
-            candidate_id=candidate.id,  # type: ignore[arg-type]
-            phrase_id=decision.id,  # type: ignore[arg-type]
+            candidate_id=card.word_id,
+            phrase_id=card.phrase_id,
             lemma=candidate.lemma,
             sentence=sentence,
             meaning=(
