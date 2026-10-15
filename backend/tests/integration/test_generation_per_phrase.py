@@ -34,7 +34,7 @@ from sqlalchemy import select, text, update
 
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
-from tests.word_support import CREATED_AT, insert_word
+from tests.word_support import CREATED_AT, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -46,8 +46,8 @@ pytestmark = pytest.mark.integration
 
 SOURCE = 1
 WORD = 10
-PRIMARY = WORD
-OTHER_PHRASE = 11
+PRIMARY = phrase_id_of(WORD)
+OTHER_PHRASE = PRIMARY + 1
 CONFIG = PromptsConfig(
     generate_meaning_user_template="{lemma} {pos} {context}",
     generate_meaning_system="system",

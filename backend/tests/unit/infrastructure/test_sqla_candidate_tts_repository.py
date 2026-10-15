@@ -16,7 +16,7 @@ from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from tests.word_support import insert_word
+from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -53,9 +53,9 @@ class TestUpsert:
             audio_path="/audio/1_tts.m4a",
             generated_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
-        repo.upsert_for_phrase(1, entity)
+        repo.upsert_for_phrase(phrase_id_of(1), entity)
 
-        model = session.get(CandidateTTSModel, 1)
+        model = session.get(CandidateTTSModel, phrase_id_of(1))
         assert model is not None
         assert model.audio_path == "/audio/1_tts.m4a"
         # SQLite drops timezone info, so compare naive datetimes
@@ -66,7 +66,7 @@ class TestUpsert:
     def test_updates_existing_record(self, session: Session) -> None:
         _insert_candidate(session, 1)
         session.add(CandidateTTSModel(
-            phrase_id=1,
+            phrase_id=phrase_id_of(1),
             audio_path="/old.m4a",
             generated_at=datetime(2025, 1, 1, tzinfo=UTC),
         ))
@@ -78,9 +78,9 @@ class TestUpsert:
             audio_path="/new.m4a",
             generated_at=datetime(2026, 6, 1, tzinfo=UTC),
         )
-        repo.upsert_for_phrase(1, entity)
+        repo.upsert_for_phrase(phrase_id_of(1), entity)
 
-        model = session.get(CandidateTTSModel, 1)
+        model = session.get(CandidateTTSModel, phrase_id_of(1))
         assert model is not None
         assert model.audio_path == "/new.m4a"
         assert model.generated_at is not None
@@ -92,20 +92,20 @@ class TestUpsert:
 class TestGetByPhraseId:
     def test_returns_none_for_missing(self, session: Session) -> None:
         repo = SqlaCandidateTTSRepository(session)
-        assert repo.get_by_phrase_id(999) is None
+        assert repo.get_by_phrase_id(phrase_id_of(999)) is None
 
     def test_returns_entity_for_existing(self, session: Session) -> None:
         _insert_candidate(session, 1)
         now = datetime(2026, 3, 15, tzinfo=UTC)
         session.add(CandidateTTSModel(
-            phrase_id=1,
+            phrase_id=phrase_id_of(1),
             audio_path="/audio/1_tts.m4a",
             generated_at=now,
         ))
         session.flush()
 
         repo = SqlaCandidateTTSRepository(session)
-        result = repo.get_by_phrase_id(1)
+        result = repo.get_by_phrase_id(phrase_id_of(1))
 
         assert result is not None
         assert result.candidate_id == 1
@@ -128,15 +128,15 @@ class TestGetByPhraseIds:
         _insert_candidate(session, 3)
         for cid in [1, 3]:
             session.add(CandidateTTSModel(
-                phrase_id=cid,
+                phrase_id=phrase_id_of(cid),
                 audio_path=f"/audio/{cid}_tts.m4a",
                 generated_at=None,
             ))
         session.flush()
 
         repo = SqlaCandidateTTSRepository(session)
-        result = repo.get_by_phrase_ids([1, 2, 3])
+        result = repo.get_by_phrase_ids([phrase_id_of(1), phrase_id_of(2), phrase_id_of(3)])
 
-        assert set(result.keys()) == {1, 3}
-        assert result[1].audio_path == "/audio/1_tts.m4a"
-        assert result[3].audio_path == "/audio/3_tts.m4a"
+        assert set(result.keys()) == {phrase_id_of(1), phrase_id_of(3)}
+        assert result[phrase_id_of(1)].audio_path == "/audio/1_tts.m4a"
+        assert result[phrase_id_of(3)].audio_path == "/audio/3_tts.m4a"

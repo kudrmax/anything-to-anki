@@ -20,10 +20,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from tests.phrase_support import phrase
-from tests.word_support import insert_word
+from tests.word_support import insert_word, phrase_id_of
 
 _NOW = datetime(2026, 10, 4, tzinfo=UTC)
 SOURCE_TEXT = "The air was stale"
+PHRASE_ID = phrase_id_of(1)
 
 
 @pytest.mark.integration
@@ -38,7 +39,7 @@ class TestPhrasePolishPersistence:
 
     def test_new_phrase_is_not_polished(self) -> None:
         with self._Session() as s:
-            occ = SqlaOccurrenceRepository(s).get(1)
+            occ = SqlaOccurrenceRepository(s).get(PHRASE_ID)
             assert occ is not None
             assert occ.polished_phrase is None
             assert not occ.polish_reverted
@@ -47,15 +48,15 @@ class TestPhrasePolishPersistence:
         polished = phrase("The air was not fresh, stale.", "stale")
         with self._Session() as s:
             occurrences = SqlaOccurrenceRepository(s)
-            occ = occurrences.get(1)
+            occ = occurrences.get(PHRASE_ID)
             assert occ is not None
             occurrences.write_text(
-                1, occ.source_phrase, occ.phrase_position, polished=polished,
+                PHRASE_ID, occ.source_phrase, occ.phrase_position, polished=polished,
                 polish_reverted=True,
             )
             s.commit()
         with self._Session() as s:
-            occ = SqlaOccurrenceRepository(s).get(1)
+            occ = SqlaOccurrenceRepository(s).get(PHRASE_ID)
             assert occ is not None
             assert occ.polished_phrase == polished
             assert occ.polish_reverted
@@ -64,16 +65,16 @@ class TestPhrasePolishPersistence:
     def test_new_source_phrase_drops_polish(self) -> None:
         with self._Session() as s:
             occurrences = SqlaOccurrenceRepository(s)
-            occ = occurrences.get(1)
+            occ = occurrences.get(PHRASE_ID)
             assert occ is not None
             occurrences.write_text(
-                1, occ.source_phrase, occ.phrase_position,
+                PHRASE_ID, occ.source_phrase, occ.phrase_position,
                 polished=phrase("The stale air.", "stale"), polish_reverted=True,
             )
             new_phrase = phrase("The air around us was stale", "stale")
-            occurrences.write_text(1, new_phrase, DocumentPosition(0, 0, 0, 0, 27))
+            occurrences.write_text(PHRASE_ID, new_phrase, DocumentPosition(0, 0, 0, 0, 27))
             s.commit()
-            occ = occurrences.get(1)
+            occ = occurrences.get(PHRASE_ID)
             assert occ is not None
             assert occ.source_phrase == new_phrase
             assert occ.polished_phrase is None
@@ -83,15 +84,15 @@ class TestPhrasePolishPersistence:
         with self._Session() as s:
             meanings = SqlaCandidateMeaningRepository(s)
             tts = SqlaCandidateTTSRepository(s)
-            meanings.upsert_for_phrase(1, CandidateMeaning(
+            meanings.upsert_for_phrase(PHRASE_ID, CandidateMeaning(
                 candidate_id=1, meaning="m", translation=None, synonyms=None,
                 examples=None, ipa=None, generated_at=_NOW,
             ))
             tts.upsert_for_phrase(
-                1, CandidateTTS(candidate_id=1, audio_path="a.m4a", generated_at=_NOW),
+                PHRASE_ID, CandidateTTS(candidate_id=1, audio_path="a.m4a", generated_at=_NOW),
             )
-            meanings.delete_by_phrase_id(1)
-            tts.delete_by_phrase_id(1)
+            meanings.delete_by_phrase_id(PHRASE_ID)
+            tts.delete_by_phrase_id(PHRASE_ID)
             s.commit()
-            assert meanings.get_by_phrase_id(1) is None
-            assert tts.get_by_phrase_id(1) is None
+            assert meanings.get_by_phrase_id(PHRASE_ID) is None
+            assert tts.get_by_phrase_id(PHRASE_ID) is None

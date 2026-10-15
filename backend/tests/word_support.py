@@ -20,6 +20,13 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 CREATED_AT = "2026-01-01 00:00:00"
+# Phrase ids of seeds start past this, so a phrase id never equals a word id.
+PHRASE_ID_OFFSET = 1000
+
+
+def phrase_id_of(word_id: int) -> int:
+    """The id `insert_word` gives the phrase of the word."""
+    return word_id + PHRASE_ID_OFFSET
 
 
 def insert_word(
@@ -34,7 +41,7 @@ def insert_word(
     zipf_frequency: float = 3.0,
     is_sweet_spot: bool = False,
 ) -> None:
-    """A word with one shown phrase whose id is the word's id.
+    """A word with one shown phrase, `phrase_id_of(word_id)`.
 
     The lemma is `word<id>` unless given: lemmas of a source are unique. `status` may be
     "skip": the word is pending and its phrase is skipped.
@@ -58,11 +65,12 @@ def insert_word(
         text(
             "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, skipped,"
             " is_decision, decision_kind, created_at)"
-            " VALUES (:id, :id, :phrase, 'auto', 'selection', :skipped, :decision, :kind,"
+            " VALUES (:id, :word_id, :phrase, 'auto', 'selection', :skipped, :decision, :kind,"
             " :created_at)"
         ),
         {
-            "id": word_id,
+            "id": phrase_id_of(word_id),
+            "word_id": word_id,
             "phrase": dump_phrase(phrase(phrase_text or lemma, lemma)),
             "skipped": skipped,
             "decision": is_decision,
@@ -71,8 +79,6 @@ def insert_word(
         },
     )
 
-
-PHRASE_ID_OFFSET = 1000
 
 
 @dataclass(frozen=True)

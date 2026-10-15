@@ -39,12 +39,13 @@ from sqlalchemy import StaticPool, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
-from tests.word_support import insert_word
+from tests.word_support import insert_word, phrase_id_of
 
 pytestmark = pytest.mark.integration
 
 SOURCE = 1
 GLARE, SPARK = 1, 2
+GLARE_PHRASE, SPARK_PHRASE = phrase_id_of(GLARE), phrase_id_of(SPARK)
 TEXT = "He glared at me. She glared back. A spark flew."
 SORTS = ("relevance", "key_words", "chronological")
 
@@ -98,9 +99,11 @@ class Bench:
         insert_word(session, SPARK, lemma="spark", phrase_text="A spark flew.")
         self.occurrences = SqlaOccurrenceRepository(session)
         self.occurrences.write_text(
-            GLARE, phrase("He glared at me.", "glared"), _at("He glared at me."),
+            GLARE_PHRASE, phrase("He glared at me.", "glared"), _at("He glared at me."),
         )
-        self.occurrences.write_text(SPARK, phrase("A spark flew.", "spark"), _at("A spark flew."))
+        self.occurrences.write_text(
+            SPARK_PHRASE, phrase("A spark flew.", "spark"), _at("A spark flew."),
+        )
         self.second_glare = self.add(GLARE, "She glared back.", "glared", ShownBy.USER)
         self.hidden_spark = self.add(SPARK, "A spark flew.", "spark", None)
         session.commit()
@@ -151,15 +154,17 @@ class TestCardsArePhrases:
         self, client: TestClient, bench: Bench,
     ) -> None:
         cards = _cards(client)
-        assert sorted(c["phrase_id"] for c in cards) == sorted([GLARE, bench.second_glare, SPARK])
+        assert sorted(c["phrase_id"] for c in cards) == sorted(
+            [GLARE_PHRASE, bench.second_glare, SPARK_PHRASE],
+        )
         assert all("id" not in c for c in cards)
         assert {c["phrase_id"]: c["word_id"] for c in cards} == {
-            GLARE: GLARE, bench.second_glare: GLARE, SPARK: SPARK,
+            GLARE_PHRASE: GLARE, bench.second_glare: GLARE, SPARK_PHRASE: SPARK,
         }
 
     def test_each_card_shows_its_own_phrase(self, client: TestClient, bench: Bench) -> None:
         assert _card(client, bench.second_glare)["phrase"]["text"] == "She glared back."  # type: ignore[index]
-        assert _card(client, GLARE)["phrase"]["text"] == "He glared at me."  # type: ignore[index]
+        assert _card(client, GLARE_PHRASE)["phrase"]["text"] == "He glared at me."  # type: ignore[index]
 
     @pytest.mark.parametrize("sort", SORTS)
     def test_cards_of_a_word_stand_together_in_every_order(
@@ -179,7 +184,7 @@ class TestDecisionsOnCards:
     def test_learn_on_one_card_decides_every_card_of_the_word(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        client.put(f"/phrases/{GLARE}/decision", json={"status": "learn"})
+        client.put(f"/phrases/{GLARE_PHRASE}/decision", json={"status": "learn"})
         source = client.get(f"/sources/{SOURCE}").json()
         assert source["progress"] == {"decided": 2, "total": 3}
         sibling = _card(client, bench.second_glare)
@@ -190,8 +195,8 @@ class TestDecisionsOnCards:
     def test_the_sibling_card_shows_the_decision_with_inactive_buttons(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        client.put(f"/phrases/{GLARE}/decision", json={"status": "learn"})
-        here = _card(client, GLARE)
+        client.put(f"/phrases/{GLARE_PHRASE}/decision", json={"status": "learn"})
+        here = _card(client, GLARE_PHRASE)
         sibling = _card(client, bench.second_glare)
         assert here["state"] == {
             "decided_here": True, "decided_elsewhere": None, "elsewhere": None,
@@ -217,7 +222,7 @@ class TestDecisionsOnCards:
         self, client: TestClient, bench: Bench,
     ) -> None:
         client.put(f"/phrases/{bench.second_glare}/decision", json={"status": "skip"})
-        client.put(f"/phrases/{GLARE}/decision", json={"status": "learn"})
+        client.put(f"/phrases/{GLARE_PHRASE}/decision", json={"status": "learn"})
         sibling = _card(client, bench.second_glare)
         assert _actions(sibling)["skip"] == "unskip"
         response = client.put(
@@ -227,9 +232,9 @@ class TestDecisionsOnCards:
         assert _card(client, bench.second_glare)["phrase_skipped"] is False
 
     def test_skip_is_one_card_only(self, client: TestClient, bench: Bench) -> None:
-        client.put(f"/phrases/{GLARE}/decision", json={"status": "skip"})
-        assert _card(client, GLARE)["status"] == "skip"
-        assert _card(client, GLARE)["phrase_skipped"] is True
+        client.put(f"/phrases/{GLARE_PHRASE}/decision", json={"status": "skip"})
+        assert _card(client, GLARE_PHRASE)["status"] == "skip"
+        assert _card(client, GLARE_PHRASE)["phrase_skipped"] is True
         assert _card(client, bench.second_glare)["status"] == "pending"
         assert client.get(f"/sources/{SOURCE}").json()["progress"] == {"decided": 1, "total": 3}
 
@@ -238,7 +243,7 @@ class TestDecisionsOnCards:
     ) -> None:
         SqlaKnownWordRepository(session).add("spark", None)
         session.commit()
-        card = _card(client, SPARK)
+        card = _card(client, SPARK_PHRASE)
         assert card["state"]["elsewhere"] == "known"  # type: ignore[index]
         assert _actions(card) == {"learn": None, "cloze": None, "known": "known", "skip": "skip"}
         assert card["is_done"] is True
@@ -260,8 +265,8 @@ class TestWhatEachCardCarries:
         session.commit()
         assert _card(client, bench.second_glare)["polish_status"] == "queued"
         assert _card(client, bench.second_glare)["meaning"]["status"] == "queued"  # type: ignore[index]
-        assert _card(client, GLARE)["polish_status"] is None
-        assert _card(client, GLARE)["meaning"] is None
+        assert _card(client, GLARE_PHRASE)["polish_status"] is None
+        assert _card(client, GLARE_PHRASE)["meaning"] is None
 
     def test_the_origin_label_comes_from_the_phrase(
         self, client: TestClient, bench: Bench, session: Session,
@@ -277,7 +282,7 @@ class TestWhatEachCardCarries:
         session.commit()
         assert _card(client, generated)["origin"] == {"kind": "generated", "source_title": None}
         assert _card(client, real)["origin"] == {"kind": "source", "source_title": "Book"}
-        assert _card(client, SPARK)["origin"] is None
+        assert _card(client, SPARK_PHRASE)["origin"] is None
 
     def test_a_report_marks_only_the_card_it_was_made_on(
         self, client: TestClient, bench: Bench,
@@ -287,7 +292,7 @@ class TestWhatEachCardCarries:
         )
         assert response.status_code == 201
         assert _card(client, bench.second_glare)["reported"] is True
-        assert _card(client, GLARE)["reported"] is False
+        assert _card(client, GLARE_PHRASE)["reported"] is False
 
 
 class TestPhraseLevelRoutes:
@@ -305,7 +310,7 @@ class TestPhraseLevelRoutes:
         )
         assert response.status_code == 200
         assert _card(client, bench.second_glare)["phrase"]["text"] == "She glared."  # type: ignore[index]
-        assert _card(client, GLARE)["phrase"]["text"] == "He glared at me."  # type: ignore[index]
+        assert _card(client, GLARE_PHRASE)["phrase"]["text"] == "He glared at me."  # type: ignore[index]
 
     def test_reverting_the_polish_switches_only_that_card(
         self, client: TestClient, bench: Bench,
@@ -323,7 +328,7 @@ class TestDocument:
     def test_marks_are_the_shown_phrases(self, client: TestClient, bench: Bench) -> None:
         highlights = client.get(f"/sources/{SOURCE}/document").json()["highlights"]
         assert sorted(h["phrase_id"] for h in highlights) == sorted(
-            [GLARE, bench.second_glare, SPARK],
+            [GLARE_PHRASE, bench.second_glare, SPARK_PHRASE],
         )
         assert {h["phrase_id"]: h["word_id"] for h in highlights}[bench.second_glare] == GLARE
         assert all(h["cefr_level"] is None for h in highlights)  # no breakdown stored
@@ -333,7 +338,7 @@ class TestBoard:
     def test_counts_are_of_cards_and_learn_words(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        client.put(f"/phrases/{GLARE}/decision", json={"status": "learn"})
+        client.put(f"/phrases/{GLARE_PHRASE}/decision", json={"status": "learn"})
         [summary] = _board(client)
         assert summary["candidate_count"] == 3
         assert summary["learn_count"] == 1
@@ -341,7 +346,7 @@ class TestBoard:
         assert summary["progress"] == {"decided": 2, "total": 3}
 
     def test_board_and_review_agree_on_progress(self, client: TestClient, bench: Bench) -> None:
-        client.put(f"/phrases/{SPARK}/decision", json={"status": "skip"})
+        client.put(f"/phrases/{SPARK_PHRASE}/decision", json={"status": "skip"})
         [summary] = _board(client)
         assert summary["progress"] == client.get(f"/sources/{SOURCE}").json()["progress"]
 
@@ -404,7 +409,7 @@ class TestCleanupMedia:
         from pathlib import Path
         root = Path(str(tmp_path))
         media = SqlaCandidateMediaRepository(session)
-        for phrase_id in (GLARE, bench.second_glare):
+        for phrase_id in (GLARE_PHRASE, bench.second_glare):
             shot = root / f"p{phrase_id}_screenshot.webp"
             shot.write_bytes(b"x")
             media.upsert_for_phrase(phrase_id, CandidateMedia(

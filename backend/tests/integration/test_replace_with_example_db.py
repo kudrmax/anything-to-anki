@@ -43,7 +43,7 @@ from sqlalchemy import select, text
 from tests.card_support import card_views
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
-from tests.word_support import insert_word
+from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.phrase import Phrase
@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.integration
 
 WORD = 1
-CARD = 1
+CARD = phrase_id_of(WORD)
 _LEMMAS = {"ran": "run", "runs": "run"}
 
 

@@ -13,7 +13,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from tests.phrase_support import phrase
-from tests.word_support import insert_word
+from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -38,7 +38,7 @@ class TestSqlaCandidateMediaRepository:
     def test_get_returns_none_when_no_row(self) -> None:
         with self._Session() as s:
             repo = SqlaCandidateMediaRepository(s)
-            assert repo.get_by_phrase_id(1) is None
+            assert repo.get_by_phrase_id(phrase_id_of(1)) is None
 
     def test_upsert_inserts_new_row(self) -> None:
         with self._Session() as s:
@@ -51,10 +51,10 @@ class TestSqlaCandidateMediaRepository:
                 end_ms=200,
                 generated_at=None,
             )
-            repo.upsert_for_phrase(1, entity)
+            repo.upsert_for_phrase(phrase_id_of(1), entity)
             s.commit()
 
-            loaded = repo.get_by_phrase_id(1)
+            loaded = repo.get_by_phrase_id(phrase_id_of(1))
             assert loaded is not None
             assert loaded.screenshot_path == "/m/1.webp"
             assert loaded.start_ms == 100
@@ -62,24 +62,24 @@ class TestSqlaCandidateMediaRepository:
     def test_upsert_updates_existing_row(self) -> None:
         with self._Session() as s:
             repo = SqlaCandidateMediaRepository(s)
-            repo.upsert_for_phrase(1, CandidateMedia(
+            repo.upsert_for_phrase(phrase_id_of(1), CandidateMedia(
                 candidate_id=1, screenshot_path="/old.webp", audio_path=None,
                 start_ms=0, end_ms=10, generated_at=None,
             ))
             s.commit()
-            repo.upsert_for_phrase(1, CandidateMedia(
+            repo.upsert_for_phrase(phrase_id_of(1), CandidateMedia(
                 candidate_id=1, screenshot_path="/new.webp", audio_path=None,
                 start_ms=0, end_ms=10, generated_at=None,
             ))
             s.commit()
-            loaded = repo.get_by_phrase_id(1)
+            loaded = repo.get_by_phrase_id(phrase_id_of(1))
             assert loaded is not None
             assert loaded.screenshot_path == "/new.webp"
 
     def test_clear_paths_only_screenshot(self) -> None:
         with self._Session() as s:
             repo = SqlaCandidateMediaRepository(s)
-            repo.upsert_for_phrase(1, CandidateMedia(
+            repo.upsert_for_phrase(phrase_id_of(1), CandidateMedia(
                 candidate_id=1,
                 screenshot_path="/s.webp",
                 audio_path="/a.m4a",
@@ -88,10 +88,10 @@ class TestSqlaCandidateMediaRepository:
             ))
             s.commit()
 
-            repo.clear_phrase_paths(1, clear_screenshot=True, clear_audio=False)
+            repo.clear_phrase_paths(phrase_id_of(1), clear_screenshot=True, clear_audio=False)
             s.commit()
 
-            loaded = repo.get_by_phrase_id(1)
+            loaded = repo.get_by_phrase_id(phrase_id_of(1))
             assert loaded is not None
             assert loaded.screenshot_path is None
             assert loaded.audio_path == "/a.m4a"
@@ -100,7 +100,7 @@ class TestSqlaCandidateMediaRepository:
         with self._Session() as s:
             repo = SqlaCandidateMediaRepository(s)
             # Should not raise
-            repo.clear_phrase_paths(1, clear_screenshot=True, clear_audio=True)
+            repo.clear_phrase_paths(phrase_id_of(1), clear_screenshot=True, clear_audio=True)
             s.commit()
 
     def test_get_by_phrase_ids_returns_mapping(self) -> None:
@@ -108,19 +108,19 @@ class TestSqlaCandidateMediaRepository:
             _insert_candidate(s, 2)
             s.commit()
             repo = SqlaCandidateMediaRepository(s)
-            repo.upsert_for_phrase(1, CandidateMedia(
+            repo.upsert_for_phrase(phrase_id_of(1), CandidateMedia(
                 candidate_id=1, screenshot_path="/1.webp", audio_path=None,
                 start_ms=0, end_ms=10, generated_at=None,
             ))
-            repo.upsert_for_phrase(2, CandidateMedia(
+            repo.upsert_for_phrase(phrase_id_of(2), CandidateMedia(
                 candidate_id=2, screenshot_path="/2.webp", audio_path=None,
                 start_ms=0, end_ms=10, generated_at=None,
             ))
             s.commit()
 
-            mapping = repo.get_by_phrase_ids([1, 2])
-            assert set(mapping.keys()) == {1, 2}
-            assert mapping[1].screenshot_path == "/1.webp"
+            mapping = repo.get_by_phrase_ids([phrase_id_of(1), phrase_id_of(2)])
+            assert set(mapping.keys()) == {phrase_id_of(1), phrase_id_of(2)}
+            assert mapping[phrase_id_of(1)].screenshot_path == "/1.webp"
 
     def test_get_by_phrase_ids_empty_list(self) -> None:
         with self._Session() as s:

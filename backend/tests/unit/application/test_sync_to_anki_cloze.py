@@ -17,9 +17,10 @@ from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 from backend.domain.value_objects.word_status import WordStatus
 
-from tests.export_support import ExportCards, export_card, phrase_id_of, with_phrase
+from tests.export_support import ExportCards, export_card, with_phrase
 from tests.phrase_support import phrase
 from tests.unit.application.scope_fakes import empty_scope_resolver
+from tests.word_support import phrase_id_of
 
 pytestmark = pytest.mark.unit
 

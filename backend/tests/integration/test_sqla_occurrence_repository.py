@@ -32,7 +32,7 @@ from sqlalchemy import select
 
 from tests.integration.conftest import insert_source
 from tests.phrase_support import make_occurrence, phrase
-from tests.word_support import insert_word
+from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -42,6 +42,7 @@ pytestmark = pytest.mark.integration
 SOURCE = 1
 OTHER_SOURCE = 2
 WORD = 10
+WORD_PHRASE = phrase_id_of(WORD)
 OTHER_WORD = 20
 NOTE = 555
 POSITION = DocumentPosition(block=1, start_line=0, start_char=0, end_line=0, end_char=16)
@@ -143,7 +144,7 @@ def test_set_shown_and_skipped(repo: SqlaOccurrenceRepository) -> None:
 
 
 def test_set_decision_moves_the_mark_to_one_phrase(repo: SqlaOccurrenceRepository) -> None:
-    first = WORD  # the phrase the word was inserted with
+    first = WORD_PHRASE  # the phrase the word was inserted with
     second = _added(repo)
 
     repo.set_decision(WORD, first, DecisionKind.LEARN)
@@ -172,12 +173,12 @@ def test_by_source_attaches_results_export_and_active_job(
 
     found = {o.id: o for o in repo.by_source(SOURCE)}
 
-    assert set(found) == {WORD, phrase_id}
+    assert set(found) == {WORD_PHRASE, phrase_id}
     stored = found[phrase_id]
     assert stored.meaning is not None
     assert (stored.meaning.meaning, stored.meaning.ipa) == ("to look angrily", "/ɡleə/")
     assert (stored.exported, stored.has_active_job, stored.has_results) == (True, True, True)
-    plain = found[WORD]
+    plain = found[WORD_PHRASE]
     assert (plain.exported, plain.has_active_job, plain.has_results) == (False, False, False)
 
 
@@ -200,7 +201,7 @@ def test_projection_is_light_and_marks_what_matters(
         fragment_score=None, shows_polish=False,
         phrase_hash=OccurrenceRow.hash_phrase(phrase("He glared at me."), POSITION),
     )
-    assert not rows[WORD].has_results
+    assert not rows[WORD_PHRASE].has_results
     assert [row.candidate_id for row in repo.projection(OTHER_SOURCE)] == [OTHER_WORD]
 
 
@@ -229,7 +230,7 @@ def test_shown_by_word_keeps_only_shown_phrases(repo: SqlaOccurrenceRepository) 
 
     shown = repo.shown_by_word(SOURCE)
 
-    assert [o.id for o in shown[WORD]] == [WORD]
+    assert [o.id for o in shown[WORD]] == [WORD_PHRASE]
     assert hidden not in [o.id for o in shown[WORD]]
 
 
@@ -249,4 +250,4 @@ def test_a_phrase_can_be_marked_as_replacing_the_selection_card(
     assert stored.replaces_selection
     rows = {row.id: row for row in repo.projection(SOURCE)}
     assert rows[phrase_id].replaces_selection
-    assert not rows[WORD].replaces_selection
+    assert not rows[WORD_PHRASE].replaces_selection

@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from tests.word_support import insert_word
+from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -88,9 +88,12 @@ def _insert_job(
         text(
             "INSERT INTO jobs (id, job_type, candidate_id, source_id, status, created_at,"
             " phrase_id, phrase_revision)"
-            " VALUES (:id, 'meaning', :cid, :sid, :status, '2026-01-01 00:00:00', :cid, 0)"
+            " VALUES (:id, 'meaning', :cid, :sid, :status, '2026-01-01 00:00:00', :pid, 0)"
         ),
-        {"id": job_id, "cid": candidate_id, "sid": source_id, "status": status},
+        {
+            "id": job_id, "cid": candidate_id, "sid": source_id, "status": status,
+            "pid": phrase_id_of(candidate_id),
+        },
     )
     session.flush()
 
@@ -99,9 +102,9 @@ def _insert_meaning(session: Session, candidate_id: int) -> None:
     session.execute(
         text(
             "INSERT INTO candidate_meanings (phrase_id, meaning, translation, synonyms) "
-            "VALUES (:cid, 'm', 't', 's')"
+            "VALUES (:pid, 'm', 't', 's')"
         ),
-        {"cid": candidate_id},
+        {"pid": phrase_id_of(candidate_id)},
     )
     session.flush()
 
@@ -118,6 +121,7 @@ def seeded(db_session: Session) -> None:
     db_session.commit()
 
 
+SECOND_PHRASE = phrase_id_of(2)
 _SELECTION = {
     "start_block": 0, "start_line": 0, "start_char": 0,
     "end_block": 0, "end_line": 0, "end_char": 5,
@@ -189,14 +193,17 @@ class TestGenerationApi:
         db_session.commit()
 
         assert client.post("/sources/1/generation/meaning?scope=missing").status_code == 409
-        assert client.post("/phrases/2/generate-tts").status_code == 409
+        assert client.post(f"/phrases/{SECOND_PHRASE}/generate-tts").status_code == 409
         assert _meaning_status(client)["missing"] == 1
 
     @pytest.mark.parametrize(("method", "path", "body"), [
-        ("put", "/phrases/2/decision", {"status": "learn"}),
-        ("put", "/phrases/2/phrase-boundary", {"selection": _SELECTION}),
-        ("post", "/phrases/2/replace-with-example", {"example_text": "A word2 here."}),
-        ("put", "/phrases/2/cloze", {
+        ("put", f"/phrases/{SECOND_PHRASE}/decision", {"status": "learn"}),
+        ("put", f"/phrases/{SECOND_PHRASE}/phrase-boundary", {"selection": _SELECTION}),
+        (
+            "post", f"/phrases/{SECOND_PHRASE}/replace-with-example",
+            {"example_text": "A word2 here."},
+        ),
+        ("put", f"/phrases/{SECOND_PHRASE}/cloze", {
             "phrase": "word2", "hidden_word_indices": [0], "hint_kind": "none",
         }),
         ("post", "/sources/1/candidates/manual", {"target_words": [0], "selection": _SELECTION}),
@@ -215,7 +222,7 @@ class TestGenerationApi:
 
         assert response.status_code == 409, response.text
         phrase = db_session.execute(text(
-            "SELECT is_decision, edited_by_user FROM phrases WHERE id = 2"
-        )).one()
+            "SELECT is_decision, edited_by_user FROM phrases WHERE id = :id"
+        ), {"id": SECOND_PHRASE}).one()
         assert tuple(phrase) == (0, 0)
         assert db_session.execute(text("SELECT COUNT(*) FROM phrases")).scalar_one() == 4

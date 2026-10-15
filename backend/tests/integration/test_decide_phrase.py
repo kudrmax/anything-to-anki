@@ -38,7 +38,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 from tests.vocabulary_support import user_vocabulary
-from tests.word_support import insert_word
+from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.integration
 
 WORD = 1
-FIRST = 1
+FIRST = phrase_id_of(WORD)
 LEMMA = "glare"
 LEARN, CLOZE, KNOWN = DecisionAction.LEARN, DecisionAction.CLOZE, DecisionAction.KNOWN
 SKIP, UNSKIP, PENDING = DecisionAction.SKIP, DecisionAction.UNSKIP, DecisionAction.PENDING
@@ -375,7 +375,7 @@ def test_learning_lemmas_are_learn_words_not_exported(bench: Bench, db_session: 
     insert_word(db_session, 20, lemma="Linger", status="learn")
     insert_word(db_session, 30, lemma="sway", status="learn")
     insert_word(db_session, 40, lemma="drift", status="known")
-    SqlaAnkiSyncRepository(db_session).mark_synced(30, 901, 30)
+    SqlaAnkiSyncRepository(db_session).mark_synced(30, 901, phrase_id_of(30))
 
     assert bench.learning.learning_lemmas() == {"linger"}
 
@@ -383,6 +383,6 @@ def test_learning_lemmas_are_learn_words_not_exported(bench: Bench, db_session: 
 def test_a_phrasal_verb_decision_is_not_remembered(bench: Bench, db_session: Session) -> None:
     insert_word(db_session, 60, lemma="give up")
 
-    bench.decide(60, LEARN)
+    bench.decide(phrase_id_of(60), LEARN)
 
     bench.decisions.record.assert_not_called()

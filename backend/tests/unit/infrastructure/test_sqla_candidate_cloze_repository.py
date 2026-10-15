@@ -13,7 +13,7 @@ from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from tests.word_support import insert_word
+from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 CANDIDATE_ID = 1
-PHRASE_ID = 1  # insert_word gives the word's phrase the word's id
+PHRASE_ID = phrase_id_of(CANDIDATE_ID)
 SOURCE_ID = 1
 
 

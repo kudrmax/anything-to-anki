@@ -1,6 +1,6 @@
 """Words to learn with the phrases of their decisions, for export tests without a database.
 
-A phrase id is never its word's id (`PHRASE_ID_OFFSET`), so mixing the two fails a test.
+A phrase id is never its word's id (`phrase_id_of`), so mixing the two fails a test.
 """
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ from backend.domain.value_objects.phrase_origin_kind import (
     ShownBy,
 )
 
+from tests.word_support import phrase_id_of
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
@@ -26,14 +28,6 @@ if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.word_status import WordStatus
-
-PHRASE_ID_OFFSET = 1000
-
-
-def phrase_id_of(word_id: int) -> int:
-    """The id the decision phrase of the word gets in these tests."""
-    return word_id + PHRASE_ID_OFFSET
-
 
 def export_card(
     word: StoredCandidate,

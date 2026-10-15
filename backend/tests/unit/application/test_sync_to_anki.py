@@ -21,11 +21,12 @@ from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
-from tests.export_support import ExportCards, export_card, phrase_id_of, with_phrase, with_word
+from tests.export_support import ExportCards, export_card, with_phrase, with_word
 from tests.phrase_support import phrase
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.unit.application.source_fakes import InMemorySourceRepository
+from tests.word_support import phrase_id_of
 
 
 class _EveryField(list[str]):

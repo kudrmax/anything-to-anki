@@ -41,7 +41,7 @@ from backend.infrastructure.persistence.sqla_unknown_word_repository import (
 from sqlalchemy import text
 
 from tests.lock_support import free_lock
-from tests.word_support import insert_word
+from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -99,7 +99,7 @@ class Bench:
 
     def export(self, word_id: int, lemma: str, note_id: int) -> None:
         """What a successful export of the word's decision phrase writes."""
-        SqlaAnkiSyncRepository(self.session).mark_synced(word_id, note_id, word_id)
+        SqlaAnkiSyncRepository(self.session).mark_synced(word_id, note_id, phrase_id_of(word_id))
         self.notes.add(note_id, lemma, "NOUN")
 
     def remove_in_settings(self, lemma: str) -> None:
@@ -109,7 +109,7 @@ class Bench:
 
     def exported_learn_word(self, word_id: int, lemma: str, note_id: int) -> None:
         insert_word(self.session, word_id, lemma=lemma, status=WordStatus.LEARN.value)
-        SqlaAnkiSyncRepository(self.session).mark_synced(word_id, note_id, word_id)
+        SqlaAnkiSyncRepository(self.session).mark_synced(word_id, note_id, phrase_id_of(word_id))
         self.notes.add(note_id, lemma, "NOUN")
 
     def is_learning(self, lemma: str) -> bool:
@@ -277,8 +277,8 @@ def test_marking_a_removed_word_known_again_lets_maturity_through(bench: Bench) 
 def test_leaving_known_on_the_card_does_not_block_its_own_maturity(bench: Bench) -> None:
     """Known → Learn → export → mature → Known: a card decision is no settings removal."""
     insert_word(bench.session, 1, lemma="glare")
-    bench.decide(1, DecisionAction.KNOWN)
-    bench.decide(1, DecisionAction.LEARN)
+    bench.decide(phrase_id_of(1), DecisionAction.KNOWN)
+    bench.decide(phrase_id_of(1), DecisionAction.LEARN)
     assert not bench.is_known("glare")
     removals = bench.session.execute(text("SELECT count(*) FROM known_word_removals")).scalar()
     assert removals == 0
@@ -293,7 +293,7 @@ def test_leaving_known_on_the_card_does_not_block_its_own_maturity(bench: Bench)
 def test_a_learn_decision_after_a_settings_removal_lets_maturity_through(bench: Bench) -> None:
     bench.remove_in_settings("glare")
     insert_word(bench.session, 1, lemma="glare")
-    bench.decide(1, DecisionAction.LEARN)
+    bench.decide(phrase_id_of(1), DecisionAction.LEARN)
     bench.export(1, "glare", NOTE)
     bench.anki.note_cards.return_value = {NOTE: MATURE}
 
@@ -358,11 +358,11 @@ def test_leaving_known_restores_a_word_the_user_marked_unknown(
 ) -> None:
     bench.vocabulary.mark_unknown("glare")
     insert_word(bench.session, 1, lemma="glare")
-    bench.decide(1, DecisionAction.KNOWN)
+    bench.decide(phrase_id_of(1), DecisionAction.KNOWN)
     assert bench.is_known("glare")
     assert not bench.vocabulary.snapshot().is_unknown("glare")
 
-    bench.decide(1, leave)
+    bench.decide(phrase_id_of(1), leave)
 
     assert bench.vocabulary.snapshot().is_unknown("glare")
     assert not bench.is_known("glare")
@@ -370,9 +370,9 @@ def test_leaving_known_restores_a_word_the_user_marked_unknown(
 
 def test_leaving_known_does_not_mark_unknown_a_word_that_was_not(bench: Bench) -> None:
     insert_word(bench.session, 1, lemma="glare")
-    bench.decide(1, DecisionAction.KNOWN)
+    bench.decide(phrase_id_of(1), DecisionAction.KNOWN)
 
-    bench.decide(1, DecisionAction.PENDING)
+    bench.decide(phrase_id_of(1), DecisionAction.PENDING)
 
     assert not bench.vocabulary.snapshot().is_unknown("glare")
     assert not bench.is_known("glare")
