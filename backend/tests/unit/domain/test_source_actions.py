@@ -7,6 +7,7 @@ from backend.domain.services.source_actions import (
     can_delete,
     can_export,
     can_review,
+    progress_caption,
     review_fraction,
 )
 from backend.domain.value_objects.decision_progress import DecisionProgress
@@ -59,3 +60,21 @@ def test_review_fraction(
     status: SourceStatus, progress: DecisionProgress, fraction: float,
 ) -> None:
     assert review_fraction(status, progress) == fraction
+
+
+@pytest.mark.parametrize(("status", "cards", "progress", "learn", "busy", "caption"), [
+    (SourceStatus.DONE, 0, DecisionProgress(), 0, None, "Nothing to learn"),
+    (SourceStatus.DONE, 3, DecisionProgress(), 0, None, "Nothing ready"),
+    (SourceStatus.DONE, 1, DecisionProgress(decided=0, total=1), 0, None, "1 phrase"),
+    (SourceStatus.DONE, 4, DecisionProgress(decided=0, total=4), 0, None, "4 phrases"),
+    (SourceStatus.PARTIALLY_REVIEWED, 4, DecisionProgress(decided=1, total=4), 1, None,
+     "1 of 4 decided"),
+    (SourceStatus.REVIEWED, 4, DecisionProgress(decided=4, total=4), 2, None, "2 to learn"),
+    (SourceStatus.DONE, 4, DecisionProgress(), 0, SourceOperationKind.REBUILD, "Rebuilding…"),
+    (SourceStatus.DONE, 4, DecisionProgress(), 0, SourceOperationKind.REFRESH, "Refreshing…"),
+])
+def test_progress_caption(
+    status: SourceStatus, cards: int, progress: DecisionProgress, learn: int,
+    busy: SourceOperationKind | None, caption: str,
+) -> None:
+    assert progress_caption(status, cards, progress, learn, busy) == caption

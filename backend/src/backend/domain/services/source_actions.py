@@ -80,4 +80,4 @@ def progress_caption(
         return f"{learn_count} to learn"
     if progress.decided > 0:
         return f"{progress.decided} of {progress.total} decided"
-    return f"{progress.total} phrases"
+    return f"{progress.total} {'phrase' if progress.total == 1 else 'phrases'}"
