@@ -202,7 +202,7 @@ def _card_views(repo: MagicMock) -> MagicMock:
 def _mock_repo_save() -> MagicMock:
     """A candidate_repo mock storing one new word; `.occurrences` stores its phrase."""
     repo = MagicMock()
-    repo.occurrences.word_rows.return_value = []
+    repo.word_id.return_value = None
     repo.add_word.return_value = NEW_WORD_ID
     repo.occurrences.add.side_effect = lambda occurrence: replace(occurrence, id=NEW_PHRASE_ID)
     repo.get_by_id.side_effect = lambda _word_id: _saved(repo)

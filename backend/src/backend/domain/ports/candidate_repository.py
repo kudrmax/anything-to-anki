@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.value_objects.built_analysis import WordKey
     from backend.domain.value_objects.word_status import WordStatus
 
 
@@ -28,6 +29,10 @@ class CandidateRepository(ABC):
         """The decision on the word; the phrase of the decision is the phrases' business.
         `known_added`: a Known decision that put the lemma into the user's Known;
         `was_unknown`: the user had marked it unknown before that."""
+
+    @abstractmethod
+    def word_id(self, source_id: int, key: WordKey) -> int | None:
+        """The word of the source with this key, if the source has it."""
 
     @abstractmethod
     def get_by_source(self, source_id: int) -> list[StoredCandidate]:

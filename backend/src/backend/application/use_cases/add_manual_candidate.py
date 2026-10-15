@@ -105,10 +105,8 @@ class AddManualCandidateUseCase:
         return self._card_views.one(phrase_id)
 
     def _word_of(self, word: StoredCandidate) -> int | None:
-        key = WordKey.of(word.lemma, word.is_phrasal_verb)
-        return next(
-            (w.id for w in self._occurrences.word_rows(word.source_id) if w.key == key),
-            None,
+        return self._candidate_repo.word_id(
+            word.source_id, WordKey.of(word.lemma, word.is_phrasal_verb),
         )
 
     def _show_at(self, word_id: int, card: NewCard, key: OccurrenceKey) -> int:

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.value_objects.built_analysis import WordKey
 
 
 class SqlaCandidateRepository(CandidateRepository):
@@ -51,6 +52,15 @@ class SqlaCandidateRepository(CandidateRepository):
 
     def get_by_source(self, source_id: int) -> list[StoredCandidate]:
         return self._read(StoredCandidateModel.source_id == source_id)
+
+    def word_id(self, source_id: int, key: WordKey) -> int | None:
+        return self._session.scalar(
+            select(StoredCandidateModel.id).where(
+                StoredCandidateModel.source_id == source_id,
+                func.lower(StoredCandidateModel.lemma) == key.lemma,
+                StoredCandidateModel.is_phrasal_verb.is_(key.is_phrasal_verb),
+            )
+        )
 
     def get_by_id(self, candidate_id: int) -> StoredCandidate | None:
         found = self._read(StoredCandidateModel.id == candidate_id)

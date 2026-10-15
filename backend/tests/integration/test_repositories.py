@@ -2,6 +2,7 @@ import pytest
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
+from backend.domain.value_objects.built_analysis import WordKey
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
@@ -186,6 +187,18 @@ class TestCandidateRepository:
         self._create_candidate(repo, source_id, "two", WordStatus.LEARN)
         self._create_candidate(repo, source_id, "three", WordStatus.KNOWN)
         assert repo.count_all() == 3
+
+    def test_a_word_is_found_by_its_key_in_its_source(self, db_session: Session) -> None:
+        source_id = self._create_source(db_session)
+        other_source = self._create_source(db_session)
+        repo = SqlaCandidateRepository(db_session)
+        self._create_candidate(repo, source_id, "Glare", WordStatus.PENDING)
+        self._create_candidate(repo, other_source, "linger", WordStatus.PENDING)
+        [glare] = repo.get_by_source(source_id)
+
+        assert repo.word_id(source_id, WordKey.of("glare", False)) == glare.id
+        assert repo.word_id(source_id, WordKey.of("glare", True)) is None
+        assert repo.word_id(source_id, WordKey.of("linger", False)) is None
 
 
 @pytest.mark.integration
