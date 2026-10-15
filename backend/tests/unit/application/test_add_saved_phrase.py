@@ -75,6 +75,12 @@ class _Setup:
             occurrence(phrase_id, WORD_ID, is_decision=True, decision_kind=DecisionKind.LEARN),
         ))
         self.review_status = MagicMock()
+        self.vocabulary = MagicMock()
+        self.stored_decision = True
+        self.occurrence_repo.get.side_effect = lambda phrase_id: occurrence(
+            phrase_id, WORD_ID, is_decision=self.stored_decision,
+            decision_kind=DecisionKind.LEARN if self.stored_decision else None,
+        )
         text_analyzer = MagicMock()
         text_analyzer.analyze.return_value = [_token(1, "procrastinating", "procrastinate")]
         cefr = MagicMock()
@@ -98,6 +104,7 @@ class _Setup:
             phrase_reader=reader,
             occurrence_repo=self.occurrence_repo,
             card_views=self.card_views,
+            vocabulary=self.vocabulary,
         )
 
     def saved_word(self) -> StoredCandidate:
@@ -155,3 +162,22 @@ def test_invalid_phrase_or_target_is_rejected(phrase: str, target: list[int]) ->
 
     setup.candidate_repo.add_word.assert_not_called()
     setup.occurrence_repo.add.assert_not_called()
+
+
+def test_a_word_saved_to_learn_starts_learning_as_a_learn_decision_does() -> None:
+    setup = _Setup(existing=_saved_phrases())
+
+    setup.use_case.execute(PHRASE, [1])
+
+    setup.vocabulary.start_learning.assert_called_once_with("procrastinate")
+    setup.review_status.refresh_showing.assert_called_once_with({"procrastinate"})
+
+
+def test_another_phrase_of_a_saved_word_changes_no_knowledge() -> None:
+    setup = _Setup(existing=_saved_phrases())
+    setup.stored_decision = False
+
+    setup.use_case.execute(PHRASE, [1])
+
+    setup.vocabulary.start_learning.assert_not_called()
+    setup.review_status.refresh_showing.assert_not_called()

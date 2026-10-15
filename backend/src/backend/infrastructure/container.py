@@ -424,6 +424,7 @@ class Container:
             phrase_reader=self._phrase_reader,
             occurrence_repo=SqlaOccurrenceRepository(session),
             card_views=self._card_views(session),
+            vocabulary=self._user_vocabulary(session),
         )
 
     def analyze_text_use_case(self) -> AnalyzeTextUseCase:
