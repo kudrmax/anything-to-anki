@@ -122,9 +122,9 @@ def plan_rebuild(
 
     Auto phrases match by their key, keeping their ids; one whose key the analysis does not
     have is the free occurrence of its word on its line with the same text, if there is one
-    (the nearest), and takes its key — an older analysis or a migrated card may have keyed
-    the same place differently. Manual, example and collected ones
-    are not part of the plan, and an auto occurrence where the word already has one of
+    (its very phrase first, else the nearest), and takes its key — an older analysis or a
+    migrated card may have keyed the same place differently. Manual, example and collected
+    ones are not part of the plan, and an auto occurrence where the word already has one of
     them is not created. Untouchable phrases keep everything; a touched phrase with the
     same text gets its new score, and its new words unless polished; a touched phrase whose
     text changed waits for `include_open` (then its revision goes up and its results are
@@ -330,8 +330,9 @@ class _Planner:
 def _moved_keys(
     rows: list[OccurrenceRow], analysed: dict[OccurrenceKey, BuiltOccurrence],
 ) -> list[tuple[OccurrenceRow, OccurrenceKey | None]]:
-    """Every phrase with the key it is found at again, when its own key is not analysed: the
-    nearest occurrence on its line with its text that no phrase of the word holds."""
+    """Every phrase with the key it is found at again, when its own key is not analysed: an
+    occurrence on its line with its text that no phrase of the word holds — the one with its
+    very phrase (the same target) first, then the nearest."""
     held = {o.key for o in rows if o.key is not None}
     free = [key for key in analysed if key not in held]
     moved: list[tuple[OccurrenceRow, OccurrenceKey | None]] = []
@@ -345,11 +346,23 @@ def _moved_keys(
             if (key.block, key.line) == (own.block, own.line)
             and OccurrenceRow.hash_text(analysed[key].phrase.text) == o.text_hash
         ]
-        found = min(same_place, key=lambda key: (abs(key.char - own.char), key.char), default=None)
+        found = min(
+            same_place,
+            key=lambda key: (
+                _phrase_hash(analysed[key]) != o.phrase_hash,
+                abs(key.char - own.char),
+                key.char,
+            ),
+            default=None,
+        )
         if found is not None:
             free.remove(found)
         moved.append((o, found))
     return moved
+
+
+def _phrase_hash(occ: BuiltOccurrence) -> str:
+    return OccurrenceRow.hash_phrase(occ.phrase, occ.phrase_position)
 
 
 def _by_key(b: BuiltWord | None) -> dict[OccurrenceKey, BuiltOccurrence]:

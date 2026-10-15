@@ -530,3 +530,29 @@ def test_after_a_moved_key_is_found_a_second_rebuild_changes_nothing(
     store.apply(store.plan(analysed, include_open))
 
     assert store.plan(analysed, include_open).is_empty
+
+
+def test_of_two_occurrences_on_its_line_a_moved_key_takes_the_one_of_its_own_target() -> None:
+    """Same text, same line: the phrase whose target is the second "glared" is that
+    occurrence, though the first is nearer."""
+    text = "He glared and glared."
+    first, second = (text_phrase(text).with_target((i,)) for i in (1, 3))
+    position = position_at(2, text)
+    stored = replace(
+        row(id=5, line=2, text=text, has_results=True),
+        phrase_hash=OccurrenceRow.hash_phrase(second, position),
+    )
+    analysed = [
+        BuiltOccurrence(
+            phrase=found, phrase_position=position,
+            key=OccurrenceKey(block=0, line=2, char=char), fragment_score=0.5,
+        )
+        for found, char in ((first, 3), (second, 14))
+    ]
+
+    result = plan([stored], [word()], [built("glare", *analysed)])
+
+    assert result.occ_to_rekey == (
+        OccurrenceRekey(occurrence_id=5, key=OccurrenceKey(block=0, line=2, char=14)),
+    )
+    assert [i.occurrence.key.char for i in result.occ_to_insert] == [3]
