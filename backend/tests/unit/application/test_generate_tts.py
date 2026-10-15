@@ -13,6 +13,7 @@ from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
 
 from tests.phrase_support import make_occurrence
+from tests.word_support import phrase_id_of
 
 
 @pytest.fixture()
@@ -39,7 +40,7 @@ def _make_candidate(
     source_id: int = 10,
     context_fragment: str = "She couldn't help but procrastinate.",
 ) -> GenerationCard:
-    """A card whose phrase id is the word's id."""
+    """A card of the word and its phrase `phrase_id_of(candidate_id)`."""
     word = StoredCandidate(
         id=candidate_id,
         source_id=source_id,
@@ -51,7 +52,8 @@ def _make_candidate(
         occurrences=1,
     )
     shown = replace(
-        make_occurrence(context_fragment, candidate_id=candidate_id), id=candidate_id,
+        make_occurrence(context_fragment, candidate_id=candidate_id),
+        id=phrase_id_of(candidate_id),
     )
     return GenerationCard.of(word, shown, None)
 
@@ -63,13 +65,13 @@ def test_generate_tts_calls_generator(deps: dict, tmp_path: Path) -> None:
     deps["settings_repo"].get.return_value = None
 
     use_case = GenerateTTSUseCase(**deps)
-    use_case.execute_one(PhraseRef(1, 0))
+    use_case.execute_one(PhraseRef(phrase_id_of(1), 0))
 
     deps["tts_generator"].generate_audio.assert_called_once()
     call_args = deps["tts_generator"].generate_audio.call_args
     assert call_args[0][0] == "She couldn't help but procrastinate."
     assert str(call_args[0][1]).endswith(".m4a")
-    assert (tmp_path / "10" / "p1_tts.m4a").read_bytes() == b"speech"
+    assert (tmp_path / "10" / f"p{phrase_id_of(1)}_tts.m4a").read_bytes() == b"speech"
     assert call_args[0][2] in ALL_VOICES
     assert call_args[0][3] == 1.0
 
@@ -85,7 +87,7 @@ def test_generate_tts_respects_voice_setting(deps: dict) -> None:
     )
 
     use_case = GenerateTTSUseCase(**deps)
-    use_case.execute_one(PhraseRef(1, 0))
+    use_case.execute_one(PhraseRef(phrase_id_of(1), 0))
 
     call_args = deps["tts_generator"].generate_audio.call_args
     assert call_args[0][2] == "bf_emma"
@@ -100,7 +102,7 @@ def test_generate_tts_respects_speed_setting(deps: dict) -> None:
     )
 
     use_case = GenerateTTSUseCase(**deps)
-    use_case.execute_one(PhraseRef(1, 0))
+    use_case.execute_one(PhraseRef(phrase_id_of(1), 0))
 
     call_args = deps["tts_generator"].generate_audio.call_args
     assert call_args[0][3] == 0.8
@@ -125,13 +127,13 @@ def test_execute_one_overwrites_existing_tts(deps: dict) -> None:
     deps["settings_repo"].get.return_value = None
 
     use_case = GenerateTTSUseCase(**deps)
-    use_case.execute_one(PhraseRef(1, 0))
+    use_case.execute_one(PhraseRef(phrase_id_of(1), 0))
 
     # upsert is called — whether record existed or not, it's the repo's job
     deps["tts_repo"].upsert_for_phrase.assert_called_once()
     phrase_id, tts_entity = deps["tts_repo"].upsert_for_phrase.call_args[0]
-    assert (phrase_id, tts_entity.candidate_id) == (1, 1)
-    assert tts_entity.audio_path.endswith("p1_tts.m4a")
+    assert (phrase_id, tts_entity.candidate_id) == (phrase_id_of(1), 1)
+    assert tts_entity.audio_path.endswith(f"p{phrase_id_of(1)}_tts.m4a")
 
 
 @pytest.mark.unit
@@ -144,7 +146,7 @@ def test_pick_voice_with_empty_enabled_list_falls_back(deps: dict) -> None:
     )
 
     use_case = GenerateTTSUseCase(**deps)
-    use_case.execute_one(PhraseRef(1, 0))
+    use_case.execute_one(PhraseRef(phrase_id_of(1), 0))
 
     call_args = deps["tts_generator"].generate_audio.call_args
     assert call_args[0][2] in ALL_VOICES
@@ -163,7 +165,7 @@ def test_pick_voice_result_always_from_enabled_list(deps: dict) -> None:
     use_case = GenerateTTSUseCase(**deps)
     # Run multiple times to verify randomness stays within bounds
     for _ in range(20):
-        use_case.execute_one(PhraseRef(1, 0))
+        use_case.execute_one(PhraseRef(phrase_id_of(1), 0))
         call_args = deps["tts_generator"].generate_audio.call_args
         assert call_args[0][2] in enabled
 
@@ -178,7 +180,7 @@ def test_get_speed_with_invalid_string_falls_back_to_default(deps: dict) -> None
     )
 
     use_case = GenerateTTSUseCase(**deps)
-    use_case.execute_one(PhraseRef(1, 0))
+    use_case.execute_one(PhraseRef(phrase_id_of(1), 0))
 
     call_args = deps["tts_generator"].generate_audio.call_args
     assert call_args[0][3] == 1.0
@@ -192,12 +194,12 @@ def test_output_directory_created_under_media_root(deps: dict, tmp_path: Path) -
     deps["settings_repo"].get.return_value = None
 
     use_case = GenerateTTSUseCase(**deps)
-    use_case.execute_one(PhraseRef(5, 0))
+    use_case.execute_one(PhraseRef(phrase_id_of(5), 0))
 
     call_args = deps["tts_generator"].generate_audio.call_args
     out_path = Path(str(call_args[0][1]))
     assert out_path.parent == tmp_path / "42"
-    assert [p.name for p in (tmp_path / "42").iterdir()] == ["p5_tts.m4a"]
+    assert [p.name for p in (tmp_path / "42").iterdir()] == [f"p{phrase_id_of(5)}_tts.m4a"]
 
 
 @pytest.mark.unit
@@ -206,6 +208,6 @@ def test_speech_for_a_phrase_changed_while_speaking_is_dropped(deps: dict) -> No
     deps["job_phrases"].holds.return_value = False
     deps["settings_repo"].get.return_value = None
 
-    GenerateTTSUseCase(**deps).execute_one(PhraseRef(1, 0))
+    GenerateTTSUseCase(**deps).execute_one(PhraseRef(phrase_id_of(1), 0))
 
     deps["tts_repo"].upsert_for_phrase.assert_not_called()

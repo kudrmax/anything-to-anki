@@ -23,6 +23,7 @@ from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.phrase_support import make_occurrence, phrase
+from tests.word_support import phrase_id_of
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.phrase import Phrase
@@ -65,7 +66,7 @@ def _candidate(
     status: WordStatus = WordStatus.PENDING,
     polished: str | None = None,
 ) -> GenerationCard:
-    """Word `cid` and its phrase, whose id is the word's."""
+    """Word `cid` and its phrase `phrase_id_of(cid)`."""
     word = StoredCandidate(
         id=cid,
         source_id=9,
@@ -78,12 +79,15 @@ def _candidate(
     )
     shown = replace(
         make_occurrence(_SOURCE_PHRASE, candidate_id=cid),
-        id=cid,
+        id=phrase_id_of(cid),
         source_phrase=phrase(_SOURCE_PHRASE, "abandoned"),
         polished_phrase=phrase(polished, "abandoned") if polished is not None else None,
         phrase_position=_PHRASE,
     )
     return GenerationCard.of(word, shown, None)
+
+
+P1, P2 = phrase_id_of(1), phrase_id_of(2)
 
 
 def _refs(*phrase_ids: int) -> list[PhraseRef]:
@@ -138,17 +142,17 @@ def test_stores_polished_phrase_and_drops_old_enrichments() -> None:
     easy = "People abandoned the old barn."
     use_case, repo, _, reset = _use_case([_candidate()], [PolishedPhrase(1, easy)])
 
-    use_case.execute_batch(_refs(1))
+    use_case.execute_batch(_refs(P1))
 
-    assert _polished(repo) == [(1, easy)]
-    reset.reset_phrase.assert_called_once_with(1)
+    assert _polished(repo) == [(P1, easy)]
+    reset.reset_phrase.assert_called_once_with(P1)
 
 
 @pytest.mark.unit
 def test_prompt_carries_user_level_target_form_and_surrounding_text() -> None:
     use_case, _, ai, _ = _use_case([_candidate()], [])
 
-    use_case.execute_batch(_refs(1))
+    use_case.execute_batch(_refs(P1))
 
     system, user = ai.polish_phrases_batch.call_args.args
     assert system == "Make it easy for B1."
@@ -163,9 +167,9 @@ def test_unchanged_answer_is_stored_without_dropping_enrichments() -> None:
         [_candidate()], [PolishedPhrase(1, _SOURCE_PHRASE)],
     )
 
-    use_case.execute_batch(_refs(1))
+    use_case.execute_batch(_refs(P1))
 
-    assert _polished(repo) == [(1, _SOURCE_PHRASE)]
+    assert _polished(repo) == [(P1, _SOURCE_PHRASE)]
     reset.reset_phrase.assert_not_called()
 
 
@@ -175,9 +179,9 @@ def test_answer_without_target_keeps_source_phrase() -> None:
         [_candidate()], [PolishedPhrase(1, "People left the old barn.")],
     )
 
-    use_case.execute_batch(_refs(1))
+    use_case.execute_batch(_refs(P1))
 
-    assert _polished(repo) == [(1, _SOURCE_PHRASE)]
+    assert _polished(repo) == [(P1, _SOURCE_PHRASE)]
     reset.reset_phrase.assert_not_called()
 
 
@@ -187,9 +191,9 @@ def test_answer_is_cleaned_of_bold_and_quotes() -> None:
         [_candidate()], [PolishedPhrase(1, '"People **abandoned**  the barn."')],
     )
 
-    use_case.execute_batch(_refs(1))
+    use_case.execute_batch(_refs(P1))
 
-    assert _polished(repo) == [(1, "People abandoned the barn.")]
+    assert _polished(repo) == [(P1, "People abandoned the barn.")]
 
 
 @pytest.mark.unit
@@ -199,7 +203,7 @@ def test_skips_decided_and_already_polished_cards() -> None:
         [],
     )
 
-    use_case.execute_batch(_refs(1, 2))
+    use_case.execute_batch(_refs(P1, P2))
 
     ai.polish_phrases_batch.assert_not_called()
     repo.write_text.assert_not_called()
@@ -209,7 +213,7 @@ def test_skips_decided_and_already_polished_cards() -> None:
 def test_video_cards_are_not_polished() -> None:
     use_case, _, ai, _ = _use_case([_candidate()], [], source=_source(Format.VIDEO_FILE))
 
-    use_case.execute_batch(_refs(1))
+    use_case.execute_batch(_refs(P1))
 
     ai.polish_phrases_batch.assert_not_called()
 
@@ -221,8 +225,8 @@ def test_cards_ai_did_not_answer_are_reported() -> None:
         [_candidate(1), _candidate(2)], [PolishedPhrase(1, easy)],
     )
 
-    assert use_case.execute_batch(_refs(1, 2)) == [2]
-    assert _polished(repo) == [(1, easy)]
+    assert use_case.execute_batch(_refs(P1, P2)) == [P2]
+    assert _polished(repo) == [(P1, easy)]
 
 
 @pytest.mark.unit
@@ -232,9 +236,9 @@ def test_cards_no_longer_wanted_are_left_untouched() -> None:
         [_candidate(1), _candidate(2)], [PolishedPhrase(1, easy), PolishedPhrase(2, easy)],
     )
 
-    assert use_case.execute_batch(_refs(1, 2), still_wanted=lambda ids: {1}) == []
-    assert _polished(repo) == [(1, easy)]
-    reset.reset_phrase.assert_called_once_with(1)
+    assert use_case.execute_batch(_refs(P1, P2), still_wanted=lambda ids: {P1}) == []
+    assert _polished(repo) == [(P1, easy)]
+    reset.reset_phrase.assert_called_once_with(P1)
 
 
 @pytest.mark.unit
@@ -243,6 +247,6 @@ def test_a_phrase_changed_while_ai_answered_keeps_its_text() -> None:
         [_candidate()], [PolishedPhrase(1, "People abandoned the old barn.")], holds=False,
     )
 
-    assert use_case.execute_batch(_refs(1)) == []
+    assert use_case.execute_batch(_refs(P1)) == []
     repo.write_text.assert_not_called()
     reset.reset_phrase.assert_not_called()

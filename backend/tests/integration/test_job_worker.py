@@ -23,7 +23,7 @@ from backend.infrastructure.queue.tts_subprocess import process_tts_run
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from tests.word_support import insert_word
+from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Generator, Iterator
@@ -119,12 +119,12 @@ def container(factory: sessionmaker[Session]) -> _Container:
 
 
 def _enqueue(container: _Container, *jobs: tuple[JobType, int | None]) -> list[Job]:
-    """A phrase job works on the word's own phrase, whose id is the word's."""
+    """A phrase job works on the word's own phrase, `phrase_id_of` the word."""
     with container.session_scope() as session:
         return SqlaJobRepository(session).enqueue([
             Job.queued(
                 job_type, SOURCE_ID, candidate_id,
-                phrase_id=candidate_id if job_type in PHRASE_JOB_TYPES else None,
+                phrase_id=phrase_id_of(candidate_id) if job_type in PHRASE_JOB_TYPES else None,
                 phrase_revision=0 if job_type in PHRASE_JOB_TYPES else None,
             )
             for job_type, candidate_id in jobs
@@ -184,7 +184,10 @@ class TestOrder:
 
         await _drain(JobWorker(container))  # type: ignore[arg-type]
 
-        assert calls == [("polish", [1, 2]), ("meaning", [3]), ("polish", [4])]
+        assert calls == [
+            ("polish", [phrase_id_of(1), phrase_id_of(2)]), ("meaning", [phrase_id_of(3)]),
+            ("polish", [phrase_id_of(4)]),
+        ]
         assert _jobs(container) == []
 
 
@@ -213,14 +216,16 @@ class TestPhraseGone:
     ) -> None:
         with container.session_scope() as session:
             SqlaJobRepository(session).enqueue([
-                Job.queued(JobType.TTS, SOURCE_ID, 1, phrase_id=2, phrase_revision=4),
+                Job.queued(
+                    JobType.TTS, SOURCE_ID, 1, phrase_id=phrase_id_of(1), phrase_revision=4,
+                ),
             ])
         container.tts.execute_one.side_effect = lambda ref: None
 
         with patch.object(JobWorker, "_run_tts_subprocess", _tts_in_process(container)):
             await _drain(JobWorker(container))  # type: ignore[arg-type]
 
-        container.tts.execute_one.assert_called_once_with(PhraseRef(2, 4))
+        container.tts.execute_one.assert_called_once_with(PhraseRef(phrase_id_of(1), 4))
 
 
 def _tts_in_process(container: _Container) -> Callable[[JobWorker, Job], Awaitable[None]]:
@@ -238,7 +243,9 @@ class TestLifecycle:
         _enqueue(container, (JobType.MEDIA, 1))
         with container.session_scope() as session:
             # e.g. a failure left by an earlier attempt made outside the queue
-            stale = Job.queued(JobType.MEDIA, SOURCE_ID, 1, phrase_id=1, phrase_revision=0)
+            stale = Job.queued(
+                JobType.MEDIA, SOURCE_ID, 1, phrase_id=phrase_id_of(1), phrase_revision=0,
+            )
             session.add(JobModel.from_entity(stale))
             session.flush()
             session.execute(text(
@@ -257,7 +264,7 @@ class TestLifecycle:
         self, container: _Container,
     ) -> None:
         _enqueue(container, (JobType.MEANING, 1), (JobType.MEANING, 2))
-        container.meaning.execute_batch.return_value = [2]
+        container.meaning.execute_batch.return_value = [phrase_id_of(2)]
 
         await _drain(JobWorker(container))  # type: ignore[arg-type]
 
@@ -353,7 +360,7 @@ class TestCancel:
 
         await _drain(JobWorker(container))  # type: ignore[arg-type]
 
-        assert seen == [{1}]
+        assert seen == [{phrase_id_of(1)}]
         assert _jobs(container) == []
 
 
@@ -429,7 +436,7 @@ class TestTTSSubprocess:
 
         assert processed == 2
         assert [c.args[0] for c in container.tts.execute_one.call_args_list] == [
-            PhraseRef(1, 0), PhraseRef(2, 0),
+            PhraseRef(phrase_id_of(1), 0), PhraseRef(phrase_id_of(2), 0),
         ]
         assert _jobs(container) == [
             (JobType.POLISH, 3, JobStatus.QUEUED, None),
