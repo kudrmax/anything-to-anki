@@ -11,8 +11,8 @@ if TYPE_CHECKING:
 class CardReport:
     """The user's complaint about a card, with a snapshot of the card.
 
-    The snapshot keeps the report meaningful after the candidate is
-    reprocessed or its source deleted — it is what gets analysed later.
+    The snapshot keeps the report meaningful after a rebuild removes the phrase or
+    the source is deleted — it is what gets analysed later.
     """
 
     source_id: int

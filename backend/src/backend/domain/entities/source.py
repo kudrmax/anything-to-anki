@@ -47,7 +47,7 @@ class Source:
 
     @property
     def is_permanent(self) -> bool:
-        """The app always keeps it: it can't be deleted, and there is nothing to reprocess."""
+        """The app always keeps it: it can't be deleted, and there is nothing to rebuild."""
         return self.role is SourceRole.SAVED_PHRASES
 
     @property
