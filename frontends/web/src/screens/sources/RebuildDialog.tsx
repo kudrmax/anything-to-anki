@@ -41,10 +41,7 @@ function summaryLines(counts: RebuildCounts): string[] {
 }
 
 function refreshLines(refresh: TopicRefreshSummary): string[] {
-  return [
-    `${plural(refresh.words_added, 'word', 'words')} and ${plural(refresh.phrases_added, 'phrase', 'phrases')} added`,
-    refresh.phrases_replaced > 0 && `${plural(refresh.phrases_replaced, 'generated example', 'generated examples')} replaced with real phrases`,
-  ].filter((line): line is string => Boolean(line))
+  return [`${plural(refresh.words_added, 'word', 'words')} and ${plural(refresh.phrases_added, 'phrase', 'phrases')} added`]
 }
 
 const Lines = ({ lines }: { lines: string[] }) => (

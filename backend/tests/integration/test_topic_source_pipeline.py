@@ -201,10 +201,11 @@ def _texts(db_session: Session, topic_id: int, lemma: str) -> list[str]:
     ]
 
 
-def test_a_real_phrase_replaces_an_untouched_generated_one(
+def test_a_real_phrase_is_added_beside_an_untouched_generated_one(
     db_session: Session, container: Container,
 ) -> None:
     topic_id = _processed_topic(db_session, container)
+    [generated] = _texts(db_session, topic_id, "counter-offer")
     assert _by_lemma(db_session, topic_id)["counter-offer"].collected_from == (
         PhraseOrigin.generated()
     )
@@ -213,16 +214,14 @@ def test_a_real_phrase_replaces_an_untouched_generated_one(
     db_session.commit()
     summary = container.refresh_topic_use_case(db_session).execute(topic_id)
 
-    assert (summary.words_added, summary.phrases_added, summary.phrases_replaced) == (0, 1, 1)
-    assert _texts(db_session, topic_id, "counter-offer") == [LATER_ARTICLE]
-    card = _by_lemma(db_session, topic_id)["counter-offer"]
-    assert card.source_phrase.text == LATER_ARTICLE
-    assert card.collected_from == PhraseOrigin.from_source("Article")
+    assert (summary.words_added, summary.phrases_added) == (0, 1)
+    assert _texts(db_session, topic_id, "counter-offer") == [generated, LATER_ARTICLE]
     [added] = [
         o for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)
         if o.source_phrase.text == LATER_ARTICLE
     ]
     assert added.origin is OccurrenceOrigin.COLLECTED
+    assert added.collected_from == PhraseOrigin.from_source("Article")
     assert added.shown_by is not None
 
 
@@ -241,7 +240,7 @@ def test_a_generated_phrase_with_generation_stays_beside_the_real_one(
     db_session.commit()
     summary = container.refresh_topic_use_case(db_session).execute(topic_id)
 
-    assert (summary.phrases_added, summary.phrases_replaced) == (1, 0)
+    assert summary.phrases_added == 1
     shown = [
         o.source_phrase.text for o in occurrences.by_source(topic_id)
         if o.candidate_id == word_ids["counter-offer"] and o.shown_by is not None
@@ -306,36 +305,10 @@ def test_a_real_phrase_added_beside_a_generated_one_is_never_replaced(
 
     summary = _refresh_finding(db_session, container, topic_id, ANOTHER_ARTICLE, "Reply")
 
-    assert (summary.phrases_added, summary.phrases_replaced) == (1, 0)
+    assert summary.phrases_added == 1
     assert _texts(db_session, topic_id, "counter-offer") == [
         generated.source_phrase.text, LATER_ARTICLE, ANOTHER_ARTICLE,
     ]
-
-
-def test_two_real_phrases_replace_the_generated_one_once(
-    db_session: Session, container: Container,
-) -> None:
-    topic_id = _processed_topic(db_session, container)
-    _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
-    _add_source(db_session, "Reply", Kind.TEXT, ANOTHER_ARTICLE)
-    db_session.commit()
-    found = _collected(db_session, container, topic_id, "counter-offer")
-    first, second = (
-        dataclasses.replace(
-            found,
-            phrase=phrase(text_, "counter-offer"),
-            origin=PhraseOrigin.from_source(title),
-        )
-        for text_, title in ((LATER_ARTICLE, "Article"), (ANOTHER_ARTICLE, "Reply"))
-    )
-
-    summary = _refresh_use_case(db_session, container, [first, second]).execute(topic_id)
-
-    assert (summary.phrases_added, summary.phrases_replaced) == (2, 1)
-    assert _texts(db_session, topic_id, "counter-offer") == [LATER_ARTICLE, ANOTHER_ARTICLE]
-    assert _by_lemma(db_session, topic_id)["counter-offer"].collected_from == (
-        PhraseOrigin.from_source("Article")
-    )
 
 
 def _collected(

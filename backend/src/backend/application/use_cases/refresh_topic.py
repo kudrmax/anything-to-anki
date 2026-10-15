@@ -9,12 +9,9 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     SourceOperationBusyError,
 )
-from backend.domain.services.phrase_protection import has_user_work
-from backend.domain.services.rebuild_plan import RebuildPlan
 from backend.domain.services.source_operations import available_operation
 from backend.domain.value_objects.built_analysis import WordKey
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
-from backend.domain.value_objects.phrase_origin import PhraseOriginKind
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 if TYPE_CHECKING:
@@ -26,7 +23,6 @@ if TYPE_CHECKING:
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.new_card import NewCard
-    from backend.domain.value_objects.word_row import WordRow
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +30,9 @@ logger = logging.getLogger(__name__)
 class RefreshTopicUseCase:
     """Collects a topic's phrases again and adds only what it has not got yet.
 
-    Sources added since the topic was processed may hold real phrases for its targets.
-    A real phrase replaces a generated example nobody worked with; otherwise it is added
-    beside it. Decisions, results and every phrase the user worked with stay as they are.
+    Sources added since the topic was processed may hold real phrases for its targets; they
+    are added beside the word's phrases, a generated one included. Nothing is replaced or
+    removed: decisions, results and every phrase stay as they are.
     `start` takes the source and must be committed before `run`, which frees it whatever
     happens.
     """
@@ -93,14 +89,11 @@ class RefreshTopicUseCase:
             self._unit_of_work.commit()
 
     def _add_missing(self, source_id: int, collected: list[NewCard]) -> TopicRefreshSummaryDTO:
-        words = {w.key: w for w in self._occurrence_repo.word_rows(source_id)}
-        rows: dict[int, list[OccurrenceRow]] = {w.id: [] for w in words.values()}
+        words = {w.id: w.key for w in self._occurrence_repo.word_rows(source_id)}
+        texts: dict[WordKey, set[str]] = {key: set() for key in words.values()}
         for row in self._occurrence_repo.projection(source_id):
-            rows[row.candidate_id].append(row)
-        texts = {key: {r.text_hash for r in rows[w.id]} for key, w in words.items()}
+            texts[words[row.candidate_id]].add(row.text_hash)
         missing: list[NewCard] = []
-        replaced: list[int] = []
-        handled: set[int] = set()
         for card in collected:
             key = WordKey.of(card.word.lemma, card.word.is_phrasal_verb)
             text = OccurrenceRow.hash_text(card.phrase.text)
@@ -108,48 +101,8 @@ class RefreshTopicUseCase:
                 continue
             texts.setdefault(key, set()).add(text)
             missing.append(card)
-            word = words.get(key)
-            if word is None or word.id in handled:
-                continue
-            example = self._generated_example(card, word, rows[word.id])
-            if example is not None:
-                handled.add(word.id)
-                replaced.append(example)
-        if replaced:
-            self._occurrence_repo.apply_plan(
-                RebuildPlan(source_id=source_id, occ_to_delete=tuple(replaced)),
-            )
         self._collected_phrases.add(source_id, missing)
         new_words = {WordKey.of(c.word.lemma, c.word.is_phrasal_verb) for c in missing}
         return TopicRefreshSummaryDTO(
-            words_added=len(new_words - set(words)),
-            phrases_added=len(missing),
-            phrases_replaced=len(replaced),
+            words_added=len(new_words - set(words.values())), phrases_added=len(missing),
         )
-
-    def _generated_example(
-        self, card: NewCard, word: WordRow, phrases: list[OccurrenceRow],
-    ) -> int | None:
-        """The id of the generated example a real phrase takes the place of, if any.
-
-        Only a word still as processing left it qualifies: its one phrase is the generated
-        example and nobody did anything with the word or that phrase. Once a word has a real
-        phrase, refreshing only adds to it.
-        """
-        if (
-            card.origin is None
-            or card.origin.kind is not PhraseOriginKind.SOURCE
-            or word.decided
-            or len(phrases) != 1
-        ):
-            return None
-        [example] = phrases
-        if has_user_work(example, word.decided):
-            return None
-        found = self._occurrence_repo.get(example.id)
-        generated = (
-            found is not None
-            and found.collected_from is not None
-            and found.collected_from.kind is PhraseOriginKind.GENERATED
-        )
-        return example.id if generated else None

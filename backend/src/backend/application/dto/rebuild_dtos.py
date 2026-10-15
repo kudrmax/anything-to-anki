@@ -63,12 +63,10 @@ class RebuildSummaryDTO(BaseModel):
 
 
 class TopicRefreshSummaryDTO(BaseModel):
-    """What refreshing a topic added, and how many untouched generated examples real
-    phrases replaced."""
+    """What refreshing a topic added."""
 
     words_added: int
     phrases_added: int
-    phrases_replaced: int = 0
 
 
 class OperationState(StrEnum):

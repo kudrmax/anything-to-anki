@@ -572,7 +572,6 @@ export interface RebuildSummary {
 export interface TopicRefreshSummary {
   words_added: number
   phrases_added: number
-  phrases_replaced: number
 }
 
 /** Долгая операция над источником (Rebuild, его превью, Refresh темы), запущенная в фоне. */

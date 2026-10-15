@@ -86,7 +86,7 @@ describe('RebuildDialog', () => {
   it('refreshes a topic and says what it added', async () => {
     vi.spyOn(api, 'refreshTopic').mockResolvedValue(operation('refresh', 'running'))
     vi.spyOn(api, 'getOperation').mockResolvedValue(
-      operation('refresh', 'done', { refresh: { words_added: 1, phrases_added: 4, phrases_replaced: 0 } }),
+      operation('refresh', 'done', { refresh: { words_added: 1, phrases_added: 4 } }),
     )
     open('refresh')
     await press('Refresh')
