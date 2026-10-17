@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import type { CollectionTree, Scope, SourceBoard, SourceSummary, Stats } from '@/api/types'
+import type { CollectionTree, InputDescription, Scope, SourceBoard, SourceSummary, Stats } from '@/api/types'
 import { SourcesScreen } from './SourcesScreen'
 
 const counts = { total: 3, reviewed: 1, pending: 0, progress: { decided: 0, total: 0 } }
@@ -87,6 +87,51 @@ describe('SourcesScreen', () => {
   const toasts = () => [...document.body.querySelectorAll('[role="status"]')].map(el => el.textContent).join(' | ')
   const press = (key: string, init: KeyboardEventInit = {}) =>
     act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...init })) })
+
+  const addForm = () => host.querySelector<HTMLElement>('[aria-label="Add"]')
+  const typeInto = async (field: HTMLTextAreaElement, value: string) => {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(field, value)
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }
+
+  it('offers adding at the top of the side column', async () => {
+    await render()
+    const side = host.querySelector('aside')!
+    expect(side.firstElementChild).toBe(addForm())
+    expect(addForm()!.querySelector('textarea')).not.toBeNull()
+  })
+
+  it('on a phone offers adding above the list', async () => {
+    document.documentElement.style.setProperty('--desktop-display', 'none')
+    try {
+      await render()
+      expect(host.querySelector('aside')).toBeNull()
+      expect(addForm()!.querySelector('textarea')).not.toBeNull()
+    } finally {
+      document.documentElement.style.removeProperty('--desktop-display')
+    }
+  })
+
+  it('shows the added source in the list without leaving the screen', async () => {
+    const text: InputDescription = { kind: 'source', format: 'plain', label: 'Text', problem: null, problem_message: null, problem_hint: null }
+    vi.spyOn(api, 'describeInput').mockResolvedValue(text)
+    const addSource = vi.spyOn(api, 'addSource').mockResolvedValue({ source_ids: [4], collection_id: null })
+    await render()
+    const loads = vi.mocked(api.getSourceBoard).mock.calls.length
+
+    await typeInto(addForm()!.querySelector('textarea')!, 'Some text to learn from.')
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 350)) })
+    await settle()
+    act(() => button('Add source', addForm()!).click())
+    await settle()
+
+    expect(addSource).toHaveBeenCalledWith('Some text to learn from.', '', '', {})
+    expect(vi.mocked(api.getSourceBoard).mock.calls.length).toBeGreaterThan(loads)
+    expect(seen.location).toBe('/')
+    expect(addForm()!.querySelector('textarea')!.value).toBe('')
+  })
 
   it('renders the stage groups of the board', async () => {
     await render()

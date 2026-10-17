@@ -1,6 +1,12 @@
-.dropZone { display: grid; place-items: center; min-height: var(--h); padding: var(--s4); border: var(--dash-bw) dashed var(--ac); border-radius: var(--r); background: var(--soft); color: var(--ac); font-size: var(--fs-s); }
-.hintRow { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); min-height: var(--h); }
-.modeRow { display: flex; align-items: center; gap: var(--s4); min-height: var(--h); }
+/* карточка добавления: как карточки статистики рядом */
+.card { display: flex; flex-direction: column; gap: var(--s4); padding: var(--s4); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); border-radius: var(--r); }
+.head { display: flex; align-items: center; gap: var(--s3); padding-inline: var(--s2); }
+.plus { display: grid; place-items: center; width: var(--add-plus); height: var(--add-plus); flex: none; border-radius: 50%; background: var(--fill); color: var(--on-ac); }
+.headTitle { flex: 1; font-size: var(--fs-h2); font-weight: var(--fw-b); }
+.choose { height: auto; }
+.area { height: var(--add-area); }
+.dropZone { display: grid; place-items: center; height: var(--add-area); padding: var(--s4); border: var(--dash-bw) dashed var(--ac); border-radius: var(--rc); background: var(--soft); color: var(--ac); font-size: var(--fs-s); }
+.modeRow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3) var(--s4); }
 /* ввод заведомо не добавится: поле подсвечено, под ним — что не так и что сделать */
 .problemField { box-shadow: inset 0 0 0 var(--bw) var(--err-line); }
 .problem { display: flex; flex-direction: column; gap: var(--s1); }
