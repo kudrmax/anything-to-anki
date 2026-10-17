@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # deliver a fresh result anyway, and a second job would only duplicate the work.
 _STATES_IN_SCOPE: dict[GenerationScope, frozenset[CardGenerationState]] = {
     GenerationScope.MISSING: frozenset({CardGenerationState.MISSING}),
+    GenerationScope.READY_MISSING: frozenset({CardGenerationState.MISSING}),
     GenerationScope.FAILED: frozenset({CardGenerationState.FAILED}),
     GenerationScope.ALL: frozenset({
         CardGenerationState.DONE, CardGenerationState.FAILED, CardGenerationState.MISSING,
@@ -75,6 +76,8 @@ class RunGenerationUseCase:
         )
         in_scope = _STATES_IN_SCOPE[scope]
         chosen = [c for c in candidates if target.state(c, job_of(jobs, c, kind)) in in_scope]
+        if scope == GenerationScope.READY_MISSING:
+            chosen = self._candidate_sorter.arrange(chosen, sort_order).ready()
 
         if scope == GenerationScope.ALL:
             for candidate in chosen:

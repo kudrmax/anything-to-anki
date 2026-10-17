@@ -1056,6 +1056,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             job_repo=SqlaJobRepository(session),
+            candidate_sorter=self._candidate_sorter(session),
             targets=self._generation_targets(session),
         )
 

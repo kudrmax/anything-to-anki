@@ -451,12 +451,12 @@ export interface GenerateMeaningResult {
 
 export type GenerationKind = 'polish' | 'meaning' | 'media' | 'pronunciation' | 'tts'
 
-/** missing — cards nothing was made for yet; failed — cards whose last attempt failed; all — every card, replacing results. */
-export type GenerationScope = 'missing' | 'failed' | 'all'
+/** missing — cards nothing was made for yet; ready_missing — the missing ones in Ready; failed — cards whose last attempt failed; all — every card, replacing results. */
+export type GenerationScope = 'missing' | 'ready_missing' | 'failed' | 'all'
 
 export type GenerationBlocker = 'video_not_downloaded' | 'video_downloading'
 
-/** done + running + failed + missing === total */
+/** done + running + failed + missing === total; ready_missing is the part of missing in Ready */
 export interface GenerationKindStatus {
   kind: GenerationKind
   total: number
@@ -464,6 +464,7 @@ export interface GenerationKindStatus {
   running: number
   failed: number
   missing: number
+  ready_missing: number
   blocked_by: GenerationBlocker | null
 }
 
