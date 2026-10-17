@@ -8,6 +8,7 @@ import pytest
 from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
 from backend.application.use_cases.get_generation_status import GetGenerationStatusUseCase
 from backend.application.use_cases.run_generation import RunGenerationUseCase
+from backend.application.utils.candidate_sorter import ArrangedCandidates
 from backend.application.utils.generation_targets import (
     MeaningTarget,
     MediaTarget,
@@ -22,6 +23,7 @@ from backend.domain.entities.job import Job
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import GenerationBlockedError, GenerationNotSupportedError
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
@@ -92,6 +94,7 @@ class _Setup:
         jobs: list[Job] | None = None,
         source: Source | None = None,
         video_downloading: bool = False,
+        extra_ids: frozenset[int] = frozenset(),
     ) -> None:
         self.source_repo = MagicMock()
         self.source_repo.get_by_id.return_value = source or _source()
@@ -108,6 +111,13 @@ class _Setup:
         self.job_repo.has_active_jobs_for_source.return_value = video_downloading
         sorter = MagicMock()
         sorter.sort.side_effect = lambda cs, _order: list(reversed(cs))
+        sorter.arrange.side_effect = lambda cs, _order=None: ArrangedCandidates(
+            candidates=list(reversed(cs)),
+            sections={
+                c.id: CandidateSection.EXTRA if c.id in extra_ids else CandidateSection.READY
+                for c in cs if c.id is not None
+            },
+        )
         targets = [
             PolishTarget(self.candidate_repo),
             MeaningTarget(self.meaning_repo),
@@ -121,7 +131,7 @@ class _Setup:
         )
         self.status = GetGenerationStatusUseCase(
             source_repo=self.source_repo, candidate_repo=self.candidate_repo,
-            job_repo=self.job_repo, targets=targets,
+            job_repo=self.job_repo, candidate_sorter=sorter, targets=targets,
         )
 
     def kind_status(self, kind: GenerationKind) -> GenerationKindStatusDTO:
@@ -154,6 +164,19 @@ class TestRunGeneration:
         assert queued == 1
         assert setup.queued_ids() == [2]
         setup.meaning_repo.delete_by_candidate_id.assert_not_called()
+
+    def test_ready_missing_skips_missing_cards_outside_ready(self) -> None:
+        setup = _Setup(
+            candidates=[_candidate(1), _candidate(2), _candidate(3, meaning=True)],
+            extra_ids=frozenset({2}),
+        )
+
+        queued = setup.run.execute(
+            SOURCE_ID, GenerationKind.MEANING, GenerationScope.READY_MISSING,
+        )
+
+        assert queued == 1
+        assert setup.queued_ids() == [1]
 
     def test_failed_requeues_only_failed_cards(self) -> None:
         setup = _mixed_meanings()
@@ -219,6 +242,16 @@ class TestGetGenerationStatus:
             4, 1, 1, 1, 1,
         )
         assert status.in_progress is True
+
+    def test_ready_missing_counts_only_missing_cards_in_ready(self) -> None:
+        setup = _Setup(
+            candidates=[_candidate(1), _candidate(2), _candidate(3, meaning=True)],
+            extra_ids=frozenset({2}),
+        )
+
+        meaning = setup.kind_status(GenerationKind.MEANING)
+
+        assert (meaning.missing, meaning.ready_missing) == (2, 1)
 
     def test_done_card_with_a_stale_failure_counts_as_done(self) -> None:
         setup = _Setup([_candidate(1, meaning=True)], jobs=[_job(1, JobStatus.FAILED)])

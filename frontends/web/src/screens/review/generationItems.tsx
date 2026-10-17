@@ -1,4 +1,4 @@
-import { Download, Plus, RefreshCw, RotateCcw, X } from 'lucide-react'
+import { Download, ListChecks, Plus, RefreshCw, RotateCcw, X } from 'lucide-react'
 import type { GenerationKind, GenerationKindStatus } from '@/api/types'
 import { Spinner, StatusDot, type MenuItem } from '@/ui'
 import type { Review } from './useReview'
@@ -39,6 +39,14 @@ function kindItems(status: GenerationKindStatus, review: Review): MenuItem[] {
   const replaceable = status.total - status.running
   return [
     ...videoItems(status, review),
+    {
+      label: 'Generate for ready phrases',
+      hint: 'Missing ones, skipping hidden sections',
+      icon: ListChecks,
+      value: String(status.ready_missing),
+      disabled: blocked || status.ready_missing === 0,
+      onSelect: () => void run(status.kind, 'ready_missing'),
+    },
     {
       label: 'Generate missing',
       hint: 'Cards that don’t have it yet',
