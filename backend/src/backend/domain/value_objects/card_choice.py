@@ -114,6 +114,10 @@ class CardState:
         return None if self.binding is None else self.binding.note_kind
 
 
+NO_CARD_ID = 0
+NO_DECISION_CARD = CardState(NO_CARD_ID, CardChoice.NONE)
+
+
 @dataclass(frozen=True)
 class WordState:
     word_id: int
@@ -132,6 +136,11 @@ class WordState:
     def decision_card(self) -> CardState | None:
         return next((card for card in self.cards if card.is_decision), None)
 
+    @property
+    def decision(self) -> CardState:
+        """The decision card, or NO_DECISION_CARD: "no decision" as a key value."""
+        return next((card for card in self.cards if card.is_decision), NO_DECISION_CARD)
+
     def with_cards(self, *changed: CardState) -> WordState:
         """Replaces cards by id in place; cards with a new id are appended."""
         by_id = {card.card_id: card for card in changed}
@@ -141,9 +150,9 @@ class WordState:
         return replace(self, cards=kept + added)
 
 
-_DECISION_STATUS: Mapping[tuple[CardChoice | None, bool], DecisionStatus] = MappingProxyType(
+_DECISION_STATUS: Mapping[tuple[CardChoice, bool], DecisionStatus] = MappingProxyType(
     {
-        (None, False): DecisionStatus.NEW,
+        (CardChoice.NONE, False): DecisionStatus.NEW,
         (CardChoice.LEARN, False): DecisionStatus.LEARN,
         (CardChoice.CLOZE, False): DecisionStatus.LEARN,
         (CardChoice.LEARN, True): DecisionStatus.LEARNING,
@@ -173,9 +182,8 @@ def export_kind(card: CardState) -> NoteKind | None:
 
 
 def decision_status(word: WordState) -> DecisionStatus:
-    card = word.decision_card
-    key = (None, False) if card is None else (card.choice, in_anki(card))
-    return _DECISION_STATUS[key]
+    card = word.decision
+    return _DECISION_STATUS[(card.choice, in_anki(card))]
 
 
 def reads_known(card: CardState, lemma: LemmaKnowledge, now: datetime) -> bool:
@@ -191,11 +199,5 @@ def reads_known(card: CardState, lemma: LemmaKnowledge, now: datetime) -> bool:
 
 def status_of(word: WordState, lemma: LemmaKnowledge, now: datetime) -> WordStatus:
     """What every reader sees: the decision, with Learning read as Known when it reads so."""
-    card = word.decision_card
-    known = card is not None and reads_known(card, lemma, now)
+    known = reads_known(word.decision, lemma, now)
     return _STATUS_OF[(decision_status(word), known)]
-
-
-def seen(status: DecisionStatus) -> WordStatus:
-    """The seen status of a stored one, before anything reads Known."""
-    return _STATUS_OF[(status, False)]

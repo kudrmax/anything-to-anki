@@ -109,10 +109,7 @@ def _single(word_id: int, choice: CardChoice, binding: Binding | None = None) ->
 BINDINGS = (None, *(Binding(kind, since) for kind in NoteKind for since in (FRESH, DUE)))
 SIBLINGS = (
     None,
-    *(
-        CardState(SIBLING, choice, binding)
-        for choice in (N, S, L, K) for binding in (None, Binding(NoteKind.LEARN, FRESH))
-    ),
+    *(CardState(SIBLING, choice, binding) for choice in CardChoice for binding in BINDINGS),
 )
 OTHER_SOURCES: tuple[tuple[WordState, ...], ...] = (
     (),
@@ -248,6 +245,7 @@ def _assert_ar(world: World) -> None:
 
 
 def _assert_invariants(before: World, outcome: WordOutcome) -> None:
+    assert outcome.status.after is status_of(outcome.word, before.knowledge(), NOW)
     after = _settle(before, outcome)
     assert all(_well_formed(word) for word in after.words), "A1/A2"
     assert _ak(after), "AK"
@@ -283,7 +281,7 @@ class TestPressExpansion:
         assert reached == set(PRESS_RULES), "the worlds reach every possible key"
 
     def test_no_key_yields_in_anki(self) -> None:
-        refusals = {t.choice for t in PRESS_RULES.values() if isinstance(t.choice, Refusal)}
+        refusals = {t.refusal for t in PRESS_RULES.values() if t.refusal is not None}
         assert refusals == {Refusal.NOT_DECISION_CARD, Refusal.DECIDED_ELSEWHERE}
 
     def test_an_impossible_state_has_no_rule(self) -> None:
@@ -496,9 +494,9 @@ class ExpectedMove:
 MOVE_EXPECTED: dict[tuple[str, bool], ExpectedMove] = {
     ("M1", False): ExpectedMove("before", N, False, None, SAME),
     ("M2", False): ExpectedMove(N, "before", False, None, SAME),
-    ("M3a", False): ExpectedMove(K, N, True, (KNOWN, KNOWN), _same(REL)),
-    ("M3k", False): ExpectedMove(K, N, True, (KNOWN, KNOWN), _same(REL)),
-    ("M3k", True): ExpectedMove(K, N, True, (KNOWN, KNOWN), _same(REL, MK)),
+    ("M3a", False): ExpectedMove(K, N, True, (KNOWN, KNOWN), _changed(REL)),
+    ("M3k", False): ExpectedMove(K, N, True, (KNOWN, KNOWN), _changed(REL)),
+    ("M3k", True): ExpectedMove(K, N, True, (KNOWN, KNOWN), _changed(REL, MK)),
     ("M3b", False): ExpectedMove("before", N, True, (LEARNING, LEARN), _changed(REL)),
 }
 
@@ -575,13 +573,15 @@ class TestBindRows:
         assert cases
         for world in cases:
             before = world.word.card(ACTED)
-            outcome = on_bind(world.word, ACTED, NOW)
+            outcome = on_bind(world.word, ACTED, world.knowledge(), NOW)
             card = outcome.word.card(ACTED)
             assert outcome.row == "S1"
             assert card.choice is before.choice
             assert card.binding == Binding(export_kind(before) or NoteKind.LEARN, NOW)
             assert export_kind(before) is not None
-            assert outcome.status == StatusChange(1, LEARN, LEARNING, Actor.EXPORT)
+            listed = world.known_marked and not world.unknown
+            after = KNOWN if listed else LEARNING
+            assert outcome.status == StatusChange(1, LEARN, after, Actor.EXPORT)
             assert outcome.effects == _changed(Effect.BIND)
             assert outcome.released is False
             _assert_invariants(world, outcome)
@@ -590,7 +590,7 @@ class TestBindRows:
         for world in worlds():
             if bind_key(world.word, world.word.card(ACTED)) not in BIND_RULES:
                 with pytest.raises(NoDecisionRuleError):
-                    on_bind(world.word, ACTED, NOW)
+                    on_bind(world.word, ACTED, world.knowledge(), NOW)
 
 
 # --- Known removal (R1-R3) -----------------------------------------------------------------
@@ -600,7 +600,7 @@ def _all_removal_keys() -> list[RemovalKey]:
     return [
         RemovalKey(decision, note, reads_known)
         for decision, note, reads_known in itertools.product(
-            (None, *CardChoice), (None, *NoteKind), (False, True),
+            CardChoice, (None, *NoteKind), (False, True),
         )
     ]
 
@@ -674,7 +674,7 @@ def _produced_changes() -> set[tuple[WordStatus, WordStatus, Actor]]:
                 outcomes.append(_press(world, button))
         outcomes.append(_move(world))
         if bind_key(world.word, world.word.card(ACTED)) in BIND_RULES:
-            outcomes.append(on_bind(world.word, ACTED, NOW))
+            outcomes.append(on_bind(world.word, ACTED, world.knowledge(), NOW))
         outcomes.extend(
             on_known_removed(world.knowledge(), world.words, world.orphans, NOW).words,
         )
@@ -704,6 +704,7 @@ class TestEffects:
             (KNOWN, NEW, Actor.USER, _changed(RK, FORGET)),
             (KNOWN, LEARN, Actor.USER, _changed(RK, CAL)),
             (LEARN, LEARNING, Actor.EXPORT, _changed(Effect.BIND)),
+            (LEARN, KNOWN, Actor.EXPORT, _changed(Effect.BIND)),
             (KNOWN, NEW, Actor.REVOKE, _changed(FORGET)),
             *((status, status, Actor.USER, SAME) for status in WordStatus),
         ],

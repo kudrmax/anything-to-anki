@@ -29,9 +29,7 @@ from backend.domain.value_objects.card_choice import (
     Refusal,
     Role,
     WordState,
-    decision_status,
     reads_known,
-    seen,
     status_of,
 )
 from backend.domain.value_objects.learning_timer import timer_due
@@ -72,7 +70,7 @@ def rule[K, V](table: Mapping[K, V], key: K) -> V:
 
 
 def role_of(word: WordState, card: CardState) -> Role:
-    return _ROLES[(card.is_decision, word.decision_card is not None)]
+    return _ROLES[(card.is_decision, word.decision.is_decision)]
 
 
 _ROLES: Mapping[tuple[bool, bool], Role] = MappingProxyType(
@@ -93,8 +91,9 @@ def _kept(binding: Binding | None, release: bool) -> Binding | None:
     return None if release else binding
 
 
-def _release_effects(release: bool) -> frozenset[Effect]:
-    return _RELEASED if release else _NO_EFFECTS
+_RELEASE_EFFECTS: Mapping[bool, frozenset[Effect]] = MappingProxyType(
+    {True: _RELEASED, False: _NO_EFFECTS},
+)
 
 
 # --- outcomes ---------------------------------------------------------------------------
@@ -169,9 +168,13 @@ class PressKey:
 
 @dataclass(frozen=True)
 class Target:
+    """The card's new choice and whether its binding is released; a refusal row sets
+    `refusal`, and its `choice` is never applied."""
+
     row: str
-    choice: CardChoice | Refusal
+    choice: CardChoice = CardChoice.NONE
     release: bool = False
+    refusal: Refusal | None = None
 
 
 @dataclass(frozen=True)
@@ -203,16 +206,17 @@ def possible(key: PressKey) -> bool:
 
 
 _DECIDING = frozenset({Press.LEARN, Press.CLOZE, Press.KNOWN})
+
 _KIND_PRESSES = (Press.LEARN, Press.CLOZE)
 
 
 def _open(
     row: str, elsewhere: bool, before: Iterable[CardChoice], presses: Iterable[Press],
-    choice: CardChoice | Refusal,
+    choice: CardChoice = _N, *, refusal: Refusal | None = None,
 ) -> PressRow:
     return PressRow(
         Role.OPEN, None, False, elsewhere, frozenset(before), frozenset(presses),
-        Target(row, choice),
+        Target(row, choice, refusal=refusal),
     )
 
 
@@ -237,11 +241,11 @@ def _bound(
 
 def _other(
     row: str, before: Iterable[CardChoice], presses: Iterable[Press],
-    choice: CardChoice | Refusal,
+    choice: CardChoice = _N, *, refusal: Refusal | None = None,
 ) -> PressRow:
     return PressRow(
         Role.OTHER, None, False, False, frozenset(before), frozenset(presses),
-        Target(row, choice),
+        Target(row, choice, refusal=refusal),
     )
 
 
@@ -275,7 +279,7 @@ PRESS_ROWS: tuple[PressRow, ...] = (
     _open("P3", False, {_N, _S}, {Press.KNOWN}, _K),
     _open("P4", False, {_N}, {Press.SKIP}, _S),
     _open("P5", False, {_S}, {Press.SKIP}, _N),
-    _open("P6", True, {_N, _S}, _DECIDING, Refusal.DECIDED_ELSEWHERE),
+    _open("P6", True, {_N, _S}, _DECIDING, refusal=Refusal.DECIDED_ELSEWHERE),
     _open("P7", True, {_N}, {Press.SKIP}, _S),
     _open("P8", True, {_S}, {Press.SKIP}, _N),
     *(row for kind in NoteKind for row in _unbound_kind_rows(kind)),
@@ -285,9 +289,9 @@ PRESS_ROWS: tuple[PressRow, ...] = (
     *(_decided("P14", {_K}, {p}, CHOICE_OF_PRESS[p]) for p in _KIND_PRESSES),
     _decided("P15", {_K}, {Press.SKIP}, _S),
     *(row for kind in NoteKind for row in _bound_kind_rows(kind)),
-    _other("P25", {_N}, Press, Refusal.NOT_DECISION_CARD),
+    _other("P25", {_N}, Press, refusal=Refusal.NOT_DECISION_CARD),
     _other("P26", {_S}, {Press.SKIP}, _N),
-    _other("P27", {_S}, _DECIDING, Refusal.NOT_DECISION_CARD),
+    _other("P27", {_S}, _DECIDING, refusal=Refusal.NOT_DECISION_CARD),
 )
 PRESS_RULES: Mapping[PressKey, Target] = MappingProxyType(
     {key: row.target for row in PRESS_ROWS for key in expand(row)},
@@ -317,7 +321,9 @@ def press(
     """Raises ActionRefusedError when the row refuses."""
     card = word.card(card_id)
     target = rule(PRESS_RULES, press_key(word, card_id, button, lemma, elsewhere, now))
-    choice = _granted(card_id, target.choice)
+    if target.refusal is not None:
+        raise ActionRefusedError(card_id, target.refusal)
+    choice = target.choice
     after = word.with_cards(CardState(card_id, choice, _kept(card.binding, target.release)))
     return WordOutcome(
         row=target.row,
@@ -325,14 +331,8 @@ def press(
         choices=(ChoiceChange(card_id, card.choice, choice),),
         released=target.release,
         status=_change(word, after, lemma, now, Actor.USER),
-        row_effects=_release_effects(target.release),
+        row_effects=_RELEASE_EFFECTS[target.release],
     )
-
-
-def _granted(card_id: int, choice: CardChoice | Refusal) -> CardChoice:
-    if isinstance(choice, Refusal):
-        raise ActionRefusedError(card_id, choice)
-    return choice
 
 
 # --- move: Replace with example (§2.5) ----------------------------------------------------
@@ -366,14 +366,19 @@ def possible_move(key: MoveKey) -> bool:
     )
 
 
+# M3a / M3k keep the status, but the released row changes the lemma's bindings (and the
+# Settings lists) that other sources read.
+_RELEASED_FOR_LEMMA: frozenset[Effect] = _RELEASED | {Effect.REFRESH_LEMMA}
+
+
 def _bound_moves(kind: NoteKind) -> tuple[tuple[MoveKey, MoveTarget], ...]:
     choice = CHOICE_OF_KIND[kind]
     return (
-        (MoveKey(kind, False, False, _K), MoveTarget("M3a", _K, _N, _RELEASED)),
-        (MoveKey(kind, True, False, choice), MoveTarget("M3k", _K, _N, _RELEASED)),
+        (MoveKey(kind, False, False, _K), MoveTarget("M3a", _K, _N, _RELEASED_FOR_LEMMA)),
+        (MoveKey(kind, True, False, choice), MoveTarget("M3k", _K, _N, _RELEASED_FOR_LEMMA)),
         (
             MoveKey(kind, True, True, choice),
-            MoveTarget("M3k", _K, _N, _RELEASED | {Effect.MARK_KNOWN}),
+            MoveTarget("M3k", _K, _N, _RELEASED_FOR_LEMMA | {Effect.MARK_KNOWN}),
         ),
         (MoveKey(kind, False, False, choice), MoveTarget("M3b", choice, _N, _RELEASED)),
     )
@@ -435,7 +440,9 @@ def bind_key(word: WordState, card: CardState) -> BindKey:
     return BindKey(role_of(word, card), card.note, card.choice)
 
 
-def on_bind(word: WordState, card_id: int, now: datetime) -> WordOutcome:
+def on_bind(
+    word: WordState, card_id: int, lemma: LemmaKnowledge, now: datetime,
+) -> WordOutcome:
     """S1: the card being exported gets a new active binding; its timer starts now."""
     card = word.card(card_id)
     row = rule(BIND_RULES, bind_key(word, card))
@@ -446,10 +453,7 @@ def on_bind(word: WordState, card_id: int, now: datetime) -> WordOutcome:
         word=after,
         choices=(),
         released=False,
-        status=StatusChange(
-            word.word_id, seen(decision_status(word)), seen(decision_status(after)),
-            Actor.EXPORT,
-        ),
+        status=_change(word, after, lemma, now, Actor.EXPORT),
     )
 
 
@@ -458,7 +462,7 @@ def on_bind(word: WordState, card_id: int, now: datetime) -> WordOutcome:
 
 @dataclass(frozen=True)
 class RemovalKey:
-    decision: CardChoice | None    # the word's decision card choice, None without one
+    decision: CardChoice    # the word's decision card choice, NONE without one
     note: NoteKind | None
     reads_known: bool
 
@@ -470,9 +474,12 @@ class RemovalTarget:
     release: bool = False
 
 
+_REMOVAL_CHOICES = DECISION_CHOICES | {CardChoice.NONE}
+
+
 def possible_removal(key: RemovalKey) -> bool:
     return (
-        (key.decision is None or key.decision in DECISION_CHOICES)
+        key.decision in _REMOVAL_CHOICES
         and _holds_binding(key.note, key.decision)
         and (not key.reads_known or _learning(key.note, key.decision))
     )
@@ -480,7 +487,7 @@ def possible_removal(key: RemovalKey) -> bool:
 
 _KEEP = RemovalTarget("R0", revoke=False)
 REMOVAL_ROWS: tuple[tuple[RemovalKey, RemovalTarget], ...] = (
-    (RemovalKey(None, None, False), _KEEP),
+    (RemovalKey(_N, None, False), _KEEP),
     *((RemovalKey(c, None, False), _KEEP) for c in (_L, _C)),
     *((RemovalKey(CHOICE_OF_KIND[k], k, False), _KEEP) for k in NoteKind),
     (RemovalKey(_K, None, False), RemovalTarget("R1", revoke=True)),
@@ -494,10 +501,20 @@ REMOVAL_RULES: Mapping[RemovalKey, RemovalTarget] = MappingProxyType(dict(REMOVA
 
 
 def removal_key(word: WordState, lemma: LemmaKnowledge, now: datetime) -> RemovalKey:
-    card = word.decision_card
-    if card is None:
-        return RemovalKey(None, None, reads_known=False)
+    card = word.decision
     return RemovalKey(card.choice, card.note, reads_known(card, lemma, now))
+
+
+@dataclass(frozen=True)
+class OrphanTarget:
+    row: str
+    release: bool
+
+
+ORPHAN_RULES: Mapping[bool, OrphanTarget] = MappingProxyType(
+    {True: OrphanTarget("O1", release=True), False: OrphanTarget("O0", release=False)},
+)
+"""Keyed by whether the orphaned binding's timer is due."""
 
 
 def on_known_removed(
@@ -506,20 +523,22 @@ def on_known_removed(
 ) -> KnownRemoval:
     """`lemma` is the snapshot taken before Known was forgotten; `words` are every word of
     the lemma in every source."""
-    revoked = (_revoked(word, lemma, now) for word in words)
+    ruled = ((word, rule(REMOVAL_RULES, removal_key(word, lemma, now))) for word in words)
     return KnownRemoval(
-        words=tuple(outcome for outcome in revoked if outcome is not None),
+        words=tuple(
+            _revoked(word, target, lemma, now) for word, target in ruled if target.revoke
+        ),
         released_orphans=tuple(
-            ref.binding_id for ref in orphans if timer_due(ref.learning_since, now)
+            ref.binding_id for ref in orphans
+            if ORPHAN_RULES[timer_due(ref.learning_since, now)].release
         ),
     )
 
 
-def _revoked(word: WordState, lemma: LemmaKnowledge, now: datetime) -> WordOutcome | None:
-    target = rule(REMOVAL_RULES, removal_key(word, lemma, now))
-    card = word.decision_card
-    if card is None or not target.revoke:
-        return None
+def _revoked(
+    word: WordState, target: RemovalTarget, lemma: LemmaKnowledge, now: datetime,
+) -> WordOutcome:
+    card = word.decision
     after = word.with_cards(CardState(card.card_id, _N, _kept(card.binding, target.release)))
     return WordOutcome(
         row=target.row,
@@ -527,7 +546,7 @@ def _revoked(word: WordState, lemma: LemmaKnowledge, now: datetime) -> WordOutco
         choices=(ChoiceChange(card.card_id, card.choice, _N),),
         released=target.release,
         status=_change(word, after, lemma, now, Actor.REVOKE),
-        row_effects=_release_effects(target.release),
+        row_effects=_RELEASE_EFFECTS[target.release],
     )
 
 
@@ -552,6 +571,7 @@ _STATUS_EFFECTS: Mapping[tuple[WordStatus, WordStatus, Actor], frozenset[Effect]
         ),
         (_KNOWN, _LEARN, Actor.USER): frozenset({Effect.REMOVE_KNOWN, Effect.CALIBRATE}),
         (_LEARN, _LEARNING, Actor.EXPORT): frozenset({Effect.BIND}),
+        (_LEARN, _KNOWN, Actor.EXPORT): frozenset({Effect.BIND}),
         (_KNOWN, _NEW, Actor.REVOKE): frozenset({Effect.FORGET_CALIBRATION}),
     })
 )
