@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.word_status import WordStatus
+
+if TYPE_CHECKING:
+    from backend.domain.value_objects.card_choice import Refusal
 
 
 class DomainError(Exception):
@@ -404,6 +409,23 @@ class DecidedElsewhereError(DomainError):
         super().__init__(reason)
         self.phrase_id = phrase_id
         self.elsewhere = elsewhere
+
+
+class ActionRefusedError(DomainError):
+    """Raised when the decision table refuses a button on a card."""
+
+    def __init__(self, card_id: int, refusal: Refusal) -> None:
+        super().__init__(f"Card {card_id}: {refusal.value}")
+        self.card_id = card_id
+        self.refusal = refusal
+
+
+class NoDecisionRuleError(DomainError):
+    """Raised when no row of a decision table matches: the state is impossible, a bug."""
+
+    def __init__(self, key: object) -> None:
+        super().__init__(f"No decision rule for {key!r}")
+        self.key = key
 
 
 class PhraseChangedError(DomainError):

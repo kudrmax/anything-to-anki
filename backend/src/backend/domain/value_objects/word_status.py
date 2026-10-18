@@ -4,8 +4,10 @@ from enum import StrEnum
 
 
 class WordStatus(StrEnum):
-    """The user's decision on a word of a source."""
+    """What every reader sees of a word: its decision, and Learning read as Known after the
+    timer."""
 
     NEW = "pending"
     LEARN = "learn"
+    LEARNING = "learning"
     KNOWN = "known"
