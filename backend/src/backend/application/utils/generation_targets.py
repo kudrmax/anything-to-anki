@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.job import Job
-from backend.domain.services.card_view import card_view
+from backend.domain.services.card_view import card_view, open_elsewhere
 from backend.domain.value_objects.card_generation_state import CardGenerationState
 from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_kind import GenerationKind
@@ -13,7 +13,6 @@ from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.review_card import CardContext
 
 if TYPE_CHECKING:
-    from backend.application.utils.decided_elsewhere import DecidedElsewhere
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.entities.source import Source
@@ -24,7 +23,6 @@ if TYPE_CHECKING:
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.word_state_repository import WordStateRepository
     from backend.domain.value_objects.card_choice import WordState
-    from backend.domain.value_objects.elsewhere import ElsewhereStatus
 
 
 @dataclass(frozen=True)
@@ -40,11 +38,9 @@ class GenerationCard:
     in_play: bool
 
     @classmethod
-    def of(
-        cls, word: StoredCandidate, phrase: Occurrence, elsewhere: ElsewhereStatus | None,
-        context: CardContext,
-    ) -> GenerationCard:
+    def of(cls, word: StoredCandidate, phrase: Occurrence, context: CardContext) -> GenerationCard:
         assert phrase.id is not None
+        elsewhere = open_elsewhere(context.word, context.knowledge)
         view = card_view(context.word, phrase.id, context.knowledge, elsewhere, context.now)
         return cls(word, phrase, view.wants_generation)
 
@@ -81,13 +77,11 @@ class GenerationCards:
         self,
         candidate_repo: CandidateRepository,
         occurrence_repo: OccurrenceRepository,
-        decided_elsewhere: DecidedElsewhere,
         word_states: WordStateRepository,
         vocabulary: UserVocabulary,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._occurrence_repo = occurrence_repo
-        self._decided_elsewhere = decided_elsewhere
         self._contexts = CardContexts(word_states, vocabulary)
 
     def of_source(self, source_id: int) -> list[GenerationCard]:
@@ -96,10 +90,9 @@ class GenerationCards:
             word for word in self._candidate_repo.get_by_source(source_id)
             if word.id is not None and word.id in shown
         ]
-        elsewhere = self._decided_elsewhere.of_lemmas({word.lemma for word in words})
         contexts = self._contexts.of_source(source_id)
         return [
-            GenerationCard.of(word, phrase, elsewhere.get(word.lemma), contexts[word.id])
+            GenerationCard.of(word, phrase, contexts[word.id])
             for word in words
             if word.id is not None
             for phrase in shown[word.id]

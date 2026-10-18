@@ -52,7 +52,7 @@ def _card(
     phrase = replace(
         shown, id=cid * 10, choice=CardChoice.SKIP if skipped else CardChoice.NONE,
     )
-    return GenerationCard.of(word, phrase, None, context(word, phrase))
+    return GenerationCard.of(word, phrase, context(word, phrase))
 
 
 def _refs(*phrase_ids: int) -> list[PhraseRef]:

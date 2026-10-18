@@ -85,8 +85,6 @@ class TestSaveCloze:
         self.report_repo.reported_phrase_ids.return_value = set()
         settings = MagicMock()
         settings.get.return_value = None
-        elsewhere = MagicMock()
-        elsewhere.of.return_value = None
         self.candidate_repo.get_by_id.return_value = _word()
         self.occurrence_repo.get.return_value = _phrase()
         word_states = MagicMock()
@@ -101,7 +99,7 @@ class TestSaveCloze:
             cloze_repo=self.cloze_repo,
             card_views=CardViews(
                 review_cards=ReviewCards(
-                    self.candidate_repo, self.occurrence_repo, elsewhere, word_states,
+                    self.candidate_repo, self.occurrence_repo, word_states,
                     user_vocabulary(),
                 ),
                 candidate_sorter=candidate_sorter(settings),

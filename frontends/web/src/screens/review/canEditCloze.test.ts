@@ -6,6 +6,8 @@ const state = (cloze: CardButton['action']): CardState => ({
   decided_here: false,
   decided_elsewhere: 'learn',
   elsewhere: null,
+  note: 'decided_on_other_card',
+  known_on: null,
   buttons: [
     { button: 'learn', action: null, pressed: false },
     { button: 'cloze', action: cloze, pressed: false },

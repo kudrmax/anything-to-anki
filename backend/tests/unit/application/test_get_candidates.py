@@ -32,13 +32,11 @@ class TestGetCandidatesUseCase:
         self.job_repo.get_jobs_for_candidates.return_value = {}
         self.report_repo = MagicMock()
         self.report_repo.reported_phrase_ids.return_value = set()
-        elsewhere = MagicMock()
-        elsewhere.of_lemmas.return_value = {}
         self.use_case = GetCandidatesUseCase(
             source_repo=self.source_repo,
             card_views=CardViews(
                 review_cards=ReviewCards(
-                    self.candidate_repo, self.occurrence_repo, elsewhere,
+                    self.candidate_repo, self.occurrence_repo,
                     PhraseWordStates(
                         lambda: self.candidate_repo.get_by_source.return_value,
                         lambda word_id: self.occurrence_repo.shown_by_word.return_value.get(

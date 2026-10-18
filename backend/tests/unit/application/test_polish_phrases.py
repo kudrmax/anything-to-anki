@@ -85,7 +85,7 @@ def _candidate(
         polished_phrase=phrase(polished, "abandoned") if polished is not None else None,
         phrase_position=_PHRASE,
     )
-    return GenerationCard.of(word, shown, None, context(word, shown))
+    return GenerationCard.of(word, shown, context(word, shown))
 
 
 P1, P2 = phrase_id_of(1), phrase_id_of(2)

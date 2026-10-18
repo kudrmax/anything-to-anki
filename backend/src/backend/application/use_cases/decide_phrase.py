@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from backend.application.dto.decision_compat import press_of
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.exceptions import ActionRefusedError, PhraseNotFoundError
-from backend.domain.services.card_view import card_view
+from backend.domain.services.card_view import card_view, open_elsewhere
 from backend.domain.services.decision_rules import press
 from backend.domain.value_objects.card_choice import Refusal
 from backend.domain.value_objects.word_status import WordStatus
@@ -15,7 +15,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from backend.application.dto.decision_compat import DecisionAction
-    from backend.application.utils.decided_elsewhere import DecidedElsewhere
     from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.stored_candidate import StoredCandidate
@@ -42,7 +41,6 @@ class DecidePhraseUseCase:
         candidate_repo: CandidateRepository,
         word_states: WordStateRepository,
         vocabulary: UserVocabulary,
-        decided_elsewhere: DecidedElsewhere,
         effects: DecisionEffects,
         lock: SourceOperationLock,
     ) -> None:
@@ -51,24 +49,23 @@ class DecidePhraseUseCase:
         self._candidates = candidate_repo
         self._word_states = word_states
         self._vocabulary = vocabulary
-        self._decided_elsewhere = decided_elsewhere
         self._effects = effects
 
     def execute(self, occurrence_id: int, action: DecisionAction) -> None:
         """An action of the old API: "pending" undoes the pressed button, "unskip" a Skip."""
         word, state = self._word(occurrence_id)
-        elsewhere = self._elsewhere(word)
+        elsewhere = self._elsewhere(word, state)
         button = press_of(action, self._view(word, state, occurrence_id, elsewhere))
         if button is not None:
             self._press(word, state, occurrence_id, button, elsewhere)
 
     def view(self, occurrence_id: int) -> CardView:
         word, state = self._word(occurrence_id)
-        return self._view(word, state, occurrence_id, self._elsewhere(word))
+        return self._view(word, state, occurrence_id, self._elsewhere(word, state))
 
     def press(self, occurrence_id: int, button: Press) -> None:
         word, state = self._word(occurrence_id)
-        self._press(word, state, occurrence_id, button, self._elsewhere(word))
+        self._press(word, state, occurrence_id, button, self._elsewhere(word, state))
 
     def _press(
         self, word: StoredCandidate, state: WordState, occurrence_id: int, button: Press,
@@ -104,11 +101,8 @@ class DecidePhraseUseCase:
             raise PhraseNotFoundError(occurrence_id)
         return word, state
 
-    def _elsewhere(self, word: StoredCandidate) -> ElsewhereStatus | None:
-        """Only an open word looks at other sources; a decided one holds its own decision."""
-        if word.status is not WordStatus.NEW:
-            return None
-        return self._decided_elsewhere.of(word.lemma)
+    def _elsewhere(self, word: StoredCandidate, state: WordState) -> ElsewhereStatus | None:
+        return open_elsewhere(state, self._vocabulary.of(word.lemma))
 
 
 _LEARNED_ON_OTHER_CARD = "Learned via another phrase: change it on that card"

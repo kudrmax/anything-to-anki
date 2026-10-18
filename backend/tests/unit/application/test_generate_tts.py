@@ -56,7 +56,7 @@ def _make_candidate(
         make_occurrence(context_fragment, candidate_id=candidate_id),
         id=phrase_id_of(candidate_id),
     )
-    return GenerationCard.of(word, shown, None, context(word, shown))
+    return GenerationCard.of(word, shown, context(word, shown))
 
 
 @pytest.mark.unit

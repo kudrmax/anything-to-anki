@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { ArrowRight, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
-import type { CardButton, CardState, DecisionButton, FollowUpAction, StoredCandidate } from '@/api/types'
+import type { CardButton, DecisionButton, FollowUpAction, StoredCandidate } from '@/api/types'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { phraseWordTexts } from '@/lib/text/phraseParts'
 import { toggled } from '@/lib/text/words'
 import { Button, Field, Icon, IconButton, Menu, Spinner, Text, WordPicker, type MenuItem, type MenuPage } from '@/ui'
+import { cardNoteText } from './cardNotes'
 import { ImagePicker } from './ImagePicker'
 import { PolishComparison } from './PolishComparison'
 import type { ClozeEditor } from './useClozeEditor'
@@ -27,16 +28,6 @@ const BUTTON_LOOK: Record<DecisionButton, { label: string; kbd: string }> = {
   skip: { label: 'Skip', kbd: '4' },
 }
 const ALREADY_IN_ANKI = 'Already in Anki'
-
-/** Подпись карточки, решение которой принято не на ней. */
-const DECIDED_ELSEWHERE_LABEL: Record<CardState['decided_elsewhere'] & string, string> = {
-  learn: 'Learned via other phrase',
-  known: 'Known via other phrase',
-}
-const ELSEWHERE_LABEL: Record<CardState['elsewhere'] & string, string> = {
-  known: 'Known',
-  learning: 'Learning from another source',
-}
 
 interface PhraseActionsProps {
   candidate: StoredCandidate
@@ -63,8 +54,7 @@ export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsPro
     if (cloze.active) cloze.cancel()
     void review.mark(candidate.phrase_id, button.action)
   }
-  const note = state.decided_elsewhere ? DECIDED_ELSEWHERE_LABEL[state.decided_elsewhere]
-    : state.elsewhere ? ELSEWHERE_LABEL[state.elsewhere] : null
+  const note = cardNoteText(state)
   return (
     <>
       {note && <div className={css.decisionNote}><Text tone="muted" size="s">{note}</Text></div>}

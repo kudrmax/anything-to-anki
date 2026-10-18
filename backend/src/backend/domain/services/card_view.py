@@ -25,7 +25,7 @@ from backend.domain.value_objects.card_choice import (
 from backend.domain.value_objects.card_note import CardNote
 from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
-from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
+from backend.domain.value_objects.learning_timer import known_on
 from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
@@ -202,7 +202,7 @@ def note_key(
 
 def _known_on(card: CardState, row: NoteRow) -> datetime | None:
     binding = card.binding
-    return binding.learning_since + LEARNING_KNOWN_AFTER if row.dated and binding else None
+    return known_on(binding.learning_since) if row.dated and binding else None
 
 
 # --- shown ------------------------------------------------------------------------------
@@ -263,6 +263,11 @@ def card_view(
             or (role is Role.OPEN and card.choice is CardChoice.NONE and open_elsewhere is None)
         ),
     )
+
+
+def open_elsewhere(word: WordState, lemma: LemmaKnowledge) -> ElsewhereStatus | None:
+    """What other sources hold of a word open here; a decided word holds its own decision."""
+    return lemma.elsewhere if word.decision_card is None else None
 
 
 def is_protected(card: CardState) -> bool:

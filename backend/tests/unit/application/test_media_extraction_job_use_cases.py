@@ -41,7 +41,7 @@ def _card(media: CandidateMedia | None) -> GenerationCard:
     )
     shown = replace(make_occurrence("hello world", candidate_id=WORD_ID), id=PHRASE_ID)
     phrase = replace(shown, media=media)
-    return GenerationCard.of(word, phrase, None, context(word, phrase))
+    return GenerationCard.of(word, phrase, context(word, phrase))
 
 
 def _write(path: str, content: bytes) -> None:

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
 
 import pytest
 from backend.application.utils.review_cards import ReviewCards
@@ -61,11 +60,9 @@ def _make_candidate(
 
 
 def _cards(session: Session) -> list[ReviewCard]:
-    elsewhere = MagicMock()
-    elsewhere.of_lemmas.return_value = {}
     decisions = Decisions(session)
     return ReviewCards(
-        SqlaCandidateRepository(session), SqlaOccurrenceRepository(session), elsewhere,
+        SqlaCandidateRepository(session), SqlaOccurrenceRepository(session),
         decisions.word_states, decisions.vocabulary,
     ).of_source(1)
 

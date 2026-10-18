@@ -10,6 +10,11 @@ export function formatDate(iso: string): string {
   return d.toLocaleDateString()
 }
 
+/** День без времени, в прошлом или в будущем. */
+export function formatDay(iso: string): string {
+  return new Date(iso).toLocaleDateString()
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB']

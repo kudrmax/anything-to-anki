@@ -116,11 +116,9 @@ def _meaning_use_case(session: Session, ai_service: MagicMock) -> MeaningGenerat
 
 
 def _job_phrases(session: Session) -> JobPhrases:
-    decided_elsewhere = MagicMock()
-    decided_elsewhere.of_lemmas.side_effect = lambda lemmas: dict.fromkeys(lemmas)
     decisions = Decisions(session)
     return JobPhrases(
-        SqlaCandidateRepository(session), SqlaOccurrenceRepository(session), decided_elsewhere,
+        SqlaCandidateRepository(session), SqlaOccurrenceRepository(session),
         decisions.word_states, decisions.vocabulary,
     )
 

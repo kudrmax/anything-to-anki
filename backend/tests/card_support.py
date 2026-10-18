@@ -124,7 +124,6 @@ def card(
 def card_views(session: Session) -> CardViews:
     """Real card views over the database; the user knows no words."""
     from backend.application.utils.card_views import CardViews
-    from backend.application.utils.decided_elsewhere import DecidedElsewhere
     from backend.application.utils.review_cards import ReviewCards
     from backend.infrastructure.persistence.sqla_candidate_repository import (
         SqlaCandidateRepository,
@@ -150,7 +149,7 @@ def card_views(session: Session) -> CardViews:
     return CardViews(
         review_cards=ReviewCards(
             SqlaCandidateRepository(session), SqlaOccurrenceRepository(session),
-            DecidedElsewhere(vocabulary), SqlaWordStateRepository(session), vocabulary,
+            SqlaWordStateRepository(session), vocabulary,
         ),
         candidate_sorter=candidate_sorter(SqlaSettingsRepository(session)),
         job_repo=SqlaJobRepository(session),

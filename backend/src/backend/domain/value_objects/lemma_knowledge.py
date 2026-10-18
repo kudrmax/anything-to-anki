@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.learning_timer import timer_due
+from backend.domain.value_objects.elsewhere import ElsewhereStatus
+from backend.domain.value_objects.learning_timer import known_on, timer_due
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -50,3 +51,19 @@ class LemmaKnowledge:
             not self.unknown and not self.is_known and not self.is_learning
             and self.learn_anywhere
         )
+
+    @property
+    def timer_known_on(self) -> datetime | None:
+        """When its oldest note in Anki makes it Known; None with no note in Anki."""
+        return known_on(min(self.active_since)) if self.active_since else None
+
+    @property
+    def elsewhere(self) -> ElsewhereStatus | None:
+        """What a card of the lemma open in a source shows of the user's other words."""
+        if self.is_known:
+            return ElsewhereStatus.KNOWN
+        if self.is_learning:
+            return ElsewhereStatus.LEARNING
+        if self.is_learn:
+            return ElsewhereStatus.LEARN
+        return None

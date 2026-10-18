@@ -14,7 +14,8 @@ from backend.application.utils.user_vocabulary import UserVocabulary
 from tests.decision_support import FixedClock
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Mapping
+    from datetime import datetime
 
     from backend.domain.ports.learning_query import LearningQuery
 
@@ -25,9 +26,11 @@ def user_vocabulary(
     *,
     learning_lemmas: Iterable[str] = (),
     learning_query: LearningQuery | None = None,
+    active_since: Mapping[str, tuple[datetime, ...]] | None = None,
 ) -> UserVocabulary:
     """`learning_query`: a real query in place of the given learning lemmas, which are
-    Learn words waiting for export."""
+    Learn words waiting for export; `active_since`: when each lemma's notes in Anki were
+    exported."""
     known = known_word_repo if known_word_repo is not None else MagicMock()
     if isinstance(known.get_all_pairs.return_value, MagicMock):
         known.get_all_pairs.return_value = set()
@@ -39,5 +42,5 @@ def user_vocabulary(
     else:
         learning = MagicMock()
         learning.awaiting_export.return_value = frozenset(learning_lemmas)
-        learning.active_since.return_value = {}
+        learning.active_since.return_value = dict(active_since or {})
     return UserVocabulary(known, unknown, KnowledgeScope(FixedClock(), known, unknown, learning))

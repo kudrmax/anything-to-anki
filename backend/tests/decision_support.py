@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
-from backend.application.utils.decided_elsewhere import DecidedElsewhere
 from backend.application.utils.decision_effects import DecisionEffects
 from backend.application.utils.knowledge_scope import KnowledgeScope
 from backend.application.utils.user_vocabulary import UserVocabulary
@@ -95,7 +94,6 @@ class Decisions:
             candidate_repo=SqlaCandidateRepository(self.session),
             word_states=self.word_states,
             vocabulary=self.vocabulary,
-            decided_elsewhere=DecidedElsewhere(self.vocabulary),
             effects=self.effects(),
             lock=self.lock,
         )

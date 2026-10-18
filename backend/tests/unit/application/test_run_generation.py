@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
@@ -51,16 +51,19 @@ from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.card_support import PhraseWordStates
+from tests.decision_support import NOW as REQUEST_MOMENT
 from tests.phrase_support import phrase
 from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
     from backend.application.dto.generation_dtos import GenerationKindStatusDTO
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.value_objects.review_card import ReviewCard
 
 SOURCE_ID = 9
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 PHRASES_PER_WORD = 10
+EXPORTED = REQUEST_MOMENT - timedelta(days=1)   # in Anki, not Known yet
 
 
 def _meaning(cid: int) -> CandidateMeaning:
@@ -129,6 +132,20 @@ def _source(source_format: Format = Format.PLAIN, video_path: str | None = None)
     )
 
 
+def _vocabulary_holding(elsewhere: dict[str, ElsewhereStatus]) -> UserVocabulary:
+    """The user's words with each lemma held in another source as `elsewhere` says."""
+    def held(status: ElsewhereStatus) -> set[str]:
+        return {lemma for lemma, held in elsewhere.items() if held is status}
+
+    known = MagicMock()
+    known.get_all_pairs.return_value = {(lemma, None) for lemma in held(ElsewhereStatus.KNOWN)}
+    return user_vocabulary(
+        known,
+        learning_lemmas=held(ElsewhereStatus.LEARN),
+        active_since={lemma: (EXPORTED,) for lemma in held(ElsewhereStatus.LEARNING)},
+    )
+
+
 class _Setup:
     def __init__(
         self,
@@ -174,17 +191,13 @@ class _Setup:
             PronunciationTarget(),
             TTSTarget(),
         ]
-        decided_elsewhere = MagicMock()
-        decided_elsewhere.of_lemmas.side_effect = lambda lemmas: {
-            lemma: (elsewhere or {}).get(lemma) for lemma in lemmas
-        }
         generation_cards = GenerationCards(
-            self.candidate_repo, self.occurrence_repo, decided_elsewhere,
+            self.candidate_repo, self.occurrence_repo,
             PhraseWordStates(
                 lambda: [word for word, _ in cards],
                 lambda word_id: next((shown for w, shown in cards if w.id == word_id), []),
             ),
-            user_vocabulary(),
+            _vocabulary_holding(elsewhere or {}),
         )
         self.run = RunGenerationUseCase(
             source_repo=self.source_repo, cards=generation_cards,
@@ -403,7 +416,7 @@ class TestCardsNobodyDecidesOn:
 
         assert setup.queued_phrases() == [10]
 
-    @pytest.mark.parametrize("elsewhere", [ElsewhereStatus.KNOWN, ElsewhereStatus.LEARNING])
+    @pytest.mark.parametrize("elsewhere", list(ElsewhereStatus))
     def test_a_card_decided_elsewhere_gets_nothing(self, elsewhere: ElsewhereStatus) -> None:
         setup = _Setup([_one(1), _one(2)], elsewhere={"stale1": elsewhere})
 

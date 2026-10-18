@@ -79,7 +79,7 @@ class TestGetSourcesUseCase:
             card_query=self.card_query,
             card_views=CardViews(
                 review_cards=ReviewCards(
-                    self.candidate_repo, self.occurrence_repo, elsewhere,
+                    self.candidate_repo, self.occurrence_repo,
                     PhraseWordStates(
                         lambda: self.candidate_repo.get_by_source.return_value,
                         lambda word_id: self.occurrence_repo.shown_by_word.return_value.get(

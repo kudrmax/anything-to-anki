@@ -200,6 +200,7 @@ class TestDecisionsOnCards:
         sibling = _card(client, bench.second_glare)
         assert here["state"] == {
             "decided_here": True, "decided_elsewhere": None, "elsewhere": None,
+            "note": None, "known_on": None,
             "buttons": [
                 {"button": "learn", "action": "pending", "pressed": True},
                 {"button": "cloze", "action": "cloze", "pressed": False},
@@ -209,6 +210,7 @@ class TestDecisionsOnCards:
         }
         assert sibling["state"] == {
             "decided_here": False, "decided_elsewhere": "learn", "elsewhere": None,
+            "note": "decided_on_other_card", "known_on": None,
             "buttons": [
                 {"button": "learn", "action": None, "pressed": True},
                 {"button": "cloze", "action": None, "pressed": False},

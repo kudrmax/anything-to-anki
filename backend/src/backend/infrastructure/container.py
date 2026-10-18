@@ -685,13 +685,11 @@ class Container:
         )
 
     def decide_phrase_use_case(self, session: Session) -> DecidePhraseUseCase:
-        vocabulary = self._user_vocabulary(session)
         return DecidePhraseUseCase(
             occurrence_repo=SqlaOccurrenceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             word_states=SqlaWordStateRepository(session),
-            vocabulary=vocabulary,
-            decided_elsewhere=DecidedElsewhere(vocabulary),
+            vocabulary=self._user_vocabulary(session),
             effects=self._decision_effects(session),
             lock=SqlaSourceOperationLock(session),
         )
@@ -782,7 +780,6 @@ class Container:
             review_cards=ReviewCards(
                 SqlaCandidateRepository(session),
                 SqlaOccurrenceRepository(session),
-                DecidedElsewhere(self._user_vocabulary(session)),
                 SqlaWordStateRepository(session),
                 self._user_vocabulary(session),
             ),
@@ -937,7 +934,6 @@ class Container:
         return JobPhrases(
             SqlaCandidateRepository(session),
             SqlaOccurrenceRepository(session),
-            DecidedElsewhere(self._user_vocabulary(session)),
             SqlaWordStateRepository(session),
             self._user_vocabulary(session),
         )
@@ -955,7 +951,6 @@ class Container:
         return GenerationCards(
             SqlaCandidateRepository(session),
             SqlaOccurrenceRepository(session),
-            DecidedElsewhere(self._user_vocabulary(session)),
             SqlaWordStateRepository(session),
             self._user_vocabulary(session),
         )
