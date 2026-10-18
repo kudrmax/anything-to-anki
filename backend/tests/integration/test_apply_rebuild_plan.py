@@ -151,7 +151,10 @@ def test_a_lost_word_goes_with_its_phrases_but_a_decided_one_stays(
     db_session.execute(
         text("UPDATE candidates SET status = 'learn' WHERE id = :id"), {"id": words["linger"]},
     )
-    repo.set_decision(words["linger"], linger_phrase, None)
+    db_session.execute(
+        text("UPDATE phrases SET choice = 'learn' WHERE id = :id"), {"id": linger_phrase},
+    )
+    db_session.expire_all()
 
     plan = _rebuild(repo, [])
 

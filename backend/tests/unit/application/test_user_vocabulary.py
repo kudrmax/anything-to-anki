@@ -3,7 +3,10 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from backend.application.utils.knowledge_scope import KnowledgeScope
 from backend.application.utils.user_vocabulary import UserVocabulary
+
+from tests.decision_support import FixedClock
 
 
 @pytest.mark.unit
@@ -14,8 +17,12 @@ class TestUserVocabulary:
         self.unknown = MagicMock()
         self.unknown.lemmas.return_value = {"lurk"}
         self.learning = MagicMock()
-        self.learning.learning_lemmas.return_value = frozenset({"gull", "feast"})
-        self.vocabulary = UserVocabulary(self.known, self.unknown, self.learning)
+        self.learning.awaiting_export.return_value = frozenset({"gull", "feast"})
+        self.learning.active_since.return_value = {}
+        self.vocabulary = UserVocabulary(
+            self.known, self.unknown,
+            KnowledgeScope(FixedClock(), self.known, self.unknown, self.learning),
+        )
 
     def test_word_in_both_lists_is_unknown(self) -> None:
         snapshot = self.vocabulary.snapshot()
@@ -38,6 +45,6 @@ class TestUserVocabulary:
         assert snapshot.is_learning("gull") is True
         assert snapshot.is_learning("feast") is False
 
-    def test_forgetting_a_known_a_card_added_takes_it_out_of_known(self) -> None:
-        self.vocabulary.forget_known("feast", None)
-        self.known.remove_by_lemma.assert_called_once_with("feast", None)
+    def test_forgetting_known_takes_every_part_of_speech_out_of_known(self) -> None:
+        self.vocabulary.forget_every_pos("feast")
+        self.known.remove_every_pos.assert_called_once_with("feast")

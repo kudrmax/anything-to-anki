@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.occurrence_row import OccurrenceRow
     from backend.domain.value_objects.phrase import Phrase
-    from backend.domain.value_objects.phrase_origin_kind import DecisionKind, ShownBy
+    from backend.domain.value_objects.phrase_origin_kind import ShownBy
     from backend.domain.value_objects.word_row import WordRow
 
 
@@ -18,7 +18,7 @@ class OccurrenceRepository(ABC):
 
     @abstractmethod
     def by_source(self, source_id: int) -> list[Occurrence]:
-        """Every phrase of the source with its results, export and active-job marks."""
+        """Every phrase of the source with its results, active binding and active-job marks."""
 
     @abstractmethod
     def projection(self, source_id: int) -> list[OccurrenceRow]:
@@ -72,15 +72,6 @@ class OccurrenceRepository(ABC):
     @abstractmethod
     def set_replaces_selection(self, occurrence_id: int, replaces: bool) -> None:
         """Mark a phrase the user put in place of the word's selection card."""
-
-    @abstractmethod
-    def set_skipped(self, occurrence_id: int, skipped: bool) -> None: ...
-
-    @abstractmethod
-    def set_decision(
-        self, candidate_id: int, occurrence_id: int | None, kind: DecisionKind | None,
-    ) -> None:
-        """The phrase of the word's decision, or none; any other phrase loses the mark."""
 
     @abstractmethod
     def reset_results(self, occurrence_id: int) -> None:

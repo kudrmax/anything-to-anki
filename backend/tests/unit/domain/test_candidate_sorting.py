@@ -14,6 +14,7 @@ from backend.domain.services.candidate_sorting import (
     sort_chronologically,
 )
 from backend.domain.value_objects.candidate_section import CandidateSection
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
@@ -92,7 +93,7 @@ def _decided(card: ReviewCard, status: WordStatus) -> ReviewCard:
 
 
 def _skipped(card: ReviewCard) -> ReviewCard:
-    return replace(card, occurrence=replace(card.occurrence, skipped=True))
+    return replace(card, occurrence=replace(card.occurrence, choice=CardChoice.SKIP))
 
 
 def _phrase(lemma: str, context_fragment: str, unknowns: int) -> Phrase:

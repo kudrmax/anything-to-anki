@@ -9,6 +9,7 @@ from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import OccurrenceKey
+from backend.domain.value_objects.card_choice import CardChoice, NoteKind
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.job_status import JobStatus
@@ -16,7 +17,6 @@ from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind, ShownBy
 from backend.infrastructure.persistence.models import (
-    AnkiSyncedCardModel,
     JobModel,
     PhraseWordModel,
 )
@@ -30,11 +30,11 @@ from backend.infrastructure.persistence.sqla_job_repository import SqlaJobReposi
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 
 from tests.integration.conftest import insert_source
 from tests.phrase_support import make_occurrence, phrase
-from tests.word_support import insert_word, phrase_id_of
+from tests.word_support import CREATED_AT, bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -178,33 +178,36 @@ def test_queued_jobs_of_a_phrase_follow_its_new_text_running_ones_do_not(
     }
 
 
-def test_set_shown_and_skipped(repo: SqlaOccurrenceRepository) -> None:
-    phrase_id = _added(repo)
+def test_set_shown_keeps_the_choice(repo: SqlaOccurrenceRepository) -> None:
+    phrase_id = repo.add(replace(
+        make_occurrence("He glared at me.", candidate_id=WORD), choice=CardChoice.SKIP,
+    )).id
+    assert phrase_id is not None
 
     repo.set_shown([phrase_id], ShownBy.USER)
-    repo.set_skipped(phrase_id, True)
 
     stored = repo.get(phrase_id)
     assert stored is not None
-    assert (stored.shown_by, stored.skipped) == (ShownBy.USER, True)
+    assert (stored.shown_by, stored.choice, stored.skipped) == (
+        ShownBy.USER, CardChoice.SKIP, True,
+    )
     repo.set_shown([phrase_id], None)
     stored = repo.get(phrase_id)
     assert stored is not None
     assert stored.shown_by is None
 
 
-def test_set_decision_moves_the_mark_to_one_phrase(repo: SqlaOccurrenceRepository) -> None:
-    first = WORD_PHRASE  # the phrase the word was inserted with
+def test_the_decision_phrases_are_the_cards_whose_choice_decides(
+    repo: SqlaOccurrenceRepository, db_session: Session,
+) -> None:
     second = _added(repo)
+    db_session.execute(text("UPDATE phrases SET choice = 'cloze' WHERE id = :id"), {"id": second})
+    db_session.expire_all()
 
-    repo.set_decision(WORD, first, DecisionKind.LEARN)
-    repo.set_decision(WORD, second, DecisionKind.CLOZE)
+    [decision] = repo.decision_phrases([WORD]).values()
 
-    by_id = {o.id: o for o in repo.by_source(SOURCE)}
-    assert (by_id[first].is_decision, by_id[first].decision_kind) == (False, None)
-    assert (by_id[second].is_decision, by_id[second].decision_kind) == (True, DecisionKind.CLOZE)
-    repo.set_decision(WORD, None, None)
-    assert not any(o.is_decision for o in repo.by_source(SOURCE))
+    assert decision.id == second
+    assert (decision.is_decision, decision.decision_kind) == (True, DecisionKind.CLOZE)
 
 
 def test_by_source_attaches_results_export_and_active_job(
@@ -215,7 +218,11 @@ def test_by_source_attaches_results_export_and_active_job(
         candidate_id=WORD, meaning="to look angrily", translation=None, synonyms=None,
         examples=None, ipa="/ɡleə/", generated_at=None,
     ))
-    db_session.add(AnkiSyncedCardModel(candidate_id=WORD, phrase_id=phrase_id, anki_note_id=NOTE))
+    db_session.execute(
+        text("UPDATE phrases SET choice = 'learn' WHERE id = :id"), {"id": phrase_id},
+    )
+    bind(db_session, WORD, phrase_id, note_id=NOTE)
+    bind(db_session, WORD, WORD_PHRASE, note_id=NOTE, released_at=CREATED_AT)
     db_session.add(JobModel.from_entity(Job.queued(
         JobType.MEANING, SOURCE, WORD, phrase_id=phrase_id, phrase_revision=0,
     )))
@@ -228,8 +235,12 @@ def test_by_source_attaches_results_export_and_active_job(
     assert stored.meaning is not None
     assert (stored.meaning.meaning, stored.meaning.ipa) == ("to look angrily", "/ɡleə/")
     assert (stored.exported, stored.has_active_job, stored.has_results) == (True, True, True)
+    assert stored.binding is not None
+    assert stored.binding.note_kind is NoteKind.LEARN
     plain = found[WORD_PHRASE]
-    assert (plain.exported, plain.has_active_job, plain.has_results) == (False, False, False)
+    assert (plain.exported, plain.has_active_job, plain.has_results) == (False, False, False), (
+        "a released binding is not in Anki"
+    )
 
 
 def test_projection_is_light_and_marks_what_matters(
@@ -245,8 +256,8 @@ def test_projection_is_light_and_marks_what_matters(
 
     assert rows[phrase_id] == OccurrenceRow(
         id=phrase_id, candidate_id=WORD, key=OccurrenceKey(block=1, line=0, char=3),
-        origin=rows[phrase_id].origin, shown_by=None, skipped=False, is_decision=False,
-        revision=0, edited_by_user=False, has_results=True, exported=False,
+        origin=rows[phrase_id].origin, shown_by=None, choice=CardChoice.NONE,
+        revision=0, edited_by_user=False, has_results=True, in_anki=False,
         has_active_job=False, text_hash=OccurrenceRow.hash_text("He glared at me."),
         fragment_score=None, shows_polish=False,
         phrase_hash=OccurrenceRow.hash_phrase(phrase("He glared at me."), POSITION),

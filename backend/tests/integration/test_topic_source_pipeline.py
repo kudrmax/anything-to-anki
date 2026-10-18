@@ -271,7 +271,10 @@ def test_refreshing_keeps_decisions_and_results(
         text("UPDATE candidates SET status = 'learn' WHERE id = :id"),
         {"id": word_ids["counter-offer"]},
     )
-    occurrences.set_decision(word_ids["counter-offer"], decided.id, None)
+    db_session.execute(
+        text("UPDATE phrases SET choice = 'learn' WHERE id = :id"), {"id": decided.id},
+    )
+    db_session.expire_all()
     _give_meaning(db_session, decided.id, decided.candidate_id)
     before = {o.id: o for o in occurrences.by_source(topic_id)}
 

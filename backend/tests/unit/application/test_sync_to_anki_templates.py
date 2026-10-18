@@ -4,13 +4,10 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
-from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
-from backend.application.utils.export_queue import ExportQueue
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.word_status import WordStatus
 
@@ -44,7 +41,6 @@ class TestSyncToAnkiTemplates:
         cards = ExportCards()
         anki_connector = MagicMock()
         settings_repo = MagicMock()
-        anki_sync_repo = MagicMock()
         renderer = AnkiTemplateRenderer(templates_dir)
 
         settings_repo.get.side_effect = lambda key, default: default
@@ -71,20 +67,13 @@ class TestSyncToAnkiTemplates:
 
         anki_connector.is_available.return_value = True
         anki_connector.get_model_field_names.return_value = _EveryField()
-        anki_sync_repo.get_synced_phrase_ids.return_value = set()
         anki_connector.add_notes.return_value = [12345]
 
-        use_case = SyncToAnkiUseCase(
-            export_queue=ExportQueue(
-                cards.words, anki_sync_repo, cards,
-            ),
-            anki_connector=anki_connector,
-            settings_repo=settings_repo,
-            anki_sync_repo=anki_sync_repo,
-            template_renderer=renderer,
-            anki_note_repo=MagicMock(),
-            cloze_builder=ClozeBuilder(),
-            scope_resolver=empty_scope_resolver(),
+        use_case = cards.sync(
+            anki_connector,
+            settings_repo,
+            renderer,
+            empty_scope_resolver(),
         )
         use_case.execute(source_id=1, group=ExportGroup.READY)
 

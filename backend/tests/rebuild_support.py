@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.services.cefr_level_resolver import resolve_cefr_level
 from backend.domain.value_objects.built_analysis import BuiltOccurrence, BuiltWord, WordData
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cefr_breakdown import (
     CAMBRIDGE,
     CEFRPY,
@@ -72,7 +73,8 @@ def row(
     shows_polish: bool = False,
     replaces: bool = False,
 ) -> OccurrenceRow:
-    """A phrase row; its key is at `line` (the id unless given)."""
+    """A phrase row; its key is at `line` (the id unless given). `is_decision` makes it a
+    Learn decision, `exported` puts it in Anki."""
     at = id if line is None else line
     return OccurrenceRow(
         id=id,
@@ -80,12 +82,13 @@ def row(
         key=key_at(at),
         origin=origin,
         shown_by=shown,
-        skipped=skipped,
-        is_decision=is_decision,
+        choice=(
+            CardChoice.LEARN if is_decision else CardChoice.SKIP if skipped else CardChoice.NONE
+        ),
         revision=revision,
         edited_by_user=edited,
         has_results=has_results,
-        exported=exported,
+        in_anki=exported,
         has_active_job=has_job,
         text_hash=OccurrenceRow.hash_text(text),
         fragment_score=score,

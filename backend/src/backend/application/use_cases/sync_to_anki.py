@@ -17,6 +17,7 @@ from backend.application.utils.anki_note_types import (
     is_app_note_type,
 )
 from backend.domain.exceptions import AnkiNotAvailableError, AnkiNoteTypeIncompleteError
+from backend.domain.services.decision_rules import on_bind
 from backend.domain.value_objects.source_scope import ScopeKind
 
 logger = logging.getLogger(__name__)
@@ -24,12 +25,12 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from backend.application.utils.anki_note_types import NoteTypeCheck
     from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
+    from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.export_queue import ExportCard, ExportQueue
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.anki_connector import AnkiConnector
-    from backend.domain.ports.anki_note_repository import AnkiNoteRepository
-    from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.services.cloze_builder import ClozeBuilder
     from backend.domain.value_objects.export_group import ExportGroup
@@ -63,10 +64,12 @@ class _Tally:
 
 
 class SyncToAnkiUseCase:
-    """Pushes one export group of not yet exported 'learn' candidates to Anki via AnkiConnect.
+    """Pushes one export group of the export queue to Anki via AnkiConnect.
 
-    A word decided as a cloze goes to the native cloze note type, the rest to the user's
-    recognition note type; the note is made of the phrase of the decision.
+    A cloze decision goes to the native cloze note type, the rest to the user's recognition
+    note type; the note is made of the phrase of the decision. A note already in Anki is
+    reused (`_find_existing`), so no duplicate is made. Then the card is bound to its note
+    (S1, `on_bind`): its 30 days start now.
     """
 
     def __init__(
@@ -74,18 +77,18 @@ class SyncToAnkiUseCase:
         export_queue: ExportQueue,
         anki_connector: AnkiConnector,
         settings_repo: SettingsRepository,
-        anki_sync_repo: AnkiSyncRepository,
         template_renderer: AnkiTemplateRenderer,
-        anki_note_repo: AnkiNoteRepository,
         cloze_builder: ClozeBuilder,
         scope_resolver: SourceScopeResolver,
+        vocabulary: UserVocabulary,
+        effects: DecisionEffects,
     ) -> None:
         self._export_queue = export_queue
         self._connector = anki_connector
         self._settings_repo = settings_repo
-        self._anki_sync_repo = anki_sync_repo
         self._template_renderer = template_renderer
-        self._anki_notes = anki_note_repo
+        self._vocabulary = vocabulary
+        self._effects = effects
         self._cloze_builder = cloze_builder
         self._scope_resolver = scope_resolver
 
@@ -218,10 +221,12 @@ class SyncToAnkiUseCase:
         return existing[0] if existing else None
 
     def _mark_exported(self, card: ExportCard, note_id: int) -> None:
-        """The word is now learned in Anki."""
-        word = card.word
-        self._anki_sync_repo.mark_synced(card.word_id, note_id, card.phrase_id)
-        self._anki_notes.add(note_id, word.lemma, word.pos)
+        """The card is bound to its note: the word is Learning, Known 30 days from now."""
+        outcome = on_bind(
+            card.state, card.phrase_id, self._vocabulary.of(card.word.lemma),
+            self._vocabulary.scope.now,
+        )
+        self._effects.apply(card.state, outcome, card.word, note_id=note_id)
 
     def _setting(self, key: str, default: str) -> str:
         return self._settings_repo.get(key, default) or default

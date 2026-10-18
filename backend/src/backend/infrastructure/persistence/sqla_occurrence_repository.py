@@ -7,6 +7,12 @@ from typing import TYPE_CHECKING
 from sqlalchemy import CursorResult, exists, or_, select, update
 
 from backend.domain.ports.occurrence_repository import OccurrenceRepository
+from backend.domain.value_objects.card_choice import (
+    DECISION_CHOICES,
+    Binding,
+    CardChoice,
+    NoteKind,
+)
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
@@ -47,7 +53,6 @@ if TYPE_CHECKING:
     from backend.domain.services.rebuild_plan import RebuildPlan
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
-    from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 
 ACTIVE_JOB_STATUSES = (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
 
@@ -155,7 +160,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             select(
                 PhraseModel,
                 has_results.label("has_results"),
-                self._exported().label("exported"),
+                self._in_anki().label("in_anki"),
                 self._has_active_job().label("has_active_job"),
             ).where(self._of_source(source_id)).order_by(PhraseModel.id)
         ).all()
@@ -166,12 +171,11 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 key=phrase.key(),
                 origin=OccurrenceOrigin(phrase.origin),
                 shown_by=ShownBy(phrase.shown_by) if phrase.shown_by is not None else None,
-                skipped=phrase.skipped,
-                is_decision=phrase.is_decision,
+                choice=CardChoice(phrase.choice),
                 revision=phrase.revision,
                 edited_by_user=phrase.edited_by_user,
                 has_results=bool(results),
-                exported=bool(exported),
+                in_anki=bool(bound),
                 has_active_job=bool(active),
                 text_hash=OccurrenceRow.hash_text(json.loads(phrase.source_phrase)["text"]),
                 fragment_score=phrase.fragment_score,
@@ -181,7 +185,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                     _required(phrase.source_phrase), load_position(phrase.phrase_position),
                 ),
             )
-            for phrase, results, exported, active in rows
+            for phrase, results, bound, active in rows
         ]
 
     def get(self, occurrence_id: int) -> Occurrence | None:
@@ -197,7 +201,8 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         return {
             occurrence.candidate_id: occurrence
             for occurrence in self._occurrences(
-                PhraseModel.candidate_id.in_(candidate_ids), PhraseModel.is_decision.is_(True),
+                PhraseModel.candidate_id.in_(candidate_ids),
+                PhraseModel.choice.in_([choice.value for choice in DECISION_CHOICES]),
             )
         }
 
@@ -290,30 +295,6 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         )
         self._session.flush()
 
-    def set_skipped(self, occurrence_id: int, skipped: bool) -> None:
-        self._session.execute(
-            update(PhraseModel).where(PhraseModel.id == occurrence_id).values(skipped=skipped)
-        )
-        self._session.flush()
-
-    def set_decision(
-        self, candidate_id: int, occurrence_id: int | None, kind: DecisionKind | None,
-    ) -> None:
-        self._session.execute(
-            update(PhraseModel)
-            .where(PhraseModel.candidate_id == candidate_id, PhraseModel.is_decision.is_(True))
-            .values(is_decision=False, decision_kind=None)
-        )
-        if occurrence_id is not None:
-            self._session.execute(
-                update(PhraseModel)
-                .where(PhraseModel.id == occurrence_id, PhraseModel.candidate_id == candidate_id)
-                .values(
-                    is_decision=True, decision_kind=kind.value if kind is not None else None,
-                )
-            )
-        self._session.flush()
-
     def reset_results(self, occurrence_id: int) -> None:
         drop_results(self._session, [occurrence_id])
         phrase = self._session.get(PhraseModel, occurrence_id)
@@ -374,15 +355,22 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         rows = self._session.execute(
             select(
                 PhraseModel,
-                self._exported().label("exported"),
+                AnkiSyncedCardModel.note_kind,
+                AnkiSyncedCardModel.learning_since,
                 self._has_active_job().label("has_active_job"),
-            ).where(*where).order_by(PhraseModel.id)
+            )
+            .outerjoin(
+                AnkiSyncedCardModel,
+                (AnkiSyncedCardModel.phrase_id == PhraseModel.id)
+                & AnkiSyncedCardModel.released_at.is_(None),
+            )
+            .where(*where).order_by(PhraseModel.id)
         ).all()
         results = self._results.by_phrase(
-            {phrase.id: phrase.candidate_id for phrase, _, _ in rows}
+            {phrase.id: phrase.candidate_id for phrase, _, _, _ in rows}
         )
         occurrences: list[Occurrence] = []
-        for phrase, exported, active in rows:
+        for phrase, kind, since, active in rows:
             made = results[phrase.id]
             occurrences.append(replace(
                 phrase.to_entity(),
@@ -390,7 +378,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 media=made.media,
                 tts=made.tts,
                 cloze=made.cloze,
-                exported=bool(exported),
+                binding=Binding(NoteKind(kind), since) if kind is not None else None,
                 has_active_job=bool(active),
             ))
         return occurrences
@@ -402,8 +390,11 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         )
 
     @staticmethod
-    def _exported() -> ColumnElement[bool]:
-        return exists().where(AnkiSyncedCardModel.phrase_id == PhraseModel.id)
+    def _in_anki() -> ColumnElement[bool]:
+        return exists().where(
+            AnkiSyncedCardModel.phrase_id == PhraseModel.id,
+            AnkiSyncedCardModel.released_at.is_(None),
+        )
 
     @staticmethod
     def _has_active_job() -> ColumnElement[bool]:

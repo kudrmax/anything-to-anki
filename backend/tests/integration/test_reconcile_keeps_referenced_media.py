@@ -121,9 +121,9 @@ async def test_a_missing_file_clears_only_the_rows_pointing_at_it(tmp_path: Path
         insert_source(session, SOURCE)
         insert_word(session, WORD, source_id=SOURCE)
         session.execute(text(
-            "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, skipped,"
-            " is_decision, created_at)"
-            " SELECT :id, candidate_id, source_phrase, 'manual', 'user', 0, 0, created_at"
+            "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, choice,"
+            " created_at)"
+            " SELECT :id, candidate_id, source_phrase, 'manual', 'user', 'none', created_at"
             " FROM phrases WHERE id = :phrase"
         ), {"id": OTHER_PHRASE, "phrase": PHRASE})
         session.add(CandidateMediaModel(

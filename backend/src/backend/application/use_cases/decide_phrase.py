@@ -1,111 +1,125 @@
 from __future__ import annotations
 
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
+from backend.application.dto.decision_compat import press_of
 from backend.application.utils.source_free import ensure_source_free
-from backend.domain.entities.word_decision import WordDecision
-from backend.domain.exceptions import PhraseNotFoundError
-from backend.domain.services.card_decision import decide
+from backend.domain.exceptions import ActionRefusedError, PhraseNotFoundError
+from backend.domain.services.card_view import card_view
+from backend.domain.services.decision_rules import press
+from backend.domain.value_objects.card_choice import Refusal
 from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from backend.application.dto.decision_compat import DecisionAction
     from backend.application.utils.decided_elsewhere import DecidedElsewhere
-    from backend.application.utils.review_status_updater import ReviewStatusUpdater
+    from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.user_vocabulary import UserVocabulary
-    from backend.domain.entities.occurrence import Occurrence
     from backend.domain.entities.stored_candidate import StoredCandidate
-    from backend.domain.ports.candidate_cloze_repository import CandidateClozeRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
-    from backend.domain.ports.word_decision_repository import WordDecisionRepository
-    from backend.domain.services.card_decision import DecisionAction, DecisionOutcome
-
-DECIDED = frozenset({WordStatus.LEARN, WordStatus.KNOWN})
+    from backend.domain.ports.word_state_repository import WordStateRepository
+    from backend.domain.services.card_view import CardView
+    from backend.domain.value_objects.card_choice import Press, WordState
+    from backend.domain.value_objects.elsewhere import ElsewhereStatus
 
 
 class DecidePhraseUseCase:
-    """Learn, Cloze, Known, Skip, Unskip or undo on a card (a phrase of a word).
+    """A press of Learn, Cloze, Known or Skip on a card (a phrase of a word).
 
-    The rules are `card_decision.decide`. Besides the word and the phrase, a decision keeps
-    the known words in sync, remembers known/learn verdicts for calibration and refreshes
-    the review status.
+    The rules are the press table (`decision_rules.press`); what follows a row — the known
+    words, calibration, the Anki binding, the Known removal in every source and the review
+    status — is `DecisionEffects`. A refused press raises ActionRefusedError.
     """
 
     def __init__(
         self,
         occurrence_repo: OccurrenceRepository,
         candidate_repo: CandidateRepository,
+        word_states: WordStateRepository,
         vocabulary: UserVocabulary,
-        decision_repo: WordDecisionRepository,
-        review_status: ReviewStatusUpdater,
-        cloze_repo: CandidateClozeRepository,
         decided_elsewhere: DecidedElsewhere,
+        effects: DecisionEffects,
         lock: SourceOperationLock,
     ) -> None:
         self._lock = lock
         self._occurrences = occurrence_repo
         self._candidates = candidate_repo
+        self._word_states = word_states
         self._vocabulary = vocabulary
-        self._decision_repo = decision_repo
-        self._review_status = review_status
-        self._cloze_repo = cloze_repo
         self._decided_elsewhere = decided_elsewhere
+        self._effects = effects
 
     def execute(self, occurrence_id: int, action: DecisionAction) -> None:
+        """An action of the old API: "pending" undoes the pressed button, "unskip" a Skip."""
+        word, state = self._word(occurrence_id)
+        elsewhere = self._elsewhere(word)
+        button = press_of(action, self._view(word, state, occurrence_id, elsewhere))
+        if button is not None:
+            self._press(word, state, occurrence_id, button, elsewhere)
+
+    def view(self, occurrence_id: int) -> CardView:
+        word, state = self._word(occurrence_id)
+        return self._view(word, state, occurrence_id, self._elsewhere(word))
+
+    def press(self, occurrence_id: int, button: Press) -> None:
+        word, state = self._word(occurrence_id)
+        self._press(word, state, occurrence_id, button, self._elsewhere(word))
+
+    def _press(
+        self, word: StoredCandidate, state: WordState, occurrence_id: int, button: Press,
+        elsewhere: ElsewhereStatus | None,
+    ) -> None:
+        knowledge, now = self._vocabulary.of(word.lemma), self._vocabulary.scope.now
+        try:
+            outcome = press(state, occurrence_id, button, knowledge, elsewhere, now)
+        except ActionRefusedError as refused:
+            view = card_view(state, occurrence_id, knowledge, elsewhere, now)
+            raise ActionRefusedError(
+                refused.card_id, refused.refusal, _REASONS[(refused.refusal, view.shown.status)],
+            ) from None
+        self._effects.apply(state, outcome, word)
+
+    def _view(
+        self, word: StoredCandidate, state: WordState, occurrence_id: int,
+        elsewhere: ElsewhereStatus | None,
+    ) -> CardView:
+        return card_view(
+            state, occurrence_id, self._vocabulary.of(word.lemma), elsewhere,
+            self._vocabulary.scope.now,
+        )
+
+    def _word(self, occurrence_id: int) -> tuple[StoredCandidate, WordState]:
         occ = self._occurrences.get(occurrence_id)
-        if occ is None:
-            raise PhraseNotFoundError(occurrence_id)
-        word = self._candidates.get_by_id(occ.candidate_id)
-        if word is None:
+        word = self._candidates.get_by_id(occ.candidate_id) if occ is not None else None
+        if word is None or word.id is None:
             raise PhraseNotFoundError(occurrence_id)
         ensure_source_free(self._lock, word.source_id)
-        before = word.status
-        elsewhere = (
-            self._decided_elsewhere.of(word.lemma) if before is WordStatus.NEW else None
-        )
-        outcome = decide(occ, before, action, elsewhere)
-        self._write(occ, before, outcome)
-        self._follow(word, before, outcome.word_status)
+        state = self._word_states.of_word(word.id)
+        if state is None:
+            raise PhraseNotFoundError(occurrence_id)
+        return word, state
 
-    def _write(self, occ: Occurrence, before: WordStatus, outcome: DecisionOutcome) -> None:
-        assert occ.id is not None
-        if outcome.word_status is not before:
-            self._candidates.set_word_status(occ.candidate_id, outcome.word_status)
-        if (outcome.is_decision, outcome.decision_kind) != (occ.is_decision, occ.decision_kind):
-            self._occurrences.set_decision(
-                occ.candidate_id, occ.id if outcome.is_decision else None, outcome.decision_kind,
-            )
-        if outcome.skipped != occ.skipped:
-            self._occurrences.set_skipped(occ.id, outcome.skipped)
-        if outcome.drop_cloze and occ.cloze is not None:
-            self._cloze_repo.delete_by_phrase_id(occ.id)
+    def _elsewhere(self, word: StoredCandidate) -> ElsewhereStatus | None:
+        """Only an open word looks at other sources; a decided one holds its own decision."""
+        if word.status is not WordStatus.NEW:
+            return None
+        return self._decided_elsewhere.of(word.lemma)
 
-    def _follow(self, word: StoredCandidate, before: WordStatus, after: WordStatus) -> None:
-        """The review status changes with any action; knowledge (known or learning) only with
-        the word's status, and then in every source showing the lemma."""
-        if after is before:
-            self._review_status.refresh(word.source_id)
-            return
-        if after is WordStatus.KNOWN:
-            self._vocabulary.mark_known(word.lemma, word.pos)
-        elif before is WordStatus.KNOWN:
-            self._vocabulary.forget_known(word.lemma, word.pos)
-        self._remember_decision(word, before, after)
-        self._review_status.refresh(word.source_id)
-        self._review_status.refresh_showing({word.lemma.lower()})
 
-    def _remember_decision(
-        self, word: StoredCandidate, before: WordStatus, after: WordStatus,
-    ) -> None:
-        """Only single words: a phrase's frequency is not comparable with a word's."""
-        if word.is_phrasal_verb or " " in word.lemma:
-            return
-        if after in DECIDED:
-            self._decision_repo.record(WordDecision(
-                lemma=word.lemma,
-                zipf_frequency=word.zipf_frequency,
-                is_known=after is WordStatus.KNOWN,
-            ))
-        elif before in DECIDED:
-            self._decision_repo.forget(word.lemma)
+_LEARNED_ON_OTHER_CARD = "Learned via another phrase: change it on that card"
+_LEARNING_ELSEWHERE = "Already learning from another source"
+# Why a press is refused, by the status the card shows.
+_REASONS: Mapping[tuple[Refusal, WordStatus], str] = MappingProxyType({
+    (Refusal.NOT_DECISION_CARD, WordStatus.LEARN): _LEARNED_ON_OTHER_CARD,
+    (Refusal.NOT_DECISION_CARD, WordStatus.LEARNING): _LEARNED_ON_OTHER_CARD,
+    (Refusal.NOT_DECISION_CARD, WordStatus.KNOWN):
+        "Known via another phrase: change it on that card",
+    (Refusal.DECIDED_ELSEWHERE, WordStatus.KNOWN): "Already known",
+    (Refusal.DECIDED_ELSEWHERE, WordStatus.LEARNING): _LEARNING_ELSEWHERE,
+    (Refusal.DECIDED_ELSEWHERE, WordStatus.LEARN): _LEARNING_ELSEWHERE,
+})

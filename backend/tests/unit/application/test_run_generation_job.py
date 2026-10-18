@@ -8,10 +8,12 @@ from backend.application.use_cases.run_generation_job import MeaningGenerationUs
 from backend.application.utils.generation_targets import GenerationCard
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.prompts_config import PromptsConfig
 from backend.domain.value_objects.word_status import WordStatus
 
+from tests.card_support import context
 from tests.phrase_support import make_occurrence
 
 _CONFIG = PromptsConfig(
@@ -47,7 +49,10 @@ def _card(
         f"Could you {lemma} on that?", candidate_id=cid,
         meaning_text="already done" if with_meaning else None,
     )
-    return GenerationCard.of(word, replace(shown, id=cid * 10, skipped=skipped), None)
+    phrase = replace(
+        shown, id=cid * 10, choice=CardChoice.SKIP if skipped else CardChoice.NONE,
+    )
+    return GenerationCard.of(word, phrase, None, context(word, phrase))
 
 
 def _refs(*phrase_ids: int) -> list[PhraseRef]:

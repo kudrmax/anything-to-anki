@@ -5,23 +5,33 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.candidate_cloze import CandidateCloze
+from backend.domain.services.card_view import CHOSEN_TO_LEARN, in_export_queue
 from backend.domain.services.export_readiness import export_group
+from backend.domain.value_objects.card_choice import (
+    DecisionStatus,
+    NoteKind,
+    decision_status,
+    export_kind,
+)
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
-from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
     from collections.abc import Collection
 
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.entities.stored_candidate import StoredCandidate
-    from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.word_state_repository import WordStateRepository
     from backend.domain.services.cloze_builder import ClozeBuilder
+    from backend.domain.value_objects.card_choice import WordState
     from backend.domain.value_objects.export_group import ExportGroup
 
 logger = logging.getLogger(__name__)
+
+_CHOSEN_STATUSES = tuple(WordStatus(status.value) for status in CHOSEN_TO_LEARN)
 
 
 @dataclass(frozen=True)
@@ -29,11 +39,13 @@ class ExportCard:
     """A word to learn and the phrase of its decision: one note in Anki.
 
     The phrase gives the sentence and everything made for it; the word, the target, its
-    pronunciation and picture.
+    pronunciation and picture. `state` is the word as the decision tables see it: the export
+    binds its decision card (S1).
     """
 
     word: StoredCandidate
     phrase: Occurrence
+    state: WordState
 
     @property
     def word_id(self) -> int:
@@ -47,7 +59,7 @@ class ExportCard:
 
     @property
     def is_cloze(self) -> bool:
-        return self.phrase.decision_kind is DecisionKind.CLOZE
+        return export_kind(self.phrase.card_state) is NoteKind.CLOZE
 
     def cloze_markup(self, builder: ClozeBuilder) -> CandidateCloze | None:
         """The words a cloze card hides; none for a plain card. A cloze decided without
@@ -69,7 +81,7 @@ class ExportCard:
 
 @dataclass(frozen=True)
 class ExportBatch:
-    """'Learn' words still waiting for export, plus how many already went to Anki."""
+    """Words in the export queue, plus how many of the chosen ones are in Anki already."""
 
     pending: list[ExportCard]
     exported_count: int
@@ -79,45 +91,54 @@ class ExportBatch:
 
 
 class ExportQueue:
-    """Splits 'learn' words into not yet exported and already sent to Anki; a word goes
-    with the phrase of its decision."""
+    """The words chosen to learn, split into the export queue (`in_export_queue`: Learn not
+    in Anki yet, unless its lemma was put in Known since) and those in Anki; a word goes with
+    the phrase of its decision, as `export_kind` says."""
 
     def __init__(
         self,
         candidate_repo: CandidateRepository,
-        anki_sync_repo: AnkiSyncRepository,
         occurrence_repo: OccurrenceRepository,
+        word_states: WordStateRepository,
+        vocabulary: UserVocabulary,
     ) -> None:
         self._candidate_repo = candidate_repo
-        self._anki_sync_repo = anki_sync_repo
         self._occurrences = occurrence_repo
+        self._word_states = word_states
+        self._vocabulary = vocabulary
 
     def for_source(self, source_id: int) -> ExportBatch:
         words = self._candidate_repo.get_by_source(source_id)
-        return self._split([w for w in words if w.status is WordStatus.LEARN])
+        return self._split([w for w in words if w.status in _CHOSEN_STATUSES])
 
     def for_all(self) -> ExportBatch:
-        return self._split(self._candidate_repo.get_all_by_status(WordStatus.LEARN))
+        return self._split(self._chosen())
 
     def for_sources(self, source_ids: Collection[int]) -> ExportBatch:
-        learn = self._candidate_repo.get_all_by_status(WordStatus.LEARN)
-        return self._split([w for w in learn if w.source_id in source_ids])
+        return self._split([w for w in self._chosen() if w.source_id in source_ids])
 
-    def _split(self, learn: list[StoredCandidate]) -> ExportBatch:
-        """A word is exported when the phrase of its decision is: a word merged from cards
-        may hold the export record of another phrase."""
-        decisions = self._occurrences.decision_phrases([w.id for w in learn if w.id is not None])
-        exported = self._anki_sync_repo.get_synced_phrase_ids(
-            [phrase.id for phrase in decisions.values() if phrase.id is not None],
-        )
+    def _chosen(self) -> list[StoredCandidate]:
+        found = [
+            word for status in _CHOSEN_STATUSES
+            for word in self._candidate_repo.get_all_by_status(status)
+        ]
+        return sorted(found, key=lambda w: (w.source_id, w.id or 0))
+
+    def _split(self, chosen: list[StoredCandidate]) -> ExportBatch:
+        decisions = self._occurrences.decision_phrases([w.id for w in chosen if w.id is not None])
+        states: dict[int, WordState] = {}
+        for source_id in sorted({word.source_id for word in chosen}):
+            states.update(self._word_states.of_source(source_id))
+        now = self._vocabulary.scope.now
         pending: list[ExportCard] = []
         exported_count = 0
-        for word in learn:
+        for word in chosen:
             phrase = decisions.get(word.id) if word.id is not None else None
-            if phrase is None:
-                logger.warning("export: learn word %s has no decision phrase", word.id)
-            elif phrase.id in exported:
+            state = states.get(word.id) if word.id is not None else None
+            if phrase is None or state is None:
+                logger.warning("export: word %s chosen to learn has no decision card", word.id)
+            elif in_export_queue(state, self._vocabulary.of(word.lemma), now):
+                pending.append(ExportCard(word=word, phrase=phrase, state=state))
+            elif decision_status(state) is DecisionStatus.LEARNING:
                 exported_count += 1
-            else:
-                pending.append(ExportCard(word=word, phrase=phrase))
         return ExportBatch(pending=pending, exported_count=exported_count)

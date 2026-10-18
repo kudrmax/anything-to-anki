@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import Occurrence
-from backend.domain.exceptions import AlreadyInAnkiError, PhraseNotFoundError
+from backend.domain.exceptions import PhraseNotFoundError
+from backend.domain.services.decision_rules import move
 from backend.domain.services.topic_phrase_selection import parse_marked_phrase
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
@@ -14,18 +15,23 @@ from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, Sh
 if TYPE_CHECKING:
     from backend.application.dto.source_dtos import CardDTO
     from backend.application.utils.card_views import CardViews
+    from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.phrase_reader import PhraseReader
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
+    from backend.domain.ports.word_state_repository import WordStateRepository
 
 
 class ReplaceWithExampleUseCase:
     """The example becomes a new `example` phrase of the card's word, shown by the user; the
-    replaced phrase is no longer shown. The decision of the word moves to the example, kind
-    and all, unless it is already in Anki.
+    replaced phrase is no longer shown. The decision of the word moves to the example by
+    the move table (`decision_rules.move`), kind and all: a Known stays Known, a card in Anki
+    gives its decision to the example and releases its binding (the next export binds the
+    example to the same note).
 
     The example stands for the selection card if it replaced it, or replaced a phrase that
     stood for it: the selection then shows no other card of the word.
@@ -44,8 +50,14 @@ class ReplaceWithExampleUseCase:
         job_repo: JobRepository,
         lock: SourceOperationLock,
         card_views: CardViews,
+        word_states: WordStateRepository,
+        vocabulary: UserVocabulary,
+        effects: DecisionEffects,
     ) -> None:
         self._lock = lock
+        self._word_states = word_states
+        self._vocabulary = vocabulary
+        self._effects = effects
         self._card_views = card_views
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
@@ -68,8 +80,6 @@ class ReplaceWithExampleUseCase:
         if replaced is None or word is None:
             raise PhraseNotFoundError(occurrence_id)
         ensure_source_free(self._lock, word.source_id)
-        if replaced.is_decision and replaced.exported:
-            raise AlreadyInAnkiError(occurrence_id)
         marked = parse_marked_phrase(stripped)
         phrase = (
             self._phrase_reader.read(marked.text, marked.spans)
@@ -89,10 +99,13 @@ class ReplaceWithExampleUseCase:
         ))
         assert example.id is not None
         self._occurrences.set_shown([occurrence_id], None)
-        if replaced.is_decision:
-            self._occurrences.set_decision(
-                replaced.candidate_id, example.id, replaced.decision_kind,
-            )
+        state = self._word_states.of_word(replaced.candidate_id)
+        assert state is not None
+        outcome = move(
+            state, occurrence_id, example.id, self._vocabulary.of(word.lemma),
+            self._vocabulary.scope.now,
+        )
+        self._effects.apply(state, outcome, word)
         self._job_repo.enqueue([Job.queued(
             JobType.MEANING, word.source_id, replaced.candidate_id,
             phrase_id=example.id, phrase_revision=example.revision,

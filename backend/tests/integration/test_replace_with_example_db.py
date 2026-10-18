@@ -10,23 +10,14 @@ from backend.application.utils.export_queue import ExportQueue
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.occurrence import Occurrence
-from backend.domain.exceptions import (
-    AlreadyInAnkiError,
-    PhraseNotFoundError,
-    TargetNotInPhraseError,
-)
+from backend.domain.exceptions import PhraseNotFoundError, TargetNotInPhraseError
 from backend.domain.services.export_readiness import missing_parts
 from backend.domain.services.phrase_building import target_by_lemma
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
-from backend.domain.value_objects.phrase_origin_kind import (
-    DecisionKind,
-    OccurrenceOrigin,
-    ShownBy,
-)
+from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.infrastructure.persistence.models import PhraseWordModel
-from backend.infrastructure.persistence.sqla_anki_sync_repository import SqlaAnkiSyncRepository
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -41,9 +32,10 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 from sqlalchemy import select, text
 
 from tests.card_support import card_views
+from tests.decision_support import Decisions
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
-from tests.word_support import insert_word, phrase_id_of
+from tests.word_support import bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.phrase import Phrase
@@ -85,6 +77,7 @@ class Bench:
         reader = MagicMock()
         reader.read_for.side_effect = _read_for
         reader.read.side_effect = _read
+        self.decisions = Decisions(session)
         self.use_case = ReplaceWithExampleUseCase(
             occurrence_repo=self.occurrences,
             candidate_repo=SqlaCandidateRepository(session),
@@ -93,6 +86,9 @@ class Bench:
             job_repo=SqlaJobRepository(session),
             lock=free_lock(),
             card_views=card_views(session),
+            word_states=self.decisions.word_states,
+            vocabulary=self.decisions.vocabulary,
+            effects=self.decisions.effects(),
         )
 
     def replace(self, phrase_id: int, example: str = "She runs every morning.") -> Occurrence:
@@ -107,10 +103,28 @@ class Bench:
         assert found is not None
         return found
 
-    def decide(self, phrase_id: int, kind: DecisionKind) -> None:
-        self.session.execute(text("UPDATE candidates SET status = 'learn' WHERE id = :id"),
-                             {"id": WORD})
-        self.occurrences.set_decision(WORD, phrase_id, kind)
+    def decide(self, phrase_id: int, choice: str) -> None:
+        status = "known" if choice == "known" else "learn"
+        self.session.execute(text("UPDATE candidates SET status = :s WHERE id = :id"),
+                             {"s": status, "id": WORD})
+        self.session.execute(text("UPDATE phrases SET choice = :c WHERE id = :id"),
+                             {"c": choice, "id": phrase_id})
+        self.session.expire_all()
+
+    def choice(self, phrase_id: int) -> str:
+        return str(self.session.execute(
+            text("SELECT choice FROM phrases WHERE id = :id"), {"id": phrase_id},
+        ).scalar_one())
+
+    def status(self) -> str:
+        return str(self.session.execute(
+            text("SELECT status FROM candidates WHERE id = :id"), {"id": WORD},
+        ).scalar_one())
+
+    def active_bindings(self) -> list[int | None]:
+        return list(self.session.scalars(text(
+            "SELECT phrase_id FROM anki_synced_cards WHERE released_at IS NULL"
+        )))
 
     def give_meaning_and_audio(self, phrase_id: int) -> None:
         SqlaCandidateMeaningRepository(self.session).upsert_for_phrase(phrase_id, CandidateMeaning(
@@ -122,9 +136,10 @@ class Bench:
         ))
 
     def export_queue(self) -> ExportQueue:
+        decisions = self.decisions.request()
         return ExportQueue(
-            SqlaCandidateRepository(self.session), SqlaAnkiSyncRepository(self.session),
-            self.occurrences,
+            SqlaCandidateRepository(self.session), self.occurrences, decisions.word_states,
+            decisions.vocabulary,
         )
 
     def add_manual(self) -> int:
@@ -227,27 +242,57 @@ def test_the_example_words_are_the_phrase_words(bench: Bench) -> None:
 # ── the decision moves with its kind ──────────────────────────────────
 
 
-@pytest.mark.parametrize("kind", [DecisionKind.LEARN, DecisionKind.CLOZE])
-def test_the_decision_moves_to_the_example_with_its_kind(bench: Bench, kind: DecisionKind) -> None:
-    bench.decide(CARD, kind)
+@pytest.mark.parametrize("choice", ["learn", "cloze", "known"])
+def test_m1_the_decision_moves_to_the_example_with_its_kind(bench: Bench, choice: str) -> None:
+    bench.decide(CARD, choice)
 
     example = bench.replace(CARD)
 
-    assert example.is_decision
-    assert example.decision_kind is kind
-    assert not bench.get(CARD).is_decision
+    assert example.id is not None
+    assert (bench.choice(example.id), bench.choice(CARD)) == (choice, "none")
+    assert bench.status() == ("known" if choice == "known" else "learn")
 
 
-def test_an_exported_decision_card_cannot_be_replaced(bench: Bench) -> None:
-    bench.decide(CARD, DecisionKind.LEARN)
-    SqlaAnkiSyncRepository(bench.session).mark_synced(WORD, 900, CARD)
+def test_m2_a_skipped_card_keeps_its_skip_and_the_example_is_open(bench: Bench) -> None:
+    bench.decide(CARD, "skip")
+    bench.session.execute(text("UPDATE candidates SET status = 'pending'"))
 
-    with pytest.raises(AlreadyInAnkiError):
-        bench.use_case.execute(CARD, "She runs every morning.")
+    example = bench.replace(CARD)
 
-    assert len(bench.occurrences.of_word(WORD)) == 1
-    assert bench.get(CARD).is_decision
-    assert bench.get(CARD).shown_by is ShownBy.SELECTION
+    assert example.id is not None
+    assert (bench.choice(example.id), bench.choice(CARD)) == ("none", "skip")
+
+
+def test_m3a_a_known_card_in_anki_gives_its_known_to_the_example(bench: Bench) -> None:
+    bench.decide(CARD, "known")
+    bench.session.execute(text(
+        "INSERT INTO known_words (lemma, pos, created_at) VALUES ('run', 'VERB', '2026-01-01')"
+    ))
+    bind(bench.session, WORD, CARD)
+
+    example = bench.replace(CARD)
+
+    assert example.id is not None
+    assert (bench.choice(example.id), bench.choice(CARD)) == ("known", "none")
+    assert bench.status() == "known"
+    assert bench.active_bindings() == []
+
+
+def test_m3b_a_learning_card_gives_its_learn_to_the_example_back_in_the_queue(
+    bench: Bench,
+) -> None:
+    bench.decide(CARD, "learn")
+    bind(bench.session, WORD, CARD)
+    assert bench.status() == "learning"
+
+    example = bench.replace(CARD)
+
+    assert example.id is not None
+    assert (bench.choice(example.id), bench.choice(CARD)) == ("learn", "none")
+    assert bench.status() == "learn"
+    assert bench.active_bindings() == []
+    [card] = bench.export_queue().for_source(1).pending
+    assert card.phrase_id == example.id
 
 
 # ── which card the example replaced ───────────────────────────────────
@@ -282,12 +327,12 @@ def test_an_example_in_place_of_an_example_of_the_selection_card_keeps_replacing
 @pytest.mark.parametrize(
     ("kind", "missing"),
     [
-        (DecisionKind.LEARN, ["meaning", "audio"]),
-        (DecisionKind.CLOZE, ["meaning", "audio", "cloze"]),
+        ("learn", ["meaning", "audio"]),
+        ("cloze", ["meaning", "audio", "cloze"]),
     ],
 )
 def test_export_takes_the_example_and_holds_it_back_until_generated(
-    bench: Bench, kind: DecisionKind, missing: list[str],
+    bench: Bench, kind: str, missing: list[str],
 ) -> None:
     bench.decide(CARD, kind)
     bench.give_meaning_and_audio(CARD)

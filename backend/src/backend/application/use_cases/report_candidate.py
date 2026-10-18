@@ -14,6 +14,7 @@ from backend.domain.value_objects.fragment_surroundings import FragmentSurroundi
 
 if TYPE_CHECKING:
     from backend.application.dto.card_report_dtos import ReportCandidateRequest
+    from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.application.utils.user_knowledge_reader import UserKnowledgeReader
     from backend.application.utils.user_vocabulary import UserVocabulary
@@ -42,7 +43,8 @@ class ReportCandidateUseCase:
     """Saves a complaint about a card — a shown phrase — together with a snapshot of it.
 
     Words of the phrase the user marked as not known go to their unknown words:
-    every card with them moves out of Ready.
+    every card with them moves out of Ready. That removes their Known as any removal does
+    (§2.7): every card of such a word that read Known, in every source, is new again.
     """
 
     def __init__(
@@ -55,7 +57,9 @@ class ReportCandidateUseCase:
         vocabulary: UserVocabulary,
         knowledge: UserKnowledgeReader,
         review_status: ReviewStatusUpdater,
+        effects: DecisionEffects,
     ) -> None:
+        self._effects = effects
         self._candidate_repo = candidate_repo
         self._occurrences = occurrence_repo
         self._document_repo = document_repo
@@ -107,7 +111,9 @@ class ReportCandidateUseCase:
             phrase.words[i].lemma for i in indices if 0 <= i < len(phrase.words)
         ))
         for lemma in lemmas:
+            before = self._vocabulary.of(lemma)
             self._vocabulary.mark_unknown(lemma)
+            self._effects.known_removed(lemma, before)
         if lemmas:
             self._review_status.refresh_all()
 

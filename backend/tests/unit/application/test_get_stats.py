@@ -25,20 +25,22 @@ class TestGetStatsUseCase:
         )
 
     def test_returns_correct_counts(self) -> None:
-        self.candidate_repo.count_by_status.return_value = 7
+        """Chosen to learn: Learn and Learning words. Known: each lemma once, by the list
+        or by the timer."""
+        counts = {WordStatus.LEARN: 7, WordStatus.LEARNING: 5}
+        self.candidate_repo.count_by_status.side_effect = lambda status: counts.get(status, 0)
         self.candidate_repo.count_all.return_value = 120
-        self.known_word_repo.count.return_value = 43
+        self.known_word_repo.get_all_pairs.return_value = {
+            ("glare", "VERB"), ("glare", "NOUN"), ("linger", None),
+        }
         result = self.use_case.execute()
-        assert result.learn_count == 7
+        assert result.learn_count == 12
         assert result.candidate_count == 120
-        assert result.known_word_count == 43
-        self.candidate_repo.count_by_status.assert_called_once_with(WordStatus.LEARN)
-        self.known_word_repo.count.assert_called_once()
+        assert result.known_word_count == 2
 
     def test_returns_zeros_when_empty(self) -> None:
         self.candidate_repo.count_by_status.return_value = 0
         self.candidate_repo.count_all.return_value = 0
-        self.known_word_repo.count.return_value = 0
         result = self.use_case.execute()
         assert result.learn_count == 0
         assert result.candidate_count == 0
@@ -47,7 +49,8 @@ class TestGetStatsUseCase:
         assert result.queue_active_count == 0
 
     def test_export_pending_count_excludes_already_exported(self) -> None:
-        self.candidate_repo.count_by_status.return_value = 31
+        counts = {WordStatus.LEARN: 3, WordStatus.LEARNING: 28}
+        self.candidate_repo.count_by_status.side_effect = lambda status: counts.get(status, 0)
         self.export_queue.for_all.return_value = ExportBatch(
             pending=[MagicMock(), MagicMock(), MagicMock()],
             exported_count=28,

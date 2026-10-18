@@ -13,6 +13,7 @@ from backend.domain.services.candidate_sorting import (
     sort_chronologically,
 )
 from backend.domain.value_objects.candidate_section import CandidateSection
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.document_position import DocumentPosition
@@ -57,7 +58,8 @@ def _card(
             source_phrase=phrase(text or f"a {word.lemma} here {' '.join(new)}".strip(),
                                  word.lemma, new=new),
             phrase_position=DocumentPosition(0, 0, at, 0, at + 1) if at is not None else None,
-            key=None, fragment_score=None, shown_by=ShownBy.SELECTION, skipped=skipped,
+            key=None, fragment_score=None, shown_by=ShownBy.SELECTION,
+            choice=CardChoice.SKIP if skipped else CardChoice.NONE,
         ),
         elsewhere=elsewhere,
     )

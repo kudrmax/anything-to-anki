@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from backend.domain.services.phrase_protection import is_touched, is_untouchable
 from backend.domain.services.phrase_selection import SelectionChange, select_phrases
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
@@ -380,12 +381,11 @@ def _fresh_row(placeholder: int, word_id: int, occ: BuiltOccurrence) -> Occurren
         key=occ.key,
         origin=OccurrenceOrigin.AUTO,
         shown_by=None,
-        skipped=False,
-        is_decision=False,
+        choice=CardChoice.NONE,
         revision=0,
         edited_by_user=False,
         has_results=False,
-        exported=False,
+        in_anki=False,
         has_active_job=False,
         text_hash=OccurrenceRow.hash_text(occ.phrase.text),
         fragment_score=occ.fragment_score,

@@ -2,9 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.elsewhere import ElsewhereStatus
-from backend.domain.value_objects.word_status import WordStatus
-
 if TYPE_CHECKING:
     from backend.domain.value_objects.card_choice import Refusal
 
@@ -380,42 +377,12 @@ class PhraseNotFoundError(DomainError):
         self.phrase_id = phrase_id
 
 
-class CardDecisionLockedError(DomainError):
-    """Raised when a card of a decided word is decided on: only its decision card may be."""
-
-    def __init__(self, phrase_id: int, word_status: WordStatus) -> None:
-        verb = "Learned" if word_status is WordStatus.LEARN else "Known"
-        super().__init__(f"{verb} via another phrase: change it on that card")
-        self.phrase_id = phrase_id
-        self.word_status = word_status
-
-
-class AlreadyInAnkiError(DomainError):
-    """Raised when an exported decision is undone, skipped, moved or turned into a cloze."""
-
-    def __init__(self, phrase_id: int) -> None:
-        super().__init__("Already in Anki")
-        self.phrase_id = phrase_id
-
-
-class DecidedElsewhereError(DomainError):
-    """Raised when a word known or being learned via another source is marked to learn."""
-
-    def __init__(self, phrase_id: int, elsewhere: ElsewhereStatus) -> None:
-        reason = (
-            "Already known" if elsewhere is ElsewhereStatus.KNOWN
-            else "Already learning from another source"
-        )
-        super().__init__(reason)
-        self.phrase_id = phrase_id
-        self.elsewhere = elsewhere
-
-
 class ActionRefusedError(DomainError):
-    """Raised when the decision table refuses a button on a card."""
+    """Raised when the decision table refuses a button on a card. `reason`: why, for the
+    person who pressed it."""
 
-    def __init__(self, card_id: int, refusal: Refusal) -> None:
-        super().__init__(f"Card {card_id}: {refusal.value}")
+    def __init__(self, card_id: int, refusal: Refusal, reason: str | None = None) -> None:
+        super().__init__(reason or f"Card {card_id}: {refusal.value}")
         self.card_id = card_id
         self.refusal = refusal
 

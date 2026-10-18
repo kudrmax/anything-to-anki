@@ -9,13 +9,13 @@ from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.models import AnkiSyncedCardModel, SourceModel
+from backend.infrastructure.persistence.models import SourceModel
 from fastapi.testclient import TestClient
-from sqlalchemy import StaticPool, create_engine
+from sqlalchemy import StaticPool, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
-from tests.word_support import PHRASE_ID_OFFSET, CardSeed, store_cards
+from tests.word_support import PHRASE_ID_OFFSET, CardSeed, bind, store_cards
 
 GIVE_UP = "She finally gave up smoking last year."
 SOURCE_ID = 1
@@ -54,9 +54,13 @@ def client() -> Generator[TestClient, None, None]:
         )
         for lemma in ["give up", "smoke"]
     ])
-    session.add(AnkiSyncedCardModel(
-        candidate_id=SYNCED_WORD_ID, phrase_id=SYNCED_PHRASE_ID, anki_note_id=777,
-    ))
+    session.execute(
+        text("UPDATE phrases SET choice = 'cloze' WHERE id = :id"), {"id": SYNCED_PHRASE_ID},
+    )
+    session.execute(
+        text("UPDATE candidates SET status = 'learn' WHERE id = :id"), {"id": SYNCED_WORD_ID},
+    )
+    bind(session, SYNCED_WORD_ID, SYNCED_PHRASE_ID, note_id=777, kind="cloze")
     session.commit()
     session.close()
 
@@ -103,7 +107,7 @@ class TestSaveClozeAPI:
         assert candidate["status"] == "learn"
         assert candidate["cloze"]["hidden_word_indices"] == [2, 3]
 
-    def test_synced_candidate_cannot_be_clozed(self, client: TestClient) -> None:
+    def test_a_cloze_in_anki_keeps_its_markup(self, client: TestClient) -> None:
         assert _candidate_in_source(client, SYNCED_PHRASE_ID)["can_cloze"] is False
         response = client.put(
             f"/phrases/{SYNCED_PHRASE_ID}/cloze",
@@ -132,7 +136,7 @@ class TestSaveClozeAPI:
         )
         assert response.status_code == 404
 
-    def test_status_change_drops_cloze(self, client: TestClient) -> None:
+    def test_a_card_no_longer_a_cloze_shows_no_markup(self, client: TestClient) -> None:
         client.put(
             f"/phrases/{PHRASE_ID}/cloze",
             json={"hidden_word_indices": [2, 3], "hint_kind": "none", "phrase": GIVE_UP},

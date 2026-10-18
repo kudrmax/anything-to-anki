@@ -11,6 +11,7 @@ from backend.domain.services.phrase_protection import is_touched, is_untouchable
 from backend.domain.services.phrase_selection import is_frozen, select_phrases
 from backend.domain.services.rebuild_plan import OccurrenceRekey, RebuildPlan, plan_rebuild
 from backend.domain.value_objects.built_analysis import BuiltOccurrence, BuiltWord, WordKey
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
@@ -102,8 +103,8 @@ class Store:
                 id=self.next_id, candidate_id=ids_by_key[insert.word], key=o.key,
                 origin=OccurrenceOrigin.AUTO,
                 shown_by=ShownBy.SELECTION if insert.shown else None,
-                skipped=False, is_decision=False, revision=0, edited_by_user=False,
-                has_results=False, exported=False, has_active_job=False,
+                choice=CardChoice.NONE, revision=0, edited_by_user=False,
+                has_results=False, in_anki=False, has_active_job=False,
                 text_hash=OccurrenceRow.hash_text(o.phrase.text),
                 fragment_score=o.fragment_score, shows_polish=False, replaces_selection=False,
                 phrase_hash=OccurrenceRow.hash_phrase(o.phrase, o.phrase_position),
@@ -172,7 +173,7 @@ def random_source(seed: int) -> tuple[list[OccurrenceRow], list[WordRow], list[B
                 next_row += 1
                 mine = rows[-1:]
             chosen = rnd.choice(mine)
-            rows[rows.index(chosen)] = replace(chosen, is_decision=True)
+            rows[rows.index(chosen)] = replace(chosen, choice=CardChoice.LEARN)
     analysed: list[BuiltWord] = []
     lemmas = [w.lemma for w in words] + [f"new{i}" for i in range(rnd.randint(0, 2))]
     for lemma in lemmas:

@@ -18,10 +18,6 @@ class CandidateRepository(ABC):
         occurrence repository."""
 
     @abstractmethod
-    def set_word_status(self, candidate_id: int, status: WordStatus) -> None:
-        """The decision on the word; the phrase of the decision is the phrases' business."""
-
-    @abstractmethod
     def word_id(self, source_id: int, key: WordKey) -> int | None:
         """The word of the source with this key, if the source has it."""
 

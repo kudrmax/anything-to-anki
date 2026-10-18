@@ -16,6 +16,7 @@ from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.held_operation import HeldOperation
+from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 from backend.domain.value_objects.review_card import CardRow
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_role import SourceRole
@@ -24,8 +25,9 @@ from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.candidate_sorter_support import candidate_sorter
-from tests.card_support import occurrence, word
+from tests.card_support import PhraseWordStates, occurrence, word
 from tests.phrase_support import phrase
+from tests.vocabulary_support import user_vocabulary
 
 
 def _row(
@@ -76,7 +78,16 @@ class TestGetSourcesUseCase:
             review_progress=ReviewProgress(self.card_query, sorter, elsewhere),
             card_query=self.card_query,
             card_views=CardViews(
-                review_cards=ReviewCards(self.candidate_repo, self.occurrence_repo, elsewhere),
+                review_cards=ReviewCards(
+                    self.candidate_repo, self.occurrence_repo, elsewhere,
+                    PhraseWordStates(
+                        lambda: self.candidate_repo.get_by_source.return_value,
+                        lambda word_id: self.occurrence_repo.shown_by_word.return_value.get(
+                            word_id, [],
+                        ),
+                    ),
+                    user_vocabulary(),
+                ),
                 candidate_sorter=sorter,
                 job_repo=self.job_repo,
                 report_repo=self.report_repo,
@@ -251,18 +262,22 @@ class TestGetSourcesUseCase:
         result = self.use_case.get_by_id(1, sort_order=CandidateSortOrder.KEY_WORDS)
         assert result.initially_shown_candidates == 15
 
-    def test_get_by_id_forbids_cloze_for_phrases_in_anki(self) -> None:
+    def test_get_by_id_forbids_new_markup_only_for_a_cloze_in_anki(self) -> None:
+        """Q11: a Learn card in Anki may still become a cloze (a new note)."""
         self.source_repo.get_by_id.return_value = _text(1)
         self.candidate_repo.get_by_source.return_value = [
-            word(1, "burnout", status=WordStatus.LEARN),
+            word(1, "burnout", status=WordStatus.LEARNING),
             word(2, "lizard", status=WordStatus.LEARN),
+            word(3, "gecko", status=WordStatus.LEARNING),
         ]
         self.occurrence_repo.shown_by_word.return_value = {
-            1: [occurrence(1, 1, exported=True)], 2: [occurrence(2, 2)],
+            1: [occurrence(1, 1, exported=True, decision_kind=DecisionKind.CLOZE)],
+            2: [occurrence(2, 2)],
+            3: [occurrence(3, 3, exported=True)],
         }
         result = self.use_case.get_by_id(1)
         can_cloze = {c.phrase_id: c.can_cloze for c in result.candidates}
-        assert can_cloze == {1: False, 2: True}
+        assert can_cloze == {1: False, 2: True, 3: True}
 
     def test_get_by_id_not_found(self) -> None:
         self.source_repo.get_by_id.return_value = None

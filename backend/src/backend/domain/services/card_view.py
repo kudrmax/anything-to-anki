@@ -283,11 +283,13 @@ def in_export_queue(word: WordState, lemma: LemmaKnowledge, now: datetime) -> bo
     )
 
 
-_CHOSEN_TO_LEARN = frozenset({DecisionStatus.LEARN, DecisionStatus.LEARNING})
+CHOSEN_TO_LEARN: frozenset[DecisionStatus] = frozenset(
+    {DecisionStatus.LEARN, DecisionStatus.LEARNING},
+)
 
 
 def chosen_to_learn(word: WordState) -> bool:
-    return decision_status(word) in _CHOSEN_TO_LEARN
+    return decision_status(word) in CHOSEN_TO_LEARN
 
 
 def section(view: CardView, open_section: CandidateSection) -> CandidateSection:

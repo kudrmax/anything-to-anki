@@ -8,7 +8,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
+from backend.application.utils.knowledge_scope import KnowledgeScope
 from backend.application.utils.user_vocabulary import UserVocabulary
+
+from tests.decision_support import FixedClock
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -23,7 +26,8 @@ def user_vocabulary(
     learning_lemmas: Iterable[str] = (),
     learning_query: LearningQuery | None = None,
 ) -> UserVocabulary:
-    """`learning_query`: a real query in place of the given learning lemmas."""
+    """`learning_query`: a real query in place of the given learning lemmas, which are
+    Learn words waiting for export."""
     known = known_word_repo if known_word_repo is not None else MagicMock()
     if isinstance(known.get_all_pairs.return_value, MagicMock):
         known.get_all_pairs.return_value = set()
@@ -34,5 +38,6 @@ def user_vocabulary(
         learning = learning_query
     else:
         learning = MagicMock()
-        learning.learning_lemmas.return_value = frozenset(learning_lemmas)
-    return UserVocabulary(known, unknown, learning)
+        learning.awaiting_export.return_value = frozenset(learning_lemmas)
+        learning.active_since.return_value = {}
+    return UserVocabulary(known, unknown, KnowledgeScope(FixedClock(), known, unknown, learning))

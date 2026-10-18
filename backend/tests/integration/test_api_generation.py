@@ -222,7 +222,7 @@ class TestGenerationApi:
 
         assert response.status_code == 409, response.text
         phrase = db_session.execute(text(
-            "SELECT is_decision, edited_by_user FROM phrases WHERE id = :id"
+            "SELECT choice, edited_by_user FROM phrases WHERE id = :id"
         ), {"id": SECOND_PHRASE}).one()
-        assert tuple(phrase) == (0, 0)
+        assert tuple(phrase) == ("none", 0)
         assert db_session.execute(text("SELECT COUNT(*) FROM phrases")).scalar_one() == 4

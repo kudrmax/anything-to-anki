@@ -5,14 +5,16 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.job import Job
-from backend.domain.services.card_decision import wants_generation
+from backend.domain.services.card_view import card_view
 from backend.domain.value_objects.card_generation_state import CardGenerationState
 from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_kind import GenerationKind
 from backend.domain.value_objects.job_status import JobStatus
+from backend.domain.value_objects.review_card import CardContext
 
 if TYPE_CHECKING:
     from backend.application.utils.decided_elsewhere import DecidedElsewhere
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.entities.source import Source
     from backend.domain.entities.stored_candidate import StoredCandidate
@@ -20,6 +22,8 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.word_state_repository import WordStateRepository
+    from backend.domain.value_objects.card_choice import WordState
     from backend.domain.value_objects.elsewhere import ElsewhereStatus
 
 
@@ -27,7 +31,8 @@ if TYPE_CHECKING:
 class GenerationCard:
     """A shown phrase of a word: what the ✨ menu works on.
 
-    `in_play`: someone decides on the card or sends it to Anki (`wants_generation`).
+    `in_play`: someone decides on the card or sends it to Anki (the card view's
+    `wants_generation`).
     """
 
     word: StoredCandidate
@@ -37,8 +42,11 @@ class GenerationCard:
     @classmethod
     def of(
         cls, word: StoredCandidate, phrase: Occurrence, elsewhere: ElsewhereStatus | None,
+        context: CardContext,
     ) -> GenerationCard:
-        return cls(word, phrase, wants_generation(phrase, word, elsewhere))
+        assert phrase.id is not None
+        view = card_view(context.word, phrase.id, context.knowledge, elsewhere, context.now)
+        return cls(word, phrase, view.wants_generation)
 
     @property
     def word_id(self) -> int:
@@ -74,10 +82,13 @@ class GenerationCards:
         candidate_repo: CandidateRepository,
         occurrence_repo: OccurrenceRepository,
         decided_elsewhere: DecidedElsewhere,
+        word_states: WordStateRepository,
+        vocabulary: UserVocabulary,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._occurrence_repo = occurrence_repo
         self._decided_elsewhere = decided_elsewhere
+        self._contexts = CardContexts(word_states, vocabulary)
 
     def of_source(self, source_id: int) -> list[GenerationCard]:
         shown = self._occurrence_repo.shown_by_word(source_id)
@@ -86,12 +97,38 @@ class GenerationCards:
             if word.id is not None and word.id in shown
         ]
         elsewhere = self._decided_elsewhere.of_lemmas({word.lemma for word in words})
+        contexts = self._contexts.of_source(source_id)
         return [
-            GenerationCard.of(word, phrase, elsewhere.get(word.lemma))
+            GenerationCard.of(word, phrase, elsewhere.get(word.lemma), contexts[word.id])
             for word in words
             if word.id is not None
             for phrase in shown[word.id]
         ]
+
+
+class CardContexts:
+    """What the card view of each word's cards is read from: the word's cards, what the
+    user knows of its lemma, and the request's moment."""
+
+    def __init__(self, word_states: WordStateRepository, vocabulary: UserVocabulary) -> None:
+        self._word_states = word_states
+        self._vocabulary = vocabulary
+
+    def of_source(self, source_id: int) -> dict[int, CardContext]:
+        return {
+            word_id: self.of(state)
+            for word_id, state in self._word_states.of_source(source_id).items()
+        }
+
+    def of_word(self, word_id: int) -> CardContext | None:
+        state = self._word_states.of_word(word_id)
+        return self.of(state) if state is not None else None
+
+    def of(self, state: WordState) -> CardContext:
+        return CardContext(
+            word=state, knowledge=self._vocabulary.of(state.lemma),
+            now=self._vocabulary.scope.now,
+        )
 
 
 class GenerationTarget(ABC):

@@ -224,8 +224,15 @@ class Bench:
             text("UPDATE candidates SET status = 'learn' WHERE id = :id"),
             {"id": word_ids[lemma]},
         )
-        self.occurrences.set_decision(word_ids[lemma], phrase_id, None)
+        self.set_choice(phrase_id, "learn")
         self.session.commit()
+
+    def set_choice(self, phrase_id: int, choice: str) -> None:
+        self.session.execute(
+            text("UPDATE phrases SET choice = :choice WHERE id = :id"),
+            {"choice": choice, "id": phrase_id},
+        )
+        self.session.expire_all()
 
     def times(self, phrase_id: int) -> tuple[int | None, int | None] | None:
         media = self.media.get_by_phrase_id(phrase_id)

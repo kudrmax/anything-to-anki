@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 
 from backend.domain.ports.candidate_repository import CandidateRepository
 from backend.domain.value_objects.word_status import WordStatus
@@ -34,14 +34,6 @@ class SqlaCandidateRepository(CandidateRepository):
         self._session.add(model)
         self._session.flush()
         return model.id
-
-    def set_word_status(self, candidate_id: int, status: WordStatus) -> None:
-        self._session.execute(
-            update(StoredCandidateModel)
-            .where(StoredCandidateModel.id == candidate_id)
-            .values(status=status.value)
-        )
-        self._session.flush()
 
     def get_by_source(self, source_id: int) -> list[StoredCandidate]:
         return self._read(StoredCandidateModel.source_id == source_id)
@@ -97,8 +89,9 @@ class SqlaCandidateRepository(CandidateRepository):
     def delete_by_source(self, source_id: int) -> None:
         """Delete all words of a source.
 
-        Their phrases, results, jobs and export records go by DB-level
-        ON DELETE CASCADE. Requires PRAGMA foreign_keys = ON (set in database.py).
+        Their phrases, results and jobs go by DB-level ON DELETE CASCADE; their Anki
+        bindings stay, with no card (SET NULL). Requires PRAGMA foreign_keys = ON (set in
+        database.py).
         """
         models = (
             self._session.query(StoredCandidateModel)

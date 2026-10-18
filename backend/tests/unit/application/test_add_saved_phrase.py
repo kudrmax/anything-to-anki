@@ -1,7 +1,7 @@
 """Unit tests for AddSavedPhraseUseCase.
 
 A phrase met anywhere is saved with its picked target into the built-in
-"Saved phrases" source, already marked to learn.
+"Saved phrases" source; a word new there is pressed Learn.
 """
 from __future__ import annotations
 
@@ -14,7 +14,13 @@ from backend.application.dto.source_dtos import card_to_dto
 from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
 from backend.domain.entities.source import Source
 from backend.domain.entities.token_data import TokenData
-from backend.domain.exceptions import InvalidPhraseError, TargetNotInPhraseError
+from backend.domain.exceptions import (
+    ActionRefusedError,
+    InvalidPhraseError,
+    TargetNotInPhraseError,
+)
+from backend.domain.value_objects.built_analysis import WordKey
+from backend.domain.value_objects.card_choice import Press, Refusal
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind, OccurrenceOrigin
@@ -75,11 +81,7 @@ class _Setup:
             occurrence(phrase_id, WORD_ID, is_decision=True, decision_kind=DecisionKind.LEARN),
         ))
         self.review_status = MagicMock()
-        self.stored_decision = True
-        self.occurrence_repo.get.side_effect = lambda phrase_id: occurrence(
-            phrase_id, WORD_ID, is_decision=self.stored_decision,
-            decision_kind=DecisionKind.LEARN if self.stored_decision else None,
-        )
+        self.decide_phrase = MagicMock()
         text_analyzer = MagicMock()
         text_analyzer.analyze.return_value = [_token(1, "procrastinating", "procrastinate")]
         cefr = MagicMock()
@@ -103,6 +105,7 @@ class _Setup:
             phrase_reader=reader,
             occurrence_repo=self.occurrence_repo,
             card_views=self.card_views,
+            decide_phrase=self.decide_phrase,
         )
 
     def saved_word(self) -> StoredCandidate:
@@ -123,10 +126,9 @@ def test_phrase_is_saved_to_saved_phrases_source_marked_to_learn() -> None:
     assert saved_word.source_id == SAVED_PHRASES_ID
     assert saved_word.lemma == "procrastinate"
     assert saved_word.occurrences == 1
-    setup.candidate_repo.set_word_status.assert_called_once_with(WORD_ID, WordStatus.LEARN)
+    setup.decide_phrase.press.assert_called_once_with(SAVED_PHRASE_ID, Press.LEARN)
     assert saved.candidate_id == WORD_ID
     assert saved.origin is OccurrenceOrigin.COLLECTED
-    assert (saved.is_decision, saved.decision_kind) == (True, DecisionKind.LEARN)
     assert saved.source_phrase.text == "Stop procrastinating, please."
     assert saved.source_phrase.target_text() == "procrastinating"
     assert saved.phrase_position is None
@@ -162,18 +164,25 @@ def test_invalid_phrase_or_target_is_rejected(phrase: str, target: list[int]) ->
     setup.occurrence_repo.add.assert_not_called()
 
 
-def test_a_word_saved_to_learn_starts_learning_as_a_learn_decision_does() -> None:
+def test_a_word_decided_in_another_source_only_shows_that() -> None:
+    """Q4: the press is refused; the phrase is saved and its card shows that decision."""
     setup = _Setup(existing=_saved_phrases())
+    setup.decide_phrase.press.side_effect = ActionRefusedError(
+        SAVED_PHRASE_ID, Refusal.DECIDED_ELSEWHERE,
+    )
 
     setup.use_case.execute(PHRASE, [1])
 
-    setup.review_status.refresh_showing.assert_called_once_with({"procrastinate"})
+    setup.occurrence_repo.add.assert_called_once()
+    setup.card_views.one.assert_called_once_with(SAVED_PHRASE_ID)
 
 
-def test_another_phrase_of_a_saved_word_changes_no_knowledge() -> None:
+def test_another_phrase_of_a_saved_word_is_no_press() -> None:
     setup = _Setup(existing=_saved_phrases())
-    setup.stored_decision = False
+    existing_word = MagicMock(key=WordKey.of("procrastinate", is_phrasal_verb=False), id=WORD_ID)
+    setup.occurrence_repo.word_rows.return_value = [existing_word]
 
     setup.use_case.execute(PHRASE, [1])
 
-    setup.review_status.refresh_showing.assert_not_called()
+    setup.candidate_repo.add_word.assert_not_called()
+    setup.decide_phrase.press.assert_not_called()

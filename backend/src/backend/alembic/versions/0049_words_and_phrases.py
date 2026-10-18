@@ -8,9 +8,13 @@ phrase of every card moves to the new `phrases` table, with everything made for 
 (meaning, media, tts, cloze), its jobs, export records and reports. Words of one lemma that
 were separate cards merge into one word with several phrases: the duplicate's rows are
 rebound to the surviving word before the duplicate is deleted, so nothing is lost.
-SKIP moves from the word to its phrase; LEARN and KNOWN mark the phrase of the decision.
-Anki notes already exported become `anki_notes`. See docs/specs/words-phrases-rebuild.md,
-«Миграция 0049».
+Each card gets one choice (none / learn / cloze / known / skip): SKIP moves from the word to
+its phrase, and LEARN and KNOWN become the choice of the word's decision card. The word's
+status is the decision status (pending / learn / learning / known). An export record is the
+card's binding to its Anki note: it gets the lemma, POS and note kind, and stays active only
+on a Known card whose lemma is still in Known; every other is released at migration (the user
+removed Known, or the card was not decided). See docs/specs/words-phrases-rebuild.md and the
+status-model design, §4.
 
 The position → occurrence key logic is a frozen copy: it must not follow later changes
 of the domain's DocumentLayout.
@@ -27,6 +31,7 @@ One-way: merged words and re-keyed results cannot be split back into cards.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from typing import Any, NamedTuple
 
@@ -38,10 +43,26 @@ down_revision = "0048"
 branch_labels = None
 depends_on = None
 
+logger = logging.getLogger(__name__)
+
 PHRASE_LEVEL_JOB_TYPES = ("polish", "meaning", "media", "tts")
 DECIDED_STATUSES = ("learn", "known")
+LEARN_STATUS = "learn"
+KNOWN_STATUS = "known"
 SKIP_STATUS = "skip"
 PENDING_STATUS = "pending"
+CHOICE_NONE = "none"
+CHOICE_LEARN = "learn"
+CHOICE_CLOZE = "cloze"
+CHOICE_KNOWN = "known"
+CHOICE_SKIP = "skip"
+DECISION_CHOICES = (CHOICE_LEARN, CHOICE_CLOZE, CHOICE_KNOWN)
+NOTE_KIND_LEARN = "learn"
+NOTE_KIND_CLOZE = "cloze"
+STATUS_OF_CHOICE = {
+    CHOICE_LEARN: LEARN_STATUS, CHOICE_CLOZE: LEARN_STATUS, CHOICE_KNOWN: KNOWN_STATUS,
+}
+DROPPED_DECISION_LOG = "0049: merge dropped the %s decision of card %d (lemma %r, word %d)"
 NEW_STATUS = "new"
 PROCESSING_STATUS = "processing"
 COLLECTED_ROLES = ("topic", "saved_phrases")
@@ -51,8 +72,6 @@ ORIGIN_EXAMPLE = "example"
 ORIGIN_COLLECTED = "collected"
 SHOWN_BY_SELECTION = "selection"
 SHOWN_BY_USER = "user"
-DECISION_LEARN = "learn"
-DECISION_CLOZE = "cloze"
 LINE_SEPARATOR_LENGTH = 1
 PHRASE_COLUMNS = ("source_phrase", "polished_phrase", "polish_reverted", "phrase_position")
 # Where a collected phrase came from: now `phrases.collected_kind/collected_title`.
@@ -71,6 +90,16 @@ class _Card(NamedTuple):
     is_phrasal_verb: bool
     status: str
     exported: bool
+    latest_synced_row: int  # 0 without one
+
+    @property
+    def merge_rank(self) -> tuple[bool, int, bool, bool, int]:
+        """The winner of a merge: an exported card, then the latest export, then a decision
+        (skip is none), Known over Learn, then the newest."""
+        return (
+            self.exported, self.latest_synced_row, self.status in DECIDED_STATUSES,
+            self.status == KNOWN_STATUS, self.id,
+        )
 
 
 def upgrade() -> None:
@@ -85,12 +114,12 @@ def upgrade() -> None:
     cards = _cards(conn)
     _create_phrases(conn, now)
     _fill_phrase_ids(conn)
-    _rebuild_anki_synced_cards()
-    _merge_duplicates(conn, cards)
+    _rebuild_anki_synced_cards(now)
+    winners = _merge_duplicates(conn, cards)
+    _rows_follow_their_word(conn)
     _release_skipped_originals(conn, cards)
-    _set_decisions(conn)
+    _set_decisions(conn, winners, now)
     _move_ipa(conn)
-    _notes_from_exports(conn)
     _rekey_results()
     _drop_card_columns()
     _sources_without_processing(conn)
@@ -126,9 +155,7 @@ def _create_tables() -> None:
         sa.Column("revision", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("shown_by", sa.String(10), nullable=True),
         sa.Column("origin", sa.String(10), nullable=False),
-        sa.Column("skipped", sa.Boolean(), nullable=False, server_default="0"),
-        sa.Column("is_decision", sa.Boolean(), nullable=False, server_default="0"),
-        sa.Column("decision_kind", sa.String(10), nullable=True),
+        sa.Column("choice", sa.String(10), nullable=False, server_default=CHOICE_NONE),
         sa.Column("edited_by_user", sa.Boolean(), nullable=False, server_default="0"),
         sa.Column("replaces_selection", sa.Boolean(), nullable=False, server_default="0"),
         sa.Column("collected_kind", sa.String(10), nullable=True),
@@ -143,12 +170,6 @@ def _create_tables() -> None:
             sa.ForeignKey("phrases.id", ondelete="CASCADE"), primary_key=True,
         ),
         sa.Column("lemma", sa.String(100), primary_key=True),
-    )
-    op.create_table(
-        "anki_notes",
-        sa.Column("note_id", sa.Integer(), primary_key=True, autoincrement=False),
-        sa.Column("lemma", sa.String(100), nullable=False),
-        sa.Column("pos", sa.String(10), nullable=True),
     )
     op.create_table(
         "document_parses",
@@ -186,14 +207,16 @@ def _add_phrase_columns() -> None:
 
 
 def _cards(conn: sa.Connection) -> list[_Card]:
-    exported = {
-        row[0] for row in conn.exec_driver_sql("SELECT candidate_id FROM anki_synced_cards")
+    latest: dict[int, int] = {
+        int(row[0]): int(row[1]) for row in conn.exec_driver_sql(
+            "SELECT candidate_id, max(id) FROM anki_synced_cards GROUP BY candidate_id"
+        )
     }
     return [
         _Card(
             id=row.id, source_id=row.source_id, lemma=row.lemma,
             is_phrasal_verb=bool(row.is_phrasal_verb), status=row.status,
-            exported=row.id in exported,
+            exported=row.id in latest, latest_synced_row=latest.get(row.id, 0),
         )
         for row in conn.execute(sa.text(
             "SELECT id, source_id, lemma, is_phrasal_verb, status FROM candidates ORDER BY id"
@@ -222,11 +245,11 @@ def _create_phrases(conn: sa.Connection, now: datetime) -> None:
             sa.text(
                 "INSERT INTO phrases (candidate_id, block, line, char, source_phrase,"
                 " phrase_position, polished_phrase, polish_reverted, revision, shown_by,"
-                " origin, skipped, is_decision, edited_by_user, collected_kind,"
+                " origin, choice, edited_by_user, collected_kind,"
                 " collected_title, created_at)"
                 " VALUES (:candidate_id, :block, :line, :char, :source_phrase,"
                 " :phrase_position, :polished_phrase, :polish_reverted, 0, :shown_by,"
-                " :origin, :skipped, 0, 0, :collected_kind, :collected_title, :created_at)"
+                " :origin, :choice, 0, :collected_kind, :collected_title, :created_at)"
             ).bindparams(sa.bindparam("created_at", type_=sa.DateTime())),
             {
                 "candidate_id": row.id,
@@ -239,7 +262,7 @@ def _create_phrases(conn: sa.Connection, now: datetime) -> None:
                 "polish_reverted": row.polish_reverted,
                 "shown_by": SHOWN_BY_SELECTION if origin == ORIGIN_AUTO else SHOWN_BY_USER,
                 "origin": origin,
-                "skipped": row.status == SKIP_STATUS,
+                "choice": CHOICE_SKIP if row.status == SKIP_STATUS else CHOICE_NONE,
                 "collected_kind": row.origin_kind,
                 "collected_title": row.origin_title,
                 "created_at": now,
@@ -311,22 +334,27 @@ def _fill_phrase_ids(conn: sa.Connection) -> None:
 # ── step 4: words of one lemma merge ──────────────────────────────────
 
 
-def _merge_duplicates(conn: sa.Connection, cards: list[_Card]) -> None:
+def _merge_duplicates(conn: sa.Connection, cards: list[_Card]) -> list[_Card]:
+    """The winner of every group of one lemma; the losers merge into it. A loser's decision
+    is dropped and logged: the word keeps one decision, the winner's."""
     groups: dict[tuple[int, str, bool], list[_Card]] = {}
     for card in cards:
         groups.setdefault((card.source_id, card.lemma.lower(), card.is_phrasal_verb), []).append(
             card
         )
+    winners: list[_Card] = []
     for group in groups.values():
-        if len(group) < 2:  # noqa: PLR2004 — a group of one has no duplicate
-            continue
-        # A decision is never lost: an export record keeps its own phrase anyway.
-        winner = max(
-            group, key=lambda c: (c.status in DECIDED_STATUSES, c.exported, c.id),
-        )
+        winner = max(group, key=lambda c: c.merge_rank)
+        winners.append(winner)
         for loser in group:
-            if loser is not winner:
-                _merge(conn, loser.id, winner.id)
+            if loser is winner:
+                continue
+            if loser.status in DECIDED_STATUSES:
+                logger.warning(
+                    DROPPED_DECISION_LOG, loser.status, loser.id, loser.lemma, winner.id,
+                )
+            _merge(conn, loser.id, winner.id)
+    return winners
 
 
 def _merge(conn: sa.Connection, loser: int, winner: int) -> None:
@@ -372,7 +400,7 @@ def _release_skipped_originals(conn: sa.Connection, cards: list[_Card]) -> None:
             continue
         released = conn.execute(
             sa.text(
-                "UPDATE phrases SET skipped = 0, shown_by = NULL"
+                "UPDATE phrases SET choice = :none, shown_by = NULL"
                 " WHERE id = (SELECT phrase_id FROM _card_phrase WHERE candidate_id_old = :card)"
                 " AND origin IN (:auto, :manual)"
                 " AND EXISTS (SELECT 1 FROM phrases e WHERE e.candidate_id = phrases.candidate_id"
@@ -380,7 +408,7 @@ def _release_skipped_originals(conn: sa.Connection, cards: list[_Card]) -> None:
             ),
             {
                 "card": card.id, "example": ORIGIN_EXAMPLE, "auto": ORIGIN_AUTO,
-                "manual": ORIGIN_MANUAL,
+                "manual": ORIGIN_MANUAL, "none": CHOICE_NONE,
             },
         )
         if not released.rowcount:
@@ -408,22 +436,66 @@ def _release_skipped_originals(conn: sa.Connection, cards: list[_Card]) -> None:
         )
 
 
-def _set_decisions(conn: sa.Connection) -> None:
-    conn.execute(
-        sa.text("UPDATE candidates SET status = :pending WHERE status = :skip"),
-        {"pending": PENDING_STATUS, "skip": SKIP_STATUS},
-    )
-    conn.execute(
-        sa.text(
-            "UPDATE phrases SET is_decision = 1, skipped = 0, decision_kind = CASE"
-            " WHEN EXISTS (SELECT 1 FROM candidate_clozes z"
-            " WHERE z.candidate_id = phrases.candidate_id) THEN :cloze ELSE :learn END"
-            f" WHERE id IN (SELECT m.phrase_id FROM _card_phrase m"
-            f" JOIN candidates c ON c.id = m.candidate_id_old"
-            f" WHERE c.status IN {DECIDED_STATUSES})"
-        ),
-        {"cloze": DECISION_CLOZE, "learn": DECISION_LEARN},
-    )
+def _set_decisions(conn: sa.Connection, winners: list[_Card], now: datetime) -> None:
+    """The decision of a word is its winner's, on the winner's own card (design §4).
+
+    An exported winner keeps its Known only while the lemma is still in Known: then the card
+    is the Known decision and its export stays active. Otherwise the user removed Known after
+    that export, so the word is new and the export is released. Every other export record of
+    the word — of a loser, or of a card without a decision — is released too. A Learn not
+    exported is a cloze when the card has cloze markup; a Known whose lemma is no longer in
+    Known is no decision. Unknown wins over Known.
+    """
+    known = _lemmas(conn, "known_words") - _lemmas(conn, "unknown_words")
+    for winner in winners:
+        phrase_id = conn.execute(
+            sa.text("SELECT phrase_id FROM _card_phrase WHERE candidate_id_old = :card"),
+            {"card": winner.id},
+        ).scalar_one()
+        choice = _decision_choice(conn, winner, winner.lemma.lower() in known)
+        if choice is not None:
+            conn.execute(
+                sa.text("UPDATE phrases SET choice = :choice WHERE id = :phrase"),
+                {"choice": choice, "phrase": phrase_id},
+            )
+        conn.execute(
+            sa.text("UPDATE candidates SET status = :status WHERE id = :word"),
+            {
+                "status": STATUS_OF_CHOICE.get(choice or CHOICE_NONE, PENDING_STATUS),
+                "word": winner.id,
+            },
+        )
+        active_phrase = phrase_id if choice == CHOICE_KNOWN and winner.exported else None
+        conn.execute(
+            sa.text(
+                "UPDATE anki_synced_cards SET released_at = :now"
+                " WHERE candidate_id = :word AND phrase_id IS NOT :active"
+            ).bindparams(sa.bindparam("now", type_=sa.DateTime())),
+            {"now": now, "word": winner.id, "active": active_phrase},
+        )
+
+
+def _decision_choice(conn: sa.Connection, winner: _Card, lemma_known: bool) -> str | None:
+    """The winner card's new choice; None keeps the one it was made with (skip or none).
+
+    The cloze marker is the winner's own old card's markup, read before results move to
+    phrases."""
+    if winner.status not in DECIDED_STATUSES:
+        return None
+    if winner.exported or winner.status == KNOWN_STATUS:
+        return CHOICE_KNOWN if lemma_known else CHOICE_NONE
+    has_markup = conn.execute(
+        sa.text("SELECT 1 FROM candidate_clozes WHERE candidate_id = :card"),
+        {"card": winner.id},
+    ).first()
+    return CHOICE_CLOZE if has_markup else CHOICE_LEARN
+
+
+def _lemmas(conn: sa.Connection, table: str) -> set[str]:
+    return {
+        str(row[0]).lower()
+        for row in conn.execute(sa.text(f"SELECT lemma FROM {table}"))  # noqa: S608 — fixed names
+    }
 
 
 # ── steps 7–11: results, ipa, notes ───────────────────────────────────
@@ -436,7 +508,7 @@ def _move_ipa(conn: sa.Connection) -> None:
         " JOIN _card_phrase m ON m.candidate_id_old = mn.candidate_id"
         " JOIN phrases p ON p.id = m.phrase_id"
         " WHERE mn.ipa IS NOT NULL AND mn.ipa != ''"
-        " ORDER BY p.is_decision DESC, p.id"
+        f" ORDER BY p.choice IN {DECISION_CHOICES} DESC, p.id"
     )).all()
     seen: set[int] = set()
     for row in rows:
@@ -461,16 +533,6 @@ def _move_ipa(conn: sa.Connection) -> None:
                 ),
                 params,
             )
-
-
-def _notes_from_exports(conn: sa.Connection) -> None:
-    conn.execute(
-        sa.text(
-            "INSERT OR IGNORE INTO anki_notes (note_id, lemma, pos)"
-            " SELECT a.anki_note_id, c.lemma, c.pos FROM anki_synced_cards a"
-            " JOIN candidates c ON c.id = a.candidate_id ORDER BY a.id"
-        )
-    )
 
 
 def _rekey_results() -> None:
@@ -563,28 +625,62 @@ def _sources_without_processing(conn: sa.Connection) -> None:
         batch.drop_column("processing_stage")
 
 
-def _rebuild_anki_synced_cards() -> None:
-    """Export records gain their phrase (kept when it goes) and lose one-per-word."""
+def _rebuild_anki_synced_cards(now: datetime) -> None:
+    """Export records become the bindings of cards to their notes: the only note table.
+
+    A record gains its phrase, the lemma and POS of its word, and its note kind: a cloze
+    exactly when its own old card had cloze markup. A record is never deleted: it outlives
+    its card and its word (SET NULL). Its timer starts at the migration, since the old app
+    kept no export date; it is read only on an active binding, and every active one ends on a
+    Known card. Released ones stay as history.
+    """
     op.create_table(
         "_anki_synced_cards_by_phrase",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column(
             "candidate_id", sa.Integer(),
-            sa.ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False,
+            sa.ForeignKey("candidates.id", ondelete="SET NULL"), nullable=True,
         ),
         sa.Column(
             "phrase_id", sa.Integer(),
-            sa.ForeignKey("phrases.id", ondelete="SET NULL"), nullable=True, unique=True,
+            sa.ForeignKey("phrases.id", ondelete="SET NULL"), nullable=True,
         ),
         sa.Column("anki_note_id", sa.Integer(), nullable=False),
+        sa.Column("lemma", sa.String(100), nullable=False),
+        sa.Column("pos", sa.String(10), nullable=True),
+        sa.Column("note_kind", sa.String(10), nullable=False),
+        sa.Column("learning_since", sa.DateTime(), nullable=False),
+        sa.Column("released_at", sa.DateTime(), nullable=True),
     )
-    op.execute(
-        "INSERT INTO _anki_synced_cards_by_phrase (id, candidate_id, phrase_id, anki_note_id)"
-        " SELECT id, candidate_id, phrase_id, anki_note_id FROM anki_synced_cards"
+    op.get_bind().execute(
+        sa.text(
+            "INSERT INTO _anki_synced_cards_by_phrase (id, candidate_id, phrase_id,"
+            " anki_note_id, lemma, pos, note_kind, learning_since)"
+            " SELECT a.id, a.candidate_id, a.phrase_id, a.anki_note_id, c.lemma, c.pos,"
+            " CASE WHEN EXISTS (SELECT 1 FROM candidate_clozes z"
+            " WHERE z.candidate_id = a.candidate_id) THEN :cloze ELSE :learn END, :now"
+            " FROM anki_synced_cards a JOIN candidates c ON c.id = a.candidate_id"
+        ).bindparams(sa.bindparam("now", type_=sa.DateTime())),
+        {"cloze": NOTE_KIND_CLOZE, "learn": NOTE_KIND_LEARN, "now": now},
     )
     op.drop_table("anki_synced_cards")
     op.rename_table("_anki_synced_cards_by_phrase", "anki_synced_cards")
     op.create_index("ix_anki_synced_cards_candidate_id", "anki_synced_cards", ["candidate_id"])
+    op.create_index("ix_anki_synced_cards_phrase_id", "anki_synced_cards", ["phrase_id"])
+    op.create_index("ix_anki_synced_cards_lemma", "anki_synced_cards", ["lemma"])
+    op.create_index(
+        "ux_anki_synced_cards_active", "anki_synced_cards", ["phrase_id"],
+        unique=True, sqlite_where=sa.text("released_at IS NULL AND phrase_id IS NOT NULL"),
+    )
+
+
+def _rows_follow_their_word(conn: sa.Connection) -> None:
+    """After the merge an export record takes the lemma and POS of the word it ended in."""
+    conn.execute(sa.text(
+        "UPDATE anki_synced_cards SET"
+        " lemma = (SELECT c.lemma FROM candidates c WHERE c.id = anki_synced_cards.candidate_id),"
+        " pos = (SELECT c.pos FROM candidates c WHERE c.id = anki_synced_cards.candidate_id)"
+    ))
 
 
 # ── steps 13–14: indexes, phrase words ────────────────────────────────
@@ -598,7 +694,7 @@ def _create_indexes() -> None:
     )
     op.create_index(
         "ux_phrases_decision", "phrases", ["candidate_id"],
-        unique=True, sqlite_where=sa.text("is_decision = 1"),
+        unique=True, sqlite_where=sa.text(f"choice IN {DECISION_CHOICES}"),
     )
     op.create_index(
         "ux_candidates_word", "candidates",

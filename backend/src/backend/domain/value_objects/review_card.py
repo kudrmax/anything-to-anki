@@ -3,14 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.services.card_view import CardView
+    from backend.domain.value_objects.card_choice import WordState
     from backend.domain.value_objects.elsewhere import ElsewhereStatus
     from backend.domain.value_objects.frequency_band import FrequencyBand
+    from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
     from backend.domain.value_objects.phrase import Phrase
 
 
@@ -23,15 +27,37 @@ def card_is_done(
 
 
 @dataclass(frozen=True)
+class CardContext:
+    """What the decision tables read for a card: every card of its word, what the user
+    knows of the lemma, and the request's moment."""
+
+    word: WordState
+    knowledge: LemmaKnowledge
+    now: datetime
+
+
+@dataclass(frozen=True)
 class ReviewCard:
     """A card of the review list: one shown phrase of a word, with everything made for it.
 
     `elsewhere`: why the word, still open here, counts as done via another source.
+    `context`: what the card view is derived from; a card only sorted needs none.
     """
 
     word: StoredCandidate
     occurrence: Occurrence
     elsewhere: ElsewhereStatus | None = None
+    context: CardContext | None = None
+
+    @property
+    def view(self) -> CardView:
+        from backend.domain.services.card_view import card_view
+
+        context = self.context
+        assert context is not None, "a card shown to the user is read with its context"
+        return card_view(
+            context.word, self.phrase_id, context.knowledge, self.elsewhere, context.now,
+        )
 
     @property
     def word_status(self) -> WordStatus:
@@ -76,13 +102,6 @@ class ReviewCard:
     @property
     def is_done(self) -> bool:
         return card_is_done(self.word_status, self.skipped, self.elsewhere)
-
-    @property
-    def shown_status(self) -> CandidateStatus:
-        """The decision the card shows: the word's, which beats a Skip of the phrase."""
-        if self.word_status is not WordStatus.NEW:
-            return CandidateStatus(self.word_status.value)
-        return CandidateStatus.SKIP if self.skipped else CandidateStatus.PENDING
 
 
 @dataclass(frozen=True)

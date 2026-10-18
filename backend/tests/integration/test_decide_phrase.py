@@ -1,44 +1,38 @@
-"""Decisions on a word through its phrases, in a real database."""
+"""Presses on cards through the decision tables, in a real database: the choice, the word's
+status, the Anki binding and the known words they leave."""
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
 
 import pytest
-from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
-from backend.application.utils.decided_elsewhere import DecidedElsewhere
+from backend.application.dto.decision_compat import DecisionAction
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.word_decision import WordDecision
 from backend.domain.exceptions import (
-    AlreadyInAnkiError,
-    CardDecisionLockedError,
-    DecidedElsewhereError,
+    ActionRefusedError,
     PhraseNotFoundError,
+    SourceOperationBusyError,
 )
-from backend.domain.services.card_decision import DecisionAction
+from backend.domain.value_objects.card_choice import CardChoice, Press, Refusal
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
-from backend.domain.value_objects.elsewhere import ElsewhereStatus
-from backend.domain.value_objects.phrase_origin_kind import (
-    DecisionKind,
-    OccurrenceOrigin,
-    ShownBy,
-)
+from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
+from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.word_status import WordStatus
-from backend.infrastructure.persistence.sqla_anki_sync_repository import SqlaAnkiSyncRepository
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
-from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
-from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
+from sqlalchemy import text
 
-from tests.lock_support import free_lock
+from tests.decision_support import NOW, Decisions
+from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
-from tests.vocabulary_support import user_vocabulary
-from tests.word_support import insert_word, phrase_id_of
+from tests.word_support import bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -48,8 +42,11 @@ pytestmark = pytest.mark.integration
 WORD = 1
 FIRST = phrase_id_of(WORD)
 LEMMA = "glare"
-LEARN, CLOZE, KNOWN = DecisionAction.LEARN, DecisionAction.CLOZE, DecisionAction.KNOWN
-SKIP, UNSKIP, PENDING = DecisionAction.SKIP, DecisionAction.UNSKIP, DecisionAction.PENDING
+OTHER_SOURCE = 2
+OTHER_WORD = 50
+LEARN, KNOWN, SKIP = Press.LEARN, Press.KNOWN, Press.SKIP
+FRESH = (NOW - LEARNING_KNOWN_AFTER + timedelta(days=1)).replace(tzinfo=None).isoformat(sep=" ")
+DUE = (NOW - LEARNING_KNOWN_AFTER).replace(tzinfo=None).isoformat(sep=" ")
 
 
 class Bench:
@@ -59,60 +56,100 @@ class Bench:
         self.session = session
         insert_word(session, WORD, lemma=LEMMA, pos="VERB", phrase_text="He glared at me.")
         self.occurrences = SqlaOccurrenceRepository(session)
-        self.candidates = SqlaCandidateRepository(session)
         self.clozes = SqlaCandidateClozeRepository(session)
         self.second = self._add_phrase("She glared back.")
-        self.known_words = MagicMock()
-        self.known_words.get_all_pairs.return_value = set()
-        self.decisions = MagicMock()
-        self.review_status = MagicMock()
-        self.learning = SqlaLearningQuery(session)
-        self.unknown: set[str] = set()
+        self.decisions = Decisions(session)
 
-    def _add_phrase(self, text: str) -> int:
+    def _add_phrase(self, text_: str) -> int:
         added = self.occurrences.add(Occurrence(
             candidate_id=WORD, origin=OccurrenceOrigin.MANUAL,
-            source_phrase=phrase(text, "glared"), phrase_position=None, key=None,
+            source_phrase=phrase(text_, "glared"), phrase_position=None, key=None,
             fragment_score=None, shown_by=ShownBy.USER,
         ))
         assert added.id is not None
         return added.id
 
-    def use_case(self) -> DecidePhraseUseCase:
-        vocabulary = user_vocabulary(
-            self.known_words, self.unknown, learning_query=self.learning,
-        )
-        return DecidePhraseUseCase(
-            occurrence_repo=self.occurrences,
-            candidate_repo=self.candidates,
-            vocabulary=vocabulary,
-            decision_repo=self.decisions,
-            review_status=self.review_status,
-            cloze_repo=self.clozes,
-            decided_elsewhere=DecidedElsewhere(vocabulary),
-            lock=free_lock(),
-        )
+    def press(self, phrase_id: int, button: Press) -> None:
+        self.decisions.decide_phrase().press(phrase_id, button)
 
     def decide(self, phrase_id: int, action: DecisionAction) -> None:
-        self.use_case().execute(phrase_id, action)
+        self.decisions.decide_phrase().execute(phrase_id, action)
 
-    def word_status(self) -> WordStatus:
-        [row] = [w for w in self.occurrences.word_rows(1) if w.id == WORD]
-        return row.status
+    def later(self, days: int = 0) -> None:
+        """The next request, `days` later."""
+        self.decisions = self.decisions.request(NOW + timedelta(days=days))
 
-    def phrase(self, phrase_id: int) -> Occurrence:
-        found = self.occurrences.get(phrase_id)
-        assert found is not None
-        return found
+    def status(self, word_id: int = WORD) -> str:
+        return str(self.session.execute(
+            text("SELECT status FROM candidates WHERE id = :id"), {"id": word_id},
+        ).scalar_one())
 
-    def export(self, phrase_id: int) -> None:
-        SqlaAnkiSyncRepository(self.session).mark_synced(WORD, 900, phrase_id)
+    def choice(self, phrase_id: int) -> CardChoice:
+        return CardChoice(self.session.execute(
+            text("SELECT choice FROM phrases WHERE id = :id"), {"id": phrase_id},
+        ).scalar_one())
+
+    def active(self, phrase_id: int) -> bool:
+        return self.session.execute(
+            text(
+                "SELECT count(*) FROM anki_synced_cards"
+                " WHERE phrase_id = :id AND released_at IS NULL"
+            ),
+            {"id": phrase_id},
+        ).scalar_one() == 1
+
+    def released(self, phrase_id: int) -> int:
+        return int(self.session.execute(
+            text(
+                "SELECT count(*) FROM anki_synced_cards"
+                " WHERE phrase_id = :id AND released_at IS NOT NULL"
+            ),
+            {"id": phrase_id},
+        ).scalar_one())
+
+    def known(self) -> set[tuple[str, str | None]]:
+        return {
+            (str(lemma), pos) for lemma, pos in self.session.execute(
+                text("SELECT lemma, pos FROM known_words"),
+            )
+        }
+
+    def list_known(self, *pos: str | None) -> None:
+        for one in pos:
+            self.session.execute(
+                text(
+                    "INSERT INTO known_words (lemma, pos, created_at)"
+                    " VALUES (:l, :p, '2026-01-01')"
+                ),
+                {"l": LEMMA, "p": one},
+            )
+
+    def in_anki(self, phrase_id: int, choice: CardChoice, *, since: str = FRESH) -> None:
+        """The card, decided `choice`, as an export left it."""
+        self.session.execute(
+            text("UPDATE phrases SET choice = :c WHERE id = :id"),
+            {"c": choice.value, "id": phrase_id},
+        )
+        self.session.execute(
+            text("UPDATE candidates SET status = :s WHERE id = :id"),
+            {"s": "known" if choice is CardChoice.KNOWN else "learn", "id": WORD},
+        )
+        bind(self.session, WORD, phrase_id, lemma=LEMMA, since=since)
 
     def give_cloze(self, phrase_id: int) -> None:
         self.clozes.upsert_for_phrase(phrase_id, CandidateCloze(
             candidate_id=WORD, hidden_word_indices=(1,), hint_kind=ClozeHintKind.NONE,
             custom_hint=None, phrase="He glared at me.",
         ))
+
+    def known_in_other_source(self, *, bound: bool = False) -> int:
+        """The lemma decided Known in source 2; its card in Anki when `bound`."""
+        insert_source(self.session, OTHER_SOURCE)
+        insert_word(self.session, OTHER_WORD, source_id=OTHER_SOURCE, lemma=LEMMA,
+                    status="known")
+        if bound:
+            bind(self.session, OTHER_WORD, phrase_id_of(OTHER_WORD), lemma=LEMMA)
+        return phrase_id_of(OTHER_WORD)
 
 
 @pytest.fixture
@@ -121,253 +158,318 @@ def bench(db_session: Session, source_id: int) -> Bench:
     return Bench(db_session)
 
 
-# ── Learn / Cloze / Known decide the word ─────────────────────────────
+# ── the press table on a card not in Anki ──────────────────────────────
 
 
 def test_learn_decides_the_word_on_that_phrase(bench: Bench) -> None:
-    bench.decide(bench.second, LEARN)
+    bench.press(bench.second, LEARN)
 
-    assert bench.word_status() is WordStatus.LEARN
-    assert bench.phrase(bench.second).is_decision
-    assert bench.phrase(bench.second).decision_kind is DecisionKind.LEARN
-    assert not bench.phrase(FIRST).is_decision
-    bench.review_status.refresh.assert_called_once_with(1)
-    bench.review_status.refresh_showing.assert_called_once_with({LEMMA})
-    bench.decisions.record.assert_called_once_with(
+    assert bench.status() == "learn"
+    assert (bench.choice(bench.second), bench.choice(FIRST)) == (
+        CardChoice.LEARN, CardChoice.NONE,
+    )
+    bench.decisions.review_status.refresh.assert_called_with(1)
+    bench.decisions.review_status.refresh_showing.assert_called_with({LEMMA})
+    bench.decisions.decision_repo.record.assert_called_once_with(
         WordDecision(lemma=LEMMA, zipf_frequency=3.0, is_known=False),
     )
 
 
-def test_cloze_decides_the_word_as_a_cloze(bench: Bench) -> None:
-    bench.decide(FIRST, CLOZE)
+def test_p9_pressing_learn_again_makes_the_word_new(bench: Bench) -> None:
+    bench.press(FIRST, LEARN)
 
-    assert bench.word_status() is WordStatus.LEARN
-    assert bench.phrase(FIRST).decision_kind is DecisionKind.CLOZE
+    bench.press(FIRST, LEARN)
+
+    assert (bench.status(), bench.choice(FIRST)) == ("pending", CardChoice.NONE)
+    bench.decisions.decision_repo.forget.assert_called_once_with(LEMMA)
+
+
+def test_p12_skip_on_the_learn_card_skips_it_and_the_word_is_new(bench: Bench) -> None:
+    bench.press(FIRST, LEARN)
+
+    bench.press(FIRST, SKIP)
+
+    assert (bench.status(), bench.choice(FIRST)) == ("pending", CardChoice.SKIP)
 
 
 def test_known_marks_the_word_known(bench: Bench) -> None:
-    bench.decide(FIRST, KNOWN)
+    bench.press(FIRST, KNOWN)
 
-    assert bench.word_status() is WordStatus.KNOWN
-    assert bench.phrase(FIRST).is_decision
-    bench.known_words.add.assert_called_once_with(LEMMA, "VERB")
-    bench.review_status.refresh.assert_called_once_with(1)
-    bench.review_status.refresh_showing.assert_called_once_with({LEMMA})
-    bench.review_status.refresh_all.assert_not_called()
+    assert (bench.status(), bench.choice(FIRST)) == ("known", CardChoice.KNOWN)
+    assert bench.known() == {(LEMMA, "VERB")}
 
 
-@pytest.mark.parametrize("action", [LEARN, CLOZE, KNOWN, SKIP, PENDING])
-def test_the_sibling_card_of_a_decided_word_is_locked(
-    bench: Bench, action: DecisionAction,
-) -> None:
-    bench.decide(FIRST, KNOWN)
+def test_p14_learn_on_a_known_card_removes_known_of_every_pos(bench: Bench) -> None:
+    bench.press(FIRST, KNOWN)
+    bench.list_known("NOUN")
 
-    with pytest.raises(CardDecisionLockedError):
-        bench.decide(bench.second, action)
+    bench.press(FIRST, LEARN)
 
-    assert bench.word_status() is WordStatus.KNOWN
-    assert bench.phrase(FIRST).is_decision
-    assert not bench.phrase(bench.second).skipped
-
-
-def test_known_is_undone_on_the_decision_phrase(bench: Bench) -> None:
-    bench.decide(FIRST, KNOWN)
-
-    bench.decide(FIRST, PENDING)
-
-    assert bench.word_status() is WordStatus.NEW
-    assert not bench.phrase(FIRST).is_decision
-    bench.known_words.remove_by_lemma.assert_called_once_with(LEMMA, "VERB")
-    bench.decisions.forget.assert_called_once_with(LEMMA)
+    assert (bench.status(), bench.choice(FIRST)) == ("learn", CardChoice.LEARN)
+    assert bench.known() == set()
+    bench.decisions.decision_repo.record.assert_called_with(
+        WordDecision(lemma=LEMMA, zipf_frequency=3.0, is_known=False),
+    )
 
 
-@pytest.mark.parametrize("undo", [PENDING, LEARN, SKIP])
-def test_leaving_known_forgets_a_word_the_user_knew_before_the_card(
-    bench: Bench, undo: DecisionAction,
-) -> None:
-    """Known via another source or the settings: leaving this card's Known still forgets it."""
-    bench.known_words.get_all_pairs.return_value = {(LEMMA, "VERB")}
-    bench.decide(FIRST, KNOWN)
+def test_the_sibling_card_of_a_decided_word_is_refused(bench: Bench) -> None:
+    bench.press(FIRST, KNOWN)
 
-    bench.decide(FIRST, undo)
+    with pytest.raises(ActionRefusedError) as refused:
+        bench.press(bench.second, LEARN)
 
-    bench.known_words.remove_by_lemma.assert_called_once_with(LEMMA, "VERB")
-
-
-@pytest.mark.parametrize("undo", [PENDING, LEARN, SKIP])
-def test_leaving_known_forgets_the_known_this_decision_added(
-    bench: Bench, undo: DecisionAction,
-) -> None:
-    bench.decide(FIRST, KNOWN)
-    bench.known_words.get_all_pairs.return_value = {(LEMMA, "VERB")}
-
-    bench.decide(FIRST, undo)
-
-    bench.known_words.remove_by_lemma.assert_called_once_with(LEMMA, "VERB")
-
-
-def test_the_decision_changes_on_its_card(bench: Bench) -> None:
-    bench.decide(FIRST, LEARN)
-
-    bench.decide(FIRST, KNOWN)
-
-    assert bench.word_status() is WordStatus.KNOWN
-    assert bench.phrase(FIRST).is_decision
-
-
-# ── Skip ──────────────────────────────────────────────────────────────
-
-
-def test_skip_skips_the_phrase_only(bench: Bench) -> None:
-    bench.decide(FIRST, SKIP)
-
-    assert bench.word_status() is WordStatus.NEW
-    assert bench.phrase(FIRST).skipped
-    assert not bench.phrase(bench.second).skipped
-    bench.decisions.record.assert_not_called()
-
-
-def test_skip_on_the_decision_card_undoes_and_skips(bench: Bench) -> None:
-    bench.decide(FIRST, LEARN)
-
-    bench.decide(FIRST, SKIP)
-
-    assert bench.word_status() is WordStatus.NEW
-    assert bench.phrase(FIRST).skipped
-    assert not bench.phrase(FIRST).is_decision
-    bench.decisions.forget.assert_called_once_with(LEMMA)
-
-
-def test_learn_on_a_skipped_phrase_unskips_it(bench: Bench) -> None:
-    bench.decide(FIRST, SKIP)
-
-    bench.decide(FIRST, LEARN)
-
-    assert not bench.phrase(FIRST).skipped
-    assert bench.phrase(FIRST).is_decision
-
-
-def test_a_skipped_sibling_of_a_decided_word_can_be_unskipped(bench: Bench) -> None:
-    bench.decide(bench.second, SKIP)
-    bench.decide(FIRST, LEARN)
-
-    bench.decide(bench.second, UNSKIP)
-
-    assert not bench.phrase(bench.second).skipped
-    assert bench.word_status() is WordStatus.LEARN
-
-
-def test_pending_on_a_skipped_phrase_unskips_it(bench: Bench) -> None:
-    bench.decide(FIRST, SKIP)
-
-    bench.decide(FIRST, PENDING)
-
-    assert not bench.phrase(FIRST).skipped
-
-
-# ── after export ──────────────────────────────────────────────────────
-
-
-@pytest.mark.parametrize("action", [PENDING, SKIP, CLOZE])
-def test_an_exported_decision_stays(bench: Bench, action: DecisionAction) -> None:
-    bench.decide(FIRST, LEARN)
-    bench.export(FIRST)
-
-    with pytest.raises(AlreadyInAnkiError):
-        bench.decide(FIRST, action)
-
-    assert bench.word_status() is WordStatus.LEARN
-    assert bench.phrase(FIRST).is_decision
-
-
-# ── cloze markup ──────────────────────────────────────────────────────
-
-
-def test_a_new_decision_drops_the_cloze_markup(bench: Bench) -> None:
-    bench.decide(FIRST, CLOZE)
-    bench.give_cloze(FIRST)
-
-    bench.decide(FIRST, LEARN)
-
-    assert bench.clozes.get_by_phrase_id(FIRST) is None
-    assert bench.phrase(FIRST).decision_kind is DecisionKind.LEARN
-
-
-def test_an_exported_cloze_keeps_its_markup(bench: Bench) -> None:
-    bench.decide(FIRST, CLOZE)
-    bench.give_cloze(FIRST)
-    bench.export(FIRST)
-
-    bench.decide(FIRST, KNOWN)
-
-    assert bench.clozes.get_by_phrase_id(FIRST) is not None
-    assert bench.phrase(FIRST).decision_kind is DecisionKind.CLOZE
-
-
-# ── known or learning via another source ──────────────────────────────
+    assert refused.value.refusal is Refusal.NOT_DECISION_CARD
+    assert bench.choice(bench.second) is CardChoice.NONE
 
 
 def test_learn_on_a_word_known_elsewhere_is_refused(bench: Bench) -> None:
-    bench.known_words.get_all_pairs.return_value = {(LEMMA, "VERB")}
+    bench.list_known("VERB")
 
-    with pytest.raises(DecidedElsewhereError) as refused:
-        bench.decide(FIRST, LEARN)
+    with pytest.raises(ActionRefusedError) as refused:
+        bench.press(FIRST, LEARN)
 
-    assert refused.value.elsewhere is ElsewhereStatus.KNOWN
-    assert str(refused.value) == "Already known"
-    assert bench.word_status() is WordStatus.NEW
-
-
-def test_learn_on_a_word_learning_in_another_source_is_refused(
-    bench: Bench, db_session: Session,
-) -> None:
-    from tests.integration.conftest import insert_source
-
-    insert_source(db_session, 2)
-    insert_word(db_session, 50, source_id=2, lemma=LEMMA, status="learn")
-
-    with pytest.raises(DecidedElsewhereError) as refused:
-        bench.decide(FIRST, CLOZE)
-
-    assert refused.value.elsewhere is ElsewhereStatus.LEARNING
-    assert str(refused.value) == "Already learning from another source"
+    assert refused.value.refusal is Refusal.DECIDED_ELSEWHERE
+    assert bench.status() == "pending"
 
 
 def test_learn_on_a_word_marked_unknown_but_learning_elsewhere_is_allowed(
     bench: Bench, db_session: Session,
 ) -> None:
     """Unknown > Known > learning: the user's "I don't know it" wins here too."""
-    from tests.integration.conftest import insert_source
+    insert_source(db_session, OTHER_SOURCE)
+    insert_word(db_session, OTHER_WORD, source_id=OTHER_SOURCE, lemma=LEMMA, status="learn")
+    db_session.execute(text(
+        "INSERT INTO unknown_words (lemma, created_at) VALUES ('glare', '2026-01-01')"
+    ))
 
-    insert_source(db_session, 2)
-    insert_word(db_session, 50, source_id=2, lemma=LEMMA, status="learn")
-    bench.unknown.add(LEMMA)
+    bench.press(FIRST, LEARN)
 
-    bench.decide(FIRST, LEARN)
+    assert bench.status() == "learn"
 
-    assert bench.word_status() is WordStatus.LEARN
+
+def test_cloze_markup_survives_every_decision_change(bench: Bench) -> None:
+    bench.press(FIRST, Press.CLOZE)
+    bench.give_cloze(FIRST)
+
+    for button in (LEARN, KNOWN, SKIP, SKIP):
+        bench.press(FIRST, button)
+
+    assert bench.clozes.get_by_phrase_id(FIRST) is not None
 
 
 def test_an_unknown_phrase_is_not_found(bench: Bench) -> None:
     with pytest.raises(PhraseNotFoundError):
-        bench.decide(999, LEARN)
-
-
-# ── the learning query ────────────────────────────────────────────────
-
-
-def test_learning_lemmas_are_learn_words_not_exported(bench: Bench, db_session: Session) -> None:
-    insert_word(db_session, 20, lemma="Linger", status="learn")
-    insert_word(db_session, 30, lemma="sway", status="learn")
-    insert_word(db_session, 40, lemma="drift", status="known")
-    SqlaAnkiSyncRepository(db_session).mark_synced(30, 901, phrase_id_of(30))
-
-    assert bench.learning.learning_lemmas() == {"linger"}
+        bench.press(999, LEARN)
 
 
 def test_a_phrasal_verb_decision_is_not_remembered(bench: Bench, db_session: Session) -> None:
     insert_word(db_session, 60, lemma="give up")
 
-    bench.decide(phrase_id_of(60), LEARN)
+    bench.press(phrase_id_of(60), LEARN)
 
-    bench.decisions.record.assert_not_called()
+    bench.decisions.decision_repo.record.assert_not_called()
+
+
+# ── the old actions of the API ─────────────────────────────────────────
+
+
+def test_pending_undoes_the_pressed_decision(bench: Bench) -> None:
+    bench.press(FIRST, KNOWN)
+
+    bench.decide(FIRST, DecisionAction.PENDING)
+
+    assert (bench.status(), bench.choice(FIRST)) == ("pending", CardChoice.NONE)
+    assert bench.known() == set()
+
+
+def test_unskip_on_a_skipped_sibling_of_a_decided_word(bench: Bench) -> None:
+    bench.press(bench.second, SKIP)
+    bench.press(FIRST, LEARN)
+
+    bench.decide(bench.second, DecisionAction.UNSKIP)
+
+    assert bench.choice(bench.second) is CardChoice.NONE
+    assert bench.status() == "learn"
+
+
+def test_unskip_on_a_card_not_skipped_does_nothing(bench: Bench) -> None:
+    bench.press(FIRST, LEARN)
+
+    bench.decide(FIRST, DecisionAction.UNSKIP)
+
+    assert bench.choice(FIRST) is CardChoice.LEARN
+
+
+def test_pending_on_a_sibling_with_nothing_to_undo_does_nothing(bench: Bench) -> None:
+    bench.press(FIRST, KNOWN)
+
+    bench.decide(bench.second, DecisionAction.PENDING)
+
+    assert (bench.choice(FIRST), bench.choice(bench.second)) == (
+        CardChoice.KNOWN, CardChoice.NONE,
+    )
+
+
+# ── a card in Anki ─────────────────────────────────────────────────────
+
+
+def test_p16_known_on_a_card_in_anki_keeps_the_binding(bench: Bench) -> None:
+    bench.in_anki(FIRST, CardChoice.LEARN)
+
+    bench.press(FIRST, KNOWN)
+
+    assert (bench.status(), bench.choice(FIRST)) == ("known", CardChoice.KNOWN)
+    assert bench.active(FIRST)
+    assert bench.known() == {(LEMMA, "VERB")}
+
+
+def test_p17_unpressing_learn_in_anki_releases_and_the_word_is_new(bench: Bench) -> None:
+    bench.in_anki(FIRST, CardChoice.LEARN)
+
+    bench.press(FIRST, LEARN)
+
+    assert (bench.status(), bench.choice(FIRST)) == ("pending", CardChoice.NONE)
+    assert not bench.active(FIRST)
+    assert bench.released(FIRST) == 1
+
+
+def test_p18_cloze_on_a_learn_card_in_anki_releases_and_requeues(bench: Bench) -> None:
+    bench.in_anki(FIRST, CardChoice.LEARN)
+
+    bench.press(FIRST, Press.CLOZE)
+
+    assert (bench.status(), bench.choice(FIRST)) == ("learn", CardChoice.CLOZE)
+    assert not bench.active(FIRST)
+
+
+def test_p20_undo_of_known_in_anki_releases_and_the_word_is_new(bench: Bench) -> None:
+    bench.in_anki(FIRST, CardChoice.KNOWN)
+    bench.list_known("VERB", "NOUN")
+
+    bench.press(FIRST, KNOWN)
+
+    assert (bench.status(), bench.choice(FIRST)) == ("pending", CardChoice.NONE)
+    assert not bench.active(FIRST)
+    assert bench.known() == set()
+
+
+def test_p21_skip_on_a_known_card_in_anki_releases(bench: Bench) -> None:
+    bench.in_anki(FIRST, CardChoice.KNOWN)
+    bench.list_known("VERB")
+
+    bench.press(FIRST, SKIP)
+
+    assert (bench.status(), bench.choice(FIRST)) == ("pending", CardChoice.SKIP)
+    assert not bench.active(FIRST)
+    assert bench.known() == set()
+
+
+def test_p23_undo_of_a_card_known_by_its_timer(bench: Bench) -> None:
+    bench.in_anki(FIRST, CardChoice.LEARN, since=DUE)
+    assert bench.decisions.decide_phrase().view(FIRST).shown.status is WordStatus.KNOWN
+
+    bench.decide(FIRST, DecisionAction.PENDING)
+
+    assert (bench.status(), bench.choice(FIRST)) == ("pending", CardChoice.NONE)
+    assert not bench.active(FIRST)
+
+
+def test_p23_undo_of_a_card_known_by_the_list(bench: Bench) -> None:
+    bench.in_anki(FIRST, CardChoice.LEARN)
+    bench.list_known("VERB")
+
+    bench.press(FIRST, KNOWN)
+
+    assert (bench.status(), bench.choice(FIRST)) == ("pending", CardChoice.NONE)
+    assert not bench.active(FIRST)
+    assert bench.known() == set()
+
+
+def test_the_timer_turns_a_card_in_anki_known_at_day_30(bench: Bench) -> None:
+    bench.in_anki(FIRST, CardChoice.LEARN, since=FRESH)
+    assert bench.decisions.decide_phrase().view(FIRST).shown.status is WordStatus.LEARNING
+
+    bench.later(days=1)
+
+    assert bench.decisions.decide_phrase().view(FIRST).shown.status is WordStatus.KNOWN
+    assert bench.status() == "learning", "the timer writes nothing"
+
+
+# ── Q15: a Learn not exported, then the lemma put in Known ─────────────
+
+
+def test_a_learn_reads_known_once_its_lemma_is_listed(bench: Bench) -> None:
+    bench.press(FIRST, LEARN)
+    bench.list_known("VERB")
+    bench.later()
+
+    view = bench.decisions.decide_phrase().view(FIRST)
+
+    assert view.shown.status is WordStatus.KNOWN
+    assert {b.button for b in view.buttons if b.pressed} == {KNOWN}
+
+    bench.press(FIRST, KNOWN)
+
+    assert (bench.status(), bench.choice(FIRST)) == ("pending", CardChoice.NONE)
+    assert bench.known() == set()
+
+
+# ── the Known removal reaches every source (§2.7) ──────────────────────
+
+
+def test_undo_of_known_here_makes_known_cards_in_other_sources_new(bench: Bench) -> None:
+    """A Known in Anki in source 2 goes new and is released."""
+    bench.press(FIRST, KNOWN)
+    other = bench.known_in_other_source(bound=True)
+
+    bench.press(FIRST, KNOWN)
+
+    assert (bench.status(OTHER_WORD), bench.choice(other)) == ("pending", CardChoice.NONE)
+    assert not bench.active(other)
+    assert bench.known() == set()
+    bench.decisions.review_status.refresh.assert_any_call(OTHER_SOURCE)
+
+
+def test_a_learning_card_elsewhere_that_does_not_read_known_stays(
+    bench: Bench, db_session: Session,
+) -> None:
+    """The card here reads Known by its own timer; the other one's timer runs."""
+    bench.in_anki(FIRST, CardChoice.LEARN, since=DUE)
+    insert_source(db_session, OTHER_SOURCE)
+    insert_word(db_session, OTHER_WORD, source_id=OTHER_SOURCE, lemma=LEMMA, status="learn")
+    bind(db_session, OTHER_WORD, phrase_id_of(OTHER_WORD), lemma=LEMMA, since=FRESH)
+
+    bench.press(FIRST, KNOWN)
+
+    assert not bench.active(FIRST)
+
+    assert bench.status(OTHER_WORD) == "learning"
+    assert bench.active(phrase_id_of(OTHER_WORD))
+
+
+def test_a_due_orphaned_binding_of_the_lemma_is_released(
+    bench: Bench, db_session: Session,
+) -> None:
+    bench.press(FIRST, KNOWN)
+    db_session.execute(text(
+        "INSERT INTO anki_synced_cards (candidate_id, phrase_id, anki_note_id, lemma, pos,"
+        " note_kind, learning_since) VALUES (NULL, NULL, 77, 'glare', 'VERB', 'learn', :due)"
+    ), {"due": DUE})
+
+    bench.press(FIRST, KNOWN)
+
+    released = db_session.execute(text(
+        "SELECT released_at IS NOT NULL FROM anki_synced_cards WHERE anki_note_id = 77"
+    )).scalar_one()
+    assert released
+
+
+def test_the_removal_waits_for_a_busy_source(bench: Bench) -> None:
+    bench.press(FIRST, KNOWN)
+    bench.known_in_other_source()
+    bench.decisions.lock.held.side_effect = lambda source_id: (
+        SourceOperationKind.REBUILD if source_id == OTHER_SOURCE else None
+    )
+
+    with pytest.raises(SourceOperationBusyError):
+        bench.press(FIRST, KNOWN)

@@ -12,6 +12,7 @@ from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.job import Job
+from backend.domain.value_objects.card_choice import Binding, CardChoice, NoteKind
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.job_status import JobStatus
@@ -20,6 +21,7 @@ from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.card_support import card, occurrence, word
+from tests.decision_support import NOW as REQUEST_NOW
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
@@ -267,19 +269,23 @@ class TestCardToDtoCloze:
     TEXT = "She finally gave up smoking."
 
     def _card(
-        self, cloze: CandidateCloze | None, status: WordStatus = WordStatus.LEARN,
-        *, is_decision: bool = True, exported: bool = False,
+        self, cloze: CandidateCloze | None, choice: CardChoice = CardChoice.CLOZE,
+        *, exported: bool = False,
     ) -> ReviewCard:
+        status = (
+            WordStatus.KNOWN if choice is CardChoice.KNOWN
+            else WordStatus.LEARNING if exported else WordStatus.LEARN
+        )
         return card(
             word(1, "give up", status=status),
             occurrence(
                 1, 1, phrase(self.TEXT, "give up", lemmas={"gave": "give"}), cloze=cloze,
-                is_decision=is_decision, exported=exported,
-                decision_kind=DecisionKind.CLOZE if is_decision else None,
+                choice=choice,
+                binding=Binding(NoteKind.CLOZE, REQUEST_NOW) if exported else None,
             ),
         )
 
-    def test_the_decision_card_has_its_effective_cloze_and_can_cloze(self) -> None:
+    def test_a_cloze_card_has_its_effective_cloze_and_can_cloze(self) -> None:
         stale = CandidateCloze(1, (0,), ClozeHintKind.FIRST_LETTER, None, "Old phrase.")
         dto = card_to_dto(self._card(stale))
         assert dto.cloze is not None
@@ -288,14 +294,18 @@ class TestCardToDtoCloze:
         assert dto.cloze.custom_hint is None
         assert dto.can_cloze is True
 
-        exported = card_to_dto(self._card(None, exported=True))
-        assert exported.cloze is None
-        assert exported.can_cloze is False
-
-    def test_cloze_is_shown_only_on_the_learn_decision_card(self) -> None:
+    def test_a_cloze_in_anki_shows_its_cloze_and_cannot_change_it(self) -> None:
         cloze = CandidateCloze(1, (2, 3), ClozeHintKind.NONE, None, self.TEXT)
-        assert card_to_dto(self._card(cloze, WordStatus.KNOWN)).cloze is None
-        assert card_to_dto(self._card(cloze, is_decision=False)).cloze is None
+        exported = card_to_dto(self._card(cloze, exported=True))
+        assert exported.cloze is not None
+        assert exported.can_cloze is False
+        assert {b.button: b.action for b in exported.state.buttons}["cloze"] is None
+
+    def test_markup_kept_on_a_card_that_is_no_cloze_now_is_not_shown(self) -> None:
+        cloze = CandidateCloze(1, (2, 3), ClozeHintKind.NONE, None, self.TEXT)
+        assert card_to_dto(self._card(cloze, CardChoice.KNOWN)).cloze is None
+        assert card_to_dto(self._card(cloze, CardChoice.LEARN)).cloze is None
+        assert card_to_dto(self._card(cloze, CardChoice.NONE)).cloze is None
 
 
 @pytest.mark.unit

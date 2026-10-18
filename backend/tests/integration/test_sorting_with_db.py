@@ -18,6 +18,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
 
+from tests.decision_support import Decisions
 from tests.phrase_support import phrase
 from tests.word_support import CardSeed, store_cards
 
@@ -62,8 +63,10 @@ def _make_candidate(
 def _cards(session: Session) -> list[ReviewCard]:
     elsewhere = MagicMock()
     elsewhere.of_lemmas.return_value = {}
+    decisions = Decisions(session)
     return ReviewCards(
         SqlaCandidateRepository(session), SqlaOccurrenceRepository(session), elsewhere,
+        decisions.word_states, decisions.vocabulary,
     ).of_source(1)
 
 

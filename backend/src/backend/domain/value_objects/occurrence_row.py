@@ -4,6 +4,8 @@ import hashlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from backend.domain.value_objects.card_choice import DECISION_CHOICES, CardChoice
+
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import OccurrenceKey
     from backend.domain.value_objects.document_position import DocumentPosition
@@ -26,12 +28,11 @@ class OccurrenceRow:
     key: OccurrenceKey | None
     origin: OccurrenceOrigin
     shown_by: ShownBy | None
-    skipped: bool
-    is_decision: bool
+    choice: CardChoice
     revision: int
     edited_by_user: bool
     has_results: bool
-    exported: bool
+    in_anki: bool
     has_active_job: bool
     text_hash: str
     fragment_score: float | None
@@ -42,6 +43,19 @@ class OccurrenceRow:
     @property
     def is_shown(self) -> bool:
         return self.shown_by is not None
+
+    # Compatibility until the readers move to `choice` / `in_anki` (plan step 7).
+    @property
+    def skipped(self) -> bool:
+        return self.choice is CardChoice.SKIP
+
+    @property
+    def is_decision(self) -> bool:
+        return self.choice in DECISION_CHOICES
+
+    @property
+    def exported(self) -> bool:
+        return self.in_anki
 
     @staticmethod
     def hash_text(text: str) -> str:

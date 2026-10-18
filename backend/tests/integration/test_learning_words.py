@@ -6,11 +6,8 @@ from typing import TYPE_CHECKING
 import pytest
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
 from backend.application.utils.export_queue import ExportQueue
-from backend.application.utils.user_vocabulary import UserVocabulary
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import dump_phrase
-from backend.infrastructure.persistence.sqla_anki_note_repository import SqlaAnkiNoteRepository
-from backend.infrastructure.persistence.sqla_anki_sync_repository import SqlaAnkiSyncRepository
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
@@ -20,13 +17,11 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
-from backend.infrastructure.persistence.sqla_unknown_word_repository import (
-    SqlaUnknownWordRepository,
-)
 from sqlalchemy import text
 
+from tests.decision_support import Decisions
 from tests.phrase_support import phrase
-from tests.word_support import CREATED_AT, insert_word, phrase_id_of
+from tests.word_support import CREATED_AT, bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -42,19 +37,17 @@ class Bench:
 
     def __init__(self, session: Session) -> None:
         self.session = session
-        self.notes = SqlaAnkiNoteRepository(session)
         self.known = SqlaKnownWordRepository(session)
         self.learning = SqlaLearningQuery(session)
-        self.vocabulary = UserVocabulary(
-            known_word_repo=self.known,
-            unknown_word_repo=SqlaUnknownWordRepository(session),
-            learning_query=self.learning,
-        )
+        self.decisions = Decisions(session)
+
+    @property
+    def vocabulary(self):  # noqa: ANN201 — the request's vocabulary, read anew
+        return self.decisions.request().vocabulary
 
     def exported_learn_word(self, word_id: int, lemma: str, note_id: int) -> None:
         insert_word(self.session, word_id, lemma=lemma, status=WordStatus.LEARN.value)
-        SqlaAnkiSyncRepository(self.session).mark_synced(word_id, note_id, phrase_id_of(word_id))
-        self.notes.add(note_id, lemma, "NOUN")
+        bind(self.session, word_id, phrase_id_of(word_id), note_id=note_id)
 
     def is_learning(self, lemma: str) -> bool:
         return self.vocabulary.snapshot().is_learning(lemma)
@@ -110,9 +103,11 @@ def test_the_learning_list_tells_words_in_anki_from_words_waiting(bench: Bench) 
     assert learning.awaiting_export == ["linger"]
 
 
-def test_every_exported_note_is_in_anki(bench: Bench) -> None:
-    bench.notes.add(NOTE, "glare", "NOUN")
-    bench.notes.add(NOTE + 1, "Drift", None)
+def test_every_active_binding_is_in_anki_and_a_released_one_is_not(bench: Bench) -> None:
+    bench.exported_learn_word(1, "glare", NOTE)
+    bench.exported_learn_word(2, "Drift", NOTE + 1)
+    insert_word(bench.session, 3, lemma="wander", status=WordStatus.LEARN.value)
+    bind(bench.session, 3, phrase_id_of(3), released_at=CREATED_AT)
 
     assert bench.learning.in_anki() == frozenset({"glare", "drift"})
 
@@ -120,24 +115,25 @@ def test_every_exported_note_is_in_anki(bench: Bench) -> None:
 def test_a_decision_phrase_waits_for_export_though_another_phrase_was_exported(
     bench: Bench,
 ) -> None:
-    """A word merged from cards keeps the export record of a phrase that is not its
-    decision: the decision phrase still goes to Anki."""
+    """A word merged from cards keeps the released export record of a phrase that is not
+    its decision: the decision phrase still goes to Anki."""
     insert_word(bench.session, 1, lemma="linger", status=WordStatus.LEARN.value)
     bench.session.execute(
         text(
-            "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, skipped,"
-            " is_decision, created_at)"
-            " VALUES (:id, 1, :phrase, 'manual', 'user', 0, 0, :created_at)"
+            "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, choice,"
+            " created_at)"
+            " VALUES (:id, 1, :phrase, 'manual', 'user', 'none', :created_at)"
         ),
         {"id": OTHER_PHRASE, "phrase": dump_phrase(phrase("We linger.", "linger")),
          "created_at": CREATED_AT},
     )
-    SqlaAnkiSyncRepository(bench.session).mark_synced(1, NOTE, OTHER_PHRASE)
+    bind(bench.session, 1, OTHER_PHRASE, note_id=NOTE, released_at=CREATED_AT)
 
     assert bench.learning.awaiting_export() == frozenset({"linger"})
+    decisions = bench.decisions.request()
     queue = ExportQueue(
-        SqlaCandidateRepository(bench.session), SqlaAnkiSyncRepository(bench.session),
-        SqlaOccurrenceRepository(bench.session),
+        SqlaCandidateRepository(bench.session), SqlaOccurrenceRepository(bench.session),
+        decisions.word_states, decisions.vocabulary,
     )
     batch = queue.for_source(1)
     assert [card.phrase_id for card in batch.pending] == [phrase_id_of(1)]

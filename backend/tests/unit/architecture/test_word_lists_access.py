@@ -1,4 +1,5 @@
-"""Known and unknown words are asked about and marked only through UserVocabulary."""
+"""Known and unknown words are asked about and marked only through UserVocabulary, whose
+reads go through the request's knowledge scope."""
 from __future__ import annotations
 
 import re
@@ -12,6 +13,7 @@ WORD_LIST_IMPORT = re.compile(
     r"sqla_known_word_repository|sqla_unknown_word_repository)\b",
 )
 ALLOWED = {
+    "application/utils/knowledge_scope.py",
     "application/utils/user_vocabulary.py",
     "domain/ports/__init__.py",
     "domain/ports/known_word_repository.py",

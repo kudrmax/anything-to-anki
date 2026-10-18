@@ -18,6 +18,7 @@ from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
 
+from tests.card_support import context
 from tests.phrase_support import make_occurrence
 
 WORD_ID = 10
@@ -39,7 +40,8 @@ def _card(media: CandidateMedia | None) -> GenerationCard:
         status=WordStatus.LEARN,
     )
     shown = replace(make_occurrence("hello world", candidate_id=WORD_ID), id=PHRASE_ID)
-    return GenerationCard.of(word, replace(shown, media=media), None)
+    phrase = replace(shown, media=media)
+    return GenerationCard.of(word, phrase, None, context(word, phrase))
 
 
 def _write(path: str, content: bytes) -> None:

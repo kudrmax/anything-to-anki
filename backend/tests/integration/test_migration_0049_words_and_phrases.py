@@ -1,35 +1,25 @@
-"""Migration 0049 turns every card into a word and its phrase, merging words of one lemma."""
+"""Migration 0049 turns every card into a word and its phrase, merging words of one lemma,
+and every card's decision into its one choice (design §4)."""
 from __future__ import annotations
 
 import json
+import logging
+import sqlite3
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
 
 import pytest
 from alembic import command
 from alembic.config import Config
-from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
-from backend.application.utils.decided_elsewhere import DecidedElsewhere
-from backend.application.utils.user_vocabulary import UserVocabulary
-from backend.domain.services.card_decision import DecisionAction
+from backend.application.dto.decision_compat import DecisionAction
 from backend.infrastructure.persistence import database
-from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
-    SqlaCandidateClozeRepository,
-)
-from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
-from backend.infrastructure.persistence.sqla_known_word_repository import SqlaKnownWordRepository
-from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
-from backend.infrastructure.persistence.sqla_occurrence_repository import (
-    SqlaOccurrenceRepository,
-)
-from backend.infrastructure.persistence.sqla_unknown_word_repository import (
-    SqlaUnknownWordRepository,
-)
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session
 
-from tests.lock_support import free_lock
+from tests.decision_support import Decisions
+from tests.migration_0049_checks import Before, check_upgraded, read_before
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
@@ -62,7 +52,42 @@ CARD_N = 14  # same lemma as M, newer, its own pronunciation and picture
 CARD_O = 15  # KNOWN, its Known put the lemma into known words
 CARD_P = 16  # KNOWN, its lemma is not in known words
 CARD_Q = 17  # phrasal verb whose stored target lists the particle first
-CARD_COUNT = 17
+
+# One card per row of the §4 mapping table, in ROWS_SOURCE.
+ROWS_SOURCE = 15
+EXPORTED_LEARN_KNOWN = 101    # learn, exported, lemma in Known → KNOWN, active
+EXPORTED_KNOWN_CLOZE = 102    # known, exported, lemma in Known, cloze markup → KNOWN, cloze row
+EXPORTED_LEARN_UNKNOWN = 103  # learn, exported, lemma in Known and Unknown → NONE, released
+EXPORTED_LEARN_NEITHER = 104  # learn, exported, lemma in neither → NONE, released
+EXPORTED_PENDING = 105        # pending, exported → NONE, released
+EXPORTED_SKIP = 106           # skip, exported → SKIP, released
+LEARN_CLOZE = 107             # learn, cloze markup, not exported → CLOZE
+KNOWN_UNKNOWN = 108           # known, not exported, lemma in Unknown → NONE
+SKIP_ALONE = 109              # skip → SKIP
+LEARN_WINNER = 110            # learn; its newer duplicate is skipped
+SKIP_LOSER = 111              # skip, loses to LEARN_WINNER → SKIP
+LEARN_LOSER = 112             # learn, loses to KNOWN_WINNER (Known over Learn) → NONE, logged
+KNOWN_WINNER = 113            # known, lemma in Known → KNOWN
+LEARN_LISTED = 114            # learn, not exported, lemma in Known → LEARN, reads Known (Q15)
+ROW_CARDS = {
+    EXPORTED_LEARN_KNOWN: ("abide", "learn", 501),
+    EXPORTED_KNOWN_CLOZE: ("bask", "known", 502),
+    EXPORTED_LEARN_UNKNOWN: ("cower", "learn", 503),
+    EXPORTED_LEARN_NEITHER: ("dwell", "learn", 504),
+    EXPORTED_PENDING: ("evade", "pending", 505),
+    EXPORTED_SKIP: ("fret", "skip", 506),
+    LEARN_CLOZE: ("gnaw", "learn", None),
+    KNOWN_UNKNOWN: ("heed", "known", None),
+    SKIP_ALONE: ("irk", "skip", None),
+    LEARN_WINNER: ("jolt", "learn", None),
+    SKIP_LOSER: ("Jolt", "skip", None),
+    LEARN_LOSER: ("knead", "learn", None),
+    KNOWN_WINNER: ("knead", "known", None),
+    LEARN_LISTED: ("loom", "learn", None),
+}
+ROWS_KNOWN = ("abide", "bask", "cower", "knead", "loom")
+ROWS_UNKNOWN = ("cower", "heed")
+CARD_COUNT = 17 + len(ROW_CARDS)
 
 NOTE_A = 111
 NOTE_G = 222
@@ -286,17 +311,81 @@ def _seed(conn: Connection) -> None:
         conn, CARD_Q, EXPORTED_PAIR_SOURCE, "give up", "pending", json.dumps(gave_it_up),
         [0, CARD_Q, 0, CARD_Q, 16],
     )
+    _seed_mapping_rows(conn)
+
+
+def _seed_mapping_rows(conn: Connection) -> None:
+    _source(conn, ROWS_SOURCE, "content")
+    for card_id, (lemma, status, note) in ROW_CARDS.items():
+        sentence = f"They {lemma.lower()} {card_id}."
+        _card(
+            conn, card_id, ROWS_SOURCE, lemma, status, _stored_phrase(sentence, lemma.lower()),
+            [0, card_id, 0, card_id, len(sentence)],
+        )
+        if note is not None:
+            _synced(conn, card_id, note)
+    for card_id in (EXPORTED_KNOWN_CLOZE, LEARN_CLOZE):
+        conn.execute(
+            text(
+                "INSERT INTO candidate_clozes (candidate_id, hidden_word_indices, hint_kind,"
+                " phrase) VALUES (:id, '[1]', 'none', 'x')"
+            ),
+            {"id": card_id},
+        )
+    for lemma in ROWS_KNOWN:
+        conn.execute(
+            text(
+                "INSERT INTO known_words (lemma, pos, created_at)"
+                " VALUES (:l, 'VERB', '2026-01-01')"
+            ),
+            {"l": lemma},
+        )
+    for lemma in ROWS_UNKNOWN:
+        conn.execute(
+            text("INSERT INTO unknown_words (lemma, created_at) VALUES (:l, '2026-01-01')"),
+            {"l": lemma},
+        )
+
+
+@dataclass(frozen=True)
+class Migrated:
+    url: str
+    path: Path
+    before: Before
+    started: datetime
+    finished: datetime
+    dropped: list[int]
 
 
 @pytest.fixture
-def db_url(tmp_path: Path) -> str:
-    url = f"sqlite:///{tmp_path / 'app.db'}"
+def migrated(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> Migrated:
+    path = tmp_path / "app.db"
+    url = f"sqlite:///{path}"
     cfg = _alembic_config(url)
     command.upgrade(cfg, REVISION_BEFORE)
     with create_engine(url).begin() as conn:
         _seed(conn)
+    with sqlite3.connect(path) as conn:
+        before = read_before(conn)
+    caplog.set_level(logging.WARNING)
+    started = datetime.now(tz=UTC).replace(tzinfo=None)
     command.upgrade(cfg, REVISION_UNDER_TEST)
-    return url
+    finished = datetime.now(tz=UTC).replace(tzinfo=None)
+    return Migrated(url, path, before, started, finished, dropped_decisions(caplog))
+
+
+def dropped_decisions(caplog: pytest.LogCaptureFixture) -> list[int]:
+    """The card ids the migration logged as merge losers whose decision it dropped."""
+    return [
+        int(record.args[1])  # type: ignore[index]
+        for record in caplog.records
+        if record.msg.startswith("0049: merge dropped")
+    ]
+
+
+@pytest.fixture
+def db_url(migrated: Migrated) -> str:
+    return migrated.url
 
 
 def _rows(db_url: str, sql: str, **params: object) -> list[dict[str, object]]:
@@ -313,8 +402,8 @@ def _phrase_of(db_url: str, word_id: int, text_start: str) -> dict[str, object]:
 
 def test_one_word_per_lemma_and_every_card_is_a_phrase(db_url: str) -> None:
     words = _rows(db_url, "SELECT id, lemma, status FROM candidates ORDER BY id")
-    assert [w["id"] for w in words] == [
-        CARD_A, CARD_D, CARD_TOPIC, CARD_SPANNING, CARD_H, CARD_I, CARD_L, CARD_N, CARD_O,
+    assert [w["id"] for w in words if w["id"] < min(ROW_CARDS)] == [
+        CARD_A, CARD_D, CARD_TOPIC, CARD_SPANNING, CARD_H, CARD_I, CARD_K, CARD_N, CARD_O,
         CARD_P, CARD_Q,
     ]
     assert len(_rows(db_url, "SELECT id FROM phrases")) == CARD_COUNT
@@ -325,7 +414,7 @@ def test_undoing_a_migrated_known_takes_the_lemma_out_of_known(db_url: str) -> N
     phrase_id = _phrase_of(db_url, CARD_O, "They ponder")["id"]
     assert isinstance(phrase_id, int)
     with Session(engine) as session:
-        _decide_phrase(session).execute(phrase_id, DecisionAction.PENDING)
+        Decisions(session).decide_phrase().execute(phrase_id, DecisionAction.PENDING)
         session.commit()
     assert _rows(db_url, "SELECT lemma FROM known_words WHERE lemma = 'ponder'") == []
     assert _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_O) == [
@@ -333,31 +422,13 @@ def test_undoing_a_migrated_known_takes_the_lemma_out_of_known(db_url: str) -> N
     ]
 
 
-def _decide_phrase(session: Session) -> DecidePhraseUseCase:
-    vocabulary = UserVocabulary(
-        known_word_repo=SqlaKnownWordRepository(session),
-        unknown_word_repo=SqlaUnknownWordRepository(session),
-        learning_query=SqlaLearningQuery(session),
-    )
-    return DecidePhraseUseCase(
-        occurrence_repo=SqlaOccurrenceRepository(session),
-        candidate_repo=SqlaCandidateRepository(session),
-        vocabulary=vocabulary,
-        decision_repo=MagicMock(),
-        review_status=MagicMock(),
-        cloze_repo=SqlaCandidateClozeRepository(session),
-        decided_elsewhere=DecidedElsewhere(vocabulary),
-        lock=free_lock(),
-    )
-
-
 def test_duplicate_of_an_exported_card_becomes_its_manual_phrase(db_url: str) -> None:
     a = _phrase_of(db_url, CARD_A, LINE_0)
     b = _phrase_of(db_url, CARD_A, "Then he glared")
     assert (a["origin"], a["shown_by"]) == ("auto", "selection")
     assert (b["origin"], b["shown_by"]) == ("manual", "user")
-    assert (a["is_decision"], a["decision_kind"]) == (1, "cloze")
-    assert not b["is_decision"]
+    # Exported Learn whose lemma is not in Known: the user removed Known after the export.
+    assert (a["choice"], b["choice"]) == ("none", "none")
     assert (a["block"], a["line"], a["char"]) == (PARAGRAPH, 0, LINE_0.index("glared"))
 
 
@@ -369,8 +440,9 @@ def test_results_are_keyed_by_the_phrase_of_their_card(db_url: str) -> None:
         for r in _rows(db_url, "SELECT phrase_id, meaning FROM candidate_meanings")
     }
     assert meanings == {a["id"]: "to look angrily", b["id"]: "to stare"}
-    clozes = _rows(db_url, "SELECT phrase_id FROM candidate_clozes")
-    assert clozes == [{"phrase_id": a["id"]}]
+    clozes = {r["phrase_id"] for r in _rows(db_url, "SELECT phrase_id FROM candidate_clozes")}
+    assert a["id"] in clozes
+    assert b["id"] not in clozes
     assert "candidate_id" not in {
         c["name"] for c in inspect(create_engine(db_url)).get_columns("candidate_meanings")
     }
@@ -396,22 +468,23 @@ def test_running_job_and_report_point_at_the_phrase_of_their_card(db_url: str) -
 
 def test_every_export_record_survives_with_its_phrase(db_url: str) -> None:
     synced = _rows(
-        db_url, "SELECT candidate_id, phrase_id, anki_note_id FROM anki_synced_cards"
-        " WHERE anki_note_id != :k ORDER BY anki_note_id", k=NOTE_K,
+        db_url, "SELECT candidate_id, phrase_id, anki_note_id, lemma, pos, note_kind,"
+        " released_at IS NOT NULL AS released FROM anki_synced_cards"
+        " WHERE anki_note_id IN (:a, :g, :h) ORDER BY anki_note_id",
+        a=NOTE_A, g=NOTE_G, h=NOTE_H,
     )
     g = _phrase_of(db_url, CARD_H, "They linger")
     h = _phrase_of(db_url, CARD_H, "We linger")
     a = _phrase_of(db_url, CARD_A, LINE_0)
     assert synced == [
-        {"candidate_id": CARD_A, "phrase_id": a["id"], "anki_note_id": NOTE_A},
-        {"candidate_id": CARD_H, "phrase_id": g["id"], "anki_note_id": NOTE_G},
-        {"candidate_id": CARD_H, "phrase_id": h["id"], "anki_note_id": NOTE_H},
+        {"candidate_id": CARD_A, "phrase_id": a["id"], "anki_note_id": NOTE_A,
+         "lemma": "glare", "pos": "VERB", "note_kind": "cloze", "released": 1},
+        {"candidate_id": CARD_H, "phrase_id": g["id"], "anki_note_id": NOTE_G,
+         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "released": 1},
+        {"candidate_id": CARD_H, "phrase_id": h["id"], "anki_note_id": NOTE_H,
+         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "released": 1},
     ]
-    assert h["is_decision"] and not g["is_decision"]
-    notes = _rows(db_url, "SELECT note_id, lemma FROM anki_notes ORDER BY note_id")
-    assert [(n["note_id"], n["lemma"]) for n in notes] == [
-        (NOTE_A, "glare"), (NOTE_G, "linger"), (NOTE_H, "linger"), (NOTE_K, "drift"),
-    ]
+    assert (h["choice"], g["choice"]) == ("none", "none")
 
 
 def test_a_decision_beats_a_newer_undecided_duplicate(db_url: str) -> None:
@@ -419,14 +492,14 @@ def test_a_decision_beats_a_newer_undecided_duplicate(db_url: str) -> None:
     assert words == [{"status": "learn"}]
     i = _phrase_of(db_url, CARD_I, "They wander")
     j = _phrase_of(db_url, CARD_I, "We wander")
-    assert i["is_decision"] and not j["is_decision"]
+    assert (i["choice"], j["choice"]) == ("learn", "none")
     assert (j["origin"], j["shown_by"]) == ("manual", "user")
 
 
 def test_skipped_original_of_an_example_is_released(db_url: str) -> None:
     c = _phrase_of(db_url, CARD_D, "again and left")
     d = _phrase_of(db_url, CARD_D, "She left early")
-    assert (c["origin"], c["skipped"], c["shown_by"]) == ("auto", 0, None)
+    assert (c["origin"], c["choice"], c["shown_by"]) == ("auto", "none", None)
     assert (d["origin"], d["shown_by"], d["block"]) == ("example", "user", None)
     assert (c["replaces_selection"], d["replaces_selection"]) == (0, 1)
     words = _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_D)
@@ -463,12 +536,27 @@ def test_a_source_left_processing_is_new_again_and_no_stage_is_stored(db_url: st
     assert "stage" in operation_columns
 
 
-def test_known_words_and_anki_notes_keep_no_anki_progress(db_url: str) -> None:
+def test_known_words_keep_no_anki_progress_and_there_is_no_note_table(db_url: str) -> None:
     engine = inspect(create_engine(db_url))
     assert {c["name"] for c in engine.get_columns("known_words")} == {
         "id", "lemma", "pos", "created_at",
     }
-    assert {c["name"] for c in engine.get_columns("anki_notes")} == {"note_id", "lemma", "pos"}
+    assert "anki_notes" not in engine.get_table_names()
+
+
+def test_a_binding_is_kept_with_no_card_or_word(db_url: str) -> None:
+    columns = {
+        c["name"]: c for c in inspect(create_engine(db_url)).get_columns("anki_synced_cards")
+    }
+    assert set(columns) == {
+        "id", "candidate_id", "phrase_id", "anki_note_id", "lemma", "pos", "note_kind",
+        "learning_since", "released_at",
+    }
+    assert columns["candidate_id"]["nullable"] and columns["phrase_id"]["nullable"]
+    keys = inspect(create_engine(db_url)).get_foreign_keys("anki_synced_cards")
+    assert {(k["referred_table"], k["options"].get("ondelete")) for k in keys} == {
+        ("candidates", "SET NULL"), ("phrases", "SET NULL"),
+    }
 
 
 def test_target_on_the_next_line_is_keyed_on_that_line(db_url: str) -> None:
@@ -499,7 +587,8 @@ def test_partial_and_expression_indexes_exist(db_url: str) -> None:
                        " AND sql IS NOT NULL")
     }
     assert "WHERE" in indexes["ux_phrases_auto_key"]
-    assert "WHERE" in indexes["ux_phrases_decision"]
+    assert "choice IN ('learn', 'cloze', 'known')" in indexes["ux_phrases_decision"]
+    assert "released_at IS NULL" in indexes["ux_anki_synced_cards_active"]
     assert "lower(" in indexes["ux_candidates_word"]
     assert "ix_phrase_words_lemma" in indexes
 
@@ -516,9 +605,7 @@ def test_word_and_phrase_ids_are_never_reused(db_url: str) -> None:
 
 def test_new_tables_exist(db_url: str) -> None:
     names = set(inspect(create_engine(db_url)).get_table_names())
-    assert {
-        "phrases", "phrase_words", "anki_notes", "document_parses", "source_operations",
-    } <= names
+    assert {"phrases", "phrase_words", "document_parses", "source_operations"} <= names
     assert "_card_phrase" not in names
     candidate_columns = {
         c["name"] for c in inspect(create_engine(db_url)).get_columns("candidates")
@@ -531,23 +618,30 @@ def test_new_tables_exist(db_url: str) -> None:
 
 def test_no_row_points_at_a_merged_away_word(db_url: str) -> None:
     assert _rows(db_url, "PRAGMA foreign_key_check") == []
-    assert len(_rows(db_url, "SELECT id FROM anki_synced_cards")) == 4  # noqa: PLR2004 — A G H K
+    assert len(_rows(db_url, "SELECT id FROM anki_synced_cards")) == 4 + len(  # A G H K
+        [note for _, _, note in ROW_CARDS.values() if note is not None]
+    )
 
 
-def test_a_decision_beats_an_exported_duplicate_whose_export_keeps_its_phrase(
-    db_url: str,
+def test_an_exported_duplicate_beats_a_decision_and_the_dropped_decision_is_logged(
+    migrated: Migrated,
 ) -> None:
-    words = _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_L)
-    assert words == [{"status": "learn"}]
-    assert _rows(db_url, "SELECT id FROM candidates WHERE id = :w", w=CARD_K) == []
-    decided = _phrase_of(db_url, CARD_L, "They drift")
-    exported = _phrase_of(db_url, CARD_L, "We drift")
-    assert (decided["is_decision"], exported["is_decision"]) == (1, 0)
+    """§4 merge winner: an exported card first. Its export keeps its phrase; L's Learn is
+    dropped, and the log names it."""
+    db_url = migrated.url
+    words = _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_K)
+    assert words == [{"status": "pending"}]
+    assert _rows(db_url, "SELECT id FROM candidates WHERE id = :w", w=CARD_L) == []
+    decided = _phrase_of(db_url, CARD_K, "They drift")
+    exported = _phrase_of(db_url, CARD_K, "We drift")
+    assert (decided["choice"], exported["choice"]) == ("none", "none")
     synced = _rows(
-        db_url, "SELECT candidate_id, phrase_id FROM anki_synced_cards WHERE anki_note_id = :n",
+        db_url, "SELECT candidate_id, phrase_id, released_at IS NOT NULL AS released"
+        " FROM anki_synced_cards WHERE anki_note_id = :n",
         n=NOTE_K,
     )
-    assert synced == [{"candidate_id": CARD_L, "phrase_id": exported["id"]}]
+    assert synced == [{"candidate_id": CARD_K, "phrase_id": exported["id"], "released": 1}]
+    assert CARD_L in migrated.dropped
 
 
 def test_the_winner_keeps_its_own_pronunciation_and_picture(db_url: str) -> None:
@@ -568,3 +662,86 @@ def test_the_winner_keeps_its_own_pronunciation_and_picture(db_url: str) -> None
         " WHERE candidate_id NOT IN (SELECT id FROM candidates)",
     )
     assert orphans == []
+
+
+# ── §4: one test per row of the mapping table ─────────────────────────
+
+
+def _card_row(db_url: str, card_id: int) -> tuple[object, object, list[tuple[object, ...]]]:
+    """The choice of the card's phrase, its word's status, and its export records as
+    (note kind, active)."""
+    lemma, _, _ = ROW_CARDS[card_id]
+    sentence = f"They {lemma.lower()} {card_id}."
+    [found] = [
+        r for r in _rows(
+            db_url,
+            "SELECT p.id, p.choice, c.status FROM phrases p JOIN candidates c"
+            " ON c.id = p.candidate_id WHERE c.source_id = :s", s=ROWS_SOURCE,
+        )
+        if json.loads(str(_rows(
+            db_url, "SELECT source_phrase FROM phrases WHERE id = :p", p=r["id"],
+        )[0]["source_phrase"]))["text"] == sentence
+    ]
+    bindings = [
+        (r["note_kind"], r["active"]) for r in _rows(
+            db_url, "SELECT note_kind, released_at IS NULL AS active FROM anki_synced_cards"
+            " WHERE phrase_id = :p", p=found["id"],
+        )
+    ]
+    return found["choice"], found["status"], bindings
+
+
+@pytest.mark.parametrize(
+    ("card_id", "expected"),
+    [
+        (EXPORTED_LEARN_KNOWN, ("known", "known", [("learn", 1)])),
+        (EXPORTED_KNOWN_CLOZE, ("known", "known", [("cloze", 1)])),
+        (EXPORTED_LEARN_UNKNOWN, ("none", "pending", [("learn", 0)])),
+        (EXPORTED_LEARN_NEITHER, ("none", "pending", [("learn", 0)])),
+        (EXPORTED_PENDING, ("none", "pending", [("learn", 0)])),
+        (EXPORTED_SKIP, ("skip", "pending", [("learn", 0)])),
+        (LEARN_CLOZE, ("cloze", "learn", [])),
+        (KNOWN_UNKNOWN, ("none", "pending", [])),
+        (SKIP_ALONE, ("skip", "pending", [])),
+        (LEARN_WINNER, ("learn", "learn", [])),
+        (SKIP_LOSER, ("skip", "learn", [])),
+        (LEARN_LOSER, ("none", "known", [])),
+        (KNOWN_WINNER, ("known", "known", [])),
+        (LEARN_LISTED, ("learn", "learn", [])),
+    ],
+)
+def test_every_mapping_row(
+    db_url: str, card_id: int, expected: tuple[object, object, list[tuple[object, ...]]],
+) -> None:
+    assert _card_row(db_url, card_id) == expected
+
+
+def test_every_export_starts_its_timer_at_the_migration(migrated: Migrated) -> None:
+    since = {
+        datetime.fromisoformat(str(r["learning_since"]))
+        for r in _rows(migrated.url, "SELECT learning_since FROM anki_synced_cards")
+    }
+    [moment] = since
+    assert migrated.started <= moment <= migrated.finished
+
+
+def test_the_decided_merge_losers_are_logged(migrated: Migrated) -> None:
+    assert sorted(migrated.dropped) == [CARD_G, CARD_L, LEARN_LOSER]
+
+
+def test_the_migrated_database_meets_every_prod_copy_assert(migrated: Migrated) -> None:
+    """§4.1 on the synthetic fixture: the same asserts as the prod-copy test."""
+    with sqlite3.connect(migrated.path) as conn:
+        report = check_upgraded(
+            conn, migrated.before, migrated.started, migrated.finished, migrated.dropped,
+        )
+    assert report.counts["active binding on a KNOWN card"] == 2  # noqa: PLR2004 — 101 102
+    assert report.listed["old SKIP: released original → NONE"] == [CARD_C]
+    assert report.listed[
+        "old LEARN not exported, lemma in Known: reads Known (Q15)"
+    ] == [LEARN_LISTED]
+
+
+def test_the_downgrade_raises_as_declared(migrated: Migrated) -> None:
+    with pytest.raises(NotImplementedError):
+        command.downgrade(_alembic_config(migrated.url), REVISION_BEFORE)

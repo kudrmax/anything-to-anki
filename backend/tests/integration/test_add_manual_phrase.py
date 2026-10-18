@@ -7,29 +7,25 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.dto.analysis_dtos import OccurrenceDTO, OccurrenceKeyDTO
 from backend.application.dto.candidate_dtos import SelectionDTO
+from backend.application.dto.decision_compat import DecisionAction, button_action
 from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
-from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
-from backend.application.utils.decided_elsewhere import DecidedElsewhere
 from backend.application.utils.export_queue import ExportQueue
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.entities.token_data import TokenData
-from backend.domain.exceptions import CardDecisionLockedError
-from backend.domain.services.card_decision import DecisionAction, DecisionButton, card_state
+from backend.domain.exceptions import ActionRefusedError
+from backend.domain.services.card_view import Where
+from backend.domain.value_objects.card_choice import Press
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.word_status import WordStatus
-from backend.infrastructure.persistence.sqla_anki_sync_repository import SqlaAnkiSyncRepository
-from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
-    SqlaCandidateClozeRepository,
-)
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 
+from tests.decision_support import Decisions
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 from tests.source_rebuild_support import LINES, SOURCE, Bench, at, word
-from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import Occurrence
@@ -87,6 +83,7 @@ class Manual:
             phrase_reader=reader,
             lock=free_lock(),
             card_views=MagicMock(),
+            decide_phrase=Decisions(bench.session).decide_phrase(),
         )
 
     def add(self, line: int, word_index: int) -> None:
@@ -173,7 +170,7 @@ def test_a_manual_add_at_a_hidden_auto_phrase_shows_it_without_a_duplicate(
     bench.processed(word("glare", at(0, 0.1), _at(GLARE_LINE, GLARE_CHAR)))
     hidden = bench.phrase_on("glare", GLARE_LINE)
     assert hidden.shown_by is None
-    bench.occurrences.set_skipped(hidden.id, True)
+    bench.set_choice(hidden.id, "skip")
 
     Manual(bench).add(GLARE_LINE, 1)
 
@@ -208,7 +205,7 @@ def test_adding_the_same_selection_twice_shows_one_manual_card(bench: Bench) -> 
     manual.add(GLARE_LINE, 1)
     [added] = [o for o in _of(bench, "glare") if o.origin is OccurrenceOrigin.MANUAL]
     assert added.id is not None
-    bench.occurrences.set_skipped(added.id, True)
+    bench.set_choice(added.id, "skip")
 
     manual.add(GLARE_LINE, 1)
 
@@ -236,31 +233,24 @@ def test_learn_on_a_manual_card_closes_the_word_and_exports_one_phrase(bench: Be
     Manual(bench).add(GLARE_LINE, 1)
     first, manual = _shown(bench, "glare")
     assert manual.id is not None
-    vocabulary = user_vocabulary()
-    decide = DecidePhraseUseCase(
-        occurrence_repo=bench.occurrences, candidate_repo=bench.candidates,
-        vocabulary=vocabulary, decision_repo=MagicMock(), review_status=MagicMock(),
-        cloze_repo=SqlaCandidateClozeRepository(bench.session),
-        decided_elsewhere=DecidedElsewhere(vocabulary),
-        lock=free_lock(),
-    )
+    decisions = Decisions(bench.session)
+    decide = decisions.decide_phrase()
 
     decide.execute(manual.id, DecisionAction.LEARN)
 
-    word_view = bench.candidates.get_by_id(manual.candidate_id)
-    assert word_view is not None
-    sibling = card_state(_of(bench, "glare")[0], word_view, None)
-    assert sibling.decided_elsewhere is WordStatus.LEARN
-    assert {b.action for b in sibling.buttons} == {None}
-    decision_card = card_state(_of(bench, "glare")[1], word_view, None)
-    learn = next(b for b in decision_card.buttons if b.button is DecisionButton.LEARN)
-    assert learn.pressed
-    assert learn.action is DecisionAction.PENDING
     assert first.id is not None
-    with pytest.raises(CardDecisionLockedError):
+    sibling = decide.view(first.id)
+    assert sibling.shown.where is Where.OTHER_CARD
+    assert sibling.shown.status is WordStatus.LEARN
+    assert {button_action(b, sibling) for b in sibling.buttons} == {None}
+    decision_card = decide.view(manual.id)
+    learn = next(b for b in decision_card.buttons if b.button is Press.LEARN)
+    assert learn.pressed
+    assert button_action(learn, decision_card) is DecisionAction.PENDING
+    with pytest.raises(ActionRefusedError):
         decide.execute(first.id, DecisionAction.KNOWN)
     queue = ExportQueue(
-        bench.candidates, SqlaAnkiSyncRepository(bench.session), bench.occurrences,
+        bench.candidates, bench.occurrences, decisions.word_states, decisions.vocabulary,
     )
     [card] = queue.for_source(SOURCE).pending
     assert card.phrase.id == manual.id

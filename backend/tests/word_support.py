@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.infrastructure.persistence.models import dump_phrase
 from sqlalchemy import text
 
+from tests.decision_support import NOW
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
@@ -60,24 +63,67 @@ def insert_word(
             "status": CandidateStatus.PENDING.value if skipped else status,
         },
     )
-    is_decision = status in (CandidateStatus.LEARN.value, CandidateStatus.KNOWN.value)
     db.execute(
         text(
-            "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, skipped,"
-            " is_decision, decision_kind, created_at)"
-            " VALUES (:id, :word_id, :phrase, 'auto', 'selection', :skipped, :decision, :kind,"
-            " :created_at)"
+            "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, choice,"
+            " created_at)"
+            " VALUES (:id, :word_id, :phrase, 'auto', 'selection', :choice, :created_at)"
         ),
         {
             "id": phrase_id_of(word_id),
             "word_id": word_id,
             "phrase": dump_phrase(phrase(phrase_text or lemma, lemma)),
-            "skipped": skipped,
-            "decision": is_decision,
-            "kind": "learn" if is_decision else None,
+            "choice": CHOICE_OF_STATUS.get(status, CardChoice.NONE).value,
             "created_at": CREATED_AT,
         },
     )
+
+
+# The choice `insert_word` gives the word's phrase for the status it is given.
+CHOICE_OF_STATUS = {
+    CandidateStatus.SKIP.value: CardChoice.SKIP,
+    CandidateStatus.LEARN.value: CardChoice.LEARN,
+    CandidateStatus.KNOWN.value: CardChoice.KNOWN,
+}
+
+
+def bind(
+    db: Session | Connection,
+    word_id: int,
+    phrase_id: int,
+    *,
+    note_id: int = 900,
+    lemma: str | None = None,
+    kind: str = "learn",
+    since: str | None = None,
+    released_at: str | None = None,
+) -> None:
+    """A binding of the phrase to an Anki note, exported a day before the tests' moment
+    unless `since` says otherwise; active unless `released_at`. The word's status follows
+    a binding of its Learn decision, as an export makes it."""
+    if since is None:
+        since = (NOW - timedelta(days=1)).replace(tzinfo=None).isoformat(sep=" ")
+    db.execute(
+        text(
+            "INSERT INTO anki_synced_cards (candidate_id, phrase_id, anki_note_id, lemma, pos,"
+            " note_kind, learning_since, released_at)"
+            " VALUES (:word, :phrase, :note, COALESCE(:lemma,"
+            " (SELECT lemma FROM candidates WHERE id = :word)), 'NOUN', :kind, :since,"
+            " :released)"
+        ),
+        {
+            "word": word_id, "phrase": phrase_id, "note": note_id, "lemma": lemma,
+            "kind": kind, "since": since, "released": released_at,
+        },
+    )
+    if released_at is None:
+        db.execute(
+            text(
+                "UPDATE candidates SET status = 'learning'"
+                " WHERE id = :word AND status = 'learn'"
+            ),
+            {"word": word_id},
+        )
 
 
 
@@ -127,17 +173,16 @@ def store_card(
     """
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.value_objects.built_analysis import WordKey
-    from backend.domain.value_objects.phrase_origin_kind import (
-        DecisionKind,
-        OccurrenceOrigin,
-        ShownBy,
-    )
+    from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
     from backend.domain.value_objects.word_status import WordStatus
     from backend.infrastructure.persistence.sqla_candidate_repository import (
         SqlaCandidateRepository,
     )
     from backend.infrastructure.persistence.sqla_occurrence_repository import (
         SqlaOccurrenceRepository,
+    )
+    from backend.infrastructure.persistence.sqla_word_state_repository import (
+        SqlaWordStateRepository,
     )
 
     _offset_phrase_ids(session)
@@ -151,8 +196,9 @@ def store_card(
     if word_id is None:
         word_id = words.add_word(word)
     decided = is_new and word.status is not WordStatus.NEW
-    if decided:
-        words.set_word_status(word_id, word.status)
+    choice = (
+        CardChoice.KNOWN if word.status is WordStatus.KNOWN else CardChoice.LEARN
+    ) if decided else CardChoice.SKIP if skipped else CardChoice.NONE
     if origin is None:
         origin = (
             OccurrenceOrigin.EXAMPLE if position is None
@@ -166,10 +212,12 @@ def store_card(
         key=None,
         fragment_score=None,
         shown_by=ShownBy.SELECTION if origin is OccurrenceOrigin.AUTO else ShownBy.USER,
-        skipped=skipped,
-        is_decision=decided,
-        decision_kind=DecisionKind.LEARN if decided else None,
+        choice=choice,
     ))
+    states = SqlaWordStateRepository(session)
+    state = states.of_word(word_id)
+    assert state is not None
+    states.save(state)
     stored = words.get_by_id(word_id)
     assert stored is not None
     return SeededCard(word=stored, phrase=added)

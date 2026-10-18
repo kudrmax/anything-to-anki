@@ -31,6 +31,7 @@ from backend.domain.exceptions import (
     GenerationNotSupportedError,
     SourceOperationBusyError,
 )
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.format import Format
@@ -49,7 +50,9 @@ from backend.domain.value_objects.source_operation_kind import SourceOperationKi
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
+from tests.card_support import PhraseWordStates
 from tests.phrase_support import phrase
+from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
     from backend.application.dto.generation_dtos import GenerationKindStatusDTO
@@ -101,9 +104,11 @@ def _phrase(
         fragment_score=None,
         revision=revision,
         shown_by=ShownBy.SELECTION,
-        skipped=skipped,
-        is_decision=decision is not None,
-        decision_kind=decision,
+        choice=(
+            CardChoice.CLOZE if decision is DecisionKind.CLOZE
+            else CardChoice.LEARN if decision is not None
+            else CardChoice.SKIP if skipped else CardChoice.NONE
+        ),
         meaning=_meaning(cid) if meaning else None,
         media=media,
     )
@@ -175,6 +180,11 @@ class _Setup:
         }
         generation_cards = GenerationCards(
             self.candidate_repo, self.occurrence_repo, decided_elsewhere,
+            PhraseWordStates(
+                lambda: [word for word, _ in cards],
+                lambda word_id: next((shown for w, shown in cards if w.id == word_id), []),
+            ),
+            user_vocabulary(),
         )
         self.run = RunGenerationUseCase(
             source_repo=self.source_repo, cards=generation_cards,

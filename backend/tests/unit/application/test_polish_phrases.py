@@ -22,6 +22,7 @@ from backend.domain.value_objects.prompts_config import PromptsConfig
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
+from tests.card_support import context
 from tests.phrase_support import make_occurrence, phrase
 from tests.word_support import phrase_id_of
 
@@ -84,7 +85,7 @@ def _candidate(
         polished_phrase=phrase(polished, "abandoned") if polished is not None else None,
         phrase_position=_PHRASE,
     )
-    return GenerationCard.of(word, shown, None)
+    return GenerationCard.of(word, shown, None, context(word, shown))
 
 
 P1, P2 = phrase_id_of(1), phrase_id_of(2)

@@ -46,6 +46,7 @@ from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.review_card import ReviewCard
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.card_support import context
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 
@@ -178,6 +179,7 @@ def _make_use_case(
         phrase_reader=_phrase_reader(),
         lock=free_lock(),
         card_views=_card_views(repo),
+        decide_phrase=MagicMock(),
     )
 
 
@@ -191,8 +193,9 @@ def _card_views(repo: MagicMock) -> MagicMock:
 
     def one(phrase_id: int) -> CardDTO:
         (added,) = repo.occurrences.add.call_args[0]
+        shown = replace(added, id=phrase_id)
         return card_to_dto(ReviewCard(
-            word=_saved(repo), occurrence=replace(added, id=phrase_id),
+            word=_saved(repo), occurrence=shown, context=context(_saved(repo), shown),
         ))
 
     views.one.side_effect = one

@@ -59,10 +59,12 @@ from backend.application.utils.candidate_sorter import CandidateSorter
 from backend.application.utils.card_views import CardViews
 from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.application.utils.decided_elsewhere import DecidedElsewhere
+from backend.application.utils.decision_effects import DecisionEffects
 from backend.application.utils.export_queue import ExportQueue
 from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
+from backend.application.utils.knowledge_scope import KnowledgeScope
 from backend.application.utils.phrase_reader import PhraseReader
 from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.review_progress import ReviewProgress
@@ -111,6 +113,7 @@ from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.slang_normalizer import SlangNormalizer
 from backend.infrastructure.adapters.spacy_document_analyzer import SpacyDocumentAnalyzer
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
+from backend.infrastructure.adapters.system_clock import SystemClock
 from backend.infrastructure.adapters.throttled_http_file_downloader import (
     ThrottledHttpFileDownloader,
 )
@@ -121,7 +124,6 @@ from backend.infrastructure.adapters.wordfreq_frequency_provider import (
 )
 from backend.infrastructure.adapters.yandex_image_source import YandexImageSource
 from backend.infrastructure.config.prompts_loader import PromptsLoader
-from backend.infrastructure.persistence.sqla_anki_note_repository import SqlaAnkiNoteRepository
 from backend.infrastructure.persistence.sqla_anki_sync_repository import (
     SqlaAnkiSyncRepository,
 )
@@ -185,6 +187,9 @@ from backend.infrastructure.persistence.sqla_unknown_word_repository import (
 from backend.infrastructure.persistence.sqla_word_decision_repository import (
     SqlaWordDecisionRepository,
 )
+from backend.infrastructure.persistence.sqla_word_state_repository import (
+    SqlaWordStateRepository,
+)
 from backend.infrastructure.readers.epub_format_reader import EpubFormatReader
 from backend.infrastructure.readers.html_reader import HtmlReader
 from backend.infrastructure.readers.markdown_reader import MarkdownReader
@@ -242,6 +247,9 @@ if TYPE_CHECKING:
     from backend.infrastructure.adapters.kokoro_tts_generator import KokoroTTSGenerator
 
 logger = logging.getLogger(__name__)
+
+# Where a session keeps its knowledge scope (`Session.info`).
+KNOWLEDGE_SCOPE_KEY = "knowledge_scope"
 
 
 class Container:
@@ -348,6 +356,7 @@ class Container:
         self._lazy_media_reconciler: LazyMediaReconciler | None = None  # lazy init on first call
         templates_dir = project_root / "anki-templates"
         self._anki_template_renderer = AnkiTemplateRenderer(templates_dir)
+        self._clock = SystemClock()
         # Session factory — lazy-loaded to avoid circular import with api.dependencies
         self._session_factory: sessionmaker[Session] | None = None
 
@@ -390,6 +399,7 @@ class Container:
             phrase_reader=self._phrase_reader,
             lock=SqlaSourceOperationLock(session),
             card_views=self._card_views(session),
+            decide_phrase=self.decide_phrase_use_case(session),
         )
 
     def set_phrase_boundary_use_case(self, session: Session) -> SetPhraseBoundaryUseCase:
@@ -419,6 +429,7 @@ class Container:
             phrase_reader=self._phrase_reader,
             occurrence_repo=SqlaOccurrenceRepository(session),
             card_views=self._card_views(session),
+            decide_phrase=self.decide_phrase_use_case(session),
         )
 
     def analyze_text_use_case(self) -> AnalyzeTextUseCase:
@@ -670,6 +681,7 @@ class Container:
             vocabulary=self._user_vocabulary(session),
             knowledge=self._user_knowledge(session),
             review_status=self._review_status_updater(session),
+            effects=self._decision_effects(session),
         )
 
     def decide_phrase_use_case(self, session: Session) -> DecidePhraseUseCase:
@@ -677,11 +689,20 @@ class Container:
         return DecidePhraseUseCase(
             occurrence_repo=SqlaOccurrenceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            word_states=SqlaWordStateRepository(session),
             vocabulary=vocabulary,
-            decision_repo=SqlaWordDecisionRepository(session),
-            review_status=self._review_status_updater(session),
-            cloze_repo=SqlaCandidateClozeRepository(session),
             decided_elsewhere=DecidedElsewhere(vocabulary),
+            effects=self._decision_effects(session),
+            lock=SqlaSourceOperationLock(session),
+        )
+
+    def _decision_effects(self, session: Session) -> DecisionEffects:
+        return DecisionEffects(
+            word_states=SqlaWordStateRepository(session),
+            vocabulary=self._user_vocabulary(session),
+            decision_repo=SqlaWordDecisionRepository(session),
+            anki_sync=SqlaAnkiSyncRepository(session),
+            review_status=self._review_status_updater(session),
             lock=SqlaSourceOperationLock(session),
         )
 
@@ -712,6 +733,9 @@ class Container:
             job_repo=SqlaJobRepository(session),
             lock=SqlaSourceOperationLock(session),
             card_views=self._card_views(session),
+            word_states=SqlaWordStateRepository(session),
+            vocabulary=self._user_vocabulary(session),
+            effects=self._decision_effects(session),
         )
 
     def _threshold_resolver(self, session: Session) -> FrequentWordThresholdResolver:
@@ -759,6 +783,8 @@ class Container:
                 SqlaCandidateRepository(session),
                 SqlaOccurrenceRepository(session),
                 DecidedElsewhere(self._user_vocabulary(session)),
+                SqlaWordStateRepository(session),
+                self._user_vocabulary(session),
             ),
             candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
@@ -769,8 +795,22 @@ class Container:
         return UserVocabulary(
             known_word_repo=SqlaKnownWordRepository(session),
             unknown_word_repo=SqlaUnknownWordRepository(session),
-            learning_query=SqlaLearningQuery(session),
+            scope=self.knowledge_scope(session),
         )
+
+    def knowledge_scope(self, session: Session) -> KnowledgeScope:
+        """One per database session, so one per request and one per job: a single `now`
+        and one snapshot of what the user knows, shared by everything built for it."""
+        scope = session.info.get(KNOWLEDGE_SCOPE_KEY)
+        if not isinstance(scope, KnowledgeScope):
+            scope = KnowledgeScope(
+                clock=self._clock,
+                known_word_repo=SqlaKnownWordRepository(session),
+                unknown_word_repo=SqlaUnknownWordRepository(session),
+                learning_query=SqlaLearningQuery(session),
+            )
+            session.info[KNOWLEDGE_SCOPE_KEY] = scope
+        return scope
 
     @property
     def phrase_reader(self) -> PhraseReader:
@@ -820,11 +860,11 @@ class Container:
             export_queue=self._export_queue(session),
             anki_connector=self._anki_connector,
             settings_repo=SqlaSettingsRepository(session),
-            anki_sync_repo=SqlaAnkiSyncRepository(session),
             template_renderer=self._anki_template_renderer,
-            anki_note_repo=SqlaAnkiNoteRepository(session),
             cloze_builder=ClozeBuilder(),
             scope_resolver=self._scope_resolver(session),
+            vocabulary=self._user_vocabulary(session),
+            effects=self._decision_effects(session),
         )
 
     def get_learning_words_use_case(self, session: Session) -> GetLearningWordsUseCase:
@@ -844,8 +884,9 @@ class Container:
     def _export_queue(self, session: Session) -> ExportQueue:
         return ExportQueue(
             candidate_repo=SqlaCandidateRepository(session),
-            anki_sync_repo=SqlaAnkiSyncRepository(session),
             occurrence_repo=SqlaOccurrenceRepository(session),
+            word_states=SqlaWordStateRepository(session),
+            vocabulary=self._user_vocabulary(session),
         )
 
     def generate_meaning_use_case(self, session: Session) -> GenerateMeaningUseCase:
@@ -897,6 +938,8 @@ class Container:
             SqlaCandidateRepository(session),
             SqlaOccurrenceRepository(session),
             DecidedElsewhere(self._user_vocabulary(session)),
+            SqlaWordStateRepository(session),
+            self._user_vocabulary(session),
         )
 
     def _requested_cards(self, session: Session) -> RequestedCards:
@@ -913,6 +956,8 @@ class Container:
             SqlaCandidateRepository(session),
             SqlaOccurrenceRepository(session),
             DecidedElsewhere(self._user_vocabulary(session)),
+            SqlaWordStateRepository(session),
+            self._user_vocabulary(session),
         )
 
     def revert_phrase_polish_use_case(self, session: Session) -> RevertPhrasePolishUseCase:

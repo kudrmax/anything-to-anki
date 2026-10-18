@@ -10,23 +10,28 @@ from backend.application.dto.cefr_dtos import (
     CEFRBreakdownDTO,  # noqa: TC001 — Pydantic needs this at runtime
 )
 from backend.application.dto.cloze_dtos import CandidateClozeDTO
-from backend.application.dto.document_dtos import DocumentPositionDTO
-from backend.domain.services.card_decision import (  # Pydantic needs the enums at runtime
+from backend.application.dto.decision_compat import (  # Pydantic needs the enums at runtime
+    BUTTON_OF_PRESS,
     DecisionAction,
     DecisionButton,
-    card_state,
+    button_action,
+    card_status,
+    word_status,
 )
+from backend.application.dto.document_dtos import DocumentPositionDTO
+from backend.domain.services.card_view import Where
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.services.meaning_action import (  # Pydantic needs it at runtime
     MeaningAction,
     meaning_action,
 )
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.elsewhere import (
     ElsewhereStatus,  # noqa: TC001 — Pydantic needs it
 )
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
-from backend.domain.value_objects.word_status import WordStatus
+from backend.domain.value_objects.word_status import WordStatus  # noqa: TC001 — Pydantic
 
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_meaning import CandidateMeaning
@@ -34,7 +39,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
     from backend.domain.entities.candidate_tts import CandidateTTS
     from backend.domain.entities.job import Job
-    from backend.domain.services.card_decision import CardState
+    from backend.domain.services.card_view import CardView
     from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.decision_progress import DecisionProgress
     from backend.domain.value_objects.phrase import Phrase
@@ -205,14 +210,18 @@ class CardStateDTO(BaseModel):
     buttons: list[ButtonDTO] = []
 
     @staticmethod
-    def of(state: CardState) -> CardStateDTO:
+    def of(view: CardView, elsewhere: ElsewhereStatus | None) -> CardStateDTO:
+        where = view.shown.where
         return CardStateDTO(
-            decided_here=state.decided_here,
-            decided_elsewhere=state.decided_elsewhere,
-            elsewhere=state.elsewhere,
+            decided_here=where is Where.HERE,
+            decided_elsewhere=word_status(view) if where is Where.OTHER_CARD else None,
+            elsewhere=elsewhere if where is Where.OTHER_SOURCE else None,
             buttons=[
-                ButtonDTO(button=b.button, action=b.action, pressed=b.pressed)
-                for b in state.buttons
+                ButtonDTO(
+                    button=BUTTON_OF_PRESS[b.button], action=button_action(b, view),
+                    pressed=b.pressed,
+                )
+                for b in view.buttons
             ],
         )
 
@@ -264,7 +273,7 @@ class CardDTO(BaseModel):
     # Where a collected phrase was found: another source, or AI made it.
     origin: PhraseOriginDTO | None = None
     cloze: CandidateClozeDTO | None = None
-    # False once the phrase is in Anki: its note type can no longer change.
+    # False on a card in Anki whose Cloze is off: its markup can no longer change there.
     can_cloze: bool = True
     # Where the source phrase stands in the source's document; none for an example
     phrase_position: DocumentPositionDTO | None = None
@@ -327,6 +336,8 @@ def card_to_dto(
 
     jobs = jobs or CardJobs()
     word, occ = card.word, card.occurrence
+    view = card.view
+    state = CardStateDTO.of(view, card.elsewhere)
     phrase_id, word_id = card.phrase_id, card.word_id
     polished = occ.polished_phrase
     meaning_job = jobs.of_phrase(phrase_id, JobType.MEANING)
@@ -350,13 +361,13 @@ def card_to_dto(
         polish_status=_status_of(jobs.of_phrase(phrase_id, JobType.POLISH)),
         section=section.value if section is not None else None,
         occurrences=word.occurrences,
-        status=card.shown_status.value,
-        word_status=card.word_status.value,
-        phrase_skipped=occ.skipped,
+        status=card_status(view).value,
+        word_status=word_status(view).value,
+        phrase_skipped=view.shown.skipped,
         is_decision=occ.is_decision,
         decision_kind=occ.decision_kind.value if occ.decision_kind is not None else None,
-        state=CardStateDTO.of(card_state(occ, word, card.elsewhere)),
-        is_done=card.is_done,
+        state=state,
+        is_done=view.is_done,
         is_phrasal_verb=word.is_phrasal_verb,
         meaning=_meaning_dto(occ.meaning, meaning_job),
         meaning_action=meaning_action(
@@ -384,7 +395,7 @@ def card_to_dto(
             else None
         ),
         cloze=_cloze_dto(card),
-        can_cloze=not occ.exported,
+        can_cloze=not (occ.exported and _cloze_action(state) is None),
         phrase_position=(
             DocumentPositionDTO.from_position(occ.phrase_position)
             if occ.phrase_position
@@ -459,10 +470,15 @@ def _tts_dto(tts: CandidateTTS | None, job: Job | None) -> CandidateTTSDTO | Non
     )
 
 
+def _cloze_action(state: CardStateDTO) -> DecisionAction | None:
+    return next(b.action for b in state.buttons if b.button is DecisionButton.CLOZE)
+
+
 def _cloze_dto(card: ReviewCard) -> CandidateClozeDTO | None:
-    """A cloze card is the Learn decision card with markup; markup anywhere else is moot."""
+    """The markup of a cloze card, in Anki or not; markup kept on a card that is no cloze
+    now is moot."""
     occ = card.occurrence
-    if card.word_status is not WordStatus.LEARN or not occ.is_decision:
+    if occ.choice is not CardChoice.CLOZE:
         return None
     cloze = ClozeBuilder().effective_for(occ.phrase, occ.cloze)
     if cloze is None:

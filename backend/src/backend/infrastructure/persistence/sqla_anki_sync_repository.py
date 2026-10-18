@@ -2,38 +2,75 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select, update
 
 from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
+from backend.domain.services.decision_rules import BindingRef
 from backend.infrastructure.persistence.models import AnkiSyncedCardModel
 from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from datetime import datetime
+
     from sqlalchemy.orm import Session
+
+    from backend.domain.value_objects.anki_binding import AnkiBinding
 
 
 class SqlaAnkiSyncRepository(AnkiSyncRepository):
-    """SQLAlchemy implementation of AnkiSyncRepository."""
+    """SQLAlchemy implementation of AnkiSyncRepository over `anki_synced_cards`."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def get_synced_phrase_ids(self, phrase_ids: list[int]) -> set[int]:
-        synced: set[int] = set()
-        for chunk in chunks(phrase_ids):
-            synced.update(
-                phrase_id
-                for phrase_id in self._session.scalars(
-                    select(AnkiSyncedCardModel.phrase_id)
-                    .where(AnkiSyncedCardModel.phrase_id.in_(chunk))
-                )
-                if phrase_id is not None
-            )
-        return synced
-
-    def mark_synced(self, candidate_id: int, anki_note_id: int, phrase_id: int) -> None:
-        record = AnkiSyncedCardModel(
-            candidate_id=candidate_id, phrase_id=phrase_id, anki_note_id=anki_note_id,
-        )
-        self._session.add(record)
+    def bind(self, binding: AnkiBinding) -> None:
+        self._session.add(AnkiSyncedCardModel(
+            candidate_id=binding.word_id,
+            phrase_id=binding.phrase_id,
+            anki_note_id=binding.note_id,
+            lemma=binding.lemma,
+            pos=binding.pos,
+            note_kind=binding.note_kind.value,
+            learning_since=binding.learning_since,
+        ))
         self._session.flush()
+
+    def release(self, phrase_ids: Iterable[int], at: datetime) -> None:
+        for chunk in chunks(list(phrase_ids)):
+            self._session.execute(
+                update(AnkiSyncedCardModel)
+                .where(
+                    AnkiSyncedCardModel.phrase_id.in_(chunk),
+                    AnkiSyncedCardModel.released_at.is_(None),
+                )
+                .values(released_at=at)
+            )
+        self._session.flush()
+
+    def release_rows(self, binding_ids: Iterable[int], at: datetime) -> None:
+        for chunk in chunks(list(binding_ids)):
+            self._session.execute(
+                update(AnkiSyncedCardModel)
+                .where(
+                    AnkiSyncedCardModel.id.in_(chunk),
+                    AnkiSyncedCardModel.released_at.is_(None),
+                )
+                .values(released_at=at)
+            )
+        self._session.flush()
+
+    def orphans(self, lemma: str) -> list[BindingRef]:
+        rows = self._session.execute(
+            select(AnkiSyncedCardModel.id, AnkiSyncedCardModel.learning_since)
+            .where(
+                func.lower(AnkiSyncedCardModel.lemma) == lemma.lower(),
+                AnkiSyncedCardModel.released_at.is_(None),
+                or_(
+                    AnkiSyncedCardModel.phrase_id.is_(None),
+                    AnkiSyncedCardModel.candidate_id.is_(None),
+                ),
+            )
+            .order_by(AnkiSyncedCardModel.id)
+        ).all()
+        return [BindingRef(binding_id, since) for binding_id, since in rows]

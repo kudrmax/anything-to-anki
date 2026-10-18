@@ -12,9 +12,11 @@ from backend.domain.entities.job import Job
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
+from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 
 from tests.candidate_sorter_support import candidate_sorter
-from tests.card_support import occurrence, word
+from tests.card_support import PhraseWordStates, occurrence, word
+from tests.vocabulary_support import user_vocabulary
 
 
 @pytest.mark.unit
@@ -35,7 +37,16 @@ class TestGetCandidatesUseCase:
         self.use_case = GetCandidatesUseCase(
             source_repo=self.source_repo,
             card_views=CardViews(
-                review_cards=ReviewCards(self.candidate_repo, self.occurrence_repo, elsewhere),
+                review_cards=ReviewCards(
+                    self.candidate_repo, self.occurrence_repo, elsewhere,
+                    PhraseWordStates(
+                        lambda: self.candidate_repo.get_by_source.return_value,
+                        lambda word_id: self.occurrence_repo.shown_by_word.return_value.get(
+                            word_id, [],
+                        ),
+                    ),
+                    user_vocabulary(),
+                ),
                 candidate_sorter=candidate_sorter(self.settings_repo),
                 job_repo=self.job_repo,
                 report_repo=self.report_repo,
@@ -53,8 +64,10 @@ class TestGetCandidatesUseCase:
             (1, 1, "test"), (2, 1, "test"),
         ]
 
-    def test_forbids_cloze_for_a_phrase_in_anki(self) -> None:
-        self.occurrence_repo.shown_by_word.return_value = {1: [occurrence(1, 1, exported=True)]}
+    def test_forbids_new_markup_for_a_cloze_in_anki(self) -> None:
+        self.occurrence_repo.shown_by_word.return_value = {
+            1: [occurrence(1, 1, exported=True, decision_kind=DecisionKind.CLOZE)],
+        }
         assert self.use_case.execute(1)[0].can_cloze is False
 
     def test_source_not_found(self) -> None:

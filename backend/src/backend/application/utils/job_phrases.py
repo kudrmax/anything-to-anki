@@ -3,14 +3,17 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from backend.application.utils.generation_targets import GenerationCard
+from backend.application.utils.generation_targets import CardContexts, GenerationCard
 
 if TYPE_CHECKING:
     from backend.application.utils.decided_elsewhere import DecidedElsewhere
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.word_state_repository import WordStateRepository
     from backend.domain.value_objects.phrase_ref import PhraseRef
+    from backend.domain.value_objects.review_card import CardContext
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +31,13 @@ class JobPhrases:
         candidate_repo: CandidateRepository,
         occurrence_repo: OccurrenceRepository,
         decided_elsewhere: DecidedElsewhere,
+        word_states: WordStateRepository,
+        vocabulary: UserVocabulary,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._occurrence_repo = occurrence_repo
         self._decided_elsewhere = decided_elsewhere
+        self._contexts = CardContexts(word_states, vocabulary)
 
     def cards(self, phrases: list[PhraseRef]) -> list[GenerationCard]:
         """The cards of the phrases still at their jobs' revision, in the jobs' order."""
@@ -52,13 +58,19 @@ class JobPhrases:
             )
         }
         elsewhere = self._decided_elsewhere.of_lemmas({word.lemma for word in words.values()})
+        contexts: dict[int, CardContext] = {
+            word_id: context
+            for word_id in words
+            if word_id is not None and (context := self._contexts.of_word(word_id)) is not None
+        }
         return [
             GenerationCard.of(
                 words[occurrence.candidate_id], occurrence,
                 elsewhere.get(words[occurrence.candidate_id].lemma),
+                contexts[occurrence.candidate_id],
             )
             for occurrence in current
-            if occurrence.candidate_id in words
+            if occurrence.candidate_id in contexts
         ]
 
     def card(self, phrase: PhraseRef) -> GenerationCard | None:

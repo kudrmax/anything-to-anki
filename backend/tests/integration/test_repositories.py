@@ -3,6 +3,7 @@ from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.built_analysis import WordKey
+from backend.domain.value_objects.card_choice import CardChoice, CardState
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
@@ -21,6 +22,9 @@ from backend.infrastructure.persistence.sqla_settings_repository import (
 )
 from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
+)
+from backend.infrastructure.persistence.sqla_word_state_repository import (
+    SqlaWordStateRepository,
 )
 from sqlalchemy.orm import Session
 
@@ -171,7 +175,10 @@ class TestCandidateRepository:
                 phrase("a test", "test"),
             ),
         ])
-        repo.set_word_status(created[0].word_id, WordStatus.LEARN)
+        states = SqlaWordStateRepository(db_session)
+        state = states.of_word(created[0].word_id)
+        assert state is not None
+        states.save(state.with_cards(CardState(created[0].phrase_id, CardChoice.LEARN)))
         updated = repo.get_by_id(created[0].word_id)
         assert updated is not None
         assert updated.status == WordStatus.LEARN

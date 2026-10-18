@@ -7,11 +7,12 @@ from typing import TYPE_CHECKING
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest
 from backend.application.utils.occurrence_builder import OccurrenceBuilder
 from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundError
+from backend.domain.services.card_view import CHOSEN_TO_LEARN
 from backend.domain.services.document_time import is_timed, time_of
 from backend.domain.services.rebuild_plan import plan_rebuild
 from backend.domain.services.source_review_status import REVIEWABLE_STATUSES
+from backend.domain.value_objects.card_choice import DecisionStatus
 from backend.domain.value_objects.source_status import SourceStatus
-from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
     from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
@@ -100,10 +101,11 @@ class SourceRebuilder:
         return AnalysedSource(source_id, document, self._builder.words(result.words))
 
     def _learned_here(self, source_id: int) -> set[str]:
-        """Learn words of this source stay its candidates; learned elsewhere, they don't."""
+        """Words chosen to learn here, in Anki or not yet, stay its candidates; learned
+        elsewhere, they don't."""
         return {
             row.lemma for row in self._occurrence_repo.word_rows(source_id)
-            if row.status is WordStatus.LEARN
+            if DecisionStatus(row.status.value) in CHOSEN_TO_LEARN
         }
 
     def plan(self, analysed: AnalysedSource, include_open: bool) -> RebuildPlan:

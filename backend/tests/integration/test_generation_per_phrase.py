@@ -49,6 +49,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from sqlalchemy import select, text, update
 
+from tests.decision_support import Decisions
 from tests.integration.conftest import insert_source
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
@@ -86,8 +87,8 @@ def factory(tmp_path: Path) -> sessionmaker[Session]:
         session.execute(
             text(
                 "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by,"
-                " skipped, is_decision, created_at)"
-                " VALUES (:id, :word, :phrase, 'manual', 'user', 0, 0, :created_at)"
+                " choice, created_at)"
+                " VALUES (:id, :word, :phrase, 'manual', 'user', 'none', :created_at)"
             ),
             {
                 "id": OTHER_PHRASE, "word": WORD, "created_at": CREATED_AT,
@@ -117,8 +118,10 @@ def _meaning_use_case(session: Session, ai_service: MagicMock) -> MeaningGenerat
 def _job_phrases(session: Session) -> JobPhrases:
     decided_elsewhere = MagicMock()
     decided_elsewhere.of_lemmas.side_effect = lambda lemmas: dict.fromkeys(lemmas)
+    decisions = Decisions(session)
     return JobPhrases(
         SqlaCandidateRepository(session), SqlaOccurrenceRepository(session), decided_elsewhere,
+        decisions.word_states, decisions.vocabulary,
     )
 
 

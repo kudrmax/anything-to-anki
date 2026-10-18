@@ -78,8 +78,9 @@ def _enrich(session: Session, candidate_id: int, phrase_id: int) -> None:
     )
     session.execute(
         text(
-            "INSERT INTO anki_synced_cards (candidate_id, phrase_id, anki_note_id)"
-            " VALUES (:cid, :pid, 1)"
+            "INSERT INTO anki_synced_cards (candidate_id, phrase_id, anki_note_id, lemma,"
+            " note_kind, learning_since) VALUES (:cid, :pid, 1, 'advance', 'learn',"
+            " '2026-10-18 12:00:00')"
         ),
         params,
     )
@@ -106,6 +107,12 @@ def test_deleting_candidates_removes_their_enrichment(db_session: Session) -> No
         assert _rows_for(db_session, table, "candidate_id", candidate_id) == 0, table
     for table in PHRASE_TABLES:
         assert _rows_for(db_session, table, "phrase_id", phrase_id) == 0, table
+    kept = db_session.execute(text(
+        "SELECT candidate_id, phrase_id, lemma FROM anki_synced_cards"
+    )).all()
+    assert [tuple(row) for row in kept] == [(None, None, "advance")], (
+        "an Anki binding outlives its card: the word stays learning by its lemma"
+    )
 
 
 def test_candidate_ids_are_never_reused(db_session: Session) -> None:

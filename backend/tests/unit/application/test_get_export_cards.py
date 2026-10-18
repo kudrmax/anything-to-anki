@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
-from backend.application.utils.export_queue import ExportCard, ExportQueue
+from backend.application.utils.export_queue import ExportCard
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
@@ -13,18 +13,17 @@ from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.cloze_builder import ClozeBuilder
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
-from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
-from tests.export_support import ExportCards, export_card, with_phrase
+from tests.export_support import ExportCards, export_card, in_anki, with_phrase
 from tests.phrase_support import phrase
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.unit.application.source_fakes import InMemorySourceRepository
-from tests.word_support import phrase_id_of
 
 
 def _make_candidate(
@@ -91,14 +90,10 @@ def _make_source_mock(source_id: int = 1, title: str = "Test Source") -> MagicMo
 class TestGetExportCardsExecute:
     def setup_method(self) -> None:
         self.cards = ExportCards()
-        self.anki_sync_repo = MagicMock()
-        self.anki_sync_repo.get_synced_phrase_ids.return_value = set()
         self.source_repo = MagicMock()
         self.source_repo.get_by_id.return_value = _make_source_mock(1, "Test Source")
         self.use_case = GetExportCardsUseCase(
-            export_queue=ExportQueue(
-                self.cards.words, self.anki_sync_repo, self.cards,
-            ),
+            export_queue=self.cards.queue(),
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
@@ -112,8 +107,8 @@ class TestGetExportCardsExecute:
                 "leads to burnout quickly",
                 meaning="physical collapse",
             ),
-            _make_candidate("pursuit", WordStatus.NEW),
-            _make_candidate("relentless", WordStatus.NEW),
+            _make_candidate("pursuit", WordStatus.NEW, candidate_id=2),
+            _make_candidate("relentless", WordStatus.NEW, candidate_id=3),
         ])
 
         result = self.use_case.execute(source_id=1)
@@ -124,13 +119,10 @@ class TestGetExportCardsExecute:
 
     def test_excludes_already_exported_candidates(self) -> None:
         self.cards.put([
-            _make_candidate("burnout", WordStatus.LEARN, candidate_id=1),
+            in_anki(_make_candidate("burnout", WordStatus.LEARN, candidate_id=1)),
             _make_candidate("relentless", WordStatus.LEARN, candidate_id=2),
-            _make_candidate("pursuit", WordStatus.LEARN, candidate_id=3),
+            in_anki(_make_candidate("pursuit", WordStatus.LEARN, candidate_id=3)),
         ])
-        self.anki_sync_repo.get_synced_phrase_ids.return_value = {
-            phrase_id_of(1), phrase_id_of(3),
-        }
 
         result = self.use_case.execute(source_id=1)
 
@@ -139,9 +131,8 @@ class TestGetExportCardsExecute:
 
     def test_no_sections_when_everything_exported(self) -> None:
         self.cards.put([
-            _make_candidate("burnout", WordStatus.LEARN, candidate_id=1),
+            in_anki(_make_candidate("burnout", WordStatus.LEARN, candidate_id=1)),
         ])
-        self.anki_sync_repo.get_synced_phrase_ids.return_value = {phrase_id_of(1)}
 
         result = self.use_case.execute(source_id=1)
 
@@ -276,9 +267,7 @@ class TestGetExportCardsExecute:
 
     def test_custom_media_base_url(self) -> None:
         use_case = GetExportCardsUseCase(
-            export_queue=ExportQueue(
-                self.cards.words, self.anki_sync_repo, self.cards,
-            ),
+            export_queue=self.cards.queue(),
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
@@ -354,7 +343,7 @@ class TestGetExportCardsExecute:
         text = "She finally gave up smoking last year."
         candidate = with_phrase(
             _make_candidate("give up", WordStatus.LEARN, text, target="gave up"),
-            decision_kind=DecisionKind.CLOZE,
+            choice=CardChoice.CLOZE,
             cloze=CandidateCloze(
                 candidate_id=1,
                 hidden_word_indices=(3,),
@@ -385,13 +374,9 @@ class TestGetExportCardsExecute:
 class TestGetExportCardsAllScope:
     def setup_method(self) -> None:
         self.cards = ExportCards()
-        self.anki_sync_repo = MagicMock()
-        self.anki_sync_repo.get_synced_phrase_ids.return_value = set()
         self.source_repo = MagicMock()
         self.use_case = GetExportCardsUseCase(
-            export_queue=ExportQueue(
-                self.cards.words, self.anki_sync_repo, self.cards,
-            ),
+            export_queue=self.cards.queue(),
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
@@ -419,10 +404,9 @@ class TestGetExportCardsAllScope:
 
     def test_omits_sources_with_everything_exported(self) -> None:
         self.cards.put([
-            _make_candidate("burnout", WordStatus.LEARN, source_id=1, candidate_id=1),
+            in_anki(_make_candidate("burnout", WordStatus.LEARN, source_id=1, candidate_id=1)),
             _make_candidate("relentless", WordStatus.LEARN, source_id=2, candidate_id=2),
         ])
-        self.anki_sync_repo.get_synced_phrase_ids.return_value = {phrase_id_of(1)}
         self.source_repo.get_by_id.side_effect = lambda sid: _make_source_mock(sid, f"S{sid}")
 
         result = self.use_case.execute_scope(SourceScope.all())
@@ -454,8 +438,6 @@ class TestGetExportCardsAllScope:
 class TestGetExportCardsCollectionScope:
     def setup_method(self) -> None:
         self.cards = ExportCards()
-        self.anki_sync_repo = MagicMock()
-        self.anki_sync_repo.get_synced_phrase_ids.return_value = set()
         self.cards.put([
             _make_candidate("burnout", WordStatus.LEARN, source_id=1, candidate_id=1),
             _make_candidate("pursuit", WordStatus.LEARN, source_id=2, candidate_id=2),
@@ -465,9 +447,7 @@ class TestGetExportCardsCollectionScope:
             Source(id=2, status=SourceStatus.DONE, title="Loose"),
         ]
         self.use_case = GetExportCardsUseCase(
-            export_queue=ExportQueue(
-                self.cards.words, self.anki_sync_repo, self.cards,
-            ),
+            export_queue=self.cards.queue(),
             source_repo=InMemorySourceRepository(sources),
             cloze_builder=ClozeBuilder(),
             scope_resolver=SourceScopeResolver(

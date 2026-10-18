@@ -48,13 +48,13 @@ def _seed_book(session: Session) -> None:
             "word": word_id,
             "phrase": dump_phrase(phrase(TEXT.format(lemma=lemma), lemma, new=["zephyr"])),
             "shown": "selection" if phrase_id <= BOOK_WORDS else None,
-            "decision": word_id % 10 == 0 and phrase_id <= BOOK_WORDS,
+            "choice": "learn" if word_id % 10 == 0 and phrase_id <= BOOK_WORDS else "none",
         })
     session.execute(
         text(
-            "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, skipped,"
-            " is_decision, created_at)"
-            " VALUES (:id, :word, :phrase, 'auto', :shown, 0, :decision, '2026-01-01')"
+            "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, choice,"
+            " created_at)"
+            " VALUES (:id, :word, :phrase, 'auto', :shown, :choice, '2026-01-01')"
         ),
         rows,
     )

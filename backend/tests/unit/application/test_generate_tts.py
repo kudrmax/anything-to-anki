@@ -12,6 +12,7 @@ from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
 
+from tests.card_support import context
 from tests.phrase_support import make_occurrence
 from tests.word_support import phrase_id_of
 
@@ -55,7 +56,7 @@ def _make_candidate(
         make_occurrence(context_fragment, candidate_id=candidate_id),
         id=phrase_id_of(candidate_id),
     )
-    return GenerationCard.of(word, shown, None)
+    return GenerationCard.of(word, shown, None, context(word, shown))
 
 
 @pytest.mark.unit

@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 from backend.application.utils.anki_note_settings import AnkiFieldNames
+from backend.application.utils.export_queue import ExportBatch
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.api.app import app
@@ -230,13 +231,12 @@ class TestSyncToAnkiAPI:
                 return_value=[12345],
             ),
             patch(
-                "backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository.get_by_source",
-                return_value=[burnout.word],
+                "backend.application.utils.export_queue.ExportQueue.for_source",
+                return_value=ExportBatch(pending=[burnout], exported_count=0),
             ),
             patch(
-                "backend.infrastructure.persistence.sqla_occurrence_repository.SqlaOccurrenceRepository.decision_phrases",
-                return_value={burnout.word_id: burnout.phrase},
-            ),
+                "backend.application.utils.decision_effects.DecisionEffects.apply",
+            ) as bound,
         ):
             response = client.post(f"/export/sync-to-anki/{source_id}?group=incomplete")
 
@@ -245,6 +245,9 @@ class TestSyncToAnkiAPI:
         assert data["total"] == 1
         assert data["added"] == 1
         assert data["skipped"] == 0
+        [call] = bound.call_args_list
+        assert call.kwargs["note_id"] == 12345
+        assert call.args[1].row == "S1"
 
     def test_requires_export_group(self, client: TestClient) -> None:
         post = _add_text(client, "test text")

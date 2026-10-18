@@ -23,16 +23,15 @@ from backend.application.dto.cloze_dtos import (  # noqa: TC001
     PreviewClozeRequest,
     SaveClozeRequest,
 )
+from backend.application.dto.decision_compat import DecisionAction
 from backend.application.dto.follow_up_dtos import FollowUpRequest  # noqa: TC001
 from backend.application.dto.source_dtos import CardDTO  # noqa: TC001
 from backend.domain.exceptions import (
+    ActionRefusedError,
     AIServiceError,
-    AlreadyInAnkiError,
     CandidateNotPolishedError,
-    CardDecisionLockedError,
     ClozeNotAllowedError,
     ClozePhraseChangedError,
-    DecidedElsewhereError,
     EmptyReportCommentError,
     InvalidClozeError,
     InvalidPhraseError,
@@ -43,7 +42,6 @@ from backend.domain.exceptions import (
     SourceOperationBusyError,
     UnknownReportReasonError,
 )
-from backend.domain.services.card_decision import DecisionAction
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
@@ -54,11 +52,9 @@ if TYPE_CHECKING:
 
 router = APIRouter(prefix="/phrases", tags=["phrases"])
 
-# A Rebuild or a refresh holds the source: no card changes by hand meanwhile.
-REFUSED_DECISIONS = (
-    AlreadyInAnkiError, CardDecisionLockedError, DecidedElsewhereError, ClozeNotAllowedError,
-    SourceOperationBusyError,
-)
+# The press table refuses the button, or a Rebuild or a refresh holds the source: no card
+# changes by hand meanwhile.
+REFUSED_DECISIONS = (ActionRefusedError, ClozeNotAllowedError, SourceOperationBusyError)
 # The source is busy with a long operation, or one changed the phrase meanwhile.
 REFUSED_GENERATION = (SourceOperationBusyError, PhraseChangedError)
 
@@ -135,6 +131,8 @@ def report_phrase(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except (EmptyReportCommentError, UnknownReportReasonError) as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+    except SourceOperationBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     session.commit()
     return report
 
@@ -211,7 +209,7 @@ def replace_with_example(
         )
     except PhraseNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except (AlreadyInAnkiError, SourceOperationBusyError) as e:
+    except SourceOperationBusyError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidPhraseError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e

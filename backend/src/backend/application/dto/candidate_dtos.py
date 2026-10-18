@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, field_validator
 
-from backend.domain.services.card_decision import DecisionAction
+from backend.application.dto.decision_compat import DecisionAction
 
 
 class SelectionDTO(BaseModel):

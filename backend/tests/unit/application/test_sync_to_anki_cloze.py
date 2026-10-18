@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
-from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_note_settings import AnkiFieldNames
 from backend.application.utils.anki_template_renderer import NoteTemplates
-from backend.application.utils.export_queue import ExportCard, ExportQueue
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind
@@ -21,6 +19,9 @@ from tests.export_support import ExportCards, export_card, with_phrase
 from tests.phrase_support import phrase
 from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.word_support import phrase_id_of
+
+if TYPE_CHECKING:
+    from backend.application.utils.export_queue import ExportCard
 
 pytestmark = pytest.mark.unit
 
@@ -97,22 +98,14 @@ class TestSyncToAnkiCloze:
         self.connector.get_model_field_names.return_value = _EveryField()
         self.settings_repo = MagicMock()
         self.settings_repo.get.return_value = None
-        self.anki_sync_repo = MagicMock()
-        self.anki_sync_repo.get_synced_phrase_ids.return_value = set()
         self.renderer = MagicMock()
         self.renderer.render_recognition.return_value = NoteTemplates("F", "B", "C")
         self.renderer.render_cloze.return_value = NoteTemplates("CF", "CB", "C")
-        self.use_case = SyncToAnkiUseCase(
-            export_queue=ExportQueue(
-                self.cards.words, self.anki_sync_repo, self.cards,  # type: ignore[arg-type]
-            ),
-            anki_connector=self.connector,
-            settings_repo=self.settings_repo,
-            anki_sync_repo=self.anki_sync_repo,
-            template_renderer=self.renderer,
-            anki_note_repo=MagicMock(),
-            cloze_builder=ClozeBuilder(),
-            scope_resolver=empty_scope_resolver(),
+        self.use_case = self.cards.sync(
+            self.connector,
+            self.settings_repo,
+            self.renderer,
+            empty_scope_resolver(),
         )
 
     def _sync(self, *candidates: ExportCard) -> None:
@@ -194,7 +187,9 @@ class TestSyncToAnkiCloze:
         self.connector.find_notes_by_target.assert_called_once_with(
             "Default", "AnythingToAnkiCloze", "Target", "give up"
         )
-        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 555, phrase_id_of(1))
+        assert [(b.word_id, b.phrase_id, b.note_id) for b in self.cards.bindings] == [
+            (1, phrase_id_of(1), 555),
+        ]
 
     def test_recognition_duplicate_is_found_by_its_model_and_target_field(self) -> None:
         self.connector.add_notes.return_value = [None]

@@ -1,16 +1,13 @@
-"""Notes exported to Anki, and the lock a long operation takes on its source."""
+"""The lock a long operation takes on its source."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
-from backend.infrastructure.persistence.models import AnkiNoteModel
-from backend.infrastructure.persistence.sqla_anki_note_repository import SqlaAnkiNoteRepository
 from backend.infrastructure.persistence.sqla_source_operation_lock import (
     SqlaSourceOperationLock,
 )
-from sqlalchemy import select
 
 from tests.integration.conftest import insert_source
 
@@ -21,17 +18,6 @@ pytestmark = pytest.mark.integration
 
 SOURCE = 1
 OTHER_SOURCE = 2
-
-
-def test_adding_a_note_again_keeps_it_as_it_was(db_session: Session) -> None:
-    notes = SqlaAnkiNoteRepository(db_session)
-    notes.add(1, "glare", "VERB")
-
-    notes.add(1, "other", None)
-
-    assert db_session.scalar(select(AnkiNoteModel.lemma).where(AnkiNoteModel.note_id == 1)) == (
-        "glare"
-    )
 
 
 def test_a_source_is_held_by_one_operation_at_a_time(db_session: Session) -> None:

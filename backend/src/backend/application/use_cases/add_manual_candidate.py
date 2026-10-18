@@ -8,11 +8,13 @@ from backend.domain.entities.occurrence import Occurrence
 from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundError
 from backend.domain.services.document_layout import DocumentLayout
 from backend.domain.value_objects.built_analysis import WordKey
+from backend.domain.value_objects.card_choice import Press
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
 if TYPE_CHECKING:
     from backend.application.dto.candidate_dtos import SelectionDTO
     from backend.application.dto.source_dtos import CardDTO
+    from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
     from backend.application.utils.card_views import CardViews
     from backend.application.utils.phrase_reader import PhraseReader
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
@@ -37,8 +39,8 @@ class AddManualCandidateUseCase:
     CEFR, frequency) but bypasses the CEFR level gate — it is always saved. A word the source
     already has gets another phrase; at the place of one of its auto phrases, or of a manual
     phrase with the same text, that phrase is shown instead of a duplicate (and if it was the
-    selection card, it keeps standing for it). The phrase keeps its place in the document as
-    its key, so Rebuild finds it.
+    selection card, it keeps standing for it; a skipped one is unskipped by pressing Skip).
+    The phrase keeps its place in the document as its key, so Rebuild finds it.
     """
 
     def __init__(
@@ -55,8 +57,10 @@ class AddManualCandidateUseCase:
         phrase_reader: PhraseReader,
         lock: SourceOperationLock,
         card_views: CardViews,
+        decide_phrase: DecidePhraseUseCase,
     ) -> None:
         self._lock = lock
+        self._decide_phrase = decide_phrase
         self._card_views = card_views
         self._source_repo = source_repo
         self._document_repo = document_repo
@@ -130,7 +134,7 @@ class AddManualCandidateUseCase:
             self._occurrences.set_replaces_selection(existing.id, True)
         self._occurrences.set_shown([existing.id], ShownBy.USER)
         if existing.skipped:
-            self._occurrences.set_skipped(existing.id, False)
+            self._decide_phrase.press(existing.id, Press.SKIP)
         return existing.id
 
     def _add_phrase(self, word_id: int, card: NewCard, key: OccurrenceKey) -> int:

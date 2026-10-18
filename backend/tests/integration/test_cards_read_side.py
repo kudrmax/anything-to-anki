@@ -245,7 +245,8 @@ class TestDecisionsOnCards:
         session.commit()
         card = _card(client, SPARK_PHRASE)
         assert card["state"]["elsewhere"] == "known"  # type: ignore[index]
-        assert _actions(card) == {"learn": None, "cloze": None, "known": "known", "skip": "skip"}
+        # P6 (G6): Known is refused too on a card decided in another source.
+        assert _actions(card) == {"learn": None, "cloze": None, "known": None, "skip": "skip"}
         assert card["is_done"] is True
         assert client.get(f"/sources/{SOURCE}").json()["progress"] == {"decided": 0, "total": 2}
         [summary] = _board(client)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -14,14 +15,21 @@ from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import (
-    CardDecisionLockedError,
+    ActionRefusedError,
     ClozeNotAllowedError,
     ClozePhraseChangedError,
     InvalidClozeError,
     PhraseNotFoundError,
 )
-from backend.domain.services.card_decision import DecisionAction
+from backend.domain.services.card_view import card_view
 from backend.domain.services.cloze_builder import ClozeBuilder
+from backend.domain.value_objects.card_choice import (
+    Binding,
+    CardChoice,
+    NoteKind,
+    Press,
+    Refusal,
+)
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
@@ -29,8 +37,14 @@ from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, Sh
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.candidate_sorter_support import candidate_sorter
+from tests.card_support import context
+from tests.decision_support import NOW
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
+from tests.vocabulary_support import user_vocabulary
+
+if TYPE_CHECKING:
+    from backend.domain.value_objects.review_card import CardContext
 
 pytestmark = pytest.mark.unit
 
@@ -75,13 +89,21 @@ class TestSaveCloze:
         elsewhere.of.return_value = None
         self.candidate_repo.get_by_id.return_value = _word()
         self.occurrence_repo.get.return_value = _phrase()
+        word_states = MagicMock()
+        word_states.of_word.side_effect = lambda _id: self._context().word
         self.decide = MagicMock()
+        self.decide.view.side_effect = lambda _id: card_view(
+            self._context().word, PHRASE_ID, self._context().knowledge, None, NOW,
+        )
         self.use_case = SaveClozeUseCase(
             occurrence_repo=self.occurrence_repo,
             candidate_repo=self.candidate_repo,
             cloze_repo=self.cloze_repo,
             card_views=CardViews(
-                review_cards=ReviewCards(self.candidate_repo, self.occurrence_repo, elsewhere),
+                review_cards=ReviewCards(
+                    self.candidate_repo, self.occurrence_repo, elsewhere, word_states,
+                    user_vocabulary(),
+                ),
                 candidate_sorter=candidate_sorter(settings),
                 job_repo=self.job_repo,
                 report_repo=self.report_repo,
@@ -91,16 +113,27 @@ class TestSaveCloze:
             lock=free_lock(),
         )
 
-    def test_save_decides_cloze_and_stores_markup(self) -> None:
+    def _context(self) -> CardContext:
+        return context(_word(), self.occurrence_repo.get.return_value)
+
+    def test_save_presses_cloze_and_stores_markup(self) -> None:
         self.use_case.execute(PHRASE_ID, GIVE_UP, [3], ClozeHintKind.TRANSLATION, None)
-        self.decide.execute.assert_called_once_with(PHRASE_ID, DecisionAction.CLOZE)
+        self.decide.press.assert_called_once_with(PHRASE_ID, Press.CLOZE)
         self.cloze_repo.upsert_for_phrase.assert_called_once_with(
             PHRASE_ID, CandidateCloze(1, (3,), ClozeHintKind.TRANSLATION, None, GIVE_UP),
         )
 
+    def test_save_on_a_cloze_card_edits_its_markup_without_a_press(self) -> None:
+        self.occurrence_repo.get.return_value = replace(_phrase(), choice=CardChoice.CLOZE)
+        self.use_case.execute(PHRASE_ID, GIVE_UP, [3], ClozeHintKind.NONE, None)
+        self.decide.press.assert_not_called()
+        self.cloze_repo.upsert_for_phrase.assert_called_once()
+
     def test_save_on_a_sibling_of_a_decided_word_is_refused(self) -> None:
-        self.decide.execute.side_effect = CardDecisionLockedError(PHRASE_ID, WordStatus.KNOWN)
-        with pytest.raises(CardDecisionLockedError):
+        self.decide.press.side_effect = ActionRefusedError(
+            PHRASE_ID, Refusal.NOT_DECISION_CARD,
+        )
+        with pytest.raises(ActionRefusedError):
             self.use_case.execute(PHRASE_ID, GIVE_UP, [3], ClozeHintKind.NONE, None)
         self.cloze_repo.upsert_for_phrase.assert_not_called()
 
@@ -140,12 +173,24 @@ class TestSaveCloze:
         with pytest.raises(PhraseNotFoundError):
             self.use_case.execute(PHRASE_ID, GIVE_UP, [3], ClozeHintKind.NONE, None)
 
-    def test_save_rejects_an_exported_phrase(self) -> None:
-        self.occurrence_repo.get.return_value = replace(_phrase(), exported=True)
+    def test_save_rejects_new_markup_on_a_cloze_in_anki(self) -> None:
+        """Anki holds the cloze as it was exported."""
+        self.occurrence_repo.get.return_value = replace(
+            _phrase(), choice=CardChoice.CLOZE, binding=Binding(NoteKind.CLOZE, NOW),
+        )
         with pytest.raises(ClozeNotAllowedError):
             self.use_case.execute(PHRASE_ID, GIVE_UP, [3], ClozeHintKind.NONE, None)
         self.cloze_repo.upsert_for_phrase.assert_not_called()
-        self.decide.execute.assert_not_called()
+        self.decide.press.assert_not_called()
+
+    def test_save_on_a_learn_card_in_anki_presses_cloze(self) -> None:
+        """Q11: the next export makes a cloze note; the Learn note stays in Anki."""
+        self.occurrence_repo.get.return_value = replace(
+            _phrase(), choice=CardChoice.LEARN, binding=Binding(NoteKind.LEARN, NOW),
+        )
+        self.use_case.execute(PHRASE_ID, GIVE_UP, [3], ClozeHintKind.NONE, None)
+        self.decide.press.assert_called_once_with(PHRASE_ID, Press.CLOZE)
+        self.cloze_repo.upsert_for_phrase.assert_called_once()
 
     def test_save_rejects_empty_indices(self) -> None:
         with pytest.raises(InvalidClozeError):
@@ -166,7 +211,7 @@ class TestSaveCloze:
         with pytest.raises(InvalidClozeError):
             self.use_case.execute(PHRASE_ID, GIVE_UP, [2, 3], ClozeHintKind.SYNONYMS, None)
         self.cloze_repo.upsert_for_phrase.assert_not_called()
-        self.decide.execute.assert_not_called()
+        self.decide.press.assert_not_called()
 
     def test_save_rejects_markup_of_another_phrase(self) -> None:
         with pytest.raises(ClozePhraseChangedError):
@@ -174,7 +219,7 @@ class TestSaveCloze:
                 1, "She finally gave up sugar.", [3], ClozeHintKind.NONE, None,
             )
         self.cloze_repo.upsert_for_phrase.assert_not_called()
-        self.decide.execute.assert_not_called()
+        self.decide.press.assert_not_called()
 
     def test_save_dedupes_and_sorts_indices(self) -> None:
         self.use_case.execute(PHRASE_ID, GIVE_UP, [3, 2, 3], ClozeHintKind.NONE, None)

@@ -19,7 +19,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.domain.entities.ai_usage_record import AIUsageRecord
-from backend.domain.entities.anki_note import AnkiNote
 from backend.domain.entities.bootstrap_index_meta import BootstrapIndexMeta
 from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
 from backend.domain.entities.candidate_cloze import CandidateCloze
@@ -39,6 +38,7 @@ from backend.domain.entities.unknown_word import UnknownWord
 from backend.domain.entities.word_decision import WordDecision
 from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.built_analysis import WordData
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cefr_breakdown import (
     CAMBRIDGE,
     CEFRPY,
@@ -56,11 +56,7 @@ from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.frequency_band import FrequencyBand
 from backend.domain.value_objects.phrase import Phrase, Word
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
-from backend.domain.value_objects.phrase_origin_kind import (
-    DecisionKind,
-    OccurrenceOrigin,
-    ShownBy,
-)
+from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.source_eviction import SourceEviction
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
@@ -480,7 +476,7 @@ class PhraseModel(Base):
             "ux_phrases_decision",
             "candidate_id",
             unique=True,
-            sqlite_where=text("is_decision = 1"),
+            sqlite_where=text("choice IN ('learn', 'cloze', 'known')"),
         ),
         {"sqlite_autoincrement": True},
     )
@@ -502,9 +498,10 @@ class PhraseModel(Base):
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     shown_by: Mapped[str | None] = mapped_column(String(10), nullable=True)
     origin: Mapped[str] = mapped_column(String(10), nullable=False)
-    skipped: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="0")
-    is_decision: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="0")
-    decision_kind: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    choice: Mapped[str] = mapped_column(
+        String(10), nullable=False, default=CardChoice.NONE.value,
+        server_default=CardChoice.NONE.value,
+    )
     edited_by_user: Mapped[bool] = mapped_column(
         nullable=False, default=False, server_default="0",
     )
@@ -530,7 +527,7 @@ class PhraseModel(Base):
         return OccurrenceKey(block=self.block, line=self.line, char=self.char)
 
     def to_entity(self) -> Occurrence:
-        """The phrase WITHOUT results, export and job marks — the repository attaches them."""
+        """The phrase WITHOUT results, binding and job marks — the repository attaches them."""
         return Occurrence(
             id=self.id,
             candidate_id=self.candidate_id,
@@ -541,11 +538,7 @@ class PhraseModel(Base):
             fragment_score=self.fragment_score,
             revision=self.revision,
             shown_by=ShownBy(self.shown_by) if self.shown_by is not None else None,
-            skipped=self.skipped,
-            is_decision=self.is_decision,
-            decision_kind=(
-                DecisionKind(self.decision_kind) if self.decision_kind is not None else None
-            ),
+            choice=CardChoice(self.choice),
             edited_by_user=self.edited_by_user,
             replaces_selection=self.replaces_selection,
             polished_phrase=load_phrase(self.polished_phrase),
@@ -576,9 +569,7 @@ class PhraseModel(Base):
             revision=occurrence.revision,
             shown_by=occurrence.shown_by.value if occurrence.shown_by else None,
             origin=occurrence.origin.value,
-            skipped=occurrence.skipped,
-            is_decision=occurrence.is_decision,
-            decision_kind=occurrence.decision_kind.value if occurrence.decision_kind else None,
+            choice=occurrence.choice.value,
             edited_by_user=occurrence.edited_by_user,
             replaces_selection=occurrence.replaces_selection,
             collected_kind=(
@@ -600,19 +591,6 @@ class PhraseWordModel(Base):
         Integer, ForeignKey("phrases.id", ondelete="CASCADE"), primary_key=True,
     )
     lemma: Mapped[str] = mapped_column(String(100), primary_key=True)
-
-
-class AnkiNoteModel(Base):
-    """A note exported to Anki: one per note, whatever happens to its source."""
-
-    __tablename__ = "anki_notes"
-
-    note_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
-    lemma: Mapped[str] = mapped_column(String(100), nullable=False)
-    pos: Mapped[str | None] = mapped_column(String(10), nullable=True)
-
-    def to_entity(self) -> AnkiNote:
-        return AnkiNote(note_id=self.note_id, lemma=self.lemma, pos=self.pos)
 
 
 class DocumentParseModel(Base):
@@ -791,21 +769,35 @@ class SettingModel(Base):
 
 
 class AnkiSyncedCardModel(Base):
-    """SQLAlchemy model for tracking phrases successfully exported to Anki.
+    """The binding of a card to its Anki note: the only note table.
 
-    A word may have several rows (words merged from duplicates); the record outlives
-    its phrase (`phrase_id` becomes NULL)."""
+    A binding is active while `released_at` is NULL; release keeps the row as history. A row
+    is never deleted: it outlives its card and its word (both SET NULL), so a deleted
+    source's word stays learning by its lemma. A note may have several rows over time."""
 
     __tablename__ = "anki_synced_cards"
+    __table_args__ = (
+        Index(
+            "ux_anki_synced_cards_active",
+            "phrase_id",
+            unique=True,
+            sqlite_where=text("released_at IS NULL AND phrase_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    candidate_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, index=True,
+    candidate_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("candidates.id", ondelete="SET NULL"), nullable=True, index=True,
     )
     phrase_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("phrases.id", ondelete="SET NULL"), nullable=True, unique=True,
+        Integer, ForeignKey("phrases.id", ondelete="SET NULL"), nullable=True, index=True,
     )
     anki_note_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    lemma: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    pos: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    note_kind: Mapped[str] = mapped_column(String(10), nullable=False)
+    learning_since: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    released_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
 
 class CandidateMeaningModel(Base):
