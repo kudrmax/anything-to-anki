@@ -26,6 +26,7 @@ SECTION_ORDER: dict[CandidateSection, int] = {
     CandidateSection.READY: 0,
     CandidateSection.EXTRA: 1,
     CandidateSection.PROBABLY_KNOWN: 2,
+    CandidateSection.REVIEWED: 3,
 }
 
 

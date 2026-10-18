@@ -13,3 +13,4 @@ class CandidateSection(Enum):
     READY = "ready"
     EXTRA = "extra"
     PROBABLY_KNOWN = "probably_known"
+    REVIEWED = "reviewed"

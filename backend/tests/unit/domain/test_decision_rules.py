@@ -11,7 +11,6 @@ import contextlib
 import itertools
 from collections import defaultdict
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime, timedelta
 from functools import cache
 from typing import Literal
 
@@ -51,7 +50,6 @@ from backend.domain.services.decision_rules import (
     removal_key,
 )
 from backend.domain.value_objects.card_choice import (
-    CHOICE_OF_KIND,
     CHOICE_OF_PRESS,
     Actor,
     Binding,
@@ -67,18 +65,22 @@ from backend.domain.value_objects.card_choice import (
     export_kind,
     status_of,
 )
-from backend.domain.value_objects.elsewhere import ElsewhereStatus
-from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER_DAYS, timer_due
-from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
+from backend.domain.value_objects.learning_timer import timer_due
 from backend.domain.value_objects.word_status import WordStatus
 
-NOW = datetime(2026, 10, 18, 12, tzinfo=UTC)
-DUE = NOW - timedelta(days=LEARNING_KNOWN_AFTER_DAYS)
-FRESH = NOW - timedelta(days=LEARNING_KNOWN_AFTER_DAYS - 1)
-LEMMA = "procrastinate"
-ACTED = 1
-SIBLING = 2
-NEW_CARD = 99
+from tests.decision_worlds import (
+    ACTED,
+    DUE,
+    FRESH,
+    LEMMA,
+    NEW_CARD,
+    NOW,
+    World,
+    holds_ak,
+    single,
+    well_formed,
+    worlds,
+)
 
 N, L, C, K, S = (
     CardChoice.NONE, CardChoice.LEARN, CardChoice.CLOZE, CardChoice.KNOWN, CardChoice.SKIP,
@@ -100,113 +102,6 @@ def _same(*extra: Effect) -> frozenset[Effect]:
     return SAME | frozenset(extra)
 
 
-# --- worlds -----------------------------------------------------------------------------
-
-
-def _single(word_id: int, choice: CardChoice, binding: Binding | None = None) -> WordState:
-    return WordState(word_id, LEMMA, "verb", word_id, (CardState(word_id * 10, choice, binding),))
-
-
-BINDINGS = (None, *(Binding(kind, since) for kind in NoteKind for since in (FRESH, DUE)))
-SIBLINGS = (
-    None,
-    *(CardState(SIBLING, choice, binding) for choice in CardChoice for binding in BINDINGS),
-)
-OTHER_SOURCES: tuple[tuple[WordState, ...], ...] = (
-    (),
-    (_single(2, K),),
-    (_single(3, L),),
-    (_single(4, L, Binding(NoteKind.LEARN, FRESH)),),
-    (_single(5, C, Binding(NoteKind.CLOZE, DUE)),),
-    (_single(6, K, Binding(NoteKind.LEARN, DUE)), _single(7, S)),
-)
-ORPHANS: tuple[tuple[BindingRef, ...], ...] = (
-    (), (BindingRef(501, DUE),), (BindingRef(502, FRESH),),
-)
-
-
-@dataclass(frozen=True)
-class World:
-    word: WordState
-    others: tuple[WordState, ...]
-    orphans: tuple[BindingRef, ...]
-    known_marked: bool
-    unknown: bool
-
-    @property
-    def words(self) -> tuple[WordState, ...]:
-        return (self.word, *self.others)
-
-    def knowledge(self) -> LemmaKnowledge:
-        since = tuple(
-            card.binding.learning_since
-            for word in self.words for card in word.cards if card.binding is not None
-        ) + tuple(ref.learning_since for ref in self.orphans)
-        return LemmaKnowledge.at(
-            NOW, known_marked=self.known_marked, unknown=self.unknown,
-            learn_anywhere=any(decision_status(w) is DecisionStatus.LEARN for w in self.words),
-            active_since=since,
-        )
-
-    def elsewhere(self) -> ElsewhereStatus | None:
-        knowledge = self.knowledge()
-        if knowledge.is_known:
-            return ElsewhereStatus.KNOWN
-        if knowledge.is_learning:
-            return ElsewhereStatus.LEARNING
-        if knowledge.is_learn:
-            return ElsewhereStatus.LEARN
-        return None
-
-    def replacing(self, *words: WordState) -> World:
-        by_id = {w.word_id: w for w in words}
-        return replace(
-            self, word=by_id.get(self.word.word_id, self.word),
-            others=tuple(by_id.get(w.word_id, w) for w in self.others),
-        )
-
-
-def _well_formed(word: WordState) -> bool:
-    """One decision card at most; A1 and A2."""
-    decisions = [card for card in word.cards if card.is_decision]
-    bound = [card for card in word.cards if card.binding is not None]
-    return len(decisions) <= 1 and all(_a1(card) for card in bound)
-
-
-def _a1(card: CardState) -> bool:
-    assert card.binding is not None
-    return card.is_decision and card.choice in {CHOICE_OF_KIND[card.binding.note_kind], K}
-
-
-def _ak(world: World) -> bool:
-    known_cards = [
-        card for word in world.words for card in word.cards if card.choice is K
-    ]
-    return world.known_marked or not known_cards
-
-
-def _valid(world: World) -> bool:
-    known_choice = any(card.choice is K for word in world.words for card in word.cards)
-    return (
-        all(_well_formed(word) for word in world.words)
-        and _ak(world)
-        and not (world.unknown and (world.known_marked or known_choice))
-    )
-
-
-@cache
-def worlds() -> tuple[World, ...]:
-    built = []
-    for choice, binding, sibling, others, orphans, known_marked, unknown in itertools.product(
-        CardChoice, BINDINGS, SIBLINGS, OTHER_SOURCES, ORPHANS, (False, True), (False, True),
-    ):
-        cards = (CardState(ACTED, choice, binding), *(() if sibling is None else (sibling,)))
-        world = World(
-            WordState(1, LEMMA, "verb", 1, cards), others, orphans, known_marked, unknown,
-        )
-        if _valid(world):
-            built.append(world)
-    return tuple(built)
 
 
 def _press(world: World, button: Press) -> WordOutcome:
@@ -248,8 +143,8 @@ def _assert_ar(world: World) -> None:
 def _assert_invariants(before: World, outcome: WordOutcome) -> None:
     assert outcome.status.after is status_of(outcome.word, before.knowledge(), NOW)
     after = _settle(before, outcome)
-    assert all(_well_formed(word) for word in after.words), "A1/A2"
-    assert _ak(after), "AK"
+    assert all(well_formed(word) for word in after.words), "A1/A2"
+    assert holds_ak(after), "AK"
     if Effect.REMOVE_KNOWN in outcome.effects:
         _assert_ar(after)
 
@@ -413,15 +308,15 @@ class TestKnownRemovalAfterAPress:
         return World(
             WordState(1, LEMMA, "verb", 1, (acted,)),
             (
-                _single(2, K),                                        # explicit Known
-                _single(3, L, Binding(NoteKind.LEARN, FRESH)),         # list-Known if marked
-                _single(4, C, Binding(NoteKind.CLOZE, DUE)),           # timer-Known
-                _single(5, L),                                        # Learn, not exported
-                _single(6, S),                                        # no decision
+                single(2, K),                                        # explicit Known
+                single(3, L, Binding(NoteKind.LEARN, FRESH)),         # list-Known if marked
+                single(4, C, Binding(NoteKind.CLOZE, DUE)),           # timer-Known
+                single(5, L),                                        # Learn, not exported
+                single(6, S),                                        # no decision
             ) if known_marked else (
-                _single(3, L, Binding(NoteKind.LEARN, FRESH)),         # Learning, timer runs
-                _single(4, C, Binding(NoteKind.CLOZE, DUE)),           # timer-Known
-                _single(5, L),
+                single(3, L, Binding(NoteKind.LEARN, FRESH)),         # Learning, timer runs
+                single(4, C, Binding(NoteKind.CLOZE, DUE)),           # timer-Known
+                single(5, L),
             ),
             (BindingRef(501, DUE), BindingRef(502, FRESH)),
             known_marked, False,
@@ -670,7 +565,7 @@ class TestRemovalRows:
                 o.binding_id for o in world.orphans if timer_due(o.learning_since, NOW)
             )
             after = _cascade(world)
-            assert all(_well_formed(word) for word in after.words)
+            assert all(well_formed(word) for word in after.words)
             _assert_ar(after)
 
     def test_the_cascade_does_not_chain(self) -> None:
