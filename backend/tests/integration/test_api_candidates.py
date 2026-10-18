@@ -21,14 +21,24 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
 from fastapi.testclient import TestClient
-from sqlalchemy import StaticPool, create_engine
+from sqlalchemy import StaticPool, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
-from tests.word_support import PHRASE_ID_OFFSET, CardSeed, store_cards
+from tests.word_support import (
+    PHRASE_ID_OFFSET,
+    CardSeed,
+    bind,
+    insert_word,
+    phrase_id_of,
+    store_cards,
+)
 
 WORD_ID = 1
 PHRASE_ID = PHRASE_ID_OFFSET + 1
+OTHER_SOURCE = 2
+OTHER_WORD = 50
 
 
 @pytest.fixture()
@@ -211,6 +221,32 @@ class TestCardReportsAPI:
         assert reported() is False
         client.post(f"/phrases/{PHRASE_ID}/report", json={"comment": "x"})
         assert reported() is True
+
+    def test_marking_a_word_unknown_makes_its_known_cards_new_everywhere(
+        self, client: TestClient,
+    ) -> None:
+        """§2.7 (a): the Unknown of a report removes Known as any removal does."""
+        session = next(app.dependency_overrides[get_db_session]())
+        insert_source(session, OTHER_SOURCE)
+        insert_word(session, OTHER_WORD, source_id=OTHER_SOURCE, lemma="pursuit", status="known")
+        bind(session, OTHER_WORD, phrase_id_of(OTHER_WORD))
+        SqlaKnownWordRepository(session).add("pursuit", "NOUN")
+        session.commit()
+
+        response = client.post(
+            f"/phrases/{PHRASE_ID}/report",
+            json={"reasons": ["More than one unknown word"], "unknown_words": [1]},
+        )
+
+        assert response.status_code == 201
+        session = next(app.dependency_overrides[get_db_session]())
+        rows = session.execute(text(
+            "SELECT c.status, p.choice, a.released_at IS NOT NULL FROM candidates c"
+            " JOIN phrases p ON p.candidate_id = c.id"
+            " JOIN anki_synced_cards a ON a.phrase_id = p.id WHERE c.id = :id"
+        ), {"id": OTHER_WORD}).all()
+        assert [tuple(row) for row in rows] == [("pending", "none", 1)]
+        assert all(w["lemma"] != "pursuit" for w in client.get("/known-words").json())
 
     def test_reasons(self, client: TestClient) -> None:
         reasons = client.get("/api/card-reports/reasons").json()

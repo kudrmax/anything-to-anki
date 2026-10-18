@@ -27,6 +27,7 @@ from tests.source_rebuild_support import (
     word,
 )
 from tests.vocabulary_support import user_vocabulary
+from tests.word_support import bind
 
 if TYPE_CHECKING:
     from backend.application.dto.analysis_dtos import AnalyzeTextRequest
@@ -78,6 +79,23 @@ def test_the_analysis_takes_words_learned_elsewhere_but_not_here_out(bench: Benc
 
     request: AnalyzeTextRequest = bench.analyze_text.execute.call_args.args[1]
     assert request.vocabulary.learning == {"glare", "wander"}
+
+
+def test_a_word_exported_from_here_stays_a_candidate(bench: Bench) -> None:
+    """Chosen to learn here, in Anki or not: Learning words stay this source's candidates."""
+    bench.processed(word("glare", at(0)), word("linger", at(3)))
+    linger = bench.phrase_on("linger", 3)
+    bench.decide_learn("linger", linger.id)
+    bind(bench.session, linger.candidate_id, linger.id)
+    bench.session.commit()
+    bench.vocabulary = user_vocabulary(learning_lemmas={"linger", "wander"})
+
+    bench.rebuild().execute(SOURCE, include_open=False)
+
+    request: AnalyzeTextRequest = bench.analyze_text.execute.call_args.args[1]
+    assert request.vocabulary.learning == {"wander"}
+    [kept] = [w for w in bench.occurrences.word_rows(SOURCE) if w.lemma == "linger"]
+    assert kept.status is WordStatus.LEARNING
 
 
 def test_a_word_lost_without_a_decision_goes(bench: Bench) -> None:
