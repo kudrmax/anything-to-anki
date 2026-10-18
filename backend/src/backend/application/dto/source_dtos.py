@@ -471,7 +471,7 @@ def _tts_dto(tts: CandidateTTS | None, job: Job | None) -> CandidateTTSDTO | Non
 
 
 def _cloze_action(state: CardStateDTO) -> DecisionAction | None:
-    return next(b.action for b in state.buttons if b.button is DecisionButton.CLOZE)
+    return next((b.action for b in state.buttons if b.button is DecisionButton.CLOZE), None)
 
 
 def _cloze_dto(card: ReviewCard) -> CandidateClozeDTO | None:

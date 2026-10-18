@@ -137,15 +137,19 @@ class SyncToAnkiUseCase:
         cloze_target = _NoteTarget(settings.cloze_note_type, fields.target)
 
         tally = _Tally()
-        for card, cloze in plan:
-            target = recognition_target if cloze is None else cloze_target
-            try:
-                note = recognition.build(card) if cloze is None else cloze_notes.build(card, cloze)
-                self._add(deck_name, target, card, note, tally)
-            except AnkiNotAvailableError:
-                raise
-            except Exception as exc:  # noqa: BLE001
-                self._handle_failure(deck_name, target, card, exc, tally)
+        with self._effects.batch():
+            for card, cloze in plan:
+                target = recognition_target if cloze is None else cloze_target
+                try:
+                    note = (
+                        recognition.build(card) if cloze is None
+                        else cloze_notes.build(card, cloze)
+                    )
+                    self._add(deck_name, target, card, note, tally)
+                except AnkiNotAvailableError:
+                    raise
+                except Exception as exc:  # noqa: BLE001
+                    self._handle_failure(deck_name, target, card, exc, tally)
 
         logger.info(
             "sync_to_anki: done (%s, deck=%s, added=%d, skipped=%d, errors=%d)",

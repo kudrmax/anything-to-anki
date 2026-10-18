@@ -126,8 +126,7 @@ def _cascade(world: World) -> World:
 
 def _cascade_besides(world: World, acting: int) -> World:
     """The cascade after a press: the acting word's outcome is the press itself."""
-    others = tuple(word for word in world.words if word.word_id != acting)
-    removal = on_known_removed(world.knowledge(), others, world.orphans, NOW)
+    removal = on_known_removed(world.knowledge(), world.words, world.orphans, NOW, acting)
     after = world.replacing(*(outcome.word for outcome in removal.words))
     return replace(
         after, known_marked=False,
@@ -587,6 +586,16 @@ class TestRemovalRows:
             after = _cascade(world)
             assert all(well_formed(word) for word in after.words)
             _assert_ar(after)
+
+    def test_the_acting_word_is_left_to_its_press(self) -> None:
+        """Q15: a word pressed Learn on a listed lemma reads Known before the forget; its
+        own cascade must not revoke it."""
+        acting = single(1, L)
+        world = World(acting, (single(2, K),), (), True, False)
+        removal = on_known_removed(world.knowledge(), world.words, (), NOW, acting.word_id)
+        assert [o.word.word_id for o in removal.words] == [2]
+        everyone = on_known_removed(world.knowledge(), world.words, (), NOW)
+        assert sorted(o.word.word_id for o in everyone.words) == [1, 2]
 
     def test_the_cascade_does_not_chain(self) -> None:
         for world in worlds():

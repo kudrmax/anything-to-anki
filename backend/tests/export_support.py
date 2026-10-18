@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
     from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
+    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.candidate_cloze import CandidateCloze
     from backend.domain.entities.candidate_meaning import CandidateMeaning
     from backend.domain.entities.candidate_media import CandidateMedia
@@ -131,8 +132,9 @@ class ExportCards(WordStateRepository, AnkiSyncRepository):
         settings_repo: SettingsRepository,
         template_renderer: AnkiTemplateRenderer,
         scope_resolver: SourceScopeResolver,
+        vocabulary: UserVocabulary | None = None,
     ) -> SyncToAnkiUseCase:
-        vocabulary = user_vocabulary()
+        vocabulary = vocabulary or user_vocabulary()
         return SyncToAnkiUseCase(
             export_queue=ExportQueue(self.words, self, self, vocabulary),  # type: ignore[arg-type]
             anki_connector=connector,

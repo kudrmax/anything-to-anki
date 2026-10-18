@@ -469,7 +469,8 @@ def _set_decisions(conn: sa.Connection, winners: list[_Card], now: datetime) -> 
         conn.execute(
             sa.text(
                 "UPDATE anki_synced_cards SET released_at = :now"
-                " WHERE candidate_id = :word AND phrase_id IS NOT :active"
+                " WHERE candidate_id = :word"
+                " AND (phrase_id IS NULL OR phrase_id IS NOT :active)"
             ).bindparams(sa.bindparam("now", type_=sa.DateTime())),
             {"now": now, "word": winner.id, "active": active_phrase},
         )
@@ -667,7 +668,9 @@ def _rebuild_anki_synced_cards(now: datetime) -> None:
     op.rename_table("_anki_synced_cards_by_phrase", "anki_synced_cards")
     op.create_index("ix_anki_synced_cards_candidate_id", "anki_synced_cards", ["candidate_id"])
     op.create_index("ix_anki_synced_cards_phrase_id", "anki_synced_cards", ["phrase_id"])
-    op.create_index("ix_anki_synced_cards_lemma", "anki_synced_cards", ["lemma"])
+    op.create_index(
+        "ix_anki_synced_cards_lemma", "anki_synced_cards", [sa.text("lower(lemma)")],
+    )
     op.create_index(
         "ux_anki_synced_cards_active", "anki_synced_cards", ["phrase_id"],
         unique=True, sqlite_where=sa.text("released_at IS NULL AND phrase_id IS NOT NULL"),

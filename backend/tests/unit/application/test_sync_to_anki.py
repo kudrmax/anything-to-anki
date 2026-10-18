@@ -25,6 +25,7 @@ from tests.phrase_support import phrase
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.unit.application.source_fakes import InMemorySourceRepository
+from tests.vocabulary_support import user_vocabulary
 from tests.word_support import phrase_id_of
 
 
@@ -675,3 +676,40 @@ class TestSyncWhenAnkiIsOffline:
 
         assert result.added == 1
         assert self.cards.bound_notes() == [(12345, "burnout", "NOUN")]
+
+
+@pytest.mark.unit
+class TestSyncInOneBatch:
+    """An export reads what the user knows a fixed number of times and refreshes each
+    source and the lemmas once, however many cards it binds."""
+
+    CARDS = 200
+
+    def test_a_big_export_reads_the_knowledge_and_refreshes_once(self) -> None:
+        cards = ExportCards()
+        cards.put([
+            _make_candidate(i, f"word{i}", WordStatus.LEARN, meaning="m", source_id=1 + i % 2)
+            for i in range(1, self.CARDS + 1)
+        ])
+        known = MagicMock()
+        known.get_all_pairs.return_value = set()
+        connector = MagicMock()
+        connector.is_available.return_value = True
+        connector.get_model_field_names.return_value = _EveryField()
+        connector.add_notes.return_value = [12345]
+        settings = MagicMock()
+        settings.get.return_value = None
+        renderer = MagicMock()
+        renderer.render_recognition.return_value = NoteTemplates("F", "B", "")
+        use_case = cards.sync(
+            connector, settings, renderer, empty_scope_resolver(), user_vocabulary(known),
+        )
+
+        result = use_case.execute_scope(SourceScope.all(), ExportGroup.READY)
+
+        assert result.added == self.CARDS
+        assert len(cards.bindings) == self.CARDS
+        assert known.get_all_pairs.call_count <= 2  # noqa: PLR2004 — before, and once after
+        assert sorted(c.args[0] for c in cards.review_status.refresh.call_args_list) == [1, 2]
+        [lemmas] = [c.args[0] for c in cards.review_status.refresh_showing.call_args_list]
+        assert len(lemmas) == self.CARDS

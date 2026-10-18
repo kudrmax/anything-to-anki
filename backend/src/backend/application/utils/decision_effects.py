@@ -1,6 +1,9 @@
 """What follows a row of the decision tables (design §2.8): the writes and the refreshes."""
 from __future__ import annotations
 
+from collections.abc import Iterator  # noqa: TC003 — used at runtime by @contextmanager
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from backend.application.utils.source_free import ensure_source_free
@@ -46,6 +49,14 @@ class _Applied:
         return self.before.lemma
 
 
+@dataclass
+class _Pending:
+    """What a batch still has to refresh."""
+
+    sources: set[int] = field(default_factory=set)
+    lemmas: set[str] = field(default_factory=set)
+
+
 class DecisionEffects:
     """Applies a WordOutcome: stores the choices and the decision status, then runs each of
     its effects. REMOVE_KNOWN runs the Known removal (§2.7) over every other word of the
@@ -67,6 +78,7 @@ class DecisionEffects:
         self._anki_sync = anki_sync
         self._review_status = review_status
         self._lock = lock
+        self._pending: _Pending | None = None
         self._handlers: Mapping[Effect, Callable[[_Applied], None]] = {
             Effect.RELEASE: self._release,
             Effect.BIND: self._bind,
@@ -92,10 +104,31 @@ class DecisionEffects:
         `knowledge_before`: what the lemma was before the removal."""
         self._cascade(lemma, knowledge_before, acting_word)
 
+    @contextmanager
+    def batch(self) -> Iterator[None]:
+        """Many outcomes in one go (an export): the refreshes they ask for run once per
+        source and once for all lemmas at the end, and the knowledge is read anew once.
+        Inside it, the snapshot stays as it was: an export changes no reads_known of the
+        cards it binds (none is listed Known, and their timers start now)."""
+        self._pending = _Pending()
+        try:
+            yield
+        finally:
+            pending, self._pending = self._pending, None
+        self._vocabulary.scope.invalidate()
+        for source_id in sorted(pending.sources):
+            self._review_status.refresh(source_id)
+        if pending.lemmas:
+            self._review_status.refresh_showing(pending.lemmas)
+
+    def _invalidate(self) -> None:
+        if self._pending is None:
+            self._vocabulary.scope.invalidate()
+
     def _apply(self, applied: _Applied) -> None:
         self._words.save(applied.after)
         # A decision status is knowledge too: a Learn waits for export in every source.
-        self._vocabulary.scope.invalidate()
+        self._invalidate()
         for effect in _ORDER:
             if effect in applied.outcome.effects:
                 self._handlers[effect](applied)
@@ -108,7 +141,7 @@ class DecisionEffects:
             if card.binding is not None and applied.after.card(card.card_id).binding is None
         ]
         self._anki_sync.release(released, self._vocabulary.scope.now)
-        self._vocabulary.scope.invalidate()
+        self._invalidate()
 
     def _bind(self, applied: _Applied) -> None:
         assert applied.note_id is not None, "an export binds the note it made or found"
@@ -122,7 +155,7 @@ class DecisionEffects:
                 lemma=applied.lemma, pos=applied.after.pos, note_kind=binding.note_kind,
                 learning_since=binding.learning_since,
             ))
-        self._vocabulary.scope.invalidate()
+        self._invalidate()
 
     def _mark_known(self, applied: _Applied) -> None:
         self._vocabulary.mark_known(applied.lemma, applied.after.pos)
@@ -146,9 +179,15 @@ class DecisionEffects:
         self._cascade(applied.lemma, applied.knowledge_before, applied.before.word_id)
 
     def _refresh_source(self, applied: _Applied) -> None:
+        if self._pending is not None:
+            self._pending.sources.add(applied.after.source_id)
+            return
         self._review_status.refresh(applied.after.source_id)
 
     def _refresh_lemma(self, applied: _Applied) -> None:
+        if self._pending is not None:
+            self._pending.lemmas.add(applied.lemma.lower())
+            return
         self._review_status.refresh_showing({applied.lemma.lower()})
 
     # ── Known removal (§2.7) ───────────────────────────────────────────
@@ -158,15 +197,16 @@ class DecisionEffects:
     ) -> None:
         """The acting word's own outcome is its press: the cascade reads the others, on the
         snapshot taken before Known was forgotten."""
-        others = [word for word in self._words.of_lemma(lemma) if word.word_id != acting_word]
-        for source_id in sorted({word.source_id for word in others}):
+        words = self._words.of_lemma(lemma)
+        others = {word.source_id for word in words if word.word_id != acting_word}
+        for source_id in sorted(others):
             ensure_source_free(self._lock, source_id)
         self._vocabulary.forget_every_pos(lemma)
         scope = self._vocabulary.scope
         removal = on_known_removed(
-            knowledge_before, others, self._anki_sync.orphans(lemma), scope.now,
+            knowledge_before, words, self._anki_sync.orphans(lemma), scope.now, acting_word,
         )
-        by_id = {word.word_id: word for word in others}
+        by_id = {word.word_id: word for word in words}
         for outcome in removal.words:
             self._apply(_Applied(
                 by_id[outcome.word.word_id], outcome, None, knowledge_before, None,

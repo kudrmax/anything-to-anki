@@ -783,6 +783,8 @@ class AnkiSyncedCardModel(Base):
             unique=True,
             sqlite_where=text("released_at IS NULL AND phrase_id IS NOT NULL"),
         ),
+        # Lemmas are matched in lowercase: Known removal and the knowledge snapshot.
+        Index("ix_anki_synced_cards_lemma", text("lower(lemma)")),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -793,7 +795,7 @@ class AnkiSyncedCardModel(Base):
         Integer, ForeignKey("phrases.id", ondelete="SET NULL"), nullable=True, index=True,
     )
     anki_note_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    lemma: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    lemma: Mapped[str] = mapped_column(String(100), nullable=False)
     pos: Mapped[str | None] = mapped_column(String(10), nullable=True)
     note_kind: Mapped[str] = mapped_column(String(10), nullable=False)
     learning_since: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)

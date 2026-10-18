@@ -52,8 +52,9 @@
 ### Статусы слова
 
 - `decision_status` (хранится в `candidates.status`, без времени): нет карточки решения → NEW · KNOWN → KNOWN · LEARN / CLOZE: активная привязка → LEARNING, иначе LEARN.
-- `status_of` (что видят все читатели) = `decision_status`, кроме LEARNING, у которой карточка «читается Known» → KNOWN.
-- `reads_known(card)`: лемма не в Unknown и (лемма в `known_words` или прошло `LEARNING_KNOWN_AFTER_DAYS = 30` дней от `learning_since` **своей** привязки).
+- `status_of` (что видят все читатели) = `decision_status`, кроме LEARN и LEARNING, у которых карточка «читается Known» → KNOWN.
+- `reads_known(card)` — у карточки LEARN / CLOZE: лемма не в Unknown и (лемма в `known_words` или карточка в Anki и прошло `LEARNING_KNOWN_AFTER_DAYS = 30` дней от `learning_since` **своей** привязки). Список действует и на Learn, ещё не экспортированный (Q15, «позднее действие побеждает»): лемму добавили в Known после Learn — карточка читается Known, разобрана и уходит из очереди экспорта.
+- Статус сразу после нажатия на карточке решения или открытой карточке — выбранное решение как есть (`chosen_status`), без списков и таймеров: нажатие — последнее слово пользователя. Learn на карточке, которая читалась Known, снимает Known.
 - Learning → Known **только по таймеру**: через 30 дней после экспорта. Вывод при чтении, без фоновой задачи и без записи. Unknown маскирует таймер.
 - Learn до экспорта — глобальный статус, как Learning и Known (Q12).
 
@@ -136,7 +137,7 @@ SyncToAnki создаёт заметку или находит существу�
 2. По снимку **до** шага 1: у каждого слова леммы во всех источниках, чья карточка решения читается Known (явный KNOWN, или привязанный LEARN / CLOZE, Known по списку или своему таймеру) — выбор → NONE, активная привязка → release, KNOWN → NEW.
 3. Release осиротевших активных привязок леммы, у которых таймер прошёл.
 
-Карточки LEARNING, которые не читаются Known, не трогаются.
+Карточки LEARNING, которые не читаются Known, не трогаются. Слово, нажатие на котором сняло Known, каскад не трогает: его исход — само нажатие.
 
 ### Эффекты — функция перехода
 
@@ -276,7 +277,7 @@ SyncToAnki создаёт заметку или находит существу�
 | `candidates` (слово) | уникальность `(source_id, lower(lemma), is_phrasal_verb)`; `status` = `decision_status` (new / learn / learning / known); фразовые колонки уходят в `phrases`; дубли слов сливаются в миграции |
 | `phrases` | новая, `sqlite_autoincrement`: `candidate_id` (CASCADE), `block`, `line`, `char` (ключ; **один** частичный уникальный индекс `(candidate_id, block, line, char) WHERE origin = 'auto'`), `source_phrase`, `phrase_position`, `polished_phrase`, `polish_reverted`, `fragment_score`, `revision`, `shown_by`, `origin`, `choice` (+ частичный уникальный индекс решения), `edited_by_user`, `replaces_selection`, `created_at` |
 | `phrase_words` | новая: `lemma`, `phrase_id` — индекс для пересчёта разделов по лемме; переписывается одной операцией репозитория «записать текст фразы» при любой его смене |
-| `anki_synced_cards` | + `phrase_id` (SET NULL, уникальность), `candidate_id` → nullable SET NULL; + `lemma`, `pos`, `note_kind`, `learning_since` NOT NULL, `released_at`; строки не удаляются |
+| `anki_synced_cards` | + `phrase_id` (SET NULL; частичный уникальный индекс `(phrase_id) WHERE released_at IS NULL AND phrase_id IS NOT NULL` — не больше одной активной привязки на карточку, а повторный экспорт той же карточки добавляет новую строку), `candidate_id` → nullable SET NULL; + `lemma` (индекс по `lower(lemma)`), `pos`, `note_kind`, `learning_since` NOT NULL, `released_at`; строки не удаляются |
 | `candidate_meanings`, `candidate_media`, `candidate_tts`, `candidate_clozes` | ключ → `phrase_id` |
 | `candidate_pronunciations` | + `ipa` из `candidate_meanings` |
 | `candidate_meaning_images` | без изменений (картинка — свойство слова) |
@@ -314,7 +315,7 @@ SyncToAnki создаёт заметку или находит существу�
 - `env.py` без `PRAGMA foreign_keys` — assert в миграции.
 - Индексы-выражения (`lower(lemma)`) и частичные (`sqlite_where`) создаются `op.create_index` **после** всех batch-операций (рефлексия SQLite их теряет) и объявлены в ORM-моделях; тест: в `sqlite_master.sql` есть `WHERE` и `lower(`.
 - Номер и `down_revision` сверить на всех ветках (два разных `0048_*`).
-- Тест на копии prod-базы — полный список проверок в дизайне (§4.1): фраз = карточек; строк `anki_synced_cards` столько же, `phrase_id` не NULL, `lemma`/`pos` = слово; ≤1 решение на слово; `candidates.status = decision_status`; активные строки только у KNOWN-карточек; `known_words`, `unknown_words`, `candidate_clozes`, калибровка не изменились; разбивка старых LEARN / KNOWN / SKIP по строкам отображения с исключениями по id; после миграции нет LEARNING и Known по таймеру; очередь экспорта = старые неэкспортированные LEARN.
+- Тест на копии prod-базы — полный список проверок в дизайне (§4.1): фраз = карточек; строк `anki_synced_cards` столько же, `phrase_id` не NULL, `lemma`/`pos` = слово; ≤1 решение на слово; `candidates.status = decision_status`; активные строки только у KNOWN-карточек; `known_words`, `unknown_words`, `candidate_clozes`, калибровка не изменились; разбивка старых LEARN / KNOWN / SKIP по строкам отображения с исключениями по id; после миграции нет LEARNING и Known по таймеру; очередь экспорта = старые неэкспортированные LEARN, кроме тех, чья лемма в Known (Q15: они читаются Known, перечисляются отдельно).
 
 ## Тесты, которые обязательны
 

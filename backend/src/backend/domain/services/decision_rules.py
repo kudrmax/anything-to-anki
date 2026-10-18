@@ -581,11 +581,15 @@ ORPHAN_RULES: Mapping[bool, OrphanTarget] = MappingProxyType(
 
 def on_known_removed(
     lemma: LemmaKnowledge, words: Sequence[WordState], orphans: Iterable[BindingRef],
-    now: datetime,
+    now: datetime, acting_word: int | None = None,
 ) -> KnownRemoval:
     """`lemma` is the snapshot taken before Known was forgotten; `words` are every word of
-    the lemma in every source."""
-    ruled = ((word, rule(REMOVAL_RULES, removal_key(word, lemma, now))) for word in words)
+    the lemma in every source. `acting_word`: the word whose press removed Known; its
+    outcome is that press, so the removal leaves it alone."""
+    ruled = (
+        (word, rule(REMOVAL_RULES, removal_key(word, lemma, now)))
+        for word in words if word.word_id != acting_word
+    )
     return KnownRemoval(
         words=tuple(
             _revoked(word, target, lemma, now) for word, target in ruled if target.revoke
