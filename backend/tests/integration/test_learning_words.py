@@ -1,11 +1,13 @@
 """Learn → learning: words waiting for export and words exported to Anki, in a real database."""
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import pytest
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
 from backend.application.utils.export_queue import ExportQueue
+from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
@@ -19,7 +21,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from sqlalchemy import text
 
-from tests.decision_support import Decisions
+from tests.decision_support import NOW, Decisions
 from tests.phrase_support import phrase
 from tests.word_support import CREATED_AT, bind, insert_word, phrase_id_of
 
@@ -112,10 +114,22 @@ def test_the_learning_list_tells_words_in_anki_from_words_waiting(bench: Bench) 
     insert_word(bench.session, 3, lemma="wander", status=WordStatus.LEARN.value)
     bench.known.add("wander", None)
 
-    learning = GetLearningWordsUseCase(bench.vocabulary, bench.learning).execute()
+    learning = GetLearningWordsUseCase(bench.vocabulary).execute()
 
-    assert learning.in_anki == ["glare"]
+    assert [(word.lemma, word.known_on) for word in learning.in_anki] == [
+        ("glare", NOW - timedelta(days=1) + LEARNING_KNOWN_AFTER),
+    ]
     assert learning.awaiting_export == ["linger"]
+
+
+def test_the_learning_list_leaves_out_a_word_known_by_its_timer(bench: Bench) -> None:
+    insert_word(bench.session, 1, lemma="glare", status=WordStatus.LEARN.value)
+    bind(bench.session, 1, phrase_id_of(1), note_id=NOTE, since="2026-09-01 00:00:00")
+
+    learning = GetLearningWordsUseCase(bench.vocabulary).execute()
+
+    assert learning.in_anki == []
+    assert learning.awaiting_export == []
 
 
 def test_every_active_binding_is_in_anki_and_a_released_one_is_not(bench: Bench) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime  # noqa: TC003 — Pydantic
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
@@ -89,10 +90,17 @@ class SyncResultDTO(BaseModel):
     error_lemmas: list[str] = []
 
 
+class InAnkiWordDTO(BaseModel):
+    """A word the user learns in Anki, and when its 30 days there make it Known."""
+
+    lemma: str
+    known_on: datetime
+
+
 class LearningWordsDTO(BaseModel):
     """The words the user is learning: words exported to Anki, Learn not yet exported."""
 
-    in_anki: list[str]
+    in_anki: list[InAnkiWordDTO]
     awaiting_export: list[str]
 
 

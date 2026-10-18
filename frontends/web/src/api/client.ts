@@ -158,6 +158,8 @@ export const api = {
 
   deleteKnownWord: (id: number) =>
     req<{ deleted: number }>(`/known-words/${id}`, { method: 'DELETE' }),
+  deleteTimerKnownWord: (lemma: string) =>
+    req<{ deleted: string }>(`/known-words/by-lemma/${encodeURIComponent(lemma)}`, { method: 'DELETE' }),
 
   getUnknownWords: () => req<UnknownWord[]>('/unknown-words'),
 

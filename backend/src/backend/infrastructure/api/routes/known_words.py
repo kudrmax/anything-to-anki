@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.known_word_dtos import KnownWordDTO  # noqa: TC001
+from backend.domain.exceptions import SourceOperationBusyError
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
 if TYPE_CHECKING:
@@ -34,3 +35,18 @@ def delete_known_word(
     use_case.delete(known_word_id)
     session.commit()
     return {"deleted": known_word_id}
+
+
+@router.delete("/by-lemma/{lemma}")
+def delete_timer_known_word(
+    lemma: str,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, str]:
+    """A word Known by its 30 days in Anki leaves Known; its cards turn new everywhere."""
+    try:
+        container.manage_known_words_use_case(session).delete_timer_known(lemma)
+    except SourceOperationBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    session.commit()
+    return {"deleted": lemma}

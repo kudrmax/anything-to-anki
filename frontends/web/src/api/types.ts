@@ -433,9 +433,15 @@ export interface SyncResult {
   error_lemmas: string[]
 }
 
+/** Слово в Anki и день, когда оно станет Known. */
+export interface InAnkiWord {
+  lemma: string
+  known_on: string
+}
+
 /** Слова «учу», только для просмотра: заметки в Anki и Learn, ещё не экспортированные. */
 export interface LearningWords {
-  in_anki: string[]
+  in_anki: InAnkiWord[]
   awaiting_export: string[]
 }
 
@@ -490,11 +496,13 @@ export interface UnknownWord {
   created_at: string
 }
 
+/** Слово из списка Known (есть id) или Known по 30 дням в Anki (by_timer, без id, удаляется по lemma). */
 export interface KnownWord {
-  id: number
+  id: number | null
   lemma: string
   pos: string | null
   created_at: string
+  by_timer: boolean
 }
 
 export interface Stats {

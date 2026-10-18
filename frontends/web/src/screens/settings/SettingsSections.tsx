@@ -4,10 +4,10 @@ import { GripVertical } from 'lucide-react'
 import type { FrequentWordThresholdOption, KnownWord, NoteTypeCheck, NoteTypeKind, Settings } from '@/api/types'
 import { CLOZE_DEFAULT_HINT_OPTIONS } from '@/lib/clozeHints'
 import { autoPlayAudioPref, type ThemePref } from '@/lib/preferences'
-import { formatBytes } from '@/lib/text/format'
+import { formatBytes, formatDay } from '@/lib/text/format'
 import { useTheme } from '@/lib/theme'
 import { Button, Chip, DividerRow, Empty, GroupLabel, Field, Icon, Label, Range, RemovableChip, Segmented, Select, Spinner, Stack, Switch, Text } from '@/ui'
-import type { SettingsStore, TemplatePart } from './useSettings'
+import { knownWordKey, unknownWordKey, type SettingsStore, type TemplatePart } from './useSettings'
 import css from './settings.module.css'
 
 const THEMES: { value: ThemePref; label: string }[] = [
@@ -340,19 +340,19 @@ export function Pictures({ store, form }: SectionProps) {
 const WORDS_PREVIEW = 60
 
 interface ListedWord {
-  id: number
+  key: string
   label: string
+  onRemove: () => void
 }
 
 interface WordListProps {
   words: ListedWord[]
   hint: string
   empty: string
-  deletingId: number | null
-  onRemove: (id: number) => void
+  deletingKey: string | null
 }
 
-function WordList({ words, hint, empty, deletingId, onRemove }: WordListProps) {
+function WordList({ words, hint, empty, deletingKey }: WordListProps) {
   const [query, setQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
   if (words.length === 0) return <Empty>{empty}</Empty>
@@ -372,10 +372,10 @@ function WordList({ words, hint, empty, deletingId, onRemove }: WordListProps) {
         <div className={css.words}>
           {shown.map(word => (
             <RemovableChip
-              key={word.id}
+              key={word.key}
               label={word.label}
-              disabled={deletingId === word.id}
-              onRemove={() => onRemove(word.id)}
+              disabled={deletingKey === word.key}
+              onRemove={word.onRemove}
             />
           ))}
         </div>
@@ -392,29 +392,36 @@ function WordList({ words, hint, empty, deletingId, onRemove }: WordListProps) {
 const KNOWN_WORDS_HINT = "Known words won't be suggested when processing new sources."
 const UNKNOWN_WORDS_HINT = 'Phrases with these words never count as ready: only their target should be new.'
 
-const knownWordLabel = (word: KnownWord): string => [word.lemma, word.pos].filter(Boolean).join(' · ')
+/** Пометка слова Known по таймеру: оно не в списке, а Known по 30 дням в Anki. */
+const TIMER_KNOWN_MARK = 'Known: 30 days in Anki'
+const knownWordLabel = (word: KnownWord): string =>
+  [word.lemma, word.pos, word.by_timer ? TIMER_KNOWN_MARK : null].filter(Boolean).join(' · ')
 
 export function KnownWords({ store }: { store: SettingsStore }) {
   return (
     <WordList
-      words={store.knownWords.map(word => ({ id: word.id, label: knownWordLabel(word) }))}
+      words={store.knownWords.map(word => ({
+        key: knownWordKey(word),
+        label: knownWordLabel(word),
+        onRemove: () => void store.deleteWord(word),
+      }))}
       hint={KNOWN_WORDS_HINT}
       empty={`No known words yet. ${KNOWN_WORDS_HINT}`}
-      deletingId={store.deletingId}
-      onRemove={id => void store.deleteWord(id)}
+      deletingKey={store.deletingKey}
     />
   )
 }
 
-const LEARNING_HINT = 'Words you are learning. They become known once Anki says you have learned them; until then they are not suggested as new.'
+const KNOWN_ON = 'Known on'
+const LEARNING_HINT = 'Words you are learning. A word in Anki becomes known on the day shown; until then they are not suggested as new.'
 
-/** «Учу» — только для просмотра: в Anki и ждут экспорта. */
+/** «Учу» — только для просмотра: в Anki (с днём, когда станет Known) и ждут экспорта. */
 export function LearningWordsList({ store }: { store: SettingsStore }) {
   const { in_anki: inAnki, awaiting_export: awaiting } = store.learningWords
   if (inAnki.length === 0 && awaiting.length === 0) return <Empty>Nothing to learn yet. Mark words as Learn in review.</Empty>
   const groups = [
-    { title: 'In Anki', words: inAnki },
-    { title: 'Waiting for export', words: awaiting },
+    { title: 'In Anki', words: inAnki.map(word => ({ lemma: word.lemma, label: `${word.lemma} · ${KNOWN_ON} ${formatDay(word.known_on)}` })) },
+    { title: 'Waiting for export', words: awaiting.map(lemma => ({ lemma, label: lemma })) },
   ].filter(group => group.words.length > 0)
   return (
     <>
@@ -423,7 +430,7 @@ export function LearningWordsList({ store }: { store: SettingsStore }) {
         <section key={group.title} className={css.learningGroup}>
           <GroupLabel flush>{group.title} · {group.words.length}</GroupLabel>
           <div className={css.words}>
-            {group.words.map(lemma => <span key={lemma} className={css.learningWord}>{lemma}</span>)}
+            {group.words.map(word => <span key={word.lemma} className={css.learningWord}>{word.label}</span>)}
           </div>
         </section>
       ))}
@@ -434,11 +441,14 @@ export function LearningWordsList({ store }: { store: SettingsStore }) {
 export function UnknownWords({ store }: { store: SettingsStore }) {
   return (
     <WordList
-      words={store.unknownWords.map(word => ({ id: word.id, label: word.lemma }))}
+      words={store.unknownWords.map(word => ({
+        key: unknownWordKey(word.id),
+        label: word.lemma,
+        onRemove: () => void store.deleteUnknownWord(word.id),
+      }))}
       hint={UNKNOWN_WORDS_HINT}
       empty="No unknown words yet. Mark them from a card: Report → More than one unknown word."
-      deletingId={store.deletingId}
-      onRemove={id => void store.deleteUnknownWord(id)}
+      deletingKey={store.deletingKey}
     />
   )
 }

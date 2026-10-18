@@ -7,7 +7,7 @@ from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
 from backend.domain.value_objects.vocabulary import Vocabulary
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterator, Mapping
     from datetime import datetime
 
     from backend.domain.ports.clock import Clock
@@ -44,6 +44,11 @@ class KnowledgeSnapshot:
             learn_anywhere=key in self._awaiting,
             active_since=self._active.get(key, ()),
         )
+
+    def lemmas(self) -> Iterator[tuple[str, LemmaKnowledge]]:
+        """Every lemma in a list, waiting for export or in Anki, in alphabetical order."""
+        for lemma in sorted(self._lemmas):
+            yield lemma, self.of(lemma)
 
     def known_lemmas(self) -> frozenset[str]:
         """Known by the list or by the timer, never when in Unknown."""

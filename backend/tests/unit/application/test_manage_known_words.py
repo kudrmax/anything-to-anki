@@ -1,22 +1,32 @@
+from datetime import timedelta
 from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.utils.user_vocabulary import UserVocabulary
 from backend.domain.entities.known_word import KnownWord
+from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
+
+from tests.decision_support import NOW
+from tests.vocabulary_support import user_vocabulary
+
+DUE = NOW - LEARNING_KNOWN_AFTER - timedelta(days=2)
+FRESH = NOW - timedelta(days=1)
 
 
 @pytest.mark.unit
 class TestManageKnownWordsUseCase:
     def setup_method(self) -> None:
         self.known_word_repo = MagicMock()
-        self.unknown_word_repo = MagicMock()
+        self.known_word_repo.get_all_pairs.return_value = {("run", "VERB")}
         self.review_status = MagicMock()
-        self.use_case = ManageKnownWordsUseCase(
-            vocabulary=UserVocabulary(
-                self.known_word_repo, self.unknown_word_repo, MagicMock(),
-            ),
-            review_status=self.review_status,
+        self.effects = MagicMock()
+        self.use_case = self._use_case()
+
+    def _use_case(self, **vocabulary: object) -> ManageKnownWordsUseCase:
+        self.vocabulary = user_vocabulary(self.known_word_repo, **vocabulary)  # type: ignore[arg-type]
+        return ManageKnownWordsUseCase(
+            vocabulary=self.vocabulary, review_status=self.review_status, effects=self.effects,
         )
 
     def test_list_all(self) -> None:
@@ -26,6 +36,42 @@ class TestManageKnownWordsUseCase:
         result = self.use_case.list_all()
         assert len(result) == 1
         assert result[0].lemma == "run"
+        assert not result[0].by_timer
+
+    def test_a_word_known_by_its_timer_is_listed_marked_without_an_id(self) -> None:
+        self.known_word_repo.list_all.return_value = [KnownWord(id=1, lemma="run", pos="VERB")]
+        use_case = self._use_case(active_since={
+            "glare": (DUE, FRESH), "drift": (FRESH,), "run": (DUE,), "spark": (DUE,),
+        }, unknown_lemmas={"spark"})
+
+        result = use_case.list_all()
+
+        assert [(w.id, w.lemma, w.by_timer) for w in result] == [
+            (1, "run", False), (None, "glare", True),
+        ]
+        assert result[1].created_at == DUE + LEARNING_KNOWN_AFTER
+
+    def test_deleting_a_word_known_by_its_timer_removes_it_from_known_everywhere(
+        self,
+    ) -> None:
+        use_case = self._use_case(active_since={"glare": (DUE,)})
+        before = self.vocabulary.of("glare")
+
+        use_case.delete_timer_known("glare")
+
+        self.effects.known_removed.assert_called_once_with("glare", before)
+        self.review_status.refresh_all.assert_called_once()
+
+    @pytest.mark.parametrize("lemma", ["run", "fresh", "absent"])
+    def test_deleting_by_lemma_a_word_not_known_by_its_timer_does_nothing(
+        self, lemma: str,
+    ) -> None:
+        use_case = self._use_case(active_since={"fresh": (FRESH,)})
+
+        use_case.delete_timer_known(lemma)
+
+        self.effects.known_removed.assert_not_called()
+        self.known_word_repo.remove_every_pos.assert_not_called()
 
     def test_delete(self) -> None:
         self.use_case.delete(1)
@@ -44,8 +90,13 @@ class TestManageKnownWordsUseCase:
         self.known_word_repo.add.assert_not_called()
 
     def test_known_word_leaves_the_unknown_words(self) -> None:
-        self.use_case.add_bulk(["nuance"])
-        self.unknown_word_repo.remove_by_lemma.assert_called_once_with("nuance")
+        unknown_word_repo = MagicMock()
+        use_case = ManageKnownWordsUseCase(
+            vocabulary=UserVocabulary(self.known_word_repo, unknown_word_repo, MagicMock()),
+            review_status=self.review_status, effects=self.effects,
+        )
+        use_case.add_bulk(["nuance"])
+        unknown_word_repo.remove_by_lemma.assert_called_once_with("nuance")
 
     def test_changes_refresh_review_statuses(self) -> None:
         self.use_case.delete(1)

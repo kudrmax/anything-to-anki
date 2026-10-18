@@ -836,6 +836,7 @@ class Container:
         return ManageKnownWordsUseCase(
             vocabulary=self._user_vocabulary(session),
             review_status=self._review_status_updater(session),
+            effects=self._decision_effects(session),
         )
 
     def manage_settings_use_case(self, session: Session) -> ManageSettingsUseCase:
@@ -865,10 +866,7 @@ class Container:
         )
 
     def get_learning_words_use_case(self, session: Session) -> GetLearningWordsUseCase:
-        return GetLearningWordsUseCase(
-            vocabulary=self._user_vocabulary(session),
-            learning_query=SqlaLearningQuery(session),
-        )
+        return GetLearningWordsUseCase(vocabulary=self._user_vocabulary(session))
 
     def get_export_cards_use_case(self, session: Session) -> GetExportCardsUseCase:
         return GetExportCardsUseCase(

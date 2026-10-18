@@ -3,6 +3,10 @@ import { api } from '@/api/client'
 import type { BootstrapStatus, NoteTypeCheck, NoteTypeKind, CleanupMediaKind, FrequentWordThresholdOption, KnownWord, LearningWords, Settings, SourceMediaStats, UnknownWord } from '@/api/types'
 
 const BOOTSTRAP_POLL_MS = 2000
+
+/** Ключ строки списков Known и Unknown: у слова Known по таймеру нет id. */
+export const knownWordKey = (word: KnownWord): string => (word.id === null ? `timer:${word.lemma}` : `known:${word.id}`)
+export const unknownWordKey = (id: number): string => `unknown:${id}`
 const FLASH_MS = 2000
 
 export type TemplatePart = 'front' | 'back' | 'cloze_front' | 'cloze_back' | 'css'
@@ -17,7 +21,7 @@ export function useSettings() {
   const [knownWords, setKnownWords] = useState<KnownWord[]>([])
   const [unknownWords, setUnknownWords] = useState<UnknownWord[]>([])
   const [learningWords, setLearningWords] = useState<LearningWords>({ in_anki: [], awaiting_export: [] })
-  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [deletingKey, setDeletingKey] = useState<string | null>(null)
   const [noteTypes, setNoteTypes] = useState<NoteTypeCheck[] | null>(null)
   const [noteTypesError, setNoteTypesError] = useState<string | null>(null)
   const [fixingNoteType, setFixingNoteType] = useState<NoteTypeKind | null>(null)
@@ -126,23 +130,32 @@ export function useSettings() {
     }
   }, [form, loadNoteTypes])
 
-  const deleteWord = async (id: number) => {
-    setDeletingId(id)
+  /** Запись списка удаляется по id, слово Known по таймеру — по lemma; списки перечитываются. */
+  const deleteWord = async (word: KnownWord) => {
+    const key = knownWordKey(word)
+    setDeletingKey(key)
     try {
-      await api.deleteKnownWord(id)
-      setKnownWords(prev => prev.filter(w => w.id !== id))
+      if (word.id === null) {
+        await api.deleteTimerKnownWord(word.lemma)
+        const [known, learning] = await Promise.all([api.getKnownWords(), api.getLearningWords()])
+        setKnownWords(known)
+        setLearningWords(learning)
+      } else {
+        await api.deleteKnownWord(word.id)
+        setKnownWords(prev => prev.filter(w => knownWordKey(w) !== key))
+      }
     } finally {
-      setDeletingId(null)
+      setDeletingKey(null)
     }
   }
 
   const deleteUnknownWord = async (id: number) => {
-    setDeletingId(id)
+    setDeletingKey(unknownWordKey(id))
     try {
       await api.deleteUnknownWord(id)
       setUnknownWords(prev => prev.filter(w => w.id !== id))
     } finally {
-      setDeletingId(null)
+      setDeletingKey(null)
     }
   }
 
@@ -182,7 +195,7 @@ export function useSettings() {
 
   return {
     form, loading, saving, saved, saveError, setField, save,
-    knownWords, deletingId, deleteWord, unknownWords, deleteUnknownWord, learningWords,
+    knownWords, deletingKey, deleteWord, unknownWords, deleteUnknownWord, learningWords,
     noteTypes, noteTypesError, fixingNoteType, fixNoteType,
     copiedTemplate, copyTemplate,
     bootstrapStatus, buildBootstrap,

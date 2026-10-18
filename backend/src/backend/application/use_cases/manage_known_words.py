@@ -5,31 +5,57 @@ from typing import TYPE_CHECKING
 from backend.application.dto.known_word_dtos import KnownWordDTO
 
 if TYPE_CHECKING:
+    from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.application.utils.user_vocabulary import UserVocabulary
 
 
 class ManageKnownWordsUseCase:
-    """Lists and deletes known-word whitelist entries."""
+    """The Known list: the words the user put there and the words Known by their 30 days in
+    Anki. Deletes and adds entries; a word Known by its timer leaves Known by its lemma."""
 
-    def __init__(self, vocabulary: UserVocabulary, review_status: ReviewStatusUpdater) -> None:
+    def __init__(
+        self,
+        vocabulary: UserVocabulary,
+        review_status: ReviewStatusUpdater,
+        effects: DecisionEffects,
+    ) -> None:
         self._vocabulary = vocabulary
         self._review_status = review_status
+        self._effects = effects
 
     def list_all(self) -> list[KnownWordDTO]:
-        words = self._vocabulary.known_words()
-        return [
+        listed = [
             KnownWordDTO(
-                id=w.id,  # type: ignore[arg-type]
+                id=w.id,
                 lemma=w.lemma,
                 pos=w.pos,
                 created_at=w.created_at,
             )
-            for w in words
+            for w in self._vocabulary.known_words()
         ]
+        by_timer = [
+            KnownWordDTO(
+                id=None, lemma=lemma, pos=None, created_at=knowledge.timer_known_on,
+                by_timer=True,
+            )
+            for lemma, knowledge in self._vocabulary.knowledge().lemmas()
+            if knowledge.timer_known and knowledge.timer_known_on is not None
+        ]
+        return listed + by_timer
 
     def delete(self, known_word_id: int) -> None:
         self._vocabulary.remove_known(known_word_id)
+        self._review_status.refresh_all()
+
+    def delete_timer_known(self, lemma: str) -> None:
+        """Decided (c): the word leaves Known as any removal does — its cards that read
+        Known turn new in every source, and their notes stay in Anki. Nothing happens to a
+        word not Known by its timer."""
+        before = self._vocabulary.of(lemma)
+        if not before.timer_known:
+            return
+        self._effects.known_removed(lemma, before)
         self._review_status.refresh_all()
 
     def add_bulk(self, lemmas: list[str]) -> None:
