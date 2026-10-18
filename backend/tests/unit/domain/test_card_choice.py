@@ -13,6 +13,7 @@ from backend.domain.value_objects.card_choice import (
     NoteKind,
     Refusal,
     WordState,
+    chosen_status,
     decision_status,
     export_kind,
     in_anki,
@@ -151,13 +152,22 @@ class TestReadsKnown:
     @pytest.mark.parametrize(
         "card",
         [
-            CardState(1, CardChoice.LEARN),
             CardState(1, CardChoice.KNOWN),
+            CardState(1, CardChoice.SKIP),
             _bound(CardChoice.KNOWN, NoteKind.LEARN, DUE),
         ],
     )
-    def test_only_a_learning_card_reads_known(self, card: CardState) -> None:
+    def test_only_a_learn_or_cloze_card_reads_known(self, card: CardState) -> None:
         assert reads_known(card, _knowledge(known_marked=True, active_since=(DUE,)), NOW) is False
+
+    @pytest.mark.parametrize("choice", [CardChoice.LEARN, CardChoice.CLOZE])
+    def test_a_learn_not_exported_reads_known_by_the_list(self, choice: CardChoice) -> None:
+        """Q15: the lemma was put in Known after the Learn; the later action wins."""
+        assert reads_known(CardState(1, choice), _knowledge(known_marked=True), NOW) is True
+
+    def test_a_learn_not_exported_has_no_timer(self) -> None:
+        card = CardState(1, CardChoice.LEARN)
+        assert reads_known(card, _knowledge(active_since=(DUE,)), NOW) is False
 
 
 @pytest.mark.unit
@@ -177,7 +187,19 @@ class TestStatusOf:
 
     def test_learn_before_export_stays_learn(self) -> None:
         word = _word(CardState(1, CardChoice.LEARN))
-        assert status_of(word, _knowledge(known_marked=True), NOW) is WordStatus.LEARN
+        assert status_of(word, _knowledge(active_since=(DUE,)), NOW) is WordStatus.LEARN
+
+    def test_learn_before_export_reads_known_once_its_lemma_is_known(self) -> None:
+        """Q15."""
+        word = _word(CardState(1, CardChoice.LEARN))
+        assert status_of(word, _knowledge(known_marked=True), NOW) is WordStatus.KNOWN
+
+    def test_the_chosen_status_ignores_the_lists(self) -> None:
+        word = _word(CardState(1, CardChoice.LEARN))
+        assert chosen_status(word) is WordStatus.LEARN
+        assert chosen_status(_word(_bound(CardChoice.LEARN, NoteKind.LEARN, DUE))) is (
+            WordStatus.LEARNING
+        )
 
     def test_no_decision_is_new(self) -> None:
         word = _word(CardState(1, CardChoice.SKIP))

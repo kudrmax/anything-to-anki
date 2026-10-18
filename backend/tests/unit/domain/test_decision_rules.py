@@ -124,13 +124,24 @@ def _cascade(world: World) -> World:
     )
 
 
+def _cascade_besides(world: World, acting: int) -> World:
+    """The cascade after a press: the acting word's outcome is the press itself."""
+    others = tuple(word for word in world.words if word.word_id != acting)
+    removal = on_known_removed(world.knowledge(), others, world.orphans, NOW)
+    after = world.replacing(*(outcome.word for outcome in removal.words))
+    return replace(
+        after, known_marked=False,
+        orphans=tuple(o for o in world.orphans if o.binding_id not in removal.released_orphans),
+    )
+
+
 def _settle(world: World, outcome: WordOutcome) -> World:
     """Applies the outcome's word and its knowledge effects to the world."""
     after = world.replacing(outcome.word)
     if Effect.MARK_KNOWN in outcome.effects:
         after = replace(after, known_marked=True, unknown=False)
     if Effect.REMOVE_KNOWN in outcome.effects:
-        after = _cascade(after)
+        after = _cascade_besides(after, outcome.word.word_id)
     return after
 
 
@@ -141,8 +152,10 @@ def _assert_ar(world: World) -> None:
 
 
 def _assert_invariants(before: World, outcome: WordOutcome) -> None:
-    assert outcome.status.after is status_of(outcome.word, before.knowledge(), NOW)
     after = _settle(before, outcome)
+    assert outcome.status.after is status_of(after.word, after.knowledge(), NOW), (
+        "the status after is what readers see once the effects ran"
+    )
     assert all(well_formed(word) for word in after.words), "A1/A2"
     assert holds_ak(after), "AK"
     if Effect.REMOVE_KNOWN in outcome.effects:
@@ -169,7 +182,7 @@ class TestPressExpansion:
 
     def test_every_possible_key_is_covered_exactly_once(self) -> None:
         assert {key for key in _all_press_keys() if possible(key)} == set(PRESS_RULES)
-        assert len(PRESS_RULES) == 60
+        assert len(PRESS_RULES) == 68
 
     def test_every_reachable_key_is_possible(self) -> None:
         reached = {_key(world, button) for world in worlds() for button in Press}
@@ -241,6 +254,9 @@ PRESS_EXPECTED: dict[str, Expected] = {
     "P23": Expected(N, True, (KNOWN, NEW), _changed(RK, FORGET, REL)),
     "P24": Expected(PRESSED, True, (KNOWN, LEARN), _changed(RK, CAL, REL)),
     "P24s": Expected(S, True, (KNOWN, NEW), _changed(RK, FORGET, REL)),
+    "P23u": Expected(N, False, (KNOWN, NEW), _changed(RK, FORGET)),
+    "P24u": Expected(PRESSED, False, (KNOWN, LEARN), _changed(RK, CAL)),
+    "P24su": Expected(S, False, (KNOWN, NEW), _changed(RK, FORGET)),
     "P25": Expected(Refusal.NOT_DECISION_CARD),
     "P26": Expected(N),
     "P27": Expected(Refusal.NOT_DECISION_CARD),
@@ -258,7 +274,7 @@ def _press_cases() -> dict[str, tuple[tuple[World, Press], ...]]:
 
 @pytest.mark.unit
 class TestPressRows:
-    def test_the_rows_are_p1_to_p27(self) -> None:
+    def test_the_rows_are_p1_to_p27_and_the_listed_learn_rows(self) -> None:
         assert {t.row for t in PRESS_RULES.values()} == set(PRESS_EXPECTED)
 
     @pytest.mark.parametrize("row", list(PRESS_EXPECTED))
@@ -311,7 +327,7 @@ class TestKnownRemovalAfterAPress:
                 single(2, K),                                        # explicit Known
                 single(3, L, Binding(NoteKind.LEARN, FRESH)),         # list-Known if marked
                 single(4, C, Binding(NoteKind.CLOZE, DUE)),           # timer-Known
-                single(5, L),                                        # Learn, not exported
+                single(5, L),                         # Learn not exported, list-Known (Q15)
                 single(6, S),                                        # no decision
             ) if known_marked else (
                 single(3, L, Binding(NoteKind.LEARN, FRESH)),         # Learning, timer runs
@@ -329,6 +345,7 @@ class TestKnownRemovalAfterAPress:
             (CardState(ACTED, L, Binding(NoteKind.LEARN, DUE)), Press.KNOWN, False),      # P23
             (CardState(ACTED, L, Binding(NoteKind.LEARN, FRESH)), Press.KNOWN, True),     # P23
             (CardState(ACTED, C, Binding(NoteKind.CLOZE, DUE)), Press.SKIP, False),       # P24s
+            (CardState(ACTED, L), Press.KNOWN, True),                                     # P23u
         ],
     )
     def test_every_known_card_of_the_lemma_goes_new(
@@ -348,14 +365,14 @@ class TestKnownRemovalAfterAPress:
             w.word_id for w in pressed.words if status_of(w, snapshot, NOW) is KNOWN
         }
         assert set(revoked) == read_known
-        assert read_known >= ({2, 3, 4} if known_marked else {4})
+        assert read_known >= ({2, 3, 4, 5} if known_marked else {4}), "Q15: 5 reads Known"
         for word_id, outcome_of in revoked.items():
             assert outcome_of.status == StatusChange(word_id, KNOWN, NEW, Actor.REVOKE)
             assert outcome_of.word.decision_card is None
             assert all(card.binding is None for card in outcome_of.word.cards)
         assert removal.released_orphans == (501,)
         untouched = {w.word_id for w in pressed.words} - set(revoked)
-        assert untouched >= {1, 5}
+        assert untouched >= ({1} if known_marked else {1, 5})
         _assert_ar(_cascade(pressed))
 
     def test_the_cascade_reads_the_snapshot_before_forgetting(self) -> None:
@@ -470,17 +487,21 @@ class TestMoveRows:
 # --- export (S1) ------------------------------------------------------------------------
 
 
+def _bind_key(world: World) -> BindKey:
+    return bind_key(world.word, world.word.card(ACTED), world.knowledge(), NOW)
+
+
 @pytest.mark.unit
 class TestBindRows:
     def test_s1_is_the_only_row(self) -> None:
         assert set(BIND_RULES.values()) == {"S1"}
         assert len(BIND_ROWS) == len(BIND_RULES)
         assert set(BIND_RULES) == {
-            BindKey(Role.DECISION, None, L), BindKey(Role.DECISION, None, C),
+            BindKey(Role.DECISION, None, False, L), BindKey(Role.DECISION, None, False, C),
         }
 
     def test_s1_binds_with_the_timer_starting_now(self) -> None:
-        cases = [w for w in worlds() if bind_key(w.word, w.word.card(ACTED)) in BIND_RULES]
+        cases = [w for w in worlds() if _bind_key(w) in BIND_RULES]
         assert cases
         for world in cases:
             before = world.word.card(ACTED)
@@ -490,16 +511,15 @@ class TestBindRows:
             assert card.choice is before.choice
             assert card.binding == Binding(export_kind(before) or NoteKind.LEARN, NOW)
             assert export_kind(before) is not None
-            listed = world.known_marked and not world.unknown
-            after = KNOWN if listed else LEARNING
-            assert outcome.status == StatusChange(1, LEARN, after, Actor.EXPORT)
+            assert not world.known_marked or world.unknown, "a listed Learn is not exported"
+            assert outcome.status == StatusChange(1, LEARN, LEARNING, Actor.EXPORT)
             assert outcome.effects == _changed(Effect.BIND)
             assert outcome.released is False
             _assert_invariants(world, outcome)
 
     def test_any_other_card_has_no_bind_rule(self) -> None:
         for world in worlds():
-            if bind_key(world.word, world.word.card(ACTED)) not in BIND_RULES:
+            if _bind_key(world) not in BIND_RULES:
                 with pytest.raises(NoDecisionRuleError):
                     on_bind(world.word, ACTED, world.knowledge(), NOW)
 
@@ -531,7 +551,7 @@ class TestRemovalRows:
         assert reached == set(REMOVAL_RULES)
 
     @pytest.mark.parametrize(
-        ("row", "release"), [("R1", False), ("R2", True), ("R3", True)],
+        ("row", "release"), [("R1", False), ("R2", True), ("R3", True), ("R3u", False)],
     )
     def test_row(self, row: str, release: bool) -> None:
         seen = 0
@@ -584,7 +604,7 @@ def _produced_changes() -> set[tuple[WordStatus, WordStatus, Actor]]:
             with contextlib.suppress(ActionRefusedError):
                 outcomes.append(_press(world, button))
         outcomes.append(_move(world))
-        if bind_key(world.word, world.word.card(ACTED)) in BIND_RULES:
+        if _bind_key(world) in BIND_RULES:
             outcomes.append(on_bind(world.word, ACTED, world.knowledge(), NOW))
         outcomes.extend(
             on_known_removed(world.knowledge(), world.words, world.orphans, NOW).words,
@@ -615,7 +635,6 @@ class TestEffects:
             (KNOWN, NEW, Actor.USER, _changed(RK, FORGET)),
             (KNOWN, LEARN, Actor.USER, _changed(RK, CAL)),
             (LEARN, LEARNING, Actor.EXPORT, _changed(Effect.BIND)),
-            (LEARN, KNOWN, Actor.EXPORT, _changed(Effect.BIND)),
             (KNOWN, NEW, Actor.REVOKE, _changed(FORGET)),
             *((status, status, Actor.USER, SAME) for status in WordStatus),
         ],

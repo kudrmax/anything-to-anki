@@ -29,6 +29,7 @@ from backend.domain.value_objects.card_choice import (
     Refusal,
     Role,
     WordState,
+    chosen_status,
     decision_reads_known,
     reads_known,
     status_of,
@@ -37,7 +38,7 @@ from backend.domain.value_objects.learning_timer import timer_due
 from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Mapping, Sequence
     from datetime import datetime
 
     from backend.domain.value_objects.elsewhere import ElsewhereStatus
@@ -84,8 +85,12 @@ def _holds_binding(note: NoteKind | None, choice: CardChoice | None) -> bool:
     return note is None or choice in {CHOICE_OF_KIND[note], _K}
 
 
-def _learning(note: NoteKind | None, choice: CardChoice | None) -> bool:
-    return note is not None and choice is CHOICE_OF_KIND[note]
+def _may_read_known(note: NoteKind | None, choice: CardChoice | None) -> bool:
+    """A Learn or Cloze decision reads Known by the list, bound or not (Q15)."""
+    return choice in _KIND_CHOICES and _holds_binding(note, choice)
+
+
+_KIND_CHOICES = frozenset(CHOICE_OF_KIND.values())
 
 
 def _kept(binding: Binding | None, release: bool) -> Binding | None:
@@ -212,7 +217,7 @@ def possible(key: PressKey) -> bool:
     return (
         (key.before in DECISION_CHOICES) is (key.role is Role.DECISION)
         and _holds_binding(key.note, key.before)
-        and (not key.reads_known or _learning(key.note, key.before))
+        and (not key.reads_known or _may_read_known(key.note, key.before))
         and (not key.elsewhere or key.role is Role.OPEN)
     )
 
@@ -269,6 +274,27 @@ def _unbound_kind_rows(kind: NoteKind) -> tuple[PressRow, ...]:
     )
 
 
+def _listed_kind_rows(kind: NoteKind) -> tuple[PressRow, ...]:
+    """P23-P24s on a Learn or Cloze card not in Anki whose lemma was put in Known after it:
+    it reads Known (Q15), so the buttons act as on one that reads Known in Anki, with
+    nothing to release."""
+    choice = CHOICE_OF_KIND[kind]
+    return (
+        _listed("P23u", {choice}, {Press.KNOWN}, _N),
+        *(_listed("P24u", {choice}, {p}, CHOICE_OF_PRESS[p]) for p in _KIND_PRESSES),
+        _listed("P24su", {choice}, {Press.SKIP}, _S),
+    )
+
+
+def _listed(
+    row: str, before: Iterable[CardChoice], presses: Iterable[Press], choice: CardChoice,
+) -> PressRow:
+    return PressRow(
+        Role.DECISION, None, True, False, frozenset(before), frozenset(presses),
+        Target(row, choice),
+    )
+
+
 def _bound_kind_rows(kind: NoteKind) -> tuple[PressRow, ...]:
     choice, other = CHOICE_OF_KIND[kind], OTHER_KIND[kind]
     return (
@@ -295,6 +321,7 @@ PRESS_ROWS: tuple[PressRow, ...] = (
     _open("P7", True, {_N}, {Press.SKIP}, _S),
     _open("P8", True, {_S}, {Press.SKIP}, _N),
     *(row for kind in NoteKind for row in _unbound_kind_rows(kind)),
+    *(row for kind in NoteKind for row in _listed_kind_rows(kind)),
     _decided("P11", {_L, _C}, {Press.KNOWN}, _K),
     _decided("P12", {_L, _C}, {Press.SKIP}, _S),
     _decided("P13", {_K}, {Press.KNOWN}, _N),
@@ -330,9 +357,14 @@ def press(
     word: WordState, card_id: int, button: Press, lemma: LemmaKnowledge,
     elsewhere: ElsewhereStatus | None, now: datetime,
 ) -> WordOutcome:
-    """Raises ActionRefusedError when the row refuses."""
+    """Raises ActionRefusedError when the row refuses.
+
+    A press on the decision card, or one that makes it, is the user's latest word on the
+    word: its status after is the chosen one (`chosen_status`), whatever the lists said
+    before. A press on another card of a decided word leaves the decision as it reads."""
     card = word.card(card_id)
-    target = rule(PRESS_RULES, press_key(word, card_id, button, lemma, elsewhere, now))
+    key = press_key(word, card_id, button, lemma, elsewhere, now)
+    target = rule(PRESS_RULES, key)
     choice = target.grant(card_id)
     after = word.with_cards(CardState(card_id, choice, _kept(card.binding, target.release)))
     return WordOutcome(
@@ -340,9 +372,21 @@ def press(
         word=after,
         choices=(ChoiceChange(card_id, card.choice, choice),),
         released=target.release,
-        status=_change(word, after, lemma, now, Actor.USER),
+        status=StatusChange(
+            word.word_id, status_of(word, lemma, now),
+            _STATUS_AFTER_PRESS[key.role](after, lemma, now), Actor.USER,
+        ),
         row_effects=_RELEASE_EFFECTS[target.release],
     )
+
+
+def _chosen(word: WordState, _lemma: LemmaKnowledge, _now: datetime) -> WordStatus:
+    return chosen_status(word)
+
+
+_STATUS_AFTER_PRESS: Mapping[Role, Callable[[WordState, LemmaKnowledge, datetime], WordStatus]] = (
+    MappingProxyType({Role.DECISION: _chosen, Role.OPEN: _chosen, Role.OTHER: status_of})
+)
 
 
 # --- move: Replace with example (§2.5) ----------------------------------------------------
@@ -371,8 +415,8 @@ class MoveTarget:
 def possible_move(key: MoveKey) -> bool:
     return (
         _holds_binding(key.note, key.before)
-        and (not key.reads_known or _learning(key.note, key.before))
-        and (not key.timer_only or key.reads_known)
+        and (not key.reads_known or _may_read_known(key.note, key.before))
+        and (not key.timer_only or (key.reads_known and key.note is not None))
     )
 
 
@@ -396,6 +440,8 @@ def _bound_moves(kind: NoteKind) -> tuple[tuple[MoveKey, MoveTarget], ...]:
 
 MOVE_ROWS: tuple[tuple[MoveKey, MoveTarget], ...] = (
     *((MoveKey(None, False, False, c), MoveTarget("M1", c, _N)) for c in (_L, _C, _K)),
+    # Q15: a Learn not in Anki that reads Known by the list moves as it is and stays Known.
+    *((MoveKey(None, True, False, c), MoveTarget("M1", c, _N)) for c in (_L, _C)),
     *((MoveKey(None, False, False, c), MoveTarget("M2", _N, c)) for c in (_N, _S)),
     *(row for kind in NoteKind for row in _bound_moves(kind)),
 )
@@ -437,17 +483,20 @@ def move(
 class BindKey:
     role: Role
     note: NoteKind | None
+    reads_known: bool       # a Learn the list made Known (Q15) is not exported
     before: CardChoice
 
 
 BIND_ROWS: tuple[tuple[BindKey, str], ...] = tuple(
-    (BindKey(Role.DECISION, None, choice), "S1") for choice in (_L, _C)
+    (BindKey(Role.DECISION, None, False, choice), "S1") for choice in (_L, _C)
 )
 BIND_RULES: Mapping[BindKey, str] = MappingProxyType(dict(BIND_ROWS))
 
 
-def bind_key(word: WordState, card: CardState) -> BindKey:
-    return BindKey(role_of(word, card), card.note, card.choice)
+def bind_key(
+    word: WordState, card: CardState, lemma: LemmaKnowledge, now: datetime,
+) -> BindKey:
+    return BindKey(role_of(word, card), card.note, reads_known(card, lemma, now), card.choice)
 
 
 def on_bind(
@@ -455,7 +504,7 @@ def on_bind(
 ) -> WordOutcome:
     """S1: the card being exported gets a new active binding; its timer starts now."""
     card = word.card(card_id)
-    row = rule(BIND_RULES, bind_key(word, card))
+    row = rule(BIND_RULES, bind_key(word, card, lemma, now))
     binding = Binding(KIND_OF_CHOICE[card.choice], learning_since=now)
     after = word.with_cards(CardState(card_id, card.choice, binding))
     return WordOutcome(
@@ -491,7 +540,7 @@ def possible_removal(key: RemovalKey) -> bool:
     return (
         key.decision in _REMOVAL_CHOICES
         and _holds_binding(key.note, key.decision)
-        and (not key.reads_known or _learning(key.note, key.decision))
+        and (not key.reads_known or _may_read_known(key.note, key.decision))
     )
 
 
@@ -506,6 +555,8 @@ REMOVAL_ROWS: tuple[tuple[RemovalKey, RemovalTarget], ...] = (
         (RemovalKey(CHOICE_OF_KIND[k], k, True), RemovalTarget("R3", True, release=True))
         for k in NoteKind
     ),
+    # Q15: a Learn not in Anki that reads Known by the list goes NEW like R3, unbound.
+    *((RemovalKey(c, None, True), RemovalTarget("R3u", revoke=True)) for c in (_L, _C)),
 )
 REMOVAL_RULES: Mapping[RemovalKey, RemovalTarget] = MappingProxyType(dict(REMOVAL_ROWS))
 
@@ -584,7 +635,6 @@ _STATUS_EFFECTS: Mapping[tuple[WordStatus, WordStatus, Actor], frozenset[Effect]
         ),
         (_KNOWN, _LEARN, Actor.USER): frozenset({Effect.REMOVE_KNOWN, Effect.CALIBRATE}),
         (_LEARN, _LEARNING, Actor.EXPORT): frozenset({Effect.BIND}),
-        (_LEARN, _KNOWN, Actor.EXPORT): frozenset({Effect.BIND}),
         (_KNOWN, _NEW, Actor.REVOKE): frozenset({Effect.FORGET_CALIBRATION}),
     })
 )

@@ -139,7 +139,8 @@ def possible_note(key: NoteKey) -> bool:
         (key.elsewhere is None or key.role is Role.OPEN)
         and (not key.bound or decision)
         and (not key.known_choice or decision)
-        and (not key.reads_known or (key.bound and not key.known_choice))
+        and (not key.reads_known or (decision and not key.known_choice))
+        and (not key.reads_known or key.bound or key.listed)
         and (not key.listed or key.reads_known)
         and (not key.unknown or (key.bound and not key.known_choice and not key.reads_known))
     )
@@ -169,6 +170,8 @@ NOTE_RULES: Mapping[NoteKey, NoteRow] = MappingProxyType(
         NoteKey(Role.DECISION, True, False, True, False, None):
             NoteRow(CardNote.KNOWN_BY_TIMER, dated=True),
         NoteKey(Role.DECISION, True, False, True, True, None): NoteRow(CardNote.KNOWN_BY_LIST),
+        # Q15: a Learn not in Anki yet whose lemma was put in Known after it.
+        NoteKey(Role.DECISION, False, False, True, True, None): NoteRow(CardNote.KNOWN_BY_LIST),
         # Unknown wins (Q8): the timer never makes it Known, so there is no date.
         NoteKey(Role.DECISION, True, False, False, False, None, unknown=True):
             NoteRow(CardNote.IN_ANKI),
@@ -256,7 +259,7 @@ def card_view(
         shown=_shown(word, card, open_elsewhere, lemma, now),
         is_protected=is_protected(card),
         wants_generation=(
-            (role is Role.DECISION and decision_status(word) is DecisionStatus.LEARN)
+            (role is Role.DECISION and in_export_queue(word, lemma, now))
             or (role is Role.OPEN and card.choice is CardChoice.NONE and open_elsewhere is None)
         ),
     )
@@ -273,8 +276,11 @@ def keeps_word(word: WordState) -> bool:
     )
 
 
-def in_export_queue(word: WordState) -> bool:
-    return decision_status(word) is DecisionStatus.LEARN
+def in_export_queue(word: WordState, lemma: LemmaKnowledge, now: datetime) -> bool:
+    """A Learn not in Anki yet, unless its lemma was put in Known after it (Q15)."""
+    return decision_status(word) is DecisionStatus.LEARN and not decision_reads_known(
+        word, lemma, now,
+    )
 
 
 _CHOSEN_TO_LEARN = frozenset({DecisionStatus.LEARN, DecisionStatus.LEARNING})

@@ -169,13 +169,15 @@ class State:
     elsewhere: ElsewhereStatus | None = None
     unknown: bool = False
 
-    def view(self) -> CardView:
+    def knowledge(self) -> LemmaKnowledge:
         since = tuple(c.binding.learning_since for c in self.word.cards if c.binding)
-        knowledge = LemmaKnowledge.at(
+        return LemmaKnowledge.at(
             NOW, known_marked=self.known_marked, unknown=self.unknown, learn_anywhere=False,
             active_since=since,
         )
-        return card_view(self.word, ACTED, knowledge, self.elsewhere, NOW)
+
+    def view(self) -> CardView:
+        return card_view(self.word, ACTED, self.knowledge(), self.elsewhere, NOW)
 
 
 def _word(*cards: CardState) -> WordState:
@@ -199,6 +201,8 @@ STATES: dict[str, State] = {
     "learning_cloze": State(_word(_card(C, NoteKind.CLOZE))),
     "known_by_timer": State(_word(_card(L, NoteKind.LEARN, DUE))),
     "known_by_list": State(_word(_card(L, NoteKind.LEARN)), known_marked=True),
+    # Q15: Learn, then the lemma was put in Known before the export.
+    "learn_then_listed": State(_word(_card(L)), known_marked=True),
     "known_in_anki": State(_word(_card(K, NoteKind.LEARN)), known_marked=True),
     "in_anki_unknown": State(_word(_card(L, NoteKind.LEARN, DUE)), unknown=True),
     "other_open": State(_word(_card(N), CardState(SIBLING, L))),
@@ -223,7 +227,8 @@ class TestPerState:
         "learn": {Press.LEARN}, "cloze": {Press.CLOZE}, "known": {Press.KNOWN},
         "learning": {Press.LEARN}, "learning_cloze": {Press.CLOZE},
         "known_by_timer": {Press.KNOWN}, "known_by_list": {Press.KNOWN},
-        "known_in_anki": {Press.KNOWN}, "in_anki_unknown": {Press.LEARN},
+        "learn_then_listed": {Press.KNOWN}, "known_in_anki": {Press.KNOWN},
+        "in_anki_unknown": {Press.LEARN},
         "other_open": {Press.LEARN},
         "other_skip": {Press.KNOWN, Press.SKIP},
     }))
@@ -240,6 +245,7 @@ class TestPerState:
         "learning_cloze": (CardNote.IN_ANKI, KNOWN_ON_FRESH),
         "known_by_timer": (CardNote.KNOWN_BY_TIMER, NOW),
         "known_by_list": (CardNote.KNOWN_BY_LIST, None),
+        "learn_then_listed": (CardNote.KNOWN_BY_LIST, None),
         "known_in_anki": (CardNote.IN_ANKI, None),
         "in_anki_unknown": (CardNote.IN_ANKI, None),
         "other_open": (CardNote.DECIDED_ON_OTHER_CARD, None),
@@ -262,6 +268,7 @@ class TestPerState:
         "learning_cloze": Shown(_LEARNING, False, Where.HERE),
         "known_by_timer": Shown(_KNOWN, False, Where.HERE),
         "known_by_list": Shown(_KNOWN, False, Where.HERE),
+        "learn_then_listed": Shown(_KNOWN, False, Where.HERE),
         "known_in_anki": Shown(_KNOWN, False, Where.HERE),
         "in_anki_unknown": Shown(_LEARNING, False, Where.HERE),
         "other_open": Shown(_LEARN, False, Where.OTHER_CARD),
@@ -305,12 +312,13 @@ class TestPerState:
         {name: name in {"learn", "cloze", "other_open"} for name in STATES},
     ))
     def test_in_export_queue(self, state: str, expected: bool) -> None:
-        assert in_export_queue(STATES[state].word) is expected
+        the_state = STATES[state]
+        assert in_export_queue(the_state.word, the_state.knowledge(), NOW) is expected
 
     @pytest.mark.parametrize(("state", "expected"), _per_state({
         name: name in {
             "learn", "cloze", "learning", "learning_cloze", "known_by_timer",
-            "known_by_list", "in_anki_unknown", "other_open",
+            "known_by_list", "learn_then_listed", "in_anki_unknown", "other_open",
         } for name in STATES
     }))
     def test_chosen_to_learn(self, state: str, expected: bool) -> None:

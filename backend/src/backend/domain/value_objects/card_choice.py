@@ -168,6 +168,7 @@ _STATUS_OF: Mapping[tuple[DecisionStatus, bool], WordStatus] = MappingProxyType(
     {
         (DecisionStatus.NEW, False): WordStatus.NEW,
         (DecisionStatus.LEARN, False): WordStatus.LEARN,
+        (DecisionStatus.LEARN, True): WordStatus.KNOWN,
         (DecisionStatus.LEARNING, False): WordStatus.LEARNING,
         (DecisionStatus.LEARNING, True): WordStatus.KNOWN,
         (DecisionStatus.KNOWN, False): WordStatus.KNOWN,
@@ -190,19 +191,37 @@ def decision_status(word: WordState) -> DecisionStatus:
 
 
 def reads_known(card: CardState, lemma: LemmaKnowledge, now: datetime) -> bool:
-    """A Learning card reads Known by the list, or by the timer of its own binding."""
+    """A Learn or Cloze card reads Known by the list, or, in Anki, by the timer of its own
+    binding. The list counts on a card not exported yet too: the later action wins (Q15)."""
+    kind = export_kind(card)
     binding = card.binding
     return (
-        binding is not None
-        and export_kind(card) is binding.note_kind
+        kind is not None
+        and (binding is None or binding.note_kind is kind)
         and not lemma.unknown
-        and (lemma.known_marked or timer_due(binding.learning_since, now))
+        and (
+            lemma.known_marked
+            or (binding is not None and timer_due(binding.learning_since, now))
+        )
     )
 
 
 def status_of(word: WordState, lemma: LemmaKnowledge, now: datetime) -> WordStatus:
-    """What every reader sees: the decision, with Learning read as Known when it reads so."""
+    """What every reader sees: the decision, with Learn or Learning read as Known when it
+    reads so."""
     return _STATUS_OF[(decision_status(word), decision_reads_known(word, lemma, now))]
+
+
+def chosen_status(word: WordState) -> WordStatus:
+    """The status the decision itself says, without the lists or timers: what a word is
+    right after the user decides on it, since the user's latest action wins. No press
+    leaves a Learn or Cloze card bound, so a timer never matters here."""
+    return _CHOSEN_STATUS[decision_status(word)]
+
+
+_CHOSEN_STATUS: Mapping[DecisionStatus, WordStatus] = MappingProxyType(
+    {status: WordStatus(status.value) for status in DecisionStatus},
+)
 
 
 def decision_reads_known(word: WordState, lemma: LemmaKnowledge, now: datetime) -> bool:
