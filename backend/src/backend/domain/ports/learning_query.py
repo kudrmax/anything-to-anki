@@ -12,7 +12,7 @@ class LearningQuery(ABC):
 
     @abstractmethod
     def in_anki(self) -> frozenset[str]:
-        """Lemmas of notes exported to Anki, neither mature nor deleted there."""
+        """Lemmas of every note exported to Anki."""
 
     def learning_lemmas(self) -> frozenset[str]:
         return self.awaiting_export() | self.in_anki()

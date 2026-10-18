@@ -1,7 +1,6 @@
 """Notes exported to Anki, and the lock a long operation takes on its source."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
@@ -20,31 +19,16 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.integration
 
-AT = datetime(2026, 10, 15, tzinfo=UTC)
 SOURCE = 1
 OTHER_SOURCE = 2
-
-
-def test_notes_wait_until_matured_or_deleted(db_session: Session) -> None:
-    notes = SqlaAnkiNoteRepository(db_session)
-    notes.add(1, "glare", "VERB")
-    notes.add(2, "linger", None)
-    notes.add(3, "wander", "VERB")
-
-    notes.mark_matured([1], AT)
-    notes.mark_deleted([2], AT)
-
-    assert [n.note_id for n in notes.pending()] == [3]
 
 
 def test_adding_a_note_again_keeps_it_as_it_was(db_session: Session) -> None:
     notes = SqlaAnkiNoteRepository(db_session)
     notes.add(1, "glare", "VERB")
-    notes.mark_matured([1], AT)
 
     notes.add(1, "other", None)
 
-    assert notes.pending() == []
     assert db_session.scalar(select(AnkiNoteModel.lemma).where(AnkiNoteModel.note_id == 1)) == (
         "glare"
     )

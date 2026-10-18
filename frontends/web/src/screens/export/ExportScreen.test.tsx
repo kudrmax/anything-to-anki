@@ -16,7 +16,7 @@ const CARD: CardPreview = {
 const SECTION: ExportSection = { source_id: 1, source_title: 'Episode', cards: [CARD] }
 const EXPORT: GlobalExport = { title: 'Friends', ready: [SECTION], incomplete: [], exported_count: 0 }
 const ANKI: AnkiStatus = { available: true, version: 6, note_type_problems: [] }
-const SYNCED: SyncResult = { total: 1, added: 1, skipped: 0, errors: 0, skipped_lemmas: [], error_lemmas: [], matured: 0 }
+const SYNCED: SyncResult = { total: 1, added: 1, skipped: 0, errors: 0, skipped_lemmas: [], error_lemmas: [] }
 
 describe('ExportScreen scope', () => {
   let root: Root
@@ -61,29 +61,9 @@ describe('ExportScreen scope', () => {
     expect(sync).toHaveBeenCalledWith('ready', undefined, SCOPE_ID)
   })
 
-  const button = (label: string) => [...container.querySelectorAll('button')].find(b => b.textContent?.includes(label))
-
-  it('checks progress in Anki and says how many words became Known', async () => {
-    vi.spyOn(api, 'getExportCards').mockResolvedValue(EXPORT)
-    const check = vi.spyOn(api, 'checkAnkiProgress').mockResolvedValue({ matured: 5 })
-    await open()
-    await act(async () => { button('Check progress in Anki')?.click() })
-    expect(check).toHaveBeenCalled()
-    expect(container.textContent).toContain('5 words learned in Anki → Known')
-  })
-
-  it('offers the check in the empty state', async () => {
+  it('shows the empty state when everything is in Anki', async () => {
     vi.spyOn(api, 'getExportCards').mockResolvedValue({ ...EXPORT, ready: [], exported_count: 3 })
     await open()
     expect(container.textContent).toContain('Everything marked for learning is already in Anki.')
-    expect(button('Check progress in Anki')).toBeDefined()
-  })
-
-  it('tells the words Anki learned after a sync', async () => {
-    vi.spyOn(api, 'getExportCards').mockResolvedValue(EXPORT)
-    vi.spyOn(api, 'syncToAnki').mockResolvedValue({ ...SYNCED, matured: 1 })
-    await open()
-    await act(async () => { button('Add to Anki')?.click() })
-    expect(container.textContent).toContain('1 word learned in Anki → Known')
   })
 })

@@ -87,17 +87,10 @@ class SyncResultDTO(BaseModel):
     errors: int
     skipped_lemmas: list[str] = []
     error_lemmas: list[str] = []
-    matured: int = 0  # words Anki says are learned, now Known
-
-
-class AnkiProgressDTO(BaseModel):
-    """Result of checking progress in Anki: how many words became Known."""
-
-    matured: int
 
 
 class LearningWordsDTO(BaseModel):
-    """The words the user is learning: notes in Anki not yet mature, Learn not yet exported."""
+    """The words the user is learning: words exported to Anki, Learn not yet exported."""
 
     in_anki: list[str]
     awaiting_export: list[str]

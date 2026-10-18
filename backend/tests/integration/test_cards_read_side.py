@@ -392,18 +392,6 @@ class TestBusySource:
         assert "PROCESSING" not in SourceStatus.__members__
 
 
-class TestFromAnki:
-    def test_a_word_known_by_maturity_is_marked_in_the_known_list(
-        self, client: TestClient, session: Session,
-    ) -> None:
-        known = SqlaKnownWordRepository(session)
-        known.add("glare", None, from_anki=True)
-        known.add("spark", None)
-        session.commit()
-        listed = {w["lemma"]: w["from_anki"] for w in client.get("/known-words").json()}
-        assert listed == {"glare": True, "spark": False}
-
-
 class TestCleanupMedia:
     def test_clears_the_media_of_every_phrase_of_the_source(
         self, client: TestClient, bench: Bench, session: Session, tmp_path: object,

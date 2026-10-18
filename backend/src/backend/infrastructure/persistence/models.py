@@ -610,17 +610,9 @@ class AnkiNoteModel(Base):
     note_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     lemma: Mapped[str] = mapped_column(String(100), nullable=False)
     pos: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    matured_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
-    deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     def to_entity(self) -> AnkiNote:
-        return AnkiNote(
-            note_id=self.note_id,
-            lemma=self.lemma,
-            pos=self.pos,
-            matured_at=self.matured_at,
-            deleted_at=self.deleted_at,
-        )
+        return AnkiNote(note_id=self.note_id, lemma=self.lemma, pos=self.pos)
 
 
 class DocumentParseModel(Base):
@@ -694,8 +686,6 @@ class KnownWordModel(Base):
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
-    # Anki said the word is learned: its note matured.
-    from_anki: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="0")
 
     __table_args__ = (UniqueConstraint("lemma", "pos", name="uq_known_word_lemma_pos"),)
 
@@ -705,7 +695,6 @@ class KnownWordModel(Base):
             lemma=self.lemma,
             pos=self.pos,
             created_at=self.created_at,
-            from_anki=self.from_anki,
         )
 
 

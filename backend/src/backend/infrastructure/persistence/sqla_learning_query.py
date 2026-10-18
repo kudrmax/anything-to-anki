@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 class SqlaLearningQuery(LearningQuery):
     """Learn words of every source whose decision phrase has no row in `anki_synced_cards`,
-    and notes in `anki_notes` neither mature nor deleted."""
+    and every note exported to Anki (`anki_notes`)."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -39,7 +39,5 @@ class SqlaLearningQuery(LearningQuery):
 
     def in_anki(self) -> frozenset[str]:
         return frozenset(self._session.scalars(
-            select(func.lower(AnkiNoteModel.lemma))
-            .where(AnkiNoteModel.matured_at.is_(None), AnkiNoteModel.deleted_at.is_(None))
-            .distinct()
+            select(func.lower(AnkiNoteModel.lemma)).distinct()
         ))

@@ -417,13 +417,6 @@ export interface SyncResult {
   errors: number
   skipped_lemmas: string[]
   error_lemmas: string[]
-  /** Слова, выученные в Anki: теперь Known. */
-  matured: number
-}
-
-/** Итог «Check progress in Anki»: сколько слов стали Known. */
-export interface AnkiProgress {
-  matured: number
 }
 
 /** Слова «учу», только для просмотра: заметки в Anki и Learn, ещё не экспортированные. */
@@ -488,8 +481,6 @@ export interface KnownWord {
   lemma: string
   pos: string | null
   created_at: string
-  /** Слово стало известным, когда его заметка в Anki выучилась. */
-  from_anki: boolean
 }
 
 export interface Stats {

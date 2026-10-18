@@ -11,8 +11,7 @@ class KnownWordRepository(ABC):
     """Port for managing the user's known-word whitelist."""
 
     @abstractmethod
-    def add(self, lemma: str, pos: str | None, *, from_anki: bool = False) -> KnownWord:
-        """`from_anki`: the word's note matured in Anki."""
+    def add(self, lemma: str, pos: str | None) -> KnownWord: ...
 
     @abstractmethod
     def remove(self, known_word_id: int) -> None: ...

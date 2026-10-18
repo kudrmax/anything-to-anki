@@ -86,8 +86,6 @@ class TestSyncToAnkiUseCase:
         self.anki_sync_repo = MagicMock()
         self.template_renderer = MagicMock()
         self.anki_note_repo = MagicMock()
-        self.known_from_anki = MagicMock()
-        self.known_from_anki.run.return_value = 0
         self.template_renderer.render_recognition.return_value = NoteTemplates(
             "<front/>", "<back/>", "",
         )
@@ -103,7 +101,6 @@ class TestSyncToAnkiUseCase:
             anki_sync_repo=self.anki_sync_repo,
             template_renderer=self.template_renderer,
             anki_note_repo=self.anki_note_repo,
-            known_from_anki=self.known_from_anki,
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
         )
@@ -594,7 +591,6 @@ class TestSyncRefusesIncompleteNoteType:
             anki_sync_repo=anki_sync_repo,
             template_renderer=MagicMock(),
             anki_note_repo=MagicMock(),
-            known_from_anki=MagicMock(**{"run.return_value": 0}),
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
         )
@@ -648,7 +644,6 @@ class TestSyncCollectionScope:
                 render_recognition=MagicMock(return_value=NoteTemplates("F", "B", "")),
             ),
             anki_note_repo=MagicMock(),
-            known_from_anki=MagicMock(**{"run.return_value": 0}),
             cloze_builder=ClozeBuilder(),
             scope_resolver=SourceScopeResolver(
                 InMemorySourceRepository(sources),
@@ -664,9 +659,7 @@ class TestSyncCollectionScope:
 
 
 @pytest.mark.unit
-class TestSyncChecksProgressInAnki:
-    """Every export checks maturity first, also when nothing is new."""
-
+class TestSyncWhenAnkiIsOffline:
     def setup_method(self) -> None:
         self.cards = ExportCards()
         self.cards.put([])
@@ -681,8 +674,6 @@ class TestSyncChecksProgressInAnki:
         renderer = MagicMock()
         renderer.render_recognition.return_value = NoteTemplates("F", "B", "")
         self.anki_note_repo = MagicMock()
-        self.known_from_anki = MagicMock()
-        self.known_from_anki.run.return_value = 3
         self.use_case = SyncToAnkiUseCase(
             export_queue=ExportQueue(
                 self.cards.words, anki_sync_repo, self.cards,
@@ -692,26 +683,17 @@ class TestSyncChecksProgressInAnki:
             anki_sync_repo=anki_sync_repo,
             template_renderer=renderer,
             anki_note_repo=self.anki_note_repo,
-            known_from_anki=self.known_from_anki,
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
         )
 
-    def test_an_export_with_nothing_new_still_checks_progress(self) -> None:
-        result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
-
-        assert result.total == 0
-        assert result.matured == 3
-        self.known_from_anki.run.assert_called_once()
-
-    def test_anki_offline_with_nothing_new_is_no_error(self) -> None:
+    def test_an_export_with_nothing_new_does_not_ask_anki(self) -> None:
         self.anki_connector.is_available.return_value = False
 
         result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
 
         assert result.total == 0
-        assert result.matured == 0
-        self.known_from_anki.run.assert_not_called()
+        self.anki_connector.is_available.assert_not_called()
 
     def test_anki_offline_with_new_cards_is_an_error(self) -> None:
         self.anki_connector.is_available.return_value = False
@@ -722,8 +704,7 @@ class TestSyncChecksProgressInAnki:
         with pytest.raises(AnkiNotAvailableError):
             self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
 
-    def test_anki_failing_during_the_check_does_not_stop_the_export(self) -> None:
-        self.known_from_anki.run.side_effect = AnkiNotAvailableError()
+    def test_an_exported_word_records_its_note(self) -> None:
         self.cards.put([
             _make_candidate(1, "burnout", WordStatus.LEARN),
         ])
@@ -731,24 +712,4 @@ class TestSyncChecksProgressInAnki:
         result = self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
 
         assert result.added == 1
-        assert result.matured == 0
-
-    def test_anki_failing_during_the_check_of_an_empty_export_is_no_error(self) -> None:
-        self.known_from_anki.run.side_effect = AnkiNotAvailableError()
-
-        result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
-
-        assert result.total == 0
-        assert result.matured == 0
-
-    def test_an_exported_word_is_learning_not_known(self) -> None:
-        self.cards.put([
-            _make_candidate(1, "burnout", WordStatus.LEARN),
-        ])
-
-        result = self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
-
-        assert result.added == 1
-        assert result.matured == 3
         self.anki_note_repo.add.assert_called_once_with(12345, "burnout", "NOUN")
-        self.known_from_anki.run.assert_called_once()

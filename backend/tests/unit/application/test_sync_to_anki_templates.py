@@ -83,7 +83,6 @@ class TestSyncToAnkiTemplates:
             anki_sync_repo=anki_sync_repo,
             template_renderer=renderer,
             anki_note_repo=MagicMock(),
-            known_from_anki=MagicMock(**{"run.return_value": 0}),
             cloze_builder=ClozeBuilder(),
             scope_resolver=empty_scope_resolver(),
         )

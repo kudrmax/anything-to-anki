@@ -19,7 +19,7 @@ class SqlaKnownWordRepository(KnownWordRepository):
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def add(self, lemma: str, pos: str | None, *, from_anki: bool = False) -> KnownWord:
+    def add(self, lemma: str, pos: str | None) -> KnownWord:
         query = self._session.query(KnownWordModel).filter(
             KnownWordModel.lemma == lemma,
         )
@@ -30,7 +30,7 @@ class SqlaKnownWordRepository(KnownWordRepository):
         existing = query.first()
         if existing:
             return existing.to_entity()
-        model = KnownWordModel(lemma=lemma, pos=pos, from_anki=from_anki)
+        model = KnownWordModel(lemma=lemma, pos=pos)
         self._session.add(model)
         self._session.flush()
         return model.to_entity()

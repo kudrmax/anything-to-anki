@@ -12,5 +12,3 @@ class KnownWordDTO(BaseModel):
     lemma: str
     pos: str | None
     created_at: datetime
-    # Anki matured its note: the word became known by learning it there.
-    from_anki: bool = False

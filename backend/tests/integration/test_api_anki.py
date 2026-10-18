@@ -198,7 +198,7 @@ class TestSyncToAnkiAPI:
         data = response.json()
         assert data["total"] == 0
         assert data["added"] == 0
-        assert data["matured"] == 0
+        assert "matured" not in data
 
     def test_sync_adds_cards_successfully(self, client: TestClient) -> None:
         post = _add_text(client, "burnout is exhausting")
@@ -282,16 +282,7 @@ def _add_text(client: TestClient, text: str) -> Response:
 
 
 @pytest.mark.integration
-class TestAnkiProgressAPI:
-    def test_check_progress_with_anki_offline_is_503(self, client: TestClient) -> None:
-        assert client.post("/anki/check-progress").status_code == 503
-
-    def test_check_progress_counts_words_learned_in_anki(self, client: TestClient) -> None:
-        with patch(f"{_CONNECTOR}.is_available", return_value=True):
-            response = client.post("/anki/check-progress")
-        assert response.status_code == 200
-        assert response.json() == {"matured": 0}
-
+class TestLearningAPI:
     def test_the_learning_list_is_read_only_and_split(self, client: TestClient) -> None:
         response = client.get("/vocabulary/learning")
         assert response.status_code == 200

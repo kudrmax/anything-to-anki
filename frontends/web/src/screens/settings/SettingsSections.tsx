@@ -392,11 +392,7 @@ function WordList({ words, hint, empty, deletingId, onRemove }: WordListProps) {
 const KNOWN_WORDS_HINT = "Known words won't be suggested when processing new sources."
 const UNKNOWN_WORDS_HINT = 'Phrases with these words never count as ready: only their target should be new.'
 
-const FROM_ANKI = 'from Anki'
-
-/** «lemma · POS · from Anki»: пометка — у слов, ставших известными по зрелости в Anki. */
-const knownWordLabel = (word: KnownWord): string =>
-  [word.lemma, word.pos, word.from_anki ? FROM_ANKI : null].filter(Boolean).join(' · ')
+const knownWordLabel = (word: KnownWord): string => [word.lemma, word.pos].filter(Boolean).join(' · ')
 
 export function KnownWords({ store }: { store: SettingsStore }) {
   return (

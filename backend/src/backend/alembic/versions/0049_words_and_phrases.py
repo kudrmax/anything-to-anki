@@ -9,8 +9,8 @@ phrase of every card moves to the new `phrases` table, with everything made for 
 were separate cards merge into one word with several phrases: the duplicate's rows are
 rebound to the surviving word before the duplicate is deleted, so nothing is lost.
 SKIP moves from the word to its phrase; LEARN and KNOWN mark the phrase of the decision.
-Anki notes already exported become `anki_notes`, mature as of this migration (they are
-Known already). See docs/specs/words-phrases-rebuild.md, «Миграция 0049».
+Anki notes already exported become `anki_notes`. See docs/specs/words-phrases-rebuild.md,
+«Миграция 0049».
 
 The position → occurrence key logic is a frozen copy: it must not follow later changes
 of the domain's DocumentLayout.
@@ -20,8 +20,7 @@ of the domain's DocumentLayout.
 A collected phrase keeps where its card came from (another source, or AI) on itself, so a
 real phrase beside a generated one is labelled as what it is; the word no longer holds it.
 A source's status becomes an outcome only: one left processing is new again, and the stage
-of a running process lives with its operation in `source_operations`. Known words learn
-whether Anki matured them.
+of a running process lives with its operation in `source_operations`.
 
 One-way: merged words and re-keyed results cannot be split back into cards.
 """
@@ -91,7 +90,7 @@ def upgrade() -> None:
     _release_skipped_originals(conn, cards)
     _set_decisions(conn)
     _move_ipa(conn)
-    _notes_from_exports(conn, now)
+    _notes_from_exports(conn)
     _rekey_results()
     _drop_card_columns()
     _sources_without_processing(conn)
@@ -150,8 +149,6 @@ def _create_tables() -> None:
         sa.Column("note_id", sa.Integer(), primary_key=True, autoincrement=False),
         sa.Column("lemma", sa.String(100), nullable=False),
         sa.Column("pos", sa.String(10), nullable=True),
-        sa.Column("matured_at", sa.DateTime(), nullable=True),
-        sa.Column("deleted_at", sa.DateTime(), nullable=True),
     )
     op.create_table(
         "document_parses",
@@ -183,11 +180,6 @@ def _add_phrase_columns() -> None:
     op.add_column("jobs", sa.Column("phrase_revision", sa.Integer(), nullable=True))
     op.add_column("card_reports", sa.Column("phrase_id", sa.Integer(), nullable=True))
     op.add_column("anki_synced_cards", sa.Column("phrase_id", sa.Integer(), nullable=True))
-    # Known words matured in Anki say so; who added the old ones is not known.
-    op.add_column(
-        "known_words",
-        sa.Column("from_anki", sa.Boolean(), nullable=False, server_default="0"),
-    )
 
 
 # ── step 3: one phrase per card ───────────────────────────────────────
@@ -471,14 +463,13 @@ def _move_ipa(conn: sa.Connection) -> None:
             )
 
 
-def _notes_from_exports(conn: sa.Connection, now: datetime) -> None:
+def _notes_from_exports(conn: sa.Connection) -> None:
     conn.execute(
         sa.text(
-            "INSERT OR IGNORE INTO anki_notes (note_id, lemma, pos, matured_at)"
-            " SELECT a.anki_note_id, c.lemma, c.pos, :now FROM anki_synced_cards a"
+            "INSERT OR IGNORE INTO anki_notes (note_id, lemma, pos)"
+            " SELECT a.anki_note_id, c.lemma, c.pos FROM anki_synced_cards a"
             " JOIN candidates c ON c.id = a.candidate_id ORDER BY a.id"
-        ).bindparams(sa.bindparam("now", type_=sa.DateTime())),
-        {"now": now},
+        )
     )
 
 

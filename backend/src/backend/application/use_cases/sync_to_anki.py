@@ -25,7 +25,6 @@ if TYPE_CHECKING:
     from backend.application.utils.anki_note_types import NoteTypeCheck
     from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
     from backend.application.utils.export_queue import ExportCard, ExportQueue
-    from backend.application.utils.known_from_anki import RefreshKnownFromAnki
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.anki_connector import AnkiConnector
@@ -67,9 +66,7 @@ class SyncToAnkiUseCase:
     """Pushes one export group of not yet exported 'learn' candidates to Anki via AnkiConnect.
 
     A word decided as a cloze goes to the native cloze note type, the rest to the user's
-    recognition note type; the note is made of the phrase of the decision. An exported word
-    is being learned until its note matures; every export checks maturity first, also when
-    nothing is new.
+    recognition note type; the note is made of the phrase of the decision.
     """
 
     def __init__(
@@ -80,7 +77,6 @@ class SyncToAnkiUseCase:
         anki_sync_repo: AnkiSyncRepository,
         template_renderer: AnkiTemplateRenderer,
         anki_note_repo: AnkiNoteRepository,
-        known_from_anki: RefreshKnownFromAnki,
         cloze_builder: ClozeBuilder,
         scope_resolver: SourceScopeResolver,
     ) -> None:
@@ -90,7 +86,6 @@ class SyncToAnkiUseCase:
         self._anki_sync_repo = anki_sync_repo
         self._template_renderer = template_renderer
         self._anki_notes = anki_note_repo
-        self._known_from_anki = known_from_anki
         self._cloze_builder = cloze_builder
         self._scope_resolver = scope_resolver
 
@@ -116,13 +111,10 @@ class SyncToAnkiUseCase:
             "sync_to_anki: start (%s, group=%s, deck=%s, pending=%d)",
             label, group, deck_name, total,
         )
-        available = self._connector.is_available()
         if total == 0:
-            matured = self._check_progress() if available else 0
-            return SyncResultDTO(total=0, added=0, skipped=0, errors=0, matured=matured)
-        if not available:
+            return SyncResultDTO(total=0, added=0, skipped=0, errors=0)
+        if not self._connector.is_available():
             raise AnkiNotAvailableError()
-        matured = self._check_progress()
 
         settings = AnkiNoteSettings.read(self._settings_repo)
         fields = settings.fields
@@ -159,16 +151,7 @@ class SyncToAnkiUseCase:
         return SyncResultDTO(
             total=total, added=tally.added, skipped=tally.skipped, errors=tally.errors,
             skipped_lemmas=tally.skipped_lemmas, error_lemmas=tally.error_lemmas,
-            matured=matured,
         )
-
-    def _check_progress(self) -> int:
-        """Maturity is a side check: Anki failing in it does not stop the export."""
-        try:
-            return self._known_from_anki.run()
-        except AnkiNotAvailableError:
-            logger.warning("sync_to_anki: progress check in Anki failed", exc_info=True)
-            return 0
 
     def _add(
         self,
@@ -235,7 +218,7 @@ class SyncToAnkiUseCase:
         return existing[0] if existing else None
 
     def _mark_exported(self, card: ExportCard, note_id: int) -> None:
-        """The word is now learned in Anki: Known only once its note matures."""
+        """The word is now learned in Anki."""
         word = card.word
         self._anki_sync_repo.mark_synced(card.word_id, note_id, card.phrase_id)
         self._anki_notes.add(note_id, word.lemma, word.pos)

@@ -6,18 +6,12 @@ from typing import cast
 
 import httpx
 
-from backend.domain.exceptions import AnkiNotAvailableError
 from backend.domain.ports.anki_connector import AnkiConnector
-from backend.domain.value_objects.note_maturity import NoteCards
 
 logger = logging.getLogger(__name__)
 
 _ANKI_URL = os.getenv("ANKI_URL", "http://localhost:8765")
 _VERSION = 6
-# Notes per `findCards` and cards per `cardsInfo`: keeps each request small.
-ANKI_BATCH_SIZE = 500
-_SUSPENDED_QUEUE = -1
-
 _CARD_TEMPLATE_NAME = "AnythingToAnki Card"
 _CLOZE_TEMPLATE_NAME = "AnythingToAnki Cloze"
 
@@ -163,38 +157,3 @@ class AnkiConnectConnector(AnkiConnector):
         with open(file_path, "rb") as f:
             data = base64.b64encode(f.read()).decode()
         self._invoke("storeMediaFile", filename=filename, data=data)
-
-    def note_cards(self, note_ids: list[int]) -> dict[int, NoteCards]:
-        try:
-            cards = self._cards_of(note_ids)
-        except (httpx.HTTPError, RuntimeError) as exc:
-            raise AnkiNotAvailableError() from exc
-        intervals: dict[int, list[int]] = {}
-        suspended: dict[int, int] = {}
-        for card in cards:
-            note = int(cast("int", card["note"]))
-            intervals.setdefault(note, [])
-            suspended.setdefault(note, 0)
-            if card["queue"] == _SUSPENDED_QUEUE:
-                suspended[note] += 1
-            else:
-                intervals[note].append(int(cast("int", card["interval"])))
-        return {
-            note: NoteCards(intervals=tuple(intervals[note]), suspended=suspended[note])
-            for note in intervals
-        }
-
-    def _cards_of(self, note_ids: list[int]) -> list[dict[str, object]]:
-        """`cardsInfo` of every card of the notes, asked in batches."""
-        card_ids: list[int] = []
-        for notes in _batches(note_ids):
-            query = "nid:" + ",".join(str(note) for note in notes)
-            card_ids.extend(cast("list[int]", self._invoke("findCards", query=query) or []))
-        cards: list[dict[str, object]] = []
-        for batch in _batches(card_ids):
-            cards.extend(cast("list[dict[str, object]]", self._invoke("cardsInfo", cards=batch)))
-        return cards
-
-
-def _batches(ids: list[int]) -> list[list[int]]:
-    return [ids[start:start + ANKI_BATCH_SIZE] for start in range(0, len(ids), ANKI_BATCH_SIZE)]

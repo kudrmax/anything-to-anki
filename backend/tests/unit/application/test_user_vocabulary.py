@@ -41,15 +41,3 @@ class TestUserVocabulary:
     def test_forgetting_a_known_a_card_added_takes_it_out_of_known(self) -> None:
         self.vocabulary.forget_known("feast", None)
         self.known.remove_by_lemma.assert_called_once_with("feast", None)
-
-    def test_maturity_does_not_count_a_word_already_known(self) -> None:
-        assert self.vocabulary.mark_mature("feast", "NOUN") is False
-        self.known.add.assert_not_called()
-
-    def test_a_mature_word_becomes_known(self) -> None:
-        assert self.vocabulary.mark_mature("gull", "NOUN") is True
-        self.known.add.assert_called_once_with("gull", "NOUN", from_anki=True)
-
-    def test_maturity_leaves_an_unknown_word_alone(self) -> None:
-        assert self.vocabulary.mark_mature("lurk", "VERB") is False
-        self.known.add.assert_not_called()

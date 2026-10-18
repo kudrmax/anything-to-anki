@@ -408,11 +408,10 @@ def test_every_export_record_survives_with_its_phrase(db_url: str) -> None:
         {"candidate_id": CARD_H, "phrase_id": h["id"], "anki_note_id": NOTE_H},
     ]
     assert h["is_decision"] and not g["is_decision"]
-    notes = _rows(db_url, "SELECT note_id, lemma, matured_at FROM anki_notes ORDER BY note_id")
+    notes = _rows(db_url, "SELECT note_id, lemma FROM anki_notes ORDER BY note_id")
     assert [(n["note_id"], n["lemma"]) for n in notes] == [
         (NOTE_A, "glare"), (NOTE_G, "linger"), (NOTE_H, "linger"), (NOTE_K, "drift"),
     ]
-    assert all(n["matured_at"] is not None for n in notes)
 
 
 def test_a_decision_beats_a_newer_undecided_duplicate(db_url: str) -> None:
@@ -464,8 +463,12 @@ def test_a_source_left_processing_is_new_again_and_no_stage_is_stored(db_url: st
     assert "stage" in operation_columns
 
 
-def test_old_known_words_are_not_from_anki(db_url: str) -> None:
-    assert {r["from_anki"] for r in _rows(db_url, "SELECT from_anki FROM known_words")} == {0}
+def test_known_words_and_anki_notes_keep_no_anki_progress(db_url: str) -> None:
+    engine = inspect(create_engine(db_url))
+    assert {c["name"] for c in engine.get_columns("known_words")} == {
+        "id", "lemma", "pos", "created_at",
+    }
+    assert {c["name"] for c in engine.get_columns("anki_notes")} == {"note_id", "lemma", "pos"}
 
 
 def test_target_on_the_next_line_is_keyed_on_that_line(db_url: str) -> None:

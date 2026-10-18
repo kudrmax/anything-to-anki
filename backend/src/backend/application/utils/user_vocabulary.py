@@ -17,8 +17,7 @@ class UserVocabulary:
 
     Behind it are two lists, known and unknown words. A word is in at most
     one: marking it in one list takes it out of the other. If it is in both
-    anyway, it is unknown. Learning words come from the decisions and Anki notes;
-    a word Anki says is learned becomes known, unless the user marked it unknown.
+    anyway, it is unknown. Learning words come from the decisions and Anki notes.
     """
 
     def __init__(
@@ -49,19 +48,6 @@ class UserVocabulary:
     def forget_known(self, lemma: str, pos: str | None) -> None:
         """Takes back the Known of a card."""
         self.__known.remove_by_lemma(lemma, pos)
-
-    def mark_mature(self, lemma: str, pos: str | None) -> bool:
-        """Anki says the word is learned: Known, unless it is known already or the user marked it
-        unknown. Returns whether it was applied."""
-        vocabulary = Vocabulary.of(
-            known={word for word, _ in self.__known.get_all_pairs()},
-            unknown=self.__unknown.lemmas(),
-        )
-        key = lemma.lower()
-        if key in vocabulary.known or key in vocabulary.unknown:
-            return False
-        self.__known.add(lemma, pos, from_anki=True)
-        return True
 
     def mark_unknown(self, lemma: str) -> None:
         self.__known.remove_every_pos(lemma)

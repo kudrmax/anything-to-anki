@@ -17,7 +17,6 @@ from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
 from backend.application.use_cases.add_source import AddSourceUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
-from backend.application.use_cases.check_anki_progress import CheckAnkiProgressUseCase
 from backend.application.use_cases.create_collection import CreateCollectionUseCase
 from backend.application.use_cases.create_topic import CreateTopicUseCase
 from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
@@ -64,7 +63,6 @@ from backend.application.utils.export_queue import ExportQueue
 from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
-from backend.application.utils.known_from_anki import RefreshKnownFromAnki
 from backend.application.utils.phrase_reader import PhraseReader
 from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.review_progress import ReviewProgress
@@ -825,26 +823,14 @@ class Container:
             anki_sync_repo=SqlaAnkiSyncRepository(session),
             template_renderer=self._anki_template_renderer,
             anki_note_repo=SqlaAnkiNoteRepository(session),
-            known_from_anki=self._known_from_anki(session),
             cloze_builder=ClozeBuilder(),
             scope_resolver=self._scope_resolver(session),
         )
-
-    def check_anki_progress_use_case(self, session: Session) -> CheckAnkiProgressUseCase:
-        return CheckAnkiProgressUseCase(self._anki_connector, self._known_from_anki(session))
 
     def get_learning_words_use_case(self, session: Session) -> GetLearningWordsUseCase:
         return GetLearningWordsUseCase(
             vocabulary=self._user_vocabulary(session),
             learning_query=SqlaLearningQuery(session),
-        )
-
-    def _known_from_anki(self, session: Session) -> RefreshKnownFromAnki:
-        return RefreshKnownFromAnki(
-            anki_connector=self._anki_connector,
-            anki_note_repo=SqlaAnkiNoteRepository(session),
-            vocabulary=self._user_vocabulary(session),
-            review_status=self._review_status_updater(session),
         )
 
     def get_export_cards_use_case(self, session: Session) -> GetExportCardsUseCase:

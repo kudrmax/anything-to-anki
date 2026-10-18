@@ -1,6 +1,5 @@
 import type {
   AIUsageStats,
-  AnkiProgress,
   AnkiStatus,
   AnkiTemplates,
   BootstrapStatus,
@@ -131,8 +130,6 @@ export const api = {
     }),
 
   getAnkiStatus: () => req<AnkiStatus>('/anki/status'),
-
-  checkAnkiProgress: () => req<AnkiProgress>('/anki/check-progress', { method: 'POST' }),
 
   getExportCards: (sourceId?: number, scope: Scope = 'all') =>
     req<GlobalExport>(

@@ -19,9 +19,6 @@ export function useExport(sourceId?: number, scope: Scope = 'all') {
   const [syncing, setSyncing] = useState<ExportGroup | null>(null)
   const [result, setResult] = useState<SyncResult | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [checking, setChecking] = useState(false)
-  /** Сколько слов Anki назвал выученными при последней проверке или экспорте. */
-  const [matured, setMatured] = useState<number | null>(null)
 
   const applyExport = useCallback((data: GlobalExport) => {
     setGroups({ ready: data.ready, incomplete: data.incomplete })
@@ -49,7 +46,6 @@ export function useExport(sourceId?: number, scope: Scope = 'all') {
     try {
       const synced = await api.syncToAnki(group, sourceId, scope)
       setResult(synced)
-      setMatured(synced.matured)
       applyExport(await api.getExportCards(sourceId, scope))
       void statsStore.refresh()
     } catch (e) {
@@ -59,27 +55,12 @@ export function useExport(sourceId?: number, scope: Scope = 'all') {
     }
   }, [sourceId, scope, applyExport])
 
-  const checkProgress = useCallback(async () => {
-    setChecking(true)
-    setError(null)
-    try {
-      setMatured((await api.checkAnkiProgress()).matured)
-      applyExport(await api.getExportCards(sourceId, scope))
-      void statsStore.refresh()
-    } catch (e) {
-      setError(messageOf(e))
-    } finally {
-      setChecking(false)
-    }
-  }, [sourceId, scope, applyExport])
-
   const counts: Record<ExportGroup, number> = { ready: countCards(groups.ready), incomplete: countCards(groups.incomplete) }
   const canSync = (group: ExportGroup) => ankiStatus?.available === true && counts[group] > 0 && syncing === null
-  const canCheck = ankiStatus?.available === true && syncing === null && !checking
 
   return {
     ankiStatus, groups, counts, totalCards: counts.ready + counts.incomplete,
     title, exportedCount, settings, loading, syncing, result, error,
-    canSync, sync, checking, matured, canCheck, checkProgress,
+    canSync, sync,
   }
 }
