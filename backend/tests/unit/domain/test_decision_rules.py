@@ -34,6 +34,7 @@ from backend.domain.services.decision_rules import (
     PressKey,
     RemovalKey,
     StatusChange,
+    Target,
     WordOutcome,
     bind_key,
     effects,
@@ -283,6 +284,21 @@ class TestPressExpansion:
     def test_no_key_yields_in_anki(self) -> None:
         refusals = {t.refusal for t in PRESS_RULES.values() if t.refusal is not None}
         assert refusals == {Refusal.NOT_DECISION_CARD, Refusal.DECIDED_ELSEWHERE}
+
+    @pytest.mark.parametrize(("choice", "release"), [(L, False), (N, True)])
+    def test_a_refusal_row_neither_chooses_nor_releases(
+        self, choice: CardChoice, release: bool,
+    ) -> None:
+        with pytest.raises(ValueError, match="refusal row"):
+            Target("P0", choice, release, Refusal.NOT_DECISION_CARD)
+
+    def test_grant_is_the_choice_or_the_refusal(self) -> None:
+        assert Target("P0", K).grant(ACTED) is K
+        with pytest.raises(ActionRefusedError) as refused:
+            Target("P0", refusal=Refusal.DECIDED_ELSEWHERE).grant(ACTED)
+        assert (refused.value.card_id, refused.value.refusal) == (
+            ACTED, Refusal.DECIDED_ELSEWHERE,
+        )
 
     def test_an_impossible_state_has_no_rule(self) -> None:
         word = WordState(1, LEMMA, "verb", 1, (CardState(ACTED, S, Binding(NoteKind.LEARN, NOW)),))

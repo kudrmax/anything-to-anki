@@ -88,6 +88,15 @@ class TestCardFacts:
         with pytest.raises(PhraseNotFoundError):
             _word(CardState(1, CardChoice.NONE)).card(2)
 
+    def test_no_decision_reads_as_none_without_a_card(self) -> None:
+        word = _word(CardState(1, CardChoice.SKIP))
+        assert word.decision_card is None
+        assert (word.decision_choice, word.decision_note) == (CardChoice.NONE, None)
+
+    def test_the_decision_facts_come_from_the_decision_card(self) -> None:
+        word = _word(CardState(1, CardChoice.SKIP), _bound(CardChoice.CLOZE, NoteKind.CLOZE))
+        assert (word.decision_choice, word.decision_note) == (CardChoice.CLOZE, NoteKind.CLOZE)
+
     def test_with_cards_replaces_in_place_and_appends(self) -> None:
         word = _word(CardState(1, CardChoice.LEARN), CardState(2, CardChoice.SKIP))
         changed = word.with_cards(CardState(1, CardChoice.NONE), CardState(9, CardChoice.KNOWN))

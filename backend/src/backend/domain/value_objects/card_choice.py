@@ -114,8 +114,7 @@ class CardState:
         return None if self.binding is None else self.binding.note_kind
 
 
-NO_CARD_ID = 0
-NO_DECISION_CARD = CardState(NO_CARD_ID, CardChoice.NONE)
+_NO_DECISION_CARD = CardState(card_id=0, choice=CardChoice.NONE)
 
 
 @dataclass(frozen=True)
@@ -137,9 +136,13 @@ class WordState:
         return next((card for card in self.cards if card.is_decision), None)
 
     @property
-    def decision(self) -> CardState:
-        """The decision card, or NO_DECISION_CARD: "no decision" as a key value."""
-        return next((card for card in self.cards if card.is_decision), NO_DECISION_CARD)
+    def decision_choice(self) -> CardChoice:
+        """The decision card's choice; NONE when the word has no decision."""
+        return _decision(self).choice
+
+    @property
+    def decision_note(self) -> NoteKind | None:
+        return _decision(self).note
 
     def with_cards(self, *changed: CardState) -> WordState:
         """Replaces cards by id in place; cards with a new id are appended."""
@@ -182,7 +185,7 @@ def export_kind(card: CardState) -> NoteKind | None:
 
 
 def decision_status(word: WordState) -> DecisionStatus:
-    card = word.decision
+    card = _decision(word)
     return _DECISION_STATUS[(card.choice, in_anki(card))]
 
 
@@ -199,5 +202,13 @@ def reads_known(card: CardState, lemma: LemmaKnowledge, now: datetime) -> bool:
 
 def status_of(word: WordState, lemma: LemmaKnowledge, now: datetime) -> WordStatus:
     """What every reader sees: the decision, with Learning read as Known when it reads so."""
-    known = reads_known(word.decision, lemma, now)
-    return _STATUS_OF[(decision_status(word), known)]
+    return _STATUS_OF[(decision_status(word), decision_reads_known(word, lemma, now))]
+
+
+def decision_reads_known(word: WordState, lemma: LemmaKnowledge, now: datetime) -> bool:
+    return reads_known(_decision(word), lemma, now)
+
+
+def _decision(word: WordState) -> CardState:
+    """The decision card, or a private placeholder so "no decision" is a key value."""
+    return next((card for card in word.cards if card.is_decision), _NO_DECISION_CARD)

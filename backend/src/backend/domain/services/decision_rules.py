@@ -29,6 +29,7 @@ from backend.domain.value_objects.card_choice import (
     Refusal,
     Role,
     WordState,
+    decision_reads_known,
     reads_known,
     status_of,
 )
@@ -70,7 +71,7 @@ def rule[K, V](table: Mapping[K, V], key: K) -> V:
 
 
 def role_of(word: WordState, card: CardState) -> Role:
-    return _ROLES[(card.is_decision, word.decision.is_decision)]
+    return _ROLES[(card.is_decision, word.decision_choice in DECISION_CHOICES)]
 
 
 _ROLES: Mapping[tuple[bool, bool], Role] = MappingProxyType(
@@ -175,6 +176,17 @@ class Target:
     choice: CardChoice = CardChoice.NONE
     release: bool = False
     refusal: Refusal | None = None
+
+    def __post_init__(self) -> None:
+        if self.refusal is not None and (self.choice is not CardChoice.NONE or self.release):
+            msg = f"{self.row}: a refusal row neither chooses nor releases"
+            raise ValueError(msg)
+
+    def grant(self, card_id: int) -> CardChoice:
+        """The new choice; raises ActionRefusedError on a refusal row."""
+        if self.refusal is not None:
+            raise ActionRefusedError(card_id, self.refusal)
+        return self.choice
 
 
 @dataclass(frozen=True)
@@ -321,9 +333,7 @@ def press(
     """Raises ActionRefusedError when the row refuses."""
     card = word.card(card_id)
     target = rule(PRESS_RULES, press_key(word, card_id, button, lemma, elsewhere, now))
-    if target.refusal is not None:
-        raise ActionRefusedError(card_id, target.refusal)
-    choice = target.choice
+    choice = target.grant(card_id)
     after = word.with_cards(CardState(card_id, choice, _kept(card.binding, target.release)))
     return WordOutcome(
         row=target.row,
@@ -501,8 +511,9 @@ REMOVAL_RULES: Mapping[RemovalKey, RemovalTarget] = MappingProxyType(dict(REMOVA
 
 
 def removal_key(word: WordState, lemma: LemmaKnowledge, now: datetime) -> RemovalKey:
-    card = word.decision
-    return RemovalKey(card.choice, card.note, reads_known(card, lemma, now))
+    return RemovalKey(
+        word.decision_choice, word.decision_note, decision_reads_known(word, lemma, now),
+    )
 
 
 @dataclass(frozen=True)
@@ -538,12 +549,14 @@ def on_known_removed(
 def _revoked(
     word: WordState, target: RemovalTarget, lemma: LemmaKnowledge, now: datetime,
 ) -> WordOutcome:
-    card = word.decision
-    after = word.with_cards(CardState(card.card_id, _N, _kept(card.binding, target.release)))
+    decided = tuple(card for card in word.cards if card.is_decision)
+    after = word.with_cards(
+        *(CardState(card.card_id, _N, _kept(card.binding, target.release)) for card in decided),
+    )
     return WordOutcome(
         row=target.row,
         word=after,
-        choices=(ChoiceChange(card.card_id, card.choice, _N),),
+        choices=tuple(ChoiceChange(card.card_id, card.choice, _N) for card in decided),
         released=target.release,
         status=_change(word, after, lemma, now, Actor.REVOKE),
         row_effects=_RELEASE_EFFECTS[target.release],
