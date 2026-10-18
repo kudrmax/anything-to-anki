@@ -29,7 +29,7 @@ from tests.phrase_support import phrase
 
 
 def _row(
-    source_id: int, phrase_id: int, status: WordStatus = WordStatus.PENDING,
+    source_id: int, phrase_id: int, status: WordStatus = WordStatus.NEW,
 ) -> CardRow:
     return CardRow(
         source_id=source_id, word_id=phrase_id, phrase_id=phrase_id, lemma=f"word{phrase_id}",

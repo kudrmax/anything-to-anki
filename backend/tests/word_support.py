@@ -150,7 +150,7 @@ def store_card(
     is_new = word_id is None
     if word_id is None:
         word_id = words.add_word(word)
-    decided = is_new and word.status is not WordStatus.PENDING
+    decided = is_new and word.status is not WordStatus.NEW
     if decided:
         words.set_word_status(word_id, word.status)
     if origin is None:

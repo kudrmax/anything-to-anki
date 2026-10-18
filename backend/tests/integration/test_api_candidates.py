@@ -60,7 +60,7 @@ def client() -> Generator[TestClient, None, None]:
                 cefr_level="B2",
                 zipf_frequency=3.5,
                 occurrences=1,
-                status=WordStatus.PENDING,
+                status=WordStatus.NEW,
             ),
             phrase("the pursuit of", "pursuit"),
             position=DocumentPosition(0, 0, phrase_start, 0, phrase_start + 14),

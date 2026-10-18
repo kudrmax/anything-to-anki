@@ -80,7 +80,7 @@ class CandidateFactory:
             zipf_frequency=self._frequency_provider.get_zipf_value(lexeme.lemma),
             occurrences=occurrences,
             is_phrasal_verb=lexeme.is_phrasal_verb,
-            status=WordStatus.PENDING,
+            status=WordStatus.NEW,
             cefr_breakdown=breakdown,
         )
         return NewCard(word=word, phrase=phrase, origin=origin, position=position)

@@ -13,7 +13,7 @@ from backend.domain.value_objects.decision_progress import DecisionProgress
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from backend.domain.value_objects.elsewhere import Elsewhere
+    from backend.domain.value_objects.elsewhere import ElsewhereStatus
     from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.user_knowledge import UserKnowledge
@@ -52,7 +52,7 @@ class ProgressFacts(CardFacts, Protocol):
     def is_done(self) -> bool: ...
 
     @property
-    def elsewhere(self) -> Elsewhere | None: ...
+    def elsewhere(self) -> ElsewhereStatus | None: ...
 
 
 def new_words(phrase: Phrase, knowledge: UserKnowledge | None) -> list[str]:

@@ -70,7 +70,7 @@ class Store:
             self.next_id += 1
             self.words[self.next_id] = WordRow(
                 id=self.next_id, lemma=new.lemma, is_phrasal_verb=new.is_phrasal_verb,
-                status=WordStatus.PENDING, data=new.data,
+                status=WordStatus.NEW, data=new.data,
             )
         for occurrence_id in plan.occ_to_delete:
             del self.rows[occurrence_id]
@@ -151,7 +151,7 @@ def random_source(seed: int) -> tuple[list[OccurrenceRow], list[WordRow], list[B
     words: list[WordRow] = []
     next_row = 1
     for word_id in range(1, rnd.randint(2, 6)):
-        status = rnd.choice([WordStatus.PENDING] * 3 + [WordStatus.LEARN, WordStatus.KNOWN])
+        status = rnd.choice([WordStatus.NEW] * 3 + [WordStatus.LEARN, WordStatus.KNOWN])
         words.append(word(word_id, f"w{word_id}", status=status, count=rnd.randint(1, 3)))
         used: set[tuple[OccurrenceOrigin, int]] = set()
         for _ in range(rnd.randint(0, 4)):
@@ -166,7 +166,7 @@ def random_source(seed: int) -> tuple[list[OccurrenceRow], list[WordRow], list[B
             rows.append(candidate)
             next_row += 1
         mine = [r for r in rows if r.candidate_id == word_id]
-        if status is not WordStatus.PENDING:
+        if status is not WordStatus.NEW:
             if not mine:
                 rows.append(row(id=next_row, candidate_id=word_id, origin=MANUAL, shown=USER))
                 next_row += 1

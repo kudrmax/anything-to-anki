@@ -61,7 +61,7 @@ def _candidate(source_id: int, lemma: str, target: str) -> CardSeed:
             cefr_level="B2",
             zipf_frequency=3.0,
             occurrences=1,
-            status=WordStatus.PENDING,
+            status=WordStatus.NEW,
         ),
         phrase(PHRASE, target),
         position=DocumentPosition(1, 0, 0, 1, 13),

@@ -108,7 +108,7 @@ def word(
     id: int = WORD_ID,  # noqa: A002 — named as the field it fills
     lemma: str = "glare",
     *,
-    status: WordStatus = WordStatus.PENDING,
+    status: WordStatus = WordStatus.NEW,
     pos: str = "VERB",
     zipf: float = 3.0,
     count: int = 1,

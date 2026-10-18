@@ -16,7 +16,7 @@ from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.document_position import DocumentPosition
-from backend.domain.value_objects.elsewhere import Elsewhere
+from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.review_card import ReviewCard
 from backend.domain.value_objects.user_knowledge import UserKnowledge
@@ -33,7 +33,7 @@ KNOWLEDGE = UserKnowledge(Vocabulary.of(set(), set()), CEFRLevel.B1, 4.5)
 def _word(word_id: int, lemma: str, zipf: float = 3.0, occurrences: int = 1) -> StoredCandidate:
     return StoredCandidate(
         source_id=1, lemma=lemma, pos="NOUN", cefr_level="B1", zipf_frequency=zipf,
-        occurrences=occurrences, status=WordStatus.PENDING,
+        occurrences=occurrences, status=WordStatus.NEW,
         id=word_id,
     )
 
@@ -44,9 +44,9 @@ def _card(
     text: str = "",
     *,
     new: tuple[str, ...] = (),
-    status: WordStatus = WordStatus.PENDING,
+    status: WordStatus = WordStatus.NEW,
     skipped: bool = False,
-    elsewhere: Elsewhere | None = None,
+    elsewhere: ElsewhereStatus | None = None,
     at: int | None = None,
 ) -> ReviewCard:
     assert word.id is not None
@@ -81,15 +81,15 @@ class TestSections:
 
 class TestDone:
     @pytest.mark.parametrize(("status", "skipped", "elsewhere", "done"), [
-        (WordStatus.PENDING, False, None, False),
+        (WordStatus.NEW, False, None, False),
         (WordStatus.LEARN, False, None, True),
         (WordStatus.KNOWN, False, None, True),
-        (WordStatus.PENDING, True, None, True),
-        (WordStatus.PENDING, False, Elsewhere.KNOWN, True),
-        (WordStatus.PENDING, False, Elsewhere.LEARNING, True),
+        (WordStatus.NEW, True, None, True),
+        (WordStatus.NEW, False, ElsewhereStatus.KNOWN, True),
+        (WordStatus.NEW, False, ElsewhereStatus.LEARNING, True),
     ])
     def test_a_card_is_done_when_its_word_is_decided_its_phrase_skipped_or_done_elsewhere(
-        self, status: WordStatus, skipped: bool, elsewhere: Elsewhere | None, done: bool,
+        self, status: WordStatus, skipped: bool, elsewhere: ElsewhereStatus | None, done: bool,
     ) -> None:
         card = _card(_word(1, "glare"), 1, status=status, skipped=skipped, elsewhere=elsewhere)
         assert card.is_done is done
@@ -102,7 +102,7 @@ class TestProgress:
             (_card(word, 1, status=WordStatus.LEARN), CandidateSection.READY),
             (_card(word, 2, status=WordStatus.LEARN), CandidateSection.READY),
             (_card(_word(2, "spark"), 3), CandidateSection.READY),
-            (_card(_word(3, "flame"), 4, elsewhere=Elsewhere.KNOWN), CandidateSection.READY),
+            (_card(_word(3, "flame"), 4, elsewhere=ElsewhereStatus.KNOWN), CandidateSection.READY),
             (_card(_word(4, "ember"), 5), CandidateSection.EXTRA),
         ]
         assert ready_progress(cards) == DecisionProgress(decided=2, total=3)

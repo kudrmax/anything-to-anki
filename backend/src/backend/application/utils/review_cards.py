@@ -31,7 +31,7 @@ class ReviewCards:
         words = {w.id: w for w in self._candidate_repo.get_by_source(source_id)}
         shown = self._occurrence_repo.shown_by_word(source_id)
         elsewhere = self._decided_elsewhere.of_lemmas(
-            word.lemma for word in words.values() if word.status is WordStatus.PENDING
+            word.lemma for word in words.values() if word.status is WordStatus.NEW
         )
         return [
             ReviewCard(
@@ -59,6 +59,6 @@ class ReviewCards:
             occurrence=occurrence,
             elsewhere=(
                 self._decided_elsewhere.of(word.lemma)
-                if word.status is WordStatus.PENDING else None
+                if word.status is WordStatus.NEW else None
             ),
         )

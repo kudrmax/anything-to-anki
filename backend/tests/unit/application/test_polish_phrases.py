@@ -63,7 +63,7 @@ def _polished(repo: MagicMock) -> list[tuple[int, str]]:
 def _candidate(
     cid: int = 1,
     *,
-    status: WordStatus = WordStatus.PENDING,
+    status: WordStatus = WordStatus.NEW,
     polished: str | None = None,
 ) -> GenerationCard:
     """Word `cid` and its phrase `phrase_id_of(cid)`."""

@@ -26,4 +26,4 @@ class WordRow:
 
     @property
     def decided(self) -> bool:
-        return self.status is not WordStatus.PENDING
+        return self.status is not WordStatus.NEW

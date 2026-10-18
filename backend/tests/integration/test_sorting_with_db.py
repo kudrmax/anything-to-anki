@@ -49,7 +49,7 @@ def _make_candidate(
             cefr_level=cefr,
             zipf_frequency=zipf,
             occurrences=occurrences,
-            status=WordStatus.PENDING,
+            status=WordStatus.NEW,
             is_phrasal_verb=is_phrasal_verb,
         ),
         phrase(

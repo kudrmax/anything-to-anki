@@ -9,15 +9,17 @@ from backend.domain.value_objects.word_status import WordStatus
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.entities.stored_candidate import StoredCandidate
-    from backend.domain.value_objects.elsewhere import Elsewhere
+    from backend.domain.value_objects.elsewhere import ElsewhereStatus
     from backend.domain.value_objects.frequency_band import FrequencyBand
     from backend.domain.value_objects.phrase import Phrase
 
 
-def card_is_done(word_status: WordStatus, skipped: bool, elsewhere: Elsewhere | None) -> bool:
+def card_is_done(
+    word_status: WordStatus, skipped: bool, elsewhere: ElsewhereStatus | None,
+) -> bool:
     """A card is done when its word is decided, its phrase skipped, or the word is known or
     learned via another source."""
-    return word_status is not WordStatus.PENDING or skipped or elsewhere is not None
+    return word_status is not WordStatus.NEW or skipped or elsewhere is not None
 
 
 @dataclass(frozen=True)
@@ -29,7 +31,7 @@ class ReviewCard:
 
     word: StoredCandidate
     occurrence: Occurrence
-    elsewhere: Elsewhere | None = None
+    elsewhere: ElsewhereStatus | None = None
 
     @property
     def word_status(self) -> WordStatus:
@@ -78,7 +80,7 @@ class ReviewCard:
     @property
     def shown_status(self) -> CandidateStatus:
         """The decision the card shows: the word's, which beats a Skip of the phrase."""
-        if self.word_status is not WordStatus.PENDING:
+        if self.word_status is not WordStatus.NEW:
             return CandidateStatus(self.word_status.value)
         return CandidateStatus.SKIP if self.skipped else CandidateStatus.PENDING
 
@@ -96,7 +98,7 @@ class CardRow:
     word_status: WordStatus
     skipped: bool
     phrase: Phrase
-    elsewhere: Elsewhere | None = None
+    elsewhere: ElsewhereStatus | None = None
 
     @property
     def is_done(self) -> bool:

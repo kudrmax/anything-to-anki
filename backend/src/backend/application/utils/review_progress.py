@@ -47,13 +47,13 @@ class ReviewProgress:
         open_lemmas = {
             card.lemma
             for cards in found.values() for card in cards
-            if card.word_status is WordStatus.PENDING
+            if card.word_status is WordStatus.NEW
         }
         elsewhere = self._decided_elsewhere.of_lemmas(open_lemmas)
         return {
             source_id: [
                 replace(card, elsewhere=elsewhere[card.lemma])
-                if card.word_status is WordStatus.PENDING and elsewhere[card.lemma] is not None
+                if card.word_status is WordStatus.NEW and elsewhere[card.lemma] is not None
                 else card
                 for card in cards
             ]

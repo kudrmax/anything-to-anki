@@ -30,7 +30,7 @@ class SqlaCandidateRepository(CandidateRepository):
 
     def add_word(self, word: StoredCandidate) -> int:
         model = StoredCandidateModel.from_entity(word)
-        model.status = WordStatus.PENDING.value
+        model.status = WordStatus.NEW.value
         self._session.add(model)
         self._session.flush()
         return model.id

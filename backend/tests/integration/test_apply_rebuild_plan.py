@@ -96,7 +96,7 @@ def test_a_first_build_creates_words_and_phrases_and_a_second_does_nothing(
     words = {w.lemma: w for w in repo.word_rows(SOURCE)}
     assert set(words) == {"glare", "linger"}
     assert words["glare"].data == analysed[0].data
-    assert words["glare"].status is WordStatus.PENDING
+    assert words["glare"].status is WordStatus.NEW
     phrases = _phrases(db_session)
     shown = {p.candidate_id: p for p in phrases.values() if p.shown_by == ShownBy.SELECTION}
     assert shown[words["glare"].id].line == 1

@@ -18,7 +18,7 @@ from backend.domain.exceptions import (
 )
 from backend.domain.services.card_decision import DecisionAction
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
-from backend.domain.value_objects.elsewhere import Elsewhere
+from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.phrase_origin_kind import (
     DecisionKind,
     OccurrenceOrigin,
@@ -175,7 +175,7 @@ def test_known_is_undone_on_the_decision_phrase(bench: Bench) -> None:
 
     bench.decide(FIRST, PENDING)
 
-    assert bench.word_status() is WordStatus.PENDING
+    assert bench.word_status() is WordStatus.NEW
     assert not bench.phrase(FIRST).is_decision
     bench.known_words.remove_by_lemma.assert_called_once_with(LEMMA, "VERB")
     bench.decisions.forget.assert_called_once_with(LEMMA)
@@ -221,7 +221,7 @@ def test_the_decision_changes_on_its_card(bench: Bench) -> None:
 def test_skip_skips_the_phrase_only(bench: Bench) -> None:
     bench.decide(FIRST, SKIP)
 
-    assert bench.word_status() is WordStatus.PENDING
+    assert bench.word_status() is WordStatus.NEW
     assert bench.phrase(FIRST).skipped
     assert not bench.phrase(bench.second).skipped
     bench.decisions.record.assert_not_called()
@@ -232,7 +232,7 @@ def test_skip_on_the_decision_card_undoes_and_skips(bench: Bench) -> None:
 
     bench.decide(FIRST, SKIP)
 
-    assert bench.word_status() is WordStatus.PENDING
+    assert bench.word_status() is WordStatus.NEW
     assert bench.phrase(FIRST).skipped
     assert not bench.phrase(FIRST).is_decision
     bench.decisions.forget.assert_called_once_with(LEMMA)
@@ -313,9 +313,9 @@ def test_learn_on_a_word_known_elsewhere_is_refused(bench: Bench) -> None:
     with pytest.raises(DecidedElsewhereError) as refused:
         bench.decide(FIRST, LEARN)
 
-    assert refused.value.elsewhere is Elsewhere.KNOWN
+    assert refused.value.elsewhere is ElsewhereStatus.KNOWN
     assert str(refused.value) == "Already known"
-    assert bench.word_status() is WordStatus.PENDING
+    assert bench.word_status() is WordStatus.NEW
 
 
 def test_learn_on_a_word_learning_in_another_source_is_refused(
@@ -329,7 +329,7 @@ def test_learn_on_a_word_learning_in_another_source_is_refused(
     with pytest.raises(DecidedElsewhereError) as refused:
         bench.decide(FIRST, CLOZE)
 
-    assert refused.value.elsewhere is Elsewhere.LEARNING
+    assert refused.value.elsewhere is ElsewhereStatus.LEARNING
     assert str(refused.value) == "Already learning from another source"
 
 

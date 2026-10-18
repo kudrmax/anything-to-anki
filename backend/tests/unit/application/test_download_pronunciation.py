@@ -22,7 +22,7 @@ def _make_candidate(cid: int = 1, source_id: int = 10) -> StoredCandidate:
         source_id=source_id,
         lemma="elaborate",
         pos="VERB",
-        status=WordStatus.PENDING,
+        status=WordStatus.NEW,
         cefr_level=None,
         zipf_frequency=4.5,
         occurrences=1,

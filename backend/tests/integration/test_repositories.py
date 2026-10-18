@@ -130,7 +130,7 @@ class TestCandidateRepository:
                     cefr_level="B2",
                     zipf_frequency=3.5,
                     occurrences=2,
-                    status=WordStatus.PENDING,
+                    status=WordStatus.NEW,
                 ),
                 phrase("the pursuit of", "pursuit"),
             ),
@@ -142,7 +142,7 @@ class TestCandidateRepository:
                     cefr_level="C2",
                     zipf_frequency=2.1,
                     occurrences=1,
-                    status=WordStatus.PENDING,
+                    status=WordStatus.NEW,
                 ),
                 phrase("leads to burnout", "burnout"),
             ),
@@ -166,7 +166,7 @@ class TestCandidateRepository:
                     cefr_level="B1",
                     zipf_frequency=4.0,
                     occurrences=1,
-                    status=WordStatus.PENDING,
+                    status=WordStatus.NEW,
                 ),
                 phrase("a test", "test"),
             ),
@@ -183,7 +183,7 @@ class TestCandidateRepository:
     def test_count_all_counts_every_status(self, db_session: Session) -> None:
         source_id = self._create_source(db_session)
         repo = SqlaCandidateRepository(db_session)
-        self._create_candidate(repo, source_id, "one", WordStatus.PENDING)
+        self._create_candidate(repo, source_id, "one", WordStatus.NEW)
         self._create_candidate(repo, source_id, "two", WordStatus.LEARN)
         self._create_candidate(repo, source_id, "three", WordStatus.KNOWN)
         assert repo.count_all() == 3
@@ -192,8 +192,8 @@ class TestCandidateRepository:
         source_id = self._create_source(db_session)
         other_source = self._create_source(db_session)
         repo = SqlaCandidateRepository(db_session)
-        self._create_candidate(repo, source_id, "Glare", WordStatus.PENDING)
-        self._create_candidate(repo, other_source, "linger", WordStatus.PENDING)
+        self._create_candidate(repo, source_id, "Glare", WordStatus.NEW)
+        self._create_candidate(repo, other_source, "linger", WordStatus.NEW)
         [glare] = repo.get_by_source(source_id)
 
         assert repo.word_id(source_id, WordKey.of("glare", False)) == glare.id

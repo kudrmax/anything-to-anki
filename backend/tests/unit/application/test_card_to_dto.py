@@ -13,7 +13,7 @@ from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.job import Job
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
-from backend.domain.value_objects.elsewhere import Elsewhere
+from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind
@@ -313,7 +313,7 @@ class TestCardToDtoDecision:
         )
 
     def test_a_card_done_elsewhere_says_why(self) -> None:
-        dto = card_to_dto(card(elsewhere=Elsewhere.LEARNING))
+        dto = card_to_dto(card(elsewhere=ElsewhereStatus.LEARNING))
         assert dto.state.elsewhere == "learning"
         assert {b.button: b.action for b in dto.state.buttons}["learn"] is None
         assert dto.is_done is True

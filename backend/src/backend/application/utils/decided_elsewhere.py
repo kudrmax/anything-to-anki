@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.elsewhere import Elsewhere
+from backend.domain.value_objects.elsewhere import ElsewhereStatus
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -19,18 +19,18 @@ class DecidedElsewhere:
     def __init__(self, vocabulary: UserVocabulary) -> None:
         self._vocabulary = vocabulary
 
-    def of(self, lemma: str) -> Elsewhere | None:
+    def of(self, lemma: str) -> ElsewhereStatus | None:
         return _elsewhere(self._vocabulary.snapshot(), lemma)
 
-    def of_lemmas(self, lemmas: Iterable[str]) -> dict[str, Elsewhere | None]:
+    def of_lemmas(self, lemmas: Iterable[str]) -> dict[str, ElsewhereStatus | None]:
         """The same for many words, reading what the user knows once."""
         vocabulary = self._vocabulary.snapshot()
         return {lemma: _elsewhere(vocabulary, lemma) for lemma in lemmas}
 
 
-def _elsewhere(vocabulary: Vocabulary, lemma: str) -> Elsewhere | None:
+def _elsewhere(vocabulary: Vocabulary, lemma: str) -> ElsewhereStatus | None:
     if vocabulary.is_known(lemma):
-        return Elsewhere.KNOWN
+        return ElsewhereStatus.KNOWN
     if vocabulary.is_learning(lemma):
-        return Elsewhere.LEARNING
+        return ElsewhereStatus.LEARNING
     return None

@@ -32,7 +32,7 @@ from backend.domain.exceptions import (
     SourceOperationBusyError,
 )
 from backend.domain.value_objects.content import Kind
-from backend.domain.value_objects.elsewhere import Elsewhere
+from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_kind import GenerationKind
@@ -67,7 +67,7 @@ def _meaning(cid: int) -> CandidateMeaning:
     )
 
 
-def _word(cid: int, status: WordStatus = WordStatus.PENDING) -> StoredCandidate:
+def _word(cid: int, status: WordStatus = WordStatus.NEW) -> StoredCandidate:
     return StoredCandidate(
         id=cid,
         source_id=SOURCE_ID,
@@ -132,7 +132,7 @@ class _Setup:
         source: Source | None = None,
         video_downloading: bool = False,
         busy_with: SourceOperationKind | None = None,
-        elsewhere: dict[str, Elsewhere] | None = None,
+        elsewhere: dict[str, ElsewhereStatus] | None = None,
     ) -> None:
         self.source_repo = MagicMock()
         self.source_repo.get_by_id.return_value = source or _source()
@@ -208,7 +208,7 @@ def _words_reversed(cards: list[ReviewCard]) -> list[ReviewCard]:
 
 def _one(
     cid: int,
-    status: WordStatus = WordStatus.PENDING,
+    status: WordStatus = WordStatus.NEW,
     *,
     meaning: bool = False,
     media: CandidateMedia | None = None,
@@ -393,8 +393,8 @@ class TestCardsNobodyDecidesOn:
 
         assert setup.queued_phrases() == [10]
 
-    @pytest.mark.parametrize("elsewhere", [Elsewhere.KNOWN, Elsewhere.LEARNING])
-    def test_a_card_decided_elsewhere_gets_nothing(self, elsewhere: Elsewhere) -> None:
+    @pytest.mark.parametrize("elsewhere", [ElsewhereStatus.KNOWN, ElsewhereStatus.LEARNING])
+    def test_a_card_decided_elsewhere_gets_nothing(self, elsewhere: ElsewhereStatus) -> None:
         setup = _Setup([_one(1), _one(2)], elsewhere={"stale1": elsewhere})
 
         setup.run.execute(SOURCE_ID, GenerationKind.MEANING, GenerationScope.MISSING)

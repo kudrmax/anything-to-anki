@@ -112,8 +112,8 @@ class TestGetExportCardsExecute:
                 "leads to burnout quickly",
                 meaning="physical collapse",
             ),
-            _make_candidate("pursuit", WordStatus.PENDING),
-            _make_candidate("relentless", WordStatus.PENDING),
+            _make_candidate("pursuit", WordStatus.NEW),
+            _make_candidate("relentless", WordStatus.NEW),
         ])
 
         result = self.use_case.execute(source_id=1)
@@ -193,7 +193,7 @@ class TestGetExportCardsExecute:
 
     def test_empty_when_no_learn_candidates(self) -> None:
         self.cards.put([
-            _make_candidate("burnout", WordStatus.PENDING),
+            _make_candidate("burnout", WordStatus.NEW),
         ])
         result = self.use_case.execute(source_id=1)
         assert result.ready == []

@@ -14,13 +14,13 @@ from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from backend.application.utils.card_views import CardViews
-    from backend.domain.value_objects.elsewhere import Elsewhere
+    from backend.domain.value_objects.elsewhere import ElsewhereStatus
     from backend.domain.value_objects.phrase import Phrase
     from sqlalchemy.orm import Session
 
 
 def word(
-    word_id: int = 1, lemma: str = "test", *, status: WordStatus = WordStatus.PENDING,
+    word_id: int = 1, lemma: str = "test", *, status: WordStatus = WordStatus.NEW,
     **changes: object,
 ) -> StoredCandidate:
     """A word of source 10, pending unless `status` says otherwise."""
@@ -47,7 +47,7 @@ def card(
     the_word: StoredCandidate | None = None,
     the_occurrence: Occurrence | None = None,
     *,
-    elsewhere: Elsewhere | None = None,
+    elsewhere: ElsewhereStatus | None = None,
 ) -> ReviewCard:
     w = the_word or word()
     assert w.id is not None

@@ -29,7 +29,7 @@ def _card(
     lemma: str,
     *,
     with_meaning: bool = False,
-    status: WordStatus = WordStatus.PENDING,
+    status: WordStatus = WordStatus.NEW,
     skipped: bool = False,
 ) -> GenerationCard:
     """Word `cid` and its phrase cid * 10."""

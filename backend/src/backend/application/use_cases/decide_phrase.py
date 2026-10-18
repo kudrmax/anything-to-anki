@@ -62,7 +62,7 @@ class DecidePhraseUseCase:
         ensure_source_free(self._lock, word.source_id)
         before = word.status
         elsewhere = (
-            self._decided_elsewhere.of(word.lemma) if before is WordStatus.PENDING else None
+            self._decided_elsewhere.of(word.lemma) if before is WordStatus.NEW else None
         )
         outcome = decide(occ, before, action, elsewhere)
         self._write(occ, before, outcome)

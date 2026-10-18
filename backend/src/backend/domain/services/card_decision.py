@@ -16,7 +16,7 @@ from backend.domain.exceptions import (
     DecidedElsewhereError,
     DomainError,
 )
-from backend.domain.value_objects.elsewhere import Elsewhere
+from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 from backend.domain.value_objects.word_status import WordStatus
 
@@ -30,7 +30,7 @@ __all__ = [
     "DecisionAction",
     "DecisionButton",
     "DecisionOutcome",
-    "Elsewhere",
+    "ElsewhereStatus",
     "card_state",
     "decide",
     "wants_generation",
@@ -106,19 +106,22 @@ class CardState:
 
     decided_here: bool
     decided_elsewhere: WordStatus | None
-    elsewhere: Elsewhere | None
+    elsewhere: ElsewhereStatus | None
     buttons: tuple[ButtonState, ...]
 
 
 def decide(
-    occ: Occurrence, word_status: WordStatus, action: DecisionAction, elsewhere: Elsewhere | None,
+    occ: Occurrence,
+    word_status: WordStatus,
+    action: DecisionAction,
+    elsewhere: ElsewhereStatus | None,
 ) -> DecisionOutcome:
     """What `action` on the phrase `occ` does, or the domain error refusing it.
 
     `elsewhere`: the word is known or learned via another source, for a word still pending.
     """
     assert occ.id is not None
-    decided = word_status is not WordStatus.PENDING
+    decided = word_status is not WordStatus.NEW
     if action is DecisionAction.UNSKIP:
         return _phrase_only(occ, word_status, skipped=False)
     if decided and not occ.is_decision:
@@ -144,19 +147,19 @@ def decide(
     skip = action is DecisionAction.SKIP
     if decided:
         return DecisionOutcome(
-            word_status=WordStatus.PENDING, is_decision=False, decision_kind=None,
+            word_status=WordStatus.NEW, is_decision=False, decision_kind=None,
             skipped=skip, drop_cloze=drop_cloze,
         )
     return _phrase_only(occ, word_status, skipped=skip, drop_cloze=drop_cloze)
 
 
 def card_state(
-    occ: Occurrence, word: StoredCandidate, learning_or_known_elsewhere: Elsewhere | None,
+    occ: Occurrence, word: StoredCandidate, learning_or_known_elsewhere: ElsewhereStatus | None,
 ) -> CardState:
     """`learning_or_known_elsewhere`: why the word is done via another source, if it is;
     a word decided in this source shows its own decision instead."""
     status = word.status
-    decided = status is not WordStatus.PENDING
+    decided = status is not WordStatus.NEW
     decided_here = decided and occ.is_decision
     elsewhere = None if decided else learning_or_known_elsewhere
     return CardState(
@@ -168,7 +171,7 @@ def card_state(
 
 
 def _button(
-    occ: Occurrence, status: WordStatus, button: DecisionButton, elsewhere: Elsewhere | None,
+    occ: Occurrence, status: WordStatus, button: DecisionButton, elsewhere: ElsewhereStatus | None,
 ) -> ButtonState:
     """A press on the button of the card's decision undoes it, on the decision card only;
     Learn on a cloze card makes it a plain card; Skip on a skipped phrase unskips it. A
@@ -205,7 +208,7 @@ def _shown_decision(occ: Occurrence, status: WordStatus) -> DecisionButton | Non
 
 
 def wants_generation(
-    occ: Occurrence, word: StoredCandidate, learning_or_known_elsewhere: Elsewhere | None,
+    occ: Occurrence, word: StoredCandidate, learning_or_known_elsewhere: ElsewhereStatus | None,
 ) -> bool:
     """The card is one someone decides on or sends to Anki, so ✨ makes things for it: an
     open card of a pending word not done via another source, or the Learn/Cloze decision
@@ -219,7 +222,7 @@ def wants_generation(
 
 
 def _allowed(
-    occ: Occurrence, status: WordStatus, action: DecisionAction, elsewhere: Elsewhere | None,
+    occ: Occurrence, status: WordStatus, action: DecisionAction, elsewhere: ElsewhereStatus | None,
 ) -> bool:
     try:
         decide(occ, status, action, elsewhere)

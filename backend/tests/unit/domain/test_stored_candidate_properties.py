@@ -14,7 +14,7 @@ def _make(zipf: float) -> StoredCandidate:
         cefr_level="B1",
         zipf_frequency=zipf,
         occurrences=1,
-        status=WordStatus.PENDING,
+        status=WordStatus.NEW,
     )
 
 

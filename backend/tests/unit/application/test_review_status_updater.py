@@ -58,7 +58,7 @@ class TestReviewStatusUpdater:
     def test_saves_the_derived_status_when_it_changes(self) -> None:
         self.source_repo.get_by_id.return_value = _source(SourceStatus.DONE)
         self.card_query.shown_cards.return_value = {7: [
-            _candidate(WordStatus.LEARN), _candidate(WordStatus.PENDING),
+            _candidate(WordStatus.LEARN), _candidate(WordStatus.NEW),
         ]}
         self.updater.refresh(7)
         self.source_repo.update_status.assert_called_once_with(7, SourceStatus.PARTIALLY_REVIEWED)
@@ -78,7 +78,7 @@ class TestReviewStatusUpdater:
         self.source_repo.get_by_id.return_value = _source(SourceStatus.PARTIALLY_REVIEWED)
         self.card_query.shown_cards.return_value = {7: [
             _candidate(WordStatus.LEARN),
-            _candidate(WordStatus.PENDING, other_new_words=1),
+            _candidate(WordStatus.NEW, other_new_words=1),
         ]}
         self.updater.refresh(7)
         self.source_repo.update_status.assert_called_once_with(7, SourceStatus.REVIEWED)

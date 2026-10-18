@@ -40,7 +40,7 @@ def _create_candidate(repo: SqlaCandidateRepository, lemma: str) -> int:
                 cefr_level=None,
                 zipf_frequency=4.0,
                 occurrences=1,
-                status=WordStatus.PENDING,
+                status=WordStatus.NEW,
             ),
             phrase(f"a {lemma}", lemma),
         )

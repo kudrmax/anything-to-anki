@@ -42,7 +42,7 @@ def _word() -> StoredCandidate:
     return StoredCandidate(
         id=1, source_id=5, lemma="give up", pos="VERB", cefr_level="B1",
         zipf_frequency=4.0,
-        occurrences=1, status=WordStatus.PENDING,
+        occurrences=1, status=WordStatus.NEW,
         is_phrasal_verb=True,
     )
 

@@ -56,7 +56,7 @@ def _make_stored_candidate(with_breakdown: bool = True) -> StoredCandidate:
         cefr_level="B1",
         zipf_frequency=5.0,
         occurrences=1,
-        status=WordStatus.PENDING,
+        status=WordStatus.NEW,
         cefr_breakdown=_make_breakdown() if with_breakdown else None,
     )
 

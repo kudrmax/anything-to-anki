@@ -21,7 +21,9 @@ from backend.domain.services.meaning_action import (  # Pydantic needs it at run
     MeaningAction,
     meaning_action,
 )
-from backend.domain.value_objects.elsewhere import Elsewhere  # noqa: TC001 — Pydantic needs it
+from backend.domain.value_objects.elsewhere import (
+    ElsewhereStatus,  # noqa: TC001 — Pydantic needs it
+)
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
 from backend.domain.value_objects.word_status import WordStatus
@@ -199,7 +201,7 @@ class CardStateDTO(BaseModel):
 
     decided_here: bool
     decided_elsewhere: WordStatus | None = None
-    elsewhere: Elsewhere | None = None
+    elsewhere: ElsewhereStatus | None = None
     buttons: list[ButtonDTO] = []
 
     @staticmethod

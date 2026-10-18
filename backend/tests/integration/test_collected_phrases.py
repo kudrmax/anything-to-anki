@@ -31,7 +31,7 @@ def _card(source_id: int, lemma: str, text: str, origin: PhraseOrigin | None = N
     return NewCard(
         word=StoredCandidate(
             source_id=source_id, lemma=lemma, pos="VERB", cefr_level="B2", zipf_frequency=3.0,
-            occurrences=1, status=WordStatus.PENDING,
+            occurrences=1, status=WordStatus.NEW,
         ),
         phrase=phrase(text, lemma.lower()),
         origin=origin,
@@ -57,7 +57,7 @@ def test_a_collected_phrase_is_a_shown_phrase_of_a_new_word(
     assert not added.is_decision
     word = SqlaCandidateRepository(db_session).get_by_id(added.candidate_id)
     assert word is not None
-    assert (word.lemma, word.status) == ("glare", WordStatus.PENDING)
+    assert (word.lemma, word.status) == ("glare", WordStatus.NEW)
 
 
 def test_a_phrase_of_a_word_the_source_has_joins_that_word(
@@ -102,7 +102,7 @@ def test_learn_leaves_a_word_the_source_has_as_it_is(
     assert not added.is_decision
     word = SqlaCandidateRepository(db_session).get_by_id(added.candidate_id)
     assert word is not None
-    assert word.status is WordStatus.PENDING
+    assert word.status is WordStatus.NEW
 
 
 def test_words_are_counted_and_listed_by_their_decision(
@@ -116,5 +116,5 @@ def test_words_are_counted_and_listed_by_their_decision(
 
     words = SqlaCandidateRepository(db_session)
     assert words.count_by_status(WordStatus.LEARN) == 1
-    assert words.count_by_status(WordStatus.PENDING) == 2
+    assert words.count_by_status(WordStatus.NEW) == 2
     assert [w.lemma for w in words.get_all_by_status(WordStatus.LEARN)] == ["glare"]

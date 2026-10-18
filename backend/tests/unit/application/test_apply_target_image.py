@@ -35,7 +35,7 @@ def _candidate(
     return StoredCandidate(
         id=CANDIDATE_ID, source_id=SOURCE_ID, lemma="ladder", pos=pos, cefr_level="B1",
         zipf_frequency=3.5,
-        occurrences=1, status=WordStatus.PENDING, meaning_image=meaning_image,
+        occurrences=1, status=WordStatus.NEW, meaning_image=meaning_image,
     )
 
 

@@ -110,7 +110,7 @@ class TestSyncToAnkiUseCase:
 
     def test_returns_zero_when_no_learn_candidates(self) -> None:
         self.cards.put([
-            _make_candidate(1, "word", WordStatus.PENDING),
+            _make_candidate(1, "word", WordStatus.NEW),
         ])
         result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
         assert result.total == 0

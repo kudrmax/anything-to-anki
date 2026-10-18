@@ -47,7 +47,7 @@ def client() -> Generator[TestClient, None, None]:
                 cefr_level="B1",
                 zipf_frequency=4.0,
                 occurrences=1,
-                status=WordStatus.PENDING,
+                status=WordStatus.NEW,
                 is_phrasal_verb=" " in lemma,
             ),
             phrase(GIVE_UP, lemma, lemmas={"gave": "give", "smoking": "smoke"}),

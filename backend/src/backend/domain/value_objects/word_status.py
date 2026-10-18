@@ -6,6 +6,6 @@ from enum import StrEnum
 class WordStatus(StrEnum):
     """The user's decision on a word of a source."""
 
-    PENDING = "pending"
+    NEW = "pending"
     LEARN = "learn"
     KNOWN = "known"

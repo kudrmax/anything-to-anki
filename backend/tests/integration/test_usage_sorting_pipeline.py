@@ -62,7 +62,7 @@ class TestUsageSortingPipeline:
             cefr_level="B1",
             zipf_frequency=4.5,
             occurrences=1,
-            status=WordStatus.PENDING,
+            status=WordStatus.NEW,
             usage_distribution=UsageDistribution({"neutral": 0.6, "informal": 0.4}),
         )
         model = StoredCandidateModel.from_entity(candidate)
@@ -81,7 +81,7 @@ class TestUsageSortingPipeline:
             cefr_level="B1",
             zipf_frequency=3.0,
             occurrences=1,
-            status=WordStatus.PENDING,
+            status=WordStatus.NEW,
             usage_distribution=None,
         )
         model = StoredCandidateModel.from_entity(candidate)

@@ -98,7 +98,7 @@ class RebuildPlanWriter:
                 source_id=source_id,
                 lemma=planned.lemma,
                 is_phrasal_verb=planned.is_phrasal_verb,
-                status=WordStatus.PENDING.value,
+                status=WordStatus.NEW.value,
             )
             word.write_data(planned.data)
             self._session.add(word)

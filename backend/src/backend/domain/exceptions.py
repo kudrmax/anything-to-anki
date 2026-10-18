@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from backend.domain.value_objects.elsewhere import Elsewhere
+from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.word_status import WordStatus
 
 
@@ -396,9 +396,9 @@ class AlreadyInAnkiError(DomainError):
 class DecidedElsewhereError(DomainError):
     """Raised when a word known or being learned via another source is marked to learn."""
 
-    def __init__(self, phrase_id: int, elsewhere: Elsewhere) -> None:
+    def __init__(self, phrase_id: int, elsewhere: ElsewhereStatus) -> None:
         reason = (
-            "Already known" if elsewhere is Elsewhere.KNOWN
+            "Already known" if elsewhere is ElsewhereStatus.KNOWN
             else "Already learning from another source"
         )
         super().__init__(reason)

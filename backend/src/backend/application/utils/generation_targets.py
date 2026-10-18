@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
-    from backend.domain.value_objects.elsewhere import Elsewhere
+    from backend.domain.value_objects.elsewhere import ElsewhereStatus
 
 
 @dataclass(frozen=True)
@@ -36,7 +36,7 @@ class GenerationCard:
 
     @classmethod
     def of(
-        cls, word: StoredCandidate, phrase: Occurrence, elsewhere: Elsewhere | None,
+        cls, word: StoredCandidate, phrase: Occurrence, elsewhere: ElsewhereStatus | None,
     ) -> GenerationCard:
         return cls(word, phrase, wants_generation(phrase, word, elsewhere))
 
