@@ -124,6 +124,7 @@ class NoteKey:
     reads_known: bool
     listed: bool                        # normalised: reads Known through the Known list
     elsewhere: ElsewhereStatus | None   # normalised: OPEN cards only
+    unknown: bool = False               # normalised: a Learning card in Anki, lemma in Unknown
 
 
 @dataclass(frozen=True)
@@ -140,6 +141,7 @@ def possible_note(key: NoteKey) -> bool:
         and (not key.known_choice or decision)
         and (not key.reads_known or (key.bound and not key.known_choice))
         and (not key.listed or key.reads_known)
+        and (not key.unknown or (key.bound and not key.known_choice and not key.reads_known))
     )
 
 
@@ -167,12 +169,15 @@ NOTE_RULES: Mapping[NoteKey, NoteRow] = MappingProxyType(
         NoteKey(Role.DECISION, True, False, True, False, None):
             NoteRow(CardNote.KNOWN_BY_TIMER, dated=True),
         NoteKey(Role.DECISION, True, False, True, True, None): NoteRow(CardNote.KNOWN_BY_LIST),
+        # Unknown wins (Q8): the timer never makes it Known, so there is no date.
+        NoteKey(Role.DECISION, True, False, False, False, None, unknown=True):
+            NoteRow(CardNote.IN_ANKI),
     },
 )
 
 
 def _open_elsewhere(role: Role, elsewhere: ElsewhereStatus | None) -> ElsewhereStatus | None:
-    return {Role.OPEN: elsewhere}.get(role)
+    return elsewhere if role is Role.OPEN else None
 
 
 def note_key(
@@ -188,6 +193,7 @@ def note_key(
         reads_known=known,
         listed=known and lemma.known_marked,
         elsewhere=_open_elsewhere(role, elsewhere),
+        unknown=in_anki(card) and card.choice is not CardChoice.KNOWN and lemma.unknown,
     )
 
 

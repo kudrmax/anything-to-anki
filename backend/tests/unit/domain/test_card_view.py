@@ -141,7 +141,7 @@ class TestDerivedConsistency:
         keys = [
             NoteKey(*fields) for fields in itertools.product(
                 Role, (False, True), (False, True), (False, True), (False, True),
-                (None, *ElsewhereStatus),
+                (None, *ElsewhereStatus), (False, True),
             )
         ]
         assert {key for key in keys if possible_note(key)} == set(NOTE_RULES)
@@ -167,11 +167,12 @@ class State:
     word: WordState
     known_marked: bool = False
     elsewhere: ElsewhereStatus | None = None
+    unknown: bool = False
 
     def view(self) -> CardView:
         since = tuple(c.binding.learning_since for c in self.word.cards if c.binding)
         knowledge = LemmaKnowledge.at(
-            NOW, known_marked=self.known_marked, unknown=False, learn_anywhere=False,
+            NOW, known_marked=self.known_marked, unknown=self.unknown, learn_anywhere=False,
             active_since=since,
         )
         return card_view(self.word, ACTED, knowledge, self.elsewhere, NOW)
@@ -199,6 +200,7 @@ STATES: dict[str, State] = {
     "known_by_timer": State(_word(_card(L, NoteKind.LEARN, DUE))),
     "known_by_list": State(_word(_card(L, NoteKind.LEARN)), known_marked=True),
     "known_in_anki": State(_word(_card(K, NoteKind.LEARN)), known_marked=True),
+    "in_anki_unknown": State(_word(_card(L, NoteKind.LEARN, DUE)), unknown=True),
     "other_open": State(_word(_card(N), CardState(SIBLING, L))),
     "other_skip": State(_word(_card(S), CardState(SIBLING, K)), known_marked=True),
 }
@@ -221,7 +223,8 @@ class TestPerState:
         "learn": {Press.LEARN}, "cloze": {Press.CLOZE}, "known": {Press.KNOWN},
         "learning": {Press.LEARN}, "learning_cloze": {Press.CLOZE},
         "known_by_timer": {Press.KNOWN}, "known_by_list": {Press.KNOWN},
-        "known_in_anki": {Press.KNOWN}, "other_open": {Press.LEARN},
+        "known_in_anki": {Press.KNOWN}, "in_anki_unknown": {Press.LEARN},
+        "other_open": {Press.LEARN},
         "other_skip": {Press.KNOWN, Press.SKIP},
     }))
     def test_pressed(self, state: str, expected: set[Press]) -> None:
@@ -238,6 +241,7 @@ class TestPerState:
         "known_by_timer": (CardNote.KNOWN_BY_TIMER, NOW),
         "known_by_list": (CardNote.KNOWN_BY_LIST, None),
         "known_in_anki": (CardNote.IN_ANKI, None),
+        "in_anki_unknown": (CardNote.IN_ANKI, None),
         "other_open": (CardNote.DECIDED_ON_OTHER_CARD, None),
         "other_skip": (CardNote.DECIDED_ON_OTHER_CARD, None),
     }))
@@ -259,6 +263,7 @@ class TestPerState:
         "known_by_timer": Shown(_KNOWN, False, Where.HERE),
         "known_by_list": Shown(_KNOWN, False, Where.HERE),
         "known_in_anki": Shown(_KNOWN, False, Where.HERE),
+        "in_anki_unknown": Shown(_LEARNING, False, Where.HERE),
         "other_open": Shown(_LEARN, False, Where.OTHER_CARD),
         "other_skip": Shown(_KNOWN, True, Where.OTHER_CARD),
     }))
@@ -305,7 +310,7 @@ class TestPerState:
     @pytest.mark.parametrize(("state", "expected"), _per_state({
         name: name in {
             "learn", "cloze", "learning", "learning_cloze", "known_by_timer",
-            "known_by_list", "other_open",
+            "known_by_list", "in_anki_unknown", "other_open",
         } for name in STATES
     }))
     def test_chosen_to_learn(self, state: str, expected: bool) -> None:
@@ -317,11 +322,14 @@ class TestPerState:
     def test_wants_generation(self, state: str, expected: bool) -> None:
         assert STATES[state].view().wants_generation is expected
 
-    @pytest.mark.parametrize("state", list(STATES))
-    def test_section(self, state: str) -> None:
+    @pytest.mark.parametrize(
+        ("state", "open_section"),
+        list(itertools.product(STATES, (CandidateSection.READY, CandidateSection.EXTRA))),
+    )
+    def test_section(self, state: str, open_section: CandidateSection) -> None:
         view = STATES[state].view()
-        expected = CandidateSection.REVIEWED if view.is_done else CandidateSection.EXTRA
-        assert section(view, CandidateSection.EXTRA) is expected
+        expected = CandidateSection.REVIEWED if view.is_done else open_section
+        assert section(view, open_section) is expected
 
     def test_a_skipped_card_with_the_word_known_shows_known(self) -> None:
         assert STATES["other_skip"].view().shown.status is _KNOWN
