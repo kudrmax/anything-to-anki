@@ -91,6 +91,21 @@ def test_deleting_the_source_keeps_the_exported_word_learning(bench: Bench) -> N
     assert bench.is_learning("glare")
 
 
+def test_a_deleted_sources_export_turns_the_word_known_by_its_timer(bench: Bench) -> None:
+    """Q13: the binding outlives its source (SET NULL); its timer still runs."""
+    insert_word(bench.session, 1, lemma="glare", status=WordStatus.LEARN.value)
+    bind(bench.session, 1, phrase_id_of(1), note_id=NOTE, since="2026-09-01 00:00:00")
+    SqlaSourceRepository(bench.session).delete(1)
+    bench.session.flush()
+
+    orphan = bench.session.execute(text(
+        "SELECT candidate_id, phrase_id, released_at FROM anki_synced_cards"
+    )).one()
+    assert tuple(orphan) == (None, None, None)
+    assert bench.is_known("glare")
+    assert bench.vocabulary.of("glare").timer_known
+
+
 def test_the_learning_list_tells_words_in_anki_from_words_waiting(bench: Bench) -> None:
     bench.exported_learn_word(1, "glare", NOTE)
     insert_word(bench.session, 2, lemma="linger", status=WordStatus.LEARN.value)
