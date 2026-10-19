@@ -88,7 +88,7 @@ class Bench:
             word_states=self.decisions.word_states,
             vocabulary=self.decisions.vocabulary,
             effects=self.decisions.effects(),
-            unit_of_work=SqlaUnitOfWork(self.session),
+            unit_of_work=SqlaUnitOfWork(self.session, self.decisions.scope),
         )
 
     def replace(self, phrase_id: int, example: str = "She runs every morning.") -> Occurrence:

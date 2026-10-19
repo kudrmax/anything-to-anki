@@ -23,6 +23,7 @@ from backend.infrastructure.persistence.sqla_document_repository import SqlaDocu
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
+from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 
 from tests.decision_support import Decisions
 from tests.lock_support import free_lock
@@ -72,6 +73,7 @@ class Manual:
         frequency.get_zipf_value.return_value = 3.0
         reader = MagicMock()
         reader.read_picked.side_effect = _read_picked
+        decisions = Decisions(bench.session)
         self.use_case = AddManualCandidateUseCase(
             source_repo=bench.sources,
             document_repo=SqlaDocumentRepository(bench.session),
@@ -84,7 +86,8 @@ class Manual:
             phrase_reader=reader,
             lock=free_lock(),
             card_views=MagicMock(),
-            decide_phrase=Decisions(bench.session).decide_phrase(),
+            decide_phrase=decisions.decide_phrase(),
+            unit_of_work=SqlaUnitOfWork(bench.session, decisions.scope),
         )
 
     def add(self, line: int, word_index: int) -> None:

@@ -21,4 +21,5 @@ class UnitOfWork(ABC):
     @abstractmethod
     def write(self) -> AbstractContextManager[None]:
         """One write transaction, taken at its start so no other writer can come between
-        its reads and its writes; committed on exit, rolled back on an error."""
+        its reads and its writes; committed on exit, rolled back on an error. What the user
+        knows is read again inside it, not taken from before it."""

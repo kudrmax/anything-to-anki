@@ -16,6 +16,7 @@ is always saved. The branches that matter:
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import replace
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
@@ -35,6 +36,7 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     TargetNotInPhraseError,
 )
+from backend.domain.ports.unit_of_work import UnitOfWork
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbMatch
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -50,6 +52,8 @@ from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from backend.domain.value_objects.phrase import Phrase
 
 
@@ -160,6 +164,7 @@ def _make_use_case(
     cefr_classifier: MagicMock | None = None,
     frequency_provider: MagicMock | None = None,
     phrasal_verb_detector: MagicMock | None = None,
+    unit_of_work: UnitOfWork | None = None,
 ) -> AddManualCandidateUseCase:
     classifier = cefr_classifier or MagicMock()
     _patch_classify_detailed(classifier)
@@ -177,7 +182,29 @@ def _make_use_case(
         lock=free_lock(),
         card_views=_card_views(repo),
         decide_phrase=MagicMock(),
+        unit_of_work=unit_of_work or MagicMock(),
     )
+
+
+class _RecordingUnitOfWork(UnitOfWork):
+    """Says whether a write transaction is open."""
+
+    def __init__(self) -> None:
+        self.open = False
+
+    def commit(self) -> None:
+        pass
+
+    def rollback(self) -> None:
+        pass
+
+    @contextmanager
+    def write(self) -> Iterator[None]:
+        self.open = True
+        try:
+            yield
+        finally:
+            self.open = False
 
 
 NEW_WORD_ID = 100
@@ -210,6 +237,41 @@ def _mock_repo_save() -> MagicMock:
 
 
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_the_word_and_its_phrase_are_written_in_one_write_transaction() -> None:
+    source_repo = MagicMock()
+    source_repo.get_by_id.return_value = _source()
+    candidate_repo = _mock_repo_save()
+    unit_of_work = _RecordingUnitOfWork()
+    written_inside: list[bool] = []
+    add = candidate_repo.occurrences.add.side_effect
+    candidate_repo.occurrences.add.side_effect = lambda occ: (
+        written_inside.append(unit_of_work.open) or add(occ)
+    )
+    text_analyzer = MagicMock()
+    text_analyzer.analyze.return_value = [_token(0, "word", "word", pos="NOUN", tag="NN")]
+    detector = MagicMock()
+    detector.detect.return_value = []
+    frequency = MagicMock()
+    frequency.get_zipf_value.return_value = 3.7
+    classifier = MagicMock()
+    classifier.classify.return_value = CEFRLevel.C1
+    use_case = _make_use_case(
+        source_repo=source_repo, candidate_repo=candidate_repo, text_analyzer=text_analyzer,
+        phrasal_verb_detector=detector, frequency_provider=frequency,
+        cefr_classifier=classifier, unit_of_work=unit_of_work,
+    )
+
+    use_case.execute(
+        source_id=1,
+        target_words=_picked("word in context", "word"),
+        selection=_select("word in context", "word in context"),
+    )
+
+    assert written_inside == [True]
+    assert not unit_of_work.open
 
 
 @pytest.mark.unit

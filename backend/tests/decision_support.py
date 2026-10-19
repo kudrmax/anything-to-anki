@@ -100,7 +100,7 @@ class Decisions:
             decide_phrase=self.decide_phrase(),
             builder=ClozeBuilder(),
             lock=self.lock,
-            unit_of_work=SqlaUnitOfWork(self.session),
+            unit_of_work=SqlaUnitOfWork(self.session, self.scope),
         )
 
     def decide_phrase(self) -> DecidePhraseUseCase:
@@ -113,5 +113,5 @@ class Decisions:
             lock=self.lock,
             # The tests press; the card the API answers with is read by the API tests.
             card_views=MagicMock(),
-            unit_of_work=SqlaUnitOfWork(self.session),
+            unit_of_work=SqlaUnitOfWork(self.session, self.scope),
         )

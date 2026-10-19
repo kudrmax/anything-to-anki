@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.text_analyzer import TextAnalyzer
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
     from backend.domain.value_objects.new_card import NewCard
 
@@ -57,7 +58,9 @@ class AddManualCandidateUseCase:
         lock: SourceOperationLock,
         card_views: CardViews,
         decide_phrase: DecidePhraseUseCase,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._lock = lock
         self._decide_phrase = decide_phrase
         self._card_views = card_views
@@ -80,7 +83,13 @@ class AddManualCandidateUseCase:
         selection: SelectionDTO,
     ) -> CardDTO:
         """The phrase is the selected piece of the document; the target, the picked words in it.
-        Answers with the card of that phrase."""
+        Answers with the card of that phrase. The add, and its unskip, are one write
+        transaction."""
+        with self._unit_of_work.write():
+            phrase_id = self._add(source_id, target_words, selection)
+        return self._card_views.one(phrase_id)
+
+    def _add(self, source_id: int, target_words: list[int], selection: SelectionDTO) -> int:
         if self._source_repo.get_by_id(source_id) is None:
             raise SourceNotFoundError(source_id)
         ensure_source_free(self._lock, source_id)
@@ -100,10 +109,8 @@ class AddManualCandidateUseCase:
         word_id = self._word_of(card.word)
         if word_id is None:
             word_id = self._candidate_repo.add_word(card.word)
-            phrase_id = self._add_phrase(word_id, card, key)
-        else:
-            phrase_id = self._show_at(word_id, card, key)
-        return self._card_views.one(phrase_id)
+            return self._add_phrase(word_id, card, key)
+        return self._show_at(word_id, card, key)
 
     def _word_of(self, word: StoredCandidate) -> int | None:
         return self._candidate_repo.word_id(

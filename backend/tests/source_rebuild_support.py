@@ -147,14 +147,14 @@ class Bench:
             vocabulary=self.vocabulary,
             threshold_resolver=threshold_resolver(settings),
             analyze_text_use_case=self.analyze_text,
-            unit_of_work=SqlaUnitOfWork(self.session),
+            unit_of_work=SqlaUnitOfWork(self.session, self.vocabulary.scope),
         )
 
     def rebuild(self) -> RebuildSourceUseCase:
         return RebuildSourceUseCase(
             source_repo=self.sources,
             lock=self.lock,
-            unit_of_work=SqlaUnitOfWork(self.session),
+            unit_of_work=SqlaUnitOfWork(self.session, self.vocabulary.scope),
             rebuilder=self.rebuilder(),
         )
 
@@ -163,7 +163,7 @@ class Bench:
             source_repo=self.sources,
             collected_phrases=CollectedPhrases(self.candidates, self.occurrences),
             lock=self.lock,
-            unit_of_work=SqlaUnitOfWork(self.session),
+            unit_of_work=SqlaUnitOfWork(self.session, self.vocabulary.scope),
             rebuilder=self.rebuilder(),
         )
 

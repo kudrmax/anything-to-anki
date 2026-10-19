@@ -169,6 +169,64 @@ def test_a_cloze_saved_while_another_phrase_is_learned_decides_the_word_once(
     _assert_one_won(race, factory, FIRST)
 
 
+OTHER_WORD = 50
+THERE = phrase_id_of(OTHER_WORD)
+
+
+def _seed_in_another_source(factory: sessionmaker[Session]) -> None:
+    """The lemma of WORD in source 2 too: card THERE."""
+    with factory() as session:
+        insert_source(session, 2)
+        insert_word(session, OTHER_WORD, source_id=2, lemma="glare", pos="VERB",
+                    phrase_text="She glared back.")
+        session.commit()
+
+
+def _assert_decided_elsewhere(race: _Race, factory: sessionmaker[Session]) -> None:
+    assert race.outcomes["first"] is None
+    refused = race.outcomes["second"]
+    assert isinstance(refused, ActionRefusedError), refused
+    assert refused.refusal is Refusal.DECIDED_ELSEWHERE
+    with factory() as session:
+        decided = session.execute(text(
+            "SELECT count(*) FROM phrases WHERE choice IN ('learn', 'cloze', 'known')"
+        )).scalar_one()
+    assert decided == 1
+
+
+def test_two_learns_on_one_lemma_in_two_sources_decide_it_once(
+    factory: sessionmaker[Session],
+) -> None:
+    _seed(factory)
+    _seed_in_another_source(factory)
+    race = _Race(factory)
+
+    race.run(
+        lambda d: d.decide_phrase().decide(FIRST, Press.LEARN),
+        lambda d: d.decide_phrase().decide(THERE, Press.LEARN),
+    )
+
+    _assert_decided_elsewhere(race, factory)
+
+
+def test_a_press_reads_what_the_user_knows_once_it_holds_the_database(
+    factory: sessionmaker[Session],
+) -> None:
+    """The second request read the lists before the first committed; its press reads
+    them again."""
+    _seed(factory)
+    _seed_in_another_source(factory)
+    race = _Race(factory)
+
+    def read_then_learn(decisions: Decisions) -> None:
+        decisions.vocabulary.of("glare")
+        decisions.decide_phrase().decide(THERE, Press.LEARN)
+
+    race.run(lambda d: d.decide_phrase().decide(FIRST, Press.LEARN), read_then_learn)
+
+    _assert_decided_elsewhere(race, factory)
+
+
 def test_the_database_holds_one_decision_card_per_word(factory: sessionmaker[Session]) -> None:
     sibling = _seed(factory)
     with factory() as session:

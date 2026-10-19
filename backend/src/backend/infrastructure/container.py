@@ -398,6 +398,7 @@ class Container:
             lock=SqlaSourceOperationLock(session),
             card_views=self._card_views(session),
             decide_phrase=self.decide_phrase_use_case(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def set_phrase_boundary_use_case(self, session: Session) -> SetPhraseBoundaryUseCase:
@@ -427,7 +428,7 @@ class Container:
             occurrence_repo=SqlaOccurrenceRepository(session),
             card_views=self._card_views(session),
             decide_phrase=self.decide_phrase_use_case(session),
-            unit_of_work=SqlaUnitOfWork(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def analyze_text_use_case(self) -> AnalyzeTextUseCase:
@@ -545,7 +546,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             collected_phrases=self._collected_phrases(session),
             lock=SqlaSourceOperationLock(session),
-            unit_of_work=SqlaUnitOfWork(session),
+            unit_of_work=self._unit_of_work(session),
             rebuilder=self._source_rebuilder(session),
             topic_phrase_collector=self._topic_phrase_collector(session),
         )
@@ -554,7 +555,7 @@ class Container:
         return RebuildSourceUseCase(
             source_repo=SqlaSourceRepository(session),
             lock=SqlaSourceOperationLock(session),
-            unit_of_work=SqlaUnitOfWork(session),
+            unit_of_work=self._unit_of_work(session),
             rebuilder=self._source_rebuilder(session),
         )
 
@@ -564,7 +565,7 @@ class Container:
             occurrence_repo=SqlaOccurrenceRepository(session),
             collected_phrases=self._collected_phrases(session),
             lock=SqlaSourceOperationLock(session),
-            unit_of_work=SqlaUnitOfWork(session),
+            unit_of_work=self._unit_of_work(session),
             collector=self._topic_phrase_collector(session),
         )
 
@@ -580,7 +581,7 @@ class Container:
             vocabulary=self._user_vocabulary(session),
             threshold_resolver=self._threshold_resolver(session),
             analyze_text_use_case=self.analyze_text_use_case(),
-            unit_of_work=SqlaUnitOfWork(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def process_sources_use_case(self, session: Session) -> ProcessSourcesUseCase:
@@ -688,7 +689,7 @@ class Container:
             effects=self._decision_effects(session),
             lock=SqlaSourceOperationLock(session),
             card_views=self._card_views(session),
-            unit_of_work=SqlaUnitOfWork(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def _decision_effects(self, session: Session) -> DecisionEffects:
@@ -709,7 +710,7 @@ class Container:
             decide_phrase=self.decide_phrase_use_case(session),
             builder=ClozeBuilder(),
             lock=SqlaSourceOperationLock(session),
-            unit_of_work=SqlaUnitOfWork(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def preview_cloze_use_case(self, session: Session) -> PreviewClozeUseCase:
@@ -730,7 +731,7 @@ class Container:
             word_states=SqlaWordStateRepository(session),
             vocabulary=self._user_vocabulary(session),
             effects=self._decision_effects(session),
-            unit_of_work=SqlaUnitOfWork(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def _threshold_resolver(self, session: Session) -> FrequentWordThresholdResolver:
@@ -784,6 +785,9 @@ class Container:
             unknown_word_repo=SqlaUnknownWordRepository(session),
             scope=self.knowledge_scope(session),
         )
+
+    def _unit_of_work(self, session: Session) -> SqlaUnitOfWork:
+        return SqlaUnitOfWork(session, self.knowledge_scope(session))
 
     def knowledge_scope(self, session: Session) -> KnowledgeScope:
         """One per database session, so one per request and one per job: a single `now`

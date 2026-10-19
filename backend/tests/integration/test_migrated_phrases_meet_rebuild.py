@@ -157,7 +157,7 @@ def _rebuilder(session: Session) -> SourceRebuilder:
         vocabulary=vocabulary,
         threshold_resolver=threshold_resolver(settings),
         analyze_text_use_case=Container().analyze_text_use_case(),
-        unit_of_work=SqlaUnitOfWork(session),
+        unit_of_work=SqlaUnitOfWork(session, vocabulary.scope),
     )
 
 

@@ -138,6 +138,7 @@ def _rebuilder(
         text="", words=words, total_tokens=0, unique_lemmas=0,
     )
     sources = SqlaSourceRepository(session)
+    vocabulary = user_vocabulary()
     return SourceRebuilder(
         source_repo=sources,
         document_repo=SqlaDocumentRepository(session),
@@ -145,10 +146,10 @@ def _rebuilder(
         job_repo=SqlaJobRepository(session),
         media_repo=SqlaCandidateMediaRepository(session),
         settings_repo=settings,
-        vocabulary=user_vocabulary(),
+        vocabulary=vocabulary,
         threshold_resolver=threshold_resolver(settings),
         analyze_text_use_case=analyze,
-        unit_of_work=SqlaUnitOfWork(session),
+        unit_of_work=SqlaUnitOfWork(session, vocabulary.scope),
     )
 
 
