@@ -404,7 +404,7 @@ def test_removing_known_frees_the_word_kept_by_a_deleted_sources_known_card(
     assert client.delete(f"/sources/{HERE}").status_code == 204
 
     listed = next(w for w in client.get("/known-words").json() if w["lemma"] == LEMMA)
-    assert client.delete(f"/known-words/{listed['id']}").status_code == 200
+    assert client.delete(f"/known-words/{listed['removal_key']}").status_code == 200
 
     assert client.get("/vocabulary/learning").json()["in_anki"] == []
     other = next(

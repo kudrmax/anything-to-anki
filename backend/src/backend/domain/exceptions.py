@@ -41,9 +41,9 @@ class UnknownReportReasonError(DomainError):
 
 
 class KnownWordNotFoundError(DomainError):
-    """Raised when a known word entry is not found by ID."""
+    """Raised when a known word entry is not found by its ID or removal key."""
 
-    def __init__(self, known_word_id: int) -> None:
+    def __init__(self, known_word_id: int | str) -> None:
         super().__init__(f"Known word not found: {known_word_id}")
         self.known_word_id = known_word_id
 

@@ -83,9 +83,9 @@ def _card(client: TestClient, source_id: int, word_id: int) -> Json:
     return next(card for card in cards if card["word_id"] == word_id)
 
 
-def _entry_id(client: TestClient, lemma: str, pos: str) -> int:
-    return int(next(
-        w["id"] for w in client.get("/known-words").json()
+def _removal_key(client: TestClient, lemma: str, pos: str) -> str:
+    return str(next(
+        w["removal_key"] for w in client.get("/known-words").json()
         if (w["lemma"], w["pos"]) == (lemma, pos)
     ))
 
@@ -103,7 +103,7 @@ def test_removing_the_last_entry_makes_every_card_of_the_word_new_and_releases_i
     assert _card(client, HERE, CHOSEN)["shown"]["status"] == "known"
     assert _card(client, ELSEWHERE, BOUND)["shown"]["status"] == "known"
 
-    assert client.delete(f"/known-words/{_entry_id(client, 'glare', 'NOUN')}").status_code == 200
+    assert client.delete(f"/known-words/{_removal_key(client, 'glare', 'NOUN')}").status_code == 200
 
     assert _card(client, HERE, CHOSEN)["shown"]["status"] == "new"
     assert _card(client, ELSEWHERE, BOUND)["shown"]["status"] == "new"
@@ -118,7 +118,7 @@ def test_removing_one_of_two_entries_of_a_word_changes_nothing_else(
 ) -> None:
     before = _card(client, HERE, DECIDED_KNOWN)["shown"]["status"]
 
-    client.delete(f"/known-words/{_entry_id(client, 'spark', 'VERB')}")
+    client.delete(f"/known-words/{_removal_key(client, 'spark', 'VERB')}")
 
     assert before == "known"
     assert _card(client, HERE, DECIDED_KNOWN)["shown"]["status"] == "known"
@@ -133,7 +133,7 @@ def test_removing_the_last_entry_waits_for_a_busy_source(
         SqlaSourceOperationLock(session).acquire(THERE, SourceOperationKind.REBUILD)
         session.commit()
 
-    response = client.delete(f"/known-words/{_entry_id(client, 'glare', 'NOUN')}")
+    response = client.delete(f"/known-words/{_removal_key(client, 'glare', 'NOUN')}")
 
     assert response.status_code == 409
     assert _card(client, HERE, CHOSEN)["shown"]["status"] == "known"

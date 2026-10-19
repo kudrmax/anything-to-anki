@@ -8,7 +8,7 @@ import { formatBytes, formatDay } from '@/lib/text/format'
 import { useTheme } from '@/lib/theme'
 import { KNOWN_ON_LABEL, TIMER_KNOWN_LABEL } from '@/screens/review/cardNotes'
 import { Button, Chip, DividerRow, Empty, GroupLabel, Field, Icon, Label, Range, RemovableChip, Segmented, Select, Spinner, Stack, Switch, Text } from '@/ui'
-import { knownWordKey, unknownWordKey, type SettingsStore, type TemplatePart } from './useSettings'
+import { unknownWordKey, type SettingsStore, type TemplatePart } from './useSettings'
 import css from './settings.module.css'
 
 const THEMES: { value: ThemePref; label: string }[] = [
@@ -402,7 +402,7 @@ export function KnownWords({ store }: { store: SettingsStore }) {
       {store.knownError && <Text tone="err">{store.knownError}</Text>}
       <WordList
         words={store.knownWords.map(word => ({
-          key: knownWordKey(word),
+          key: word.removal_key,
           label: knownWordLabel(word),
           onRemove: () => void store.deleteWord(word),
         }))}

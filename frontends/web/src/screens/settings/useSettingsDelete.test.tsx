@@ -7,7 +7,6 @@ import { useSettings, type SettingsStore } from './useSettings'
 const { api } = vi.hoisted(() => ({
   api: {
     deleteKnownWord: vi.fn(),
-    deleteTimerKnownWord: vi.fn(),
     getKnownWords: vi.fn(),
     getLearningWords: vi.fn(),
   } as Record<string, ReturnType<typeof vi.fn>>,
@@ -18,8 +17,12 @@ vi.mock('@/api/client', () => ({
   api: new Proxy(api, { get: (target, name: string) => target[name] ?? (() => Promise.resolve([])) }),
 }))
 
-const LISTED: KnownWord = { id: 7, lemma: 'run', pos: 'VERB', created_at: '2026-01-01T00:00:00Z', by_timer: false }
-const BY_TIMER: KnownWord = { id: null, lemma: 'glare', pos: null, created_at: '2026-10-01T12:00:00Z', by_timer: true }
+const LISTED: KnownWord = {
+  id: 7, lemma: 'run', pos: 'VERB', created_at: '2026-01-01T00:00:00Z', removal_key: 'entry:7', by_timer: false,
+}
+const BY_TIMER: KnownWord = {
+  id: null, lemma: 'glare', pos: null, created_at: '2026-10-01T12:00:00Z', removal_key: 'timer:glare', by_timer: true,
+}
 
 describe('useSettings removal of a known word', () => {
   let host: HTMLDivElement
@@ -45,10 +48,23 @@ describe('useSettings removal of a known word', () => {
 
   afterEach(() => act(() => root.unmount()))
 
-  it.each([['by id', LISTED, 'deleteKnownWord'], ['by lemma', BY_TIMER, 'deleteTimerKnownWord']])(
-    'shows the refusal of a removal %s and frees the word',
-    async (_name, word, call) => {
-      api[call].mockRejectedValue(new Error('409: busy'))
+  it.each([['a listed word', LISTED], ['a word known by its timer', BY_TIMER]])(
+    'removes %s by the key the backend gave it',
+    async (_name, word) => {
+      api.deleteKnownWord.mockResolvedValue({})
+      api.getKnownWords.mockResolvedValue([])
+      api.getLearningWords.mockResolvedValue({ in_anki: [], awaiting_export: [] })
+
+      await act(async () => store().deleteWord(word))
+
+      expect(api.deleteKnownWord).toHaveBeenCalledWith(word.removal_key)
+    },
+  )
+
+  it.each([['a listed word', LISTED], ['a word known by its timer', BY_TIMER]])(
+    'shows the refusal of a removal of %s and frees the word',
+    async (_name, word) => {
+      api.deleteKnownWord.mockRejectedValue(new Error('409: busy'))
 
       await act(async () => store().deleteWord(word))
 

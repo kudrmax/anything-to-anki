@@ -156,10 +156,8 @@ export const api = {
 
   getLearningWords: () => req<LearningWords>('/vocabulary/learning'),
 
-  deleteKnownWord: (id: number) =>
-    req<{ deleted: number }>(`/known-words/${id}`, { method: 'DELETE' }),
-  deleteTimerKnownWord: (lemma: string) =>
-    req<{ deleted: string }>(`/known-words/by-lemma/${encodeURIComponent(lemma)}`, { method: 'DELETE' }),
+  deleteKnownWord: (removalKey: string) =>
+    req<{ deleted: string }>(`/known-words/${encodeURIComponent(removalKey)}`, { method: 'DELETE' }),
 
   getUnknownWords: () => req<UnknownWord[]>('/unknown-words'),
 

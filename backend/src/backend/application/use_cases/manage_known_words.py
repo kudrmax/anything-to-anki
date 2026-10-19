@@ -3,8 +3,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.application.dto.known_word_dtos import KnownWordDTO
+from backend.domain.exceptions import KnownWordNotFoundError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.user_vocabulary import UserVocabulary
 
@@ -28,18 +31,36 @@ class ManageKnownWordsUseCase:
                 lemma=w.lemma,
                 pos=w.pos,
                 created_at=w.created_at,
+                removal_key=_key(_ENTRY, w.id),
             )
             for w in self._vocabulary.known_words()
         ]
         by_timer = [
             KnownWordDTO(
                 id=None, lemma=lemma, pos=None, created_at=knowledge.timer_known_on,
-                by_timer=True,
+                removal_key=_key(_TIMER, lemma), by_timer=True,
             )
             for lemma, knowledge in self._vocabulary.knowledge().lemmas()
             if knowledge.timer_known and knowledge.timer_known_on is not None
         ]
         return listed + by_timer
+
+    def remove(self, removal_key: str) -> None:
+        """Removes the entry the list gave this key; raises KnownWordNotFoundError for a key
+        it never gave."""
+        kind, _, value = removal_key.partition(_SEPARATOR)
+        removals: dict[str, Callable[[str], None]] = {
+            _ENTRY: self._delete_entry, _TIMER: self.delete_timer_known,
+        }
+        removal = removals.get(kind)
+        if removal is None or not value:
+            raise KnownWordNotFoundError(removal_key)
+        removal(value)
+
+    def _delete_entry(self, known_word_id: str) -> None:
+        if not known_word_id.isdigit():
+            raise KnownWordNotFoundError(known_word_id)
+        self.delete(int(known_word_id))
 
     def delete(self, known_word_id: int) -> None:
         """An entry edit, unless it is the lemma's last: then the word leaves Known as any
@@ -66,3 +87,10 @@ class ManageKnownWordsUseCase:
         """Add multiple words as known (pos=None, meaning known for any POS)."""
         for lemma in lemmas:
             self._vocabulary.mark_known(lemma, None)
+
+
+_ENTRY, _TIMER, _SEPARATOR = "entry", "timer", ":"
+
+
+def _key(kind: str, value: object) -> str:
+    return f"{kind}{_SEPARATOR}{value}"

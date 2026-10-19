@@ -202,7 +202,9 @@ def test_a_word_in_unknown_is_never_known_by_its_timer(client: TestClient) -> No
 def test_deleting_a_word_known_by_its_timer_makes_its_cards_new_everywhere(
     client: TestClient, factory: sessionmaker[Session], lemma: str,
 ) -> None:
-    response = client.delete(f"/known-words/by-lemma/{lemma}")
+    assert [w["removal_key"] for w in _known_list(client)] == ["timer:glare"]
+
+    response = client.delete(f"/known-words/timer:{lemma}")
 
     assert response.status_code == 200
     own = _card(client, HERE, GLARE)
@@ -227,17 +229,24 @@ def test_deleting_a_word_known_by_its_timer_waits_for_a_busy_source(
         SqlaSourceOperationLock(session).acquire(THERE, SourceOperationKind.REBUILD)
         session.commit()
 
-    response = client.delete("/known-words/by-lemma/glare")
+    response = client.delete("/known-words/timer:glare")
 
     assert response.status_code == 409
     assert [w["lemma"] for w in _known_list(client)] == ["glare"]
     assert _card(client, HERE, GLARE)["shown"]["status"] == "known"
 
 
-def test_a_lemma_with_a_slash_reaches_the_delete(client: TestClient) -> None:
-    response = client.delete("/known-words/by-lemma/and/or")
+@pytest.mark.parametrize("path", ["timer:and/or", "timer%3Aand%2For"])  # as the web encodes it
+def test_a_lemma_with_a_slash_reaches_the_delete(client: TestClient, path: str) -> None:
+    response = client.delete(f"/known-words/{path}")
 
-    assert (response.status_code, response.json()) == (200, {"deleted": "and/or"})
+    assert (response.status_code, response.json()) == (200, {"deleted": "timer:and/or"})
+
+
+@pytest.mark.parametrize("key", ["by-lemma/glare", "timer", "entry:x", "nothing:1"])
+def test_a_removal_key_the_list_never_gave_is_not_found(client: TestClient, key: str) -> None:
+    assert client.delete(f"/known-words/{key}").status_code == 404
+    assert [w["lemma"] for w in _known_list(client)] == ["glare"]
 
 
 def _listed(client: TestClient, source_id: int) -> Json:

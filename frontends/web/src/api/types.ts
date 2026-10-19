@@ -505,12 +505,13 @@ export interface UnknownWord {
   created_at: string
 }
 
-/** Слово из списка Known (есть id) или Known по 30 дням в Anki (by_timer, без id, удаляется по lemma). */
+/** Слово из списка Known (есть id) или Known по 30 дням в Anki (by_timer, без id); удаляется по removal_key. */
 export interface KnownWord {
   id: number | null
   lemma: string
   pos: string | null
   created_at: string
+  removal_key: string
   by_timer: boolean
 }
 

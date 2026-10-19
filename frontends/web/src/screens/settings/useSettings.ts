@@ -5,7 +5,6 @@ import type { BootstrapStatus, NoteTypeCheck, NoteTypeKind, CleanupMediaKind, Fr
 const BOOTSTRAP_POLL_MS = 2000
 
 /** Ключ строки списков Known и Unknown: у слова Known по таймеру нет id. */
-export const knownWordKey = (word: KnownWord): string => (word.id === null ? `timer:${word.lemma}` : `known:${word.id}`)
 export const unknownWordKey = (id: number): string => `unknown:${id}`
 const FLASH_MS = 2000
 
@@ -131,12 +130,12 @@ export function useSettings() {
     }
   }, [form, loadNoteTypes])
 
-  /** Запись списка удаляется по id, слово Known по таймеру — по lemma; списки перечитываются. */
+  /** Слово удаляется по ключу, который дал backend; списки перечитываются. */
   const deleteWord = async (word: KnownWord) => {
-    setDeletingKey(knownWordKey(word))
+    setDeletingKey(word.removal_key)
     setKnownError(null)
     try {
-      await (word.id === null ? api.deleteTimerKnownWord(word.lemma) : api.deleteKnownWord(word.id))
+      await api.deleteKnownWord(word.removal_key)
       const [known, learning] = await Promise.all([api.getKnownWords(), api.getLearningWords()])
       setKnownWords(known)
       setLearningWords(learning)

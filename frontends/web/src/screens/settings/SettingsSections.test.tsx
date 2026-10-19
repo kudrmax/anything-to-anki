@@ -5,8 +5,12 @@ import type { KnownWord, LearningWords } from '@/api/types'
 import { KnownWords, LearningWordsList } from './SettingsSections'
 import type { SettingsStore } from './useSettings'
 
-const LISTED: KnownWord = { id: 7, lemma: 'run', pos: 'VERB', created_at: '2026-01-01T00:00:00Z', by_timer: false }
-const BY_TIMER: KnownWord = { id: null, lemma: 'glare', pos: null, created_at: '2026-10-01T12:00:00Z', by_timer: true }
+const LISTED: KnownWord = {
+  id: 7, lemma: 'run', pos: 'VERB', created_at: '2026-01-01T00:00:00Z', removal_key: 'entry:7', by_timer: false,
+}
+const BY_TIMER: KnownWord = {
+  id: null, lemma: 'glare', pos: null, created_at: '2026-10-01T12:00:00Z', removal_key: 'timer:glare', by_timer: true,
+}
 const KNOWN_ON = '2026-11-17T12:00:00Z'
 
 describe('Settings word lists', () => {
