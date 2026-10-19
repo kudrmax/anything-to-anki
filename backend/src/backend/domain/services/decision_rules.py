@@ -38,7 +38,7 @@ from backend.domain.value_objects.learning_timer import timer_due
 from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping, Sequence
+    from collections.abc import Iterable, Mapping, Sequence
     from datetime import datetime
 
     from backend.domain.value_objects.elsewhere import ElsewhereStatus
@@ -221,8 +221,6 @@ def possible(key: PressKey) -> bool:
     )
 
 
-_DECIDING = frozenset({Press.LEARN, Press.CLOZE, Press.KNOWN})
-
 _KIND_PRESSES = (Press.LEARN, Press.CLOZE)
 
 
@@ -255,13 +253,11 @@ def _bound(
     )
 
 
-def _other(
-    row: str, before: Iterable[CardChoice], presses: Iterable[Press],
-    choice: CardChoice = _N, *, refusal: Refusal | None = None,
-) -> PressRow:
+def _other(row: str, before: Iterable[CardChoice]) -> PressRow:
+    """Every button of a card whose word is decided on another card is off."""
     return PressRow(
-        Role.OTHER, None, False, False, frozenset(before), frozenset(presses),
-        Target(row, choice, refusal=refusal),
+        Role.OTHER, None, False, False, frozenset(before), frozenset(Press),
+        Target(row, refusal=Refusal.NOT_DECISION_CARD),
     )
 
 
@@ -316,9 +312,7 @@ PRESS_ROWS: tuple[PressRow, ...] = (
     _open("P3", False, {_N, _S}, {Press.KNOWN}, _K),
     _open("P4", False, {_N}, {Press.SKIP}, _S),
     _open("P5", False, {_S}, {Press.SKIP}, _N),
-    _open("P6", True, {_N, _S}, _DECIDING, refusal=Refusal.DECIDED_ELSEWHERE),
-    _open("P7", True, {_N}, {Press.SKIP}, _S),
-    _open("P8", True, {_S}, {Press.SKIP}, _N),
+    _open("P6", True, {_N, _S}, Press, refusal=Refusal.DECIDED_ELSEWHERE),
     *(row for kind in NoteKind for row in _unbound_kind_rows(kind)),
     *(row for kind in NoteKind for row in _listed_kind_rows(kind)),
     _decided("P11", {_L, _C}, {Press.KNOWN}, _K),
@@ -327,9 +321,8 @@ PRESS_ROWS: tuple[PressRow, ...] = (
     *(_decided("P14", {_K}, {p}, CHOICE_OF_PRESS[p]) for p in _KIND_PRESSES),
     _decided("P15", {_K}, {Press.SKIP}, _S),
     *(row for kind in NoteKind for row in _bound_kind_rows(kind)),
-    _other("P25", {_N}, Press, refusal=Refusal.NOT_DECISION_CARD),
-    _other("P26", {_S}, {Press.SKIP}, _N),
-    _other("P27", {_S}, _DECIDING, refusal=Refusal.NOT_DECISION_CARD),
+    _other("P25", {_N}),
+    _other("P27", {_S}),
 )
 PRESS_RULES: Mapping[PressKey, Target] = MappingProxyType(
     {key: row.target for row in PRESS_ROWS for key in expand(row)},
@@ -358,9 +351,9 @@ def press(
 ) -> WordOutcome:
     """Raises ActionRefusedError when the row refuses.
 
-    A press on the decision card, or one that makes it, is the user's latest word on the
-    word: its status after is the chosen one (`chosen_status`), whatever the lists said
-    before. A press on another card of a decided word leaves the decision as it reads."""
+    Only the decision card, or a card of an undecided word, takes a press: it is the user's
+    latest word on the word, so its status after is the chosen one (`chosen_status`),
+    whatever the lists said before."""
     card = word.card(card_id)
     key = press_key(word, card_id, button, lemma, elsewhere, now)
     target = rule(PRESS_RULES, key)
@@ -372,20 +365,10 @@ def press(
         choices=(ChoiceChange(card_id, card.choice, choice),),
         released=target.release,
         status=StatusChange(
-            word.word_id, status_of(word, lemma, now),
-            _STATUS_AFTER_PRESS[key.role](after, lemma, now), Actor.USER,
+            word.word_id, status_of(word, lemma, now), chosen_status(after), Actor.USER,
         ),
         row_effects=_RELEASE_EFFECTS[target.release],
     )
-
-
-def _chosen(word: WordState, _lemma: LemmaKnowledge, _now: datetime) -> WordStatus:
-    return chosen_status(word)
-
-
-_STATUS_AFTER_PRESS: Mapping[Role, Callable[[WordState, LemmaKnowledge, datetime], WordStatus]] = (
-    MappingProxyType({Role.DECISION: _chosen, Role.OPEN: _chosen, Role.OTHER: status_of})
-)
 
 
 # --- move: Replace with example (§2.5) ----------------------------------------------------

@@ -236,8 +236,8 @@ def test_a_learn_put_in_known_after_it_leaves_the_queue(bench: Bench) -> None:
 def test_the_queue_reads_only_the_words_chosen_to_learn(bench: Bench) -> None:
     """A source's other words stay unread: the queue loads its words by id."""
     bench.other_source()
-    bench.press(CARD, Press.LEARN)
     bench.press(OTHER_CARD, Press.SKIP)
+    bench.press(CARD, Press.LEARN)
     states = bench.decisions.word_states
     read_by_source = MagicMock(side_effect=AssertionError("the queue reads words by id"))
     with patch.object(states, "of_source", read_by_source):

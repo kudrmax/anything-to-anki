@@ -195,6 +195,20 @@ class TestPressExpansion:
         assert all(possible(key) for key in reached)
         assert reached == set(PRESS_RULES), "the worlds reach every possible key"
 
+    def test_only_the_decision_card_or_an_undecided_word_takes_a_press(self) -> None:
+        """Three rules: a card of a word decided on another card or elsewhere refuses all
+        four buttons; the decision card and an undecided word's card refuse none."""
+        refused = {
+            (key.role, key.elsewhere) for key, target in PRESS_RULES.items()
+            if target.refusal is not None
+        }
+        granted = {
+            (key.role, key.elsewhere) for key, target in PRESS_RULES.items()
+            if target.refusal is None
+        }
+        assert refused == {(Role.OTHER, False), (Role.OPEN, True)}
+        assert granted == {(Role.DECISION, False), (Role.OPEN, False)}
+
     def test_no_key_yields_in_anki(self) -> None:
         refusals = {t.refusal for t in PRESS_RULES.values() if t.refusal is not None}
         assert refusals == {Refusal.NOT_DECISION_CARD, Refusal.DECIDED_ELSEWHERE}
@@ -241,8 +255,6 @@ PRESS_EXPECTED: dict[str, Expected] = {
     "P4": Expected(S),
     "P5": Expected(N),
     "P6": Expected(Refusal.DECIDED_ELSEWHERE),
-    "P7": Expected(S),
-    "P8": Expected(N),
     "P9": Expected(N, status=(LEARN, NEW), effects=_changed(FORGET)),
     "P10": Expected(PRESSED),
     "P11": Expected(K, status=(LEARN, KNOWN), effects=_changed(MK, CAL)),
@@ -264,7 +276,6 @@ PRESS_EXPECTED: dict[str, Expected] = {
     "P24u": Expected(PRESSED, False, (KNOWN, LEARN), _changed(RK, CAL)),
     "P24su": Expected(S, False, (KNOWN, NEW), _changed(RK, FORGET)),
     "P25": Expected(Refusal.NOT_DECISION_CARD),
-    "P26": Expected(N),
     "P27": Expected(Refusal.NOT_DECISION_CARD),
 }
 

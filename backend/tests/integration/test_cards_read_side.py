@@ -221,20 +221,21 @@ class TestDecisionsOnCards:
         }
         assert (here["is_done"], sibling["is_done"]) == (True, True)
 
-    def test_a_skipped_sibling_of_a_decided_word_can_be_unskipped(
+    def test_a_skipped_sibling_of_a_decided_word_is_done_with_every_button_off(
         self, client: TestClient, bench: Bench,
     ) -> None:
         client.post(f"/phrases/{bench.second_glare}/decision", json={"button": "skip"})
         client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
         sibling = _card(client, bench.second_glare)
-        skip = next(b for b in sibling["state"]["buttons"] if b["button"] == "skip")  # type: ignore[index]
-        assert (skip["command"], skip["pressed"]) == ("decide", True)
+        assert _commands(sibling) == {
+            "learn": None, "cloze": None, "known": None, "skip": None,
+        }
+        assert sibling["section"] == "reviewed"
         response = client.post(
             f"/phrases/{bench.second_glare}/decision", json={"button": "skip"},
         )
-        assert response.status_code == 200
-        assert response.json()["shown"]["skipped"] is False
-        assert _card(client, bench.second_glare)["choice"] == "none"
+        assert response.status_code == 409
+        assert _card(client, bench.second_glare)["choice"] == "skip"
 
     def test_skip_is_one_card_only(self, client: TestClient, bench: Bench) -> None:
         client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "skip"})
@@ -253,9 +254,9 @@ class TestDecisionsOnCards:
         card = _card(client, SPARK_PHRASE)
         assert card["shown"]["where"] == "other_source"  # type: ignore[index]
         assert card["shown"]["status"] == "known"  # type: ignore[index]
-        # P6 (G6): Known is refused too on a card decided in another source.
+        # P6: every button is off on a card of a word decided elsewhere.
         assert _commands(card) == {
-            "learn": None, "cloze": None, "known": None, "skip": "decide",
+            "learn": None, "cloze": None, "known": None, "skip": None,
         }
         assert card["is_done"] is True
         assert card["section"] == "reviewed"

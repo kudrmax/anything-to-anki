@@ -110,13 +110,6 @@ ROWS: dict[str, Row] = {
     "P3 skipped: known": Row(lambda s: s.choice(CARD, "skip"), CARD, "known", "known", "known"),
     "P4 open: skip": Row(_open, CARD, "skip", "skip", "new"),
     "P5 skipped: skip": Row(lambda s: s.choice(CARD, "skip"), CARD, "skip", "none", "new"),
-    "P7 decided elsewhere: skip": Row(
-        lambda s: s.known_in_another_source(), CARD, "skip", "skip", "known",
-    ),
-    "P8 decided elsewhere, skipped: skip": Row(
-        lambda s: s.known_in_another_source().choice(CARD, "skip"), CARD, "skip", "none",
-        "known",
-    ),
     "P9 learn: learn": Row(lambda s: s.choice(CARD, "learn"), CARD, "learn", "none", "new"),
     "P9 cloze: cloze": Row(lambda s: s.choice(CARD, "cloze"), CARD, "cloze", "none", "new"),
     "P10 learn: cloze": Row(lambda s: s.choice(CARD, "learn"), CARD, "cloze", "cloze", "learn"),
@@ -170,10 +163,6 @@ ROWS: dict[str, Row] = {
     "P24s in Anki, known by its timer: skip": Row(
         lambda s: s.in_anki("learn", since=DUE), CARD, "skip", "skip", "new", released=True,
     ),
-    "P26 sibling skipped: skip": Row(
-        lambda s: s.choice(SIBLING, "skip").choice(CARD, "learn"), SIBLING, "skip", "none",
-        "learn",
-    ),
 }
 
 REFUSALS: dict[str, tuple[Callable[[Seed], object], int, str, str, str]] = {
@@ -190,6 +179,14 @@ REFUSALS: dict[str, tuple[Callable[[Seed], object], int, str, str, str]] = {
         lambda s: s.known_in_another_source(), CARD, "known", "decided_elsewhere",
         "Already known",
     ),
+    "P6 decided elsewhere: skip": (
+        lambda s: s.known_in_another_source(), CARD, "skip", "decided_elsewhere",
+        "Already known",
+    ),
+    "P6 decided elsewhere, skipped: skip": (
+        lambda s: s.known_in_another_source().choice(CARD, "skip"), CARD, "skip",
+        "decided_elsewhere", "Already known",
+    ),
     "P25 sibling of a learn: learn": (
         lambda s: s.choice(CARD, "learn"), SIBLING, "learn", "not_decision_card",
         "Learned via another phrase: change it on that card",
@@ -205,6 +202,10 @@ REFUSALS: dict[str, tuple[Callable[[Seed], object], int, str, str, str]] = {
     "P25 sibling of a known: skip": (
         lambda s: s.choice(CARD, "known").listed_known(), SIBLING, "skip",
         "not_decision_card", "Known via another phrase: change it on that card",
+    ),
+    "P27 skipped sibling of a learn: skip": (
+        lambda s: s.choice(SIBLING, "skip").choice(CARD, "learn"), SIBLING, "skip",
+        "not_decision_card", "Learned via another phrase: change it on that card",
     ),
     "P27 skipped sibling of a learn: learn": (
         lambda s: s.choice(SIBLING, "skip").choice(CARD, "learn"), SIBLING, "learn",

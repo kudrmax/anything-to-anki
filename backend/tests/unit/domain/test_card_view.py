@@ -101,9 +101,9 @@ class TestButtonsFollowTheTable:
             view = _view_of(world)
             for button in view.buttons:
                 key = press_key(world.word, ACTED, button.button, knowledge, elsewhere, NOW)
-                if key.role is Role.OTHER:
-                    continue
                 target = PRESS_RULES[key]
+                if target.refusal is not None:
+                    continue
                 unpresses = target.refusal is None and target.choice is N
                 assert button.pressed is unpresses
 
