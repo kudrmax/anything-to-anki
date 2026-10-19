@@ -200,7 +200,7 @@ SyncToAnki создаёт заметку или находит существу�
 | На карточке в Anki работают все кнопки; Learn ↔ Cloze отправляет новую заметку другого вида | Q11 |
 | Learn до экспорта — глобальный: в других источниках «Learn in another source», не предлагается в новых источниках и стартовом тесте, в Settings — «Waiting for export» | Q12 |
 | Replace with example работает на карточке в Anki как на любой | Q14 |
-| Удаление источника оставляет его экспортированные слова Learning в других источниках до истечения 30 дней. Привязка карточки Known удалённого источника отпускается, когда снимают Known (принцип; `card_choice`, миграция 0050) | Q13 |
+| Удаление источника оставляет его экспортированные слова Learning в других источниках до истечения 30 дней. Привязка карточки Known удалённого источника отпускается, когда снимают Known (принцип; `card_choice`) | Q13 |
 | Cloze-разметка переживает смену решения | модель |
 | Статус источника Reviewed / Partial может смениться сам, когда истекают 30 дней | вывод при чтении |
 | Статистика Known включает Known по таймеру | модель |
@@ -276,7 +276,7 @@ SyncToAnki создаёт заметку или находит существу�
 |---|---|
 | `candidates` (слово) | уникальность `(source_id, lower(lemma), is_phrasal_verb)`; `status` = `decision_status` (new / learn / learning / known); фразовые колонки уходят в `phrases`; дубли слов сливаются в миграции |
 | `phrases` | новая, `sqlite_autoincrement`: `candidate_id` (CASCADE), `block`, `line`, `char` (ключ; **один** частичный уникальный индекс `(candidate_id, block, line, char) WHERE origin = 'auto'`), `source_phrase`, `phrase_position`, `polished_phrase`, `polish_reverted`, `fragment_score`, `revision`, `shown_by`, `origin`, `choice` (+ частичный уникальный индекс решения), `edited_by_user`, `replaces_selection`, `created_at` |
-| `anki_synced_cards` | + `phrase_id` (SET NULL; частичный уникальный индекс `(phrase_id) WHERE released_at IS NULL AND phrase_id IS NOT NULL` — не больше одной активной привязки на карточку, а повторный экспорт той же карточки добавляет новую строку), `candidate_id` → nullable SET NULL; + `lemma` (индекс по `lower(lemma)`), `pos`, `note_kind`, `learning_since` NOT NULL, `released_at`; строки не удаляются |
+| `anki_synced_cards` | + `card_choice` (выбор карточки; у строки без решения — её `note_kind`), + `phrase_id` (SET NULL; частичный уникальный индекс `(phrase_id) WHERE released_at IS NULL AND phrase_id IS NOT NULL` — не больше одной активной привязки на карточку, а повторный экспорт той же карточки добавляет новую строку), `candidate_id` → nullable SET NULL; + `lemma` (индекс по `lower(lemma)`), `pos`, `note_kind`, `learning_since` NOT NULL, `released_at`; строки не удаляются |
 | `candidate_meanings`, `candidate_media`, `candidate_tts`, `candidate_clozes` | ключ → `phrase_id` |
 | `candidate_pronunciations` | + `ipa` из `candidate_meanings` |
 | `candidate_meaning_images` | без изменений (картинка — свойство слова) |

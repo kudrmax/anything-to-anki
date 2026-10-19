@@ -11,10 +11,10 @@ rebound to the surviving word before the duplicate is deleted, so nothing is los
 Each card gets one choice (none / learn / cloze / known / skip): SKIP moves from the word to
 its phrase, and LEARN and KNOWN become the choice of the word's decision card. The word's
 status is the decision status (pending / learn / learning / known). An export record is the
-card's binding to its Anki note: it gets the lemma, POS and note kind, and stays active only
-on a Known card whose lemma is still in Known; every other is released at migration (the user
-removed Known, or the card was not decided). See docs/specs/words-phrases-rebuild.md and the
-status-model design, §4.
+card's binding to its Anki note: it gets the lemma, POS, note kind and its card's choice, and
+stays active only on a Known card whose lemma is still in Known; every other is released at
+migration (the user removed Known, or the card was not decided). See
+docs/specs/words-phrases-rebuild.md and the status-model design, §4.
 
 The position → occurrence key logic is a frozen copy: it must not follow later changes
 of the domain's DocumentLayout.
@@ -122,6 +122,7 @@ def upgrade() -> None:
     _rows_follow_their_word(conn)
     _release_skipped_originals(conn, cards)
     _set_decisions(conn, winners, now)
+    _bindings_take_their_cards_choice(conn)
     _move_ipa(conn)
     _rekey_results()
     _drop_card_columns()
@@ -651,16 +652,20 @@ def _rebuild_anki_synced_cards(now: datetime) -> None:
         sa.Column("lemma", sa.String(100), nullable=False),
         sa.Column("pos", sa.String(10), nullable=True),
         sa.Column("note_kind", sa.String(10), nullable=False),
+        sa.Column("card_choice", sa.String(10), nullable=False),
         sa.Column("learning_since", sa.DateTime(), nullable=False),
         sa.Column("released_at", sa.DateTime(), nullable=True),
+    )
+    kind = (
+        "CASE WHEN EXISTS (SELECT 1 FROM candidate_clozes z"
+        " WHERE z.candidate_id = a.candidate_id) THEN :cloze ELSE :learn END"
     )
     op.get_bind().execute(
         sa.text(
             "INSERT INTO _anki_synced_cards_by_phrase (id, candidate_id, phrase_id,"
-            " anki_note_id, lemma, pos, note_kind, learning_since)"
+            " anki_note_id, lemma, pos, note_kind, card_choice, learning_since)"
             " SELECT a.id, a.candidate_id, a.phrase_id, a.anki_note_id, c.lemma, c.pos,"
-            " CASE WHEN EXISTS (SELECT 1 FROM candidate_clozes z"
-            " WHERE z.candidate_id = a.candidate_id) THEN :cloze ELSE :learn END, :now"
+            f" {kind}, {kind}, :now"
             " FROM anki_synced_cards a JOIN candidates c ON c.id = a.candidate_id"
         ).bindparams(sa.bindparam("now", type_=sa.DateTime())),
         {"cloze": NOTE_KIND_CLOZE, "learn": NOTE_KIND_LEARN, "now": now},
@@ -675,6 +680,20 @@ def _rebuild_anki_synced_cards(now: datetime) -> None:
     op.create_index(
         "ux_anki_synced_cards_active", "anki_synced_cards", ["phrase_id"],
         unique=True, sqlite_where=sa.text("released_at IS NULL AND phrase_id IS NOT NULL"),
+    )
+
+
+def _bindings_take_their_cards_choice(conn: sa.Connection) -> None:
+    """A binding keeps its card's choice, so an orphan still tells a Known card's binding
+    from a Learn one's: every active binding ends on a Known card. A row whose card made no
+    decision keeps the kind it was exported as."""
+    conn.execute(
+        sa.text(
+            "UPDATE anki_synced_cards SET card_choice = coalesce((SELECT p.choice FROM phrases p"
+            " WHERE p.id = anki_synced_cards.phrase_id AND p.choice IN (:learn, :cloze, :known)),"
+            " note_kind)"
+        ),
+        {"learn": CHOICE_LEARN, "cloze": CHOICE_CLOZE, "known": CHOICE_KNOWN},
     )
 
 

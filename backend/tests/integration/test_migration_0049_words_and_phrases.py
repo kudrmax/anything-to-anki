@@ -418,7 +418,6 @@ def test_one_word_per_lemma_and_every_card_is_a_phrase(db_url: str) -> None:
 
 
 def test_undoing_a_migrated_known_takes_the_lemma_out_of_known(db_url: str) -> None:
-    command.upgrade(_alembic_config(db_url), "head")  # the app writes today's schema
     engine = create_engine(db_url)
     phrase_id = _phrase_of(db_url, CARD_O, "They ponder")["id"]
     assert isinstance(phrase_id, int)
@@ -478,7 +477,7 @@ def test_running_job_and_report_point_at_the_phrase_of_their_card(db_url: str) -
 def test_every_export_record_survives_with_its_phrase(db_url: str) -> None:
     synced = _rows(
         db_url, "SELECT candidate_id, phrase_id, anki_note_id, lemma, pos, note_kind,"
-        " released_at IS NOT NULL AS released FROM anki_synced_cards"
+        " card_choice, released_at IS NOT NULL AS released FROM anki_synced_cards"
         " WHERE anki_note_id IN (:a, :g, :h) ORDER BY anki_note_id",
         a=NOTE_A, g=NOTE_G, h=NOTE_H,
     )
@@ -487,11 +486,14 @@ def test_every_export_record_survives_with_its_phrase(db_url: str) -> None:
     a = _phrase_of(db_url, CARD_A, LINE_0)
     assert synced == [
         {"candidate_id": CARD_A, "phrase_id": a["id"], "anki_note_id": NOTE_A,
-         "lemma": "glare", "pos": "VERB", "note_kind": "cloze", "released": 1},
+         "lemma": "glare", "pos": "VERB", "note_kind": "cloze", "card_choice": "cloze",
+         "released": 1},
         {"candidate_id": CARD_H, "phrase_id": g["id"], "anki_note_id": NOTE_G,
-         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "released": 1},
+         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "card_choice": "learn",
+         "released": 1},
         {"candidate_id": CARD_H, "phrase_id": h["id"], "anki_note_id": NOTE_H,
-         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "released": 1},
+         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "card_choice": "learn",
+         "released": 1},
     ]
     assert (h["choice"], g["choice"]) == ("none", "none")
 
@@ -567,8 +569,9 @@ def test_a_binding_is_kept_with_no_card_or_word(db_url: str) -> None:
     }
     assert set(columns) == {
         "id", "candidate_id", "phrase_id", "anki_note_id", "lemma", "pos", "note_kind",
-        "learning_since", "released_at",
+        "card_choice", "learning_since", "released_at",
     }
+    assert not columns["card_choice"]["nullable"]
     assert columns["candidate_id"]["nullable"] and columns["phrase_id"]["nullable"]
     keys = inspect(create_engine(db_url)).get_foreign_keys("anki_synced_cards")
     assert {(k["referred_table"], k["options"].get("ondelete")) for k in keys} == {

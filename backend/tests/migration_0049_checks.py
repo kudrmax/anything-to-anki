@@ -246,20 +246,23 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
 
     # rows: active only on KNOWN decision cards; released rows listed by reason
     rows = {
-        row[0]: (row[1], row[2], row[3], row[4], row[5])
+        row[0]: (row[1], row[2], row[3], row[4], row[5], row[6])
         for row in conn.execute(
-            "SELECT id, phrase_id, note_kind, learning_since, released_at, candidate_id"
-            " FROM anki_synced_cards"
+            "SELECT id, phrase_id, note_kind, learning_since, released_at, candidate_id,"
+            " card_choice FROM anki_synced_cards"
         )
     }
-    since_values = {since for _, _, since, _, _ in rows.values()}
+    since_values = {since for _, _, since, _, _, _ in rows.values()}
     cards = {c.id: c for c in before.cards}
     for old in before.rows:
-        phrase_id, note_kind, _, released_at, _ = rows[old.id]
+        phrase_id, note_kind, _, released_at, _, card_choice = rows[old.id]
         card = cards[old.card_id]
         winner = winners[card.group]
         assert phrase_id == phrase_of[card.id], old
         assert (note_kind == "cloze") is card.has_cloze, old
+        # the card's choice, so an orphan tells a Known card's binding from a Learn one's
+        decided = choices[phrase_id] in DECISION_CHOICES
+        assert card_choice == (choices[phrase_id] if decided else note_kind), old
         active = released_at is None
         should = card is winner and card.exported and choices[phrase_id] == "known"
         assert active is should, old
