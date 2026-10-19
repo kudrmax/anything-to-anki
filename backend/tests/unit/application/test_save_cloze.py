@@ -109,6 +109,7 @@ class TestSaveCloze:
             decide_phrase=self.decide,
             builder=ClozeBuilder(),
             lock=free_lock(),
+            unit_of_work=MagicMock(),
         )
 
     def _context(self) -> CardContext:

@@ -29,6 +29,7 @@ from backend.infrastructure.persistence.sqla_job_repository import SqlaJobReposi
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
+from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from sqlalchemy import text
 
 from tests.card_support import card_views
@@ -87,6 +88,7 @@ class Bench:
             word_states=self.decisions.word_states,
             vocabulary=self.decisions.vocabulary,
             effects=self.decisions.effects(),
+            unit_of_work=SqlaUnitOfWork(self.session),
         )
 
     def replace(self, phrase_id: int, example: str = "She runs every morning.") -> Occurrence:

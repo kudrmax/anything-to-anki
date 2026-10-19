@@ -427,6 +427,7 @@ class Container:
             occurrence_repo=SqlaOccurrenceRepository(session),
             card_views=self._card_views(session),
             decide_phrase=self.decide_phrase_use_case(session),
+            unit_of_work=SqlaUnitOfWork(session),
         )
 
     def analyze_text_use_case(self) -> AnalyzeTextUseCase:
@@ -687,6 +688,7 @@ class Container:
             effects=self._decision_effects(session),
             lock=SqlaSourceOperationLock(session),
             card_views=self._card_views(session),
+            unit_of_work=SqlaUnitOfWork(session),
         )
 
     def _decision_effects(self, session: Session) -> DecisionEffects:
@@ -707,6 +709,7 @@ class Container:
             decide_phrase=self.decide_phrase_use_case(session),
             builder=ClozeBuilder(),
             lock=SqlaSourceOperationLock(session),
+            unit_of_work=SqlaUnitOfWork(session),
         )
 
     def preview_cloze_use_case(self, session: Session) -> PreviewClozeUseCase:
@@ -727,6 +730,7 @@ class Container:
             word_states=SqlaWordStateRepository(session),
             vocabulary=self._user_vocabulary(session),
             effects=self._decision_effects(session),
+            unit_of_work=SqlaUnitOfWork(session),
         )
 
     def _threshold_resolver(self, session: Session) -> FrequentWordThresholdResolver:

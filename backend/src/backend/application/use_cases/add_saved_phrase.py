@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.text_analyzer import TextAnalyzer
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
 
 SINGLE_OCCURRENCE = 1
@@ -45,7 +46,9 @@ class AddSavedPhraseUseCase:
         occurrence_repo: OccurrenceRepository,
         card_views: CardViews,
         decide_phrase: DecidePhraseUseCase,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._source_repo = source_repo
         self._decide_phrase = decide_phrase
         self._occurrences = occurrence_repo
@@ -60,19 +63,21 @@ class AddSavedPhraseUseCase:
         self._phrase_reader = phrase_reader
 
     def execute(self, phrase: str, target_words: list[int]) -> CardDTO:
-        """Answers with the card of the saved phrase."""
+        """Answers with the card of the saved phrase. Saving and its press are one write
+        transaction."""
         text = " ".join(phrase.split())
         if not text:
             raise InvalidPhraseError("Phrase cannot be empty")
         read = self._phrase_reader.read_picked(text, target_words)
 
-        source_id = self._saved_phrases_source_id()
-        card = self._candidate_factory.build(
-            source_id=source_id, phrase=read, occurrences=SINGLE_OCCURRENCE,
-        )
-        [collected] = self._collected.add(source_id, [card])
-        if collected.new_word:
-            self._decide_phrase.press_unless_done(collected.phrase_id, Press.LEARN)
+        with self._unit_of_work.write():
+            source_id = self._saved_phrases_source_id()
+            card = self._candidate_factory.build(
+                source_id=source_id, phrase=read, occurrences=SINGLE_OCCURRENCE,
+            )
+            [collected] = self._collected.add(source_id, [card])
+            if collected.new_word:
+                self._decide_phrase.press_unless_done(collected.phrase_id, Press.LEARN)
         return self._card_views.one(collected.phrase_id)
 
     def _saved_phrases_source_id(self) -> int:

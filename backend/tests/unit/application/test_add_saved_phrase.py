@@ -100,6 +100,7 @@ class _Setup:
             occurrence_repo=self.occurrence_repo,
             card_views=self.card_views,
             decide_phrase=self.decide_phrase,
+            unit_of_work=MagicMock(),
         )
 
     def saved_word(self) -> StoredCandidate:

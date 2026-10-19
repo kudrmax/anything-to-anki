@@ -7,17 +7,23 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
+from backend.application.use_cases.save_cloze import SaveClozeUseCase
 from backend.application.utils.decision_effects import DecisionEffects
 from backend.application.utils.knowledge_scope import KnowledgeScope
 from backend.application.utils.user_vocabulary import UserVocabulary
 from backend.domain.ports.clock import Clock
+from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.infrastructure.persistence.sqla_anki_sync_repository import SqlaAnkiSyncRepository
+from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
+    SqlaCandidateClozeRepository,
+)
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_known_word_repository import SqlaKnownWordRepository
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
+from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from backend.infrastructure.persistence.sqla_unknown_word_repository import (
     SqlaUnknownWordRepository,
 )
@@ -85,6 +91,18 @@ class Decisions:
             lock=self.lock,
         )
 
+    def save_cloze(self) -> SaveClozeUseCase:
+        return SaveClozeUseCase(
+            occurrence_repo=SqlaOccurrenceRepository(self.session),
+            candidate_repo=SqlaCandidateRepository(self.session),
+            cloze_repo=SqlaCandidateClozeRepository(self.session),
+            card_views=MagicMock(),
+            decide_phrase=self.decide_phrase(),
+            builder=ClozeBuilder(),
+            lock=self.lock,
+            unit_of_work=SqlaUnitOfWork(self.session),
+        )
+
     def decide_phrase(self) -> DecidePhraseUseCase:
         return DecidePhraseUseCase(
             occurrence_repo=SqlaOccurrenceRepository(self.session),
@@ -95,4 +113,5 @@ class Decisions:
             lock=self.lock,
             # The tests press; the card the API answers with is read by the API tests.
             card_views=MagicMock(),
+            unit_of_work=SqlaUnitOfWork(self.session),
         )

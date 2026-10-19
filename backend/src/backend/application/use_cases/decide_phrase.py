@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.ports.word_state_repository import WordStateRepository
     from backend.domain.services.card_view import CardView
     from backend.domain.value_objects.card_choice import Press, WordState
@@ -34,6 +35,10 @@ class DecidePhraseUseCase:
     The rules are the press table (`decision_rules.press`); what follows a row — the known
     words, calibration, the Anki binding, the Known removal in every source and the review
     status — is `DecisionEffects`. A refused press raises ActionRefusedError.
+
+    `decide` reads the word and writes the press in one write transaction, so two presses at
+    once on two phrases of a word decide it once; `press` is that work for a use case that
+    holds the transaction itself.
     """
 
     def __init__(
@@ -45,7 +50,9 @@ class DecidePhraseUseCase:
         effects: DecisionEffects,
         lock: SourceOperationLock,
         card_views: CardViews,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._lock = lock
         self._card_views = card_views
         self._occurrences = occurrence_repo
@@ -56,7 +63,8 @@ class DecidePhraseUseCase:
 
     def decide(self, occurrence_id: int, button: Press) -> CardDTO:
         """The press, answered with the card as it is after it."""
-        self.press(occurrence_id, button)
+        with self._unit_of_work.write():
+            self.press(occurrence_id, button)
         return self._card_views.one(occurrence_id)
 
     def view(self, occurrence_id: int) -> CardView:

@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.ports.word_state_repository import WordStateRepository
 
 
@@ -51,7 +52,9 @@ class ReplaceWithExampleUseCase:
         word_states: WordStateRepository,
         vocabulary: UserVocabulary,
         effects: DecisionEffects,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._lock = lock
         self._word_states = word_states
         self._vocabulary = vocabulary
@@ -63,12 +66,17 @@ class ReplaceWithExampleUseCase:
         self._job_repo = job_repo
 
     def execute(self, occurrence_id: int, example_text: str) -> CardDTO:
-        """Answers with the example's card: the ✨ that follows the replacement reaches it."""
+        """Answers with the example's card: the ✨ that follows the replacement reaches it.
+        The move is one write transaction."""
         stripped = example_text.strip()
         if not stripped:
             msg = "example_text must not be empty"
             raise ValueError(msg)
+        with self._unit_of_work.write():
+            example_id = self._replace(occurrence_id, stripped)
+        return self._card_views.one(example_id)
 
+    def _replace(self, occurrence_id: int, stripped: str) -> int:
         replaced = self._occurrences.get(occurrence_id)
         word = (
             self._candidate_repo.get_by_id(replaced.candidate_id)
@@ -107,7 +115,7 @@ class ReplaceWithExampleUseCase:
             JobType.MEANING, word.source_id, replaced.candidate_id,
             phrase_id=example.id, phrase_revision=example.revision,
         )])
-        return self._card_views.one(example.id)
+        return example.id
 
 
 def _stands_for_selection(replaced: Occurrence) -> bool:
