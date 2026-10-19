@@ -19,9 +19,12 @@ from backend.domain.services.phrase_building import (
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase import Phrase
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.infrastructure.persistence.models import PhraseModel, load_phrase
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+    from sqlalchemy.orm import Session
 
 EASY_ZIPF = 6.0
 RARE_ZIPF = 2.5
@@ -81,3 +84,13 @@ def make_occurrence(
         polished_phrase=phrase(polished_text) if polished_text is not None else None,
         meaning=meaning,
     )
+
+
+def shown_lemmas(session: Session, phrase_id: int) -> set[str]:
+    """The lowercase lemmas of the stored phrase a card shows."""
+    session.expire_all()
+    model = session.get(PhraseModel, phrase_id)
+    assert model is not None
+    shown = load_phrase(model.shown_text)
+    assert shown is not None
+    return {word.lemma.lower() for word in shown.words}

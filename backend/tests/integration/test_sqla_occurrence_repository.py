@@ -18,7 +18,6 @@ from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import ShownBy
 from backend.infrastructure.persistence.models import (
     JobModel,
-    PhraseWordModel,
 )
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
@@ -33,7 +32,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 from sqlalchemy import select, text, update
 
 from tests.integration.conftest import insert_source
-from tests.phrase_support import make_occurrence, phrase
+from tests.phrase_support import make_occurrence, phrase, shown_lemmas
 from tests.word_support import CREATED_AT, bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -61,9 +60,7 @@ def repo(db_session: Session) -> SqlaOccurrenceRepository:
 
 
 def _words(session: Session, phrase_id: int) -> set[str]:
-    return set(session.scalars(
-        select(PhraseWordModel.lemma).where(PhraseWordModel.phrase_id == phrase_id)
-    ))
+    return shown_lemmas(session, phrase_id)
 
 
 def _added(repo: SqlaOccurrenceRepository, text: str = "He glared at me.") -> int:

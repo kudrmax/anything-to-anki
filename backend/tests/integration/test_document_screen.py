@@ -23,17 +23,15 @@ from backend.domain.value_objects.document import (
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.container import Container
-from backend.infrastructure.persistence.models import PhraseWordModel
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
-from sqlalchemy import select
 
 from tests.lock_support import free_lock
-from tests.phrase_support import phrase
+from tests.phrase_support import phrase, shown_lemmas
 from tests.word_support import CardSeed, store_cards
 
 if TYPE_CHECKING:
@@ -106,9 +104,7 @@ def test_selected_phrase_replaces_the_old_one(db_session: Session, source_id: in
     assert updated.phrase_position == DocumentPosition(1, 0, 15, 1, 13)
     assert updated.edited_by_user
     assert updated.key == OccurrenceKey(block=1, line=0, char=PHRASE.index("pursuit"))
-    assert set(db_session.scalars(
-        select(PhraseWordModel.lemma).where(PhraseWordModel.phrase_id == updated.id)
-    )) == {"relentless", "pursuit", "of", "happiness"}
+    assert shown_lemmas(db_session, updated.id) == {"relentless", "pursuit", "of", "happiness"}
 
 
 def test_an_example_put_in_the_document_gets_its_key(db_session: Session, source_id: int) -> None:

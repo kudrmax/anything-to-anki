@@ -1,5 +1,3 @@
-from unittest.mock import MagicMock
-
 import pytest
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase

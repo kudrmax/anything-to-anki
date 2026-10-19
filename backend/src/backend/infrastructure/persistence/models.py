@@ -581,18 +581,6 @@ class PhraseModel(Base):
         )
 
 
-class PhraseWordModel(Base):
-    """The lemmas of the words a phrase shows: which phrases a change of knowledge touches."""
-
-    __tablename__ = "phrase_words"
-    __table_args__ = (Index("ix_phrase_words_lemma", "lemma", "phrase_id"),)
-
-    phrase_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("phrases.id", ondelete="CASCADE"), primary_key=True,
-    )
-    lemma: Mapped[str] = mapped_column(String(100), primary_key=True)
-
-
 class DocumentParseModel(Base):
     """A cached parse of a document by one version of the analyzer."""
 

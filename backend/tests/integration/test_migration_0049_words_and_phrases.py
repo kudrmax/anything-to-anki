@@ -587,15 +587,6 @@ def test_the_key_is_where_the_first_word_of_the_target_starts(db_url: str) -> No
     assert (q["block"], q["line"], q["char"]) == (0, CARD_Q, "They gave it up.".index("gave"))
 
 
-def test_phrase_words_are_the_words_of_the_shown_text(db_url: str) -> None:
-    a = _phrase_of(db_url, CARD_A, LINE_0)
-    lemmas = {
-        str(r["lemma"])
-        for r in _rows(db_url, "SELECT lemma FROM phrase_words WHERE phrase_id = :p", p=a["id"])
-    }
-    assert lemmas == {"he", "glared", "at", "me"}
-
-
 def test_partial_and_expression_indexes_exist(db_url: str) -> None:
     indexes = {
         str(r["name"]): str(r["sql"])
@@ -606,7 +597,6 @@ def test_partial_and_expression_indexes_exist(db_url: str) -> None:
     assert "choice IN ('learn', 'cloze', 'known')" in indexes["ux_phrases_decision"]
     assert "released_at IS NULL" in indexes["ux_anki_synced_cards_active"]
     assert "lower(" in indexes["ux_candidates_word"]
-    assert "ix_phrase_words_lemma" in indexes
 
 
 def test_word_and_phrase_ids_are_never_reused(db_url: str) -> None:
@@ -621,8 +611,9 @@ def test_word_and_phrase_ids_are_never_reused(db_url: str) -> None:
 
 def test_new_tables_exist(db_url: str) -> None:
     names = set(inspect(create_engine(db_url)).get_table_names())
-    assert {"phrases", "phrase_words", "document_parses", "source_operations"} <= names
+    assert {"phrases", "document_parses", "source_operations"} <= names
     assert "_card_phrase" not in names
+    assert "phrase_words" not in names
     candidate_columns = {
         c["name"] for c in inspect(create_engine(db_url)).get_columns("candidates")
     }

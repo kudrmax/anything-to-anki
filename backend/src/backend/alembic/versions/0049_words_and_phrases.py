@@ -84,7 +84,6 @@ WORD_ORIGIN_COLUMNS = ("origin_kind", "origin_title")
 # reflect `collections`, whose expression index SQLAlchemy can't read.
 OWN_TABLE_ONLY = {"resolve_fks": False}
 WORD_INDEX_START = 0
-WORD_INDEX_LEMMA = 2
 
 
 class _Card(NamedTuple):
@@ -128,7 +127,6 @@ def upgrade() -> None:
     _drop_card_columns()
     _sources_without_processing(conn)
     _create_indexes()
-    _fill_phrase_words(conn)
     op.drop_table("_card_phrase")
     op.drop_table("enrichment_cache")
 
@@ -166,14 +164,6 @@ def _create_tables() -> None:
         sa.Column("collected_title", sa.String(200), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sqlite_autoincrement=True,
-    )
-    op.create_table(
-        "phrase_words",
-        sa.Column(
-            "phrase_id", sa.Integer(),
-            sa.ForeignKey("phrases.id", ondelete="CASCADE"), primary_key=True,
-        ),
-        sa.Column("lemma", sa.String(100), primary_key=True),
     )
     op.create_table(
         "document_parses",
@@ -697,7 +687,7 @@ def _rows_follow_their_word(conn: sa.Connection) -> None:
     ))
 
 
-# ── steps 13–14: indexes, phrase words ────────────────────────────────
+# ── step 13: indexes ──────────────────────────────────────────────────
 
 
 def _create_indexes() -> None:
@@ -714,25 +704,3 @@ def _create_indexes() -> None:
         "ux_candidates_word", "candidates",
         ["source_id", sa.text("lower(lemma)"), "is_phrasal_verb"], unique=True,
     )
-    op.create_index("ix_phrase_words_lemma", "phrase_words", ["lemma", "phrase_id"])
-
-
-def _fill_phrase_words(conn: sa.Connection) -> None:
-    """The words of the text each phrase shows: the polished one unless it was reverted."""
-    rows = conn.execute(sa.text(
-        "SELECT id, source_phrase, polished_phrase, polish_reverted FROM phrases"
-    )).all()
-    for row in rows:
-        shown = (
-            row.polished_phrase
-            if row.polished_phrase is not None and not row.polish_reverted
-            else row.source_phrase
-        )
-        lemmas = sorted({
-            word[WORD_INDEX_LEMMA].lower() for word in json.loads(shown)["words"]
-        })
-        if lemmas:
-            conn.execute(
-                sa.text("INSERT INTO phrase_words (phrase_id, lemma) VALUES (:p, :l)"),
-                [{"p": row.id, "l": lemma} for lemma in lemmas],
-            )

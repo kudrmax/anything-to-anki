@@ -276,7 +276,6 @@ SyncToAnki создаёт заметку или находит существу�
 |---|---|
 | `candidates` (слово) | уникальность `(source_id, lower(lemma), is_phrasal_verb)`; `status` = `decision_status` (new / learn / learning / known); фразовые колонки уходят в `phrases`; дубли слов сливаются в миграции |
 | `phrases` | новая, `sqlite_autoincrement`: `candidate_id` (CASCADE), `block`, `line`, `char` (ключ; **один** частичный уникальный индекс `(candidate_id, block, line, char) WHERE origin = 'auto'`), `source_phrase`, `phrase_position`, `polished_phrase`, `polish_reverted`, `fragment_score`, `revision`, `shown_by`, `origin`, `choice` (+ частичный уникальный индекс решения), `edited_by_user`, `replaces_selection`, `created_at` |
-| `phrase_words` | новая: `lemma`, `phrase_id` — индекс для пересчёта разделов по лемме; переписывается одной операцией репозитория «записать текст фразы» при любой его смене |
 | `anki_synced_cards` | + `phrase_id` (SET NULL; частичный уникальный индекс `(phrase_id) WHERE released_at IS NULL AND phrase_id IS NOT NULL` — не больше одной активной привязки на карточку, а повторный экспорт той же карточки добавляет новую строку), `candidate_id` → nullable SET NULL; + `lemma` (индекс по `lower(lemma)`), `pos`, `note_kind`, `learning_since` NOT NULL, `released_at`; строки не удаляются |
 | `candidate_meanings`, `candidate_media`, `candidate_tts`, `candidate_clozes` | ключ → `phrase_id` |
 | `candidate_pronunciations` | + `ipa` из `candidate_meanings` |
@@ -336,7 +335,6 @@ SyncToAnki создаёт заметку или находит существу�
 - Rebuild не меняет слова отполированной фразы.
 - Ручная фраза, затем Rebuild, где слово появилось в анализе, — одна карточка на этом месте.
 - Rebuild не убирает карточки решённых слов.
-- `phrase_words` совпадает со словами фразы после Polish, смены границы, example.
 - Карточка слова, ставшего Learn / Learning / Known в другом источнике, разобрана; решение на ней — 409.
 - Блокировка worker'а во время применения плана книги.
 

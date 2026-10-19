@@ -34,7 +34,6 @@ from backend.infrastructure.persistence.models import (
     load_position,
 )
 from backend.infrastructure.persistence.phrase_writes import (
-    PhraseWords,
     drop_results,
 )
 from backend.infrastructure.persistence.rebuild_plan_writer import RebuildPlanWriter
@@ -127,8 +126,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
     def __init__(self, session: Session) -> None:
         self._session = session
         self._results = PhraseResultsReader(session)
-        self._words = PhraseWords(session)
-        self._plans = RebuildPlanWriter(session, self._words)
+        self._plans = RebuildPlanWriter(session)
 
     def by_source(self, source_id: int) -> list[Occurrence]:
         return self._occurrences(self._of_source(source_id))
@@ -211,7 +209,6 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         model = PhraseModel.from_entity(occurrence)
         self._session.add(model)
         self._session.flush()
-        self._words.rewrite({model.id: model.shown_text})
         return model.to_entity()
 
     def write_text(
@@ -238,7 +235,6 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         if edited_by_user:
             model.edited_by_user = True
         self._session.flush()
-        self._words.rewrite({model.id: model.shown_text})
 
     def _queued_jobs_follow(self, occurrence_id: int, revision: int) -> None:
         """Queued jobs read the phrase when they run, so they work on the new text."""
@@ -302,8 +298,6 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         if phrase is not None:
             phrase.polished_phrase = None
             phrase.polish_reverted = False
-            self._session.flush()
-            self._words.rewrite({phrase.id: phrase.shown_text})
         self._session.flush()
 
     def word_rows(self, source_id: int) -> list[WordRow]:

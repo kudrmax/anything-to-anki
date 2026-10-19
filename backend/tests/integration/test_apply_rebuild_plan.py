@@ -15,7 +15,7 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_origin_kind import ShownBy
 from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.domain.value_objects.word_status import WordStatus
-from backend.infrastructure.persistence.models import PhraseModel, PhraseWordModel
+from backend.infrastructure.persistence.models import PhraseModel
 from backend.infrastructure.persistence.phrase_writes import SQL_IN_CHUNK
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
@@ -26,6 +26,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 from sqlalchemy import select, text
 
 from tests.integration.conftest import insert_source
+from tests.phrase_support import shown_lemmas
 from tests.rebuild_support import breakdown, built, occ
 
 if TYPE_CHECKING:
@@ -70,9 +71,7 @@ def _phrases(session: Session) -> dict[int, PhraseModel]:
 
 
 def _words_of(session: Session, phrase_id: int) -> set[str]:
-    return set(session.scalars(
-        select(PhraseWordModel.lemma).where(PhraseWordModel.phrase_id == phrase_id)
-    ))
+    return shown_lemmas(session, phrase_id)
 
 
 def _meaning(session: Session, phrase_id: int, word_id: int) -> None:

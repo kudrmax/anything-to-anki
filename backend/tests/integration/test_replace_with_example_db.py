@@ -18,7 +18,6 @@ from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
-from backend.infrastructure.persistence.models import PhraseWordModel
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -30,12 +29,12 @@ from backend.infrastructure.persistence.sqla_job_repository import SqlaJobReposi
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
-from sqlalchemy import select, text
+from sqlalchemy import text
 
 from tests.card_support import card_views
 from tests.decision_support import Decisions
 from tests.lock_support import free_lock
-from tests.phrase_support import phrase
+from tests.phrase_support import phrase, shown_lemmas
 from tests.word_support import bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -228,13 +227,10 @@ def test_an_unknown_phrase_is_not_found(bench: Bench) -> None:
         bench.use_case.execute(999, "She runs every morning.")
 
 
-def test_the_example_words_are_the_phrase_words(bench: Bench) -> None:
+def test_the_example_shows_its_own_words(bench: Bench) -> None:
     example = bench.replace(CARD)
 
-    lemmas = set(bench.session.scalars(
-        select(PhraseWordModel.lemma).where(PhraseWordModel.phrase_id == example.id)
-    ))
-    assert lemmas == {"she", "run", "every", "morning"}
+    assert shown_lemmas(bench.session, example.id) == {"she", "run", "every", "morning"}
 
 
 # ── the decision moves with its kind ──────────────────────────────────

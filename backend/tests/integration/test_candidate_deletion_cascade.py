@@ -27,7 +27,7 @@ pytestmark = pytest.mark.integration
 
 SOURCE_ID = 1
 WORD_TABLES = ("candidate_pronunciations", "anki_synced_cards", "phrases")
-PHRASE_TABLES = ("candidate_meanings", "candidate_media", "candidate_tts", "phrase_words")
+PHRASE_TABLES = ("candidate_meanings", "candidate_media", "candidate_tts")
 
 
 def _create_candidate(repo: SqlaCandidateRepository, lemma: str) -> int:
