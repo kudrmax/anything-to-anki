@@ -308,7 +308,12 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
         assert phrase_id not in bound or choices[phrase_id] == "known", "A1"
 
     # card_reports and active phrase-level jobs keep their phrase
-    assert _count(conn, "SELECT count(*) FROM card_reports WHERE phrase_id IS NULL") == 0
+    # a report of a card deleted before the upgrade keeps its snapshot and has no phrase
+    assert _count(
+        conn,
+        "SELECT count(*) FROM card_reports WHERE phrase_id IS NULL"
+        " AND candidate_id IN (SELECT id FROM candidates)",
+    ) == 0
     assert _count(
         conn,
         f"SELECT count(*) FROM jobs WHERE job_type IN {PHRASE_LEVEL_JOB_TYPES}"
