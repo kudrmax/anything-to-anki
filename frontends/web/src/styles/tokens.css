@@ -372,7 +372,6 @@
     --card-display: flex;
     --card-pad: var(--s5);
     --card-head-pt: var(--card-pad);
-    --card-head-pb: var(--s4);
     --card-cols-pb: var(--card-pad);
     --card-left-display: contents;
     --card-left-item-mx: var(--card-pad);
@@ -386,7 +385,6 @@
     --card-right-mask: none;
     --card-min-h: 0px;
     --card-foot-order: 3;
-    --card-head-bw: 0px;
     --card-foot-bw: 0px;
     --card-foot-pad: var(--s3) var(--card-pad);
     --facts-justify: flex-start;
