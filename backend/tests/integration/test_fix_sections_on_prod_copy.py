@@ -65,6 +65,24 @@ def _choices(conn: sqlite3.Connection) -> dict[int, str]:
     return dict(conn.execute("SELECT id, choice FROM phrases"))
 
 
+def _anki_bindings(conn: sqlite3.Connection) -> dict[int, Row]:
+    return {row[0]: tuple(row) for row in conn.execute("SELECT * FROM anki_synced_cards")}
+
+
+def _protected_texts(conn: sqlite3.Connection) -> dict[int, Row]:
+    """Source and polished text and the edit flag of every phrase with a choice or in Anki."""
+    return {
+        row[0]: tuple(row)
+        for row in conn.execute(
+            "SELECT id, source_phrase, polished_phrase, polish_reverted, edited_by_user"
+            " FROM phrases WHERE choice != ? OR id IN"
+            " (SELECT phrase_id FROM anki_synced_cards"
+            "  WHERE released_at IS NULL AND phrase_id IS NOT NULL)",
+            (NO_CHOICE,),
+        )
+    }
+
+
 def _word_decisions(conn: sqlite3.Connection) -> dict[int, str]:
     return dict(conn.execute("SELECT id, status FROM candidates WHERE status != 'pending'"))
 
@@ -103,6 +121,8 @@ def test_fix_sections_on_the_prod_copy(tmp_path: Path) -> None:
         words_before = _word_decisions(conn)
         generation_before = _generation(conn)
         progress_before = _progress(conn)
+        bindings_before = _anki_bindings(conn)
+        texts_before = _protected_texts(conn)
 
     report = fix_sections(f"sqlite:///{db_path}")
 
@@ -114,6 +134,8 @@ def test_fix_sections_on_the_prod_copy(tmp_path: Path) -> None:
         words_after = _word_decisions(conn)
         generation_after = _generation(conn)
         progress_after = _progress(conn)
+        bindings_after = _anki_bindings(conn)
+        texts_after = _protected_texts(conn)
         sections = _sections(conn)
 
     # The numbers go into the commit that ran this test.
@@ -139,3 +161,5 @@ def test_fix_sections_on_the_prod_copy(tmp_path: Path) -> None:
     for table, before in generation_before.items():
         kept = {pid: generation_after[table].get(pid) for pid in before}
         assert kept == before, table
+    assert bindings_after == bindings_before
+    assert texts_after == texts_before

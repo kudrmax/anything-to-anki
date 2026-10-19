@@ -30,6 +30,7 @@ from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.container import Container
+from backend.infrastructure.persistence.phrase_writes import drop_results
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -316,7 +317,7 @@ def test_a_real_phrase_added_beside_a_generated_one_is_never_replaced(
     _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
     db_session.commit()
     container.refresh_topic_use_case(db_session).execute(topic_id)
-    occurrences.reset_results(generated.id)
+    drop_results(db_session, [generated.id])
     db_session.commit()
     _add_source(db_session, "Reply", Kind.TEXT, ANOTHER_ARTICLE)
     db_session.commit()

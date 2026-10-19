@@ -26,8 +26,42 @@ def spawn_in_thread(work: Callable[[], None]) -> None:
     threading.Thread(target=work, name="rebuild-all-sources", daemon=True).start()
 
 
+class RebuildPasses:
+    """Runs full passes one at a time. A request during a pass does not start a second one
+    beside it: it asks for exactly one more pass after the current one, so a pass that
+    began before the latest settings were saved is always followed by one that reads them."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._running = False
+        self._again = False
+
+    def request(self, spawn: Spawn, run_pass: Callable[[], None]) -> None:
+        with self._lock:
+            if self._running:
+                self._again = True
+                return
+            self._running = True
+        spawn(lambda: self._work(run_pass))
+
+    def _work(self, run_pass: Callable[[], None]) -> None:
+        while True:
+            try:
+                run_pass()
+            except Exception:
+                logger.exception("rebuild of all sources: the pass failed")
+            with self._lock:
+                if not self._again:
+                    self._running = False
+                    return
+                self._again = False
+
+
+REBUILD_PASSES = RebuildPasses()
+
+
 class BackgroundSourcesRebuildLauncher(SourcesRebuildLauncher):
-    """Rebuilds the sources one after another on a thread of its own, the way the Rebuild
+    """Rebuilds the sources one after another on a worker of its own, the way the Rebuild
     button does: each takes its lock only when its turn comes, and a source that is busy
     then is skipped."""
 
@@ -37,14 +71,16 @@ class BackgroundSourcesRebuildLauncher(SourcesRebuildLauncher):
         rebuild_use_case: Callable[[Session], RebuildSourceUseCase],
         operations: SourceOperationRegistry,
         spawn: Spawn = spawn_in_thread,
+        passes: RebuildPasses = REBUILD_PASSES,
     ) -> None:
         self._session_factory = session_factory
         self._rebuild_use_case = rebuild_use_case
         self._operations = operations
         self._spawn = spawn
+        self._passes = passes
 
     def rebuild_all(self) -> None:
-        self._spawn(self._rebuild_each)
+        self._passes.request(self._spawn, self._rebuild_each)
 
     def _rebuild_each(self) -> None:
         try:

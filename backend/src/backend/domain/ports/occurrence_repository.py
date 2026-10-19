@@ -81,10 +81,6 @@ class OccurrenceRepository(ABC):
         """Mark a phrase the user put in place of the word's selection card."""
 
     @abstractmethod
-    def reset_results(self, occurrence_id: int) -> None:
-        """Drop everything made for the phrase: polish, meaning, media, tts, cloze."""
-
-    @abstractmethod
     def shown_by_word(self, source_id: int) -> dict[int, list[Occurrence]]:
         """Shown phrases of the source with their results, by word id."""
 

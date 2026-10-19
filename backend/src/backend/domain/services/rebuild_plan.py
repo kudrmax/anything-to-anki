@@ -327,6 +327,7 @@ class _Planner:
         bump: bool,
         reset: bool,
     ) -> OccurrenceRow:
+        assert reset or not o.shows_polish, "a shown polish counts as results and is always reset"
         earned = self._rule.earned(analysed.phrase, facts)
         self._rewritten.add(o.id)
         self._text_updates.append(OccurrenceTextUpdate(
@@ -346,7 +347,7 @@ class _Planner:
             revision=o.revision + 1 if bump else o.revision,
             has_results=False if reset else o.has_results,
             shows_polish=False if reset else o.shows_polish,
-            shown_phrase=o.shown_phrase if o.shows_polish and not reset else analysed.phrase,
+            shown_phrase=analysed.phrase,
             earned_section=earned,
         )
 

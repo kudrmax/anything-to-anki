@@ -7,6 +7,7 @@ from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundError
 from backend.domain.services.document_layout import DocumentLayout
+from backend.domain.services.rebuild_plan import SectionChange
 from backend.domain.value_objects.built_analysis import WordKey
 from backend.domain.value_objects.card_choice import Press, is_skipped
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
@@ -140,6 +141,10 @@ class AddManualCandidateUseCase:
         if existing.shown_by is ShownBy.SELECTION:
             self._occurrences.set_replaces_selection(existing.id, True)
         self._occurrences.set_shown([existing.id], ShownBy.USER)
+        self._occurrences.set_earned_sections([SectionChange(
+            occurrence_id=existing.id,
+            earned_section=self._stamper.earned(existing.phrase, card.word),
+        )])
         if is_skipped(existing.card_state):
             self._decide_phrase.press_unless_done(existing.id, Press.SKIP)
         return existing.id

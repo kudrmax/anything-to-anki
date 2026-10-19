@@ -423,6 +423,15 @@ migrate-paths: _check_setup  ## Перевести пути к медиа в Б�
 	.venv/bin/python scripts/relocate_media_paths.py $(if $(APPLY),--apply)
 
 fix-sections: _check_setup dict-update  ## Проставить секции фразам и пересобрать источники (при остановленном приложении)
+	@for f in .pids/*.pid; do \
+	    [ -f "$$f" ] || continue; \
+	    for pid in $$(cat "$$f"); do \
+	        if kill -0 $$pid 2>/dev/null; then \
+	            echo "fix-sections: the app is running ($$f, PID $$pid). Run 'make down' (or 'make down-worktree') first."; \
+	            exit 1; \
+	        fi; \
+	    done; \
+	done
 	.venv/bin/python scripts/fix_sections.py
 
 ##@ Прочее

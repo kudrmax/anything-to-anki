@@ -36,9 +36,6 @@ from backend.infrastructure.persistence.models import (
     load_phrase,
     load_position,
 )
-from backend.infrastructure.persistence.phrase_writes import (
-    drop_results,
-)
 from backend.infrastructure.persistence.rebuild_plan_writer import RebuildPlanWriter
 
 if TYPE_CHECKING:
@@ -304,14 +301,6 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             .where(PhraseModel.id == occurrence_id)
             .values(replaces_selection=replaces)
         )
-        self._session.flush()
-
-    def reset_results(self, occurrence_id: int) -> None:
-        drop_results(self._session, [occurrence_id])
-        phrase = self._session.get(PhraseModel, occurrence_id)
-        if phrase is not None:
-            phrase.polished_phrase = None
-            phrase.polish_reverted = False
         self._session.flush()
 
     def word_rows(self, source_id: int) -> list[WordRow]:

@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import threading
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.infrastructure.api.background_rebuild_launcher import (
     BackgroundSourcesRebuildLauncher,
+    RebuildPasses,
 )
 from backend.infrastructure.api.source_operations import SourceOperationRegistry
 from backend.infrastructure.persistence.database import Base
@@ -65,6 +67,7 @@ def _launcher(bench: Bench) -> BackgroundSourcesRebuildLauncher:
         rebuild_use_case=lambda _session: bench.rebuild(),
         operations=SourceOperationRegistry(),
         spawn=lambda work: work(),
+        passes=RebuildPasses(),
     )
 
 
@@ -117,6 +120,7 @@ def test_no_source_is_locked_before_its_turn(bench: Bench) -> None:
         rebuild_use_case=lambda _session: inner,
         operations=SourceOperationRegistry(),
         spawn=lambda work: work(),
+        passes=RebuildPasses(),
     )
 
     launcher.rebuild_all()
@@ -157,3 +161,41 @@ def test_the_patch_does_not_wait_for_the_rebuild(
     finally:
         release.set()
         app.dependency_overrides.clear()
+
+
+def test_calls_close_together_never_overlap_and_a_full_pass_follows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inside = threading.Lock()
+    first_started = threading.Event()
+    release_first = threading.Event()
+    done = threading.Event()
+    overlaps: list[bool] = []
+    passes: list[int] = []
+
+    def one_pass(_self: BackgroundSourcesRebuildLauncher) -> None:
+        overlaps.append(not inside.acquire(blocking=False))
+        passes.append(len(passes) + 1)
+        if len(passes) == 1:
+            first_started.set()
+            release_first.wait(timeout=10)
+        else:
+            done.set()
+        if not overlaps[-1]:
+            inside.release()
+
+    monkeypatch.setattr(BackgroundSourcesRebuildLauncher, "_rebuild_each", one_pass)
+    launcher = BackgroundSourcesRebuildLauncher(
+        session_factory=MagicMock(), rebuild_use_case=MagicMock(),
+        operations=SourceOperationRegistry(), passes=RebuildPasses(),
+    )
+
+    launcher.rebuild_all()
+    assert first_started.wait(timeout=10)
+    launcher.rebuild_all()
+    launcher.rebuild_all()
+    release_first.set()
+
+    assert done.wait(timeout=10)
+    assert passes == [1, 2]
+    assert overlaps == [False, False]

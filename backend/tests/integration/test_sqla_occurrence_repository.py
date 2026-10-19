@@ -294,27 +294,6 @@ def test_projection_carries_the_active_binding_only(
     assert [row.id for row in repo.projection(SOURCE)].count(phrase_id) == 1
 
 
-def test_reset_results_drops_everything_made_for_the_phrase(
-    repo: SqlaOccurrenceRepository, db_session: Session,
-) -> None:
-    phrase_id = _added(repo)
-    repo.write_text(
-        phrase_id, phrase("He glared at me."), POSITION, polished=phrase("He stared at us"),
-        earned_section=CandidateSection.READY,
-    )
-    SqlaCandidateMeaningRepository(db_session).upsert_for_phrase(phrase_id, CandidateMeaning(
-        candidate_id=WORD, meaning="m", translation=None, synonyms=None, examples=None,
-        ipa=None, generated_at=None,
-    ))
-
-    repo.reset_results(phrase_id)
-
-    stored = repo.get(phrase_id)
-    assert stored is not None
-    assert (stored.polished_phrase, stored.meaning, stored.has_results) == (None, None, False)
-    assert _words(db_session, phrase_id) == {"he", "glared", "at", "me"}
-
-
 def test_shown_by_word_keeps_only_shown_phrases(repo: SqlaOccurrenceRepository) -> None:
     hidden = _added(repo)
 

@@ -14,6 +14,7 @@ from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.entities.token_data import TokenData
 from backend.domain.exceptions import ActionRefusedError
 from backend.domain.services.card_view import Command, Where
+from backend.domain.services.rebuild_plan import SectionChange
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import CardChoice, Press
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
@@ -100,7 +101,6 @@ class Manual:
             end_block=0, end_line=line, end_char=len(LINES[line]),
         ))
         self.bench.session.commit()
-
 
 @pytest.fixture
 def bench(db_session: Session) -> Bench:
@@ -192,6 +192,20 @@ def test_a_manual_add_at_a_hidden_auto_phrase_shows_it_without_a_duplicate(
     bench.rebuild().execute(SOURCE, include_open=True)
 
     assert sorted(o.id for o in _shown(bench, "glare")) == sorted(o.id for o in occurrences)
+
+
+def test_showing_a_hidden_phrase_restamps_the_section_it_earns_now(bench: Bench) -> None:
+    bench.processed(word("glare", at(0, 0.1), _at(GLARE_LINE, GLARE_CHAR)))
+    [hidden] = [o for o in _of(bench, "glare") if o.shown_by is None]
+    stale = CandidateSection.PROBABLY_KNOWN
+    bench.occurrences.set_earned_sections([SectionChange(hidden.id, stale)])
+    bench.session.commit()
+
+    Manual(bench).add(GLARE_LINE, 1)
+
+    [shown] = [o for o in _of(bench, "glare") if o.id == hidden.id]
+    assert shown.shown_by is ShownBy.USER
+    assert shown.earned_section is not stale
 
 
 @pytest.mark.parametrize("decided", ["on_another_card", "in_the_known_list"])
