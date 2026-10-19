@@ -6,7 +6,7 @@ import css from './TopNav.module.css'
 const ENV_NAME = import.meta.env.VITE_INSTANCE_ENV_NAME as string | undefined
 const PROD_ENV = 'prod'
 
-type Section = 'sources' | 'add' | 'export' | 'queue' | 'usage' | 'settings'
+type Section = 'sources' | 'export' | 'queue' | 'usage' | 'settings'
 
 interface Destination {
   section: Section
@@ -15,7 +15,6 @@ interface Destination {
 }
 
 const MAIN: Destination[] = [
-  { section: 'add', label: 'Add', path: '/add' },
   { section: 'sources', label: 'Sources', path: '/' },
   { section: 'export', label: 'Export', path: '/export' },
   { section: 'queue', label: 'Queue', path: '/queue' },
@@ -24,7 +23,6 @@ const MAIN: Destination[] = [
 const SETTINGS: Destination = { section: 'settings', label: 'Settings', path: '/settings' }
 
 function sectionOf(pathname: string): Section {
-  if (pathname.startsWith('/add')) return 'add'
   if (pathname.startsWith('/export')) return 'export'
   if (pathname.startsWith('/queue')) return 'queue'
   if (pathname.startsWith('/usage')) return 'usage'
@@ -50,6 +48,7 @@ export function TopNav() {
       to={destination.path}
       className={current === destination.section ? `${css.tab} ${css.on}` : css.tab}
       aria-current={current === destination.section ? 'page' : undefined}
+      data-current={current === destination.section || undefined}
     >
       {destination.label}
       {badge ? <span className={css.badge}>{badge}</span> : null}

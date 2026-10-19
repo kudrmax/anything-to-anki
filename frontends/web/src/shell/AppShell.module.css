@@ -1,2 +1,6 @@
 .shell { display: flex; flex-direction: column; height: 100%; background: var(--page-bg); }
 .main { flex: 1; min-width: 0; overflow: auto; padding: 0 var(--page-x) var(--main-pb); }
+/* экран без вкладок на телефоне (Page immersive) */
+.shell:has([data-immersive]) > nav { display: var(--immersive-nav-display); }
+/* на таком экране по краю вкладок идёт свой индикатор: подчёркивание активной вкладки с ним сливается */
+.shell:has([data-immersive]) > nav [data-current] { box-shadow: none; }

@@ -4,12 +4,15 @@ from collections import Counter
 from typing import TYPE_CHECKING
 
 from backend.application.dto.generation_dtos import GenerationKindStatusDTO, GenerationStatusDTO
-from backend.application.utils.generation_targets import CardJobs
+from backend.application.utils.generation_targets import CardJobs, ReadyCards
 from backend.domain.exceptions import SourceNotFoundError
+from backend.domain.services.generation_scope import in_scope
 from backend.domain.value_objects.card_generation_state import CardGenerationState
+from backend.domain.value_objects.generation_scope import GenerationScope
 from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
+    from backend.application.utils.candidate_sorter import CandidateSorter
     from backend.application.utils.generation_targets import (
         GenerationCard,
         GenerationCards,
@@ -28,11 +31,13 @@ class GetGenerationStatusUseCase:
         source_repo: SourceRepository,
         cards: GenerationCards,
         job_repo: JobRepository,
+        candidate_sorter: CandidateSorter,
         targets: list[GenerationTarget],
     ) -> None:
         self._source_repo = source_repo
         self._cards = cards
         self._job_repo = job_repo
+        self._candidate_sorter = candidate_sorter
         self._targets = targets
 
     def execute(self, source_id: int) -> GenerationStatusDTO:
@@ -44,8 +49,9 @@ class GetGenerationStatusUseCase:
         video_downloading = self._job_repo.has_active_jobs_for_source(
             source_id, frozenset({JobType.VIDEO_DOWNLOAD}),
         )
+        ready = ReadyCards.of(cards, self._candidate_sorter)
         kinds = [
-            self._kind_status(target, source, cards, jobs, video_downloading)
+            self._kind_status(target, source, cards, jobs, ready, video_downloading)
             for target in self._targets
             if target.applies_to(source)
         ]
@@ -60,9 +66,16 @@ class GetGenerationStatusUseCase:
         source: Source,
         cards: list[GenerationCard],
         jobs: CardJobs,
+        ready: ReadyCards,
         video_downloading: bool,
     ) -> GenerationKindStatusDTO:
-        states = Counter(target.state(c, target.job_of(jobs, c)) for c in target.cards(cards))
+        covered = target.cards(cards)
+        state_of = {id(c): target.state(c, target.job_of(jobs, c)) for c in covered}
+        states = Counter(state_of.values())
+        ready_missing = sum(
+            1 for c in covered
+            if in_scope(GenerationScope.READY_MISSING, state_of[id(c)], target.is_ready(ready, c))
+        )
         return GenerationKindStatusDTO(
             kind=target.kind,
             total=states.total(),
@@ -70,5 +83,6 @@ class GetGenerationStatusUseCase:
             running=states[CardGenerationState.RUNNING],
             failed=states[CardGenerationState.FAILED],
             missing=states[CardGenerationState.MISSING],
+            ready_missing=ready_missing,
             blocked_by=target.blocker(source, video_downloading),
         )

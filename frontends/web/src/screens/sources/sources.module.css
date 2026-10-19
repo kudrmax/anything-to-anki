@@ -19,9 +19,6 @@
 .more { grid-area: more; opacity: var(--reveal); transition: opacity var(--t); }
 .row:hover .more, .more:focus-within, .more:has([role="menu"]) { opacity: 1; }
 
-/* форма на экране Add */
-.add { padding: var(--source-add-pad); border: var(--dash-bw) dashed var(--line); border-radius: var(--r); }
-
 /* экран: дерево слева, список справа; на телефоне дерево уходит в ScopePicker */
 .layout { display: grid; grid-template-columns: var(--sources-cols); gap: var(--page-x); align-items: start; padding-top: var(--page-top); }
 .side { display: var(--desktop-display); align-content: start; gap: var(--s7); }
@@ -29,6 +26,7 @@
 .search { margin-bottom: var(--s7); }
 .emptyStart { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s5); }
 .phoneOnly { display: var(--phone-display); }
+.phoneAdd { margin-bottom: var(--s6); }
 
 /* шапка области: крошки, название, прогресс | действия */
 .scopeHeader { display: flex; align-items: center; justify-content: space-between; gap: var(--s4) var(--gap); margin-bottom: var(--s6); }

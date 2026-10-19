@@ -31,6 +31,7 @@ from backend.domain.exceptions import (
     GenerationNotSupportedError,
     SourceOperationBusyError,
 )
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
@@ -155,6 +156,7 @@ class _Setup:
         video_downloading: bool = False,
         busy_with: SourceOperationKind | None = None,
         elsewhere: dict[str, ElsewhereStatus] | None = None,
+        extra_phrases: frozenset[int] = frozenset(),
     ) -> None:
         self.source_repo = MagicMock()
         self.source_repo.get_by_id.return_value = source or _source()
@@ -184,6 +186,13 @@ class _Setup:
         sorter.arrange.side_effect = lambda cs, _order: ArrangedCards(
             cards=_words_reversed(cs), sections={},
         )
+        sorter.earned_sections.side_effect = lambda cs: {
+            c.phrase_id: (
+                CandidateSection.EXTRA if c.phrase_id in extra_phrases
+                else CandidateSection.READY
+            )
+            for c in cs
+        }
         targets = [
             PolishTarget(self.occurrence_repo),
             MeaningTarget(self.meaning_repo),
@@ -205,7 +214,7 @@ class _Setup:
         )
         self.status = GetGenerationStatusUseCase(
             source_repo=self.source_repo, cards=generation_cards,
-            job_repo=self.job_repo, targets=targets,
+            job_repo=self.job_repo, candidate_sorter=sorter, targets=targets,
         )
 
     def kind_status(self, kind: GenerationKind) -> GenerationKindStatusDTO:
@@ -263,6 +272,38 @@ class TestRunGeneration:
         assert queued == 1
         assert setup.queued_phrases() == [20]
         setup.meaning_repo.delete_by_phrase_id.assert_not_called()
+
+    def test_ready_missing_skips_missing_cards_outside_ready(self) -> None:
+        setup = _Setup(
+            cards=[_one(1), _one(2), _one(3, meaning=True)],
+            extra_phrases=frozenset({20}),
+        )
+
+        queued = setup.run.execute(
+            SOURCE_ID, GenerationKind.MEANING, GenerationScope.READY_MISSING,
+        )
+
+        assert queued == 1
+        assert setup.queued_phrases() == [10]
+
+    def test_ready_missing_leaves_cards_out_of_play(self) -> None:
+        setup = _Setup(cards=[_one(1), _one(2, WordStatus.KNOWN)])
+
+        setup.run.execute(SOURCE_ID, GenerationKind.MEANING, GenerationScope.READY_MISSING)
+
+        assert setup.queued_phrases() == [10]
+
+    def test_ready_missing_makes_a_word_kind_for_a_word_with_a_ready_phrase(self) -> None:
+        setup = _Setup(
+            cards=[(_word(1), [_phrase(1, 0), _phrase(1, 1)]), _one(2)],
+            extra_phrases=frozenset({10, 20}),
+        )
+
+        setup.run.execute(
+            SOURCE_ID, GenerationKind.PRONUNCIATION, GenerationScope.READY_MISSING,
+        )
+
+        assert [word_id for word_id, _, _ in setup.queued()] == [1]
 
     def test_failed_requeues_only_failed_cards(self) -> None:
         setup = _mixed_meanings()
@@ -450,6 +491,16 @@ class TestGetGenerationStatus:
             4, 1, 1, 1, 1,
         )
         assert status.in_progress is True
+
+    def test_ready_missing_counts_only_missing_cards_in_ready(self) -> None:
+        setup = _Setup(
+            cards=[_one(1), _one(2), _one(3, meaning=True)],
+            extra_phrases=frozenset({20}),
+        )
+
+        meaning = setup.kind_status(GenerationKind.MEANING)
+
+        assert (meaning.missing, meaning.ready_missing) == (2, 1)
 
     def test_done_card_with_a_stale_failure_counts_as_done(self) -> None:
         setup = _Setup([_one(1, meaning=True)], jobs=[_job(10, JobStatus.FAILED)])

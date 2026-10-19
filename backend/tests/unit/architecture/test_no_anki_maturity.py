@@ -11,8 +11,8 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 SCANNED_ROOTS = (REPO_ROOT / "backend" / "src", REPO_ROOT / "frontends" / "web" / "src")
 SCANNED_SUFFIXES = {".py", ".ts", ".tsx", ".css"}
 BANNED = re.compile(r"matur|note_cards|check-progress|check progress|from_anki", re.IGNORECASE)
-# The docs of today: docs/*.md. docs/specs and docs/superpowers keep the history.
-DOCS = REPO_ROOT / "docs"
+# The docs of today: the markdown files at the repo root. Old specs live in git history.
+DOCS = REPO_ROOT
 BANNED_IN_DOCS = re.compile(
     BANNED.pattern
     + r"|anki_notes|AnkiNote|CheckAnkiProgress|check_anki_progress|is_decision|decision_kind"

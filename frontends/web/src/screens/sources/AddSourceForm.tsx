@@ -1,33 +1,33 @@
-import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { DetectedFormat, Question } from '@/api/types'
-import { droppedPathsIn, nativeHost } from '@/lib/nativeHost'
+import type { InputDescription, InputKind, Question } from '@/api/types'
+import { Plus } from 'lucide-react'
+import { nativeHost } from '@/lib/nativeHost'
 import { withDroppedPaths } from '@/lib/text/sourceInput'
 import { phraseWords, pickedIndices, toggled } from '@/lib/text/words'
-import { Button, Field, Segmented, Spinner, Stack, Text, TextArea, WordPicker } from '@/ui'
+import { Button, Field, Icon, Segmented, Spinner, Text, TextArea, WordPicker } from '@/ui'
 import css from './AddSourceForm.module.css'
 import { PathField } from './PathField'
 import { QuestionsModal } from './QuestionsModal'
 import { useFileDrag } from './useFileDrag'
 
 /** Чем станет введённое: источником, темой или сохранённой фразой. */
-type Mode = 'source' | 'topic' | 'phrase'
+type Mode = InputKind
 
 const MODES: { value: Mode; label: string }[] = [
   { value: 'source', label: 'Source' },
   { value: 'topic', label: 'Topic' },
   { value: 'phrase', label: 'Phrase' },
 ]
-const INPUT_PLACEHOLDER = 'Paste text, a file path, a link — or a topic, a phrase…'
-const TOPIC_HINT = 'Targets come from AI, phrases from your sources'
-const PHRASE_HINT = 'Tap words to select target'
+const INPUT_PLACEHOLDER = 'Paste a link or text, type a topic or a phrase — or drop a file'
+const TOPIC_HINT = 'AI picks targets, phrases come from your sources'
+const PHRASE_HINT = 'Tap the words you want to learn'
 const PHRASE_SAVED = 'Phrase saved'
 const SUBTITLE_EXTENSIONS = ['srt']
 const NO_SUBTITLES_ERROR = 'subtitles_not_available'
 const DROP_HINT = 'Drop the file here'
 const BROWSER_DROP_ERROR = 'Dropped files reach the app only in the macOS app — enter the path instead'
-const DETECT_DELAY_MS = 300
+const DESCRIBE_DELAY_MS = 300
 const ADD_LABEL: Record<Mode, string> = { source: 'Add source', topic: 'Add topic', phrase: 'Add phrase' }
 
 interface AddSourceFormProps {
@@ -38,21 +38,13 @@ interface AddSourceFormProps {
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
 export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
-  const { state: navigationState, pathname, search } = useLocation()
-  const navigate = useNavigate()
-  // Файл бросили на экран Sources: он открыл Add и передал пути сюда.
-  const [dropped] = useState(() => withDroppedPaths({ filePath: '', srtPath: '' }, droppedPathsIn(navigationState)))
-  // Пути забраны в поле: в истории им не место, иначе «назад-вперёд» или перезагрузка вставят их снова.
-  const carriesPaths = droppedPathsIn(navigationState).length > 0
-  useEffect(() => {
-    if (carriesPaths) navigate(pathname + search, { replace: true, state: null })
-  }, [carriesPaths, navigate, pathname, search])
-  const [mode, setMode] = useState<Mode>('source')
-  const [input, setInput] = useState(dropped.filePath)
+  // Режим, который пользователь переключил руками; пока его нет — режим, предложенный backend.
+  const [chosen, setChosen] = useState<Mode | null>(null)
+  const [input, setInput] = useState('')
   const [title, setTitle] = useState('')
-  const [srtPath, setSrtPath] = useState(dropped.srtPath)
-  const [detected, setDetected] = useState<DetectedFormat | null>(null)
-  const [detecting, setDetecting] = useState(false)
+  const [srtPath, setSrtPath] = useState('')
+  const [described, setDescribed] = useState<InputDescription | null>(null)
+  const [describing, setDescribing] = useState(false)
   const [phraseTarget, setPhraseTarget] = useState<Set<number>>(new Set())
   const [phraseSaved, setPhraseSaved] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -63,13 +55,23 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
   const [host] = useState(() => nativeHost())
 
   const entered = input.trim() !== ''
+  const problem = described?.problem ? described : null
+  const mode: Mode | null = chosen ?? described?.kind ?? null
 
-  const edit = (value: string) => {
+  const edit = useCallback((value: string) => {
     setInput(value)
+    // Набор с клавиатуры не трогает ручной выбор; пустое поле — начало нового ввода.
+    if (!value.trim()) setChosen(null)
     setPhraseTarget(new Set())
     setPhraseSaved(false)
     setError(null)
-  }
+  }, [])
+
+  /** Ввод заменён целиком — вставкой, перетаскиванием или выбором файла: прежний выбор к нему не относится. */
+  const replace = useCallback((value: string) => {
+    setChosen(null)
+    edit(value)
+  }, [edit])
 
   const reset = () => {
     setInput('')
@@ -77,7 +79,7 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
     setSrtPath('')
     setAnswers({})
     setPhraseTarget(new Set())
-    setMode('source')
+    setChosen(null)
   }
 
   const fileDrag = useFileDrag({
@@ -89,29 +91,28 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
   useEffect(() => host?.onFileDrop(paths => {
     resetFileDrag()
     setError(null)
-    setMode('source')
-    const chosen = withDroppedPaths({ filePath: input, srtPath }, paths)
-    edit(chosen.filePath)
-    setSrtPath(chosen.srtPath)
-  }), [host, input, srtPath, resetFileDrag])
+    const chosenPaths = withDroppedPaths({ filePath: input, srtPath }, paths)
+    replace(chosenPaths.filePath)
+    setSrtPath(chosenPaths.srtPath)
+  }), [host, input, srtPath, resetFileDrag, replace])
 
-  // Подсказку под полем считает backend: как он прочитает то, что вставлено.
+  // Что станет из ввода, решает backend; пока ответ в пути, на экране остаётся прежний.
   useEffect(() => {
-    if (mode !== 'source' || !entered) { setDetected(null); setDetecting(false); return }
+    if (!entered) { setDescribed(null); setDescribing(false); return }
     const controller = new AbortController()
-    setDetecting(true)
+    setDescribing(true)
     const timer = window.setTimeout(() => {
-      api.detectFormat(input, controller.signal)
-        .then(found => { setDetected(found); setDetecting(false) })
+      api.describeInput(input, controller.signal)
+        .then(found => { setDescribed(found); setDescribing(false) })
         .catch(() => {})
-    }, DETECT_DELAY_MS)
+    }, DESCRIBE_DELAY_MS)
     return () => {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [input, mode, entered])
+  }, [input, entered])
 
-  const isVideo = detected?.format === 'video_file'
+  const isVideo = described?.format === 'video_file'
 
   const pickFile = async () => {
     if (!host) return
@@ -119,8 +120,7 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
     try {
       const path = await host.pickFile()
       if (path) {
-        setMode('source')
-        edit(path)
+        replace(path)
         setSrtPath('')
       }
     } catch (e) {
@@ -182,47 +182,57 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
     else void submitSource({})
   }
 
+  const modeDetail = mode === 'source' ? described?.label : mode === 'topic' ? TOPIC_HINT : PHRASE_HINT
+
   return (
     <>
-      <Stack gap="m">
-        <Stack>
-          {fileDrag.dragging && <div className={css.dropZone}>{DROP_HINT}</div>}
-          <TextArea value={input} placeholder={INPUT_PLACEHOLDER} onChange={e => edit(e.target.value)} />
-          {!entered && host && !fileDrag.dragging && (
-            <div className={css.hintRow}>
-              <Text tone="muted" size="s">or drag a file here</Text>
-              <Button variant="link" busy={picking} onClick={pickFile}>Choose…</Button>
-            </div>
-          )}
-          {!entered && phraseSaved && <Text tone="muted" size="s">{PHRASE_SAVED}</Text>}
-        </Stack>
-        {entered && (
+      <section className={css.card} aria-label="Add">
+        <div className={css.head}>
+          <span className={css.plus}><Icon as={Plus} size="s" /></span>
+          <span className={css.headTitle}>Add</span>
+          {host && <Button variant="link" className={css.choose} busy={picking} onClick={pickFile}>Choose file…</Button>}
+        </div>
+        {fileDrag.dragging ? <div className={css.dropZone}>{DROP_HINT}</div> : (
+          <TextArea
+            className={problem ? `${css.area} ${css.problemField}` : css.area}
+            value={input}
+            placeholder={INPUT_PLACEHOLDER}
+            onPaste={() => setChosen(null)}
+            onChange={e => edit(e.target.value)}
+          />
+        )}
+        {!entered && phraseSaved && <Text tone="muted" size="s">{PHRASE_SAVED}</Text>}
+        {entered && problem && (
           <>
+            <div className={css.problem}>
+              <Text tone="err" size="s">{problem.problem_message}</Text>
+              {problem.problem_hint && <Text tone="muted" size="s">{problem.problem_hint}</Text>}
+            </div>
+            <Button variant="fill" wide disabled>{ADD_LABEL.source}</Button>
+          </>
+        )}
+        {entered && !problem && mode && (
+          <>
+            <div className={css.modeRow}>
+              <Segmented value={mode} options={MODES} onChange={setChosen} />
+              {describing ? <Spinner /> : modeDetail && <Text tone="muted">{modeDetail}</Text>}
+            </div>
             {mode !== 'phrase' && (
               <Field value={title} placeholder="Title (optional)" onChange={e => setTitle(e.target.value)} />
             )}
-            <div className={css.modeRow}>
-              <Segmented value={mode} options={MODES} onChange={setMode} />
-              {mode === 'source' && (detecting ? <Spinner /> : detected && <Text tone="muted" size="s">{detected.label}</Text>)}
-            </div>
-            {mode === 'source' && isVideo && !detecting && (
+            {mode === 'source' && isVideo && (
               <PathField value={srtPath} placeholder="/path/to/subtitles.srt (optional)" extensions={SUBTITLE_EXTENSIONS} onChange={setSrtPath} onError={setError} />
             )}
-            {mode === 'topic' && (
-              <Text tone="muted" size="s">{TOPIC_HINT}</Text>
-            )}
             {mode === 'phrase' && (
-              <Stack>
-                <Text tone="muted" size="s">{PHRASE_HINT}</Text>
-                <WordPicker words={phraseWords(input)} selected={phraseTarget} onToggle={i => setPhraseTarget(prev => toggled(prev, i))} />
-              </Stack>
+              <WordPicker words={phraseWords(input)} selected={phraseTarget} onToggle={i => setPhraseTarget(prev => toggled(prev, i))} />
             )}
             {error && <Text tone="err" size="s">{error}</Text>}
             <Button variant="fill" wide busy={adding} onClick={add}>{ADD_LABEL[mode]}</Button>
           </>
         )}
+        {entered && !described && describing && <Spinner />}
         {!entered && error && <Text tone="err" size="s">{error}</Text>}
-      </Stack>
+      </section>
       {questions && (
         <QuestionsModal questions={questions} onCancel={() => setQuestions(null)} onConfirm={answer} />
       )}

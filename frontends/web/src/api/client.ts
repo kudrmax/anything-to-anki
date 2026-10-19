@@ -42,7 +42,7 @@ import type {
   StoredCandidate,
   SyncResult,
   AddSourceResult,
-  DetectedFormat,
+  InputDescription,
   DocumentSelection,
   SourceDocument,
   UsagePeriod,
@@ -89,8 +89,8 @@ export const api = {
       }),
     }),
 
-  detectFormat: (text: string, signal?: AbortSignal) =>
-    req<DetectedFormat>('/sources/detect-format', { method: 'POST', body: JSON.stringify({ text }), signal }),
+  describeInput: (text: string, signal?: AbortSignal) =>
+    req<InputDescription>('/sources/describe-input', { method: 'POST', body: JSON.stringify({ text }), signal }),
 
   createTopic: (query: string, title?: string) =>
     req<{ id: number; status: string }>('/sources/topic', {

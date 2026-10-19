@@ -17,7 +17,12 @@
 .wide.solo { grid-template-columns: minmax(0, var(--col-wide)); }
 .wide.solo.fill { grid-template-columns: minmax(0, 1fr); }
 .wide.asideHidden { max-width: var(--col-wide); grid-template-columns: var(--page-cols-wide-collapsed); column-gap: 0; }
-/* по высоте экрана (телефон): шапка и колонка сверху, контент — на остаток */
-.fit { display: var(--fit-display); flex-direction: column; align-items: var(--fit-align); height: var(--fit-h); }
-.fit > .aside { display: var(--fit-aside-display); }
-.fit > .content { flex: 1; min-height: 0; display: var(--fit-content-display); flex-direction: column; }
+/* по высоте экрана: шапка сверху, контент — на остаток. На телефоне страница ровно в экран,
+   на десктопе — не ниже экрана, а длинный контент прокручивает окно. */
+.fit { display: var(--fit-display); flex-direction: column; align-items: var(--fit-align); height: var(--fit-h); min-height: 100%; grid-template-rows: [head] auto [banner] auto [body] minmax(0, 1fr) [after] auto; }
+.fit > .content { grid-row: body; }
+.fit > .aside { grid-row: var(--fit-aside-row); display: var(--fit-aside-display); contain: var(--fit-aside-contain); align-self: var(--fit-aside-align); overflow: clip; }
+/* Колонка не растит страницу: тянется по высоте своей строки, текст в ней прокручивается сам; при прокрутке окна держится сверху. */
+.fit > .aside > .asideInner { position: var(--aside-position); top: var(--page-top); max-height: 100%; }
+.asideSection { display: flex; flex-direction: column; min-height: 0; }
+.fit > .content { flex: 1; min-height: 0; align-self: stretch; display: var(--fit-content-display); flex-direction: column; }

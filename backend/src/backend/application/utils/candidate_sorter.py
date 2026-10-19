@@ -9,7 +9,7 @@ from backend.application.constants import (
     USAGE_GROUP_ORDER_SETTING,
 )
 from backend.domain.services import candidate_sorting
-from backend.domain.services.candidate_sections import card_section
+from backend.domain.services.candidate_sections import card_section, section_of
 from backend.domain.services.card_view import progress
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
@@ -87,6 +87,12 @@ class CandidateSorter:
     def section(self, card: ReviewCard) -> CandidateSection:
         """The section of one card, by what the user knows now."""
         return card_section(card, self._knowledge.current(), self._threshold_resolver.resolve())
+
+    def earned_sections(self, cards: list[ReviewCard]) -> dict[int, CandidateSection]:
+        """The section each card's phrase earns, done or not (by phrase id)."""
+        knowledge = self._knowledge.current()
+        threshold = self._threshold_resolver.resolve()
+        return {c.phrase_id: section_of(c, knowledge, threshold) for c in cards}
 
     def progress(
         self, cards_by_source: Mapping[int, Sequence[ShownCardFacts]],

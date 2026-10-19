@@ -301,6 +301,12 @@ def section(card: Done, open_section: CandidateSection) -> CandidateSection:
     return CandidateSection.REVIEWED if card.is_done else open_section
 
 
+def wants_ready_generation(wants_generation: bool, earned: CandidateSection) -> bool:
+    """✨ for ready phrases makes the card's missing parts: the card wants generation and
+    its phrase earns Ready (only the target is new), decided or not."""
+    return wants_generation and earned is CandidateSection.READY
+
+
 def progress(sections: Iterable[CandidateSection]) -> DecisionProgress:
     """Reviewed / (Reviewed + open Ready)."""
     listed = list(sections)

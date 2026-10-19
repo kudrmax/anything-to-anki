@@ -3,11 +3,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from backend.application.utils.generation_targets import CardJobs, target_for
+from backend.application.utils.generation_targets import CardJobs, ReadyCards, target_for
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.exceptions import GenerationBlockedError, SourceNotFoundError
+from backend.domain.services.generation_scope import in_scope
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
-from backend.domain.value_objects.card_generation_state import CardGenerationState
 from backend.domain.value_objects.generation_scope import GenerationScope
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.review_card import ReviewCard
@@ -25,17 +25,6 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.generation_kind import GenerationKind
 
 logger = logging.getLogger(__name__)
-
-# Cards already being generated are left alone in every scope: their job is about to
-# deliver a fresh result anyway, and a second job would only duplicate the work.
-_STATES_IN_SCOPE: dict[GenerationScope, frozenset[CardGenerationState]] = {
-    GenerationScope.MISSING: frozenset({CardGenerationState.MISSING}),
-    GenerationScope.FAILED: frozenset({CardGenerationState.FAILED}),
-    GenerationScope.ALL: frozenset({
-        CardGenerationState.DONE, CardGenerationState.FAILED, CardGenerationState.MISSING,
-    }),
-}
-
 
 class RunGenerationUseCase:
     """Queues one kind of generation for the source's cards that fall into the scope."""
@@ -76,10 +65,14 @@ class RunGenerationUseCase:
         if blocker is not None:
             raise GenerationBlockedError(source_id, blocker.value)
 
-        cards = target.cards(self._cards.of_source(source_id))
+        of_source = self._cards.of_source(source_id)
+        ready = ReadyCards.of(of_source, self._candidate_sorter)
+        cards = target.cards(of_source)
         jobs = CardJobs.of(self._job_repo, cards)
-        in_scope = _STATES_IN_SCOPE[scope]
-        chosen = [c for c in cards if target.state(c, target.job_of(jobs, c)) in in_scope]
+        chosen = [
+            c for c in cards
+            if in_scope(scope, target.state(c, target.job_of(jobs, c)), target.is_ready(ready, c))
+        ]
 
         if scope == GenerationScope.ALL:
             for card in chosen:

@@ -13,8 +13,8 @@ its phrase, and LEARN and KNOWN become the choice of the word's decision card. T
 status is the decision status (pending / learn / learning / known). An export record is the
 card's binding to its Anki note: it gets the lemma, POS, note kind and its card's choice, and
 stays active only on a Known card whose lemma is still in Known; every other is released at
-migration (the user removed Known, or the card was not decided). See
-docs/specs/words-phrases-rebuild.md and the status-model design, §4.
+migration (the user removed Known, or the card was not decided). See the spec
+6d1e07cb:docs/specs/words-phrases-rebuild.md and the status-model design, §4.
 
 The position → occurrence key logic is a frozen copy: it must not follow later changes
 of the domain's DocumentLayout.

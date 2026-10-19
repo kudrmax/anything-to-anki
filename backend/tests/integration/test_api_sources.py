@@ -136,9 +136,17 @@ class TestSourcesAPI:
         )
         assert response.status_code == 400
 
-    def test_detect_format_hints_how_input_will_be_read(self, client: TestClient) -> None:
-        response = client.post("/sources/detect-format", json={"text": "/tmp/notes.md"})
-        assert response.json() == {"format": "markdown", "label": "Text · markdown"}
+    def test_describe_input_says_what_it_becomes(self, client: TestClient) -> None:
+        text = "She shrugged off the comment."
+        response = client.post("/sources/describe-input", json={"text": text})
+        assert response.json() == {
+            "kind": "phrase", "format": None, "label": None,
+            "problem": None, "problem_message": None, "problem_hint": None,
+        }
+
+    def test_describe_input_reports_a_missing_file(self, client: TestClient) -> None:
+        response = client.post("/sources/describe-input", json={"text": "/no/such/notes.md"})
+        assert (response.json()["kind"], response.json()["problem"]) == (None, "file_not_found")
 
     def test_source_document_with_marks(self, client: TestClient) -> None:
         source_id = client.post("/sources/add", json=TEXT_REQUEST).json()["source_ids"][0]

@@ -13,13 +13,15 @@ interface PageProps {
   fit?: boolean
   /** Без боковой колонки контент всё равно занимает всю ширину окна: экран сам делит её на колонки. */
   fill?: boolean
+  /** На телефоне экран занимает всё окно: вкладки приложения прячутся, назад ведёт стрелка шапки. */
+  immersive?: boolean
   children: ReactNode
 }
 
-export function Page({ header, aside, banner, asideHidden = false, wide = false, fit = false, fill = false, children }: PageProps) {
+export function Page({ header, aside, banner, asideHidden = false, wide = false, fit = false, fill = false, immersive = false, children }: PageProps) {
   const classes = [css.page, !aside && css.solo, aside && asideHidden && css.asideHidden, wide && css.wide, fit && css.fit, fill && css.fill].filter(Boolean).join(' ')
   return (
-    <div className={classes}>
+    <div className={classes} data-immersive={immersive || undefined}>
       <div className={css.full}>{header}</div>
       {banner && <div className={`${css.full} ${css.banner}`}>{banner}</div>}
       <div className={css.content}>{children}</div>
@@ -30,7 +32,7 @@ export function Page({ header, aside, banner, asideHidden = false, wide = false,
 
 export function Aside({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <section>
+    <section className={css.asideSection}>
       {title && <h3 className={css.asideTitle}>{title}</h3>}
       {children}
     </section>

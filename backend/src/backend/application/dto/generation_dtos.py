@@ -13,7 +13,8 @@ from backend.domain.value_objects.generation_kind import (
 class GenerationKindStatusDTO(BaseModel):
     """How far one kind of generation got over the source's cards.
 
-    `done + running + failed + missing == total`.
+    `done + running + failed + missing == total`;
+    `ready_missing` is the part of `missing` in the Ready section.
     """
 
     kind: GenerationKind
@@ -22,6 +23,7 @@ class GenerationKindStatusDTO(BaseModel):
     running: int
     failed: int
     missing: int
+    ready_missing: int
     blocked_by: GenerationBlocker | None = None
 
 

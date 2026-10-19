@@ -5,14 +5,15 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.job import Job
-from backend.domain.services.card_view import card_view, open_elsewhere
+from backend.domain.services.card_view import card_view, open_elsewhere, wants_ready_generation
 from backend.domain.value_objects.card_generation_state import CardGenerationState
 from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_kind import GenerationKind
 from backend.domain.value_objects.job_status import JobStatus
-from backend.domain.value_objects.review_card import CardContext
+from backend.domain.value_objects.review_card import CardContext, ReviewCard
 
 if TYPE_CHECKING:
+    from backend.application.utils.candidate_sorter import CandidateSorter
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.entities.source import Source
@@ -53,6 +54,30 @@ class GenerationCard:
     def phrase_id(self) -> int:
         assert self.phrase.id is not None
         return self.phrase.id
+
+    @property
+    def review_card(self) -> ReviewCard:
+        return ReviewCard(word=self.word, occurrence=self.phrase)
+
+
+@dataclass(frozen=True)
+class ReadyCards:
+    """The cards that want ready generation, and the words that have one."""
+
+    phrase_ids: frozenset[int]
+    word_ids: frozenset[int]
+
+    @classmethod
+    def of(cls, cards: list[GenerationCard], sorter: CandidateSorter) -> ReadyCards:
+        earned = sorter.earned_sections([card.review_card for card in cards])
+        ready = [
+            card for card in cards
+            if wants_ready_generation(card.in_play, earned[card.phrase_id])
+        ]
+        return cls(
+            phrase_ids=frozenset(card.phrase_id for card in ready),
+            word_ids=frozenset(card.word_id for card in ready),
+        )
 
 
 @dataclass(frozen=True)
@@ -173,6 +198,12 @@ class GenerationTarget(ABC):
             self.kind.job_type, card.word.source_id, card.word_id,
             phrase_id=card.phrase_id, phrase_revision=card.phrase.revision,
         )
+
+    def is_ready(self, ready: ReadyCards, card: GenerationCard) -> bool:
+        """The card wants ready generation; a kind of a word asks any card of the word."""
+        if self.of_word:
+            return card.word_id in ready.word_ids
+        return card.phrase_id in ready.phrase_ids
 
     def job_of(self, jobs: CardJobs, card: GenerationCard) -> Job | None:
         by_key = (

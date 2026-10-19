@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { CollectionNode, Scope, ScopeCounts, SourceStage, SourceSummary } from '@/api/types'
-import { useStats } from '@/hooks/useStats'
+import { statsStore, useStats } from '@/hooks/useStats'
 import { backTo } from '@/lib/backLink'
 import { usePhone } from '@/lib/device'
 import { OVERLAY } from '@/lib/hotkeys'
-import { droppedFiles, nativeHost } from '@/lib/nativeHost'
 import { scopeQuery, useScope } from '@/lib/scope'
 import { clickSelect, EMPTY_SELECTION, pruned, selectAll, type Selection } from '@/lib/selection'
 import { findNode } from '@/lib/treeDrop'
 import { typingIn } from '@/lib/typing'
 import { Page } from '@/shell'
 import { Banner, Button, Empty, Field, Stat, StatGrid, Toast, ToastStack, UndoToast, useToast, useUndo } from '@/ui'
+import { AddSourceForm } from './AddSourceForm'
 import { CollectionTree } from './CollectionTree'
 import { MoveToModal } from './MoveToModal'
 import { NameModal } from './NameModal'
@@ -21,7 +21,6 @@ import { ScopePicker } from './ScopePicker'
 import { SelectionBar } from './SelectionBar'
 import { SourceRow } from './SourceRow'
 import { useCollections } from './useCollections'
-import { useFileDrag } from './useFileDrag'
 import { useSourceBoard } from './useSourceBoard'
 import css from './sources.module.css'
 
@@ -34,7 +33,6 @@ const STAGE_LABEL: Record<SourceStage, string> = {
 const SCOPE_TITLE = { all: 'All sources', unsorted: 'Unsorted' } as const
 const NO_COUNTS: ScopeCounts = { total: 0, reviewed: 0, pending: 0, progress: { decided: 0, total: 0 } }
 const UNSORTED = 'Unsorted'
-const ADD_PATH = '/add'
 const EXPORT_PATH = '/export'
 // Backend ставит коллекцию в конец, если позиция больше числа соседей.
 const END_POSITION = Number.MAX_SAFE_INTEGER
@@ -115,8 +113,10 @@ export function SourcesScreen() {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [order])
 
-  useFileDrag({ onEnter: () => navigate(ADD_PATH), onBrowserDrop: () => navigate(ADD_PATH) })
-  useEffect(() => nativeHost()?.onFileDrop(paths => navigate(ADD_PATH, { state: droppedFiles(paths) })), [navigate])
+  const added = async () => {
+    await Promise.all([board.reload(), statsStore.refresh()])
+  }
+  const addForm = <AddSourceForm onReload={added} onToast={showToast} />
 
   const node = typeof scope === 'number' && tree ? findNode(tree.collections, scope) : null
   const ancestors = tree && node ? ancestorsOf(tree.collections, node) : []
@@ -185,6 +185,7 @@ export function SourcesScreen() {
 
   const side = (
     <>
+      {!isPhone && addForm}
       <StatGrid>
         <Stat value={stats?.learn_count ?? 0} label="to learn" />
         <Stat value={stats?.known_word_count ?? 0} label="known words" />
@@ -230,7 +231,6 @@ export function SourcesScreen() {
         <Empty flush>
           <div className={css.emptyStart}>
             <span>No sources yet. Add a text, a video, a book or a topic to start.</span>
-            <Button variant="fill" onClick={() => navigate(ADD_PATH)}>Add a source</Button>
           </div>
         </Empty>
       )
@@ -254,6 +254,7 @@ export function SourcesScreen() {
       <div className={css.layout}>
         {!isPhone && <aside className={css.side} aria-label="Collections">{side}</aside>}
         <div className={css.main}>
+          {isPhone && <div className={css.phoneAdd}>{addForm}</div>}
           <ScopeHeader
             title={title}
             ancestors={ancestors}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Check, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { ButtonCommand, CardButton, DecisionButton, FollowUpAction, StoredCandidate } from '@/api/types'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { phraseWordTexts } from '@/lib/text/phraseParts'
@@ -7,7 +7,6 @@ import { toggled } from '@/lib/text/words'
 import { Button, Field, Icon, IconButton, Menu, Spinner, Text, WordPicker, type MenuItem, type MenuPage } from '@/ui'
 import { ImagePicker } from './ImagePicker'
 import { PolishComparison } from './PolishComparison'
-import type { ClozeEditor } from './useClozeEditor'
 import type { Review } from './useReview'
 import css from './review.module.css'
 
@@ -20,11 +19,11 @@ const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string; icon: LucideIc
 
 const UNKNOWN_WORDS_HINT = 'Tap the words you don\'t know'
 
-const BUTTON_LOOK: Record<DecisionButton, { label: string; kbd: string }> = {
-  learn: { label: 'Learn', kbd: '1' },
-  cloze: { label: 'Cloze', kbd: '2' },
-  known: { label: 'Know', kbd: '3' },
-  skip: { label: 'Skip', kbd: '4' },
+const BUTTON_LOOK: Record<DecisionButton, { label: string; kbd: string; primary: boolean }> = {
+  learn: { label: 'Learn', kbd: '1', primary: true },
+  cloze: { label: 'Cloze', kbd: '2', primary: false },
+  known: { label: 'Know', kbd: '3', primary: false },
+  skip: { label: 'Skip', kbd: '4', primary: false },
 }
 
 const OPENS_EDITOR: Record<ButtonCommand, boolean> = { edit_cloze: true, decide: false }
@@ -34,28 +33,26 @@ interface PhraseActionsProps {
   review: Review
 }
 
-interface DecisionButtonsProps extends PhraseActionsProps {
-  cloze: ClozeEditor
-}
-
 /**
  * Решения по фразе: Learn 1 · Cloze 2 · Know 3 · Skip 4. Что делает кнопка и какая нажата, решает backend.
+ * Learn залит всегда — это основное действие; нажатая кнопка отмечена галочкой.
  */
-export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsProps) {
-  const { state } = candidate
-  const variant = (button: CardButton) => (isLit(button, cloze.active, candidate.can_edit_cloze) ? 'fill' : 'soft')
+export function DecisionButtons({ candidate, review }: PhraseActionsProps) {
+  const editing = review.clozeEditingId === candidate.phrase_id
+  const variant = (button: CardButton) => (isFilled(button, editing, candidate.can_edit_cloze) ? 'fill' : 'soft')
   return (
     <div className={css.decisions}>
-      {state.buttons.map(button => (
+      {candidate.state.buttons.map(button => (
         <Button
           key={button.button}
           variant={variant(button)}
+          className={button.pressed ? css.chosen : undefined}
           kbd={BUTTON_LOOK[button.button].kbd}
           disabled={button.command === null}
           onMouseDown={keepFocusOnMouseDown}
           onClick={() => void review.press(candidate.phrase_id, button)}
         >
-          {BUTTON_LOOK[button.button].label}
+          {button.pressed && <Icon as={Check} size="s" />}{BUTTON_LOOK[button.button].label}
         </Button>
       ))}
     </div>
@@ -63,11 +60,11 @@ export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsPro
 }
 
 /**
- * Пока открыта разметка cloze, горит кнопка, которая её открыла, а у карточки-cloze — её нажатая кнопка;
- * иначе — нажатая. Всё это сказал backend: команда кнопки, нажата ли она, можно ли править cloze.
+ * Пока открыта разметка cloze, залита кнопка, которая её открыла, а у карточки-cloze — её нажатая кнопка;
+ * иначе — основная. Всё это сказал backend: команда кнопки, нажата ли она, можно ли править cloze.
  */
-const isLit = (button: CardButton, editing: boolean, canEditCloze: boolean): boolean => {
-  if (!editing) return button.pressed
+const isFilled = (button: CardButton, editing: boolean, canEditCloze: boolean): boolean => {
+  if (!editing) return BUTTON_LOOK[button.button].primary
   const opensEditor = button.command !== null && OPENS_EDITOR[button.command]
   return opensEditor || (button.pressed && canEditCloze)
 }

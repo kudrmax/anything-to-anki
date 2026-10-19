@@ -5,6 +5,10 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel
 
 from backend.domain.value_objects.format import Format  # noqa: TC001 — Pydantic runtime
+from backend.domain.value_objects.input_kind import InputKind  # noqa: TC001 — Pydantic runtime
+from backend.domain.value_objects.input_problem import (
+    InputProblem,  # noqa: TC001 — Pydantic runtime
+)
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.question import Question, QuestionOption
@@ -69,11 +73,19 @@ class SourcesCreated(BaseModel):
     collection_id: int | None = None
 
 
-class DetectedFormatDTO(BaseModel):
-    """How an input will be read, for the hint under the input field."""
+class InputDescriptionDTO(BaseModel):
+    """What the Add screen input becomes: its kind, how a source will be read, or why it
+    can't be added.
 
-    format: Format | None
-    label: str
+    Empty input has no description: every field is empty.
+    """
+
+    kind: InputKind | None = None
+    format: Format | None = None
+    label: str | None = None
+    problem: InputProblem | None = None
+    problem_message: str | None = None
+    problem_hint: str | None = None
 
 
 class AddSourceRequest(BaseModel):
@@ -85,7 +97,7 @@ class AddSourceRequest(BaseModel):
     answers: dict[str, str] = {}
 
 
-class DetectFormatRequest(BaseModel):
+class DescribeInputRequest(BaseModel):
     text: str
 
 

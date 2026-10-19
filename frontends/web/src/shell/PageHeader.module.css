@@ -6,5 +6,6 @@
 .meta { display: flex; align-items: center; gap: var(--gap); flex: none; margin-left: var(--header-meta-ml); }
 /* мета встаёт в ряд с действиями, когда шапка переносится (телефон) */
 .metaWithActions > .lead { display: var(--header-lead-display); }
-.metaWithActions .heading { flex: 0 1 var(--header-heading-basis); }
+.metaWithActions .heading { flex: var(--header-heading-flex); }
+.metaWithActions .title { font-size: var(--header-compact-title-fs); white-space: var(--header-compact-title-ws); overflow: hidden; text-overflow: ellipsis; }
 .metaWithActions .meta { order: var(--header-meta-order); }

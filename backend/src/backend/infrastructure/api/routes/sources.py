@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session, sessionmaker  # noqa: TC002 — FastAPI read
 from backend.application.dto.add_source_dtos import (
     AddSourceRequest,
     CreateTopicRequest,
-    DetectedFormatDTO,
-    DetectFormatRequest,
+    DescribeInputRequest,
+    InputDescriptionDTO,
     QuestionsRequired,
     SourcesCreated,
 )
@@ -124,16 +124,13 @@ def add_source(
     return result
 
 
-@router.post("/detect-format")
-def detect_format(
-    request: DetectFormatRequest,
+@router.post("/describe-input")
+def describe_input(
+    request: DescribeInputRequest,
     container: Container = Depends(get_container),  # noqa: B008
-) -> DetectedFormatDTO:
-    """The hint under the input field: how what the user put there will be read."""
-    try:
-        return container.detect_format_use_case().execute(typed_input(request.text))
-    except InvalidSourceInputError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+) -> InputDescriptionDTO:
+    """What the Add screen input becomes: a source, a topic or a phrase, or why it can't be."""
+    return container.describe_input_use_case().execute(request.text)
 
 
 @router.post("/topic", status_code=201)

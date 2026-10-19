@@ -23,7 +23,7 @@ from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
 from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.application.use_cases.delete_sources import DeleteSourcesUseCase
-from backend.application.use_cases.detect_format import DetectFormatUseCase
+from backend.application.use_cases.describe_input import DescribeInputUseCase
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
@@ -79,6 +79,7 @@ from backend.domain.ports.cefr_source import (
     CEFRSource,  # noqa: TC001 — used at runtime in list[CEFRSource]
 )
 from backend.domain.services.cloze_builder import ClozeBuilder
+from backend.domain.services.input_kind_classifier import InputKindClassifier
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
 from backend.domain.services.voting_cefr_classifier import VotingCEFRClassifier
 from backend.domain.value_objects.content import Kind
@@ -468,8 +469,13 @@ class Container:
             file_reader=self._file_reader,
         )
 
-    def detect_format_use_case(self) -> DetectFormatUseCase:
-        return DetectFormatUseCase(detector=self._format_detector)
+    def describe_input_use_case(self) -> DescribeInputUseCase:
+        return DescribeInputUseCase(
+            detector=self._format_detector,
+            file_reader=self._file_reader,
+            text_analyzer=self._text_analyzer,
+            classifier=InputKindClassifier(),
+        )
 
     def create_topic_use_case(self, session: Session) -> CreateTopicUseCase:
         return CreateTopicUseCase(source_repo=SqlaSourceRepository(session))
@@ -1193,6 +1199,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             cards=self._generation_cards(session),
             job_repo=SqlaJobRepository(session),
+            candidate_sorter=self._candidate_sorter(session),
             targets=self._generation_targets(session),
         )
 

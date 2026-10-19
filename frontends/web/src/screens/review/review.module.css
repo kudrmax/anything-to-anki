@@ -1,10 +1,14 @@
-/* текущая фраза: слева запоминаешь, справа объясняет */
-.card { display: var(--card-display); flex-direction: column; flex: var(--card-flex); min-height: 0; overflow-y: var(--card-overflow); grid-template-columns: var(--card-cols); background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); border-radius: var(--r); cursor: default; }
-.cardHead { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--s4); padding: var(--card-pad) var(--card-pad) var(--card-head-pb); }
-.cardLeft { display: var(--card-left-display); flex-direction: column; gap: var(--s3); padding: 0 var(--card-pad) var(--card-pad); }
+/* текущая фраза: сверху фраза, слева то, по чему решаешь, справа справка, снизу факты и инструменты */
+.card { display: var(--card-display); flex-direction: column; flex: var(--card-flex); min-height: var(--card-min-h); overflow-y: var(--card-overflow); grid-template-columns: var(--card-cols); grid-template-rows: auto 1fr auto; background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); border-radius: var(--r); cursor: default; }
+.cardHead { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--s4); padding: var(--card-head-pt) var(--card-pad) var(--card-head-pb); border-bottom: var(--card-head-bw) solid var(--line); }
+.phraseRow { display: flex; flex-direction: var(--phrase-row-dir); align-items: flex-start; gap: var(--phrase-row-gap); }
+.phraseRow > :first-child { flex: 1; min-width: 0; }
+.decided { flex: none; display: inline-flex; align-items: center; gap: var(--s2); margin-top: var(--s3); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx2); background: var(--soft); }
+.cardLeft { display: var(--card-left-display); flex-direction: column; gap: var(--s4); padding: var(--s5) var(--card-pad) var(--card-cols-pb); }
 .cardLeft > * { margin-inline: var(--card-left-item-mx); }
 .cardLeft > * + * { margin-top: var(--card-left-item-mt); }
-.cardRight { order: var(--card-right-order); display: flex; flex-direction: column; gap: var(--s4); padding: var(--card-right-pt) var(--card-pad) var(--card-pad); border-left: var(--card-right-bw) solid var(--line); }
+.cardLeft > :first-child { margin-top: var(--card-left-first-mt); }
+.cardRight { order: var(--card-right-order); display: flex; flex-direction: column; gap: var(--s4); contain: var(--card-right-contain); overflow-y: var(--card-right-overflow); mask-image: var(--card-right-mask); padding: var(--card-right-pt) var(--card-pad) var(--card-cols-pb); border-left: var(--card-right-bw) solid var(--line); }
 .phrase { margin-top: var(--focus-leading-trim); font-size: var(--fs-focus); line-height: var(--lh-focus); letter-spacing: var(--ls-focus); overflow-wrap: anywhere; }
 /* ручная правка фразы: поле повторяет типографику фразы */
 .phraseEdit { display: grid; border-radius: var(--r-s); background: var(--ac-wash); box-shadow: 0 0 0 var(--s2) var(--ac-wash); }
@@ -14,24 +18,46 @@
 .cefr { display: inline-flex; align-items: center; gap: var(--s2); }
 .status { display: inline-flex; align-items: center; gap: var(--s2); }
 .translation { font-size: var(--fs-h1); font-weight: var(--fw-m); line-height: var(--lh); letter-spacing: var(--ls-focus); }
+.retold { font-size: var(--fs-b); line-height: var(--lh-read); color: var(--tx); }
 .synonyms { font-size: var(--fs-m); color: var(--tx3); }
-.decisions { order: var(--decisions-order); position: var(--decisions-position); bottom: 0; z-index: 1; display: flex; flex-wrap: nowrap; gap: var(--s3); margin: var(--decisions-mt) 0 0; padding: var(--decisions-pad); border-top: var(--decisions-bw) solid var(--line); border-radius: var(--decisions-radius); background: var(--decisions-bg); box-shadow: var(--decisions-shadow); }
-.decisions > button { flex: var(--decision-flex); justify-content: center; height: var(--decision-h); }
-.definition { font-size: var(--fs-h1); line-height: var(--lh); }
-.meaningImage { display: block; max-width: 100%; max-height: var(--meaning-image-h); width: auto; align-self: flex-start; object-fit: contain; border-radius: var(--rc); }
+.definition { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx2); }
+/* картинки — для настроения, а не для решения: мельче и тише текста */
+.visuals { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--s3); opacity: var(--o-visuals); transition: opacity var(--t); }
+.visuals:hover { opacity: 1; }
+.visuals:empty { display: none; }
+.meaningImage { display: block; max-width: 100%; max-height: var(--thumb-h); width: auto; object-fit: contain; border-radius: var(--rc); }
 .context { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
-.examples { list-style: none; display: flex; flex-direction: column; gap: var(--s2); padding-left: var(--s5); border-left: var(--underline) solid var(--line); font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
+.examples { list-style: none; display: flex; flex-direction: column; gap: var(--s3); font-size: var(--fs-m); line-height: var(--lh); color: var(--tx3); }
 .definition b, .context b, .examples b { font-weight: var(--fw-m); color: var(--tx); }
-.cardFoot { display: flex; align-items: center; gap: var(--s4); margin-top: auto; padding-top: var(--s3); }
-.facts { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); font-size: var(--fs-s); color: var(--tx3); }
+.retold b { font-weight: var(--fw-m); }
+.retold .target { color: var(--ac); }
+.cardFoot { grid-column: 1 / -1; order: var(--card-foot-order); display: flex; align-items: center; gap: var(--s4); padding: var(--card-foot-pad); border-top: var(--card-foot-bw) solid var(--line); }
+.footDecisions { display: var(--desktop-flex); align-items: center; gap: var(--s3); }
+.footHint { font-size: var(--fs-xs); color: var(--tx3); white-space: nowrap; }
+.facts { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; justify-content: var(--facts-justify); align-items: center; gap: var(--s3); font-size: var(--fs-s); color: var(--tx3); }
 .facts > * + *::before { content: '·'; margin-right: var(--s3); }
+/* телефон: справка свёрнута в строку Details под тем, по чему решаешь; на десктопе её нет — справка всегда видна */
+.detailsToggle { display: var(--phone-flex); order: var(--details-toggle-order); align-items: center; justify-content: space-between; margin-top: auto; padding: var(--s4) var(--card-pad); font-size: var(--fs-m); color: var(--tx3); }
+.detailsToggle[aria-expanded="true"] { margin-top: var(--s3); color: var(--tx); }
+.cardRight.collapsed, .cardFoot.collapsed { display: var(--details-collapsed-display); }
 .tools { display: flex; gap: var(--s1); margin-right: var(--icon-inset-trim); }
 
+/* решения: док у нижнего края окна, Learn залит всегда, принятое решение — с галочкой */
+.dock { position: sticky; bottom: var(--dock-bottom); z-index: 1; flex: none; align-self: var(--dock-align); display: flex; align-items: center; gap: var(--s3); margin: var(--dock-mt) 0 var(--dock-bottom); padding: var(--dock-pad); border-radius: var(--r); background: var(--dock-bg); box-shadow: var(--dock-shadow); }
+.decisions { flex: var(--decision-flex); display: flex; flex-wrap: nowrap; gap: var(--s3); }
+.decisions > button { flex: var(--decision-flex); justify-content: center; height: var(--decision-h); }
+.chosen { box-shadow: inset 0 0 0 var(--bw) var(--tx2); }
+
 /* очередь */
-.body { display: var(--review-body-display); flex-direction: column; flex: 1; min-height: 0; }
+/* без списка карточка занимает высоту окна и сжимается под неё; со списком окно прокручивается */
+.body { display: flex; flex-direction: column; flex: 1; min-height: 100%; }
+/* Отступы карточки отделяют её от строк списка; без списка строки скрыты, но в DOM остаются — :first-child не спасает. */
+.focus .queue > .card { flex: 1 1 auto; margin: 0; }
+/* Со списком окно прокручивается само: справка видна целиком, а не обрезается по высоте левой колонки. */
+.body:not(.focus) .cardRight { contain: none; overflow-y: visible; mask-image: none; }
 .queue { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .queue > .queueItem, .queue > .sectionToggle { display: var(--queue-row-display); }
-.queue > .card { order: var(--current-card-order); margin: var(--wide-lead) 0; }
+.queue > .card { order: var(--current-card-order); margin: var(--wide-lead) 0; scroll-margin-bottom: var(--dock-reserve); }
 .queue > .card:first-child { margin-top: 0; }
 .queueItem { display: flex; align-items: center; gap: var(--s3); min-width: 0; padding: var(--s4) var(--card-pad); text-align: left; font-size: var(--fs-b); color: var(--tx3); transition: background var(--t), color var(--t); }
 .queueItem + .queueItem { border-top: var(--bw) solid var(--line-soft); }
@@ -41,16 +67,9 @@
 .queueItemCurrent { color: var(--tx); background: var(--ac-wash); }
 .queue.away { display: var(--away-display); }
 
-/* телефон: ряд переключения и панели на месте карточки */
-.phoneBar { display: var(--phone-flex); flex: none; align-items: center; gap: var(--s2); margin-bottom: var(--s4); }
-.phoneBar > :first-child { margin-left: var(--icon-inset-trim); }
-.phoneBar > :last-child { margin-right: var(--icon-inset-trim); }
-/* десктоп без списка: только текущая карточка и стрелки */
+/* десктоп без списка: только текущая карточка */
 .focus .queue > .queueItem, .focus .queue > .sectionToggle, .focus .showMore { display: none; }
 .sectionToggle { padding: var(--py) var(--card-pad) 0; }
-.phoneBar > .phoneOnly { display: var(--phone-display); }
-.headerStepper { display: var(--desktop-flex); align-items: center; gap: var(--s1); margin-right: var(--s3); }
-.position { margin-left: auto; padding-inline: var(--s3); font-size: var(--fs-s); color: var(--tx3); font-variant-numeric: tabular-nums; }
 .textPanel { display: var(--phone-flex); flex-direction: column; flex: 1; min-height: 0; }
 .textPanel > .source { flex: 1; min-height: 0; max-height: none; }
 .listPanel { display: var(--phone-flex); flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
@@ -70,7 +89,6 @@
 .markRated { color: inherit; }
 .mark.fragment { background: var(--ac-tint); }
 .markPending.fragment, .markRated.fragment { color: var(--tx); }
-.hint { display: var(--hint-display); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); padding: var(--py) var(--card-pad) 0; }
 .showMore { display: var(--show-more-display); padding: var(--py) var(--card-pad) 0; }
 
 
@@ -85,10 +103,13 @@
 .vote { display: flex; justify-content: space-between; gap: var(--s6); }
 
 /* шапка */
+.export { box-shadow: inset 0 0 0 var(--bw) var(--line); background: none; color: var(--tx2); }
+.exportCount { color: var(--ac); font-variant-numeric: tabular-nums; }
 .iconTrigger { width: var(--h); height: var(--h); justify-content: center; border-radius: var(--rc); color: var(--tx3); }
 .iconTrigger:hover:not(:disabled) { background: var(--soft); }
 .headerTools { display: flex; align-items: center; gap: var(--s2); }
-.headerTools > .desktopOnly { display: var(--desktop-display); }
+.stepper { display: flex; align-items: center; gap: var(--s1); margin-right: var(--s3); }
+.position { padding-inline: var(--s3); font-size: var(--fs-s); color: var(--tx3); font-variant-numeric: tabular-nums; }
 .headerTools > :first-child { margin-left: var(--header-tools-trim); }
 
 /* жалоба: поле и кнопка отправки под причинами */
@@ -96,10 +117,12 @@
 .reported, .reported:hover:not(:disabled) { color: var(--ac); }
 
 /* пример в карточке: при наведении его можно поставить вместо фразы */
-.example { display: flex; align-items: baseline; gap: var(--s3); }
-.example > span { flex: 1; min-width: 0; }
-.useExample { flex: none; padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--ac-wash); opacity: var(--reveal); transition: opacity var(--t); }
+/* текст примера — на всю ширину колонки, кнопка не отнимает у него места: встаёт поверх строки */
+.example { position: relative; padding-left: var(--s5); }
+.example::before { content: '·'; position: absolute; left: 0; font-weight: var(--fw-m); color: var(--tx3); }
+.useExample { display: var(--use-example-display); position: var(--use-example-position); top: 0; right: 0; margin-left: var(--s3); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--use-example-bg); box-shadow: 0 0 var(--s3) var(--s2) var(--card); opacity: var(--reveal); transition: opacity var(--t); }
 .example:hover .useExample, .useExample:focus-visible { opacity: 1; }
+.exampleOpen .useExample { display: inline-flex; opacity: 1; }
 
 /* свой вопрос к AI */
 .ask { display: flex; align-items: center; gap: var(--s2); }
@@ -144,3 +167,14 @@
 .clozeBlank { color: var(--ac); font-weight: var(--fw-m); }
 .clozeActions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--s3); }
 .clozeTip { margin-right: auto; font-size: var(--fs-s); color: var(--tx3); }
+
+/* десктоп и телефон показывают разные части шапки; правила в конце — поверх display самих элементов */
+.desktopOnly, .export.desktopOnly { display: var(--desktop-flex); }
+.desktopText { display: var(--desktop-inline); }
+/* десктоп: прогресс — линия по нижнему краю вкладок через всё окно; на телефоне вкладок нет, там своя полоса */
+.windowProgress { display: var(--desktop-flex); position: fixed; z-index: 1; top: calc(var(--nav-h) - var(--window-progress-h)); left: 0; right: 0; height: var(--window-progress-h); pointer-events: none; }
+.windowProgress::before { content: ''; width: var(--p); background: var(--window-progress-color); transition: width var(--t); }
+.phoneOnly { display: var(--phone-flex); }
+/* телефон: прогресс — полоса на всю ширину под строкой шапки */
+.phoneProgress { display: var(--phone-flex); flex-basis: 100%; order: 1; margin-top: var(--s2); }
+.phoneProgress > * { flex: 1; }
