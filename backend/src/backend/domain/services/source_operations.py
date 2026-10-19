@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.domain.services.source_review_status import REVIEWABLE_STATUSES
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
@@ -10,7 +9,7 @@ from backend.domain.value_objects.source_status import SourceStatus
 if TYPE_CHECKING:
     from backend.domain.entities.source import Source
 
-_REBUILDABLE_STATUSES = REVIEWABLE_STATUSES | {SourceStatus.ERROR}
+_REBUILDABLE_STATUSES = frozenset({SourceStatus.DONE, SourceStatus.ERROR})
 
 
 _BUSY_NAME: dict[SourceOperationKind, str] = {
@@ -30,7 +29,7 @@ def available_operation(source: Source) -> SourceOperationKind | None:
     """
     if source.role is SourceRole.CONTENT and source.status in _REBUILDABLE_STATUSES:
         return SourceOperationKind.REBUILD
-    if source.role is SourceRole.TOPIC and source.status in REVIEWABLE_STATUSES:
+    if source.role is SourceRole.TOPIC and source.status is SourceStatus.DONE:
         return SourceOperationKind.REFRESH
     return None
 

@@ -11,6 +11,7 @@ from backend.domain.services.source_actions import (
     review_fraction,
 )
 from backend.domain.value_objects.decision_progress import DecisionProgress
+from backend.domain.value_objects.review_status import ReviewStatus
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
 
@@ -18,23 +19,24 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.mark.parametrize(("status", "reviewable"), [
-    (SourceStatus.NEW, False),
-    (SourceStatus.ERROR, False),
-    (SourceStatus.DONE, True),
-    (SourceStatus.PARTIALLY_REVIEWED, True),
-    (SourceStatus.REVIEWED, True),
+    (ReviewStatus.NEW, False),
+    (ReviewStatus.ERROR, False),
+    (ReviewStatus.DONE, True),
+    (ReviewStatus.PARTIALLY_REVIEWED, True),
+    (ReviewStatus.REVIEWED, True),
 ])
-def test_a_processed_source_can_be_reviewed(status: SourceStatus, reviewable: bool) -> None:
+def test_a_processed_source_can_be_reviewed(status: ReviewStatus, reviewable: bool) -> None:
     assert can_review(status) is reviewable
 
 
 @pytest.mark.parametrize(("status", "exportable"), [
-    (SourceStatus.NEW, False),
-    (SourceStatus.DONE, False),
-    (SourceStatus.PARTIALLY_REVIEWED, True),
-    (SourceStatus.REVIEWED, True),
+    (ReviewStatus.NEW, False),
+    (ReviewStatus.ERROR, False),
+    (ReviewStatus.DONE, False),
+    (ReviewStatus.PARTIALLY_REVIEWED, True),
+    (ReviewStatus.REVIEWED, True),
 ])
-def test_a_source_with_decisions_can_be_exported(status: SourceStatus, exportable: bool) -> None:
+def test_a_source_with_decisions_can_be_exported(status: ReviewStatus, exportable: bool) -> None:
     assert can_export(status) is exportable
 
 
@@ -51,30 +53,30 @@ def test_a_busy_or_built_in_source_cannot_be_deleted() -> None:
 
 
 @pytest.mark.parametrize(("status", "progress", "fraction"), [
-    (SourceStatus.DONE, DecisionProgress(decided=1, total=4), 0.25),
-    (SourceStatus.DONE, DecisionProgress(), 0.0),
-    (SourceStatus.REVIEWED, DecisionProgress(decided=1, total=4), 1.0),
-    (SourceStatus.REVIEWED, DecisionProgress(), 1.0),
+    (ReviewStatus.DONE, DecisionProgress(decided=1, total=4), 0.25),
+    (ReviewStatus.DONE, DecisionProgress(), 0.0),
+    (ReviewStatus.REVIEWED, DecisionProgress(decided=1, total=4), 1.0),
+    (ReviewStatus.REVIEWED, DecisionProgress(), 1.0),
 ])
 def test_review_fraction(
-    status: SourceStatus, progress: DecisionProgress, fraction: float,
+    status: ReviewStatus, progress: DecisionProgress, fraction: float,
 ) -> None:
     assert review_fraction(status, progress) == fraction
 
 
 @pytest.mark.parametrize(("status", "cards", "progress", "learn", "busy", "caption"), [
-    (SourceStatus.DONE, 0, DecisionProgress(), 0, None, "Nothing to learn"),
-    (SourceStatus.DONE, 3, DecisionProgress(), 0, None, "Nothing ready"),
-    (SourceStatus.DONE, 1, DecisionProgress(decided=0, total=1), 0, None, "1 phrase"),
-    (SourceStatus.DONE, 4, DecisionProgress(decided=0, total=4), 0, None, "4 phrases"),
-    (SourceStatus.PARTIALLY_REVIEWED, 4, DecisionProgress(decided=1, total=4), 1, None,
+    (ReviewStatus.DONE, 0, DecisionProgress(), 0, None, "Nothing to learn"),
+    (ReviewStatus.DONE, 3, DecisionProgress(), 0, None, "Nothing ready"),
+    (ReviewStatus.DONE, 1, DecisionProgress(decided=0, total=1), 0, None, "1 phrase"),
+    (ReviewStatus.DONE, 4, DecisionProgress(decided=0, total=4), 0, None, "4 phrases"),
+    (ReviewStatus.PARTIALLY_REVIEWED, 4, DecisionProgress(decided=1, total=4), 1, None,
      "1 of 4 decided"),
-    (SourceStatus.REVIEWED, 4, DecisionProgress(decided=4, total=4), 2, None, "2 to learn"),
-    (SourceStatus.DONE, 4, DecisionProgress(), 0, SourceOperationKind.REBUILD, "Rebuilding…"),
-    (SourceStatus.DONE, 4, DecisionProgress(), 0, SourceOperationKind.REFRESH, "Refreshing…"),
+    (ReviewStatus.REVIEWED, 4, DecisionProgress(decided=4, total=4), 2, None, "2 to learn"),
+    (ReviewStatus.DONE, 4, DecisionProgress(), 0, SourceOperationKind.REBUILD, "Rebuilding…"),
+    (ReviewStatus.DONE, 4, DecisionProgress(), 0, SourceOperationKind.REFRESH, "Refreshing…"),
 ])
 def test_progress_caption(
-    status: SourceStatus, cards: int, progress: DecisionProgress, learn: int,
+    status: ReviewStatus, cards: int, progress: DecisionProgress, learn: int,
     busy: SourceOperationKind | None, caption: str,
 ) -> None:
     assert progress_caption(status, cards, progress, learn, busy) == caption

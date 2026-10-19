@@ -248,6 +248,14 @@ def _seed(conn: Connection) -> None:
         ),
         {"id": PROCESSING_SOURCE},
     )
+    # A stored review status, as the old app wrote it after decisions.
+    conn.execute(
+        text("UPDATE sources SET status = 'reviewed' WHERE id = :id"), {"id": CONTENT_SOURCE},
+    )
+    conn.execute(
+        text("UPDATE sources SET status = 'partially_reviewed' WHERE id = :id"),
+        {"id": TOPIC_SOURCE},
+    )
     conn.execute(text("INSERT INTO known_words (lemma, created_at) VALUES ('old', '2026-01-01')"))
 
     _source(conn, EXPORTED_PAIR_SOURCE, "content")
@@ -534,6 +542,14 @@ def test_a_source_left_processing_is_new_again_and_no_stage_is_stored(db_url: st
         c["name"] for c in inspect(create_engine(db_url)).get_columns("source_operations")
     }
     assert "stage" in operation_columns
+
+
+def test_a_stored_review_status_becomes_done_it_is_derived_on_read(db_url: str) -> None:
+    rows = _rows(
+        db_url, "SELECT status FROM sources WHERE id IN (:a, :b)",
+        a=CONTENT_SOURCE, b=TOPIC_SOURCE,
+    )
+    assert [row["status"] for row in rows] == ["done", "done"]
 
 
 def test_known_words_keep_no_anki_progress_and_there_is_no_note_table(db_url: str) -> None:

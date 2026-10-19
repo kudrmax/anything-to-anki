@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
     from backend.application.utils.card_views import CardViews
     from backend.application.utils.phrase_reader import PhraseReader
-    from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.entities.occurrence import OccurrenceKey
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.candidate_repository import CandidateRepository
@@ -53,7 +52,6 @@ class AddManualCandidateUseCase:
         cefr_classifier: CEFRClassifier,
         frequency_provider: FrequencyProvider,
         phrasal_verb_detector: PhrasalVerbDetector,
-        review_status: ReviewStatusUpdater,
         phrase_reader: PhraseReader,
         lock: SourceOperationLock,
         card_views: CardViews,
@@ -72,7 +70,6 @@ class AddManualCandidateUseCase:
             frequency_provider=frequency_provider,
             phrasal_verb_detector=phrasal_verb_detector,
         )
-        self._review_status = review_status
         self._phrase_reader = phrase_reader
 
     def execute(
@@ -105,7 +102,6 @@ class AddManualCandidateUseCase:
             phrase_id = self._add_phrase(word_id, card, key)
         else:
             phrase_id = self._show_at(word_id, card, key)
-        self._review_status.refresh(source_id)
         return self._card_views.one(phrase_id)
 
     def _word_of(self, word: StoredCandidate) -> int | None:

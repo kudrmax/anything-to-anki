@@ -115,7 +115,6 @@ class ExportCards(WordStateRepository, AnkiSyncRepository):
             c.word for c in self._cards if c.word.source_id == source_id
         ]
         self.words.get_all_by_status.side_effect = self._with_status
-        self.review_status = MagicMock()
 
     def put(self, cards: Iterable[ExportCard]) -> None:
         """These cards and no others."""
@@ -146,7 +145,7 @@ class ExportCards(WordStateRepository, AnkiSyncRepository):
             vocabulary=vocabulary,
             effects=DecisionEffects(
                 word_states=self, vocabulary=vocabulary, decision_repo=MagicMock(),
-                anki_sync=self, review_status=self.review_status, lock=free_lock(),
+                anki_sync=self, lock=free_lock(),
             ),
         )
 

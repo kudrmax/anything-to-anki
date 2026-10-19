@@ -42,11 +42,11 @@ def test_tree_with_subtree_counts_and_drag_hints() -> None:
             Collection(id=3, name="IELTS", position=1),
         ]),
         InMemorySourceRepository([
-            Source(id=10, status=SourceStatus.REVIEWED, collection_id=1),
+            Source(id=10, status=SourceStatus.DONE, collection_id=1),
             Source(id=11, status=SourceStatus.NEW, collection_id=2),
             Source(id=12, status=SourceStatus.ERROR, collection_id=None),
         ]),
-        _progress(),
+        _progress({10: DecisionProgress(decided=2, total=2)}),
         probe,
         _free(),
     )
@@ -145,3 +145,27 @@ def test_a_source_being_processed_is_not_pending() -> None:
         lock,
     ).execute()
     assert tree.all.pending == 1
+
+
+@pytest.mark.unit
+def test_a_source_counts_as_reviewed_by_its_progress_when_read() -> None:
+    """Every card done: reviewed; one left: not; nothing stored decides it."""
+    probe = MagicMock()
+    probe.of.return_value = TopicGeneration()
+    use_case = ListCollectionsUseCase(
+        InMemoryCollectionRepository([]),
+        InMemorySourceRepository([
+            Source(id=10, status=SourceStatus.DONE),
+            Source(id=11, status=SourceStatus.DONE),
+            Source(id=12, status=SourceStatus.DONE),
+        ]),
+        _progress({
+            10: DecisionProgress(decided=3, total=3),
+            11: DecisionProgress(decided=2, total=3),
+            12: DecisionProgress(decided=0, total=3),
+        }),
+        probe,
+        _free(),
+    )
+
+    assert use_case.execute().all.reviewed == 1

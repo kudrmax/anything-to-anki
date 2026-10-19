@@ -74,7 +74,6 @@ class Bench:
         self.session = session
         insert_word(session, WORD, lemma="run", pos="VERB", phrase_text="He ran to the store.")
         self.occurrences = SqlaOccurrenceRepository(session)
-        self.review_status = MagicMock()
         reader = MagicMock()
         reader.read_for.side_effect = _read_for
         reader.read.side_effect = _read
@@ -82,7 +81,6 @@ class Bench:
         self.use_case = ReplaceWithExampleUseCase(
             occurrence_repo=self.occurrences,
             candidate_repo=SqlaCandidateRepository(session),
-            review_status=self.review_status,
             phrase_reader=reader,
             job_repo=SqlaJobRepository(session),
             lock=free_lock(),
@@ -170,7 +168,6 @@ def test_the_example_is_a_new_phrase_of_the_word_shown_instead_of_the_card(bench
     replaced = bench.get(CARD)
     assert replaced.shown_by is None
     assert replaced.choice is not CardChoice.SKIP
-    bench.review_status.refresh.assert_called_once_with(1)
 
 
 def test_the_answer_is_the_word_seen_through_the_example(bench: Bench) -> None:

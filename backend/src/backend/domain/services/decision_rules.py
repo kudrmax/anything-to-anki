@@ -52,8 +52,6 @@ class Effect(StrEnum):
     FORGET_CALIBRATION = "forget_calibration"
     BIND = "bind"
     RELEASE = "release"
-    REFRESH_SOURCE = "refresh_source"
-    REFRESH_LEMMA = "refresh_lemma"
 
 
 _NO_EFFECTS: frozenset[Effect] = frozenset()
@@ -420,19 +418,14 @@ def possible_move(key: MoveKey) -> bool:
     )
 
 
-# M3a / M3k keep the status, but the released row changes the lemma's bindings (and the
-# Settings lists) that other sources read.
-_RELEASED_FOR_LEMMA: frozenset[Effect] = _RELEASED | {Effect.REFRESH_LEMMA}
-
-
 def _bound_moves(kind: NoteKind) -> tuple[tuple[MoveKey, MoveTarget], ...]:
     choice = CHOICE_OF_KIND[kind]
     return (
-        (MoveKey(kind, False, False, _K), MoveTarget("M3a", _K, _N, _RELEASED_FOR_LEMMA)),
-        (MoveKey(kind, True, False, choice), MoveTarget("M3k", _K, _N, _RELEASED_FOR_LEMMA)),
+        (MoveKey(kind, False, False, _K), MoveTarget("M3a", _K, _N, _RELEASED)),
+        (MoveKey(kind, True, False, choice), MoveTarget("M3k", _K, _N, _RELEASED)),
         (
             MoveKey(kind, True, True, choice),
-            MoveTarget("M3k", _K, _N, _RELEASED_FOR_LEMMA | {Effect.MARK_KNOWN}),
+            MoveTarget("M3k", _K, _N, _RELEASED | {Effect.MARK_KNOWN}),
         ),
         (MoveKey(kind, False, False, choice), MoveTarget("M3b", choice, _N, _RELEASED)),
     )
@@ -620,8 +613,6 @@ def _revoked(
 
 # --- effects (§2.8) -----------------------------------------------------------------------
 
-_CHANGED: frozenset[Effect] = frozenset({Effect.REFRESH_SOURCE, Effect.REFRESH_LEMMA})
-_CHOICE_ONLY: frozenset[Effect] = frozenset({Effect.REFRESH_SOURCE})
 _NEW, _LEARN, _LEARNING, _KNOWN = (
     WordStatus.NEW, WordStatus.LEARN, WordStatus.LEARNING, WordStatus.KNOWN,
 )
@@ -644,8 +635,8 @@ _STATUS_EFFECTS: Mapping[tuple[WordStatus, WordStatus, Actor], frozenset[Effect]
 )
 EFFECTS: Mapping[tuple[WordStatus, WordStatus, Actor], frozenset[Effect]] = MappingProxyType(
     {
-        **{(status, status, Actor.USER): _CHOICE_ONLY for status in WordStatus},
-        **{change: listed | _CHANGED for change, listed in _STATUS_EFFECTS.items()},
+        **{(status, status, Actor.USER): _NO_EFFECTS for status in WordStatus},
+        **_STATUS_EFFECTS,
     },
 )
 

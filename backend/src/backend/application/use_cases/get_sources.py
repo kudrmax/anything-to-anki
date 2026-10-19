@@ -19,6 +19,7 @@ from backend.domain.services.source_actions import (
     review_fraction,
 )
 from backend.domain.services.source_operations import available_operation, operation_hint
+from backend.domain.services.source_review_status import derive_review_status
 from backend.domain.services.source_stage import shown_status, stage_of
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.decision_progress import DecisionProgress
@@ -116,11 +117,12 @@ class GetSourcesUseCase:
             else []
         )
         busy_with = operation.kind if operation is not None else None
+        status = derive_review_status(source.status, progress)
         return SourceDTO(
             id=source.id,
             title=source.title or "",
-            status=shown_status(source.status, busy_with),
-            stage=stage_of(source.status, awaiting_generation=generation.awaiting).value,
+            status=shown_status(status, busy_with),
+            stage=stage_of(status, awaiting_generation=generation.awaiting).value,
             kind=source.kind.value if source.kind else None,
             role=source.role.value,
             has_video=source.has_video,
@@ -141,12 +143,12 @@ class GetSourcesUseCase:
             can_start_operation=busy_with is None,
             busy_with=busy_with,
             operation_hint=operation_hint(busy_with),
-            can_review=can_review(source.status),
-            can_export=can_export(source.status),
+            can_review=can_review(status),
+            can_export=can_export(status),
             can_delete=can_delete(source, busy_with),
-            review_fraction=review_fraction(source.status, progress),
+            review_fraction=review_fraction(status, progress),
             progress_caption=progress_caption(
-                source.status, len(cards), progress, learn_count, busy_with,
+                status, len(cards), progress, learn_count, busy_with,
             ),
         )
 
@@ -169,7 +171,7 @@ class GetSourcesUseCase:
         return SourceDetailDTO(
             id=source.id,
             title=source.title or "",
-            status=shown_status(source.status, busy_with),
+            status=shown_status(derive_review_status(source.status, listing.progress), busy_with),
             kind=source.kind.value if source.kind else None,
             role=source.role.value,
             has_video=source.has_video,

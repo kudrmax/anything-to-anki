@@ -10,23 +10,23 @@ from backend.domain.exceptions import (
 )
 from backend.domain.services.source_operations import busy_caption
 from backend.domain.services.source_review_status import REVIEWABLE_STATUSES
-from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.review_status import ReviewStatus
 
 if TYPE_CHECKING:
     from backend.domain.entities.source import Source
     from backend.domain.value_objects.decision_progress import DecisionProgress
     from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
-EXPORTABLE_STATUSES = frozenset({SourceStatus.PARTIALLY_REVIEWED, SourceStatus.REVIEWED})
+EXPORTABLE_STATUSES = frozenset({ReviewStatus.PARTIALLY_REVIEWED, ReviewStatus.REVIEWED})
 COMPLETE = 1.0
 NOTHING_DONE = 0.0
 
 
-def can_review(status: SourceStatus) -> bool:
+def can_review(status: ReviewStatus) -> bool:
     return status in REVIEWABLE_STATUSES
 
 
-def can_export(status: SourceStatus) -> bool:
+def can_export(status: ReviewStatus) -> bool:
     """Something was decided there."""
     return status in EXPORTABLE_STATUSES
 
@@ -48,15 +48,15 @@ def can_delete(source: Source, busy_with: SourceOperationKind | None) -> bool:
     return True
 
 
-def review_fraction(status: SourceStatus, progress: DecisionProgress) -> float:
+def review_fraction(status: ReviewStatus, progress: DecisionProgress) -> float:
     """The share of decided cards; a reviewed source is complete whatever its cards say."""
-    if status is SourceStatus.REVIEWED:
+    if status is ReviewStatus.REVIEWED:
         return COMPLETE
     return progress.decided / progress.total if progress.total else NOTHING_DONE
 
 
 def progress_caption(
-    status: SourceStatus,
+    status: ReviewStatus,
     cards: int,
     progress: DecisionProgress,
     learn_count: int,
@@ -69,7 +69,7 @@ def progress_caption(
         return "Nothing to learn"
     if progress.total == 0:
         return "Nothing ready"
-    if status is SourceStatus.REVIEWED:
+    if status is ReviewStatus.REVIEWED:
         return f"{learn_count} to learn"
     if progress.decided > 0:
         return f"{progress.decided} of {progress.total} decided"

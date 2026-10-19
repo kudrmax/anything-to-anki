@@ -26,7 +26,7 @@ TEXT = "The quick brown {lemma} jumps over the lazy dog while a zephyr hums near
 
 
 def _seed_book(session: Session) -> None:
-    session.add(SourceModel(id=SOURCE, title="Book", status="partially_reviewed"))
+    session.add(SourceModel(id=SOURCE, title="Book", status="done"))
     session.flush()
     session.execute(
         text(

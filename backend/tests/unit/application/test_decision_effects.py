@@ -59,11 +59,10 @@ class Bench:
         self.decisions = MagicMock()
         self.anki_sync = MagicMock()
         self.anki_sync.orphans.return_value = []
-        self.review_status = MagicMock()
         self.lock = free_lock()
         self.effects = DecisionEffects(
             word_states=self.words, vocabulary=self.vocabulary, decision_repo=self.decisions,
-            anki_sync=self.anki_sync, review_status=self.review_status, lock=self.lock,
+            anki_sync=self.anki_sync, lock=self.lock,
         )
 
     def press(self, word: WordState, button: Press, **facts: bool) -> None:
@@ -72,7 +71,7 @@ class Bench:
         self.effects.apply(word, outcome, _facts(**facts))
 
 
-def test_known_saves_marks_known_calibrates_and_refreshes() -> None:
+def test_known_saves_marks_known_and_calibrates() -> None:
     bench = Bench()
     word = _word(CardChoice.NONE)
 
@@ -83,18 +82,16 @@ def test_known_saves_marks_known_calibrates_and_refreshes() -> None:
     bench.decisions.record.assert_called_once_with(
         WordDecision(lemma=LEMMA, zipf_frequency=3.0, is_known=True),
     )
-    bench.review_status.refresh.assert_called_once_with(1)
-    bench.review_status.refresh_showing.assert_called_once_with({LEMMA})
 
 
-def test_a_choice_only_change_refreshes_the_source_only() -> None:
+def test_a_choice_only_change_saves_the_choice_and_nothing_else() -> None:
     bench = Bench()
 
     bench.press(_word(CardChoice.LEARN), Press.CLOZE)
 
-    bench.review_status.refresh.assert_called_once_with(1)
-    bench.review_status.refresh_showing.assert_not_called()
+    bench.words.save.assert_called_once()
     bench.decisions.record.assert_not_called()
+    bench.known.add.assert_not_called()
 
 
 def test_a_phrasal_verb_is_not_calibrated() -> None:
@@ -161,7 +158,6 @@ class TestKnownRemoval:
         ], "the acting word's outcome is its press; the cascade reads the others"
         assert bench.anki_sync.release.call_args_list == [call([OTHER_CARD], NOW)]
         bench.anki_sync.release_rows.assert_called_once_with((ORPHAN,), NOW)
-        bench.review_status.refresh.assert_any_call(2)
         assert bench.decisions.forget.call_count == 2  # noqa: PLR2004 — both words
 
     def test_the_removal_waits_for_a_busy_source(self) -> None:

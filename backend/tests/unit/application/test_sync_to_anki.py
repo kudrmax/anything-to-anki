@@ -680,12 +680,12 @@ class TestSyncWhenAnkiIsOffline:
 
 @pytest.mark.unit
 class TestSyncInOneBatch:
-    """An export reads what the user knows a fixed number of times and refreshes each
-    source and the lemmas once, however many cards it binds."""
+    """An export reads what the user knows a fixed number of times, however many cards it
+    binds."""
 
     CARDS = 200
 
-    def test_a_big_export_reads_the_knowledge_and_refreshes_once(self) -> None:
+    def test_a_big_export_reads_the_knowledge_a_fixed_number_of_times(self) -> None:
         cards = ExportCards()
         cards.put([
             _make_candidate(i, f"word{i}", WordStatus.LEARN, meaning="m", source_id=1 + i % 2)
@@ -710,6 +710,3 @@ class TestSyncInOneBatch:
         assert result.added == self.CARDS
         assert len(cards.bindings) == self.CARDS
         assert known.get_all_pairs.call_count <= 2  # noqa: PLR2004 — before, and once after
-        assert sorted(c.args[0] for c in cards.review_status.refresh.call_args_list) == [1, 2]
-        [lemmas] = [c.args[0] for c in cards.review_status.refresh_showing.call_args_list]
-        assert len(lemmas) == self.CARDS

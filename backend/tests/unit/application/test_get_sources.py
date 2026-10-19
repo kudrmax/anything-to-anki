@@ -110,7 +110,7 @@ class TestGetSourcesUseCase:
         self.source_repo.list_all.return_value = [
             Source(id=1, title="Pilot", status=SourceStatus.DONE, collection_id=2),
             Source(id=2, title="Sonogram", status=SourceStatus.NEW, collection_id=2),
-            Source(id=3, title="Essay", status=SourceStatus.PARTIALLY_REVIEWED),
+            Source(id=3, title="Essay", status=SourceStatus.DONE),
         ]
         # A source with a ready card left to decide is ready for review.
         self.card_query.shown_cards.return_value = {1: [_row(1, 1)]}
@@ -188,18 +188,19 @@ class TestGetSourcesUseCase:
         assert result[0].candidate_count == 4
         assert result[0].learn_count == 2
         assert (result[0].progress.decided, result[0].progress.total) == (3, 4)
-        # Status is settled when cards or known words change, not when sources are read.
-        assert result[0].status == SourceStatus.DONE.value
+        # The review status is what the progress says when the source is read: nothing
+        # stores it.
+        assert result[0].status == "partially_reviewed"
+        assert result[0].stage == "in_progress"
         self.source_repo.update_status.assert_not_called()
 
     def test_a_source_says_what_it_allows_and_how_far_its_review_is(self) -> None:
         self.source_repo.list_all.return_value = [
-            _text(1, SourceStatus.NEW), _text(2, SourceStatus.PARTIALLY_REVIEWED),
-            _text(3, SourceStatus.REVIEWED),
+            _text(1, SourceStatus.NEW), _text(2), _text(3),
         ]
         self.card_query.shown_cards.return_value = {
             2: [_row(2, 1, WordStatus.LEARN), _row(2, 2)],
-            3: [_row(3, 3)],
+            3: [_row(3, 3, WordStatus.KNOWN)],
         }
         self.lock.operations.return_value = {1: HeldOperation(SourceOperationKind.PROCESS)}
 
@@ -208,7 +209,25 @@ class TestGetSourcesUseCase:
         assert (new.can_review, new.can_export, new.can_delete) == (False, False, False)
         assert (started.can_review, started.can_export, started.can_delete) == (True, True, True)
         assert started.review_fraction == 0.5
-        assert reviewed.review_fraction == 1.0
+        assert (reviewed.status, reviewed.can_export, reviewed.review_fraction) == (
+            "reviewed", True, 1.0,
+        )
+
+    def test_a_source_with_nothing_decided_cannot_be_exported(self) -> None:
+        self.source_repo.list_all.return_value = [_text(1)]
+        self.card_query.shown_cards.return_value = {1: [_row(1, 1), _row(1, 2)]}
+        [dto] = self.use_case.list_all()
+        assert (dto.status, dto.stage, dto.can_review, dto.can_export) == (
+            "done", "ready", True, False,
+        )
+
+    def test_the_detail_reads_the_review_status_from_its_progress(self) -> None:
+        self.source_repo.get_by_id.return_value = _text(1)
+        self.candidate_repo.get_by_source.return_value = [
+            word(1, "burnout", status=WordStatus.LEARN),
+        ]
+        self.occurrence_repo.shown_by_word.return_value = {1: [occurrence(1, 1)]}
+        assert self.use_case.get_by_id(1).status == "reviewed"
 
     def test_a_busy_source_offers_its_operation_but_it_cant_start(self) -> None:
         self.source_repo.list_all.return_value = [_text(1)]
@@ -230,8 +249,7 @@ class TestGetSourcesUseCase:
 
     def test_the_caption_says_where_the_review_is(self) -> None:
         self.source_repo.list_all.return_value = [
-            _text(1), _text(2), _text(3, SourceStatus.PARTIALLY_REVIEWED),
-            _text(4, SourceStatus.REVIEWED),
+            _text(1), _text(2), _text(3), _text(4),
         ]
         self.lock.operations.return_value = {}
         self.card_query.shown_cards.return_value = {

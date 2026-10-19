@@ -19,14 +19,13 @@ class TestManageKnownWordsUseCase:
     def setup_method(self) -> None:
         self.known_word_repo = MagicMock()
         self.known_word_repo.get_all_pairs.return_value = {("run", "VERB")}
-        self.review_status = MagicMock()
         self.effects = MagicMock()
         self.use_case = self._use_case()
 
     def _use_case(self, **vocabulary: object) -> ManageKnownWordsUseCase:
         self.vocabulary = user_vocabulary(self.known_word_repo, **vocabulary)  # type: ignore[arg-type]
         return ManageKnownWordsUseCase(
-            vocabulary=self.vocabulary, review_status=self.review_status, effects=self.effects,
+            vocabulary=self.vocabulary, effects=self.effects,
         )
 
     def test_list_all(self) -> None:
@@ -60,7 +59,6 @@ class TestManageKnownWordsUseCase:
         use_case.delete_timer_known("glare")
 
         self.effects.known_removed.assert_called_once_with("glare", before)
-        self.review_status.refresh_all.assert_called_once()
 
     @pytest.mark.parametrize("lemma", ["run", "fresh", "absent"])
     def test_deleting_by_lemma_a_word_not_known_by_its_timer_does_nothing(
@@ -93,12 +91,7 @@ class TestManageKnownWordsUseCase:
         unknown_word_repo = MagicMock()
         use_case = ManageKnownWordsUseCase(
             vocabulary=UserVocabulary(self.known_word_repo, unknown_word_repo, MagicMock()),
-            review_status=self.review_status, effects=self.effects,
+            effects=self.effects,
         )
         use_case.add_bulk(["nuance"])
         unknown_word_repo.remove_by_lemma.assert_called_once_with("nuance")
-
-    def test_changes_refresh_review_statuses(self) -> None:
-        self.use_case.delete(1)
-        self.use_case.add_bulk(["nuance"])
-        assert self.review_status.refresh_all.call_count == 2

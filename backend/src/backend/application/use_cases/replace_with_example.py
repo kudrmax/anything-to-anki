@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     from backend.application.utils.card_views import CardViews
     from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.phrase_reader import PhraseReader
-    from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.job_repository import JobRepository
@@ -45,7 +44,6 @@ class ReplaceWithExampleUseCase:
         self,
         occurrence_repo: OccurrenceRepository,
         candidate_repo: CandidateRepository,
-        review_status: ReviewStatusUpdater,
         phrase_reader: PhraseReader,
         job_repo: JobRepository,
         lock: SourceOperationLock,
@@ -61,7 +59,6 @@ class ReplaceWithExampleUseCase:
         self._card_views = card_views
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
-        self._review_status = review_status
         self._phrase_reader = phrase_reader
         self._job_repo = job_repo
 
@@ -110,7 +107,6 @@ class ReplaceWithExampleUseCase:
             JobType.MEANING, word.source_id, replaced.candidate_id,
             phrase_id=example.id, phrase_revision=example.revision,
         )])
-        self._review_status.refresh(word.source_id)
         return self._card_views.one(example.id)
 
 

@@ -86,10 +86,6 @@ class OccurrenceRepository(ABC):
         """Every word of the source, light."""
 
     @abstractmethod
-    def sources_showing(self, lemmas: set[str]) -> set[int]:
-        """Sources with a shown phrase that has one of the lemmas among its words."""
-
-    @abstractmethod
     def apply_plan(self, plan: RebuildPlan) -> list[int]:
         """Write a rebuild plan in the caller's transaction: words, phrases, their words
         and the selection marks. Returns the ids of the inserted phrases, in the order of

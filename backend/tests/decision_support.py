@@ -49,7 +49,7 @@ class FixedClock(Clock):
 class Decisions:
     """One request over the session: one knowledge scope, its vocabulary and effects.
 
-    `review_status` and `decision_repo` are mocks to assert on; `request()` starts the next
+    `decision_repo` is a mock to assert on; `request()` starts the next
     request, at a later moment if given."""
 
     def __init__(
@@ -58,7 +58,6 @@ class Decisions:
         self.session = session
         self.clock = FixedClock(now)
         self.lock = lock or free_lock()
-        self.review_status = MagicMock()
         self.decision_repo = MagicMock()
         self.scope = KnowledgeScope(
             clock=self.clock,
@@ -74,7 +73,6 @@ class Decisions:
 
     def request(self, now: datetime | None = None) -> Decisions:
         later = Decisions(self.session, now=now or self.clock.moment, lock=self.lock)
-        later.review_status = self.review_status
         later.decision_repo = self.decision_repo
         return later
 
@@ -84,7 +82,6 @@ class Decisions:
             vocabulary=self.vocabulary,
             decision_repo=self.decision_repo,
             anki_sync=self.anki_sync,
-            review_status=self.review_status,
             lock=self.lock,
         )
 

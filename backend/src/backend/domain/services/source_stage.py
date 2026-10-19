@@ -1,18 +1,19 @@
 from __future__ import annotations
 
+from backend.domain.value_objects.review_status import ReviewStatus
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_stage import SourceStage
 from backend.domain.value_objects.source_status import SourceStatus
 
-_STAGE_BY_STATUS: dict[SourceStatus, SourceStage] = {
-    SourceStatus.PARTIALLY_REVIEWED: SourceStage.IN_PROGRESS,
-    SourceStatus.DONE: SourceStage.READY,
-    SourceStatus.REVIEWED: SourceStage.REVIEWED,
+_STAGE_BY_STATUS: dict[ReviewStatus, SourceStage] = {
+    ReviewStatus.PARTIALLY_REVIEWED: SourceStage.IN_PROGRESS,
+    ReviewStatus.DONE: SourceStage.READY,
+    ReviewStatus.REVIEWED: SourceStage.REVIEWED,
 }
 _STARTABLE = frozenset({SourceStatus.NEW, SourceStatus.ERROR})
 
 
-def stage_of(status: SourceStatus, *, awaiting_generation: bool) -> SourceStage:
+def stage_of(status: ReviewStatus, *, awaiting_generation: bool) -> SourceStage:
     """A topic still waiting for AI is being prepared whatever its status."""
     if awaiting_generation:
         return SourceStage.PREPARING
@@ -30,6 +31,6 @@ def is_pending(
     return status in _STARTABLE and not awaiting_generation and not busy
 
 
-def shown_status(status: SourceStatus, busy_with: SourceOperationKind | None) -> str:
+def shown_status(status: ReviewStatus, busy_with: SourceOperationKind | None) -> str:
     """The status a source shows: 'processing' while it is processed, else its outcome."""
     return PROCESSING if busy_with is SourceOperationKind.PROCESS else status.value

@@ -80,7 +80,6 @@ class _Setup:
             word(WORD_ID, status=WordStatus.LEARN),
             occurrence(phrase_id, WORD_ID, is_decision=True, decision_kind=DecisionKind.LEARN),
         ))
-        self.review_status = MagicMock()
         self.decide_phrase = MagicMock()
         text_analyzer = MagicMock()
         text_analyzer.analyze.return_value = [_token(1, "procrastinating", "procrastinate")]
@@ -101,7 +100,6 @@ class _Setup:
             cefr_classifier=cefr,
             frequency_provider=frequency,
             phrasal_verb_detector=detector,
-            review_status=self.review_status,
             phrase_reader=reader,
             occurrence_repo=self.occurrence_repo,
             card_views=self.card_views,
@@ -136,7 +134,6 @@ def test_phrase_is_saved_to_saved_phrases_source_marked_to_learn() -> None:
     setup.card_views.one.assert_called_once_with(SAVED_PHRASE_ID)
     setup.source_repo.get_first_by_role.assert_called_once_with(SourceRole.SAVED_PHRASES)
     setup.source_repo.create.assert_not_called()
-    setup.review_status.refresh.assert_called_once_with(SAVED_PHRASES_ID)
 
 
 def test_saved_phrases_source_is_created_when_missing() -> None:

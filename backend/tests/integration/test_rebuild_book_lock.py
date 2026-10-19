@@ -16,9 +16,6 @@ from backend.application.dto.analysis_dtos import (
     WordDTO,
 )
 from backend.application.dto.document_dtos import DocumentPositionDTO
-from backend.application.utils.decided_elsewhere import DecidedElsewhere
-from backend.application.utils.review_progress import ReviewProgress
-from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.infrastructure.persistence.database import (
@@ -29,7 +26,6 @@ from backend.infrastructure.persistence.database import (
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
-from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
@@ -40,7 +36,7 @@ from backend.infrastructure.persistence.sqla_source_repository import SqlaSource
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from sqlalchemy import text
 
-from tests.candidate_sorter_support import candidate_sorter, threshold_resolver
+from tests.candidate_sorter_support import threshold_resolver
 from tests.phrase_support import phrase
 from tests.vocabulary_support import user_vocabulary
 
@@ -152,15 +148,6 @@ def _rebuilder(
         vocabulary=user_vocabulary(),
         threshold_resolver=threshold_resolver(settings),
         analyze_text_use_case=analyze,
-        review_status=ReviewStatusUpdater(
-            source_repo=sources,
-            review_progress=ReviewProgress(
-                card_query=SqlaCardQuery(session),
-                candidate_sorter=candidate_sorter(settings),
-                decided_elsewhere=DecidedElsewhere(user_vocabulary()),
-            ),
-            occurrence_repo=worker,  # type: ignore[arg-type]
-        ),
         unit_of_work=SqlaUnitOfWork(session),
     )
 

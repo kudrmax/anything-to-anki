@@ -350,7 +350,6 @@ def _refresh_use_case(
         lock=use_case._lock,
         unit_of_work=use_case._unit_of_work,
         collector=collector,
-        review_status=use_case._review_status,
     )
 
 

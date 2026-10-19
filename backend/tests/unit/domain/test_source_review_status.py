@@ -1,33 +1,47 @@
 import pytest
 from backend.domain.services.source_review_status import derive_review_status
 from backend.domain.value_objects.decision_progress import DecisionProgress
+from backend.domain.value_objects.review_status import ReviewStatus
 from backend.domain.value_objects.source_status import SourceStatus
 
 
 @pytest.mark.unit
 class TestDeriveReviewStatus:
-    def test_pending_candidates_mean_partially_reviewed(self) -> None:
+    def test_some_cards_done_mean_partially_reviewed(self) -> None:
         result = derive_review_status(SourceStatus.DONE, DecisionProgress(decided=1, total=2))
-        assert result == SourceStatus.PARTIALLY_REVIEWED
+        assert result is ReviewStatus.PARTIALLY_REVIEWED
 
-    def test_untouched_source_stays_not_started(self) -> None:
+    def test_untouched_source_is_not_started(self) -> None:
         progress = DecisionProgress(decided=0, total=2)
-        assert derive_review_status(SourceStatus.DONE, progress) == SourceStatus.DONE
+        assert derive_review_status(SourceStatus.DONE, progress) is ReviewStatus.DONE
 
-    def test_no_pending_candidates_mean_reviewed(self) -> None:
+    def test_every_card_done_means_reviewed(self) -> None:
         progress = DecisionProgress(decided=3, total=3)
-        result = derive_review_status(SourceStatus.PARTIALLY_REVIEWED, progress)
-        assert result == SourceStatus.REVIEWED
+        assert derive_review_status(SourceStatus.DONE, progress) is ReviewStatus.REVIEWED
 
-    def test_new_pending_candidate_reopens_a_reviewed_source(self) -> None:
-        result = derive_review_status(SourceStatus.REVIEWED, DecisionProgress(decided=1, total=2))
-        assert result == SourceStatus.PARTIALLY_REVIEWED
+    def test_the_status_follows_the_progress_both_ways(self) -> None:
+        """Nothing is remembered: an undone card reopens a reviewed source, and undoing
+        every decision makes it not started again."""
+        statuses = [
+            derive_review_status(SourceStatus.DONE, DecisionProgress(decided=d, total=2))
+            for d in (2, 1, 0)
+        ]
+        assert statuses == [
+            ReviewStatus.REVIEWED, ReviewStatus.PARTIALLY_REVIEWED, ReviewStatus.DONE,
+        ]
 
-    @pytest.mark.parametrize(
-        "status", [SourceStatus.NEW, SourceStatus.ERROR],
-    )
-    def test_sources_outside_review_keep_their_status(self, status: SourceStatus) -> None:
-        assert derive_review_status(status, DecisionProgress(decided=1, total=1)) == status
+    @pytest.mark.parametrize(("stored", "shown"), [
+        (SourceStatus.NEW, ReviewStatus.NEW), (SourceStatus.ERROR, ReviewStatus.ERROR),
+    ])
+    def test_sources_outside_review_read_as_stored(
+        self, stored: SourceStatus, shown: ReviewStatus,
+    ) -> None:
+        assert derive_review_status(stored, DecisionProgress(decided=1, total=1)) is shown
 
     def test_source_with_nothing_ready_is_reviewed(self) -> None:
-        assert derive_review_status(SourceStatus.DONE, DecisionProgress()) == SourceStatus.REVIEWED
+        assert derive_review_status(SourceStatus.DONE, DecisionProgress()) is ReviewStatus.REVIEWED
+
+
+@pytest.mark.unit
+def test_only_processing_outcomes_are_stored() -> None:
+    assert {s.value for s in SourceStatus} == {"new", "done", "error"}

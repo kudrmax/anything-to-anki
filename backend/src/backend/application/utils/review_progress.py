@@ -30,9 +30,6 @@ class ReviewProgress:
         self._candidate_sorter = candidate_sorter
         self._decided_elsewhere = decided_elsewhere
 
-    def of_source(self, source_id: int) -> DecisionProgress:
-        return self.of_sources([source_id])[source_id]
-
     def of_sources(self, source_ids: list[int]) -> dict[int, DecisionProgress]:
         progress = self.progress_of(self.cards(source_ids))
         return {source_id: progress.get(source_id, DecisionProgress()) for source_id in source_ids}

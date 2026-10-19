@@ -68,7 +68,6 @@ from backend.application.utils.knowledge_scope import KnowledgeScope
 from backend.application.utils.phrase_reader import PhraseReader
 from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.review_progress import ReviewProgress
-from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.application.utils.rewrite_phrase import RewritePhrase
 from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
@@ -395,7 +394,6 @@ class Container:
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
-            review_status=self._review_status_updater(session),
             phrase_reader=self._phrase_reader,
             lock=SqlaSourceOperationLock(session),
             card_views=self._card_views(session),
@@ -425,7 +423,6 @@ class Container:
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
-            review_status=self._review_status_updater(session),
             phrase_reader=self._phrase_reader,
             occurrence_repo=SqlaOccurrenceRepository(session),
             card_views=self._card_views(session),
@@ -568,7 +565,6 @@ class Container:
             lock=SqlaSourceOperationLock(session),
             unit_of_work=SqlaUnitOfWork(session),
             collector=self._topic_phrase_collector(session),
-            review_status=self._review_status_updater(session),
         )
 
     def _source_rebuilder(self, session: Session) -> SourceRebuilder:
@@ -583,7 +579,6 @@ class Container:
             vocabulary=self._user_vocabulary(session),
             threshold_resolver=self._threshold_resolver(session),
             analyze_text_use_case=self.analyze_text_use_case(),
-            review_status=self._review_status_updater(session),
             unit_of_work=SqlaUnitOfWork(session),
         )
 
@@ -680,7 +675,6 @@ class Container:
             report_repo=SqlaCardReportRepository(session),
             vocabulary=self._user_vocabulary(session),
             knowledge=self._user_knowledge(session),
-            review_status=self._review_status_updater(session),
             effects=self._decision_effects(session),
         )
 
@@ -700,7 +694,6 @@ class Container:
             vocabulary=self._user_vocabulary(session),
             decision_repo=SqlaWordDecisionRepository(session),
             anki_sync=SqlaAnkiSyncRepository(session),
-            review_status=self._review_status_updater(session),
             lock=SqlaSourceOperationLock(session),
         )
 
@@ -726,7 +719,6 @@ class Container:
         return ReplaceWithExampleUseCase(
             occurrence_repo=SqlaOccurrenceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
-            review_status=self._review_status_updater(session),
             phrase_reader=self._phrase_reader,
             job_repo=SqlaJobRepository(session),
             lock=SqlaSourceOperationLock(session),
@@ -759,13 +751,6 @@ class Container:
         return SourceScopeResolver(
             source_repo=SqlaSourceRepository(session),
             collection_repo=SqlaCollectionRepository(session),
-        )
-
-    def _review_status_updater(self, session: Session) -> ReviewStatusUpdater:
-        return ReviewStatusUpdater(
-            source_repo=SqlaSourceRepository(session),
-            review_progress=self._review_progress(session),
-            occurrence_repo=SqlaOccurrenceRepository(session),
         )
 
     def _review_progress(self, session: Session) -> ReviewProgress:
@@ -829,13 +814,11 @@ class Container:
     def manage_unknown_words_use_case(self, session: Session) -> ManageUnknownWordsUseCase:
         return ManageUnknownWordsUseCase(
             vocabulary=self._user_vocabulary(session),
-            review_status=self._review_status_updater(session),
         )
 
     def manage_known_words_use_case(self, session: Session) -> ManageKnownWordsUseCase:
         return ManageKnownWordsUseCase(
             vocabulary=self._user_vocabulary(session),
-            review_status=self._review_status_updater(session),
             effects=self._decision_effects(session),
         )
 
@@ -843,7 +826,6 @@ class Container:
         return ManageSettingsUseCase(
             settings_repo=SqlaSettingsRepository(session),
             threshold_resolver=self._threshold_resolver(session),
-            review_status=self._review_status_updater(session),
         )
 
     def get_anki_status_use_case(self, session: Session) -> GetAnkiStatusUseCase:

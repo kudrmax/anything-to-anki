@@ -79,7 +79,6 @@ class Manual:
             cefr_classifier=classifier,
             frequency_provider=frequency,
             phrasal_verb_detector=detector,
-            review_status=MagicMock(),
             phrase_reader=reader,
             lock=free_lock(),
             card_views=MagicMock(),

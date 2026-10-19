@@ -20,10 +20,10 @@ from backend.application.use_cases.rebuild_source import RebuildSourceUseCase
 from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.application.utils.decided_elsewhere import DecidedElsewhere
 from backend.application.utils.review_progress import ReviewProgress
-from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
+from backend.domain.services.source_review_status import derive_review_status
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.infrastructure.persistence.models import PhraseModel
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
@@ -147,15 +147,6 @@ class Bench:
             vocabulary=self.vocabulary,
             threshold_resolver=threshold_resolver(settings),
             analyze_text_use_case=self.analyze_text,
-            review_status=ReviewStatusUpdater(
-                source_repo=self.sources,
-                review_progress=ReviewProgress(
-                    card_query=SqlaCardQuery(self.session),
-                    candidate_sorter=candidate_sorter(settings),
-                    decided_elsewhere=DecidedElsewhere(self.vocabulary),
-                ),
-                occurrence_repo=self.occurrences,
-            ),
             unit_of_work=SqlaUnitOfWork(self.session),
         )
 
@@ -243,3 +234,15 @@ class Bench:
         source = self.sources.get_by_id(SOURCE)
         assert source is not None
         return source.status.value
+
+    def review_status(self) -> str:
+        """The status the source reads as, from its progress now."""
+        self.session.expire_all()
+        source = self.sources.get_by_id(SOURCE)
+        assert source is not None
+        progress = ReviewProgress(
+            card_query=SqlaCardQuery(self.session),
+            candidate_sorter=candidate_sorter(SqlaSettingsRepository(self.session)),
+            decided_elsewhere=DecidedElsewhere(self.vocabulary),
+        ).of_sources([SOURCE])[SOURCE]
+        return derive_review_status(source.status, progress).value

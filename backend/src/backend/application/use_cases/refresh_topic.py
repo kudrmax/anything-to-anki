@@ -16,7 +16,6 @@ from backend.domain.value_objects.source_operation_kind import SourceOperationKi
 
 if TYPE_CHECKING:
     from backend.application.utils.collected_phrases import CollectedPhrases
-    from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
@@ -45,7 +44,6 @@ class RefreshTopicUseCase:
         lock: SourceOperationLock,
         unit_of_work: UnitOfWork,
         collector: TopicPhraseCollector,
-        review_status: ReviewStatusUpdater,
     ) -> None:
         self._source_repo = source_repo
         self._occurrence_repo = occurrence_repo
@@ -53,7 +51,6 @@ class RefreshTopicUseCase:
         self._lock = lock
         self._unit_of_work = unit_of_work
         self._collector = collector
-        self._review_status = review_status
 
     def start(self, source_id: int) -> None:
         source = self._source_repo.get_by_id(source_id)
@@ -77,7 +74,6 @@ class RefreshTopicUseCase:
                 if self._source_repo.get_by_id(source_id) is None:
                     raise SourceNotFoundError(source_id)
                 summary = self._add_missing(source_id, collected)
-                self._review_status.refresh(source_id)
             logger.info(
                 "refresh_topic: done (source_id=%d, words_added=%d, phrases_added=%d)",
                 source_id, summary.words_added, summary.phrases_added,

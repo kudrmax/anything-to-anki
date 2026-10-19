@@ -14,9 +14,6 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest
-from backend.application.utils.decided_elsewhere import DecidedElsewhere
-from backend.application.utils.review_progress import ReviewProgress
-from backend.application.utils.review_status_updater import ReviewStatusUpdater
 from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.value_objects.document import (
@@ -35,7 +32,6 @@ from backend.infrastructure.persistence.models import PhraseModel, dump_phrase, 
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
-from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
@@ -47,7 +43,7 @@ from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
-from tests.candidate_sorter_support import candidate_sorter, threshold_resolver
+from tests.candidate_sorter_support import threshold_resolver
 from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
@@ -161,15 +157,6 @@ def _rebuilder(session: Session) -> SourceRebuilder:
         vocabulary=vocabulary,
         threshold_resolver=threshold_resolver(settings),
         analyze_text_use_case=Container().analyze_text_use_case(),
-        review_status=ReviewStatusUpdater(
-            source_repo=sources,
-            review_progress=ReviewProgress(
-                card_query=SqlaCardQuery(session),
-                candidate_sorter=candidate_sorter(settings),
-                decided_elsewhere=DecidedElsewhere(vocabulary),
-            ),
-            occurrence_repo=occurrences,
-        ),
         unit_of_work=SqlaUnitOfWork(session),
     )
 

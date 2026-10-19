@@ -30,7 +30,7 @@ class TestUsageSortingPipeline:
         """Settings roundtrip for usage_group_order."""
         settings_repo = SqlaSettingsRepository(db_session)
         settings_uc = ManageSettingsUseCase(
-            settings_repo, threshold_resolver(settings_repo), MagicMock(),
+            settings_repo, threshold_resolver(settings_repo),
         )
         custom_order = [
             "informal",

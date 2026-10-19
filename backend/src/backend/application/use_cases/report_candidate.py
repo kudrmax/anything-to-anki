@@ -15,7 +15,6 @@ from backend.domain.value_objects.fragment_surroundings import FragmentSurroundi
 if TYPE_CHECKING:
     from backend.application.dto.card_report_dtos import ReportCandidateRequest
     from backend.application.utils.decision_effects import DecisionEffects
-    from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.application.utils.user_knowledge_reader import UserKnowledgeReader
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.ports.candidate_repository import CandidateRepository
@@ -56,7 +55,6 @@ class ReportCandidateUseCase:
         report_repo: CardReportRepository,
         vocabulary: UserVocabulary,
         knowledge: UserKnowledgeReader,
-        review_status: ReviewStatusUpdater,
         effects: DecisionEffects,
     ) -> None:
         self._effects = effects
@@ -67,7 +65,6 @@ class ReportCandidateUseCase:
         self._report_repo = report_repo
         self._vocabulary = vocabulary
         self._knowledge = knowledge
-        self._review_status = review_status
 
     def execute(self, phrase_id: int, request: ReportCandidateRequest) -> CardReportDTO:
         comment_text = request.comment.strip()
@@ -114,8 +111,6 @@ class ReportCandidateUseCase:
             before = self._vocabulary.of(lemma)
             self._vocabulary.mark_unknown(lemma)
             self._effects.known_removed(lemma, before)
-        if lemmas:
-            self._review_status.refresh_all()
 
     @staticmethod
     def reasons() -> list[ReportReasonDTO]:

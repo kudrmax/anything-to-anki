@@ -123,7 +123,8 @@ class TestDecisionAPI:
         client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "learn"})
         response = client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "pending"})
         assert response.status_code == 200
-        assert client.get("/sources/1").json()["status"] == "partially_reviewed"
+        # Nothing decided again: the source reads as not started, as its progress says.
+        assert client.get("/sources/1").json()["status"] == "done"
 
     def test_undoing_known_removes_the_word_from_known_words(
         self, client: TestClient,

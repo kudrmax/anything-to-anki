@@ -15,7 +15,6 @@ if TYPE_CHECKING:
     from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
     from backend.application.utils.card_views import CardViews
     from backend.application.utils.phrase_reader import PhraseReader
-    from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.cefr_classifier import CEFRClassifier
     from backend.domain.ports.frequency_provider import FrequencyProvider
@@ -43,7 +42,6 @@ class AddSavedPhraseUseCase:
         cefr_classifier: CEFRClassifier,
         frequency_provider: FrequencyProvider,
         phrasal_verb_detector: PhrasalVerbDetector,
-        review_status: ReviewStatusUpdater,
         phrase_reader: PhraseReader,
         occurrence_repo: OccurrenceRepository,
         card_views: CardViews,
@@ -60,7 +58,6 @@ class AddSavedPhraseUseCase:
             frequency_provider=frequency_provider,
             phrasal_verb_detector=phrasal_verb_detector,
         )
-        self._review_status = review_status
         self._phrase_reader = phrase_reader
 
     def execute(self, phrase: str, target_words: list[int]) -> CardDTO:
@@ -77,7 +74,6 @@ class AddSavedPhraseUseCase:
         [collected] = self._collected.add(source_id, [card])
         if collected.new_word:
             self._learn(collected.phrase_id)
-        self._review_status.refresh(source_id)
         return self._card_views.one(collected.phrase_id)
 
     def _learn(self, phrase_id: int) -> None:

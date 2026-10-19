@@ -10,7 +10,6 @@ from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundEr
 from backend.domain.services.card_view import CHOSEN_TO_LEARN
 from backend.domain.services.document_time import is_timed, time_of
 from backend.domain.services.rebuild_plan import plan_rebuild
-from backend.domain.services.source_review_status import REVIEWABLE_STATUSES
 from backend.domain.value_objects.card_choice import DecisionStatus
 from backend.domain.value_objects.source_status import SourceStatus
 
@@ -19,7 +18,6 @@ if TYPE_CHECKING:
     from backend.application.utils.frequent_word_threshold_resolver import (
         FrequentWordThresholdResolver,
     )
-    from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.document_repository import DocumentRepository
@@ -66,7 +64,6 @@ class SourceRebuilder:
         vocabulary: UserVocabulary,
         threshold_resolver: FrequentWordThresholdResolver,
         analyze_text_use_case: AnalyzeTextUseCase,
-        review_status: ReviewStatusUpdater,
         unit_of_work: UnitOfWork,
     ) -> None:
         self._source_repo = source_repo
@@ -78,7 +75,6 @@ class SourceRebuilder:
         self._vocabulary = vocabulary
         self._threshold_resolver = threshold_resolver
         self._analyze_text = analyze_text_use_case
-        self._review_status = review_status
         self._unit_of_work = unit_of_work
         self._builder = OccurrenceBuilder()
 
@@ -130,9 +126,7 @@ class SourceRebuilder:
             reset = [u.occurrence_id for u in plan.occ_to_update_text if u.reset_results]
             self._job_repo.cancel_for_phrases([*plan.occ_to_delete, *reset])
             self._time(analysed.document, plan, inserted)
-            if source.status in REVIEWABLE_STATUSES:
-                self._review_status.refresh(source_id)
-            else:
+            if source.status is not SourceStatus.DONE:
                 self._source_repo.update_status(source_id, SourceStatus.DONE)
         logger.info(
             "rebuild: applied (source_id=%d, include_open=%s, words +%d -%d, phrases +%d "

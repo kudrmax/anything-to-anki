@@ -161,7 +161,6 @@ def _make_use_case(
     cefr_classifier: MagicMock | None = None,
     frequency_provider: MagicMock | None = None,
     phrasal_verb_detector: MagicMock | None = None,
-    review_status: MagicMock | None = None,
 ) -> AddManualCandidateUseCase:
     classifier = cefr_classifier or MagicMock()
     _patch_classify_detailed(classifier)
@@ -175,7 +174,6 @@ def _make_use_case(
         cefr_classifier=classifier,
         frequency_provider=frequency_provider or MagicMock(),
         phrasal_verb_detector=phrasal_verb_detector or MagicMock(),
-        review_status=review_status or MagicMock(),
         phrase_reader=_phrase_reader(),
         lock=free_lock(),
         card_views=_card_views(repo),
@@ -250,7 +248,6 @@ class TestRegularWordPath:
         frequency_provider = MagicMock()
         frequency_provider.get_zipf_value.return_value = 3.7
 
-        review_status = MagicMock()
         use_case = _make_use_case(
             source_repo=source_repo,
             document_text=text,
@@ -259,7 +256,6 @@ class TestRegularWordPath:
             phrasal_verb_detector=phrasal_verb_detector,
             cefr_classifier=cefr_classifier,
             frequency_provider=frequency_provider,
-            review_status=review_status,
         )
         dto = use_case.execute(
             source_id=1,
@@ -267,7 +263,6 @@ class TestRegularWordPath:
             selection=_select(text, "I procrastinate today"),
         )
 
-        review_status.refresh.assert_called_once_with(1)
         assert dto.lemma == "procrastinate"
         assert dto.pos == "VERB"
         assert dto.cefr_level == "C1"

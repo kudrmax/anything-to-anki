@@ -27,7 +27,6 @@ from backend.infrastructure.persistence.models import (
     CandidateTTSModel,
     JobModel,
     PhraseModel,
-    PhraseWordModel,
     StoredCandidateModel,
     dump_phrase,
     dump_position,
@@ -35,7 +34,6 @@ from backend.infrastructure.persistence.models import (
     load_position,
 )
 from backend.infrastructure.persistence.phrase_writes import (
-    SQL_IN_CHUNK,
     PhraseWords,
     drop_results,
 )
@@ -327,22 +325,6 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
 
     def apply_plan(self, plan: RebuildPlan) -> list[int]:
         return self._plans.apply(plan)
-
-    def sources_showing(self, lemmas: set[str]) -> set[int]:
-        keys = sorted({lemma.lower() for lemma in lemmas})
-        found: set[int] = set()
-        for start in range(0, len(keys), SQL_IN_CHUNK):
-            found.update(self._session.scalars(
-                select(StoredCandidateModel.source_id)
-                .join(PhraseModel, PhraseModel.candidate_id == StoredCandidateModel.id)
-                .join(PhraseWordModel, PhraseWordModel.phrase_id == PhraseModel.id)
-                .where(
-                    PhraseWordModel.lemma.in_(keys[start:start + SQL_IN_CHUNK]),
-                    PhraseModel.shown_by.is_not(None),
-                )
-                .distinct()
-            ))
-        return found
 
     def shown_by_word(self, source_id: int) -> dict[int, list[Occurrence]]:
         by_word: dict[int, list[Occurrence]] = {}

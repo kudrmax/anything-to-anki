@@ -88,8 +88,10 @@ N, L, C, K, S = (
 NEW, LEARN, LEARNING, KNOWN = (
     WordStatus.NEW, WordStatus.LEARN, WordStatus.LEARNING, WordStatus.KNOWN,
 )
-CHANGED = frozenset({Effect.REFRESH_SOURCE, Effect.REFRESH_LEMMA})
-SAME = frozenset({Effect.REFRESH_SOURCE})
+# A status or choice change has no effect of its own: the review status is read, not
+# refreshed (step 8).
+CHANGED: frozenset[Effect] = frozenset()
+SAME: frozenset[Effect] = frozenset()
 MK, RK = Effect.MARK_KNOWN, Effect.REMOVE_KNOWN
 CAL, FORGET, REL = Effect.CALIBRATE, Effect.FORGET_CALIBRATION, Effect.RELEASE
 

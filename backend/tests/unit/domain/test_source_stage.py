@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from backend.domain.services.source_stage import is_pending, shown_status, stage_of
+from backend.domain.value_objects.review_status import ReviewStatus
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_stage import SourceStage
 from backend.domain.value_objects.source_status import SourceStatus
@@ -9,14 +10,14 @@ from backend.domain.value_objects.source_status import SourceStatus
 
 @pytest.mark.unit
 @pytest.mark.parametrize(("status", "awaiting", "stage"), [
-    (SourceStatus.PARTIALLY_REVIEWED, False, SourceStage.IN_PROGRESS),
-    (SourceStatus.DONE, False, SourceStage.READY),
-    (SourceStatus.REVIEWED, False, SourceStage.REVIEWED),
-    (SourceStatus.NEW, False, SourceStage.PREPARING),
-    (SourceStatus.ERROR, False, SourceStage.PREPARING),
-    (SourceStatus.DONE, True, SourceStage.PREPARING),
+    (ReviewStatus.PARTIALLY_REVIEWED, False, SourceStage.IN_PROGRESS),
+    (ReviewStatus.DONE, False, SourceStage.READY),
+    (ReviewStatus.REVIEWED, False, SourceStage.REVIEWED),
+    (ReviewStatus.NEW, False, SourceStage.PREPARING),
+    (ReviewStatus.ERROR, False, SourceStage.PREPARING),
+    (ReviewStatus.DONE, True, SourceStage.PREPARING),
 ])
-def test_stage_of(status: SourceStatus, awaiting: bool, stage: SourceStage) -> None:
+def test_stage_of(status: ReviewStatus, awaiting: bool, stage: SourceStage) -> None:
     assert stage_of(status, awaiting_generation=awaiting) is stage
 
 
@@ -45,4 +46,4 @@ def test_a_source_held_by_an_operation_is_not_pending() -> None:
 def test_a_source_shows_processing_only_while_it_is_processed(
     busy_with: SourceOperationKind | None, shown: str,
 ) -> None:
-    assert shown_status(SourceStatus.NEW, busy_with) == shown
+    assert shown_status(ReviewStatus.NEW, busy_with) == shown

@@ -45,9 +45,10 @@ pytestmark = pytest.mark.integration
 # JSON of the API, read as the web reads it.
 Json = Any
 
-HERE, THERE = 1, 2
+HERE, THERE, BOARD = 1, 2, 3
 GLARE, SPARK = 1, 2                 # Learn in HERE, exported at EXPORTED
 GLARE_THERE, SPARK_THERE, DRIFT = 3, 4, 5
+ECHO, BLIND = 6, 7                  # in BOARD: ECHO skipped, BLIND's phrase shows glare
 EXPORTED = datetime(2026, 9, 1, 12, tzinfo=UTC)
 DAY_30 = EXPORTED + LEARNING_KNOWN_AFTER
 DAY_29 = DAY_30 - timedelta(seconds=1)
@@ -119,6 +120,19 @@ def _seed(session: Session) -> None:
         phrase_id_of(DRIFT),
         phrase("The glare drifts.", "drift", new=("glare", "drifts"),
                lemmas={"drifts": "drift"}),
+        None,
+    )
+    insert_source(session, BOARD)
+    insert_word(session, ECHO, source_id=BOARD, lemma="echo", status="skip")
+    insert_word(session, BLIND, source_id=BOARD, lemma="blind")
+    occurrences = SqlaOccurrenceRepository(session)
+    occurrences.write_text(
+        phrase_id_of(ECHO), phrase("The echo fades.", "echo", new=("echo",)), None,
+    )
+    occurrences.write_text(
+        phrase_id_of(BLIND),
+        phrase("The glare blinds.", "blind", new=("glare", "blinds"),
+               lemmas={"blinds": "blind"}),
         None,
     )
 
@@ -220,3 +234,38 @@ def test_a_lemma_with_a_slash_reaches_the_delete(client: TestClient) -> None:
     response = client.delete("/known-words/by-lemma/and/or")
 
     assert (response.status_code, response.json()) == (200, {"deleted": "and/or"})
+
+
+def _listed(client: TestClient, source_id: int) -> Json:
+    return next(s for s in client.get("/sources").json() if s["id"] == source_id)
+
+
+def _stored_status(factory: sessionmaker[Session], source_id: int) -> str:
+    with factory() as session:
+        return str(session.execute(
+            text("SELECT status FROM sources WHERE id = :id"), {"id": source_id},
+        ).scalar_one())
+
+
+def test_a_timer_coming_due_reopens_a_reviewed_source_with_nothing_written(
+    client: TestClient, factory: sessionmaker[Session], moment: Moment,
+) -> None:
+    """Day 29: glare is learning, so BLIND's phrase is Extra and the skipped ECHO is the
+    only Ready card: reviewed. Day 30: glare is known, BLIND's phrase is Ready and open."""
+    moment.at = DAY_29
+    before = _listed(client, BOARD)
+    reviewed_before = client.get("/collections").json()["all"]["reviewed"]
+
+    moment.at = DAY_30
+    after = _listed(client, BOARD)
+
+    assert (before["status"], before["stage"], before["review_fraction"]) == (
+        "reviewed", "reviewed", 1.0,
+    )
+    assert (after["status"], after["stage"], after["review_fraction"]) == (
+        "partially_reviewed", "in_progress", 0.5,
+    )
+    assert client.get("/collections").json()["all"]["reviewed"] == reviewed_before - 1
+    assert after["can_review"]
+    assert after["can_export"]
+    assert _stored_status(factory, BOARD) == "done"

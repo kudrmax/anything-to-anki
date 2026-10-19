@@ -23,8 +23,10 @@ of the domain's DocumentLayout.
 
 A collected phrase keeps where its card came from (another source, or AI) on itself, so a
 real phrase beside a generated one is labelled as what it is; the word no longer holds it.
-A source's status becomes an outcome only: one left processing is new again, and the stage
-of a running process lives with its operation in `source_operations`.
+A source's status becomes an outcome of its processing only: one left processing is new
+again, and the stage of a running process lives with its operation in `source_operations`;
+a stored review status (reviewed / partially reviewed) becomes done, since how far the
+review has got is read from the progress.
 
 One-way: merged words and re-keyed results cannot be split back into cards.
 """
@@ -65,6 +67,8 @@ STATUS_OF_CHOICE = {
 DROPPED_DECISION_LOG = "0049: merge dropped the %s decision of card %d (lemma %r, word %d)"
 NEW_STATUS = "new"
 PROCESSING_STATUS = "processing"
+DONE_STATUS = "done"
+REVIEW_STATUSES = ("partially_reviewed", "reviewed")
 COLLECTED_ROLES = ("topic", "saved_phrases")
 ORIGIN_AUTO = "auto"
 ORIGIN_MANUAL = "manual"
@@ -617,10 +621,17 @@ def _drop_card_columns() -> None:
 
 def _sources_without_processing(conn: sa.Connection) -> None:
     """A source's status is an outcome, not a lock: one left processing is new again, as the
-    startup reset made it; the stage of a running process lives with its operation."""
+    startup reset made it; the stage of a running process lives with its operation. Nor is
+    it the review's progress: that is derived on read, so a reviewed source is done."""
     conn.execute(
         sa.text("UPDATE sources SET status = :new WHERE status = :processing"),
         {"new": NEW_STATUS, "processing": PROCESSING_STATUS},
+    )
+    conn.execute(
+        sa.text("UPDATE sources SET status = :done WHERE status IN :review").bindparams(
+            sa.bindparam("review", expanding=True),
+        ),
+        {"done": DONE_STATUS, "review": list(REVIEW_STATUSES)},
     )
     with op.batch_alter_table("sources", reflect_kwargs=OWN_TABLE_ONLY) as batch:
         batch.drop_column("processing_stage")

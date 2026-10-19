@@ -447,13 +447,12 @@ def test_a_source_in_error_is_processed_again(db_session: Session) -> None:
 def test_a_reviewed_source_with_a_new_word_is_partly_reviewed(bench: Bench) -> None:
     bench.processed(word("glare", at(0)))
     bench.decide_learn("glare", bench.phrase_on("glare", 0).id)
-    bench.session.execute(text("UPDATE sources SET status = 'reviewed'"))
-    bench.session.commit()
+    assert bench.review_status() == "reviewed"
     bench.analysis = [word("glare", at(0)), word("linger", at(3))]
 
     bench.rebuild().execute(SOURCE, include_open=False)
 
-    assert bench.status() == "partially_reviewed"
+    assert (bench.status(), bench.review_status()) == ("done", "partially_reviewed")
 
 
 # ── media timecodes (video sources) ───────────────────────────────────

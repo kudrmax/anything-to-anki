@@ -168,8 +168,6 @@ def test_learn_decides_the_word_on_that_phrase(bench: Bench) -> None:
     assert (bench.choice(bench.second), bench.choice(FIRST)) == (
         CardChoice.LEARN, CardChoice.NONE,
     )
-    bench.decisions.review_status.refresh.assert_called_with(1)
-    bench.decisions.review_status.refresh_showing.assert_called_with({LEMMA})
     bench.decisions.decision_repo.record.assert_called_once_with(
         WordDecision(lemma=LEMMA, zipf_frequency=3.0, is_known=False),
     )
@@ -427,7 +425,6 @@ def test_undo_of_known_here_makes_known_cards_in_other_sources_new(bench: Bench)
     assert (bench.status(OTHER_WORD), bench.choice(other)) == ("pending", CardChoice.NONE)
     assert not bench.active(other)
     assert bench.known() == set()
-    bench.decisions.review_status.refresh.assert_any_call(OTHER_SOURCE)
 
 
 def test_a_learning_card_elsewhere_that_does_not_read_known_stays(
