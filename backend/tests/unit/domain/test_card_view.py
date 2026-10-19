@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import pytest
@@ -354,3 +355,19 @@ class TestProgress:
 
     def test_nothing_is_zero(self) -> None:
         assert progress([]) == DecisionProgress(decided=0, total=0)
+
+
+@pytest.mark.unit
+class TestSiblingNoteFollowsTheShownStatus:
+    """A sibling of a card in Anki says what the user sees: Learned until the 30 days pass,
+    Known from day 30 (its timer, not a stored decision)."""
+
+    @pytest.mark.parametrize(("since", "note"), [
+        pytest.param(DUE + timedelta(seconds=1), CardNote.LEARNED_ON_OTHER_CARD, id="day-29"),
+        pytest.param(DUE, CardNote.KNOWN_ON_OTHER_CARD, id="day-30"),
+    ])
+    def test_a_sibling_of_a_learning_card(self, since: datetime, note: CardNote) -> None:
+        exported = CardState(SIBLING, L, Binding(NoteKind.LEARN, since))
+        state = State(_word(_card(N), exported))
+
+        assert state.view().note is note

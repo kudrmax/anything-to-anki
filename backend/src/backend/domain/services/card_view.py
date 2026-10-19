@@ -125,7 +125,7 @@ class NoteKey:
     listed: bool                        # normalised: reads Known through the Known list
     elsewhere: ElsewhereStatus | None   # normalised: OPEN cards only
     unknown: bool = False               # normalised: a Learning card in Anki, lemma in Unknown
-    decided_known: bool = False         # normalised: OTHER cards, the word's decision is Known
+    decided_known: bool = False         # normalised: OTHER cards, the word reads Known
 
 
 @dataclass(frozen=True)
@@ -200,7 +200,7 @@ def note_key(
         listed=known and lemma.known_marked,
         elsewhere=_open_elsewhere(role, elsewhere),
         unknown=in_anki(card) and card.choice is not CardChoice.KNOWN and lemma.unknown,
-        decided_known=role is Role.OTHER and decision_status(word) is DecisionStatus.KNOWN,
+        decided_known=role is Role.OTHER and status_of(word, lemma, now) is WordStatus.KNOWN,
     )
 
 
