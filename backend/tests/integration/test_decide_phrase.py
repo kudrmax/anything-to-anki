@@ -3,14 +3,17 @@ status, the Anki binding and the known words they leave."""
 from __future__ import annotations
 
 from datetime import timedelta
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.word_decision import WordDecision
+from backend.application.use_cases import decide_phrase
 from backend.domain.exceptions import (
     ActionRefusedError,
+    NoDecisionRuleError,
     PhraseNotFoundError,
     SourceOperationBusyError,
 )
@@ -427,3 +430,13 @@ def test_the_removal_waits_for_a_busy_source(bench: Bench) -> None:
 
     with pytest.raises(SourceOperationBusyError):
         bench.press(FIRST, KNOWN)
+
+
+def test_a_refusal_with_no_reason_in_the_table_is_a_rule_gap(
+    bench: Bench, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(decide_phrase, "_REASONS", MappingProxyType({}))
+    bench.list_known("VERB")
+
+    with pytest.raises(NoDecisionRuleError):
+        bench.press(FIRST, LEARN)

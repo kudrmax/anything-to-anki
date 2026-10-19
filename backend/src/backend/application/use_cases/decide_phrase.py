@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.exceptions import ActionRefusedError, PhraseNotFoundError
 from backend.domain.services.card_view import card_view, open_elsewhere
-from backend.domain.services.decision_rules import press
+from backend.domain.services.decision_rules import press, rule
 from backend.domain.value_objects.card_choice import Refusal
 from backend.domain.value_objects.word_status import WordStatus
 
@@ -76,7 +76,8 @@ class DecidePhraseUseCase:
         except ActionRefusedError as refused:
             view = card_view(state, occurrence_id, knowledge, elsewhere, now)
             raise ActionRefusedError(
-                refused.card_id, refused.refusal, _REASONS[(refused.refusal, view.shown.status)],
+                refused.card_id, refused.refusal,
+                rule(_REASONS, (refused.refusal, view.shown.status)),
             ) from None
         self._effects.apply(state, outcome, word)
 
