@@ -1,13 +1,28 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import product
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.learning_timer import known_on, timer_due
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from datetime import datetime
+
+
+_BOTH = (False, True)
+STANDING: Mapping[tuple[bool, bool, bool], ElsewhereStatus | None] = MappingProxyType({
+    **{(True, in_anki, waiting): ElsewhereStatus.KNOWN
+       for in_anki, waiting in product(_BOTH, _BOTH)},
+    **{(False, True, waiting): ElsewhereStatus.LEARNING for waiting in _BOTH},
+    (False, False, True): ElsewhereStatus.LEARN,
+    (False, False, False): None,
+})
+"""(Known, in Anki, Learn waiting for export) → what the lemma stands as: Known beats
+Learning, and Learning beats Learn (Q12)."""
 
 
 @dataclass(frozen=True)
@@ -42,15 +57,12 @@ class LemmaKnowledge:
     @property
     def is_learning(self) -> bool:
         """In Anki, its 30 days not passed yet."""
-        return not self.unknown and not self.is_known and bool(self.active_since)
+        return self.elsewhere is ElsewhereStatus.LEARNING
 
     @property
     def is_learn(self) -> bool:
         """Marked Learn somewhere, waiting for export."""
-        return (
-            not self.unknown and not self.is_known and not self.is_learning
-            and self.learn_anywhere
-        )
+        return self.elsewhere is ElsewhereStatus.LEARN
 
     @property
     def timer_known_on(self) -> datetime | None:
@@ -60,10 +72,7 @@ class LemmaKnowledge:
     @property
     def elsewhere(self) -> ElsewhereStatus | None:
         """What a card of the lemma open in a source shows of the user's other words."""
-        if self.is_known:
-            return ElsewhereStatus.KNOWN
-        if self.is_learning:
-            return ElsewhereStatus.LEARNING
-        if self.is_learn:
-            return ElsewhereStatus.LEARN
-        return None
+        heard = not self.unknown
+        return STANDING[(
+            self.is_known, heard and bool(self.active_since), heard and self.learn_anywhere,
+        )]

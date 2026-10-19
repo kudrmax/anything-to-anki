@@ -5,8 +5,9 @@ import itertools
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER_DAYS, timer_due
-from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
+from backend.domain.value_objects.lemma_knowledge import STANDING, LemmaKnowledge
 
 EXPORTED = datetime(2026, 9, 1, 12, tzinfo=UTC)
 NOW = datetime(2026, 10, 18, 12, tzinfo=UTC)
@@ -101,3 +102,34 @@ class TestLemmaKnowledge:
             active_since=active_since,
         )
         assert sum((knowledge.is_known, knowledge.is_learning, knowledge.is_learn)) <= 1
+
+    def test_the_standing_table_holds_the_precedence_known_learning_learn(self) -> None:
+        assert set(STANDING) == set(itertools.product((False, True), repeat=3))
+        for (known, in_anki, waiting), standing in STANDING.items():
+            expected = (
+                ElsewhereStatus.KNOWN if known
+                else ElsewhereStatus.LEARNING if in_anki
+                else ElsewhereStatus.LEARN if waiting
+                else None
+            )
+            assert standing is expected
+
+    @pytest.mark.parametrize(
+        ("known_marked", "unknown", "learn_anywhere", "active_since"),
+        list(itertools.product(
+            (False, True), (False, True), (False, True), ((), (FRESH,), (DUE,)),
+        )),
+    )
+    def test_the_statuses_read_the_standing(
+        self, known_marked: bool, unknown: bool, learn_anywhere: bool,
+        active_since: tuple[datetime, ...],
+    ) -> None:
+        knowledge = _knowledge(
+            known_marked=known_marked, unknown=unknown, learn_anywhere=learn_anywhere,
+            active_since=active_since,
+        )
+        assert (knowledge.is_known, knowledge.is_learning, knowledge.is_learn) == (
+            knowledge.elsewhere is ElsewhereStatus.KNOWN,
+            knowledge.elsewhere is ElsewhereStatus.LEARNING,
+            knowledge.elsewhere is ElsewhereStatus.LEARN,
+        )
