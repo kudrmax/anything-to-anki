@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
@@ -231,3 +231,26 @@ def test_a_learn_put_in_known_after_it_leaves_the_queue(bench: Bench) -> None:
     assert bench.queue().for_source(SOURCE).pending == []
     bench.connector.add_notes.assert_not_called()
     assert bench.rows() == []
+
+
+def test_the_queue_reads_only_the_words_chosen_to_learn(bench: Bench) -> None:
+    """A source's other words stay unread: the queue loads its words by id."""
+    bench.other_source()
+    bench.press(CARD, Press.LEARN)
+    bench.press(OTHER_CARD, Press.SKIP)
+    states = bench.decisions.word_states
+    read_by_source = MagicMock(side_effect=AssertionError("the queue reads words by id"))
+    with patch.object(states, "of_source", read_by_source):
+        batch = bench.queue().for_all()
+
+    assert [card.word_id for card in batch.pending] == [WORD]
+
+
+def test_the_pending_count_is_the_queue_length(bench: Bench) -> None:
+    assert bench.queue().pending_count() == len(bench.queue().for_all().pending) == 0
+    bench.press(CARD, Press.LEARN)
+    assert bench.queue().pending_count() == len(bench.queue().for_all().pending) == 1
+
+    bench.export()
+
+    assert bench.queue().pending_count() == len(bench.queue().for_all().pending) == 0

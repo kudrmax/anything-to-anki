@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, func, select, update
@@ -18,8 +19,11 @@ from backend.infrastructure.persistence.models import (
     PhraseModel,
     StoredCandidateModel,
 )
+from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Collection, Iterator
+
     from sqlalchemy import ColumnElement
     from sqlalchemy.orm import Session
 
@@ -30,12 +34,32 @@ class SqlaWordStateRepository(WordStateRepository):
 
     def __init__(self, session: Session) -> None:
         self._session = session
+        self._after_save: Callable[[], None] = self._expire
+
+    def _expire(self) -> None:
+        """Core updates bypass the ORM: objects the session holds would read the old choice."""
+        self._session.expire_all()
+
+    @contextmanager
+    def batch(self) -> Iterator[None]:
+        self._after_save = _nothing
+        try:
+            yield
+        finally:
+            self._after_save = self._expire
+            self._expire()
 
     def of_word(self, word_id: int) -> WordState | None:
         return self._read(StoredCandidateModel.id == word_id).get(word_id)
 
     def of_source(self, source_id: int) -> dict[int, WordState]:
         return self._read(StoredCandidateModel.source_id == source_id)
+
+    def of_words(self, word_ids: Collection[int]) -> dict[int, WordState]:
+        found: dict[int, WordState] = {}
+        for chunk in chunks(list(word_ids)):
+            found.update(self._read(StoredCandidateModel.id.in_(chunk)))
+        return found
 
     def of_lemma(self, lemma: str) -> list[WordState]:
         return list(self._read(func.lower(StoredCandidateModel.lemma) == lemma.lower()).values())
@@ -69,7 +93,7 @@ class SqlaWordStateRepository(WordStateRepository):
             .execution_options(synchronize_session=False)
         )
         self._session.flush()
-        self._session.expire_all()
+        self._after_save()
 
     def _read(self, where: ColumnElement[bool]) -> dict[int, WordState]:
         rows = self._session.execute(
@@ -106,3 +130,7 @@ class SqlaWordStateRepository(WordStateRepository):
             word_id: WordState(word_id, lemma, pos, source_id, tuple(cards[word_id]))
             for word_id, (lemma, pos, source_id) in facts.items()
         }
+
+
+def _nothing() -> None:
+    return None

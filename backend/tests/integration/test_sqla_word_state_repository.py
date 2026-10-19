@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import itertools
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import pytest
 from backend.domain.value_objects.card_choice import (
@@ -139,6 +140,31 @@ def test_save_writes_the_cards_choice_onto_its_active_binding_only(
         "SELECT released_at IS NULL, card_choice FROM anki_synced_cards ORDER BY id"
     )).all()
     assert [tuple(row) for row in rows] == [(0, "learn"), (1, "known")]
+
+
+def test_words_are_read_by_id(repo: SqlaWordStateRepository, db_session: Session) -> None:
+    insert_word(db_session, 2, source_id=1, lemma="linger")
+    insert_word(db_session, 3, source_id=1, lemma="drift")
+
+    assert sorted(repo.of_words([WORD, 3])) == [WORD, 3]
+    assert repo.of_words([]) == {}
+
+
+def test_a_batch_of_saves_expires_the_session_once(
+    repo: SqlaWordStateRepository, db_session: Session,
+) -> None:
+    insert_word(db_session, 2, source_id=1, lemma="linger")
+    words = [repo.of_word(WORD), repo.of_word(2)]
+    with patch.object(db_session, "expire_all", wraps=db_session.expire_all) as expire:
+        with repo.batch():
+            for word in words:
+                assert word is not None
+                repo.save(word)
+            assert expire.call_count == 0
+        assert expire.call_count == 1
+
+        repo.save(words[0])  # type: ignore[arg-type]
+        assert expire.call_count == 2
 
 
 def test_every_word_of_the_lemma_in_every_source(

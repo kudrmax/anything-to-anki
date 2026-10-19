@@ -4,6 +4,8 @@ A phrase id is never its word's id (`phrase_id_of`), so mixing the two fails a t
 """
 from __future__ import annotations
 
+from collections.abc import Iterator  # noqa: TC003 — used at runtime by @contextmanager
+from contextlib import contextmanager
 from dataclasses import replace
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
@@ -160,7 +162,14 @@ class ExportCards(WordStateRepository, AnkiSyncRepository):
         return next((c.state for c in self._cards if c.word_id == word_id), None)
 
     def of_source(self, source_id: int) -> dict[int, WordState]:
-        return {c.word_id: c.state for c in self._cards if c.word.source_id == source_id}
+        raise AssertionError("the export reads its words by id")
+
+    def of_words(self, word_ids: Collection[int]) -> dict[int, WordState]:
+        return {c.word_id: c.state for c in self._cards if c.word_id in word_ids}
+
+    @contextmanager
+    def batch(self) -> Iterator[None]:
+        yield
 
     def of_lemma(self, lemma: str) -> list[WordState]:
         return [c.state for c in self._cards if c.word.lemma.lower() == lemma.lower()]

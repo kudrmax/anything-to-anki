@@ -30,7 +30,7 @@ class GetStatsUseCase:
 
     def execute(self) -> StatsDTO:
         learn_count = self._candidate_repo.count_chosen_to_learn()
-        export_pending_count = len(self._export_queue.for_all().pending)
+        export_pending_count = self._export_queue.pending_count()
         queue_active_count = self._count_active_jobs()
         candidate_count = self._candidate_repo.count_all()
         known_word_count = self._vocabulary.known_count()

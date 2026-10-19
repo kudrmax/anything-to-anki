@@ -1,6 +1,8 @@
 """Cards of the review list for tests: a word and one of its phrases."""
 from __future__ import annotations
 
+from collections.abc import Iterator  # noqa: TC003 — used at runtime by @contextmanager
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import timedelta
 from typing import TYPE_CHECKING
@@ -28,7 +30,7 @@ from tests.decision_support import NOW
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Callable, Collection, Iterable
     from datetime import datetime
 
     from backend.application.utils.card_views import CardViews
@@ -180,6 +182,16 @@ class PhraseWordStates(WordStateRepository):
             w.id: context(w, *self._phrases(w.id)).word
             for w in self._words() if w.id is not None
         }
+
+    def of_words(self, word_ids: Collection[int]) -> dict[int, WordState]:
+        return {
+            w.id: context(w, *self._phrases(w.id)).word
+            for w in self._words() if w.id is not None and w.id in word_ids
+        }
+
+    @contextmanager
+    def batch(self) -> Iterator[None]:
+        yield
 
     def of_lemma(self, lemma: str) -> list[WordState]:
         return [

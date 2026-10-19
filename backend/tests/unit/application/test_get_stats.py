@@ -2,7 +2,6 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.get_stats import GetStatsUseCase
-from backend.application.utils.export_queue import ExportBatch
 
 from tests.vocabulary_support import user_vocabulary
 
@@ -13,7 +12,8 @@ class TestGetStatsUseCase:
         self.candidate_repo = MagicMock()
         self.known_word_repo = MagicMock()
         self.export_queue = MagicMock()
-        self.export_queue.for_all.return_value = ExportBatch(pending=[], exported_count=0)
+        self.export_queue.for_all.side_effect = AssertionError("stats only count the queue")
+        self.export_queue.pending_count.return_value = 0
         self.job_repo = MagicMock()
         self.job_repo.get_queue_summary.return_value = {}
         self.use_case = GetStatsUseCase(
@@ -48,10 +48,7 @@ class TestGetStatsUseCase:
 
     def test_export_pending_count_excludes_already_exported(self) -> None:
         self.candidate_repo.count_chosen_to_learn.return_value = 31
-        self.export_queue.for_all.return_value = ExportBatch(
-            pending=[MagicMock(), MagicMock(), MagicMock()],
-            exported_count=28,
-        )
+        self.export_queue.pending_count.return_value = 3
         result = self.use_case.execute()
         assert result.learn_count == 31
         assert result.export_pending_count == 3

@@ -108,15 +108,23 @@ class ExportQueue:
     def for_sources(self, source_ids: Collection[int]) -> ExportBatch:
         return self._split(self._chosen(source_ids))
 
+    def pending_count(self) -> int:
+        """How many words the queue holds, read without their phrases."""
+        chosen = self._candidate_repo.chosen_to_learn(None)
+        states = self._word_states.of_words([w.id for w in chosen if w.id is not None])
+        now = self._vocabulary.scope.now
+        return sum(
+            in_export_queue(state, self._vocabulary.of(state.lemma), now)
+            for state in states.values()
+        )
+
     def _chosen(self, source_ids: Collection[int] | None) -> list[StoredCandidate]:
         found = self._candidate_repo.chosen_to_learn(source_ids)
         return sorted(found, key=lambda w: (w.source_id, w.id or 0))
 
     def _split(self, chosen: list[StoredCandidate]) -> ExportBatch:
         decisions = self._occurrences.decision_phrases([w.id for w in chosen if w.id is not None])
-        states: dict[int, WordState] = {}
-        for source_id in sorted({word.source_id for word in chosen}):
-            states.update(self._word_states.of_source(source_id))
+        states = self._word_states.of_words([w.id for w in chosen if w.id is not None])
         now = self._vocabulary.scope.now
         pending: list[ExportCard] = []
         exported_count = 0

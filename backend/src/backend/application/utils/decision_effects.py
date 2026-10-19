@@ -97,7 +97,8 @@ class DecisionEffects:
         cards it binds (none is listed Known, and their timers start now)."""
         self._batched = True
         try:
-            yield
+            with self._words.batch():
+                yield
         finally:
             self._batched = False
         self._vocabulary.scope.invalidate()
