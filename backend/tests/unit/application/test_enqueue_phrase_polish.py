@@ -8,6 +8,7 @@ from backend.application.use_cases.enqueue_phrase_polish import EnqueuePhrasePol
 from backend.application.utils.requested_cards import RequestedCards
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import PhrasePolishNotSupportedError, SourceOperationBusyError
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.job_type import JobType
@@ -16,6 +17,8 @@ from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.phrase_support import make_occurrence
 
+_STAMPER = MagicMock()
+_STAMPER.earned.return_value = CandidateSection.EXTRA
 SOURCE_ID = 9
 WORD_ID = 4
 PHRASE_ID = 40
@@ -42,6 +45,7 @@ def _use_case(
     use_case = EnqueuePhrasePolishUseCase(
         cards=RequestedCards(candidate_repo, occurrence_repo, lock),
         occurrence_repo=occurrence_repo, source_repo=source_repo, job_repo=job_repo,
+        stamper=_STAMPER,
     )
     return use_case, occurrence_repo, job_repo
 
@@ -64,7 +68,8 @@ def test_polish_again_drops_old_polish_and_queues_the_phrase() -> None:
     use_case.execute(PHRASE_ID)
 
     occurrence_repo.write_text.assert_called_once_with(
-        PHRASE_ID, shown.source_phrase, None, polished=None,
+        PHRASE_ID, shown.source_phrase, None, earned_section=CandidateSection.EXTRA,
+        polished=None,
     )
     [job] = job_repo.enqueue.call_args.args[0]
     assert (job.job_type, job.candidate_id, job.phrase_id, job.phrase_revision) == (

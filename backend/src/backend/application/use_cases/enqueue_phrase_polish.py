@@ -8,6 +8,7 @@ from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
     from backend.application.utils.requested_cards import RequestedCards
+    from backend.application.utils.section_stamper import SectionStamper
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
@@ -22,11 +23,13 @@ class EnqueuePhrasePolishUseCase:
         occurrence_repo: OccurrenceRepository,
         source_repo: SourceRepository,
         job_repo: JobRepository,
+        stamper: SectionStamper,
     ) -> None:
         self._cards = cards
         self._occurrence_repo = occurrence_repo
         self._source_repo = source_repo
         self._job_repo = job_repo
+        self._stamper = stamper
 
     def execute(self, phrase_id: int) -> None:
         """Polish the phrase again from its source text."""
@@ -39,6 +42,7 @@ class EnqueuePhrasePolishUseCase:
             raise PhrasePolishNotSupportedError(source_id)
         self._occurrence_repo.write_text(
             card.phrase_id, card.phrase.source_phrase, card.phrase.phrase_position,
+            earned_section=self._stamper.earned(card.phrase.source_phrase, card.word),
             polished=None,
         )
         written = self._occurrence_repo.get(card.phrase_id)

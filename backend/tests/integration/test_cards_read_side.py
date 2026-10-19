@@ -101,9 +101,11 @@ class Bench:
         self.occurrences = SqlaOccurrenceRepository(session)
         self.occurrences.write_text(
             GLARE_PHRASE, phrase("He glared at me.", "glared"), _at("He glared at me."),
+            earned_section=CandidateSection.READY,
         )
         self.occurrences.write_text(
             SPARK_PHRASE, phrase("A spark flew.", "spark"), _at("A spark flew."),
+            earned_section=CandidateSection.READY,
         )
         self.second_glare = self.add(GLARE, "She glared back.", "glared", ShownBy.USER)
         self.hidden_spark = self.add(SPARK, "A spark flew.", "spark", None)

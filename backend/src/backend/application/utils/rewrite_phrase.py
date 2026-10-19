@@ -4,8 +4,10 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.application.utils.phrase_reader import PhraseReader
+    from backend.application.utils.section_stamper import SectionStamper
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.services.candidate_sections import WordFacts
     from backend.domain.value_objects.phrase import Phrase
 
 
@@ -18,17 +20,22 @@ class RewritePhrase:
     """
 
     def __init__(
-        self, phrase_reader: PhraseReader, occurrence_repo: OccurrenceRepository,
+        self,
+        phrase_reader: PhraseReader,
+        occurrence_repo: OccurrenceRepository,
+        stamper: SectionStamper,
     ) -> None:
         self._occurrence_repo = occurrence_repo
         self._phrase_reader = phrase_reader
+        self._stamper = stamper
 
-    def of_phrase(self, occurrence: Occurrence, lemma: str, text: str) -> Phrase:
-        """The new text of one phrase of the word `lemma`."""
+    def of_phrase(self, occurrence: Occurrence, word: WordFacts, text: str) -> Phrase:
+        """The new text of one phrase of `word`; the phrase earns its section anew."""
         assert occurrence.id is not None
-        phrase = self._phrase_reader.read_for(text, lemma)
+        phrase = self._phrase_reader.read_for(text, word.lemma)
         self._occurrence_repo.write_text(
             occurrence.id, occurrence.source_phrase, occurrence.phrase_position,
+            earned_section=self._stamper.earned(phrase, word),
             polished=phrase,
         )
         return phrase

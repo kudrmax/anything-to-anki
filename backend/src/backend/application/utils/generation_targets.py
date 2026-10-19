@@ -14,6 +14,7 @@ from backend.domain.value_objects.review_card import CardContext, ReviewCard
 
 if TYPE_CHECKING:
     from backend.application.utils.candidate_sorter import CandidateSorter
+    from backend.application.utils.section_stamper import SectionStamper
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.entities.source import Source
@@ -225,8 +226,9 @@ class GenerationTarget(ABC):
 class PolishTarget(GenerationTarget):
     kind = GenerationKind.POLISH
 
-    def __init__(self, occurrence_repo: OccurrenceRepository) -> None:
+    def __init__(self, occurrence_repo: OccurrenceRepository, stamper: SectionStamper) -> None:
         self._occurrence_repo = occurrence_repo
+        self._stamper = stamper
 
     def applies_to(self, source: Source) -> bool:
         return source.can_polish_phrases
@@ -237,6 +239,7 @@ class PolishTarget(GenerationTarget):
     def discard(self, card: GenerationCard) -> None:
         self._occurrence_repo.write_text(
             card.phrase_id, card.phrase.source_phrase, card.phrase.phrase_position,
+            earned_section=self._stamper.earned(card.phrase.source_phrase, card.word),
             polished=None,
         )
 

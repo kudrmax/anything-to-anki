@@ -3,10 +3,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.application.utils.source_free import ensure_source_free
+from backend.domain.entities.occurrence import shown_phrase
 from backend.domain.exceptions import CandidateNotPolishedError, PhraseNotFoundError
 
 if TYPE_CHECKING:
     from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
+    from backend.application.utils.section_stamper import SectionStamper
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
@@ -21,11 +23,13 @@ class RevertPhrasePolishUseCase:
         candidate_repo: CandidateRepository,
         enrichment_reset: PhraseEnrichmentReset,
         lock: SourceOperationLock,
+        stamper: SectionStamper,
     ) -> None:
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
         self._enrichment_reset = enrichment_reset
         self._lock = lock
+        self._stamper = stamper
 
     def execute(self, phrase_id: int, reverted: bool) -> None:
         occ = self._occurrences.get(phrase_id)
@@ -39,6 +43,9 @@ class RevertPhrasePolishUseCase:
         if occ.polish_reverted != reverted:
             self._occurrences.write_text(
                 phrase_id, occ.source_phrase, occ.phrase_position,
+                earned_section=self._stamper.earned(
+                    shown_phrase(occ.source_phrase, polished, reverted), word,
+                ),
                 polished=polished, polish_reverted=reverted,
             )
             self._enrichment_reset.reset_phrase(phrase_id)

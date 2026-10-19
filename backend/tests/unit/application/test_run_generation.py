@@ -193,8 +193,10 @@ class _Setup:
             )
             for c in cs
         }
+        stamper = MagicMock()
+        stamper.earned.return_value = CandidateSection.EXTRA
         targets = [
-            PolishTarget(self.occurrence_repo),
+            PolishTarget(self.occurrence_repo, stamper),
             MeaningTarget(self.meaning_repo),
             MediaTarget(),
             PronunciationTarget(),
@@ -330,7 +332,7 @@ class TestRunGeneration:
         setup.run.execute(SOURCE_ID, GenerationKind.POLISH, GenerationScope.ALL)
 
         setup.occurrence_repo.write_text.assert_called_once_with(
-            10, shown.source_phrase, None, polished=None,
+            10, shown.source_phrase, None, earned_section=CandidateSection.EXTRA, polished=None,
         )
         assert setup.queued_phrases() == [10]
 

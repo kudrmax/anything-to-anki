@@ -46,9 +46,11 @@ from backend.infrastructure.persistence.sqla_job_repository import SqlaJobReposi
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
+from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from sqlalchemy import select, text, update
 
+from tests.candidate_sorter_support import section_stamper
 from tests.decision_support import Decisions
 from tests.integration.conftest import insert_source
 from tests.lock_support import free_lock
@@ -59,6 +61,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
+    from backend.application.utils.section_stamper import SectionStamper
     from sqlalchemy.orm import Session, sessionmaker
 
 pytestmark = pytest.mark.integration
@@ -222,6 +225,10 @@ DOCUMENT = {
 }
 
 
+def _stamper(session: Session) -> SectionStamper:
+    return section_stamper(SqlaSettingsRepository(session))
+
+
 def _reader() -> MagicMock:
     reader = MagicMock()
     reader.read_for.side_effect = lambda text_, _lemma: phrase(text_, "glared")
@@ -243,7 +250,7 @@ def _set_boundary(session: Session) -> None:
     )
     SetPhraseBoundaryUseCase(
         SqlaOccurrenceRepository(session), SqlaCandidateRepository(session),
-        SqlaDocumentRepository(session), _reader(), free_lock(),
+        SqlaDocumentRepository(session), _reader(), free_lock(), _stamper(session),
     ).execute(PRIMARY, SelectionDTO(
         start_block=0, start_line=0, start_char=0,
         end_block=0, end_line=0, end_char=len(PHRASE_TEXT),
@@ -254,7 +261,7 @@ def _edit(session: Session) -> None:
     occurrences = SqlaOccurrenceRepository(session)
     EditCardPhraseUseCase(
         occurrences, SqlaCandidateRepository(session),
-        RewritePhrase(_reader(), occurrences), free_lock(),
+        RewritePhrase(_reader(), occurrences, _stamper(session)), free_lock(),
     ).execute(PRIMARY, PHRASE_TEXT)
 
 
@@ -262,13 +269,17 @@ def _polish_lands(session: Session) -> None:
     occurrences = SqlaOccurrenceRepository(session)
     occurrence = occurrences.get(PRIMARY)
     assert occurrence is not None
-    RewritePhrase(_reader(), occurrences).of_phrase(occurrence, "glare", PHRASE_TEXT)
+    word = SqlaCandidateRepository(session).get_by_id(WORD)
+    assert word is not None
+    RewritePhrase(_reader(), occurrences, _stamper(session)).of_phrase(
+        occurrence, word, PHRASE_TEXT,
+    )
 
 
 def _revert_polish(session: Session) -> None:
     RevertPhrasePolishUseCase(
         SqlaOccurrenceRepository(session), SqlaCandidateRepository(session),
-        MagicMock(), free_lock(),
+        MagicMock(), free_lock(), _stamper(session),
     ).execute(PRIMARY, reverted=True)
 
 
@@ -277,7 +288,7 @@ def _enqueue_polish(session: Session) -> None:
     candidates = SqlaCandidateRepository(session)
     EnqueuePhrasePolishUseCase(
         RequestedCards(candidates, occurrences, free_lock()), occurrences,
-        SqlaSourceRepository(session), SqlaJobRepository(session),
+        SqlaSourceRepository(session), SqlaJobRepository(session), _stamper(session),
     ).execute(PRIMARY)
 
 
@@ -286,7 +297,9 @@ def _discard_polish(session: Session) -> None:
     occurrence = occurrences.get(PRIMARY)
     word = SqlaCandidateRepository(session).get_by_id(WORD)
     assert occurrence is not None and word is not None
-    PolishTarget(occurrences).discard(GenerationCard(word, occurrence, in_play=True))
+    PolishTarget(occurrences, _stamper(session)).discard(
+        GenerationCard(word, occurrence, in_play=True),
+    )
 
 
 def _revision(factory: sessionmaker[Session]) -> int:
@@ -428,7 +441,8 @@ def _run_queued_polish(factory: sessionmaker[Session], ai_service: MagicMock) ->
             enrichment_reset=MagicMock(),
             ai_service=ai_service,
             prompts_config=POLISH_CONFIG,
-            rewrite_phrase=RewritePhrase(_reader(), occurrences),
+            rewrite_phrase=RewritePhrase(_reader(), occurrences, _stamper(session)),
+            stamper=_stamper(session),
         ).execute_batch([PhraseRef(PRIMARY, polish.phrase_revision)])
         session.commit()
 

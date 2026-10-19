@@ -411,6 +411,7 @@ class Container:
             document_repo=SqlaDocumentRepository(session),
             phrase_reader=self._phrase_reader,
             lock=SqlaSourceOperationLock(session),
+            stamper=self._section_stamper(session),
         )
 
     def get_source_document_use_case(self, session: Session) -> GetSourceDocumentUseCase:
@@ -832,6 +833,7 @@ class Container:
         return RewritePhrase(
             phrase_reader=self._phrase_reader,
             occurrence_repo=SqlaOccurrenceRepository(session),
+            stamper=self._section_stamper(session),
         )
 
     def manage_unknown_words_use_case(self, session: Session) -> ManageUnknownWordsUseCase:
@@ -919,6 +921,7 @@ class Container:
             ai_service=self._ai_service(settings_repo),
             prompts_config=self._prompts_config,
             rewrite_phrase=self._rewrite_phrase(session),
+            stamper=self._section_stamper(session),
         )
 
     def enqueue_phrase_polish_use_case(self, session: Session) -> EnqueuePhrasePolishUseCase:
@@ -930,6 +933,7 @@ class Container:
             occurrence_repo=SqlaOccurrenceRepository(session),
             source_repo=SqlaSourceRepository(session),
             job_repo=SqlaJobRepository(session),
+            stamper=self._section_stamper(session),
         )
 
     def _job_phrases(self, session: Session) -> JobPhrases:
@@ -967,6 +971,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             enrichment_reset=self._phrase_enrichment_reset(session),
             lock=SqlaSourceOperationLock(session),
+            stamper=self._section_stamper(session),
         )
 
     def edit_card_phrase_use_case(self, session: Session) -> EditCardPhraseUseCase:
@@ -1192,7 +1197,7 @@ class Container:
             TTSTarget,
         )
         return [
-            PolishTarget(SqlaOccurrenceRepository(session)),
+            PolishTarget(SqlaOccurrenceRepository(session), self._section_stamper(session)),
             MeaningTarget(SqlaCandidateMeaningRepository(session)),
             MediaTarget(),
             PronunciationTarget(),

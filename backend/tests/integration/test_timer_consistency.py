@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from backend.application.utils.knowledge_scope import KnowledgeScope
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.infrastructure.api.app import app
@@ -120,7 +121,7 @@ def _seed(session: Session) -> None:
         phrase_id_of(DRIFT),
         phrase("The glare drifts.", "drift", new=("glare", "drifts"),
                lemmas={"drifts": "drift"}),
-        None,
+        None, earned_section=CandidateSection.EXTRA,
     )
     insert_source(session, BOARD)
     insert_word(session, ECHO, source_id=BOARD, lemma="echo", status="skip")
@@ -128,12 +129,13 @@ def _seed(session: Session) -> None:
     occurrences = SqlaOccurrenceRepository(session)
     occurrences.write_text(
         phrase_id_of(ECHO), phrase("The echo fades.", "echo", new=("echo",)), None,
+        earned_section=CandidateSection.READY,
     )
     occurrences.write_text(
         phrase_id_of(BLIND),
         phrase("The glare blinds.", "blind", new=("glare", "blinds"),
                lemmas={"blinds": "blind"}),
-        None,
+        None, earned_section=CandidateSection.EXTRA,
     )
 
 

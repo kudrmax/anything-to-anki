@@ -47,6 +47,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_tts import CandidateTTS
     from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
     from backend.domain.services.rebuild_plan import RebuildPlan
+    from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
 
@@ -216,6 +217,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         phrase: Phrase,
         position: DocumentPosition | None,
         *,
+        earned_section: CandidateSection,
         polished: Phrase | None = None,
         polish_reverted: bool = False,
         edited_by_user: bool = False,
@@ -228,6 +230,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         model.phrase_position = dump_position(position)
         model.polished_phrase = dump_phrase(polished)
         model.polish_reverted = polish_reverted
+        model.earned_section = earned_section.value
         if _text_of(model.shown_text) != shown_before:
             model.revision += 1
             self._queued_jobs_follow(occurrence_id, model.revision)

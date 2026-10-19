@@ -9,6 +9,7 @@ from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import OccurrenceKey
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import CardChoice, NoteKind
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.document_position import DocumentPosition
@@ -92,6 +93,7 @@ def test_write_text_rewrites_words_from_the_polished_text(
 
     repo.write_text(
         phrase_id, phrase("He glared at me."), POSITION, polished=phrase("He stared at us"),
+        earned_section=CandidateSection.READY,
     )
 
     stored = repo.get(phrase_id)
@@ -107,6 +109,7 @@ def test_write_text_with_a_reverted_polish_keeps_the_words_of_the_source(
 
     repo.write_text(
         phrase_id, phrase("He glared at me."), POSITION,
+        earned_section=CandidateSection.READY,
         polished=phrase("He stared at us"), polish_reverted=True,
     )
 
@@ -118,7 +121,9 @@ def test_a_write_that_changes_the_shown_text_bumps_the_revision(
 ) -> None:
     phrase_id = _added(repo)
 
-    repo.write_text(phrase_id, phrase("He glared again."), POSITION)
+    repo.write_text(
+        phrase_id, phrase("He glared again."), POSITION, earned_section=CandidateSection.READY,
+    )
 
     stored = repo.get(phrase_id)
     assert stored is not None
@@ -132,8 +137,13 @@ def test_a_write_that_keeps_the_shown_text_does_not_bump(
     phrase_id = _added(repo)
     same = phrase("He glared at me.")
 
-    repo.write_text(phrase_id, same, POSITION, polished=same)
-    repo.write_text(phrase_id, same, POSITION, polished=phrase("He stared."), polish_reverted=True)
+    repo.write_text(
+        phrase_id, same, POSITION, earned_section=CandidateSection.READY, polished=same,
+    )
+    repo.write_text(
+        phrase_id, same, POSITION, earned_section=CandidateSection.READY,
+        polished=phrase("He stared."), polish_reverted=True,
+    )
 
     stored = repo.get(phrase_id)
     assert stored is not None
@@ -167,7 +177,9 @@ def test_queued_jobs_of_a_phrase_follow_its_new_text_running_ones_do_not(
     _job(db_session, phrase_id, JobType.POLISH, JobStatus.QUEUED)
     _job(db_session, phrase_id, JobType.TTS, JobStatus.RUNNING)
 
-    repo.write_text(phrase_id, phrase("He glared again."), POSITION)
+    repo.write_text(
+        phrase_id, phrase("He glared again."), POSITION, earned_section=CandidateSection.READY,
+    )
 
     assert _jobs(db_session, phrase_id) == {
         "meaning": ("queued", 1), "media": ("queued", 1), "polish": ("queued", 1),
@@ -287,6 +299,7 @@ def test_reset_results_drops_everything_made_for_the_phrase(
     phrase_id = _added(repo)
     repo.write_text(
         phrase_id, phrase("He glared at me."), POSITION, polished=phrase("He stared at us"),
+        earned_section=CandidateSection.READY,
     )
     SqlaCandidateMeaningRepository(db_session).upsert_for_phrase(phrase_id, CandidateMeaning(
         candidate_id=WORD, meaning="m", translation=None, synonyms=None, examples=None,

@@ -7,17 +7,22 @@ from dataclasses import dataclass, field, replace
 
 import pytest
 from backend.domain.entities.occurrence import OccurrenceKey
+from backend.domain.services.candidate_sections import SectionRule
 from backend.domain.services.phrase_protection import is_touched, is_untouchable
 from backend.domain.services.phrase_selection import is_frozen, select_phrases
 from backend.domain.services.rebuild_plan import OccurrenceRekey, RebuildPlan, plan_rebuild
 from backend.domain.value_objects.built_analysis import BuiltOccurrence, BuiltWord, WordKey
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.user_knowledge import UserKnowledge
+from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY
 from backend.domain.value_objects.word_row import WordRow
 from backend.domain.value_objects.word_status import WordStatus
 
+from tests.phrase_support import phrase
 from tests.rebuild_support import (
     AUTO,
     COLLECTED,
@@ -407,6 +412,25 @@ def test_changed_text_of_an_untouched_phrase_is_rewritten() -> None:
     assert update.phrase == text_phrase("She glared back.")
     assert update.phrase_position == position_at(1, "She glared back.")
     assert not update.reset_results
+
+
+def test_a_rewritten_phrase_carries_the_section_of_its_new_text() -> None:
+    untouched = row(id=1, score=0.5, shown=SELECTION)
+    new_text = "She glared quill"
+    analysed = BuiltOccurrence(
+        phrase=phrase(new_text, "glared", new=("quill",)),
+        phrase_position=position_at(1, new_text),
+        key=key_at(1),
+        fragment_score=0.5,
+    )
+    rule = SectionRule(UserKnowledge(EMPTY_VOCABULARY, CEFRLevel.B1, None), None)
+
+    result = plan_rebuild(
+        SOURCE, [untouched], [word()], [built("glare", analysed)], False, rule,
+    )
+
+    [update] = result.occ_to_update_text
+    assert update.earned_section is CandidateSection.EXTRA
 
 
 def test_include_open_never_changes_the_decision_phrase_nor_the_exported_one() -> None:

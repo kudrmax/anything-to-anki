@@ -10,6 +10,7 @@ from backend.domain.exceptions import (
     PhraseNotFoundError,
     SourceOperationBusyError,
 )
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 from tests.card_support import occurrence, word
@@ -20,6 +21,8 @@ if TYPE_CHECKING:
     from backend.domain.entities.occurrence import Occurrence
 
 PHRASE_ID = 5
+_STAMPER = MagicMock()
+_STAMPER.earned.return_value = CandidateSection.EXTRA
 SOURCE = phrase("The air around us was stale", "stale")
 
 
@@ -41,7 +44,7 @@ def _use_case(
     reset = MagicMock()
     use_case = RevertPhrasePolishUseCase(
         occurrence_repo=occurrences, candidate_repo=candidates, enrichment_reset=reset,
-        lock=lock or free_lock(),
+        lock=lock or free_lock(), stamper=_STAMPER,
     )
     return use_case, occurrences, reset
 
@@ -53,9 +56,10 @@ def test_revert_switches_the_phrase_and_drops_its_enrichments() -> None:
     use_case.execute(PHRASE_ID, reverted=True)
 
     occurrences.write_text.assert_called_once_with(
-        PHRASE_ID, SOURCE, None, polished=phrase("The air was stale.", "stale"),
-        polish_reverted=True,
+        PHRASE_ID, SOURCE, None, earned_section=CandidateSection.EXTRA,
+        polished=phrase("The air was stale.", "stale"), polish_reverted=True,
     )
+    _STAMPER.earned.assert_called_with(SOURCE, _STAMPER.earned.call_args.args[1])
     reset.reset_phrase.assert_called_once_with(PHRASE_ID)
 
 

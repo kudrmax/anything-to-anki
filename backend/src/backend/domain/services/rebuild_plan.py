@@ -14,7 +14,7 @@ from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, Sh
 
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import OccurrenceKey
-    from backend.domain.services.candidate_sections import SectionRule
+    from backend.domain.services.candidate_sections import SectionRule, WordFacts
     from backend.domain.value_objects.built_analysis import (
         BuiltOccurrence,
         BuiltWord,
@@ -60,6 +60,7 @@ class OccurrenceTextUpdate:
     fragment_score: float
     bump_revision: bool
     reset_results: bool
+    earned_section: CandidateSection
 
 
 @dataclass(frozen=True)
@@ -207,7 +208,10 @@ class _Planner:
         decided = is_decided(state)
         after: list[OccurrenceRow] = []
         for o in sorted(rows, key=lambda o: o.id):
-            kept = self._phrase(o, analysed.get(o.key) if o.key is not None else None, decided)
+            kept = self._phrase(
+                o, analysed.get(o.key) if o.key is not None else None, decided,
+                b if b is not None else w,
+            )
             if kept is not None:
                 after.append(kept)
         taken = {o.key for o in rows if o.key is not None}
@@ -237,7 +241,11 @@ class _Planner:
         return replace(o, key=key)
 
     def _phrase(
-        self, o: OccurrenceRow, analysed: BuiltOccurrence | None, word_decided: bool,
+        self,
+        o: OccurrenceRow,
+        analysed: BuiltOccurrence | None,
+        word_decided: bool,
+        facts: WordFacts,
     ) -> OccurrenceRow | None:
         """The phrase as the plan leaves it, or None when the plan deletes it."""
         if o.origin is not OccurrenceOrigin.AUTO or is_untouchable(o):
@@ -252,7 +260,7 @@ class _Planner:
         new_phrase = OccurrenceRow.hash_phrase(analysed.phrase, analysed.phrase_position)
         if not touched or (same_text and not o.shows_polish):
             if o.phrase_hash != new_phrase:
-                return self._rewrite(o, analysed, bump=not same_text, reset=False)
+                return self._rewrite(o, analysed, facts, bump=not same_text, reset=False)
             return self._rescore(o, analysed.fragment_score)
         if same_text:
             return self._rescore(o, analysed.fragment_score)
@@ -260,10 +268,16 @@ class _Planner:
             return o
         if o.has_results or o.has_active_job:
             self._text_reset += 1
-        return self._rewrite(o, analysed, bump=True, reset=True)
+        return self._rewrite(o, analysed, facts, bump=True, reset=True)
 
     def _rewrite(
-        self, o: OccurrenceRow, analysed: BuiltOccurrence, *, bump: bool, reset: bool,
+        self,
+        o: OccurrenceRow,
+        analysed: BuiltOccurrence,
+        facts: WordFacts,
+        *,
+        bump: bool,
+        reset: bool,
     ) -> OccurrenceRow:
         self._text_updates.append(OccurrenceTextUpdate(
             occurrence_id=o.id,
@@ -272,6 +286,7 @@ class _Planner:
             fragment_score=analysed.fragment_score,
             bump_revision=bump,
             reset_results=reset,
+            earned_section=self._rule.earned(analysed.phrase, facts),
         ))
         return replace(
             o,

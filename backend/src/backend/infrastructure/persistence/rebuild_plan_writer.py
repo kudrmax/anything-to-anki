@@ -123,6 +123,7 @@ class RebuildPlanWriter:
                 phrase.source_phrase = _dumped(planned)
                 phrase.phrase_position = dump_position(planned.phrase_position)
                 phrase.fragment_score = planned.fragment_score
+                phrase.earned_section = planned.earned_section.value
                 if planned.bump_revision:
                     phrase.revision += 1
                 if planned.reset_results:

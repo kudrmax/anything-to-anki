@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
     from backend.domain.services.rebuild_plan import RebuildPlan
+    from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.occurrence_row import OccurrenceRow
     from backend.domain.value_objects.phrase import Phrase
@@ -46,6 +47,7 @@ class OccurrenceRepository(ABC):
         phrase: Phrase,
         position: DocumentPosition | None,
         *,
+        earned_section: CandidateSection,
         polished: Phrase | None = None,
         polish_reverted: bool = False,
         edited_by_user: bool = False,
@@ -55,7 +57,9 @@ class OccurrenceRepository(ABC):
         When the text the phrase shows changes, its revision goes up: a running job was made
         for the old text and ends without writing, while its queued jobs follow the new text
         (a queued polish still skips a phrase that has a polished text by then).
-        `edited_by_user` marks the phrase as cut by the user; the mark is never taken off."""
+        `earned_section` is the section of the phrase the card shows after the write; it is
+        always stored. `edited_by_user` marks the phrase as cut by the user; the mark is never
+        taken off."""
 
     @abstractmethod
     def holds_revision(self, occurrence_id: int, revision: int) -> bool:

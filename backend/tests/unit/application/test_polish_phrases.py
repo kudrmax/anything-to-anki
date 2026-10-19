@@ -12,6 +12,7 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import TargetNotInPhraseError
 from backend.domain.services.phrase_building import target_by_lemma
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
@@ -124,6 +125,8 @@ def _use_case(
     document_repo.get.return_value = _DOCUMENT
     reader = MagicMock()
     reader.read_for.side_effect = _read_for
+    stamper = MagicMock()
+    stamper.earned.return_value = CandidateSection.EXTRA
     use_case = PhrasePolishUseCase(
         job_phrases=job_phrases,
         occurrence_repo=occurrence_repo,
@@ -133,7 +136,8 @@ def _use_case(
         enrichment_reset=reset,
         ai_service=ai_service,
         prompts_config=_CONFIG,
-        rewrite_phrase=RewritePhrase(reader, occurrence_repo),
+        rewrite_phrase=RewritePhrase(reader, occurrence_repo, stamper),
+        stamper=stamper,
     )
     return use_case, occurrence_repo, ai_service, reset
 

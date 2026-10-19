@@ -19,6 +19,13 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.phrase_origin import PhraseOrigin
     from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
+def shown_phrase(source: Phrase, polished: Phrase | None, polish_reverted: bool) -> Phrase:
+    """The phrase a card shows: the polished one unless the user went back to the source."""
+    if polished is not None and not polish_reverted:
+        return polished
+    return source
+
+
 @dataclass(frozen=True)
 class OccurrenceKey:
     """Where the target starts in the document of its part: stable, layout-independent."""
@@ -75,9 +82,7 @@ class Occurrence:
     @property
     def phrase(self) -> Phrase:
         """The phrase the card shows, speaks and exports."""
-        if self.polished_phrase is not None and not self.polish_reverted:
-            return self.polished_phrase
-        return self.source_phrase
+        return shown_phrase(self.source_phrase, self.polished_phrase, self.polish_reverted)
 
     @property
     def is_shown(self) -> bool:
