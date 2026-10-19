@@ -146,6 +146,29 @@ class TestCardsOfAWordStandTogether:
         ]
         assert [c.occurrence.id for c in sort_chronologically(cards)] == [2, 3, 1]
 
+    def test_in_text_order_a_done_card_goes_last_though_its_word_has_an_open_card(
+        self,
+    ) -> None:
+        glare, spark, flame = _word(1, "glare"), _word(2, "spark"), _word(3, "flame")
+        cards = [
+            _card(glare, 1, at=10),
+            _card(glare, 2, at=20, skipped=True),
+            _card(spark, 3, at=30),
+            _card(flame, 4, at=5, skipped=True),
+            _card(glare, 5, at=40, skipped=True),
+        ]
+        assert [c.occurrence.id for c in sort_chronologically(cards)] == [1, 3, 4, 2, 5]
+
+    def test_by_relevance_a_done_card_goes_last_with_its_word_kept_together(self) -> None:
+        common, middle = _word(1, "common", zipf=4.4), _word(2, "middle", zipf=2.6)
+        cards = [
+            _card(common, 1, skipped=True), _card(middle, 2), _card(common, 3),
+            _card(middle, 4, skipped=True), _card(common, 5, skipped=True),
+        ]
+        assert [c.occurrence.id for c in sort_by_relevance(cards, knowledge=KNOWLEDGE)] == [
+            3, 2, 1, 5, 4,
+        ]
+
     def test_cards_of_a_word_in_different_sections_follow_their_sections(self) -> None:
         glare, spark = _word(1, "glare"), _word(2, "spark")
         cards = [_card(glare, 1, new=("zephyr",)), _card(spark, 2), _card(glare, 3)]

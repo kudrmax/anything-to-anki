@@ -37,7 +37,7 @@ _CEFR_ORDER: dict[str | None, int] = {
 _UNPLACED = 99
 
 _NEUTRAL = "neutral"
-_NO_PARTITION = 0
+_OPEN, _REVIEWED = 0, 1
 
 
 def _cefr_sort_key(cefr_level: str | None) -> int:
@@ -78,7 +78,6 @@ def sort_by_relevance(
         cards,
         partition=lambda c: SECTION_ORDER[card_section(c, knowledge, frequent_threshold)],
         key=lambda c: (
-            c.is_done,
             is_junk(c),
             len(new_words(c.phrase, knowledge)),
             c.word.is_phrasal_verb,
@@ -109,7 +108,6 @@ def sort_by_key_words(
         cards,
         partition=lambda c: SECTION_ORDER[card_section(c, knowledge, frequent_threshold)],
         key=lambda c: (
-            c.is_done,
             is_junk(c),
             -c.word.occurrences,
             c.zipf_frequency,
@@ -121,17 +119,19 @@ def sort_by_key_words(
 def sort_chronologically(cards: list[ReviewCard]) -> list[ReviewCard]:
     """In the order their phrases stand in the document; phrases without a place go last.
 
-    Done cards sink below open ones, so the phrase waiting for a decision stays where the
-    user looks.
+    Done cards are in Reviewed, below every open card, so the phrase waiting for a decision
+    stays where the user looks.
     """
 
     def _position_key(c: ReviewCard) -> SortKey:
         place = c.occurrence.phrase_position
         if place is None:
-            return (c.is_done, True, 0, 0, 0)
-        return (c.is_done, False, place.block, place.start_line, place.start_char)
+            return (True, 0, 0, 0)
+        return (False, place.block, place.start_line, place.start_char)
 
-    return _grouped(cards, partition=lambda _: _NO_PARTITION, key=_position_key)
+    return _grouped(
+        cards, partition=lambda c: _REVIEWED if c.is_done else _OPEN, key=_position_key,
+    )
 
 
 def _grouped(

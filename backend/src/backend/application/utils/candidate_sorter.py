@@ -45,8 +45,8 @@ class ArrangedCards:
 class CandidateSorter:
     """Puts cards in the order the user picked and into sections, by what the user knows now.
 
-    Text order has no sections in its order; done cards go below open ones. A done card is
-    in Reviewed in every order.
+    Text order has no sections in its order but Reviewed: done cards go below open ones. A
+    done card is in Reviewed in every order.
     """
 
     def __init__(

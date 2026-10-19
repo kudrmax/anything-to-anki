@@ -16,15 +16,16 @@ import { SourceText, type SelectedText, type SelectionPoint } from './SourceText
 import { audioUrlForCandidate, useReview } from './useReview'
 import { useShownCandidates } from './useShownCandidates'
 import { listItems, sectionToggleLabel, visibleCandidates, type ListItem } from './sections'
-import type { CandidateSection, DecisionButton } from '@/api/types'
+import type { CandidateSection, DecisionButton, SourceStatus } from '@/api/types'
 import css from './review.module.css'
 
 const DECISION: Partial<Record<ReviewAction, DecisionButton>> = { learn: 'learn', known: 'known', skip: 'skip' }
 type PhoneView = 'card' | 'text' | 'list'
 
 const SOURCES_PATH = '/'
-/** Все карточки Ready разобраны: остальное — по желанию. */
+/** Источник разобран (статус выводит backend): остальное — по желанию. */
 const DONE = 'Done'
+const REVIEWED: SourceStatus = 'reviewed'
 /** Ссылка на конкретную карточку: с ней ревью открывается сразу на ней. */
 const CANDIDATE_PARAM = 'candidate'
 
@@ -177,7 +178,7 @@ export function ReviewScreen() {
       meta={counts.total > 0 && (
         <>
           <Progress inline value={counts.progress} />
-          {counts.reviewed === counts.total ? DONE : `${counts.reviewed} / ${counts.total}`}
+          {source.status === REVIEWED ? DONE : `${counts.reviewed} / ${counts.total}`}
         </>
       )}
     >

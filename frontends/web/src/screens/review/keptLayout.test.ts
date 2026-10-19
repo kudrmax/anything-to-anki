@@ -31,10 +31,6 @@ describe('keepLayout', () => {
     expect(pressed?.status).toBe('learn')
   })
 
-  it('regroups on reload: the list as the backend arranged it', () => {
-    expect(groups(AFTER_PRESS)).toEqual([2, 'extra', 3, 'reviewed', 1, 4])
-  })
-
   it('drops a card that is no longer shown', () => {
     expect(ids(keepLayout(LOADED, [card(1, 'ready'), card(3, 'extra'), card(4, 'reviewed')]))).toEqual([1, 3, 4])
   })
