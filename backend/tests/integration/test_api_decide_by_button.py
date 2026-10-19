@@ -391,3 +391,30 @@ def test_the_old_decision_api_is_gone(client: TestClient) -> None:
     response = client.put(f"/phrases/{CARD}/decision", json={"status": "learn"})
 
     assert response.status_code == 405
+
+
+def test_removing_known_frees_the_word_kept_by_a_deleted_sources_known_card(
+    client: TestClient, factory: sessionmaker[Session],
+) -> None:
+    """PRINCIPLE: a Known card in Anki of a deleted source leaves an orphaned binding;
+    removing Known in Settings makes the word NEW, not Learning until that binding's timer."""
+    _given(factory, lambda s: s.in_anki("learn"))
+    assert _decide(client, CARD, "known").status_code == 200
+    _given(factory, lambda s: insert_word(s.session, OTHER_WORD, source_id=THERE, lemma=LEMMA))
+    assert client.delete(f"/sources/{HERE}").status_code == 204
+
+    listed = next(w for w in client.get("/known-words").json() if w["lemma"] == LEMMA)
+    assert client.delete(f"/known-words/{listed['id']}").status_code == 200
+
+    assert client.get("/vocabulary/learning").json()["in_anki"] == []
+    other = next(
+        card for card in client.get(f"/sources/{THERE}/candidates").json()
+        if card["phrase_id"] == phrase_id_of(OTHER_WORD)
+    )
+    assert other["shown"]["status"] == "new"
+    assert all(b["refused"] is None for b in other["state"]["buttons"])
+    with factory() as session:
+        active = session.execute(text(
+            "SELECT count(*) FROM anki_synced_cards WHERE lemma = :l AND released_at IS NULL"
+        ), {"l": LEMMA}).scalar_one()
+    assert active == 0, "no binding is left to bring Known back by its timer"

@@ -6,6 +6,7 @@ from sqlalchemy import func, or_, select, update
 
 from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
 from backend.domain.services.decision_rules import BindingRef
+from backend.domain.value_objects.card_choice import CHOICE_OF_KIND, CardChoice
 from backend.infrastructure.persistence.models import AnkiSyncedCardModel
 from backend.infrastructure.persistence.phrase_writes import chunks
 
@@ -32,6 +33,7 @@ class SqlaAnkiSyncRepository(AnkiSyncRepository):
             lemma=binding.lemma,
             pos=binding.pos,
             note_kind=binding.note_kind.value,
+            card_choice=CHOICE_OF_KIND[binding.note_kind].value,
             learning_since=binding.learning_since,
         ))
         self._session.flush()
@@ -62,7 +64,11 @@ class SqlaAnkiSyncRepository(AnkiSyncRepository):
 
     def orphans(self, lemma: str) -> list[BindingRef]:
         rows = self._session.execute(
-            select(AnkiSyncedCardModel.id, AnkiSyncedCardModel.learning_since)
+            select(
+                AnkiSyncedCardModel.id,
+                AnkiSyncedCardModel.learning_since,
+                AnkiSyncedCardModel.card_choice,
+            )
             .where(
                 func.lower(AnkiSyncedCardModel.lemma) == lemma.lower(),
                 AnkiSyncedCardModel.released_at.is_(None),
@@ -73,4 +79,6 @@ class SqlaAnkiSyncRepository(AnkiSyncRepository):
             )
             .order_by(AnkiSyncedCardModel.id)
         ).all()
-        return [BindingRef(binding_id, since) for binding_id, since in rows]
+        return [
+            BindingRef(binding_id, since, CardChoice(choice)) for binding_id, since, choice in rows
+        ]

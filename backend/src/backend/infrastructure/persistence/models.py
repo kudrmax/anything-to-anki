@@ -813,6 +813,9 @@ class AnkiSyncedCardModel(Base):
     lemma: Mapped[str] = mapped_column(String(100), nullable=False)
     pos: Mapped[str | None] = mapped_column(String(10), nullable=True)
     note_kind: Mapped[str] = mapped_column(String(10), nullable=False)
+    # The choice of the bound card, kept by the card's writer: an orphan still tells a
+    # Known card's binding from a Learn one's.
+    card_choice: Mapped[str] = mapped_column(String(10), nullable=False)
     learning_since: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     released_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 

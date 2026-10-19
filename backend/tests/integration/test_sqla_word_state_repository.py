@@ -123,6 +123,24 @@ def test_a_bound_learn_is_stored_learning(
     assert binding.learning_since < NOW
 
 
+def test_save_writes_the_cards_choice_onto_its_active_binding_only(
+    repo: SqlaWordStateRepository, db_session: Session,
+) -> None:
+    """An orphan must still tell a Known card's binding from a Learn one's."""
+    db_session.execute(text("UPDATE phrases SET choice = 'learn' WHERE id = :id"), {"id": FIRST})
+    bind(db_session, WORD, FIRST, released_at=CREATED_AT)
+    bind(db_session, WORD, FIRST)
+    word = repo.of_word(WORD)
+    assert word is not None
+
+    repo.save(word.with_cards(CardState(FIRST, CardChoice.KNOWN, word.card(FIRST).binding)))
+
+    rows = db_session.execute(text(
+        "SELECT released_at IS NULL, card_choice FROM anki_synced_cards ORDER BY id"
+    )).all()
+    assert [tuple(row) for row in rows] == [(0, "learn"), (1, "known")]
+
+
 def test_every_word_of_the_lemma_in_every_source(
     repo: SqlaWordStateRepository, db_session: Session,
 ) -> None:

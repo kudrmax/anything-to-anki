@@ -79,8 +79,8 @@ def _enrich(session: Session, candidate_id: int, phrase_id: int) -> None:
     session.execute(
         text(
             "INSERT INTO anki_synced_cards (candidate_id, phrase_id, anki_note_id, lemma,"
-            " note_kind, learning_since) VALUES (:cid, :pid, 1, 'advance', 'learn',"
-            " '2026-10-18 12:00:00')"
+            " note_kind, card_choice, learning_since) VALUES (:cid, :pid, 1, 'advance',"
+            " 'learn', 'learn', '2026-10-18 12:00:00')"
         ),
         params,
     )

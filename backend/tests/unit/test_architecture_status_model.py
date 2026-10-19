@@ -43,6 +43,7 @@ ALLOWED = frozenset({
     "infrastructure/persistence/models.py",
     "infrastructure/persistence/sqla_word_state_repository.py",
     "alembic/versions/0049_words_and_phrases.py",
+    "alembic/versions/0050_binding_card_choice.py",
 })
 # Migrations before 0049 are shipped history: they are never edited again.
 SHIPPED_MIGRATION = re.compile(r"alembic/versions/00(?:[0-3]\d|4[0-8])_")
@@ -54,11 +55,11 @@ MODEL_ENUMS = frozenset({
 MODEL_SETS = frozenset({"CHOSEN_TO_LEARN", "DECISION_CHOICES"})
 MODEL_FIELDS = frozenset({
     "choice", "word_status", "decision_status", "decision_choice", "decision_note",
-    "note_kind", "section",
+    "note_kind", "section", "card_choice",
 })
 STORED_COLUMNS = frozenset({
     ("StoredCandidateModel", "status"), ("PhraseModel", "choice"),
-    ("AnkiSyncedCardModel", "note_kind"),
+    ("AnkiSyncedCardModel", "note_kind"), ("AnkiSyncedCardModel", "card_choice"),
 })
 MODEL_VALUES = frozenset(
     member.value

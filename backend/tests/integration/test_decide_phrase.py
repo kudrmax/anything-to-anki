@@ -406,7 +406,8 @@ def test_a_due_orphaned_binding_of_the_lemma_is_released(
     bench.press(FIRST, KNOWN)
     db_session.execute(text(
         "INSERT INTO anki_synced_cards (candidate_id, phrase_id, anki_note_id, lemma, pos,"
-        " note_kind, learning_since) VALUES (NULL, NULL, 77, 'glare', 'VERB', 'learn', :due)"
+        " note_kind, card_choice, learning_since)"
+        " VALUES (NULL, NULL, 77, 'glare', 'VERB', 'learn', 'learn', :due)"
     ), {"due": DUE})
 
     bench.press(FIRST, KNOWN)

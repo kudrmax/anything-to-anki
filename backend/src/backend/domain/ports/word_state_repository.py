@@ -24,5 +24,5 @@ class WordStateRepository(ABC):
 
     @abstractmethod
     def save(self, word: WordState) -> None:
-        """Writes the choice of every card and the word's decision status; bindings are the
-        Anki sync repository's."""
+        """Writes the choice of every card, onto its active binding too, and the word's
+        decision status; binding and release are the Anki sync repository's."""

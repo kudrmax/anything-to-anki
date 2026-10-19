@@ -418,6 +418,7 @@ def test_one_word_per_lemma_and_every_card_is_a_phrase(db_url: str) -> None:
 
 
 def test_undoing_a_migrated_known_takes_the_lemma_out_of_known(db_url: str) -> None:
+    command.upgrade(_alembic_config(db_url), "head")  # the app writes today's schema
     engine = create_engine(db_url)
     phrase_id = _phrase_of(db_url, CARD_O, "They ponder")["id"]
     assert isinstance(phrase_id, int)

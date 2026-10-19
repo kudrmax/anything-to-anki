@@ -140,7 +140,9 @@ class TestKnownRemoval:
         acting = _word(CardChoice.KNOWN)
         other = _word(CardChoice.KNOWN, Binding(NoteKind.LEARN, FRESH), word_id=2)
         bench.words.of_lemma.return_value = [acting, other]
-        bench.anki_sync.orphans.return_value = [BindingRef(ORPHAN, DUE), BindingRef(502, FRESH)]
+        bench.anki_sync.orphans.return_value = [
+            BindingRef(ORPHAN, DUE, CardChoice.LEARN), BindingRef(502, FRESH, CardChoice.LEARN),
+        ]
         return bench, acting, other
 
     def test_undo_of_known_forgets_every_pos_and_revokes_every_other_known_card(

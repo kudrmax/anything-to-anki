@@ -12,7 +12,7 @@ import itertools
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from functools import cache
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import pytest
 from backend.domain.exceptions import ActionRefusedError, NoDecisionRuleError
@@ -22,6 +22,7 @@ from backend.domain.services.decision_rules import (
     EFFECTS,
     MOVE_ROWS,
     MOVE_RULES,
+    ORPHAN_RULES,
     PRESS_ROWS,
     PRESS_RULES,
     REMOVAL_ROWS,
@@ -42,6 +43,7 @@ from backend.domain.services.decision_rules import (
     move_key,
     on_bind,
     on_known_removed,
+    orphan_key,
     possible,
     possible_move,
     possible_removal,
@@ -81,6 +83,9 @@ from tests.decision_worlds import (
     well_formed,
     worlds,
 )
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 N, L, C, K, S = (
     CardChoice.NONE, CardChoice.LEARN, CardChoice.CLOZE, CardChoice.KNOWN, CardChoice.SKIP,
@@ -335,7 +340,7 @@ class TestKnownRemovalAfterAPress:
                 single(4, C, Binding(NoteKind.CLOZE, DUE)),           # timer-Known
                 single(5, L),
             ),
-            (BindingRef(501, DUE), BindingRef(502, FRESH)),
+            (BindingRef(501, DUE, L), BindingRef(502, FRESH, L)),
             known_marked, False,
         )
 
@@ -583,11 +588,33 @@ class TestRemovalRows:
             }
             assert {o.word.word_id for o in removal.words} == reading_known
             assert removal.released_orphans == tuple(
-                o.binding_id for o in world.orphans if timer_due(o.learning_since, NOW)
+                o.binding_id for o in world.orphans
+                if timer_due(o.learning_since, NOW) or o.card_choice is K
             )
             after = _cascade(world)
             assert all(well_formed(word) for word in after.words)
             _assert_ar(after)
+
+    def test_every_orphan_key_is_reached(self) -> None:
+        reached = {
+            orphan_key(ref, NOW) for world in worlds() for ref in world.orphans
+        }
+        assert reached == set(ORPHAN_RULES)
+
+    @pytest.mark.parametrize(
+        ("card_choice", "since", "row"),
+        [(L, FRESH, "O0"), (C, FRESH, "O0"), (L, DUE, "O1"), (C, DUE, "O1"),
+         (K, FRESH, "O2"), (K, DUE, "O2")],
+    )
+    def test_orphan_row(self, card_choice: CardChoice, since: datetime, row: str) -> None:
+        """Q13 keeps a Learn or Cloze card's orphan until its timer; a Known card's orphan
+        goes with Known (the principle)."""
+        ref = BindingRef(700, since, card_choice)
+        target = ORPHAN_RULES[orphan_key(ref, NOW)]
+        world = World(single(1, N), (), (ref,), False, False)
+        removal = on_known_removed(world.knowledge(), world.words, world.orphans, NOW)
+        assert target.row == row
+        assert removal.released_orphans == ((700,) if target.release else ())
 
     def test_the_acting_word_is_left_to_its_press(self) -> None:
         """Q15: a word pressed Learn on a listed lemma reads Known before the forget; its

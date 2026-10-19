@@ -52,7 +52,9 @@ OTHER_SOURCES: tuple[tuple[WordState, ...], ...] = (
     (single(6, K, Binding(NoteKind.LEARN, DUE)), single(7, S)),
 )
 ORPHANS: tuple[tuple[BindingRef, ...], ...] = (
-    (), (BindingRef(501, DUE),), (BindingRef(502, FRESH),),
+    (), (BindingRef(501, DUE, L),), (BindingRef(502, FRESH, C),),
+    (BindingRef(503, FRESH, K), BindingRef(504, DUE, K), BindingRef(505, DUE, C),
+     BindingRef(506, FRESH, L)),
 )
 
 

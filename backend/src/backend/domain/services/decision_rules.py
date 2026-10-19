@@ -137,10 +137,11 @@ class WordOutcome:
 
 @dataclass(frozen=True)
 class BindingRef:
-    """An active binding whose card or source is gone."""
+    """An active binding whose card or source is gone, with the choice its card had."""
 
     binding_id: int
     learning_since: datetime
+    card_choice: CardChoice
 
 
 @dataclass(frozen=True)
@@ -561,15 +562,29 @@ def removal_key(word: WordState, lemma: LemmaKnowledge, now: datetime) -> Remova
 
 
 @dataclass(frozen=True)
+class OrphanKey:
+    card_choice: CardChoice     # the choice its card had when the card or source went
+    due: bool                   # the binding's timer is due
+
+
+@dataclass(frozen=True)
 class OrphanTarget:
     row: str
     release: bool
 
 
-ORPHAN_RULES: Mapping[bool, OrphanTarget] = MappingProxyType(
-    {True: OrphanTarget("O1", release=True), False: OrphanTarget("O0", release=False)},
+ORPHAN_ROWS: tuple[tuple[OrphanKey, OrphanTarget], ...] = (
+    *((OrphanKey(c, False), OrphanTarget("O0", release=False)) for c in (_L, _C)),
+    *((OrphanKey(c, True), OrphanTarget("O1", release=True)) for c in (_L, _C)),
+    # The principle: Known removed makes the word NEW, so a Known card's binding goes too.
+    *((OrphanKey(_K, due), OrphanTarget("O2", release=True)) for due in (False, True)),
 )
-"""Keyed by whether the orphaned binding's timer is due."""
+ORPHAN_RULES: Mapping[OrphanKey, OrphanTarget] = MappingProxyType(dict(ORPHAN_ROWS))
+"""A Learn or Cloze card's orphan keeps the word Learning until its timer (Q13)."""
+
+
+def orphan_key(ref: BindingRef, now: datetime) -> OrphanKey:
+    return OrphanKey(ref.card_choice, timer_due(ref.learning_since, now))
 
 
 def on_known_removed(
@@ -589,7 +604,7 @@ def on_known_removed(
         ),
         released_orphans=tuple(
             ref.binding_id for ref in orphans
-            if ORPHAN_RULES[timer_due(ref.learning_since, now)].release
+            if rule(ORPHAN_RULES, orphan_key(ref, now)).release
         ),
     )
 
