@@ -16,6 +16,7 @@ from backend.domain.services.phrase_building import (
     word_spans,
     words_of,
 )
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase import Phrase
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
@@ -79,7 +80,7 @@ def make_occurrence(
         source_phrase=phrase(source_text),
         phrase_position=None,
         key=None,
-        fragment_score=None,
+        fragment_score=None, earned_section=CandidateSection.READY,
         shown_by=shown_by,
         polished_phrase=phrase(polished_text) if polished_text is not None else None,
         meaning=meaning,

@@ -13,6 +13,7 @@ from backend.domain.entities.occurrence import Occurrence
 from backend.domain.exceptions import PhraseNotFoundError, TargetNotInPhraseError
 from backend.domain.services.export_readiness import missing_parts
 from backend.domain.services.phrase_building import target_by_lemma
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.job_status import JobStatus
@@ -29,9 +30,11 @@ from backend.infrastructure.persistence.sqla_job_repository import SqlaJobReposi
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
+from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from sqlalchemy import text
 
+from tests.candidate_sorter_support import section_stamper
 from tests.card_support import card_views
 from tests.decision_support import Decisions
 from tests.lock_support import free_lock
@@ -82,6 +85,7 @@ class Bench:
             occurrence_repo=self.occurrences,
             candidate_repo=SqlaCandidateRepository(session),
             phrase_reader=reader,
+            stamper=section_stamper(SqlaSettingsRepository(session)),
             job_repo=SqlaJobRepository(session),
             lock=free_lock(),
             card_views=card_views(session),
@@ -146,7 +150,8 @@ class Bench:
         added = self.occurrences.add(Occurrence(
             candidate_id=WORD, origin=OccurrenceOrigin.MANUAL,
             source_phrase=phrase("We ran home.", "ran", lemmas=_LEMMAS), phrase_position=None,
-            key=None, fragment_score=None, shown_by=ShownBy.USER,
+            key=None, fragment_score=None,
+            earned_section=CandidateSection.READY, shown_by=ShownBy.USER,
         ))
         assert added.id is not None
         return added.id
@@ -340,3 +345,9 @@ def test_export_takes_the_example_and_holds_it_back_until_generated(
     assert card.phrase.id == example.id
     assert batch.in_group(ExportGroup.READY) == []
     assert [p.value for p in missing_parts(card.phrase)] == missing
+
+
+def test_an_example_is_stamped(bench: Bench) -> None:
+    example = bench.replace(CARD)
+
+    assert example.earned_section is CandidateSection.READY

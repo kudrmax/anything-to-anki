@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.application.utils.candidate_factory import CandidateFactory
-from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import InvalidPhraseError
 from backend.domain.value_objects.card_choice import Press
@@ -12,16 +10,13 @@ from backend.domain.value_objects.source_role import SourceRole
 if TYPE_CHECKING:
     from backend.application.dto.source_dtos import CardDTO
     from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
+    from backend.application.utils.candidate_factory import CandidateFactory
     from backend.application.utils.card_views import CardViews
+    from backend.application.utils.collected_phrases import CollectedPhrases
     from backend.application.utils.phrase_reader import PhraseReader
-    from backend.domain.ports.candidate_repository import CandidateRepository
-    from backend.domain.ports.cefr_classifier import CEFRClassifier
-    from backend.domain.ports.frequency_provider import FrequencyProvider
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
-    from backend.domain.ports.text_analyzer import TextAnalyzer
     from backend.domain.ports.unit_of_work import UnitOfWork
-    from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
 
 SINGLE_OCCURRENCE = 1
 
@@ -37,11 +32,8 @@ class AddSavedPhraseUseCase:
     def __init__(
         self,
         source_repo: SourceRepository,
-        candidate_repo: CandidateRepository,
-        text_analyzer: TextAnalyzer,
-        cefr_classifier: CEFRClassifier,
-        frequency_provider: FrequencyProvider,
-        phrasal_verb_detector: PhrasalVerbDetector,
+        collected_phrases: CollectedPhrases,
+        candidate_factory: CandidateFactory,
         phrase_reader: PhraseReader,
         occurrence_repo: OccurrenceRepository,
         card_views: CardViews,
@@ -53,13 +45,8 @@ class AddSavedPhraseUseCase:
         self._decide_phrase = decide_phrase
         self._occurrences = occurrence_repo
         self._card_views = card_views
-        self._collected = CollectedPhrases(candidate_repo, occurrence_repo)
-        self._candidate_factory = CandidateFactory(
-            text_analyzer=text_analyzer,
-            cefr_classifier=cefr_classifier,
-            frequency_provider=frequency_provider,
-            phrasal_verb_detector=phrasal_verb_detector,
-        )
+        self._collected = collected_phrases
+        self._candidate_factory = candidate_factory
         self._phrase_reader = phrase_reader
 
     def execute(self, phrase: str, target_words: list[int]) -> CardDTO:

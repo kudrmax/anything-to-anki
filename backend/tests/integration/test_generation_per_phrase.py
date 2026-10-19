@@ -53,7 +53,7 @@ from tests.decision_support import Decisions
 from tests.integration.conftest import insert_source
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
-from tests.word_support import CREATED_AT, insert_word, phrase_id_of
+from tests.word_support import CREATED_AT, TEST_SECTION, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -87,11 +87,13 @@ def factory(tmp_path: Path) -> sessionmaker[Session]:
         session.execute(
             text(
                 "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by,"
-                " choice, created_at)"
-                " VALUES (:id, :word, :phrase, 'manual', 'user', 'none', :created_at)"
+                " choice, created_at, earned_section)"
+                " VALUES (:id, :word, :phrase, 'manual', 'user', 'none', :created_at,"
+                " :section)"
             ),
             {
                 "id": OTHER_PHRASE, "word": WORD, "created_at": CREATED_AT,
+                "section": TEST_SECTION,
                 "phrase": dump_phrase(phrase("She glared back at him", "glared")),
             },
         )

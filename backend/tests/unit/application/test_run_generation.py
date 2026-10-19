@@ -105,7 +105,7 @@ def _phrase(
         source_phrase=phrase("The air was stale", "stale"),
         phrase_position=None,
         key=None,
-        fragment_score=None,
+        fragment_score=None, earned_section=CandidateSection.READY,
         revision=revision,
         shown_by=ShownBy.SELECTION,
         choice=(

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import CardChoice
 from backend.infrastructure.persistence.models import dump_phrase
 from sqlalchemy import text
@@ -22,6 +23,8 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 CREATED_AT = "2026-01-01 00:00:00"
+# The section the seeded phrases earned.
+TEST_SECTION = "ready"
 # The values of `insert_word`'s `status`: what candidates.status stores, and "skip".
 PENDING, LEARN, KNOWN, SKIP = "pending", "learn", "known", "skip"
 # Phrase ids of seeds start past this, so a phrase id never equals a word id.
@@ -67,8 +70,9 @@ def insert_word(
     db.execute(
         text(
             "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, choice,"
-            " created_at)"
-            " VALUES (:id, :word_id, :phrase, 'auto', 'selection', :choice, :created_at)"
+            " created_at, earned_section)"
+            " VALUES (:id, :word_id, :phrase, 'auto', 'selection', :choice, :created_at,"
+            " :section)"
         ),
         {
             "id": phrase_id_of(word_id),
@@ -76,6 +80,7 @@ def insert_word(
             "phrase": dump_phrase(phrase(phrase_text or lemma, lemma)),
             "choice": CHOICE_OF_STATUS.get(status, CardChoice.NONE).value,
             "created_at": CREATED_AT,
+            "section": TEST_SECTION,
         },
     )
 
@@ -213,7 +218,7 @@ def store_card(
         source_phrase=text,
         phrase_position=position,
         key=None,
-        fragment_score=None,
+        fragment_score=None, earned_section=CandidateSection.READY,
         shown_by=ShownBy.SELECTION if origin is OccurrenceOrigin.AUTO else ShownBy.USER,
         choice=choice,
     ))

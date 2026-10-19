@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from backend.application.utils.knowledge_scope import KnowledgeScope
 from backend.domain.entities.occurrence import Occurrence
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.infrastructure.api.app import app
@@ -228,7 +229,8 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
         sibling = SqlaOccurrenceRepository(session).add(Occurrence(
             candidate_id=WORD, origin=OccurrenceOrigin.MANUAL,
             source_phrase=phrase("She glared back.", "glared"), phrase_position=None,
-            key=None, fragment_score=None, shown_by=ShownBy.USER,
+            key=None, fragment_score=None,
+            earned_section=CandidateSection.READY, shown_by=ShownBy.USER,
         ))
         session.execute(
             text("UPDATE phrases SET id = :id WHERE id = :old"),

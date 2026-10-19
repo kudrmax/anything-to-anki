@@ -36,9 +36,11 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.topic_target import TopicTarget
 from backend.domain.entities.unknown_word import UnknownWord
 from backend.domain.entities.word_decision import WordDecision
+from backend.domain.exceptions import PhraseSectionMissingError
 from backend.domain.services.card_view import CHOSEN_TO_LEARN
 from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.built_analysis import WordData
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import DECISION_CHOICES, CardChoice, DecisionStatus
 from backend.domain.value_objects.cefr_breakdown import (
     CAMBRIDGE,
@@ -510,6 +512,7 @@ class PhraseModel(Base):
         nullable=False, default=False, server_default="0",
     )
     fragment_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    earned_section: Mapped[str | None] = mapped_column(String(20), nullable=True)
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     shown_by: Mapped[str | None] = mapped_column(String(10), nullable=True)
     origin: Mapped[str] = mapped_column(String(10), nullable=False)
@@ -563,6 +566,7 @@ class PhraseModel(Base):
             phrase_position=load_position(self.phrase_position),
             key=self.key(),
             fragment_score=self.fragment_score,
+            earned_section=earned_section_of(self.earned_section, self.id),
             revision=self.revision,
             shown_by=ShownBy(self.shown_by) if self.shown_by is not None else None,
             choice=CardChoice(self.choice),
@@ -593,6 +597,7 @@ class PhraseModel(Base):
             polished_phrase=dump_phrase(occurrence.polished_phrase),
             polish_reverted=occurrence.polish_reverted,
             fragment_score=occurrence.fragment_score,
+            earned_section=occurrence.earned_section.value,
             revision=occurrence.revision,
             shown_by=occurrence.shown_by.value if occurrence.shown_by else None,
             origin=occurrence.origin.value,
@@ -606,6 +611,13 @@ class PhraseModel(Base):
                 occurrence.collected_from.source_title if occurrence.collected_from else None
             ),
         )
+
+
+def earned_section_of(stored: str | None, phrase_id: int) -> CandidateSection:
+    """The section stored on a phrase; one without it fails, the fix script stamps it."""
+    if stored is None:
+        raise PhraseSectionMissingError(phrase_id)
+    return CandidateSection(stored)
 
 
 class DocumentParseModel(Base):

@@ -23,6 +23,7 @@ from tests.rebuild_support import (
     COLLECTED,
     EXAMPLE,
     MANUAL,
+    READY_RULE,
     SELECTION,
     USER,
     breakdown,
@@ -54,7 +55,7 @@ def plan(
     *,
     include_open: bool = False,
 ) -> RebuildPlan:
-    return plan_rebuild(SOURCE, existing, words, analysed, include_open)
+    return plan_rebuild(SOURCE, existing, words, analysed, include_open, READY_RULE)
 
 
 # ── an in-memory store that applies a plan the way the repository does ─────────
@@ -127,6 +128,7 @@ class Store:
     def plan(self, analysed: list[BuiltWord], include_open: bool) -> RebuildPlan:
         return plan_rebuild(
             SOURCE, list(self.rows.values()), list(self.words.values()), analysed, include_open,
+            READY_RULE,
         )
 
 
@@ -213,7 +215,7 @@ def test_untouchable_phrases_are_never_deleted_nor_changed(
     rows, words, analysed = random_source(seed)
     untouchable = {r.id for r in rows if is_untouchable(r)}
 
-    result = plan_rebuild(SOURCE, rows, words, analysed, include_open)
+    result = plan_rebuild(SOURCE, rows, words, analysed, include_open, READY_RULE)
 
     changed = (
         set(result.occ_to_delete)
@@ -232,7 +234,7 @@ def test_without_include_open_touched_phrases_stay_and_keep_their_text(seed: int
     touched = {r.id for r in rows if is_touched(r, r.candidate_id in decided)}
     text_of = {r.id: r.text_hash for r in rows}
 
-    result = plan_rebuild(SOURCE, rows, words, analysed, include_open=False)
+    result = plan_rebuild(SOURCE, rows, words, analysed, False, READY_RULE)
 
     assert not set(result.occ_to_delete) & touched
     for update in result.occ_to_update_text:
@@ -245,7 +247,7 @@ def test_without_include_open_touched_phrases_stay_and_keep_their_text(seed: int
 def test_decided_words_are_never_removed(seed: int, include_open: bool) -> None:
     rows, words, analysed = random_source(seed)
 
-    result = plan_rebuild(SOURCE, rows, words, analysed, include_open)
+    result = plan_rebuild(SOURCE, rows, words, analysed, include_open, READY_RULE)
 
     assert not set(result.words_to_delete) & {w.id for w in words if _decided(w)}
 

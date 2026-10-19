@@ -22,6 +22,7 @@ from backend.domain.exceptions import (
     RefreshNotSupportedError,
     TopicTargetsMissingError,
 )
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.phrase_origin import PhraseOrigin
@@ -43,12 +44,14 @@ from backend.infrastructure.persistence.sqla_known_word_repository import (
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
+from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from backend.infrastructure.persistence.sqla_topic_target_repository import (
     SqlaTopicTargetRepository,
 )
 from sqlalchemy import text
 
+from tests.candidate_sorter_support import section_stamper
 from tests.phrase_support import phrase
 from tests.word_support import store_card
 
@@ -288,6 +291,19 @@ def test_refreshing_keeps_decisions_and_results(
     assert word.status is WordStatus.LEARN
 
 
+def test_topic_and_refresh_phrases_are_stamped(
+    db_session: Session, container: Container,
+) -> None:
+    topic_id = _processed_topic(db_session, container)
+    _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
+    db_session.commit()
+    container.refresh_topic_use_case(db_session).execute(topic_id)
+
+    stored = SqlaOccurrenceRepository(db_session).by_source(topic_id)
+    assert len(stored) > 1
+    assert all(o.earned_section is CandidateSection.READY for o in stored)
+
+
 def test_a_real_phrase_added_beside_a_generated_one_is_never_replaced(
     db_session: Session, container: Container,
 ) -> None:
@@ -345,7 +361,9 @@ def _refresh_use_case(
         source_repo=SqlaSourceRepository(db_session),
         occurrence_repo=SqlaOccurrenceRepository(db_session),
         collected_phrases=CollectedPhrases(
-            SqlaCandidateRepository(db_session), SqlaOccurrenceRepository(db_session),
+            SqlaCandidateRepository(db_session),
+            SqlaOccurrenceRepository(db_session),
+            section_stamper(SqlaSettingsRepository(db_session)),
         ),
         lock=use_case._lock,
         unit_of_work=use_case._unit_of_work,

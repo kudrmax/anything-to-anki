@@ -1,8 +1,11 @@
 from dataclasses import replace
 
+import pytest
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_tts import CandidateTTS
+from backend.domain.exceptions import InvalidEarnedSectionError
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.phrase_origin_kind import ShownBy
 
@@ -61,3 +64,8 @@ def test_has_results_counts_cloze() -> None:
         custom_hint=None, phrase="He glared at me.",
     )
     assert replace(make_occurrence(), cloze=cloze).has_results
+
+
+def test_an_occurrence_never_earns_reviewed() -> None:
+    with pytest.raises(InvalidEarnedSectionError):
+        replace(make_occurrence(), earned_section=CandidateSection.REVIEWED)

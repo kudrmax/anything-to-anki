@@ -47,7 +47,11 @@ from backend.infrastructure.persistence.sqla_source_repository import SqlaSource
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from sqlalchemy import select, text
 
-from tests.candidate_sorter_support import candidate_sorter, threshold_resolver
+from tests.candidate_sorter_support import (
+    candidate_sorter,
+    section_stamper,
+    threshold_resolver,
+)
 from tests.phrase_support import phrase
 from tests.vocabulary_support import user_vocabulary
 
@@ -81,11 +85,14 @@ def time_of_line(line: int) -> tuple[int, int]:
     return line * LINE_MS, line * LINE_MS + SPOKEN_MS
 
 
-def at(line: int, score: float = 0.5, *, text: str | None = None) -> OccurrenceDTO:
-    """An occurrence on `line`; `text` stands in for a phrase the analysis now cuts there."""
+def at(
+    line: int, score: float = 0.5, *, text: str | None = None, new: tuple[str, ...] = (),
+) -> OccurrenceDTO:
+    """An occurrence on `line`; `text` stands in for a phrase the analysis now cuts there;
+    `new`: words of the phrase that are new to the user."""
     shown = text if text is not None else LINES[line]
     return OccurrenceDTO(
-        phrase=phrase(shown),
+        phrase=phrase(shown, new=new),
         phrase_position=DocumentPositionDTO(
             block=0, start_line=line, start_char=0, end_line=line, end_char=len(shown),
         ),
@@ -146,6 +153,7 @@ class Bench:
             settings_repo=settings,
             vocabulary=self.vocabulary,
             threshold_resolver=threshold_resolver(settings),
+            stamper=section_stamper(settings),
             analyze_text_use_case=self.analyze_text,
             unit_of_work=SqlaUnitOfWork(self.session, self.vocabulary.scope),
         )
@@ -161,7 +169,10 @@ class Bench:
     def process(self) -> ProcessSourceUseCase:
         return ProcessSourceUseCase(
             source_repo=self.sources,
-            collected_phrases=CollectedPhrases(self.candidates, self.occurrences),
+            collected_phrases=CollectedPhrases(
+                self.candidates, self.occurrences,
+                section_stamper(SqlaSettingsRepository(self.session)),
+            ),
             lock=self.lock,
             unit_of_work=SqlaUnitOfWork(self.session, self.vocabulary.scope),
             rebuilder=self.rebuilder(),

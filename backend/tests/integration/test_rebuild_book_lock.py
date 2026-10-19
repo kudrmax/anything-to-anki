@@ -36,7 +36,7 @@ from backend.infrastructure.persistence.sqla_source_repository import SqlaSource
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from sqlalchemy import text
 
-from tests.candidate_sorter_support import threshold_resolver
+from tests.candidate_sorter_support import section_stamper, threshold_resolver
 from tests.phrase_support import phrase
 from tests.vocabulary_support import user_vocabulary
 
@@ -148,6 +148,7 @@ def _rebuilder(
         settings_repo=settings,
         vocabulary=vocabulary,
         threshold_resolver=threshold_resolver(settings),
+        stamper=section_stamper(settings),
         analyze_text_use_case=analyze,
         unit_of_work=SqlaUnitOfWork(session, vocabulary.scope),
     )

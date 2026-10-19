@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from backend.application.utils.frequent_word_threshold_resolver import (
         FrequentWordThresholdResolver,
     )
+    from backend.application.utils.section_stamper import SectionStamper
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.document_repository import DocumentRepository
@@ -62,6 +63,7 @@ class SourceRebuilder:
         settings_repo: SettingsRepository,
         vocabulary: UserVocabulary,
         threshold_resolver: FrequentWordThresholdResolver,
+        stamper: SectionStamper,
         analyze_text_use_case: AnalyzeTextUseCase,
         unit_of_work: UnitOfWork,
     ) -> None:
@@ -73,6 +75,7 @@ class SourceRebuilder:
         self._settings_repo = settings_repo
         self._vocabulary = vocabulary
         self._threshold_resolver = threshold_resolver
+        self._stamper = stamper
         self._analyze_text = analyze_text_use_case
         self._unit_of_work = unit_of_work
         self._builder = OccurrenceBuilder()
@@ -111,6 +114,7 @@ class SourceRebuilder:
             self._occurrence_repo.word_rows(analysed.source_id),
             analysed.words,
             include_open,
+            self._stamper.rule(),
         )
 
     def apply(self, analysed: AnalysedSource, include_open: bool) -> RebuildPlan:

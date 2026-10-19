@@ -73,6 +73,7 @@ def _make(
         occurrence=Occurrence(
             id=card_id, candidate_id=card_id, origin=OccurrenceOrigin.AUTO,
             source_phrase=text, phrase_position=position, key=None, fragment_score=None,
+            earned_section=CandidateSection.READY,
             shown_by=ShownBy.SELECTION,
         ),
     )

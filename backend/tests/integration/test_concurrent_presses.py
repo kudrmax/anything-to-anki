@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.exceptions import ActionRefusedError
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import Press, Refusal
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
@@ -55,7 +56,8 @@ def _seed(factory: sessionmaker[Session]) -> int:
         second = SqlaOccurrenceRepository(session).add(Occurrence(
             candidate_id=WORD, origin=OccurrenceOrigin.MANUAL,
             source_phrase=phrase("She glared back.", "glared"), phrase_position=None,
-            key=None, fragment_score=None, shown_by=ShownBy.USER,
+            key=None, fragment_score=None,
+            earned_section=CandidateSection.READY, shown_by=ShownBy.USER,
         ))
         session.commit()
         assert second.id is not None

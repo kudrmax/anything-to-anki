@@ -18,6 +18,7 @@ from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
 from backend.domain.ports.word_state_repository import WordStateRepository
 from backend.domain.services.card_view import stored_chosen_to_learn
 from backend.domain.services.cloze_builder import ClozeBuilder
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import (
     Binding,
     CardChoice,
@@ -88,7 +89,7 @@ def export_card(
         source_phrase=text,
         phrase_position=None,
         key=None,
-        fragment_score=None,
+        fragment_score=None, earned_section=CandidateSection.READY,
         shown_by=ShownBy.SELECTION,
         choice=_CHOICE_OF_KIND[kind] if chosen else CardChoice.NONE,
         binding=binding,

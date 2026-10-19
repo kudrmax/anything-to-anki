@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
     from backend.application.utils.card_views import CardViews
     from backend.application.utils.phrase_reader import PhraseReader
+    from backend.application.utils.section_stamper import SectionStamper
     from backend.domain.entities.occurrence import OccurrenceKey
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.candidate_repository import CandidateRepository
@@ -55,6 +56,7 @@ class AddManualCandidateUseCase:
         frequency_provider: FrequencyProvider,
         phrasal_verb_detector: PhrasalVerbDetector,
         phrase_reader: PhraseReader,
+        stamper: SectionStamper,
         lock: SourceOperationLock,
         card_views: CardViews,
         decide_phrase: DecidePhraseUseCase,
@@ -75,6 +77,7 @@ class AddManualCandidateUseCase:
             phrasal_verb_detector=phrasal_verb_detector,
         )
         self._phrase_reader = phrase_reader
+        self._stamper = stamper
 
     def execute(
         self,
@@ -149,6 +152,7 @@ class AddManualCandidateUseCase:
             phrase_position=card.position,
             key=key,
             fragment_score=None,
+            earned_section=self._stamper.earned(card.phrase, card.word),
             shown_by=ShownBy.USER,
         ))
         assert added.id is not None

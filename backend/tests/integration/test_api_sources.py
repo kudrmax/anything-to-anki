@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
 from tests.unit.infrastructure.epub.epub_builder import EpubBuilder, TocLink, page, prose
+from tests.word_support import TEST_SECTION
 
 
 @pytest.fixture()
@@ -377,6 +378,7 @@ class TestSourcesAPI:
             source_phrase=dump_phrase(phrase("I'm gonna do it", "gonna")),
             origin="auto",
             shown_by="selection",
+            earned_section=TEST_SECTION,
         ))
         db_session.commit()
 

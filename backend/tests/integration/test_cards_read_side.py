@@ -8,6 +8,7 @@ import pytest
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import Occurrence
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.job_type import JobType
@@ -116,7 +117,9 @@ class Bench:
         added = self.occurrences.add(Occurrence(
             candidate_id=word_id, origin=origin, source_phrase=phrase(text, target),
             phrase_position=_at(text) if text in TEXT else None, key=None,
-            fragment_score=None, shown_by=shown_by, collected_from=collected_from,
+            fragment_score=None,
+            earned_section=CandidateSection.READY, shown_by=shown_by,
+            collected_from=collected_from,
         ))
         assert added.id is not None
         return added.id

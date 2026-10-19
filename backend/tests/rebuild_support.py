@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.occurrence import OccurrenceKey
+from backend.domain.services.candidate_sections import SectionRule
 from backend.domain.services.cefr_level_resolver import resolve_cefr_level
 from backend.domain.value_objects.built_analysis import BuiltOccurrence, BuiltWord, WordData
 from backend.domain.value_objects.card_choice import Binding, CardChoice, NoteKind
@@ -38,6 +39,8 @@ COLLECTED = OccurrenceOrigin.COLLECTED
 DEFAULT_TEXT = "He glared at me."
 EXPORTED = Binding(NoteKind.LEARN, datetime(2026, 1, 1, tzinfo=UTC))
 WORD_ID = 1
+# Every other word of a phrase is known: a new phrase earns Ready.
+READY_RULE = SectionRule(knowledge=None, frequent_threshold=None)
 
 
 def key_at(line: int) -> OccurrenceKey:

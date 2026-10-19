@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import pytest
 from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.domain.entities.stored_candidate import StoredCandidate
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.new_card import NewCard
 from backend.domain.value_objects.phrase_origin import PhraseOrigin
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
@@ -14,7 +15,9 @@ from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCan
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
+from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 
+from tests.candidate_sorter_support import section_stamper
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
@@ -35,7 +38,11 @@ def _card(source_id: int, lemma: str, text: str, origin: PhraseOrigin | None = N
 
 
 def _collected(session: Session) -> CollectedPhrases:
-    return CollectedPhrases(SqlaCandidateRepository(session), SqlaOccurrenceRepository(session))
+    return CollectedPhrases(
+        SqlaCandidateRepository(session),
+        SqlaOccurrenceRepository(session),
+        section_stamper(SqlaSettingsRepository(session)),
+    )
 
 
 def test_a_collected_phrase_is_a_shown_phrase_of_a_new_word(
@@ -93,3 +100,21 @@ def test_a_collected_phrase_is_no_decision(db_session: Session, source_id: int) 
     assert [w.status for w in words.get_by_source(source_id)] == [WordStatus.NEW] * 2
     assert words.count_chosen_to_learn() == 0
     assert words.chosen_to_learn() == []
+
+
+def test_collected_phrases_are_stamped_with_what_each_earns(
+    db_session: Session, source_id: int,
+) -> None:
+    easy = _card(source_id, "linger", "we linger here")
+    hard = NewCard(
+        word=_card(source_id, "glare", "x").word,
+        phrase=phrase("he glare at zephyr", "glare", new=["zephyr"]),
+    )
+
+    collected = _collected(db_session).add(source_id, [easy, hard])
+
+    occurrences = SqlaOccurrenceRepository(db_session)
+    stored = [occurrences.get(c.phrase_id) for c in collected]
+    assert [o.earned_section for o in stored if o is not None] == [
+        CandidateSection.READY, CandidateSection.EXTRA,
+    ]

@@ -14,6 +14,7 @@ from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.entities.token_data import TokenData
 from backend.domain.exceptions import ActionRefusedError
 from backend.domain.services.card_view import Command, Where
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import CardChoice, Press
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -23,8 +24,10 @@ from backend.infrastructure.persistence.sqla_document_repository import SqlaDocu
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
+from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 
+from tests.candidate_sorter_support import section_stamper
 from tests.decision_support import Decisions
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
@@ -84,6 +87,7 @@ class Manual:
             frequency_provider=frequency,
             phrasal_verb_detector=detector,
             phrase_reader=reader,
+            stamper=section_stamper(SqlaSettingsRepository(bench.session)),
             lock=free_lock(),
             card_views=MagicMock(),
             decide_phrase=decisions.decide_phrase(),
@@ -277,3 +281,12 @@ def test_learn_on_a_manual_card_closes_the_word_and_exports_one_phrase(bench: Be
     )
     [card] = queue.for_source(SOURCE).pending
     assert card.phrase.id == manual.id
+
+
+def test_a_manual_phrase_is_stamped(bench: Bench) -> None:
+    bench.processed(word("glare", at(0)))
+
+    Manual(bench).add(LINGER_LINE, 1)
+
+    [added] = _of(bench, "linger")
+    assert added.earned_section is CandidateSection.READY

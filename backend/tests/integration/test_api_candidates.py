@@ -5,6 +5,7 @@ from collections.abc import Generator  # noqa: TC003
 import pytest
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.stored_candidate import StoredCandidate
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
@@ -142,7 +143,8 @@ class TestDecisionAPI:
         sibling = SqlaOccurrenceRepository(session).add(Occurrence(
             candidate_id=WORD_ID, origin=OccurrenceOrigin.MANUAL,
             source_phrase=phrase("the pursuit of", "pursuit"), phrase_position=None,
-            key=None, fragment_score=None, shown_by=ShownBy.USER,
+            key=None, fragment_score=None,
+            earned_section=CandidateSection.READY, shown_by=ShownBy.USER,
         ))
         session.commit()
         client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})

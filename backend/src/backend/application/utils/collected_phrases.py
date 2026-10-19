@@ -10,6 +10,7 @@ from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, Sh
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from backend.application.utils.section_stamper import SectionStamper
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.value_objects.new_card import NewCard
@@ -27,14 +28,19 @@ class CollectedPhrases:
     has none yet."""
 
     def __init__(
-        self, candidate_repo: CandidateRepository, occurrence_repo: OccurrenceRepository,
+        self,
+        candidate_repo: CandidateRepository,
+        occurrence_repo: OccurrenceRepository,
+        stamper: SectionStamper,
     ) -> None:
         self._candidates = candidate_repo
         self._occurrences = occurrence_repo
+        self._stamper = stamper
 
     def add(self, source_id: int, cards: Sequence[NewCard]) -> list[CollectedPhrase]:
         """The stored phrases, in the order of `cards`."""
         words = {w.key: w.id for w in self._occurrences.word_rows(source_id)}
+        rule = self._stamper.rule()
         collected: list[CollectedPhrase] = []
         for card in cards:
             key = WordKey.of(card.word.lemma, card.word.is_phrasal_verb)
@@ -50,6 +56,7 @@ class CollectedPhrases:
                 phrase_position=card.position,
                 key=None,
                 fragment_score=None,
+                earned_section=rule.earned(card.phrase, card.word),
                 shown_by=ShownBy.USER,
                 collected_from=card.origin,
             ))

@@ -397,6 +397,7 @@ class Container:
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
             phrase_reader=self._phrase_reader,
+            stamper=self._section_stamper(session),
             lock=SqlaSourceOperationLock(session),
             card_views=self._card_views(session),
             decide_phrase=self.decide_phrase_use_case(session),
@@ -421,11 +422,8 @@ class Container:
     def add_saved_phrase_use_case(self, session: Session) -> AddSavedPhraseUseCase:
         return AddSavedPhraseUseCase(
             source_repo=SqlaSourceRepository(session),
-            candidate_repo=SqlaCandidateRepository(session),
-            text_analyzer=self._text_analyzer,
-            cefr_classifier=self._cefr_classifier,
-            frequency_provider=self._frequency_provider,
-            phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
+            collected_phrases=self._collected_phrases(session),
+            candidate_factory=self._candidate_factory(),
             phrase_reader=self._phrase_reader,
             occurrence_repo=SqlaOccurrenceRepository(session),
             card_views=self._card_views(session),
@@ -587,6 +585,7 @@ class Container:
             settings_repo=settings_repo,
             vocabulary=self._user_vocabulary(session),
             threshold_resolver=self._threshold_resolver(session),
+            stamper=self._section_stamper(session),
             analyze_text_use_case=self.analyze_text_use_case(),
             unit_of_work=self._unit_of_work(session),
         )
@@ -611,6 +610,7 @@ class Container:
         return CollectedPhrases(
             candidate_repo=SqlaCandidateRepository(session),
             occurrence_repo=SqlaOccurrenceRepository(session),
+            stamper=self._section_stamper(session),
         )
 
     def _topic_phrase_collector(self, session: Session) -> TopicPhraseCollector:
@@ -732,6 +732,7 @@ class Container:
             occurrence_repo=SqlaOccurrenceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             phrase_reader=self._phrase_reader,
+            stamper=self._section_stamper(session),
             job_repo=SqlaJobRepository(session),
             lock=SqlaSourceOperationLock(session),
             card_views=self._card_views(session),

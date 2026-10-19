@@ -189,6 +189,7 @@ def _new_row(planned: OccurrenceInsert, word_id: int) -> dict[str, object]:
         "fragment_score": occurrence.fragment_score,
         "origin": OccurrenceOrigin.AUTO.value,
         "shown_by": ShownBy.SELECTION.value if planned.shown else None,
+        "earned_section": planned.earned_section.value,
     }
 
 
