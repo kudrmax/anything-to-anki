@@ -132,18 +132,12 @@ export function useSettings() {
 
   /** Запись списка удаляется по id, слово Known по таймеру — по lemma; списки перечитываются. */
   const deleteWord = async (word: KnownWord) => {
-    const key = knownWordKey(word)
-    setDeletingKey(key)
+    setDeletingKey(knownWordKey(word))
     try {
-      if (word.id === null) {
-        await api.deleteTimerKnownWord(word.lemma)
-        const [known, learning] = await Promise.all([api.getKnownWords(), api.getLearningWords()])
-        setKnownWords(known)
-        setLearningWords(learning)
-      } else {
-        await api.deleteKnownWord(word.id)
-        setKnownWords(prev => prev.filter(w => knownWordKey(w) !== key))
-      }
+      await (word.id === null ? api.deleteTimerKnownWord(word.lemma) : api.deleteKnownWord(word.id))
+      const [known, learning] = await Promise.all([api.getKnownWords(), api.getLearningWords()])
+      setKnownWords(known)
+      setLearningWords(learning)
     } finally {
       setDeletingKey(null)
     }

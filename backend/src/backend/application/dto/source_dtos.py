@@ -32,7 +32,6 @@ from backend.domain.value_objects.elsewhere import (
 )
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
-from backend.domain.value_objects.word_status import WordStatus  # noqa: TC001 — Pydantic
 
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_meaning import CandidateMeaning
@@ -201,14 +200,12 @@ class ButtonDTO(BaseModel):
 class CardStateDTO(BaseModel):
     """What a card shows of the decision on its word, and what each button does.
 
-    `decided_elsewhere`: the decision of the word, made on another of its cards.
     `elsewhere`: the word, open here, is known, in Anki or marked Learn via another source.
     `note`: why the card shows what it shows; `known_on`: when a card in Anki reads Known by
     its timer, if the note tells it.
     `buttons`: Learn, Cloze, Known, Skip, in this order."""
 
     decided_here: bool
-    decided_elsewhere: WordStatus | None = None
     elsewhere: ElsewhereStatus | None = None
     note: CardNote | None = None
     known_on: datetime | None = None
@@ -219,7 +216,6 @@ class CardStateDTO(BaseModel):
         where = view.shown.where
         return CardStateDTO(
             decided_here=where is Where.HERE,
-            decided_elsewhere=word_status(view) if where is Where.OTHER_CARD else None,
             elsewhere=elsewhere if where is Where.OTHER_SOURCE else None,
             note=view.note,
             known_on=view.known_on,

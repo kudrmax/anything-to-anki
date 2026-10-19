@@ -125,6 +125,7 @@ class NoteKey:
     listed: bool                        # normalised: reads Known through the Known list
     elsewhere: ElsewhereStatus | None   # normalised: OPEN cards only
     unknown: bool = False               # normalised: a Learning card in Anki, lemma in Unknown
+    decided_known: bool = False         # normalised: OTHER cards, the word's decision is Known
 
 
 @dataclass(frozen=True)
@@ -143,6 +144,7 @@ def possible_note(key: NoteKey) -> bool:
         and (not key.reads_known or key.bound or key.listed)
         and (not key.listed or key.reads_known)
         and (not key.unknown or (key.bound and not key.known_choice and not key.reads_known))
+        and (not key.decided_known or key.role is Role.OTHER)
     )
 
 
@@ -161,14 +163,15 @@ NOTE_RULES: Mapping[NoteKey, NoteRow] = MappingProxyType(
             for elsewhere, note in _ELSEWHERE_NOTES.items()
         },
         NoteKey(Role.OTHER, False, False, False, False, None):
-            NoteRow(CardNote.DECIDED_ON_OTHER_CARD),
+            NoteRow(CardNote.LEARNED_ON_OTHER_CARD),
+        NoteKey(Role.OTHER, False, False, False, False, None, decided_known=True):
+            NoteRow(CardNote.KNOWN_ON_OTHER_CARD),
         NoteKey(Role.DECISION, False, False, False, False, None): NoteRow(None),
         NoteKey(Role.DECISION, False, True, False, False, None): NoteRow(None),
         NoteKey(Role.DECISION, True, False, False, False, None):
             NoteRow(CardNote.IN_ANKI, dated=True),
         NoteKey(Role.DECISION, True, True, False, False, None): NoteRow(CardNote.IN_ANKI),
-        NoteKey(Role.DECISION, True, False, True, False, None):
-            NoteRow(CardNote.KNOWN_BY_TIMER, dated=True),
+        NoteKey(Role.DECISION, True, False, True, False, None): NoteRow(CardNote.KNOWN_BY_TIMER),
         NoteKey(Role.DECISION, True, False, True, True, None): NoteRow(CardNote.KNOWN_BY_LIST),
         # Q15: a Learn not in Anki yet whose lemma was put in Known after it.
         NoteKey(Role.DECISION, False, False, True, True, None): NoteRow(CardNote.KNOWN_BY_LIST),
@@ -197,6 +200,7 @@ def note_key(
         listed=known and lemma.known_marked,
         elsewhere=_open_elsewhere(role, elsewhere),
         unknown=in_anki(card) and card.choice is not CardChoice.KNOWN and lemma.unknown,
+        decided_known=role is Role.OTHER and decision_status(word) is DecisionStatus.KNOWN,
     )
 
 

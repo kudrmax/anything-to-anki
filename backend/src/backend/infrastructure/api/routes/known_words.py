@@ -37,7 +37,7 @@ def delete_known_word(
     return {"deleted": known_word_id}
 
 
-@router.delete("/by-lemma/{lemma}")
+@router.delete("/by-lemma/{lemma:path}")
 def delete_timer_known_word(
     lemma: str,
     session: Session = Depends(get_db_session),  # noqa: B008

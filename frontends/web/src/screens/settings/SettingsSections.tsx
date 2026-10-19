@@ -6,6 +6,7 @@ import { CLOZE_DEFAULT_HINT_OPTIONS } from '@/lib/clozeHints'
 import { autoPlayAudioPref, type ThemePref } from '@/lib/preferences'
 import { formatBytes, formatDay } from '@/lib/text/format'
 import { useTheme } from '@/lib/theme'
+import { KNOWN_ON_LABEL, TIMER_KNOWN_LABEL } from '@/screens/review/cardNotes'
 import { Button, Chip, DividerRow, Empty, GroupLabel, Field, Icon, Label, Range, RemovableChip, Segmented, Select, Spinner, Stack, Switch, Text } from '@/ui'
 import { knownWordKey, unknownWordKey, type SettingsStore, type TemplatePart } from './useSettings'
 import css from './settings.module.css'
@@ -392,10 +393,8 @@ function WordList({ words, hint, empty, deletingKey }: WordListProps) {
 const KNOWN_WORDS_HINT = "Known words won't be suggested when processing new sources."
 const UNKNOWN_WORDS_HINT = 'Phrases with these words never count as ready: only their target should be new.'
 
-/** Пометка слова Known по таймеру: оно не в списке, а Known по 30 дням в Anki. */
-const TIMER_KNOWN_MARK = 'Known: 30 days in Anki'
 const knownWordLabel = (word: KnownWord): string =>
-  [word.lemma, word.pos, word.by_timer ? TIMER_KNOWN_MARK : null].filter(Boolean).join(' · ')
+  [word.lemma, word.pos, word.by_timer ? TIMER_KNOWN_LABEL : null].filter(Boolean).join(' · ')
 
 export function KnownWords({ store }: { store: SettingsStore }) {
   return (
@@ -412,7 +411,6 @@ export function KnownWords({ store }: { store: SettingsStore }) {
   )
 }
 
-const KNOWN_ON = 'Known on'
 const LEARNING_HINT = 'Words you are learning. A word in Anki becomes known on the day shown; until then they are not suggested as new.'
 
 /** «Учу» — только для просмотра: в Anki (с днём, когда станет Known) и ждут экспорта. */
@@ -420,7 +418,7 @@ export function LearningWordsList({ store }: { store: SettingsStore }) {
   const { in_anki: inAnki, awaiting_export: awaiting } = store.learningWords
   if (inAnki.length === 0 && awaiting.length === 0) return <Empty>Nothing to learn yet. Mark words as Learn in review.</Empty>
   const groups = [
-    { title: 'In Anki', words: inAnki.map(word => ({ lemma: word.lemma, label: `${word.lemma} · ${KNOWN_ON} ${formatDay(word.known_on)}` })) },
+    { title: 'In Anki', words: inAnki.map(word => ({ lemma: word.lemma, label: `${word.lemma} · ${KNOWN_ON_LABEL} ${formatDay(word.known_on)}` })) },
     { title: 'Waiting for export', words: awaiting.map(lemma => ({ lemma, label: lemma })) },
   ].filter(group => group.words.length > 0)
   return (

@@ -268,7 +268,8 @@ export interface CardButton {
 
 /** Почему карточка показывает то, что показывает; решает backend. */
 export type CardNote =
-  | 'decided_on_other_card'
+  | 'learned_on_other_card'
+  | 'known_on_other_card'
   | 'known_elsewhere'
   | 'learning_elsewhere'
   | 'learn_elsewhere'
@@ -279,8 +280,6 @@ export type CardNote =
 /** Что карточка показывает из решения по слову и что делает каждая кнопка; считает backend. */
 export interface CardState {
   decided_here: boolean
-  /** Решение слова, принятое на другой его карточке. */
-  decided_elsewhere: 'learn' | 'known' | null
   /** Слово открыто здесь, но известно, в Anki или отмечено Learn в другом источнике. */
   elsewhere: 'known' | 'learning' | 'learn' | null
   /** Подпись карточки; null — без подписи. */

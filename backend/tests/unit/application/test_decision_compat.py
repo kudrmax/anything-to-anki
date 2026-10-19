@@ -87,7 +87,7 @@ class OldDTO:
     word_status: str
     buttons: dict[str, tuple[str | None, bool]]   # button → (action, pressed)
     decided_here: bool = False
-    decided_elsewhere: str | None = None
+    note: str | None = None
     elsewhere: str | None = None
     can_cloze: bool = True
     is_done: bool = True
@@ -111,7 +111,7 @@ SNAPSHOTS: dict[str, tuple[State, OldDTO]] = {
     "open_known_elsewhere": (
         State(CardState(CARD, N), elsewhere=ElsewhereStatus.KNOWN),
         OldDTO(P, P, _buttons((None, False), (None, False), (None, False), ("skip", False)),
-               elsewhere="known"),
+               elsewhere="known", note="known_elsewhere"),
     ),
     "learn": (
         State(CardState(CARD, L)),
@@ -130,41 +130,41 @@ SNAPSHOTS: dict[str, tuple[State, OldDTO]] = {
         State(CardState(CARD, N), CardState(SIBLING, L)),
         OldDTO("learn", "learn",
                _buttons((None, True), (None, False), (None, False), (None, False)),
-               decided_elsewhere="learn"),
+               note="learned_on_other_card"),
     ),
     # Skip shows pressed beside the word's Known on a skipped sibling (task 4); it did not.
     "skipped_card_of_a_known_word": (
         State(CardState(CARD, S), CardState(SIBLING, K), known_marked=True),
         OldDTO("known", "known",
                _buttons((None, False), (None, False), (None, True), (U, True)),
-               decided_elsewhere="known"),
+               note="known_on_other_card"),
     ),
     # Q11: every button works on a card in Anki; Cloze makes a cloze note on the next export.
     "learn_in_anki": (
         State(CardState(CARD, L, Binding(NoteKind.LEARN, FRESH))),
         OldDTO("learn", "learn",
                _buttons((P, True), ("cloze", False), ("known", False), ("skip", False)),
-               decided_here=True),
+               decided_here=True, note="in_anki"),
     ),
     # Cloze is off on a cloze in Anki: its markup can't change there ("Already in Anki").
     "cloze_in_anki": (
         State(CardState(CARD, C, Binding(NoteKind.CLOZE, FRESH))),
         OldDTO("learn", "learn",
                _buttons(("learn", False), (None, True), ("known", False), ("skip", False)),
-               decided_here=True, can_cloze=False),
+               decided_here=True, can_cloze=False, note="in_anki"),
     ),
     "known_by_its_timer": (
         State(CardState(CARD, L, Binding(NoteKind.LEARN, DUE))),
         OldDTO("known", "known",
                _buttons(("learn", False), ("cloze", False), (P, True), ("skip", False)),
-               decided_here=True),
+               decided_here=True, note="known_by_timer"),
     ),
     # Q15: a Learn not exported reads Known once its lemma is put in Known.
     "learn_then_listed": (
         State(CardState(CARD, L), known_marked=True),
         OldDTO("known", "known",
                _buttons(("learn", False), ("cloze", False), (P, True), ("skip", False)),
-               decided_here=True),
+               decided_here=True, note="known_by_list"),
     ),
 }
 
@@ -178,8 +178,8 @@ def test_the_dto_has_the_old_values(name: str) -> None:
     assert (dto.status, dto.word_status) == (expected.status, expected.word_status)
     assert {b.button.value: (b.action.value if b.action else None, b.pressed)
             for b in dto.state.buttons} == expected.buttons
-    assert (dto.state.decided_here, dto.state.decided_elsewhere, dto.state.elsewhere) == (
-        expected.decided_here, expected.decided_elsewhere, expected.elsewhere,
+    assert (dto.state.decided_here, dto.state.note, dto.state.elsewhere) == (
+        expected.decided_here, expected.note, expected.elsewhere,
     )
     assert (dto.can_cloze, dto.is_done) == (expected.can_cloze, expected.is_done)
 

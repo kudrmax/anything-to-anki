@@ -141,7 +141,7 @@ class TestDerivedConsistency:
         keys = [
             NoteKey(*fields) for fields in itertools.product(
                 Role, (False, True), (False, True), (False, True), (False, True),
-                (None, *ElsewhereStatus), (False, True),
+                (None, *ElsewhereStatus), (False, True), (False, True),
             )
         ]
         assert {key for key in keys if possible_note(key)} == set(NOTE_RULES)
@@ -243,13 +243,13 @@ class TestPerState:
         "learn": (None, None), "cloze": (None, None), "known": (None, None),
         "learning": (CardNote.IN_ANKI, KNOWN_ON_FRESH),
         "learning_cloze": (CardNote.IN_ANKI, KNOWN_ON_FRESH),
-        "known_by_timer": (CardNote.KNOWN_BY_TIMER, NOW),
+        "known_by_timer": (CardNote.KNOWN_BY_TIMER, None),
         "known_by_list": (CardNote.KNOWN_BY_LIST, None),
         "learn_then_listed": (CardNote.KNOWN_BY_LIST, None),
         "known_in_anki": (CardNote.IN_ANKI, None),
         "in_anki_unknown": (CardNote.IN_ANKI, None),
-        "other_open": (CardNote.DECIDED_ON_OTHER_CARD, None),
-        "other_skip": (CardNote.DECIDED_ON_OTHER_CARD, None),
+        "other_open": (CardNote.LEARNED_ON_OTHER_CARD, None),
+        "other_skip": (CardNote.KNOWN_ON_OTHER_CARD, None),
     }))
     def test_note(self, state: str, expected: tuple[CardNote | None, datetime | None]) -> None:
         view = STATES[state].view()

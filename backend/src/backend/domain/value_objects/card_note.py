@@ -6,7 +6,8 @@ from enum import StrEnum
 class CardNote(StrEnum):
     """Why a card shows what it shows, beside its buttons."""
 
-    DECIDED_ON_OTHER_CARD = "decided_on_other_card"
+    LEARNED_ON_OTHER_CARD = "learned_on_other_card"
+    KNOWN_ON_OTHER_CARD = "known_on_other_card"
     KNOWN_ELSEWHERE = "known_elsewhere"
     LEARNING_ELSEWHERE = "learning_elsewhere"
     LEARN_ELSEWHERE = "learn_elsewhere"
