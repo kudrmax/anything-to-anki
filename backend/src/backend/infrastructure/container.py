@@ -69,6 +69,7 @@ from backend.application.utils.phrase_reader import PhraseReader
 from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.rewrite_phrase import RewritePhrase
+from backend.application.utils.section_stamper import SectionStamper
 from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.application.utils.topic_generation import TopicGenerationProbe
@@ -744,6 +745,12 @@ class Container:
         return FrequentWordThresholdResolver(
             settings_repo=SqlaSettingsRepository(session),
             decision_repo=SqlaWordDecisionRepository(session),
+        )
+
+    def _section_stamper(self, session: Session) -> SectionStamper:
+        return SectionStamper(
+            knowledge=self._user_knowledge(session),
+            threshold_resolver=self._threshold_resolver(session),
         )
 
     def _candidate_sorter(self, session: Session) -> CandidateSorter:

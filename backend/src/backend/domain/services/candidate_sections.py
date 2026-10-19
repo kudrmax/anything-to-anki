@@ -6,6 +6,7 @@ different sections.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 from backend.domain.services.card_view import section
@@ -83,6 +84,37 @@ def card_section(
 ) -> CandidateSection:
     """Where the card stands: Reviewed once done, else the section its phrase earns."""
     return section(card, section_of(card, knowledge, frequent_threshold))
+
+
+@dataclass(frozen=True)
+class _PhraseOfWord:
+    """A word shown in a phrase: what `section_of` reads of a card."""
+
+    word: WordFacts
+    phrase: Phrase
+
+    @property
+    def lemma(self) -> str:
+        return self.word.lemma
+
+    @property
+    def pos(self) -> str:
+        return self.word.pos
+
+    @property
+    def zipf_frequency(self) -> float:
+        return self.word.zipf_frequency
+
+
+@dataclass(frozen=True)
+class SectionRule:
+    """What the user knows at one moment, to tell the section a phrase earns."""
+
+    knowledge: UserKnowledge | None
+    frequent_threshold: FrequentWordThreshold | None
+
+    def earned(self, phrase: Phrase, word: WordFacts) -> CandidateSection:
+        return section_of(_PhraseOfWord(word, phrase), self.knowledge, self.frequent_threshold)
 
 
 def is_probably_known(
