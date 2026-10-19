@@ -6,18 +6,20 @@ from dataclasses import replace
 import pytest
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.services.candidate_sections import ready_progress, section_of
+from backend.domain.services.candidate_sections import card_section, section_of
 from backend.domain.services.candidate_sorting import (
     sort_by_key_words,
     sort_by_relevance,
     sort_chronologically,
 )
+from backend.domain.services.card_view import progress
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
+from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.review_card import ReviewCard
 from backend.domain.value_objects.user_knowledge import UserKnowledge
@@ -29,6 +31,7 @@ from tests.phrase_support import phrase
 pytestmark = pytest.mark.unit
 
 KNOWLEDGE = UserKnowledge(Vocabulary.of(set(), set()), CEFRLevel.B1, 4.5)
+THRESHOLD = FrequentWordThreshold.from_key("4.5")
 
 
 def _word(word_id: int, lemma: str, zipf: float = 3.0, occurrences: int = 1) -> StoredCandidate:
@@ -98,16 +101,19 @@ class TestDone:
 
 
 class TestProgress:
-    def test_ready_cards_count_and_cards_done_elsewhere_do_not(self) -> None:
+    def test_reviewed_cards_count_with_open_ready_ones_and_open_others_do_not(self) -> None:
         word = _word(1, "glare")
         cards = [
-            (_card(word, 1, status=WordStatus.LEARN), CandidateSection.READY),
-            (_card(word, 2, status=WordStatus.LEARN), CandidateSection.READY),
-            (_card(_word(2, "spark"), 3), CandidateSection.READY),
-            (_card(_word(3, "flame"), 4, elsewhere=ElsewhereStatus.KNOWN), CandidateSection.READY),
-            (_card(_word(4, "ember"), 5), CandidateSection.EXTRA),
+            _card(word, 1, status=WordStatus.LEARN),
+            _card(word, 2, status=WordStatus.LEARN, new=("zephyr",)),
+            _card(_word(2, "spark"), 3),
+            _card(_word(3, "flame"), 4, elsewhere=ElsewhereStatus.KNOWN),
+            _card(_word(4, "ember"), 5, new=("quill",)),
+            _card(_word(5, "cinder"), 6, new=("quill",), skipped=True),
+            _card(_word(6, "notion", zipf=4.8), 7),
         ]
-        assert ready_progress(cards) == DecisionProgress(decided=2, total=3)
+        sections = [card_section(c, KNOWLEDGE, THRESHOLD) for c in cards]
+        assert progress(sections) == DecisionProgress(decided=4, total=5)
 
 
 def _words(cards: list[ReviewCard]) -> list[int | None]:

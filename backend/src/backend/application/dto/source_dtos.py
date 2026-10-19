@@ -50,8 +50,8 @@ IDLE = "idle"
 
 
 class ProgressDTO(BaseModel):
-    """Decided cards among the Ready ones: the same numbers on a source, its review and a
-    collection."""
+    """Reviewed cards among Reviewed and open Ready ones: the same numbers on a source, its
+    review and a collection."""
 
     decided: int = 0
     total: int = 0
@@ -249,7 +249,7 @@ class CardDTO(BaseModel):
     polished_phrase: PhraseDTO | None = None
     polish_reverted: bool = False
     polish_status: str | None = None  # 'queued' | 'running' | 'failed' while AI works on it
-    # ready | extra | probably_known; None when the card was not arranged with its source
+    # ready | extra | probably_known | reviewed (a done card); None when not arranged
     section: str | None = None
     occurrences: int
     # The decision the card shows: pending | learn | known | skip; the word's beats a Skip.

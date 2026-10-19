@@ -9,23 +9,22 @@ from backend.application.constants import (
     USAGE_GROUP_ORDER_SETTING,
 )
 from backend.domain.services import candidate_sorting
-from backend.domain.services.candidate_sections import ready_progress, section_of
+from backend.domain.services.candidate_sections import card_section
+from backend.domain.services.card_view import progress
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping, Sequence
+    from collections.abc import Mapping, Sequence
 
     from backend.application.utils.frequent_word_threshold_resolver import (
         FrequentWordThresholdResolver,
     )
     from backend.application.utils.user_knowledge_reader import UserKnowledgeReader
     from backend.domain.ports.settings_repository import SettingsRepository
-    from backend.domain.services.candidate_sections import ProgressFacts
+    from backend.domain.services.candidate_sections import ShownCardFacts
     from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.decision_progress import DecisionProgress
-    from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
     from backend.domain.value_objects.review_card import ReviewCard
-    from backend.domain.value_objects.user_knowledge import UserKnowledge
 
 
 @dataclass(frozen=True)
@@ -39,14 +38,15 @@ class ArrangedCards:
         return self.sections[card.phrase_id]
 
     def progress(self) -> DecisionProgress:
-        """How far the user got: done cards among the Ready ones; the rest don't count."""
-        return ready_progress((c, self.section(c)) for c in self.cards)
+        """How far the user got: Reviewed among Reviewed and open Ready."""
+        return progress(self.sections.values())
 
 
 class CandidateSorter:
     """Puts cards in the order the user picked and into sections, by what the user knows now.
 
-    Text order has no sections in its order; done cards go below open ones.
+    Text order has no sections in its order; done cards go below open ones. A done card is
+    in Reviewed in every order.
     """
 
     def __init__(
@@ -81,21 +81,21 @@ class CandidateSorter:
             )
         return ArrangedCards(
             cards=ordered,
-            sections={c.phrase_id: section_of(c, knowledge, threshold) for c in ordered},
+            sections={c.phrase_id: card_section(c, knowledge, threshold) for c in ordered},
         )
 
     def section(self, card: ReviewCard) -> CandidateSection:
         """The section of one card, by what the user knows now."""
-        return section_of(card, self._knowledge.current(), self._threshold_resolver.resolve())
+        return card_section(card, self._knowledge.current(), self._threshold_resolver.resolve())
 
     def progress(
-        self, cards_by_source: Mapping[int, Sequence[ProgressFacts]],
+        self, cards_by_source: Mapping[int, Sequence[ShownCardFacts]],
     ) -> dict[int, DecisionProgress]:
         """Progress of each source from its cards, reading what the user knows once."""
         knowledge = self._knowledge.current()
         threshold = self._threshold_resolver.resolve()
         return {
-            source_id: ready_progress(_with_sections(cards, knowledge, threshold))
+            source_id: progress(card_section(card, knowledge, threshold) for card in cards)
             for source_id, cards in cards_by_source.items()
         }
 
@@ -103,10 +103,3 @@ class CandidateSorter:
         raw = self._settings_repo.get(USAGE_GROUP_ORDER_SETTING)
         return json.loads(raw) if raw else DEFAULT_USAGE_GROUP_ORDER
 
-
-def _with_sections(
-    cards: Sequence[ProgressFacts],
-    knowledge: UserKnowledge,
-    threshold: FrequentWordThreshold | None,
-) -> Iterable[tuple[ProgressFacts, CandidateSection]]:
-    return ((card, section_of(card, knowledge, threshold)) for card in cards)

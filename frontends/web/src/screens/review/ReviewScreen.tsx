@@ -53,7 +53,7 @@ export function ReviewScreen() {
   const [phoneView, setPhoneView] = useState<PhoneView>('card')
   const togglePhoneView = (view: PhoneView) => setPhoneView(prev => (prev === view ? 'card' : view))
   const current = candidates.find(c => c.phrase_id === currentId) ?? null
-  // Разделы есть во всех сортировках, кроме порядка текста; Probably known свёрнут, пока его не открыли.
+  // Разделы есть во всех сортировках, кроме порядка текста; разделы под Ready, Reviewed последним, свёрнуты, пока их не открыли.
   const sectioned = review.sortOrder !== 'chronological'
   const [openedSections, setOpenedSections] = useState<ReadonlySet<CandidateSection>>(new Set())
   // Карточка, открытая ссылкой или кликом по тексту, видна, даже если её раздел свёрнут.

@@ -251,8 +251,8 @@ export interface CardPhrase {
   target: number[]
 }
 
-/** Where a card stands in review: only the target is new, more words are new, or probably known. */
-export type CandidateSection = 'ready' | 'extra' | 'probably_known'
+/** Where a card stands in review: only the target is new, more words are new, probably known, or done (reviewed). */
+export type CandidateSection = 'ready' | 'extra' | 'probably_known' | 'reviewed'
 
 export type DecisionButton = 'learn' | 'cloze' | 'known' | 'skip'
 

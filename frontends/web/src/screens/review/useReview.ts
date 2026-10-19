@@ -8,7 +8,8 @@ import { mediaUrl } from '@/lib/text/meaning'
 import { useToast } from '@/ui'
 import { useAudioPlayer } from '@/lib/useAudioPlayer'
 import { initialFocusId } from './initialFocus'
-import { nextFocusId } from './nextFocus'
+import { keepLayout } from './keptLayout'
+import { focusAfterPress } from './nextFocus'
 
 const POLL_INTERVAL_MS = 3000
 
@@ -53,15 +54,16 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const setSortOrder = (order: SortOrder) => { sortOrderPref.write(order); setSortOrderState(order) }
 
-  // Источник вместе с кандидатами: разделы и счётчик Ready считает backend по всем карточкам.
+  // Источник вместе с кандидатами: разделы и счётчик считает backend по всем карточкам.
   const fetchSource = useCallback(
     () => api.getSource(sourceId, sortOrder),
     [sourceId, sortOrder],
   )
 
+  // Перечитанные карточки встают в порядок, снятый при загрузке; перегруппирует их только загрузка списка.
   const applySource = useCallback((src: SourceDetail) => {
     setSource(src)
-    setCandidates(src.candidates)
+    setCandidates(prev => keepLayout(prev, src.candidates))
     if (hasCandidateVpnErrors(src.candidates)) setVpnBlocked(true)
   }, [])
 
@@ -127,38 +129,41 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   const { play, stop } = player
 
   /**
-   * После решения по фразе: порядок задаёт backend — решённые фразы уходят вниз, известные слова
-   * пересортировывают остальные. Новый порядок и смену фокуса применяем одним рендером, иначе карточка
-   * сначала сворачивается на месте; следующую фразу выбираем уже по новому порядку.
+   * После решения по фразе: свежие данные карточек, а нажатая остаётся на месте до перезагрузки списка.
+   * Фокус уходит к следующей открытой, когда нажатая стала разобранной. Данные и фокус — одним рендером.
    */
-  const settle = useCallback(async (candidateId: number, markedIndex: number, advance: boolean, saved?: StoredCandidate) => {
-    const markedSection = candidatesRef.current.find(c => c.phrase_id === candidateId)?.section ?? null
+  const settle = useCallback(async (candidateId: number, saved?: StoredCandidate) => {
+    const marked = candidatesRef.current.find(c => c.phrase_id === candidateId)
+    const markedSection = marked?.section ?? null
     const refreshed = await fetchSource().catch(() => null)
-    const fresh = refreshed?.candidates ?? candidatesRef.current.map(c => (saved && c.phrase_id === candidateId ? saved : c))
-    if (refreshed) applySource(refreshed)
-    else setCandidates(fresh)
+    const fresh = keepLayout(
+      candidatesRef.current,
+      refreshed?.candidates ?? candidatesRef.current.map(c => (saved && c.phrase_id === candidateId ? saved : c)),
+    )
+    if (refreshed) {
+      setSource(refreshed)
+      if (hasCandidateVpnErrors(refreshed.candidates)) setVpnBlocked(true)
+    }
+    setCandidates(fresh)
 
-    if (!advance) return
-    const focusId = nextFocusId(fresh, candidateId, markedIndex, sortOrder === 'chronological' ? null : markedSection)
+    const focusId = focusAfterPress(fresh, candidateId, marked?.is_done ?? false, sortOrder === 'chronological' ? null : markedSection)
     if (focusId === null) return
     setCurrentId(focusId)
     const focus = fresh.find(c => c.phrase_id === focusId)
     const nextUrl = focus && autoPlayAudioPref.read() ? audioUrlForCandidate(focus, sourceId) : null
     if (nextUrl) play(nextUrl)
-  }, [sourceId, sortOrder, play, fetchSource, applySource])
+  }, [sourceId, sortOrder, play, fetchSource])
 
-  /** action — что backend сказал слать этой кнопкой; отмена и unskip оставляют фокус на месте. */
+  /** action — что backend сказал слать этой кнопкой. */
   const mark = useCallback(async (candidateId: number, action: DecisionAction) => {
     stop()
-    const markedIndex = candidatesRef.current.findIndex(c => c.phrase_id === candidateId)
-
     try {
       await api.decidePhrase(candidateId, action)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to save the decision')
       return
     }
-    await settle(candidateId, markedIndex, action !== 'pending' && action !== 'unskip')
+    await settle(candidateId)
   }, [stop, showToast, settle])
 
   const [clozeEditingId, setClozeEditingId] = useState<number | null>(null)
@@ -170,10 +175,9 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   }, [])
   const cancelCloze = useCallback(() => setClozeEditingId(null), [])
 
-  /** true — разметка сохранена и ревью ушло к следующей фразе; при ошибке показывает её. */
+  /** true — разметка сохранена (фокус уходит, если карточка стала разобранной); при ошибке показывает её. */
   const saveCloze = useCallback(async (candidateId: number, request: SaveClozeRequest): Promise<boolean> => {
     stop()
-    const markedIndex = candidatesRef.current.findIndex(c => c.phrase_id === candidateId)
     let saved: StoredCandidate
     try {
       saved = await api.saveCloze(candidateId, request)
@@ -182,7 +186,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
       return false
     }
     setClozeEditingId(null)
-    await settle(candidateId, markedIndex, true, saved)
+    await settle(candidateId, saved)
     return true
   }, [stop, showToast, settle])
 
@@ -385,13 +389,14 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     meaningImageUrl: mediaUrl(sourceId, candidate.meaning_image_path),
   })
 
+  // Счётчик — Reviewed / (Reviewed + открытые Ready); числа считает backend.
   const learnCount = source?.learn_count ?? 0
-  const readyTotal = source?.progress.total ?? 0
-  const readyReviewed = source?.progress.decided ?? 0
+  const progressTotal = source?.progress.total ?? 0
+  const progressReviewed = source?.progress.decided ?? 0
 
   return {
     sourceId, source, document, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,
-    counts: { reviewed: readyReviewed, total: readyTotal, learn: learnCount, progress: readyTotal > 0 ? readyReviewed / readyTotal : 0 },
+    counts: { reviewed: progressReviewed, total: progressTotal, learn: learnCount, progress: progressTotal > 0 ? progressReviewed / progressTotal : 0 },
     generation, generationActions,
     mark, generate, replaceWithExample,
     clozeEditingId, clozeEditing: clozeEditingId !== null, startCloze, cancelCloze, saveCloze, generateTTS, regenerateMedia, findImages, applyImage, pasteImage, polishAgain, setPolishReverted, editPhrase,

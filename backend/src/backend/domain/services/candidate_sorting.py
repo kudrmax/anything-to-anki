@@ -5,7 +5,8 @@ Repositories return cards unsorted; use cases call these functions.
 
 A card is a shown phrase of a word. The cards of one word always stand together: the word
 takes the place of its best card, and its other cards follow it. Sections come first, so
-cards of one word in different sections stand together within each section.
+cards of one word in different sections stand together within each section. Done cards
+are in Reviewed, the last section.
 """
 from __future__ import annotations
 
@@ -13,9 +14,9 @@ from typing import TYPE_CHECKING
 
 from backend.domain.services.candidate_sections import (
     SECTION_ORDER,
+    card_section,
     is_junk,
     new_words,
-    section_of,
 )
 
 if TYPE_CHECKING:
@@ -63,9 +64,9 @@ def sort_by_relevance(
 ) -> list[ReviewCard]:
     """Sort cards so the ones most worth learning come first.
 
-    By section: ready, extra new words, probably known (junk at its bottom).
-    Done cards go below open ones of their section. In extra, fewer new
-    words first; regular words before phrasal verbs.
+    By section: ready, extra new words, probably known (junk at its bottom),
+    then the done cards in Reviewed. In extra, fewer new words first; regular
+    words before phrasal verbs.
 
     Then:
     1. frequency_band DESC — more frequent bands first
@@ -75,7 +76,7 @@ def sort_by_relevance(
     """
     return _grouped(
         cards,
-        partition=lambda c: SECTION_ORDER[section_of(c, knowledge, frequent_threshold)],
+        partition=lambda c: SECTION_ORDER[card_section(c, knowledge, frequent_threshold)],
         key=lambda c: (
             c.is_done,
             is_junk(c),
@@ -106,7 +107,7 @@ def sort_by_key_words(
     """
     return _grouped(
         cards,
-        partition=lambda c: SECTION_ORDER[section_of(c, knowledge, frequent_threshold)],
+        partition=lambda c: SECTION_ORDER[card_section(c, knowledge, frequent_threshold)],
         key=lambda c: (
             c.is_done,
             is_junk(c),

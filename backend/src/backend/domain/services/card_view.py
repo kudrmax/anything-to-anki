@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from backend.domain.services.decision_rules import PRESS_RULES, press_key, role_of, rule
 from backend.domain.value_objects.candidate_section import CandidateSection
@@ -313,9 +313,14 @@ def learning_in_anki(word: WordState) -> bool:
     return decision_status(word) is DecisionStatus.LEARNING
 
 
-def section(view: CardView, open_section: CandidateSection) -> CandidateSection:
+class Done(Protocol):
+    @property
+    def is_done(self) -> bool: ...
+
+
+def section(card: Done, open_section: CandidateSection) -> CandidateSection:
     """REVIEWED for a done card; an open card keeps the section its phrase earns."""
-    return CandidateSection.REVIEWED if view.is_done else open_section
+    return CandidateSection.REVIEWED if card.is_done else open_section
 
 
 def progress(sections: Iterable[CandidateSection]) -> DecisionProgress:

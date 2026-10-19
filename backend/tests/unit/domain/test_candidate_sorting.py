@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.services.candidate_sections import new_words, section_of
+from backend.domain.services.candidate_sections import card_section, new_words, section_of
 from backend.domain.services.candidate_sorting import (
     sort_by_key_words,
     sort_by_relevance,
@@ -434,8 +434,8 @@ class TestDoneLastInTextOrder:
 
 @pytest.mark.unit
 class TestSections:
-    """Ready cards first, then cards with other new words, then probably known; decided sink
-    inside their own section."""
+    """Ready cards first, then cards with other new words, then probably known; done cards
+    go to Reviewed, last."""
 
     THRESHOLD = FrequentWordThreshold.from_key("4.5")
 
@@ -447,15 +447,37 @@ class TestSections:
         )
         return [c.lemma for c in result]
 
-    def test_decided_ready_card_stays_above_pending_extra_one(self) -> None:
+    def test_done_cards_go_to_reviewed_below_every_open_section(self) -> None:
         decided = _decided(_make("feast", 3.95), WordStatus.LEARN)
         extra = _make("scythe", 2.6, unknowns=1)
-        assert self._lemmas([extra, decided]) == ["feast", "scythe"]
+        frequent = _make("concept", 4.77)
+        assert self._lemmas([decided, frequent, extra]) == ["scythe", "concept", "feast"]
+
+    def test_done_cards_go_to_reviewed_by_key_words_too(self) -> None:
+        skipped = _skipped(_make("feast", 3.95, occurrences=5))
+        extra = _make("scythe", 2.6, unknowns=1)
+        result = sort_by_key_words(
+            [skipped, extra], frequent_threshold=self.THRESHOLD, knowledge=KNOWLEDGE,
+        )
+        assert [c.lemma for c in result] == ["scythe", "feast"]
+
+    def test_reviewed_cards_keep_the_order_of_their_sort(self) -> None:
+        rare = _decided(_make("gallows", 2.4), WordStatus.KNOWN)
+        common = _skipped(_make("feast", 3.95))
+        assert self._lemmas([rare, common]) == ["feast", "gallows"]
 
     def test_decided_card_goes_below_pending_one_of_its_section(self) -> None:
         decided = _skipped(_make("feast", 3.95))
         pending = _make("gallows", 2.4)
         assert self._lemmas([decided, pending]) == ["gallows", "feast"]
+
+    def test_section_is_reviewed_for_a_done_card_else_earned_by_the_phrase(self) -> None:
+        threshold = self.THRESHOLD
+        extra = _make("scythe", 2.6, unknowns=1)
+        assert card_section(extra, KNOWLEDGE, threshold) is CandidateSection.EXTRA
+        assert card_section(_skipped(extra), KNOWLEDGE, threshold) is CandidateSection.REVIEWED
+        decided = _decided(_make("concept", 4.77), WordStatus.LEARN)
+        assert card_section(decided, KNOWLEDGE, threshold) is CandidateSection.REVIEWED
 
     def test_known_word_no_longer_holds_phrase_back(self) -> None:
         extra = _make("feast", 3.95, unknowns=1)

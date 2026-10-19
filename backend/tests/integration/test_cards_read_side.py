@@ -240,7 +240,7 @@ class TestDecisionsOnCards:
         assert _card(client, bench.second_glare)["status"] == "pending"
         assert client.get(f"/sources/{SOURCE}").json()["progress"] == {"decided": 1, "total": 3}
 
-    def test_a_word_known_elsewhere_is_done_and_out_of_ready(
+    def test_a_word_known_elsewhere_is_reviewed_and_counts_as_reviewed(
         self, client: TestClient, bench: Bench, session: Session,
     ) -> None:
         SqlaKnownWordRepository(session).add("spark", None)
@@ -250,9 +250,11 @@ class TestDecisionsOnCards:
         # P6 (G6): Known is refused too on a card decided in another source.
         assert _actions(card) == {"learn": None, "cloze": None, "known": None, "skip": "skip"}
         assert card["is_done"] is True
-        assert client.get(f"/sources/{SOURCE}").json()["progress"] == {"decided": 0, "total": 2}
+        assert card["section"] == "reviewed"
+        # Q9: Reviewed / (Reviewed + open Ready), a card done elsewhere included.
+        assert client.get(f"/sources/{SOURCE}").json()["progress"] == {"decided": 1, "total": 3}
         [summary] = _board(client)
-        assert summary["progress"] == {"decided": 0, "total": 2}
+        assert summary["progress"] == {"decided": 1, "total": 3}
 
 
 class TestWhatEachCardCarries:
@@ -347,6 +349,18 @@ class TestBoard:
         assert summary["learn_count"] == 1
         assert client.get(f"/sources/{SOURCE}").json()["learn_count"] == 1
         assert summary["progress"] == {"decided": 2, "total": 3}
+
+    @pytest.mark.parametrize("sort", SORTS)
+    def test_done_cards_are_reviewed_and_listed_last(
+        self, client: TestClient, bench: Bench, sort: str,
+    ) -> None:
+        client.put(f"/phrases/{GLARE_PHRASE}/decision", json={"status": "learn"})
+        cards = _cards(client, sort)
+        assert [(c["phrase_id"], c["section"]) for c in cards] == [
+            (SPARK_PHRASE, "ready"),
+            (GLARE_PHRASE, "reviewed"),
+            (bench.second_glare, "reviewed"),
+        ]
 
     def test_board_and_review_agree_on_progress(self, client: TestClient, bench: Bench) -> None:
         client.put(f"/phrases/{SPARK_PHRASE}/decision", json={"status": "skip"})

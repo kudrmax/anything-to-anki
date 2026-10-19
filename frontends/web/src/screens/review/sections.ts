@@ -1,12 +1,13 @@
 import type { CandidateSection, StoredCandidate } from '@/api/types'
 
-/** Разделы под Ready: свёрнуты, пока их не открыли. */
-export const FOLDED_SECTIONS: CandidateSection[] = ['extra', 'probably_known']
+/** Разделы под Ready: свёрнуты, пока их не открыли. Reviewed — последний. */
+export const FOLDED_SECTIONS: CandidateSection[] = ['extra', 'probably_known', 'reviewed']
 
 const SECTION_NOUN: Record<CandidateSection, [one: string, many: string]> = {
   ready: ['ready phrase', 'ready phrases'],
   extra: ['phrase with more new words', 'phrases with more new words'],
   probably_known: ['probably known word', 'probably known words'],
+  reviewed: ['reviewed phrase', 'reviewed phrases'],
 }
 
 /** Кнопка раздела под списком: «Show 2 phrases with more new words» / «Hide …». */
