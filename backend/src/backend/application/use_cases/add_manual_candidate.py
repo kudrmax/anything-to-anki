@@ -38,7 +38,8 @@ class AddManualCandidateUseCase:
     CEFR, frequency) but bypasses the CEFR level gate — it is always saved. A word the source
     already has gets another phrase; at the place of one of its auto phrases, or of a manual
     phrase with the same text, that phrase is shown instead of a duplicate (and if it was the
-    selection card, it keeps standing for it; a skipped one is unskipped by pressing Skip).
+    selection card, it keeps standing for it; a skipped one is unskipped by pressing Skip,
+    unless its word is decided elsewhere: then it stays done).
     The phrase keeps its place in the document as its key, so Rebuild finds it.
     """
 
