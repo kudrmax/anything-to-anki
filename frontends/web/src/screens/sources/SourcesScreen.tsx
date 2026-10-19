@@ -39,7 +39,7 @@ const END_POSITION = Number.MAX_SAFE_INTEGER
 
 type MoveTarget = { kind: 'sources'; ids: number[] } | { kind: 'collection'; id: number } | null
 type Naming = { kind: 'rename'; node: CollectionNode } | { kind: 'create'; parent: CollectionNode } | null
-type Operating = { id: number; title: string; operation: NonNullable<SourceSummary['available_operation']> } | null
+type Operating = { id: number; title: string; operation: SourceSummary['available_operations'][number] } | null
 
 const sourcesWord = (n: number) => (n === 1 ? '1 source' : `${n} sources`)
 
@@ -303,7 +303,7 @@ export function SourcesScreen() {
                         onExport={exportSource}
                         onDelete={deleteSource}
                         onRename={(id, newTitle) => void board.rename(id, newTitle)}
-                        onOperation={() => source.available_operation && setOperating({ id: source.id, title: source.title, operation: source.available_operation })}
+                        onOperation={(id, operation) => setOperating({ id, title: source.title, operation })}
                         onRowClick={rowClick}
                         onMoveTo={id => setMoveTarget({ kind: 'sources', ids: [id] })}
                         dragIds={() => dragIds(source.id)}
