@@ -103,7 +103,8 @@ def test_removing_the_last_entry_makes_every_card_of_the_word_new_and_releases_i
     assert _card(client, HERE, CHOSEN)["shown"]["status"] == "known"
     assert _card(client, ELSEWHERE, BOUND)["shown"]["status"] == "known"
 
-    assert client.delete(f"/known-words/{_removal_key(client, 'glare', 'NOUN')}").status_code == 200
+    key = _removal_key(client, "glare", "NOUN")
+    assert client.delete(f"/known-words/{key}").status_code == 200
 
     assert _card(client, HERE, CHOSEN)["shown"]["status"] == "new"
     assert _card(client, ELSEWHERE, BOUND)["shown"]["status"] == "new"
