@@ -8,9 +8,8 @@ Outside `ALLOWED`, the backend may not:
 - write a card's choice;
 - move a choice from one card to another.
 
-The web may not compare a card's choice, status, section or the like with a value: that
-is a rule. It may render them: map a value to a label or a tone, group or find cards by a
-value it was given, and check whether the backend sent a value at all (`=== null`).
+The web half of the guard is `frontends/web/src/architecture/statusModelGuard.test.ts`: it
+reads the TypeScript types, so it knows which values are the card's.
 """
 from __future__ import annotations
 
@@ -28,7 +27,6 @@ from backend.domain.value_objects.word_status import WordStatus
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BACKEND_ROOT = REPO_ROOT / "backend" / "src" / "backend"
-WEB_ROOT = REPO_ROOT / "frontends" / "web" / "src"
 
 # The files that hold the status model.
 ALLOWED = frozenset({
@@ -68,7 +66,10 @@ MODEL_VALUES = frozenset(
                  ShownStatus, CandidateSection)
     for member in enum
 )
+# Bare locals that hold a choice or a status.
+MODEL_LOCALS = frozenset({"choice", "status"})
 TIMER_NAMES = frozenset({"timer_due", "LEARNING_KNOWN_AFTER_DAYS"})
+TIMER_MODULE = "learning_timer"
 SQL_MEMBERSHIP = frozenset({"in_", "not_in", "notin_", "is_", "is_not", "isnot"})
 SQL_WRITES = frozenset({"values", "update", "insert", "execute", "bulk_update_mappings"})
 RAW_CHOICE_WRITE = re.compile(r"\b(?:update|set)\b[^;]*\bchoice\b", re.IGNORECASE)
@@ -89,7 +90,8 @@ class _ModelScan(ast.NodeVisitor):
 
     def __init__(self, relative: str, tree: ast.Module) -> None:
         self._relative = relative
-        self._guarded_names = MODEL_SETS | _module_constants_of_the_model(tree)
+        self._enums = MODEL_ENUMS | _aliases_of_the_model_enums(tree)
+        self._guarded_names = MODEL_SETS | _constants_of_the_model(tree, self._enums)
         self.offences: list[Offence] = []
 
     def _report(self, node: ast.AST, rule: str) -> None:
@@ -99,7 +101,7 @@ class _ModelScan(ast.NodeVisitor):
     def _names_the_model(self, node: ast.AST) -> bool:
         for found in ast.walk(node):
             if isinstance(found, ast.Attribute) and isinstance(found.value, ast.Name) and (
-                found.value.id in MODEL_ENUMS
+                found.value.id in self._enums
                 or (found.value.id, found.attr) in STORED_COLUMNS
             ):
                 return True
@@ -108,9 +110,11 @@ class _ModelScan(ast.NodeVisitor):
         return False
 
     def _holds_the_model(self, node: ast.AST) -> bool:
-        """A field that holds a choice or a status, read off anything."""
+        """A field that holds a choice or a status, read off anything, or a bare local
+        named so."""
         return any(
-            isinstance(found, ast.Attribute) and found.attr in MODEL_FIELDS
+            (isinstance(found, ast.Attribute) and found.attr in MODEL_FIELDS)
+            or (isinstance(found, ast.Name) and found.id in MODEL_LOCALS)
             for found in ast.walk(node)
         )
 
@@ -118,8 +122,7 @@ class _ModelScan(ast.NodeVisitor):
         operands = [node.left, *node.comparators]
         presence = any(isinstance(o, ast.Constant) and o.value is None for o in operands)
         stored_string = any(
-            isinstance(o, ast.Constant) and isinstance(o.value, str) and o.value in MODEL_VALUES
-            for o in operands
+            text in MODEL_VALUES for o in operands for text in _texts(o)
         ) and any(_mentions_status_or_choice(o) for o in operands)
         if (
             self._names_the_model(node)
@@ -166,6 +169,20 @@ class _ModelScan(ast.NodeVisitor):
         self._visit_targets(node, [node.target], node.value)
         self.generic_visit(node)
 
+    def visit_Match(self, node: ast.Match) -> None:
+        patterns = [case.pattern for case in node.cases]
+        if (
+            self._holds_the_model(node.subject)
+            or self._names_the_model(node.subject)
+            or any(self._names_the_model(pattern) for pattern in patterns)
+            or (
+                _mentions_status_or_choice(node.subject)
+                and any(text in MODEL_VALUES for pattern in patterns for text in _texts(pattern))
+            )
+        ):
+            self._report(node.subject, "compares a choice or status")
+        self.generic_visit(node)
+
     def visit_Dict(self, node: ast.Dict) -> None:
         if any(key is not None and _is_text(key, "choice") for key in node.keys):
             self._report(node, "writes a choice")
@@ -185,27 +202,63 @@ class _ModelScan(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
-        if any(alias.name in TIMER_NAMES for alias in node.names):
+        star_of_the_timer = (node.module or "").endswith(TIMER_MODULE) and any(
+            alias.name == "*" for alias in node.names
+        )
+        if star_of_the_timer or any(alias.name in TIMER_NAMES for alias in node.names):
             self._report(node, "reads the timer")
 
 
-def _module_constants_of_the_model(tree: ast.Module) -> frozenset[str]:
-    """Module-level names bound to sets or values of the model, such as a local copy of
+def _aliases_of_the_model_enums(tree: ast.Module) -> frozenset[str]:
+    """Other names a file gives the model's enums: `import ... as`, or `C = CardChoice` at
+    any level."""
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            found.update(
+                alias.asname for alias in node.names
+                if alias.asname is not None and alias.name in MODEL_ENUMS
+            )
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign) and isinstance(node.value, ast.Name)
+            and node.value.id in MODEL_ENUMS | found
+        ):
+            found.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    return frozenset(found)
+
+
+def _texts(node: ast.AST) -> list[str]:
+    """The strings of a constant, or of a tuple, set or list of constants; of a match
+    pattern too."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return [node.value]
+    if isinstance(node, ast.Tuple | ast.Set | ast.List):
+        return [text for element in node.elts for text in _texts(element)]
+    if isinstance(node, ast.MatchValue):
+        return _texts(node.value)
+    if isinstance(node, ast.MatchOr):
+        return [text for pattern in node.patterns for text in _texts(pattern)]
+    return []
+
+
+def _constants_of_the_model(tree: ast.Module, enums: frozenset[str]) -> frozenset[str]:
+    """Names bound, at any level, to sets or values of the model, such as a local copy of
     CHOSEN_TO_LEARN."""
     found: set[str] = set()
-    for statement in tree.body:
-        targets: list[ast.expr] = []
+    for statement in ast.walk(tree):
         if isinstance(statement, ast.Assign):
-            targets = statement.targets
+            targets, value = statement.targets, statement.value
         elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
-            targets = [statement.target]
-        value = getattr(statement, "value", None)
-        if value is None or isinstance(value, ast.Dict | ast.Call) and _is_a_table(value):
+            targets, value = [statement.target], statement.value
+        else:
+            continue
+        if isinstance(value, ast.Dict | ast.Call) and _is_a_table(value):
             continue
         mentions = any(
             (isinstance(n, ast.Name) and (n.id in MODEL_SETS or n.id in found))
             or (isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
-                and n.value.id in MODEL_ENUMS)
+                and n.value.id in enums)
             for n in ast.walk(value)
         )
         if mentions:
@@ -271,58 +324,9 @@ def backend_offences() -> list[Offence]:
     return offences
 
 
-# --- the web ----------------------------------------------------------------------------
-
-_WEB_SUFFIXES = frozenset({".ts", ".tsx"})
-_CARD_FIELD = (
-    r"(?:\??\.(?:choice|section|where|command|refused|note|pressed|button|word_status)"
-    r"|\bshown\??\.status"
-    r"|(?<![\w.])(?:choice|section|where|command|refused|note){shown_status})\b"
-)
-_VALUE = r"(?:'[^']*'|\"[^\"]*\"|`[^`]*`|\b[A-Z][A-Z0-9_]+\b(?![\[.(]))"
-_EQUALS = r"\s*(?:===|!==|==|!=)\s*"
-# `status` names the shown status only where it is destructured from a Shown.
-_SHOWN_DESTRUCTURED = re.compile(r"\{[^}]*\bstatus\b[^}]*\}\s*:\s*Shown\b")
-_SWITCH = re.compile(r"\bswitch\s*\(\s*[\w?.]*\.(?:choice|section|where|command|refused|note)\b")
-_LITERAL_SET = re.compile(
-    r"\[[^\]]*['\"][a-z_]+['\"][^\]]*\]\.includes\(\s*[\w?.]*\.(?:choice|section|where|status)\b",
-)
-
-
-def _web_rule(shown_status: bool) -> re.Pattern[str]:
-    field = _CARD_FIELD.format(shown_status="|status" if shown_status else "")
-    return re.compile(f"{field}{_EQUALS}{_VALUE}|{_VALUE}{_EQUALS}{field}")
-
-
-def _is_web_source(path: Path) -> bool:
-    return (
-        path.suffix in _WEB_SUFFIXES
-        and "node_modules" not in path.parts
-        and ".test." not in path.name
-        and path.stem != "reviewFixtures"
-    )
-
-
-def web_offences() -> list[Offence]:
-    offences: list[Offence] = []
-    for path in sorted(p for p in WEB_ROOT.rglob("*") if _is_web_source(p)):
-        source = path.read_text(encoding="utf-8")
-        rule = _web_rule(shown_status=bool(_SHOWN_DESTRUCTURED.search(source)))
-        relative = path.relative_to(REPO_ROOT).as_posix()
-        for number, line in enumerate(source.splitlines(), start=1):
-            if rule.search(line) or _SWITCH.search(line) or _LITERAL_SET.search(line):
-                offences.append(Offence(f"{relative}:{number}", "web rule", line.strip()))
-    return offences
-
-
 @pytest.mark.unit
 def test_only_the_status_model_compares_writes_or_times_choices() -> None:
     assert [str(o) for o in backend_offences()] == []
-
-
-@pytest.mark.unit
-def test_the_web_renders_the_status_model_without_rules() -> None:
-    assert [str(o) for o in web_offences()] == []
 
 
 # --- the guard itself -------------------------------------------------------------------
@@ -356,6 +360,19 @@ def _scan(code: str) -> list[str]:
         ("replace(new, choice=old.choice)", "moves a choice between cards"),
         ("CardState(new_id, old.choice)", "moves a choice between cards"),
         ("word.with_cards(card)", "moves a choice between cards"),
+        ("match card.choice:\n    case _:\n        pass", "compares a choice or status"),
+        ("match x:\n    case CardChoice.LEARN:\n        pass", "compares a choice or status"),
+        ("match status:\n    case 'learn' | 'skip':\n        pass", "compares a choice or status"),
+        ("w.status in ('learn', 'learning')", "compares a choice or status"),
+        ("w.choice in {'skip'}", "compares a choice or status"),
+        ("row.status in ['known']", "compares a choice or status"),
+        ("choice is wanted", "compares a choice or status"),
+        ("status == other", "compares a choice or status"),
+        ("def f():\n    C = CardChoice\n    return x is C.SKIP", "compares a choice or status"),
+        ("from m import WordStatus as W\nx is W.NEW", "compares a choice or status"),
+        ("def f():\n    wanted = {CardChoice.LEARN}\n    return x in wanted",
+         "compares a choice or status"),
+        ("from backend.domain.value_objects.learning_timer import *", "reads the timer"),
     ],
 )
 def test_the_guard_finds(code: str, rule: str) -> None:
@@ -375,27 +392,13 @@ def test_the_guard_finds(code: str, rule: str) -> None:
         "CardDTO(choice=view.choice)",
         "chosen_to_learn(word)",
         "CardState(self.id, self.choice, self.binding)",
+        "match job.kind:\n    case 'audio':\n        pass",
+        "status is None",
+        "choice = LABELS[view.choice]",
+        "w.kind in ('learn', 'known')",
+        "from backend.domain.value_objects.learning_timer import known_on",
+        "tone = TONES[(status, skipped)]",
     ],
 )
 def test_the_guard_lets_through(code: str) -> None:
     assert _scan(code) == []
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    ("line", "shown_status", "found"),
-    [
-        ("if (c.section === 'ready') return", False, True),
-        ("const open = c.shown.status !== 'new'", False, True),
-        ("if (button.command === 'edit_cloze') open()", False, True),
-        ("skipped && status === 'new'", True, True),
-        ("skipped && status === 'new'", False, False),
-        ("if (source.status === REVIEWED) done()", False, False),
-        ("disabled={button.command === null}", False, False),
-        ("cards.filter(c => c.section === section)", False, False),
-        ("const tone = TONE[candidate.shown.status]", False, False),
-        ("bootstrap?.status === 'ready'", False, False),
-    ],
-)
-def test_the_web_guard(line: str, shown_status: bool, found: bool) -> None:
-    assert bool(_web_rule(shown_status).search(line)) is found

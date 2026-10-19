@@ -12,7 +12,7 @@ from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.job import Job
-from backend.domain.services.card_view import Command, Where
+from backend.domain.services.card_view import Command, ShownTone, Where
 from backend.domain.value_objects.card_choice import Binding, CardChoice, NoteKind, Press, Refusal
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
@@ -320,12 +320,12 @@ class TestCardToDtoDecision:
     def test_the_word_decision_beats_a_skip_of_the_phrase(self) -> None:
         skipped = occurrence(1, 1, skipped=True)
         assert card_to_dto(card(word(), skipped)).shown == ShownDTO(
-            status=ShownStatus.NEW, skipped=True, where=Where.NOWHERE,
+            status=ShownStatus.NEW, skipped=True, where=Where.NOWHERE, tone=ShownTone.SETTLED,
         )
         learned = card_to_dto(card(word(status=WordStatus.LEARN), skipped))
-        assert (learned.choice, learned.shown.status, learned.shown.skipped) == (
-            CardChoice.SKIP, ShownStatus.LEARN, True,
-        )
+        assert (
+            learned.choice, learned.shown.status, learned.shown.skipped, learned.shown.tone,
+        ) == (CardChoice.SKIP, ShownStatus.LEARN, True, ShownTone.LEARNING)
 
     def test_a_card_done_elsewhere_says_why(self) -> None:
         dto = card_to_dto(card(elsewhere=ElsewhereStatus.LEARNING))

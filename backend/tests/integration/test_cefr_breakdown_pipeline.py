@@ -17,7 +17,7 @@ from backend.application.dto.source_dtos import (
     ShownDTO,
     ShownStatus,
 )
-from backend.domain.services.card_view import Where
+from backend.domain.services.card_view import ShownTone, Where
 from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
@@ -98,7 +98,9 @@ class TestCEFRBreakdownPipeline:
             source_phrase=PhraseDTO.of(phrase("I am happy", "happy")),
             occurrences=1,
             choice=CardChoice.NONE,
-            shown=ShownDTO(status=ShownStatus.NEW, skipped=False, where=Where.NOWHERE),
+            shown=ShownDTO(
+                status=ShownStatus.NEW, skipped=False, where=Where.NOWHERE, tone=ShownTone.OPEN,
+            ),
             state=CardStateDTO(),
             cefr_breakdown=bd_dto,
         )

@@ -58,11 +58,39 @@ class ButtonState:
     refused: Refusal | None
 
 
+class ShownTone(StrEnum):
+    """How a done card reads at a glance: open, chosen to learn, or settled (known, or
+    the phrase skipped while the word is open)."""
+
+    OPEN = "open"
+    LEARNING = "learning"
+    SETTLED = "settled"
+
+
+# The word's decision beats the phrase's Skip.
+_TONES: Mapping[tuple[WordStatus, bool], ShownTone] = MappingProxyType(
+    {  # (the status shown, the phrase is skipped)
+        (WordStatus.NEW, False): ShownTone.OPEN,
+        (WordStatus.NEW, True): ShownTone.SETTLED,
+        (WordStatus.LEARN, False): ShownTone.LEARNING,
+        (WordStatus.LEARN, True): ShownTone.LEARNING,
+        (WordStatus.LEARNING, False): ShownTone.LEARNING,
+        (WordStatus.LEARNING, True): ShownTone.LEARNING,
+        (WordStatus.KNOWN, False): ShownTone.SETTLED,
+        (WordStatus.KNOWN, True): ShownTone.SETTLED,
+    },
+)
+
+
 @dataclass(frozen=True)
 class Shown:
     status: WordStatus
     skipped: bool
     where: Where
+
+    @property
+    def tone(self) -> ShownTone:
+        return _TONES[(self.status, self.skipped)]
 
 
 @dataclass(frozen=True)

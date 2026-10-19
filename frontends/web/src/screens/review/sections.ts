@@ -21,9 +21,10 @@ export type ListItem =
   | { kind: 'candidate'; candidate: StoredCandidate }
   | { kind: 'section'; section: CandidateSection; count: number; open: boolean }
 
-const FOLDED: ReadonlySet<CandidateSection> = new Set(FOLDED_SECTIONS)
+/** Каждый раздел назван явно: новый раздел не попадёт в Ready молча. */
+const FOLDED: Record<CandidateSection, boolean> = { ready: false, extra: true, probably_known: true, reviewed: true }
 
-const isReady = (c: StoredCandidate) => c.section === null || !FOLDED.has(c.section)
+const isReady = (c: StoredCandidate) => c.section === null || !FOLDED[c.section]
 
 /** Карточки, которые видны в списке: Ready и открытые разделы. */
 export const visibleCandidates = (candidates: StoredCandidate[], open: ReadonlySet<CandidateSection>): StoredCandidate[] =>

@@ -188,7 +188,9 @@ class TestDecisionsOnCards:
         source = client.get(f"/sources/{SOURCE}").json()
         assert source["progress"] == {"decided": 2, "total": 3}
         sibling = _card(client, bench.second_glare)
-        assert sibling["shown"] == {"status": "learn", "skipped": False, "where": "other_card"}
+        assert sibling["shown"] == {
+            "status": "learn", "skipped": False, "where": "other_card", "tone": "learning",
+        }
         assert sibling["choice"] == "none"
 
     def test_the_sibling_card_shows_the_decision_with_inactive_buttons(
@@ -238,7 +240,7 @@ class TestDecisionsOnCards:
         client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "skip"})
         assert _card(client, GLARE_PHRASE)["choice"] == "skip"
         assert _card(client, GLARE_PHRASE)["shown"] == {
-            "status": "new", "skipped": True, "where": "nowhere",
+            "status": "new", "skipped": True, "where": "nowhere", "tone": "settled",
         }
         assert _card(client, bench.second_glare)["shown"]["status"] == "new"  # type: ignore[index]
         assert client.get(f"/sources/{SOURCE}").json()["progress"] == {"decided": 1, "total": 3}

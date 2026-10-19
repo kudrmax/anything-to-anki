@@ -24,16 +24,14 @@ describe('PhraseRow', () => {
   }
 
   it.each([
-    [{ status: 'learn', skipped: false, where: 'here' }, dot.ok],
-    [{ status: 'learning', skipped: false, where: 'here' }, dot.ok],
-    [{ status: 'learning', skipped: false, where: 'other_source' }, dot.ok],
-    [{ status: 'known', skipped: false, where: 'other_card' }, dot.off],
-    [{ status: 'new', skipped: true, where: 'nowhere' }, dot.off],
-  ] as [Shown, string][])('tones a done card by what it shows: %o', (shown, tone) => {
+    [{ status: 'learn', skipped: true, where: 'here', tone: 'learning' }, dot.ok],
+    [{ status: 'known', skipped: false, where: 'other_card', tone: 'settled' }, dot.off],
+    [{ status: 'new', skipped: true, where: 'nowhere', tone: 'settled' }, dot.off],
+  ] as [Shown, string][])('tones a done card by the tone the backend sent: %o', (shown, tone) => {
     expect(toneOf(shown)).toContain(tone)
   })
 
   it('shows no dot on an open card', () => {
-    expect(toneOf({ status: 'new', skipped: false, where: 'nowhere' }, false)).toBeNull()
+    expect(toneOf({ status: 'new', skipped: false, where: 'nowhere', tone: 'open' }, false)).toBeNull()
   })
 })

@@ -13,7 +13,7 @@ from backend.application.dto.cefr_dtos import (
 )
 from backend.application.dto.cloze_dtos import CandidateClozeDTO
 from backend.application.dto.document_dtos import DocumentPositionDTO
-from backend.domain.services.card_view import Command, Where  # noqa: TC001 — Pydantic
+from backend.domain.services.card_view import Command, ShownTone, Where  # noqa: TC001 — Pydantic
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.services.meaning_action import (  # Pydantic needs it at runtime
     MeaningAction,
@@ -226,11 +226,14 @@ class ShownDTO(BaseModel):
     status: ShownStatus
     skipped: bool
     where: Where
+    # How the card reads at a glance; the decision beats Skip.
+    tone: ShownTone
 
     @staticmethod
     def of(shown: Shown) -> ShownDTO:
         return ShownDTO(
             status=_SHOWN_STATUS[shown.status], skipped=shown.skipped, where=shown.where,
+            tone=shown.tone,
         )
 
 

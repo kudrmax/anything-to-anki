@@ -14,6 +14,7 @@ from backend.domain.services.card_view import (
     Command,
     NoteKey,
     Shown,
+    ShownTone,
     Where,
     card_is_done,
     card_view,
@@ -371,6 +372,24 @@ class TestProgress:
     )
     def test_reach(self, decided: int, total: int, expected: ReviewReach) -> None:
         assert reach(DecisionProgress(decided=decided, total=total)) is expected
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("status", "skipped", "tone"),
+    [
+        (WordStatus.NEW, False, ShownTone.OPEN),
+        (WordStatus.NEW, True, ShownTone.SETTLED),
+        (WordStatus.LEARN, True, ShownTone.LEARNING),
+        (WordStatus.LEARNING, False, ShownTone.LEARNING),
+        (WordStatus.KNOWN, False, ShownTone.SETTLED),
+        (WordStatus.KNOWN, True, ShownTone.SETTLED),
+    ],
+)
+def test_the_shown_tone_puts_the_decision_before_skip(
+    status: WordStatus, skipped: bool, tone: ShownTone,
+) -> None:
+    assert Shown(status, skipped, Where.HERE).tone is tone
 
 
 @pytest.mark.unit

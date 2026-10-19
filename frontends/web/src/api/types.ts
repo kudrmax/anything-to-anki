@@ -273,10 +273,16 @@ export type CardChoice = 'none' | 'learn' | 'cloze' | 'known' | 'skip'
 
 /** Что карточка показывает о слове: статус, пропущена ли фраза и откуда статус — здесь, другая фраза, другой источник. */
 export interface Shown {
-  status: 'new' | 'learn' | 'learning' | 'known'
+  status: ShownStatus
   skipped: boolean
-  where: 'here' | 'other_card' | 'other_source' | 'nowhere'
+  where: ShownWhere
+  /** Как карточка читается с одного взгляда; решение слова важнее Skip — решает backend. */
+  tone: ShownTone
 }
+
+export type ShownStatus = 'new' | 'learn' | 'learning' | 'known'
+export type ShownWhere = 'here' | 'other_card' | 'other_source' | 'nowhere'
+export type ShownTone = 'open' | 'learning' | 'settled'
 
 /** Почему карточка показывает то, что показывает; решает backend. */
 export type CardNote =

@@ -155,7 +155,9 @@ def test_at_day_30_every_reader_sees_the_word_known(client: TestClient) -> None:
     assert own["shown"]["status"] == "known"
     assert own["state"]["note"] == "known_by_timer"
     there = _card(client, THERE, GLARE_THERE)
-    assert there["shown"] == {"status": "known", "skipped": False, "where": "other_source"}
+    assert there["shown"] == {
+        "status": "known", "skipped": False, "where": "other_source", "tone": "settled",
+    }
     assert there["state"]["note"] == "known_elsewhere"
     assert there["is_done"]
     assert _card(client, THERE, DRIFT)["section"] == "ready"
@@ -175,7 +177,7 @@ def test_at_day_29_every_reader_sees_the_word_learning(
     assert own["state"]["note"] == "in_anki"
     assert own["state"]["known_on"].startswith(DAY_30.date().isoformat())
     assert _card(client, THERE, GLARE_THERE)["shown"] == {
-        "status": "learning", "skipped": False, "where": "other_source",
+        "status": "learning", "skipped": False, "where": "other_source", "tone": "learning",
     }
     assert _card(client, THERE, DRIFT)["section"] == "extra"
     assert _known_list(client) == []

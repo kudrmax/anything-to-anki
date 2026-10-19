@@ -9,10 +9,9 @@ from backend.application.dto.collection_dtos import (
 )
 from backend.application.dto.source_dtos import ProgressDTO
 from backend.domain.services.collection_tree import CollectionTree
-from backend.domain.services.source_review_status import derive_review_status
+from backend.domain.services.source_review_status import IS_REVIEWED, derive_review_status
 from backend.domain.services.source_stage import is_pending
 from backend.domain.value_objects.decision_progress import DecisionProgress
-from backend.domain.value_objects.review_status import ReviewStatus
 
 if TYPE_CHECKING:
     from backend.application.utils.review_progress import ReviewProgress
@@ -57,7 +56,7 @@ class ListCollectionsUseCase:
         reviewed = {
             s.id for s in sources
             if s.id is not None
-            and derive_review_status(s.status, progress[s.id]) is ReviewStatus.REVIEWED
+            and IS_REVIEWED[derive_review_status(s.status, progress[s.id])]
         }
 
         def counts(selected: list[Source]) -> ScopeCountsDTO:

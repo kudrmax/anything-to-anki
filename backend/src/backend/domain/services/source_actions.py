@@ -9,12 +9,12 @@ from backend.domain.exceptions import (
     SourceIsProcessingError,
 )
 from backend.domain.services.source_operations import busy_caption
-from backend.domain.services.source_review_status import REVIEWABLE_STATUSES
-from backend.domain.value_objects.review_status import ReviewStatus
+from backend.domain.services.source_review_status import IS_REVIEWED, REVIEWABLE
 
 if TYPE_CHECKING:
     from backend.domain.entities.source import Source
     from backend.domain.value_objects.decision_progress import DecisionProgress
+    from backend.domain.value_objects.review_status import ReviewStatus
     from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 COMPLETE = 1.0
@@ -22,7 +22,7 @@ NOTHING_DONE = 0.0
 
 
 def can_review(status: ReviewStatus) -> bool:
-    return status in REVIEWABLE_STATUSES
+    return REVIEWABLE[status]
 
 
 def can_export(status: ReviewStatus, learn_count: int) -> bool:
@@ -49,7 +49,7 @@ def can_delete(source: Source, busy_with: SourceOperationKind | None) -> bool:
 
 def review_fraction(status: ReviewStatus, progress: DecisionProgress) -> float:
     """The share of decided cards; a reviewed source is complete whatever its cards say."""
-    if status is ReviewStatus.REVIEWED:
+    if IS_REVIEWED[status]:
         return COMPLETE
     return progress.decided / progress.total if progress.total else NOTHING_DONE
 
@@ -68,7 +68,7 @@ def progress_caption(
         return "Nothing to learn"
     if progress.total == 0:
         return "Nothing ready"
-    if status is ReviewStatus.REVIEWED:
+    if IS_REVIEWED[status]:
         return f"{learn_count} to learn"
     if progress.decided > 0:
         return f"{progress.decided} of {progress.total} decided"

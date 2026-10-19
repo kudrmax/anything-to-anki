@@ -13,10 +13,20 @@ if TYPE_CHECKING:
 
     from backend.domain.value_objects.decision_progress import DecisionProgress
 
-REVIEWABLE_STATUSES = frozenset({
-    ReviewStatus.DONE,
-    ReviewStatus.PARTIALLY_REVIEWED,
-    ReviewStatus.REVIEWED,
+# Every review status, said once each: a new status has to be placed in both tables.
+REVIEWABLE: Mapping[ReviewStatus, bool] = MappingProxyType({
+    ReviewStatus.NEW: False,
+    ReviewStatus.ERROR: False,
+    ReviewStatus.DONE: True,
+    ReviewStatus.PARTIALLY_REVIEWED: True,
+    ReviewStatus.REVIEWED: True,
+})
+IS_REVIEWED: Mapping[ReviewStatus, bool] = MappingProxyType({
+    ReviewStatus.NEW: False,
+    ReviewStatus.ERROR: False,
+    ReviewStatus.DONE: False,
+    ReviewStatus.PARTIALLY_REVIEWED: False,
+    ReviewStatus.REVIEWED: True,
 })
 
 _REVIEW_STATUS: Mapping[tuple[SourceStatus, ReviewReach], ReviewStatus] = MappingProxyType({

@@ -9,7 +9,7 @@ export const buttons = (changes: Partial<Record<DecisionButton, Partial<CardButt
 export const state = (changes: Partial<CardState> = {}): CardState =>
   ({ note: null, known_on: null, buttons: buttons(), ...changes })
 
-const NEW: Shown = { status: 'new', skipped: false, where: 'nowhere' }
+const NEW: Shown = { status: 'new', skipped: false, where: 'nowhere', tone: 'open' }
 
 /** Карточка ревью с тем, что читают экраны; остальное — как пришло бы пустым. */
 export const reviewCard = (changes: Partial<StoredCandidate> = {}): StoredCandidate =>

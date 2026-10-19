@@ -1,6 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import buttonCss from '@/ui/Button.module.css'
 import { CARD_NOTE_LABEL, TIMER_KNOWN_LABEL } from './cardNotes'
 import { DecisionButtons } from './PhraseActions'
 import { buttons, reviewCard, state } from './reviewFixtures'
@@ -28,6 +29,34 @@ describe('DecisionButtons', () => {
   const button = (label: string) => [...host.querySelectorAll('button')].find(b => b.textContent?.startsWith(label))!
   const shownNote = () => host.querySelector('[class*="decisionNote"]')?.textContent ?? null
 
+  describe('which button is lit', () => {
+    const editing = { active: true, start: vi.fn(), cancel: vi.fn() } as unknown as ClozeEditor
+    const renderWith = (candidate: ReturnType<typeof reviewCard>, editor: ClozeEditor) =>
+      act(() => root.render(<DecisionButtons candidate={candidate} review={review} cloze={editor} />))
+    const lit = () => [...host.querySelectorAll('button')]
+      .filter(b => b.className.includes(buttonCss.fill)).map(b => b.textContent?.slice(0, 4))
+
+    it('the pressed one, with the editor closed', () => {
+      renderWith(reviewCard({ state: state({ buttons: buttons({ learn: { pressed: true } }) }) }), cloze)
+      expect(lit()).toEqual(['Lear'])
+    })
+
+    it('the one that opened the editor, not the pressed one, while the editor is open', () => {
+      renderWith(reviewCard({
+        state: state({ buttons: buttons({ learn: { pressed: true }, cloze: { command: 'edit_cloze' } }) }),
+      }), editing)
+      expect(lit()).toEqual(['Cloz'])
+    })
+
+    it('the pressed one of a cloze card whose markup is being edited', () => {
+      renderWith(reviewCard({
+        can_edit_cloze: true,
+        state: state({ buttons: buttons({ cloze: { pressed: true } }) }),
+      }), editing)
+      expect(lit()).toEqual(['Cloz'])
+    })
+  })
+
   it('gives a refused button the card note as its tooltip, and the others none', () => {
     render(reviewCard({
       state: state({ note: 'known_elsewhere', buttons: buttons({ learn: { command: null, refused: 'decided_elsewhere' } }) }),
@@ -41,7 +70,7 @@ describe('DecisionButtons', () => {
 
   it('shows on a card of a word decided on another phrase why its buttons are off', () => {
     render(reviewCard({
-      shown: { status: 'known', skipped: false, where: 'other_card' },
+      shown: { status: 'known', skipped: false, where: 'other_card', tone: 'settled' },
       state: state({
         note: 'known_on_other_card',
         buttons: buttons({ learn: REFUSED, cloze: REFUSED, known: { ...REFUSED, pressed: true }, skip: REFUSED }),
@@ -55,7 +84,7 @@ describe('DecisionButtons', () => {
 
   it('shows the note of a card known by its 30 days in Anki', () => {
     render(reviewCard({
-      shown: { status: 'known', skipped: false, where: 'here' },
+      shown: { status: 'known', skipped: false, where: 'here', tone: 'settled' },
       state: state({ note: 'known_by_timer', buttons: buttons({ known: { pressed: true } }) }),
     }))
 

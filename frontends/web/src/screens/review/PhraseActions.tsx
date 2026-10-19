@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ArrowRight, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
-import type { CardButton, DecisionButton, FollowUpAction, StoredCandidate } from '@/api/types'
+import type { ButtonCommand, CardButton, DecisionButton, FollowUpAction, StoredCandidate } from '@/api/types'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { phraseWordTexts } from '@/lib/text/phraseParts'
 import { toggled } from '@/lib/text/words'
@@ -21,13 +21,14 @@ const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string; icon: LucideIc
 
 const UNKNOWN_WORDS_HINT = 'Tap the words you don\'t know'
 
-/** `editor`: кнопка горит, пока открыта разметка cloze. */
-const BUTTON_LOOK: Record<DecisionButton, { label: string; kbd: string; editor: boolean }> = {
-  learn: { label: 'Learn', kbd: '1', editor: false },
-  cloze: { label: 'Cloze', kbd: '2', editor: true },
-  known: { label: 'Know', kbd: '3', editor: false },
-  skip: { label: 'Skip', kbd: '4', editor: false },
+const BUTTON_LOOK: Record<DecisionButton, { label: string; kbd: string }> = {
+  learn: { label: 'Learn', kbd: '1' },
+  cloze: { label: 'Cloze', kbd: '2' },
+  known: { label: 'Know', kbd: '3' },
+  skip: { label: 'Skip', kbd: '4' },
 }
+
+const OPENS_EDITOR: Record<ButtonCommand, boolean> = { edit_cloze: true, decide: false }
 
 interface PhraseActionsProps {
   candidate: StoredCandidate
@@ -44,10 +45,7 @@ interface DecisionButtonsProps extends PhraseActionsProps {
  */
 export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsProps) {
   const { state } = candidate
-  const variant = (button: CardButton) => {
-    if (BUTTON_LOOK[button.button].editor) return isClozePressed(button, cloze.active) ? 'fill' : 'soft'
-    return !cloze.active && button.pressed ? 'fill' : 'soft'
-  }
+  const variant = (button: CardButton) => (isLit(button, cloze.active, candidate.can_edit_cloze) ? 'fill' : 'soft')
   const note = cardNoteText(state)
   return (
     <>
@@ -71,7 +69,15 @@ export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsPro
   )
 }
 
-const isClozePressed = (button: CardButton, editing: boolean) => button.pressed || editing
+/**
+ * Пока открыта разметка cloze, горит кнопка, которая её открыла, а у карточки-cloze — её нажатая кнопка;
+ * иначе — нажатая. Всё это сказал backend: команда кнопки, нажата ли она, можно ли править cloze.
+ */
+const isLit = (button: CardButton, editing: boolean, canEditCloze: boolean): boolean => {
+  if (!editing) return button.pressed
+  const opensEditor = button.command !== null && OPENS_EDITOR[button.command]
+  return opensEditor || (button.pressed && canEditCloze)
+}
 
 interface PhraseToolsProps extends PhraseActionsProps {
   onEditPhrase: () => void
