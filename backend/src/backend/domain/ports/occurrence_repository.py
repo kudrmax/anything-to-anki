@@ -4,13 +4,16 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
-    from backend.domain.services.rebuild_plan import RebuildPlan
+    from backend.domain.services.rebuild_plan import RebuildPlan, SectionChange
     from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.occurrence_row import OccurrenceRow
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.phrase_origin_kind import ShownBy
+    from backend.domain.value_objects.unsectioned_phrase import UnsectionedPhrase
     from backend.domain.value_objects.word_row import WordRow
 
 
@@ -94,3 +97,10 @@ class OccurrenceRepository(ABC):
         """Write a rebuild plan in the caller's transaction: words, phrases, their words
         and the selection marks. Returns the ids of the inserted phrases, in the order of
         `plan.occ_to_insert`."""
+
+    @abstractmethod
+    def unsectioned(self) -> list[UnsectionedPhrase]:
+        """Every phrase with no earned section, read without the section the entity needs."""
+
+    @abstractmethod
+    def set_earned_sections(self, changes: Sequence[SectionChange]) -> None: ...

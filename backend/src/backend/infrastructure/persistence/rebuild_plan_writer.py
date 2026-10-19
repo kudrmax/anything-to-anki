@@ -56,7 +56,7 @@ class RebuildPlanWriter:
         self._rescore(plan.occ_to_update_score)
         inserted = self._insert(plan.occ_to_insert, self._word_ids(plan.source_id))
         self._select(plan.selection_changes)
-        self._restamp(plan.section_changes)
+        self.restamp(plan.section_changes)
         self._session.flush()
         return inserted
 
@@ -142,7 +142,7 @@ class RebuildPlanWriter:
                 [{"id": u.occurrence_id, "fragment_score": u.fragment_score} for u in updates],
             )
 
-    def _restamp(self, changes: Sequence[SectionChange]) -> None:
+    def restamp(self, changes: Sequence[SectionChange]) -> None:
         if changes:
             self._session.execute(
                 update(PhraseModel),

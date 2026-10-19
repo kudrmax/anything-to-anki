@@ -26,6 +26,7 @@ from backend.application.use_cases.delete_collection import DeleteCollectionUseC
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.application.use_cases.delete_sources import DeleteSourcesUseCase
 from backend.application.use_cases.describe_input import DescribeInputUseCase
+from backend.application.use_cases.fix_sections import FixSectionsUseCase
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
@@ -262,7 +263,7 @@ KNOWLEDGE_SCOPE_KEY = "knowledge_scope"
 class Container:
     """Dependency injection container. Single point of assembly for all dependencies."""
 
-    def __init__(self) -> None:
+    def __init__(self, session_factory: sessionmaker[Session] | None = None) -> None:
 
         from backend.infrastructure.adapters.ffmpeg_media_extractor import FfmpegMediaExtractor
         from backend.infrastructure.adapters.ffmpeg_subtitle_extractor import (
@@ -365,7 +366,7 @@ class Container:
         self._anki_template_renderer = AnkiTemplateRenderer(templates_dir)
         self._clock = SystemClock()
         # Session factory — lazy-loaded to avoid circular import with api.dependencies
-        self._session_factory: sessionmaker[Session] | None = None
+        self._session_factory: sessionmaker[Session] | None = session_factory
 
     def _get_session_factory(self) -> sessionmaker[Session]:
         """Lazy-load the session factory to avoid circular imports."""
@@ -561,6 +562,15 @@ class Container:
             unit_of_work=self._unit_of_work(session),
             rebuilder=self._source_rebuilder(session),
             topic_phrase_collector=self._topic_phrase_collector(session),
+        )
+
+    def fix_sections_use_case(self, session: Session) -> FixSectionsUseCase:
+        return FixSectionsUseCase(
+            source_repo=SqlaSourceRepository(session),
+            occurrence_repo=SqlaOccurrenceRepository(session),
+            stamper=self._section_stamper(session),
+            rebuild_source=self.rebuild_source_use_case(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def rebuild_source_use_case(self, session: Session) -> RebuildSourceUseCase:

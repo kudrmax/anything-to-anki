@@ -1,4 +1,4 @@
-.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths app test-macos _check_env _check_setup _up _up-worktree _down _down-worktree
+.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths fix-sections app test-macos _check_env _check_setup _up _up-worktree _down _down-worktree
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # -include не падает если файла нет; если .env создаётся правилом ниже,
@@ -421,6 +421,9 @@ test-macos:  ## Тесты macOS-оболочки
 ##@ Миграция
 migrate-paths: _check_setup  ## Перевести пути к медиа в БД на эту копию (dry-run, APPLY=1 для применения)
 	.venv/bin/python scripts/relocate_media_paths.py $(if $(APPLY),--apply)
+
+fix-sections: _check_setup dict-update  ## Проставить секции фразам и пересобрать источники (при остановленном приложении)
+	.venv/bin/python scripts/fix_sections.py
 
 ##@ Прочее
 help:  ## Показать доступные команды
