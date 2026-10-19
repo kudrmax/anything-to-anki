@@ -8,6 +8,8 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sqlalchemy.orm import sessionmaker
+
 from backend.application.source_intake.book_handler import BookHandler
 from backend.application.source_intake.document_normalizer import DocumentNormalizer
 from backend.application.source_intake.single_source_handler import SingleSourceHandler
@@ -124,6 +126,10 @@ from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
 )
 from backend.infrastructure.adapters.yandex_image_source import YandexImageSource
+from backend.infrastructure.api.background_rebuild_launcher import (
+    BackgroundSourcesRebuildLauncher,
+)
+from backend.infrastructure.api.source_operations import OPERATIONS
 from backend.infrastructure.config.prompts_loader import PromptsLoader
 from backend.infrastructure.persistence.sqla_anki_sync_repository import (
     SqlaAnkiSyncRepository,
@@ -201,7 +207,7 @@ from backend.infrastructure.readers.youtube_reader import YouTubeReader
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session, sessionmaker
+    from sqlalchemy.orm import Session
 
     from backend.application.use_cases.apply_target_image import ApplyTargetImageUseCase
     from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
@@ -851,6 +857,16 @@ class Container:
         return ManageSettingsUseCase(
             settings_repo=SqlaSettingsRepository(session),
             threshold_resolver=self._threshold_resolver(session),
+            unit_of_work=self._unit_of_work(session),
+            rebuild_launcher=self._rebuild_launcher(session),
+        )
+
+    def _rebuild_launcher(self, session: Session) -> BackgroundSourcesRebuildLauncher:
+        """Works on the database of the session that asks, in sessions of its own."""
+        return BackgroundSourcesRebuildLauncher(
+            session_factory=sessionmaker(bind=session.get_bind()),
+            rebuild_use_case=self.rebuild_source_use_case,
+            operations=OPERATIONS,
         )
 
     def get_anki_status_use_case(self, session: Session) -> GetAnkiStatusUseCase:

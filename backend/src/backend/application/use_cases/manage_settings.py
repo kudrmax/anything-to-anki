@@ -33,6 +33,8 @@ if TYPE_CHECKING:
         FrequentWordThresholdResolver,
     )
     from backend.domain.ports.settings_repository import SettingsRepository
+    from backend.domain.ports.sources_rebuild_launcher import SourcesRebuildLauncher
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 _DEFAULT_CEFR_LEVEL: str = "B1"
 _DEFAULT_DECK_NAME: str = "Default"
@@ -57,6 +59,8 @@ _SETTING_KEYS: dict[str, str] = {
     BOOK_CHAPTER_TITLE_SETTING: DEFAULT_CHAPTER_TITLE_TEMPLATE,
 }
 
+_REBUILD_TRIGGER_KEYS: tuple[str, ...] = ("cefr_level", FREQUENT_WORD_THRESHOLD_SETTING)
+
 _BOOL_KEYS: frozenset[str] = frozenset({"enable_definitions"})
 _JSON_LIST_KEYS: frozenset[str] = frozenset({"usage_group_order", "tts_enabled_voices"})
 _FLOAT_KEYS: frozenset[str] = frozenset({"tts_speed"})
@@ -70,9 +74,13 @@ class ManageSettingsUseCase:
         self,
         settings_repo: SettingsRepository,
         threshold_resolver: FrequentWordThresholdResolver,
+        unit_of_work: UnitOfWork,
+        rebuild_launcher: SourcesRebuildLauncher,
     ) -> None:
         self._settings_repo = settings_repo
         self._threshold_resolver = threshold_resolver
+        self._unit_of_work = unit_of_work
+        self._rebuild_launcher = rebuild_launcher
 
     def get_settings(self) -> SettingsDTO:
         raw: dict[str, str] = {
@@ -94,6 +102,7 @@ class ManageSettingsUseCase:
         return SettingsDTO(**values)  # type: ignore[arg-type]
 
     def update_settings(self, request: UpdateSettingsRequest) -> SettingsDTO:
+        before = self._rebuild_trigger_values()
         for key in _SETTING_KEYS:
             value = getattr(request, key, None)
             if value is not None:
@@ -106,6 +115,7 @@ class ManageSettingsUseCase:
                 else:
                     str_value = str(value)
                 self._settings_repo.set(key, str_value)
+        self._rebuild_if_changed(before)
         return self.get_settings()
 
     def frequent_word_threshold_options(self) -> list[FrequentWordThresholdDTO]:
@@ -121,5 +131,19 @@ class ManageSettingsUseCase:
 
     # kept for backward-compatibility with existing routes
     def update_cefr_level(self, level: str) -> None:
+        before = self._rebuild_trigger_values()
         self._settings_repo.set("cefr_level", level)
+        self._rebuild_if_changed(before)
+
+    def _rebuild_trigger_values(self) -> dict[str, str]:
+        return {
+            key: self._settings_repo.get(key, _SETTING_KEYS[key]) or _SETTING_KEYS[key]
+            for key in _REBUILD_TRIGGER_KEYS
+        }
+
+    def _rebuild_if_changed(self, before: dict[str, str]) -> None:
+        if self._rebuild_trigger_values() == before:
+            return
+        self._unit_of_work.commit()
+        self._rebuild_launcher.rebuild_all()
 

@@ -70,7 +70,7 @@ from backend.infrastructure.api.dependencies import (
     get_session_factory,
 )
 from backend.infrastructure.api.scope_param import parse_scope
-from backend.infrastructure.api.source_operations import SourceOperationRegistry
+from backend.infrastructure.api.source_operations import OPERATIONS
 from backend.infrastructure.persistence.sqla_source_operation_lock import (
     SqlaSourceOperationLock,
 )
@@ -84,7 +84,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
-OPERATIONS = SourceOperationRegistry()
 _background_tasks: set[asyncio.Task[None]] = set()
 
 
