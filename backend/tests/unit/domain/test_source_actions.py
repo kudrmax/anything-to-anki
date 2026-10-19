@@ -29,15 +29,21 @@ def test_a_processed_source_can_be_reviewed(status: ReviewStatus, reviewable: bo
     assert can_review(status) is reviewable
 
 
-@pytest.mark.parametrize(("status", "exportable"), [
-    (ReviewStatus.NEW, False),
-    (ReviewStatus.ERROR, False),
-    (ReviewStatus.DONE, False),
-    (ReviewStatus.PARTIALLY_REVIEWED, True),
-    (ReviewStatus.REVIEWED, True),
+@pytest.mark.parametrize(("status", "learn_count", "exportable"), [
+    (ReviewStatus.NEW, 0, False),
+    (ReviewStatus.ERROR, 1, False),
+    (ReviewStatus.DONE, 0, False),
+    (ReviewStatus.DONE, 1, True),
+    (ReviewStatus.PARTIALLY_REVIEWED, 0, False),
+    (ReviewStatus.PARTIALLY_REVIEWED, 2, True),
+    (ReviewStatus.REVIEWED, 0, False),
+    (ReviewStatus.REVIEWED, 3, True),
 ])
-def test_a_source_with_decisions_can_be_exported(status: ReviewStatus, exportable: bool) -> None:
-    assert can_export(status) is exportable
+def test_a_processed_source_with_a_word_to_learn_can_be_exported(
+    status: ReviewStatus, learn_count: int, exportable: bool,
+) -> None:
+    """Decisions alone are not enough: all-Known or all-Skip leaves nothing to export."""
+    assert can_export(status, learn_count) is exportable
 
 
 def test_a_free_source_can_be_deleted() -> None:

@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.decision_progress import DecisionProgress
     from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
-EXPORTABLE_STATUSES = frozenset({ReviewStatus.PARTIALLY_REVIEWED, ReviewStatus.REVIEWED})
 COMPLETE = 1.0
 NOTHING_DONE = 0.0
 
@@ -26,9 +25,9 @@ def can_review(status: ReviewStatus) -> bool:
     return status in REVIEWABLE_STATUSES
 
 
-def can_export(status: ReviewStatus) -> bool:
-    """Something was decided there."""
-    return status in EXPORTABLE_STATUSES
+def can_export(status: ReviewStatus, learn_count: int) -> bool:
+    """A processed source with a word chosen to learn there (`chosen_to_learn`)."""
+    return can_review(status) and learn_count > 0
 
 
 def ensure_deletable(source: Source, busy_with: SourceOperationKind | None) -> None:

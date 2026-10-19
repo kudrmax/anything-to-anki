@@ -267,5 +267,5 @@ def test_a_timer_coming_due_reopens_a_reviewed_source_with_nothing_written(
     )
     assert client.get("/collections").json()["all"]["reviewed"] == reviewed_before - 1
     assert after["can_review"]
-    assert after["can_export"]
+    assert not after["can_export"], "nothing in BOARD is to learn"
     assert _stored_status(factory, BOARD) == "done"

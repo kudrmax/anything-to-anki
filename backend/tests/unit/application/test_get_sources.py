@@ -202,6 +202,7 @@ class TestGetSourcesUseCase:
             2: [_row(2, 1, WordStatus.LEARN), _row(2, 2)],
             3: [_row(3, 3, WordStatus.KNOWN)],
         }
+        self.card_query.learn_counts.return_value = {2: 1}
         self.lock.operations.return_value = {1: HeldOperation(SourceOperationKind.PROCESS)}
 
         new, started, reviewed = self.use_case.list_all()
@@ -209,8 +210,9 @@ class TestGetSourcesUseCase:
         assert (new.can_review, new.can_export, new.can_delete) == (False, False, False)
         assert (started.can_review, started.can_export, started.can_delete) == (True, True, True)
         assert started.review_fraction == 0.5
+        # Every card decided, but only Known: nothing to export.
         assert (reviewed.status, reviewed.can_export, reviewed.review_fraction) == (
-            "reviewed", True, 1.0,
+            "reviewed", False, 1.0,
         )
 
     def test_a_source_with_nothing_decided_cannot_be_exported(self) -> None:

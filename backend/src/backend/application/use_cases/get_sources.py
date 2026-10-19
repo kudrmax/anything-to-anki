@@ -144,7 +144,7 @@ class GetSourcesUseCase:
             busy_with=busy_with,
             operation_hint=operation_hint(busy_with),
             can_review=can_review(status),
-            can_export=can_export(status),
+            can_export=can_export(status, learn_count),
             can_delete=can_delete(source, busy_with),
             review_fraction=review_fraction(status, progress),
             progress_caption=progress_caption(
