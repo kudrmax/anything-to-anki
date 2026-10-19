@@ -10,9 +10,10 @@ from backend.domain.value_objects.card_generation_state import CardGenerationSta
 from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_kind import GenerationKind
 from backend.domain.value_objects.job_status import JobStatus
-from backend.domain.value_objects.review_card import CardContext
+from backend.domain.value_objects.review_card import CardContext, ReviewCard
 
 if TYPE_CHECKING:
+    from backend.application.utils.candidate_sorter import CandidateSorter
     from backend.application.utils.section_stamper import SectionStamper
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.occurrence import Occurrence
@@ -55,6 +56,10 @@ class GenerationCard:
         assert self.phrase.id is not None
         return self.phrase.id
 
+    @property
+    def review_card(self) -> ReviewCard:
+        return ReviewCard(word=self.word, occurrence=self.phrase)
+
 
 @dataclass(frozen=True)
 class ReadyCards:
@@ -64,10 +69,11 @@ class ReadyCards:
     word_ids: frozenset[int]
 
     @classmethod
-    def of(cls, cards: list[GenerationCard]) -> ReadyCards:
+    def of(cls, cards: list[GenerationCard], sorter: CandidateSorter) -> ReadyCards:
+        shown = sorter.open_sections([card.review_card for card in cards])
         ready = [
             card for card in cards
-            if wants_ready_generation(card.in_play, card.phrase.earned_section)
+            if wants_ready_generation(card.in_play, shown[card.phrase_id])
         ]
         return cls(
             phrase_ids=frozenset(card.phrase_id for card in ready),

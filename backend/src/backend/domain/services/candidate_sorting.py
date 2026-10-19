@@ -22,6 +22,7 @@ from backend.domain.services.candidate_sections import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
     from backend.domain.value_objects.review_card import ReviewCard
     from backend.domain.value_objects.user_knowledge import UserKnowledge
 
@@ -58,11 +59,12 @@ def _usage_sort_key(card: ReviewCard, usage_order: list[str] | None) -> int:
 def sort_by_relevance(
     cards: list[ReviewCard],
     usage_order: list[str] | None = None,
+    frequent_threshold: FrequentWordThreshold | None = None,
     knowledge: UserKnowledge | None = None,
 ) -> list[ReviewCard]:
     """Sort cards so the ones most worth learning come first.
 
-    By stored section: ready, extra new words, probably known (junk at its bottom),
+    By section: ready, extra new words, probably known (junk at its bottom),
     then the done cards in Reviewed. In extra, fewer new words first; regular
     words before phrasal verbs.
 
@@ -74,7 +76,7 @@ def sort_by_relevance(
     """
     return _grouped(
         cards,
-        partition=lambda c: SECTION_ORDER[card_section(c)],
+        partition=lambda c: SECTION_ORDER[card_section(c, knowledge, frequent_threshold)],
         key=lambda c: (
             is_junk(c),
             len(new_words(c.phrase, knowledge)),
@@ -89,6 +91,7 @@ def sort_by_relevance(
 
 def sort_by_key_words(
     cards: list[ReviewCard],
+    frequent_threshold: FrequentWordThreshold | None = None,
     knowledge: UserKnowledge | None = None,
 ) -> list[ReviewCard]:
     """Sort cards so the words this text leans on most come first.
@@ -103,7 +106,7 @@ def sort_by_key_words(
     """
     return _grouped(
         cards,
-        partition=lambda c: SECTION_ORDER[card_section(c)],
+        partition=lambda c: SECTION_ORDER[card_section(c, knowledge, frequent_threshold)],
         key=lambda c: (
             is_junk(c),
             -c.word.occurrences,

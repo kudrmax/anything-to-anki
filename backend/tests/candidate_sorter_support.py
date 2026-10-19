@@ -38,7 +38,7 @@ def candidate_sorter(settings_repo: SettingsRepository) -> CandidateSorter:
     knowledge.current.side_effect = lambda: UserKnowledge(
         EMPTY_VOCABULARY, CEFRLevel.B1, resolver.resolve().zipf,
     )
-    return CandidateSorter(settings_repo, knowledge)
+    return CandidateSorter(settings_repo, resolver, knowledge)
 
 
 def section_stamper(settings_repo: SettingsRepository) -> SectionStamper:

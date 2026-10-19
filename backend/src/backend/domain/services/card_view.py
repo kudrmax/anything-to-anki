@@ -301,6 +301,15 @@ def section(card: Done, open_section: CandidateSection) -> CandidateSection:
     return CandidateSection.REVIEWED if card.is_done else open_section
 
 
+def shown_section(current: CandidateSection, earned: CandidateSection) -> CandidateSection:
+    """Where an open card stands: Ready only when both the section its phrase has now and the
+    one it earned are Ready; otherwise the earned one when the current is Ready, else the
+    current."""
+    if current is CandidateSection.READY and earned is not CandidateSection.READY:
+        return earned
+    return current
+
+
 def is_earnable(section: CandidateSection) -> bool:
     """A phrase earns Ready, Extra or Probably known; Reviewed is where a done card stands."""
     return section is not CandidateSection.REVIEWED

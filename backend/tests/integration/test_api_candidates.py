@@ -281,7 +281,7 @@ class TestTargetImageAPI:
 
 @pytest.mark.integration
 class TestUnknownWordsAPI:
-    """A word the user marks unknown does not move cards: their sections are stored."""
+    """Words of a phrase the user doesn't know take the card out of Ready."""
 
     def _card(self, client: TestClient) -> dict[str, object]:
         source = client.get("/sources/1").json()
@@ -291,9 +291,7 @@ class TestUnknownWordsAPI:
     def test_card_is_ready_at_first(self, client: TestClient) -> None:
         assert self._card(client) == {"section": "ready", "ready": 1}
 
-    def test_word_marked_in_a_report_leaves_the_card_in_its_stored_section(
-        self, client: TestClient,
-    ) -> None:
+    def test_word_marked_in_a_report_moves_the_card_to_extra(self, client: TestClient) -> None:
         response = client.post(
             f"/phrases/{PHRASE_ID}/report",
             json={
@@ -303,9 +301,9 @@ class TestUnknownWordsAPI:
         )
         assert response.status_code == 201
         assert [w["lemma"] for w in client.get("/unknown-words").json()] == ["the"]
-        assert self._card(client) == {"section": "ready", "ready": 1}
+        assert self._card(client) == {"section": "extra", "ready": 0}
 
-    def test_removing_the_unknown_word_leaves_the_card_in_ready(
+    def test_removing_the_unknown_word_returns_the_card_to_ready(
         self, client: TestClient,
     ) -> None:
         client.post(f"/phrases/{PHRASE_ID}/report", json={"unknown_words": [0]})
@@ -313,10 +311,9 @@ class TestUnknownWordsAPI:
         assert client.delete(f"/unknown-words/{word['id']}").status_code == 200
         assert self._card(client) == {"section": "ready", "ready": 1}
 
-    def test_source_status_does_not_follow_an_unknown_word(self, client: TestClient) -> None:
-        before = client.get("/sources/1").json()["status"]
+    def test_source_with_no_ready_cards_left_is_reviewed(self, client: TestClient) -> None:
         client.post(f"/phrases/{PHRASE_ID}/report", json={"unknown_words": [0]})
-        assert client.get("/sources/1").json()["status"] == before
+        assert client.get("/sources/1").json()["status"] == "reviewed"
 
     def test_new_phrase_is_read_again(self, client: TestClient) -> None:
         client.put(f"/phrases/{PHRASE_ID}/phrase", json={"phrase": "the ominous pursuit of"})

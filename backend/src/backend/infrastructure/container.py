@@ -758,6 +758,7 @@ class Container:
     def _candidate_sorter(self, session: Session) -> CandidateSorter:
         return CandidateSorter(
             settings_repo=SqlaSettingsRepository(session),
+            threshold_resolver=self._threshold_resolver(session),
             knowledge=self._user_knowledge(session),
         )
 
@@ -1211,6 +1212,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             cards=self._generation_cards(session),
             job_repo=SqlaJobRepository(session),
+            candidate_sorter=self._candidate_sorter(session),
             targets=self._generation_targets(session),
         )
 

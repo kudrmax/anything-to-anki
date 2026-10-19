@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
-from backend.domain.services.card_view import section
+from backend.domain.services.card_view import section, shown_section
 from backend.domain.value_objects.candidate_section import CandidateSection
 
 if TYPE_CHECKING:
@@ -47,7 +47,7 @@ class CardFacts(WordFacts, Protocol):
         ...
 
 
-class ShownCardFacts(Protocol):
+class ShownCardFacts(CardFacts, Protocol):
     @property
     def is_done(self) -> bool: ...
 
@@ -82,9 +82,22 @@ def section_of(
     return CandidateSection.READY
 
 
-def card_section(card: ShownCardFacts) -> CandidateSection:
-    """Where the card stands: Reviewed once done, else the section its phrase earned."""
-    return section(card, card.earned_section)
+def open_section(
+    card: ShownCardFacts,
+    knowledge: UserKnowledge | None,
+    frequent_threshold: FrequentWordThreshold | None,
+) -> CandidateSection:
+    """Where the card stands, done or not: Ready only if the phrase is Ready now and earned it."""
+    return shown_section(section_of(card, knowledge, frequent_threshold), card.earned_section)
+
+
+def card_section(
+    card: ShownCardFacts,
+    knowledge: UserKnowledge | None,
+    frequent_threshold: FrequentWordThreshold | None,
+) -> CandidateSection:
+    """Where the card stands: Reviewed once done, else its open section."""
+    return section(card, open_section(card, knowledge, frequent_threshold))
 
 
 @dataclass(frozen=True)

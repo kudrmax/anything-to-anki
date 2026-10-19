@@ -56,10 +56,8 @@ class TestCandidateSorter:
             word(3, "gallows", status=WordStatus.LEARN),
             occurrence(3, 3, phrase("the gallows stood", "gallows")),
         )
-        dirty = card(word(4, "ember"), occurrence(
-            4, 4, phrase("an ember zephyr", "ember", new=("zephyr",)),
-            earned_section=CandidateSection.EXTRA,
-        ))
+        dirty = card(word(4, "ember"), occurrence(4, 4, phrase("an ember zephyr", "ember",
+                                                               new=("zephyr",))))
         arranged = self.sorter.arrange([learned, dirty, self.feast])
         assert arranged.section(learned) is CandidateSection.REVIEWED
         assert arranged.section(dirty) is CandidateSection.EXTRA
@@ -68,7 +66,7 @@ class TestCandidateSorter:
         assert self.sorter.section(learned) is CandidateSection.REVIEWED
         assert self.sorter.section(dirty) is CandidateSection.EXTRA
 
-    def test_an_open_card_stands_in_its_stored_section_whatever_the_user_knows_now(self) -> None:
+    def test_an_open_card_that_is_ready_now_but_earned_extra_stays_in_extra(self) -> None:
         stamped = card(
             word(3, "ember"),
             occurrence(3, 3, phrase("an ember", "ember"), earned_section=CandidateSection.EXTRA),
@@ -78,9 +76,21 @@ class TestCandidateSorter:
 
         assert arranged.section(stamped) is CandidateSection.EXTRA
         assert self.sorter.section(stamped) is CandidateSection.EXTRA
+        assert arranged.progress() == DecisionProgress(decided=0, total=1)
         assert [c.lemma for c in arranged.cards] == ["feast", "ember"]
 
-    def test_a_done_card_is_reviewed_whatever_its_stored_section(self) -> None:
+    def test_an_open_card_that_earned_ready_leaves_ready_when_its_phrase_is_not(self) -> None:
+        dirty = card(
+            word(3, "ember"),
+            occurrence(
+                3, 3, phrase("an ember zephyr", "ember", new=("zephyr",)),
+                earned_section=CandidateSection.READY,
+            ),
+        )
+
+        assert self.sorter.section(dirty) is CandidateSection.EXTRA
+
+    def test_a_done_card_is_reviewed_whatever_it_earned(self) -> None:
         learned = card(
             word(3, "ember", status=WordStatus.LEARN),
             occurrence(3, 3, phrase("an ember", "ember"), earned_section=CandidateSection.EXTRA),
@@ -88,38 +98,13 @@ class TestCandidateSorter:
 
         assert self.sorter.arrange([learned]).section(learned) is CandidateSection.REVIEWED
 
-    def test_order_inside_a_section_still_follows_new_words(self) -> None:
-        many = card(
-            word(3, "ember"),
-            occurrence(
-                3, 3, phrase("an ember quill zephyr", "ember", new=("quill", "zephyr")),
-                earned_section=CandidateSection.EXTRA,
-            ),
-        )
-        few = card(
-            word(4, "cinder"),
-            occurrence(
-                4, 4, phrase("a cinder quill", "cinder", new=("quill",)),
-                earned_section=CandidateSection.EXTRA,
-            ),
-        )
-
-        arranged = self.sorter.arrange([many, few])
-
-        assert [c.lemma for c in arranged.cards] == ["cinder", "ember"]
-
     def test_progress_is_reviewed_among_reviewed_and_open_ready(self) -> None:
         skipped_extra = card(
             word(3, "ember"),
-            occurrence(
-                3, 3, phrase("an ember zephyr", "ember", new=("zephyr",)), skipped=True,
-                earned_section=CandidateSection.EXTRA,
-            ),
+            occurrence(3, 3, phrase("an ember zephyr", "ember", new=("zephyr",)), skipped=True),
         )
-        open_extra = card(word(4, "cinder"), occurrence(
-            4, 4, phrase("a cinder quill", "cinder", new=("quill",)),
-            earned_section=CandidateSection.EXTRA,
-        ))
+        open_extra = card(word(4, "cinder"), occurrence(4, 4, phrase("a cinder quill", "cinder",
+                                                                     new=("quill",))))
         known_elsewhere = card(
             word(5, "gallows"), occurrence(5, 5, phrase("the gallows stood", "gallows")),
             elsewhere=ElsewhereStatus.KNOWN,
@@ -132,9 +117,10 @@ class TestCandidateSorter:
     def test_progress_of_sources_counts_cards_done_elsewhere(self) -> None:
         rows = [
             _row(1, "gallows", "the gallows stood", elsewhere=ElsewhereStatus.LEARNING),
-            _row(2, "ember", "an ember zephyr", CandidateSection.EXTRA, skipped=True),
-            _row(3, "cinder", "a cinder quill", CandidateSection.EXTRA),
-            _row(4, "concept", "a concept here", CandidateSection.PROBABLY_KNOWN, zipf=4.77),
+            _row(2, "ember", "an ember zephyr", new=("zephyr",), skipped=True),
+            _row(3, "cinder", "a cinder quill", new=("quill",)),
+            _row(6, "ember", "an ember", CandidateSection.EXTRA),
+            _row(4, "concept", "a concept here", zipf=4.77),
             _row(5, "feast", "the feast"),
         ]
         assert self.sorter.progress({7: rows}) == {7: DecisionProgress(decided=2, total=3)}
@@ -142,10 +128,11 @@ class TestCandidateSorter:
 
 def _row(
     word_id: int, lemma: str, text: str, earned: CandidateSection = CandidateSection.READY,
-    *, zipf: float = 3.0, skipped: bool = False, elsewhere: ElsewhereStatus | None = None,
+    *, new: tuple[str, ...] = (), zipf: float = 3.0,
+    skipped: bool = False, elsewhere: ElsewhereStatus | None = None,
 ) -> CardRow:
     return CardRow(
         source_id=7, word_id=word_id, phrase_id=word_id, lemma=lemma, pos="NOUN",
         zipf_frequency=zipf, word_status=WordStatus.NEW, skipped=skipped,
-        phrase=phrase(text, lemma), earned_section=earned, elsewhere=elsewhere,
+        phrase=phrase(text, lemma, new=new), earned_section=earned, elsewhere=elsewhere,
     )

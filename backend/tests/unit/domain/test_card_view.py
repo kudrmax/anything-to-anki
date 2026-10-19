@@ -436,3 +436,18 @@ class TestOneDefinitionOfDone:
 
         with pytest.raises(NoDecisionRuleError):
             _view_of(world)
+
+
+_SECTIONS = (CandidateSection.READY, CandidateSection.EXTRA, CandidateSection.PROBABLY_KNOWN)
+
+
+@pytest.mark.parametrize(("current", "earned"), list(itertools.product(_SECTIONS, _SECTIONS)))
+def test_an_open_card_stands_in_ready_only_when_it_is_ready_now_and_earned_ready(
+    current: CandidateSection, earned: CandidateSection,
+) -> None:
+    expected = (
+        earned if current is CandidateSection.READY and earned is not CandidateSection.READY
+        else current
+    )
+
+    assert card_view_module.shown_section(current, earned) is expected
