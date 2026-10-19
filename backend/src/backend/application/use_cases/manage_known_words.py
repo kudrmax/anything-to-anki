@@ -58,7 +58,7 @@ class ManageKnownWordsUseCase:
         removal(value)
 
     def _delete_entry(self, known_word_id: str) -> None:
-        if not known_word_id.isdigit():
+        if not known_word_id.isdecimal():
             raise KnownWordNotFoundError(known_word_id)
         self.delete(int(known_word_id))
 
