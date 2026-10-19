@@ -270,7 +270,7 @@ SyncToAnki создаёт заметку или находит существу�
 
 ## API и frontend
 
-- Карточка в DTO: `{phrase_id, word_id, choice, word_status, state: {buttons}, can_edit_cloze, is_done, section, …}`; ключ карточки во фронте — `phrase_id`. Логики решений во фронте нет: кнопки, подписи, раздел, фокус-сигнал (`is_done`) — из backend.
+- Карточка в DTO: `{phrase_id, word_id, choice, word_status, state: {buttons}, can_edit_cloze, is_done, section, …}`; ключ карточки во фронте — `phrase_id`. Логики решений во фронте нет: кнопки, раздел, фокус-сигнал (`is_done`) — из backend.
 - Уровень **фразы** (`/phrases/{id}/…`): `decision` `{button: learn|cloze|known|skip}` — ответ карточкой; polish, phrase-boundary, cloze, preview, generate-tts, generate-meaning, regenerate-media, report, replace-with-example.
 - Уровень **слова** (`/words/{id}/…`): pronunciation, image и image-options (поиск картинки — по определению фразы решения или первой показанной).
 - Статус генерации — по `phrase_id`; подсветка в `get_source_document` — по показанным фразам.
