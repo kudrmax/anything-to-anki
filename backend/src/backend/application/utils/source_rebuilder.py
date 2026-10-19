@@ -9,7 +9,7 @@ from backend.application.utils.occurrence_builder import OccurrenceBuilder
 from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundError
 from backend.domain.services.card_view import stored_chosen_to_learn
 from backend.domain.services.document_time import is_timed, time_of
-from backend.domain.services.rebuild_plan import plan_rebuild
+from backend.domain.services.rebuild_plan import plan_rebuild, plan_sections
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
@@ -38,11 +38,12 @@ DEFAULT_USER_LEVEL = "B1"
 
 @dataclass(frozen=True)
 class AnalysedSource:
-    """A source's document and what a fresh analysis found in it."""
+    """A source's document and what a fresh analysis found in it; a source without text of
+    its own has neither."""
 
     source_id: int
-    document: Document
-    words: list[BuiltWord]
+    document: Document | None
+    words: list[BuiltWord] | None
 
 
 class SourceRebuilder:
@@ -84,6 +85,9 @@ class SourceRebuilder:
         """Runs outside any transaction: whatever was pending is committed first, so no
         writer waits for the analysis."""
         self._unit_of_work.commit()
+        source = self._source_repo.get_by_id(source_id)
+        if source is not None and not source.has_text:
+            return AnalysedSource(source_id, None, None)
         document = self._document_repo.get(source_id)
         if document is None:
             raise SourceHasNoDocumentError(source_id)
@@ -107,7 +111,15 @@ class SourceRebuilder:
         }
 
     def plan(self, analysed: AnalysedSource, include_open: bool) -> RebuildPlan:
-        """The plan as it stands now; nothing is written."""
+        """The plan as it stands now; nothing is written. A source without text of its own
+        has its sections moved only, whatever `include_open` says."""
+        if analysed.words is None:
+            return plan_sections(
+                analysed.source_id,
+                self._occurrence_repo.projection(analysed.source_id),
+                self._occurrence_repo.word_rows(analysed.source_id),
+                self._stamper.rule(),
+            )
         return plan_rebuild(
             analysed.source_id,
             self._occurrence_repo.projection(analysed.source_id),
@@ -139,9 +151,9 @@ class SourceRebuilder:
         )
         return plan
 
-    def _time(self, document: Document, plan: RebuildPlan, inserted: list[int]) -> None:
+    def _time(self, document: Document | None, plan: RebuildPlan, inserted: list[int]) -> None:
         """Phrases of a video whose text the plan wrote get the time of their lines."""
-        if not is_timed(document):
+        if document is None or not is_timed(document):
             return
         positions: dict[int, DocumentPosition] = {
             u.occurrence_id: u.phrase_position for u in plan.occ_to_update_text

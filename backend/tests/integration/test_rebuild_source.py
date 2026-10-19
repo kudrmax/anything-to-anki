@@ -5,19 +5,23 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.job import Job
+from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import (
     RebuildNotSupportedError,
+    SourceHasNoDocumentError,
     SourceNotFoundError,
     SourceOperationBusyError,
 )
 from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
+from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import JobModel
 from sqlalchemy import select, text
 
+from tests.phrase_support import phrase
 from tests.rebuild_support import text_phrase
 from tests.source_rebuild_support import (
     LINES,
@@ -28,7 +32,7 @@ from tests.source_rebuild_support import (
     word,
 )
 from tests.vocabulary_support import user_vocabulary
-from tests.word_support import bind
+from tests.word_support import bind, store_card
 
 if TYPE_CHECKING:
     from backend.application.dto.analysis_dtos import AnalyzeTextRequest
@@ -407,18 +411,6 @@ def test_a_source_deleted_during_the_analysis_is_not_written(bench: Bench) -> No
     assert bench.phrases() == []
 
 
-@pytest.mark.parametrize("role", ["topic", "saved_phrases"])
-def test_a_source_without_its_own_text_is_not_rebuilt(db_session: Session, role: str) -> None:
-    bench = Bench(db_session, role=role, status="done")
-
-    with pytest.raises(RebuildNotSupportedError):
-        bench.rebuild().execute(SOURCE, include_open=False)
-    with pytest.raises(RebuildNotSupportedError):
-        bench.rebuild().preview(SOURCE)
-
-    assert bench.lock.held(SOURCE) is None
-
-
 def test_a_source_never_processed_is_not_rebuilt(db_session: Session) -> None:
     """Rebuild is what the source offers once processed; a new one is processed instead."""
     bench = Bench(db_session, status="new")
@@ -594,3 +586,100 @@ def test_a_preview_that_only_moves_sections_offers_rebuild(bench: Bench) -> None
     assert not preview.without_open.nothing_to_update
     assert preview.without_open.words_added == 0
     assert preview.without_open.cards_new_phrase == 0
+
+
+# ── sources without text of their own: sections only ──────────────────
+
+COLLECTED_TEXT = "He glared at me."
+
+
+def _collected(bench: Bench, lemma: str, origin: OccurrenceOrigin) -> int:
+    seeded = store_card(
+        bench.session,
+        StoredCandidate(
+            source_id=SOURCE, lemma=lemma, pos="VERB", cefr_level="B2",
+            zipf_frequency=3.0, occurrences=1, status=WordStatus.NEW,
+        ),
+        phrase(COLLECTED_TEXT, lemma),
+        origin=origin,
+    )
+    bench.session.commit()
+    return seeded.phrase_id
+
+
+def _everything_but_sections(bench: Bench) -> list[tuple[object, ...]]:
+    rows = bench.session.execute(text(
+        "SELECT id, candidate_id, source_phrase, polished_phrase, shown_by, choice, revision,"
+        " origin, polish_reverted FROM phrases ORDER BY id"
+    )).all()
+    words = bench.session.execute(text("SELECT * FROM candidates ORDER BY id")).all()
+    meanings = bench.session.execute(
+        text("SELECT * FROM candidate_meanings ORDER BY phrase_id")
+    ).all()
+    return [tuple(r) for r in (*rows, *words, *meanings)]
+
+
+@pytest.mark.parametrize(("role", "origin"), [
+    ("topic", OccurrenceOrigin.COLLECTED),
+    ("saved_phrases", OccurrenceOrigin.MANUAL),
+])
+def test_rebuilding_a_source_without_text_restamps_sections_only(
+    db_session: Session, role: str, origin: OccurrenceOrigin,
+) -> None:
+    bench = Bench(db_session, role=role, status="done")
+    phrase_id = _collected(bench, "glare", origin)
+    bench.give_meaning(phrase_id)
+    bench.session.execute(text("UPDATE phrases SET earned_section = 'extra'"))
+    bench.session.commit()
+    before = _everything_but_sections(bench)
+
+    summary = bench.rebuild().execute(SOURCE, include_open=True)
+
+    assert [p.earned_section for p in bench.phrases()] == ["ready"]
+    assert _everything_but_sections(bench) == before
+    bench.analyze_text.execute.assert_not_called()
+    assert not summary.include_open
+    assert bench.lock.held(SOURCE) is None
+
+
+@pytest.mark.parametrize("role", ["topic", "saved_phrases"])
+def test_preview_of_a_source_without_text_has_no_with_open(
+    db_session: Session, role: str,
+) -> None:
+    bench = Bench(db_session, role=role, status="done")
+
+    assert bench.rebuild().preview(SOURCE).with_open is None
+
+
+def test_a_content_source_preview_still_has_with_open(bench: Bench) -> None:
+    bench.processed(word("glare", at(0)))
+
+    assert bench.rebuild().preview(SOURCE).with_open is not None
+
+
+def test_an_empty_saved_phrases_source_has_nothing_to_update(db_session: Session) -> None:
+    bench = Bench(db_session, role="saved_phrases", status="done")
+
+    preview = bench.rebuild().preview(SOURCE)
+
+    assert preview.without_open.nothing_to_update
+
+
+def test_a_topic_whose_only_change_is_a_section_offers_rebuild(db_session: Session) -> None:
+    bench = Bench(db_session, role="topic", status="done")
+    _collected(bench, "glare", OccurrenceOrigin.COLLECTED)
+    bench.session.execute(text("UPDATE phrases SET earned_section = 'extra'"))
+    bench.session.commit()
+
+    assert not bench.rebuild().preview(SOURCE).without_open.nothing_to_update
+
+
+def test_a_content_source_without_document_still_refuses(db_session: Session) -> None:
+    bench = Bench(db_session, status="error")
+    bench.session.execute(text("DELETE FROM source_documents"))
+    bench.session.commit()
+
+    with pytest.raises(SourceHasNoDocumentError):
+        bench.rebuild().execute(SOURCE, include_open=False)
+
+    assert bench.status() == "error"

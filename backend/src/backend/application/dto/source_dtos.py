@@ -90,9 +90,9 @@ class SourceDTO(BaseModel):
     generation_error: str | None = None
     # Built-in source: it can't be deleted.
     is_permanent: bool = False
-    # How the source is brought up to date: 'rebuild' | 'refresh', or nothing to offer.
-    available_operation: SourceOperationKind | None = None
-    # False while another operation holds the source: the offered one can't start.
+    # How the source is brought up to date, in menu order: 'refresh', 'rebuild'.
+    available_operations: list[SourceOperationKind] = []
+    # False while another operation holds the source: the offered ones can't start.
     can_start_operation: bool = True
     # The operation the source is busy with; no other one may start meanwhile.
     busy_with: SourceOperationKind | None = None

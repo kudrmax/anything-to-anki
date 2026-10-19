@@ -18,7 +18,6 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.topic_target import TopicTarget
 from backend.domain.exceptions import (
-    RebuildNotSupportedError,
     RefreshNotSupportedError,
     TopicTargetsMissingError,
 )
@@ -384,11 +383,9 @@ def test_a_second_refresh_adds_nothing(db_session: Session, container: Container
     assert [o.id for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)] == before
 
 
-def test_a_topic_is_refreshed_not_rebuilt(db_session: Session, container: Container) -> None:
-    topic_id = _processed_topic(db_session, container)
+def test_only_a_topic_is_refreshed(db_session: Session, container: Container) -> None:
+    _processed_topic(db_session, container)
 
-    with pytest.raises(RebuildNotSupportedError):
-        container.rebuild_source_use_case(db_session).execute(topic_id, include_open=False)
     with pytest.raises(RefreshNotSupportedError):
         container.refresh_topic_use_case(db_session).execute(
             _add_source(db_session, "Novel", Kind.TEXT, NOVEL_TEXT),
@@ -404,3 +401,19 @@ def test_topic_cannot_be_processed_before_targets_exist(
     )
     with pytest.raises(TopicTargetsMissingError):
         container.process_source_use_case(db_session).start(topic_id)
+
+
+def test_refresh_does_not_restamp(db_session: Session, container: Container) -> None:
+    topic_id = _processed_topic(db_session, container)
+    db_session.execute(text("UPDATE phrases SET earned_section = 'extra'"))
+    db_session.commit()
+    stale = {o.id for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)}
+
+    _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
+    db_session.commit()
+    container.refresh_topic_use_case(db_session).execute(topic_id)
+
+    sections = {
+        o.id: o.earned_section for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)
+    }
+    assert {sections[i] for i in stale} == {CandidateSection.EXTRA}

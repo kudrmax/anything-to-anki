@@ -406,14 +406,14 @@ class TestBusySource:
         assert summary["status"] == "done"
         assert summary["busy_with"] == "rebuild"
         assert summary["processing_stage"] is None
-        assert summary["available_operation"] == "rebuild"
+        assert summary["available_operations"] == ["rebuild"]
         assert summary["can_start_operation"] is False
         assert summary["operation_hint"]
 
     def test_a_free_source_offers_its_operation(self, client: TestClient, bench: Bench) -> None:
         [summary] = client.get("/sources").json()
         assert summary["busy_with"] is None
-        assert summary["available_operation"] == "rebuild"
+        assert summary["available_operations"] == ["rebuild"]
         assert summary["can_start_operation"] is True
         assert summary["operation_hint"] is None
 
