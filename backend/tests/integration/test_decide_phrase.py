@@ -7,10 +7,10 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 import pytest
+from backend.application.use_cases import decide_phrase
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.word_decision import WordDecision
-from backend.application.use_cases import decide_phrase
 from backend.domain.exceptions import (
     ActionRefusedError,
     NoDecisionRuleError,
