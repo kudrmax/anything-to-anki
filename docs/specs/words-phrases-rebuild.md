@@ -75,6 +75,16 @@
 
 Приоритет: **Unknown > Known > Learning > Learn**.
 
+### Три правила (Макс, 19.10.2026)
+
+1. **У слова ровно одно решение:** на одной карточке (где нажали Learn / Cloze / Known) или в списке Known (добавлено вручную или Known по 30 дням). Если есть решение на карточке, побеждает карточка (Q15: P23u / P24u работают).
+2. **На карточке решения** (и на открытой карточке нерешённого слова) работают все четыре кнопки.
+3. **Любая другая карточка этого слова**, в любом источнике, разобрана: раздел Reviewed, все четыре кнопки выключены, без подписи.
+
+Нажатой показывается кнопка того статуса, который пользователь видит у слова (`shown`), — на любой карточке, решения или нет; включена — только там, где это разрешает правило 2. Одно правило на все карточки.
+
+Нажатие читает слово и пишет решение в одной write-транзакции (`BEGIN IMMEDIATE`, как Rebuild): DecidePhrase, SaveCloze, AddSavedPhrase, ReplaceWithExample. Два одновременных Learn на двух фразах одного слова решают его один раз; второе — отказ. Гарантия в БД — частичный уникальный индекс решения (см. «Факты»). Нажатие, которое система делает за пользователя (Learn у Saved phrases, снятие Skip при ручном добавлении на месте пропущенной фразы), на карточке, разобранной по правилу 3, ничего не делает: карточка остаётся как есть.
+
 ### Таблица нажатий
 
 Ключ: роль карточки (OPEN — у слова нет решения; DECISION; OTHER — решение на другой карточке), `note` (вид активной привязки, k), `reads_known`, `elsewhere` (только для OPEN), выбор до, кнопка. Строки не пересекаются, все условия — в ключе; тест разворачивает таблицу и проверяет, что каждый возможный ключ покрыт ровно одной строкой. Нажатие выбранной кнопки → NONE. «c» / «другой вид» — LEARN и CLOZE.
@@ -86,9 +96,7 @@
 | P3 | OPEN | – | нет | нет | NONE, SKIP | KNOWN | KNOWN |
 | P4 | OPEN | – | нет | нет | NONE | SKIP | SKIP |
 | P5 | OPEN | – | нет | нет | SKIP | SKIP | NONE |
-| P6 | OPEN | – | нет | да | NONE, SKIP | LEARN, CLOZE, KNOWN | отказ DECIDED_ELSEWHERE |
-| P7 | OPEN | – | нет | да | NONE | SKIP | SKIP |
-| P8 | OPEN | – | нет | да | SKIP | SKIP | NONE |
+| P6 | OPEN | – | нет | да | NONE, SKIP | любая | отказ DECIDED_ELSEWHERE |
 | P9 | DECISION | – | нет | нет | c | c | NONE |
 | P10 | DECISION | – | нет | нет | c | другой вид | другой вид |
 | P11 | DECISION | – | нет | нет | LEARN, CLOZE | KNOWN | KNOWN |
@@ -107,8 +115,7 @@
 | P24 | DECISION | k | да | нет | k | k, другой вид | нажатое, release → LEARN, снятие Known |
 | P24s | DECISION | k | да | нет | k | SKIP | SKIP, release → NEW, снятие Known |
 | P25 | OTHER | – | нет | нет | NONE | любая | отказ NOT_DECISION_CARD |
-| P26 | OTHER | – | нет | нет | SKIP | SKIP | NONE |
-| P27 | OTHER | – | нет | нет | SKIP | LEARN, CLOZE, KNOWN | отказ NOT_DECISION_CARD |
+| P27 | OTHER | – | нет | нет | SKIP | любая | отказ NOT_DECISION_CARD |
 
 На карточке в Anki работают все четыре кнопки (Q11); отказа «Already in Anki» нет. Cloze-разметка — содержимое карточки, ни одна строка её не удаляет; экспорт смотрит на `choice` (`export_kind`).
 
@@ -162,9 +169,8 @@ SyncToAnki создаёт заметку или находит существу�
 
 | значение | формула |
 |---|---|
-| кнопки | `ButtonState(button, command, pressed, refused)`: `command` = EDIT_CLOZE для Cloze, когда результат — CLOZE (нажатие делает Save редактора), иначе DECIDE, или нет при отказе; `refused` — причина; `pressed` — кнопка показанного решения (KNOWN у читающейся Known карточки) на карточке решения и на OTHER, или Skip у SKIP-карточки |
+| кнопки | `ButtonState(button, command, pressed, refused)`: `command` = EDIT_CLOZE для Cloze, когда результат — CLOZE (нажатие делает Save редактора), иначе DECIDE, или нет при отказе; `refused` — причина; `pressed` — кнопка показанного статуса (`PRESSED[(shown.status, shown.skipped, вид карточки решения)]`: NEW → Skip у SKIP-карточки, иначе ничего; LEARN / LEARNING → Learn или Cloze по виду карточки решения, Learn без неё; KNOWN → Known) — на любой карточке; решение слова важнее Skip фразы |
 | `can_edit_cloze` | выбор CLOZE и карточка не в Anki |
-| `note` | DECIDED_ON_OTHER_CARD, KNOWN_ELSEWHERE, LEARNING_ELSEWHERE, LEARN_ELSEWHERE («Learn in another source»), IN_ANKI (с датой перехода в Known), KNOWN_BY_TIMER, KNOWN_BY_LIST |
 | `shown` | решение слова здесь, иначе статус в другом источнике, иначе NEW; плюс skipped |
 | `is_done` | `shown.status ≠ NEW` или карточка SKIP |
 | `section` | REVIEWED, если `is_done`, иначе Ready / Extra / Probably known по фразе; REVIEWED — последний |
@@ -206,6 +212,7 @@ SyncToAnki создаёт заметку или находит существу�
 | Статистика Known включает Known по таймеру | модель |
 | Старые экспортированные карточки с Known-словом показывают нажатый Known | миграция |
 | Счётчик учитывает карточки, решённые в другом источнике, и разобранные Extra / Probably known | Q9 |
+| Карточка слова, решённого на другой карточке или в другом источнике (включая список Known), — все четыре кнопки выключены, Skip тоже; на ней нажата кнопка статуса слова; подписей на карточках нет | три правила |
 
 ### Rebuild
 
@@ -263,7 +270,7 @@ SyncToAnki создаёт заметку или находит существу�
 
 ## API и frontend
 
-- Карточка в DTO: `{phrase_id, word_id, choice, word_status, state: {buttons, note, can_edit_cloze}, is_done, section, …}`; ключ карточки во фронте — `phrase_id`. Логики решений во фронте нет: кнопки, подписи, раздел, фокус-сигнал (`is_done`) — из backend.
+- Карточка в DTO: `{phrase_id, word_id, choice, word_status, state: {buttons}, can_edit_cloze, is_done, section, …}`; ключ карточки во фронте — `phrase_id`. Логики решений во фронте нет: кнопки, подписи, раздел, фокус-сигнал (`is_done`) — из backend.
 - Уровень **фразы** (`/phrases/{id}/…`): `decision` `{button: learn|cloze|known|skip}` — ответ карточкой; polish, phrase-boundary, cloze, preview, generate-tts, generate-meaning, regenerate-media, report, replace-with-example.
 - Уровень **слова** (`/words/{id}/…`): pronunciation, image и image-options (поиск картинки — по определению фразы решения или первой показанной).
 - Статус генерации — по `phrase_id`; подсветка в `get_source_document` — по показанным фразам.
@@ -335,7 +342,8 @@ SyncToAnki создаёт заметку или находит существу�
 - Rebuild не меняет слова отполированной фразы.
 - Ручная фраза, затем Rebuild, где слово появилось в анализе, — одна карточка на этом месте.
 - Rebuild не убирает карточки решённых слов.
-- Карточка слова, ставшего Learn / Learning / Known в другом источнике, разобрана; решение на ней — 409.
+- Карточка слова, ставшего Learn / Learning / Known в другом источнике, разобрана; любое нажатие на ней — 409.
+- Два одновременных нажатия (две сессии) на двух фразах одного слова: одно решает, второе — отказ; карточка решения одна.
 - Блокировка worker'а во время применения плана книги.
 
 ## Вне задачи
