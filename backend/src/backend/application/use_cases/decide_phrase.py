@@ -3,7 +3,6 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from backend.application.dto.decision_compat import press_of
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.exceptions import ActionRefusedError, PhraseNotFoundError
 from backend.domain.services.card_view import card_view, open_elsewhere
@@ -14,7 +13,8 @@ from backend.domain.value_objects.word_status import WordStatus
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from backend.application.dto.decision_compat import DecisionAction
+    from backend.application.dto.source_dtos import CardDTO
+    from backend.application.utils.card_views import CardViews
     from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.stored_candidate import StoredCandidate
@@ -43,21 +43,20 @@ class DecidePhraseUseCase:
         vocabulary: UserVocabulary,
         effects: DecisionEffects,
         lock: SourceOperationLock,
+        card_views: CardViews,
     ) -> None:
         self._lock = lock
+        self._card_views = card_views
         self._occurrences = occurrence_repo
         self._candidates = candidate_repo
         self._word_states = word_states
         self._vocabulary = vocabulary
         self._effects = effects
 
-    def execute(self, occurrence_id: int, action: DecisionAction) -> None:
-        """An action of the old API: "pending" undoes the pressed button, "unskip" a Skip."""
-        word, state = self._word(occurrence_id)
-        elsewhere = self._elsewhere(word, state)
-        button = press_of(action, self._view(word, state, occurrence_id, elsewhere))
-        if button is not None:
-            self._press(word, state, occurrence_id, button, elsewhere)
+    def decide(self, occurrence_id: int, button: Press) -> CardDTO:
+        """The press, answered with the card as it is after it."""
+        self.press(occurrence_id, button)
+        return self._card_views.one(occurrence_id)
 
     def view(self, occurrence_id: int) -> CardView:
         word, state = self._word(occurrence_id)

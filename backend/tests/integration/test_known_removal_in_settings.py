@@ -100,14 +100,14 @@ def _released(factory: sessionmaker[Session], word_id: int) -> bool:
 def test_removing_the_last_entry_makes_every_card_of_the_word_new_and_releases_it(
     client: TestClient, factory: sessionmaker[Session],
 ) -> None:
-    assert _card(client, HERE, CHOSEN)["word_status"] == "known"
-    assert _card(client, ELSEWHERE, BOUND)["word_status"] == "known"
+    assert _card(client, HERE, CHOSEN)["shown"]["status"] == "known"
+    assert _card(client, ELSEWHERE, BOUND)["shown"]["status"] == "known"
 
     assert client.delete(f"/known-words/{_entry_id(client, 'glare', 'NOUN')}").status_code == 200
 
-    assert _card(client, HERE, CHOSEN)["word_status"] == "pending"
-    assert _card(client, ELSEWHERE, BOUND)["word_status"] == "pending"
-    assert _card(client, THERE, BOUND_THERE)["word_status"] == "pending"
+    assert _card(client, HERE, CHOSEN)["shown"]["status"] == "new"
+    assert _card(client, ELSEWHERE, BOUND)["shown"]["status"] == "new"
+    assert _card(client, THERE, BOUND_THERE)["shown"]["status"] == "new"
     assert _released(factory, BOUND)
     assert _released(factory, BOUND_THERE)
     assert "glare" not in {w["lemma"] for w in client.get("/known-words").json()}
@@ -116,12 +116,12 @@ def test_removing_the_last_entry_makes_every_card_of_the_word_new_and_releases_i
 def test_removing_one_of_two_entries_of_a_word_changes_nothing_else(
     client: TestClient, factory: sessionmaker[Session],
 ) -> None:
-    before = _card(client, HERE, DECIDED_KNOWN)["word_status"]
+    before = _card(client, HERE, DECIDED_KNOWN)["shown"]["status"]
 
     client.delete(f"/known-words/{_entry_id(client, 'spark', 'VERB')}")
 
     assert before == "known"
-    assert _card(client, HERE, DECIDED_KNOWN)["word_status"] == "known"
+    assert _card(client, HERE, DECIDED_KNOWN)["shown"]["status"] == "known"
     assert [(w["lemma"], w["pos"]) for w in client.get("/known-words").json()
             if w["lemma"] == "spark"] == [("spark", "NOUN")]
 
@@ -136,7 +136,7 @@ def test_removing_the_last_entry_waits_for_a_busy_source(
     response = client.delete(f"/known-words/{_entry_id(client, 'glare', 'NOUN')}")
 
     assert response.status_code == 409
-    assert _card(client, HERE, CHOSEN)["word_status"] == "known"
+    assert _card(client, HERE, CHOSEN)["shown"]["status"] == "known"
     assert "glare" in {w["lemma"] for w in client.get("/known-words").json()}
 
 
@@ -144,10 +144,10 @@ def test_adding_a_word_to_known_after_an_unexported_learn_makes_the_card_known(
     client: TestClient,
 ) -> None:
     with_open = _card(client, HERE, OPEN_LEARN)
-    assert with_open["word_status"] == "learn"
+    assert with_open["shown"]["status"] == "learn"
 
     client.post("/api/bootstrap/known", json={"lemmas": ["drift", "echo"]})
 
-    assert _card(client, HERE, OPEN_LEARN)["word_status"] == "known"
-    assert _card(client, HERE, SKIPPED)["phrase_skipped"]
-    assert _card(client, HERE, DECIDED_KNOWN)["word_status"] == "known"
+    assert _card(client, HERE, OPEN_LEARN)["shown"]["status"] == "known"
+    assert _card(client, HERE, SKIPPED)["shown"]["skipped"]
+    assert _card(client, HERE, DECIDED_KNOWN)["shown"]["status"] == "known"

@@ -686,6 +686,7 @@ class Container:
             vocabulary=self._user_vocabulary(session),
             effects=self._decision_effects(session),
             lock=SqlaSourceOperationLock(session),
+            card_views=self._card_views(session),
         )
 
     def _decision_effects(self, session: Session) -> DecisionEffects:

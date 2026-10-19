@@ -68,7 +68,7 @@ def client(factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_db_session] = override_session
     app.dependency_overrides[get_session_factory] = lambda: factory
     with TestClient(app) as c:
-        response = c.put(f"/phrases/{phrase_id_of(WORD)}/decision", json={"status": "learn"})
+        response = c.post(f"/phrases/{phrase_id_of(WORD)}/decision", json={"button": "learn"})
         assert response.status_code == 200
         yield c
     app.dependency_overrides.clear()
@@ -82,7 +82,7 @@ def _vocabulary(factory: sessionmaker[Session]) -> Vocabulary:
 def test_the_cards_in_another_source_are_done_as_learn_elsewhere(client: TestClient) -> None:
     [card] = client.get(f"/sources/{THERE}/candidates").json()
 
-    assert card["state"]["elsewhere"] == "learn"
+    assert card["shown"] == {"status": "learn", "skipped": False, "where": "other_source"}
     assert card["state"]["note"] == "learn_elsewhere"
     assert card["is_done"]
 

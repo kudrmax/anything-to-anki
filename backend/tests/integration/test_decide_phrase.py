@@ -6,7 +6,6 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import pytest
-from backend.application.dto.decision_compat import DecisionAction
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.word_decision import WordDecision
@@ -71,9 +70,6 @@ class Bench:
 
     def press(self, phrase_id: int, button: Press) -> None:
         self.decisions.decide_phrase().press(phrase_id, button)
-
-    def decide(self, phrase_id: int, action: DecisionAction) -> None:
-        self.decisions.decide_phrase().execute(phrase_id, action)
 
     def later(self, days: int = 0) -> None:
         """The next request, `days` later."""
@@ -268,46 +264,6 @@ def test_a_phrasal_verb_decision_is_not_remembered(bench: Bench, db_session: Ses
     bench.decisions.decision_repo.record.assert_not_called()
 
 
-# ── the old actions of the API ─────────────────────────────────────────
-
-
-def test_pending_undoes_the_pressed_decision(bench: Bench) -> None:
-    bench.press(FIRST, KNOWN)
-
-    bench.decide(FIRST, DecisionAction.PENDING)
-
-    assert (bench.status(), bench.choice(FIRST)) == ("pending", CardChoice.NONE)
-    assert bench.known() == set()
-
-
-def test_unskip_on_a_skipped_sibling_of_a_decided_word(bench: Bench) -> None:
-    bench.press(bench.second, SKIP)
-    bench.press(FIRST, LEARN)
-
-    bench.decide(bench.second, DecisionAction.UNSKIP)
-
-    assert bench.choice(bench.second) is CardChoice.NONE
-    assert bench.status() == "learn"
-
-
-def test_unskip_on_a_card_not_skipped_does_nothing(bench: Bench) -> None:
-    bench.press(FIRST, LEARN)
-
-    bench.decide(FIRST, DecisionAction.UNSKIP)
-
-    assert bench.choice(FIRST) is CardChoice.LEARN
-
-
-def test_pending_on_a_sibling_with_nothing_to_undo_does_nothing(bench: Bench) -> None:
-    bench.press(FIRST, KNOWN)
-
-    bench.decide(bench.second, DecisionAction.PENDING)
-
-    assert (bench.choice(FIRST), bench.choice(bench.second)) == (
-        CardChoice.KNOWN, CardChoice.NONE,
-    )
-
-
 # ── a card in Anki ─────────────────────────────────────────────────────
 
 
@@ -366,7 +322,7 @@ def test_p23_undo_of_a_card_known_by_its_timer(bench: Bench) -> None:
     bench.in_anki(FIRST, CardChoice.LEARN, since=DUE)
     assert bench.decisions.decide_phrase().view(FIRST).shown.status is WordStatus.KNOWN
 
-    bench.decide(FIRST, DecisionAction.PENDING)
+    bench.press(FIRST, KNOWN)
 
     assert (bench.status(), bench.choice(FIRST)) == ("pending", CardChoice.NONE)
     assert not bench.active(FIRST)

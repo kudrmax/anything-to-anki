@@ -36,7 +36,6 @@ from backend.domain.exceptions import (
     TargetNotInPhraseError,
 )
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbMatch
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.content import Kind
@@ -271,7 +270,7 @@ class TestRegularWordPath:
         assert _added(candidate_repo).phrase.target_text() == "procrastinate"
         assert dto.is_phrasal_verb is False
         assert dto.occurrences == 2  # two occurrences in the document
-        assert dto.status == CandidateStatus.PENDING.value
+        assert dto.shown.status == "new"
         cefr_classifier.classify.assert_called_once_with("procrastinate", "VB")
         frequency_provider.get_zipf_value.assert_called_once_with("procrastinate")
 

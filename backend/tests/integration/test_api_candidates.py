@@ -99,12 +99,12 @@ def client() -> Generator[TestClient, None, None]:
 @pytest.mark.integration
 class TestDecisionAPI:
     def test_mark_candidate_learn(self, client: TestClient) -> None:
-        response = client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "learn"})
+        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
         assert response.status_code == 200
-        assert response.json()["status"] == "learn"
+        assert response.json()["choice"] == "learn"
 
     def test_mark_candidate_known(self, client: TestClient) -> None:
-        response = client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "known"})
+        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "known"})
         assert response.status_code == 200
         # Verify it was added to known words
         kw_response = client.get("/known-words")
@@ -114,14 +114,14 @@ class TestDecisionAPI:
         self, client: TestClient,
     ) -> None:
         assert client.get("/sources/1").json()["status"] == "done"
-        client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "learn"})
+        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
         assert client.get("/sources/1").json()["status"] == "reviewed"
 
     def test_undo_returns_the_candidate_and_the_source_to_review(
         self, client: TestClient,
     ) -> None:
-        client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "learn"})
-        response = client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "pending"})
+        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
+        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
         assert response.status_code == 200
         # Nothing decided again: the source reads as not started, as its progress says.
         assert client.get("/sources/1").json()["status"] == "done"
@@ -129,12 +129,12 @@ class TestDecisionAPI:
     def test_undoing_known_removes_the_word_from_known_words(
         self, client: TestClient,
     ) -> None:
-        client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "known"})
-        client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "pending"})
+        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "known"})
+        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "known"})
         assert all(w["lemma"] != "pursuit" for w in client.get("/known-words").json())
 
     def test_mark_candidate_not_found(self, client: TestClient) -> None:
-        response = client.put("/phrases/999/decision", json={"status": "learn"})
+        response = client.post("/phrases/999/decision", json={"button": "learn"})
         assert response.status_code == 404
 
     def test_a_decision_on_a_sibling_card_is_refused(self, client: TestClient) -> None:
@@ -145,9 +145,9 @@ class TestDecisionAPI:
             key=None, fragment_score=None, shown_by=ShownBy.USER,
         ))
         session.commit()
-        client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "learn"})
+        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
 
-        response = client.put(f"/phrases/{sibling.id}/decision", json={"status": "known"})
+        response = client.post(f"/phrases/{sibling.id}/decision", json={"button": "known"})
 
         assert response.status_code == 409
         assert response.json()["detail"] == "Learned via another phrase: change it on that card"
@@ -157,13 +157,13 @@ class TestDecisionAPI:
         SqlaKnownWordRepository(session).add("pursuit", "NOUN")
         session.commit()
 
-        response = client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "learn"})
+        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
 
         assert response.status_code == 409
         assert response.json()["detail"] == "Already known"
 
     def test_mark_candidate_invalid_status(self, client: TestClient) -> None:
-        response = client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "invalid"})
+        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "invalid"})
         assert response.status_code == 422
 
 

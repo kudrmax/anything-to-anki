@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import pytest
 from alembic import command
 from alembic.config import Config
-from backend.application.dto.decision_compat import DecisionAction
+from backend.domain.value_objects.card_choice import Press
 from backend.infrastructure.persistence import database
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session
@@ -422,7 +422,7 @@ def test_undoing_a_migrated_known_takes_the_lemma_out_of_known(db_url: str) -> N
     phrase_id = _phrase_of(db_url, CARD_O, "They ponder")["id"]
     assert isinstance(phrase_id, int)
     with Session(engine) as session:
-        Decisions(session).decide_phrase().execute(phrase_id, DecisionAction.PENDING)
+        Decisions(session).decide_phrase().press(phrase_id, Press.KNOWN)
         session.commit()
     assert _rows(db_url, "SELECT lemma FROM known_words WHERE lemma = 'ponder'") == []
     assert _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_O) == [

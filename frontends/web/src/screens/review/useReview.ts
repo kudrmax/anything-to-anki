@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { DecisionAction, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, SaveClozeRequest, SourceDetail, SourceDocument, StoredCandidate } from '@/api/types'
+import type { CardButton, DecisionButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, SaveClozeRequest, SourceDetail, SourceDocument, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
@@ -122,7 +122,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     return () => clearInterval(interval)
   }, [busyWith, loadCandidates])
 
-  // Свежий список для mark(), чтобы не пересоздавать обработчик на каждое изменение.
+  // Свежий список для settle(), чтобы не пересоздавать обработчик на каждое изменение.
   const candidatesRef = useRef<StoredCandidate[]>(candidates)
   useEffect(() => { candidatesRef.current = candidates }, [candidates])
 
@@ -154,16 +154,17 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     if (nextUrl) play(nextUrl)
   }, [sourceId, sortOrder, play, fetchSource])
 
-  /** action — что backend сказал слать этой кнопкой. */
-  const mark = useCallback(async (candidateId: number, action: DecisionAction) => {
+  /** Нажатие кнопки, которую backend сказал слать; ответ — карточка после него. */
+  const mark = useCallback(async (candidateId: number, button: DecisionButton) => {
     stop()
+    let decided: StoredCandidate
     try {
-      await api.decidePhrase(candidateId, action)
+      decided = await api.decidePhrase(candidateId, button)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to save the decision')
       return
     }
-    await settle(candidateId)
+    await settle(candidateId, decided)
   }, [stop, showToast, settle])
 
   const [clozeEditingId, setClozeEditingId] = useState<number | null>(null)
@@ -174,6 +175,17 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     setClozeEditingId(candidateId)
   }, [])
   const cancelCloze = useCallback(() => setClozeEditingId(null), [])
+
+  /** Кнопка карточки делает то, что сказал backend: открывает разметку cloze или шлёт решение. */
+  const press = useCallback(async (candidateId: number, button: CardButton) => {
+    if (button.command === null) return
+    if (button.command === 'edit_cloze') {
+      startCloze(candidateId)
+      return
+    }
+    setClozeEditingId(null)
+    await mark(candidateId, button.button)
+  }, [startCloze, mark])
 
   /** true — разметка сохранена (фокус уходит, если карточка стала разобранной); при ошибке показывает её. */
   const saveCloze = useCallback(async (candidateId: number, request: SaveClozeRequest): Promise<boolean> => {
@@ -398,7 +410,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     sourceId, source, document, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,
     counts: { reviewed: progressReviewed, total: progressTotal, learn: learnCount, progress: progressTotal > 0 ? progressReviewed / progressTotal : 0 },
     generation, generationActions,
-    mark, generate, replaceWithExample,
+    press, generate, replaceWithExample,
     clozeEditingId, clozeEditing: clozeEditingId !== null, startCloze, cancelCloze, saveCloze, generateTTS, regenerateMedia, findImages, applyImage, pasteImage, polishAgain, setPolishReverted, editPhrase,
     busy: { generating: generatingIds, media: regeneratingMediaIds, tts: generatingTTSIds, image: applyingImageIds },
     vpnBlocked, dismissVpn: () => setVpnBlocked(false),

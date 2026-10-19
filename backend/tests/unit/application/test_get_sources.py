@@ -12,6 +12,7 @@ from backend.application.utils.topic_generation import TopicGenerationProbe
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import SourceNotFoundError
+from backend.domain.services.card_view import Command
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
@@ -28,6 +29,8 @@ from tests.candidate_sorter_support import candidate_sorter
 from tests.card_support import PhraseWordStates, occurrence, word
 from tests.phrase_support import phrase
 from tests.vocabulary_support import user_vocabulary
+
+CLOZE_BUTTON = 1  # Learn, Cloze, Known, Skip
 
 
 def _row(
@@ -296,8 +299,12 @@ class TestGetSourcesUseCase:
             3: [occurrence(3, 3, exported=True)],
         }
         result = self.use_case.get_by_id(1)
-        can_cloze = {c.phrase_id: c.can_cloze for c in result.candidates}
-        assert can_cloze == {1: False, 2: True, 3: True}
+        cloze = {
+            c.phrase_id: (c.can_edit_cloze, c.state.buttons[CLOZE_BUTTON].command)
+            for c in result.candidates
+        }
+        # P17 on the cloze in Anki undoes it; P18 on the Learn in Anki makes a cloze.
+        assert (cloze[1], cloze[3]) == ((False, Command.DECIDE), (False, Command.EDIT_CLOZE))
 
     def test_get_by_id_not_found(self) -> None:
         self.source_repo.get_by_id.return_value = None

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime  # noqa: TC003
+from enum import StrEnum
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
@@ -10,36 +12,34 @@ from backend.application.dto.cefr_dtos import (
     CEFRBreakdownDTO,  # noqa: TC001 — Pydantic needs this at runtime
 )
 from backend.application.dto.cloze_dtos import CandidateClozeDTO
-from backend.application.dto.decision_compat import (  # Pydantic needs the enums at runtime
-    BUTTON_OF_PRESS,
-    DecisionAction,
-    DecisionButton,
-    button_action,
-    card_status,
-    word_status,
-)
 from backend.application.dto.document_dtos import DocumentPositionDTO
-from backend.domain.services.card_view import Where
+from backend.domain.services.card_view import Command, Where  # noqa: TC001 — Pydantic
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.services.meaning_action import (  # Pydantic needs it at runtime
     MeaningAction,
     meaning_action,
 )
-from backend.domain.value_objects.card_choice import NoteKind, export_kind, in_anki
-from backend.domain.value_objects.card_note import CardNote  # noqa: TC001 — Pydantic
-from backend.domain.value_objects.elsewhere import (
-    ElsewhereStatus,  # noqa: TC001 — Pydantic needs it
+from backend.domain.value_objects.card_choice import (  # Pydantic needs the enums at runtime
+    CardChoice,
+    NoteKind,
+    Press,
+    Refusal,
+    export_kind,
 )
+from backend.domain.value_objects.card_note import CardNote  # noqa: TC001 — Pydantic
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
+from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from backend.domain.entities.candidate_meaning import CandidateMeaning
     from backend.domain.entities.candidate_media import CandidateMedia
     from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
     from backend.domain.entities.candidate_tts import CandidateTTS
     from backend.domain.entities.job import Job
-    from backend.domain.services.card_view import CardView
+    from backend.domain.services.card_view import ButtonState, CardView, Shown
     from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.decision_progress import DecisionProgress
     from backend.domain.value_objects.phrase import Phrase
@@ -189,43 +189,69 @@ class PhraseDTO(BaseModel):
 
 
 class ButtonDTO(BaseModel):
-    """A decision button of a card: `action` is what a press sends to the decision of the
-    phrase (null — the button is off); `pressed` — it holds the card's decision."""
+    """A decision button of a card. `command`: what a press does — `decide` sends the
+    button, `edit_cloze` opens the markup editor, whose Save is the press; null — the
+    button is off, and `refused` tells why. `pressed`: the button holds the card's decision."""
 
-    button: DecisionButton
-    action: DecisionAction | None
+    button: Press
+    command: Command | None
     pressed: bool
+    refused: Refusal | None
+
+    @staticmethod
+    def of(button: ButtonState) -> ButtonDTO:
+        return ButtonDTO(
+            button=button.button, command=button.command, pressed=button.pressed,
+            refused=button.refused,
+        )
+
+
+class ShownStatus(StrEnum):
+    """The status a card shows, as the API names it."""
+
+    NEW = "new"
+    LEARN = "learn"
+    LEARNING = "learning"
+    KNOWN = "known"
+
+
+_SHOWN_STATUS: Mapping[WordStatus, ShownStatus] = MappingProxyType(
+    {status: ShownStatus[status.name] for status in WordStatus},
+)
+
+
+class ShownDTO(BaseModel):
+    """What a card shows of its word: the status, whether the phrase is skipped, and where
+    the status comes from: here, another card of the word, another source, or nowhere."""
+
+    status: ShownStatus
+    skipped: bool
+    where: Where
+
+    @staticmethod
+    def of(shown: Shown) -> ShownDTO:
+        return ShownDTO(
+            status=_SHOWN_STATUS[shown.status], skipped=shown.skipped, where=shown.where,
+        )
 
 
 class CardStateDTO(BaseModel):
-    """What a card shows of the decision on its word, and what each button does.
+    """Why a card shows what it shows, and what each button does.
 
-    `elsewhere`: the word, open here, is known, in Anki or marked Learn via another source.
     `note`: why the card shows what it shows; `known_on`: when a card in Anki reads Known by
     its timer, if the note tells it.
     `buttons`: Learn, Cloze, Known, Skip, in this order."""
 
-    decided_here: bool
-    elsewhere: ElsewhereStatus | None = None
     note: CardNote | None = None
     known_on: datetime | None = None
     buttons: list[ButtonDTO] = []
 
     @staticmethod
-    def of(view: CardView, elsewhere: ElsewhereStatus | None) -> CardStateDTO:
-        where = view.shown.where
+    def of(view: CardView) -> CardStateDTO:
         return CardStateDTO(
-            decided_here=where is Where.HERE,
-            elsewhere=elsewhere if where is Where.OTHER_SOURCE else None,
             note=view.note,
             known_on=view.known_on,
-            buttons=[
-                ButtonDTO(
-                    button=BUTTON_OF_PRESS[b.button], action=button_action(b, view),
-                    pressed=b.pressed,
-                )
-                for b in view.buttons
-            ],
+            buttons=[ButtonDTO.of(b) for b in view.buttons],
         )
 
 
@@ -252,13 +278,9 @@ class CardDTO(BaseModel):
     # ready | extra | probably_known | reviewed (a done card); None when not arranged
     section: str | None = None
     occurrences: int
-    # The decision the card shows: pending | learn | known | skip; the word's beats a Skip.
-    status: str
-    word_status: str  # pending | learn | known
-    phrase_skipped: bool = False
-    # This card's phrase is the one of the word's decision, the one that goes to Anki.
-    is_decision: bool = False
-    decision_kind: str | None = None  # learn | cloze, on the decision card
+    # The user's choice on this card.
+    choice: CardChoice
+    shown: ShownDTO
     state: CardStateDTO
     # Done: the word is decided, the phrase skipped, or the word is done via another source.
     is_done: bool = False
@@ -276,8 +298,8 @@ class CardDTO(BaseModel):
     # Where a collected phrase was found: another source, or AI made it.
     origin: PhraseOriginDTO | None = None
     cloze: CandidateClozeDTO | None = None
-    # False on a card in Anki whose Cloze is off: its markup can no longer change there.
-    can_cloze: bool = True
+    # The hidden words of the cloze can change: a cloze not in Anki yet.
+    can_edit_cloze: bool = False
     # Where the source phrase stands in the source's document; none for an example
     phrase_position: DocumentPositionDTO | None = None
 
@@ -340,7 +362,6 @@ def card_to_dto(
     jobs = jobs or CardJobs()
     word, occ = card.word, card.occurrence
     view = card.view
-    state = CardStateDTO.of(view, card.elsewhere)
     phrase_id, word_id = card.phrase_id, card.word_id
     polished = occ.polished_phrase
     meaning_job = jobs.of_phrase(phrase_id, JobType.MEANING)
@@ -364,12 +385,9 @@ def card_to_dto(
         polish_status=_status_of(jobs.of_phrase(phrase_id, JobType.POLISH)),
         section=section.value if section is not None else None,
         occurrences=word.occurrences,
-        status=card_status(view).value,
-        word_status=word_status(view).value,
-        phrase_skipped=view.shown.skipped,
-        is_decision=occ.card_state.is_decision,
-        decision_kind=_value(export_kind(occ.card_state)),
-        state=state,
+        choice=occ.choice,
+        shown=ShownDTO.of(view.shown),
+        state=CardStateDTO.of(view),
         is_done=view.is_done,
         is_phrasal_verb=word.is_phrasal_verb,
         meaning=_meaning_dto(occ.meaning, meaning_job),
@@ -398,7 +416,7 @@ def card_to_dto(
             else None
         ),
         cloze=_cloze_dto(card),
-        can_cloze=not (in_anki(occ.card_state) and _cloze_action(state) is None),
+        can_edit_cloze=view.can_edit_cloze,
         phrase_position=(
             DocumentPositionDTO.from_position(occ.phrase_position)
             if occ.phrase_position
@@ -471,14 +489,6 @@ def _tts_dto(tts: CandidateTTS | None, job: Job | None) -> CandidateTTSDTO | Non
         error=job.error if job is not None else None,
         generated_at=tts.generated_at if tts else None,
     )
-
-
-def _value(kind: NoteKind | None) -> str | None:
-    return kind.value if kind is not None else None
-
-
-def _cloze_action(state: CardStateDTO) -> DecisionAction | None:
-    return next((b.action for b in state.buttons if b.button is DecisionButton.CLOZE), None)
 
 
 def _cloze_dto(card: ReviewCard) -> CandidateClozeDTO | None:

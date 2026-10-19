@@ -19,7 +19,7 @@ import { listItems, sectionToggleLabel, visibleCandidates, type ListItem } from 
 import type { CandidateSection, DecisionButton, SourceStatus } from '@/api/types'
 import css from './review.module.css'
 
-const DECISION: Partial<Record<ReviewAction, DecisionButton>> = { learn: 'learn', known: 'known', skip: 'skip' }
+const DECISION: Partial<Record<ReviewAction, DecisionButton>> = { learn: 'learn', cloze: 'cloze', known: 'known', skip: 'skip' }
 type PhoneView = 'card' | 'text' | 'list'
 
 const SOURCES_PATH = '/'
@@ -84,7 +84,7 @@ export function ReviewScreen() {
     listRef.current?.querySelector(`[data-candidate-id="${currentId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [currentId, currentIndex, loading])
 
-  const { mark, setCurrentId, cancelEditing, sourceId, clozeEditing, startCloze, cancelCloze } = review
+  const { press, setCurrentId, cancelEditing, sourceId, clozeEditing } = review
   const toggleAudio = review.player.toggle
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -105,20 +105,12 @@ export function ReviewScreen() {
         if (url) toggleAudio(url)
         return
       }
-      const buttonOf = (key: DecisionButton) => current.state.buttons.find(b => b.button === key)
-      if (action === 'cloze') {
-        if (buttonOf('cloze')?.action) startCloze(current.phrase_id)
-        return
-      }
-      const key = DECISION[action]
-      const sent = key ? buttonOf(key)?.action : null
-      if (!sent) return
-      if (clozeEditing) cancelCloze()
-      void mark(current.phrase_id, sent)
+      const button = current.state.buttons.find(b => b.button === DECISION[action])
+      if (button) void press(current.phrase_id, button)
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [current, prevId, nextId, editing, selection, mark, setCurrentId, cancelEditing, toggleAudio, sourceId, clozeEditing, startCloze, cancelCloze])
+  }, [current, prevId, nextId, editing, selection, press, setCurrentId, cancelEditing, toggleAudio, sourceId, clozeEditing])
 
   const { pasteImage } = review
   useEffect(() => {

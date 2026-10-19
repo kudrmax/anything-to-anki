@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.card_choice import CardChoice
 from backend.infrastructure.persistence.models import dump_phrase
 from sqlalchemy import text
@@ -23,6 +22,8 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 CREATED_AT = "2026-01-01 00:00:00"
+# The values of `insert_word`'s `status`: what candidates.status stores, and "skip".
+PENDING, LEARN, KNOWN, SKIP = "pending", "learn", "known", "skip"
 # Phrase ids of seeds start past this, so a phrase id never equals a word id.
 PHRASE_ID_OFFSET = 1000
 
@@ -38,7 +39,7 @@ def insert_word(
     *,
     source_id: int = 1,
     lemma: str | None = None,
-    status: str = CandidateStatus.PENDING.value,
+    status: str = PENDING,
     phrase_text: str | None = None,
     pos: str = "NOUN",
     zipf_frequency: float = 3.0,
@@ -50,7 +51,7 @@ def insert_word(
     "skip": the word is pending and its phrase is skipped.
     """
     lemma = lemma or f"word{word_id}"
-    skipped = status == CandidateStatus.SKIP.value
+    skipped = status == SKIP
     db.execute(
         text(
             "INSERT INTO candidates (id, source_id, lemma, pos, zipf_frequency, is_sweet_spot,"
@@ -60,7 +61,7 @@ def insert_word(
         {
             "id": word_id, "source_id": source_id, "lemma": lemma, "pos": pos,
             "zipf": zipf_frequency, "sweet": is_sweet_spot,
-            "status": CandidateStatus.PENDING.value if skipped else status,
+            "status": PENDING if skipped else status,
         },
     )
     db.execute(
@@ -81,9 +82,9 @@ def insert_word(
 
 # The choice `insert_word` gives the word's phrase for the status it is given.
 CHOICE_OF_STATUS = {
-    CandidateStatus.SKIP.value: CardChoice.SKIP,
-    CandidateStatus.LEARN.value: CardChoice.LEARN,
-    CandidateStatus.KNOWN.value: CardChoice.KNOWN,
+    SKIP: CardChoice.SKIP,
+    LEARN: CardChoice.LEARN,
+    KNOWN: CardChoice.KNOWN,
 }
 
 

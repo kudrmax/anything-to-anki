@@ -130,7 +130,7 @@ def test_phrase_is_saved_to_saved_phrases_source_marked_to_learn() -> None:
     assert saved.source_phrase.text == "Stop procrastinating, please."
     assert saved.source_phrase.target_text() == "procrastinating"
     assert saved.phrase_position is None
-    assert result.status == "learn"
+    assert (result.choice, result.shown.status) == ("learn", "learn")
     setup.card_views.one.assert_called_once_with(SAVED_PHRASE_ID)
     setup.source_repo.get_first_by_role.assert_called_once_with(SourceRole.SAVED_PHRASES)
     setup.source_repo.create.assert_not_called()

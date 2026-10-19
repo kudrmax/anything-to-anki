@@ -439,7 +439,7 @@ class TestSavedPhrasesAPI:
 
         assert response.status_code == 201
         candidate = response.json()
-        assert candidate["status"] == "learn"
+        assert (candidate["choice"], candidate["shown"]["status"]) == ("learn", "learn")
         assert candidate["lemma"] == "give in"
         sources = client.get("/sources").json()
         assert len(sources) == 1

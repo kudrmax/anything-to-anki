@@ -13,8 +13,6 @@ export type SourceFormat = 'plain' | 'markdown' | 'html' | 'epub' | 'srt' | 'vid
 
 export type ProcessingStage = 'analyzing_text' | 'collecting_phrases'
 
-export type CandidateStatus = 'pending' | 'learn' | 'known' | 'skip'
-
 export type CandidateSortOrder = 'relevance' | 'chronological' | 'key_words'
 
 export type Scope = 'all' | 'unsorted' | number
@@ -256,14 +254,28 @@ export type CandidateSection = 'ready' | 'extra' | 'probably_known' | 'reviewed'
 
 export type DecisionButton = 'learn' | 'cloze' | 'known' | 'skip'
 
-/** Что шлёт решение фразы: pending отменяет решение карточки, unskip снимает Skip. */
-export type DecisionAction = 'learn' | 'cloze' | 'known' | 'skip' | 'unskip' | 'pending'
+/** Что делает нажатие: decide шлёт кнопку, edit_cloze открывает разметку cloze — её Save и есть нажатие. */
+export type ButtonCommand = 'decide' | 'edit_cloze'
 
-/** Кнопка решения: что шлёт нажатие (null — кнопка неактивна) и нажата ли она; решает backend. */
+/** Почему кнопка не работает: слово решено на другой фразе или в другом источнике. */
+export type Refusal = 'not_decision_card' | 'decided_elsewhere'
+
+/** Кнопка решения: что делает нажатие (null — кнопка неактивна, refused — почему), нажата ли она; решает backend. */
 export interface CardButton {
   button: DecisionButton
-  action: DecisionAction | null
+  command: ButtonCommand | null
   pressed: boolean
+  refused: Refusal | null
+}
+
+/** Выбор пользователя на карточке. */
+export type CardChoice = 'none' | 'learn' | 'cloze' | 'known' | 'skip'
+
+/** Что карточка показывает о слове: статус, пропущена ли фраза и откуда статус — здесь, другая фраза, другой источник. */
+export interface Shown {
+  status: 'new' | 'learn' | 'learning' | 'known'
+  skipped: boolean
+  where: 'here' | 'other_card' | 'other_source' | 'nowhere'
 }
 
 /** Почему карточка показывает то, что показывает; решает backend. */
@@ -277,11 +289,8 @@ export type CardNote =
   | 'known_by_timer'
   | 'known_by_list'
 
-/** Что карточка показывает из решения по слову и что делает каждая кнопка; считает backend. */
+/** Почему карточка показывает то, что показывает, и что делает каждая кнопка; считает backend. */
 export interface CardState {
-  decided_here: boolean
-  /** Слово открыто здесь, но известно, в Anki или отмечено Learn в другом источнике. */
-  elsewhere: 'known' | 'learning' | 'learn' | null
   /** Подпись карточки; null — без подписи. */
   note: CardNote | null
   /** Когда карточка в Anki станет Known по таймеру, если подпись это говорит. */
@@ -312,13 +321,8 @@ export interface StoredCandidate {
   polish_status: EnrichmentStatus | null
   section: CandidateSection | null
   occurrences: number
-  /** Решение, которое показывает карточка: решение слова важнее Skip фразы. */
-  status: CandidateStatus
-  word_status: 'pending' | 'learn' | 'known'
-  phrase_skipped: boolean
-  /** Фраза решения: она уходит в Anki. */
-  is_decision: boolean
-  decision_kind: 'learn' | 'cloze' | null
+  choice: CardChoice
+  shown: Shown
   state: CardState
   /** Карточка разобрана: слово решено, фраза пропущена или слово разобрано в другом источнике. */
   is_done: boolean
@@ -339,8 +343,8 @@ export interface StoredCandidate {
   origin: PhraseOrigin | null
   /** Разметка cloze; есть только у фраз на изучение. */
   cloze: CandidateCloze | null
-  /** false — карточка уже в Anki, превратить её в cloze нельзя. */
-  can_cloze: boolean
+  /** Скрытые слова cloze можно поменять: cloze ещё не в Anki. */
+  can_edit_cloze: boolean
 }
 
 export interface SourceDetail {

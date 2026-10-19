@@ -10,7 +10,15 @@ from __future__ import annotations
 
 import pytest
 from backend.application.dto.analysis_dtos import WordDTO
-from backend.application.dto.source_dtos import CardDTO, CardStateDTO, PhraseDTO
+from backend.application.dto.source_dtos import (
+    CardDTO,
+    CardStateDTO,
+    PhraseDTO,
+    ShownDTO,
+    ShownStatus,
+)
+from backend.domain.services.card_view import Where
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
 from tests.integration.dict_cache_support import make_voting_classifier
@@ -89,9 +97,9 @@ class TestCEFRBreakdownPipeline:
             phrase=PhraseDTO.of(phrase("I am happy", "happy")),
             source_phrase=PhraseDTO.of(phrase("I am happy", "happy")),
             occurrences=1,
-            status="pending",
-            word_status="pending",
-            state=CardStateDTO(decided_here=False),
+            choice=CardChoice.NONE,
+            shown=ShownDTO(status=ShownStatus.NEW, skipped=False, where=Where.NOWHERE),
+            state=CardStateDTO(),
             cefr_breakdown=bd_dto,
         )
         assert candidate_dto.cefr_breakdown is not None

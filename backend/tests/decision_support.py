@@ -93,4 +93,6 @@ class Decisions:
             vocabulary=self.vocabulary,
             effects=self.effects(),
             lock=self.lock,
+            # The tests press; the card the API answers with is read by the API tests.
+            card_views=MagicMock(),
         )

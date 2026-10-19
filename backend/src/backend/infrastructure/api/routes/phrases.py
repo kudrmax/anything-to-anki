@@ -23,7 +23,6 @@ from backend.application.dto.cloze_dtos import (  # noqa: TC001
     PreviewClozeRequest,
     SaveClozeRequest,
 )
-from backend.application.dto.decision_compat import DecisionAction
 from backend.application.dto.follow_up_dtos import FollowUpRequest  # noqa: TC001
 from backend.application.dto.source_dtos import CardDTO  # noqa: TC001
 from backend.domain.exceptions import (
@@ -59,23 +58,22 @@ REFUSED_DECISIONS = (ActionRefusedError, ClozeNotAllowedError, SourceOperationBu
 REFUSED_GENERATION = (SourceOperationBusyError, PhraseChangedError)
 
 
-@router.put("/{phrase_id}/decision")
+@router.post("/{phrase_id}/decision")
 def decide_phrase(
     phrase_id: int,
     request: DecidePhraseRequest,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, Any]:
+) -> CardDTO:
+    """A press of a decision button; the answer is the card after it."""
     try:
-        container.decide_phrase_use_case(session).execute(
-            phrase_id, DecisionAction(request.status),
-        )
+        card = container.decide_phrase_use_case(session).decide(phrase_id, request.button)
     except PhraseNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except REFUSED_DECISIONS as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     session.commit()
-    return {"id": phrase_id, "status": request.status}
+    return card
 
 
 @router.put("/{phrase_id}/cloze")

@@ -6,13 +6,14 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
-from backend.application.dto.source_dtos import CardJobs, card_to_dto
+from backend.application.dto.source_dtos import CardJobs, ShownDTO, ShownStatus, card_to_dto
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.job import Job
-from backend.domain.value_objects.card_choice import Binding, CardChoice, NoteKind
+from backend.domain.services.card_view import Command, Where
+from backend.domain.value_objects.card_choice import Binding, CardChoice, NoteKind, Press, Refusal
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.job_status import JobStatus
@@ -292,14 +293,16 @@ class TestCardToDtoCloze:
         assert dto.cloze.hidden_word_indices == [2, 3]
         assert dto.cloze.hint_kind == "first_letter"
         assert dto.cloze.custom_hint is None
-        assert dto.can_cloze is True
+        assert dto.can_edit_cloze is True
 
     def test_a_cloze_in_anki_shows_its_cloze_and_cannot_change_it(self) -> None:
         cloze = CandidateCloze(1, (2, 3), ClozeHintKind.NONE, None, self.TEXT)
         exported = card_to_dto(self._card(cloze, exported=True))
         assert exported.cloze is not None
-        assert exported.can_cloze is False
-        assert {b.button: b.action for b in exported.state.buttons}["cloze"] is None
+        assert exported.can_edit_cloze is False
+        cloze_button = next(b for b in exported.state.buttons if b.button is Press.CLOZE)
+        # P17: Cloze on a cloze in Anki undoes it; the markup stays as Anki holds it.
+        assert (cloze_button.command, cloze_button.pressed) == (Command.DECIDE, True)
 
     def test_markup_kept_on_a_card_that_is_no_cloze_now_is_not_shown(self) -> None:
         cloze = CandidateCloze(1, (2, 3), ClozeHintKind.NONE, None, self.TEXT)
@@ -316,25 +319,28 @@ class TestCardToDtoDecision:
 
     def test_the_word_decision_beats_a_skip_of_the_phrase(self) -> None:
         skipped = occurrence(1, 1, skipped=True)
-        assert card_to_dto(card(word(), skipped)).status == "skip"
+        assert card_to_dto(card(word(), skipped)).shown == ShownDTO(
+            status=ShownStatus.NEW, skipped=True, where=Where.NOWHERE,
+        )
         learned = card_to_dto(card(word(status=WordStatus.LEARN), skipped))
-        assert (learned.status, learned.word_status, learned.phrase_skipped) == (
-            "learn", "learn", True,
+        assert (learned.choice, learned.shown.status, learned.shown.skipped) == (
+            CardChoice.SKIP, ShownStatus.LEARN, True,
         )
 
     def test_a_card_done_elsewhere_says_why(self) -> None:
         dto = card_to_dto(card(elsewhere=ElsewhereStatus.LEARNING))
-        assert dto.state.elsewhere == "learning"
-        assert {b.button: b.action for b in dto.state.buttons}["learn"] is None
+        assert (dto.shown.status, dto.shown.where) == (ShownStatus.LEARNING, Where.OTHER_SOURCE)
+        learn = next(b for b in dto.state.buttons if b.button is Press.LEARN)
+        assert (learn.command, learn.refused) == (None, Refusal.DECIDED_ELSEWHERE)
         assert dto.is_done is True
 
     def test_the_decision_card_and_its_kind(self) -> None:
         decided = occurrence(1, 1, is_decision=True, decision_kind=DecisionKind.LEARN)
         dto = card_to_dto(card(word(status=WordStatus.LEARN), decided))
-        assert (dto.is_decision, dto.decision_kind) == (True, "learn")
-        assert dto.state.decided_here is True
-        assert [(b.button, b.action, b.pressed) for b in dto.state.buttons][0] == (
-            "learn", "pending", True,
+        assert dto.choice is CardChoice.LEARN
+        assert dto.shown.where is Where.HERE
+        assert [(b.button, b.command, b.pressed) for b in dto.state.buttons][0] == (
+            Press.LEARN, Command.DECIDE, True,
         )
 
     def test_jobs_of_another_phrase_of_the_word_are_not_this_cards(self) -> None:

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
-from backend.application.dto.decision_compat import DecisionAction
+from backend.domain.value_objects.card_choice import Press  # noqa: TC001 — Pydantic
 
 
 class SelectionDTO(BaseModel):
@@ -63,18 +63,7 @@ class EditPhraseRequest(BaseModel):
 
 
 class DecidePhraseRequest(BaseModel):
-    """A decision on a card: learn, known, skip, unskip, or pending to undo it.
+    """A press of a decision button on a card. Cloze on a card that is no cloze yet is
+    pressed by saving its markup."""
 
-    Cloze is decided by saving the cloze markup."""
-
-    status: str
-
-    @field_validator("status")
-    @classmethod
-    def validate_status(cls, v: str) -> str:
-        normalized = v.strip().lower()
-        valid = {a.value for a in DecisionAction if a is not DecisionAction.CLOZE}
-        if normalized not in valid:
-            msg = f"Invalid status: {v}. Must be one of: {', '.join(sorted(valid))}"
-            raise ValueError(msg)
-        return normalized
+    button: Press

@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.sqla_candidate_meaning_image_repository import (
     SqlaCandidateMeaningImageRepository,
@@ -35,7 +34,7 @@ def session() -> Generator[Session, None, None]:
     s = sessionmaker(bind=engine)()
     insert_word(
         s, CANDIDATE_ID, source_id=SOURCE_ID, lemma="drain", phrase_text="the drain is blocked",
-        status=CandidateStatus.LEARN.value, zipf_frequency=4.0, is_sweet_spot=True,
+        status="learn", zipf_frequency=4.0, is_sweet_spot=True,
     )
     s.flush()
     yield s

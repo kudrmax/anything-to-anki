@@ -134,10 +134,10 @@ def _cards(client: TestClient, sort: str = "relevance") -> list[dict[str, object
     return cards
 
 
-def _actions(card: dict[str, object]) -> dict[str, object]:
+def _commands(card: dict[str, object]) -> dict[str, object]:
     state = card["state"]
     assert isinstance(state, dict)
-    return {b["button"]: b["action"] for b in state["buttons"]}
+    return {b["button"]: b["command"] for b in state["buttons"]}
 
 
 def _board(client: TestClient) -> list[dict[str, object]]:
@@ -184,38 +184,37 @@ class TestDecisionsOnCards:
     def test_learn_on_one_card_decides_every_card_of_the_word(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        client.put(f"/phrases/{GLARE_PHRASE}/decision", json={"status": "learn"})
+        client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
         source = client.get(f"/sources/{SOURCE}").json()
         assert source["progress"] == {"decided": 2, "total": 3}
         sibling = _card(client, bench.second_glare)
-        assert sibling["word_status"] == "learn"
-        assert sibling["status"] == "learn"
-        assert sibling["is_decision"] is False
+        assert sibling["shown"] == {"status": "learn", "skipped": False, "where": "other_card"}
+        assert sibling["choice"] == "none"
 
     def test_the_sibling_card_shows_the_decision_with_inactive_buttons(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        client.put(f"/phrases/{GLARE_PHRASE}/decision", json={"status": "learn"})
+        client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
         here = _card(client, GLARE_PHRASE)
         sibling = _card(client, bench.second_glare)
+        assert here["shown"]["where"] == "here"  # type: ignore[index]
         assert here["state"] == {
-            "decided_here": True, "elsewhere": None,
             "note": None, "known_on": None,
             "buttons": [
-                {"button": "learn", "action": "pending", "pressed": True},
-                {"button": "cloze", "action": "cloze", "pressed": False},
-                {"button": "known", "action": "known", "pressed": False},
-                {"button": "skip", "action": "skip", "pressed": False},
+                {"button": "learn", "command": "decide", "pressed": True, "refused": None},
+                {"button": "cloze", "command": "edit_cloze", "pressed": False, "refused": None},
+                {"button": "known", "command": "decide", "pressed": False, "refused": None},
+                {"button": "skip", "command": "decide", "pressed": False, "refused": None},
             ],
         }
+        refused = "not_decision_card"
         assert sibling["state"] == {
-            "decided_here": False, "elsewhere": None,
             "note": "learned_on_other_card", "known_on": None,
             "buttons": [
-                {"button": "learn", "action": None, "pressed": True},
-                {"button": "cloze", "action": None, "pressed": False},
-                {"button": "known", "action": None, "pressed": False},
-                {"button": "skip", "action": None, "pressed": False},
+                {"button": "learn", "command": None, "pressed": True, "refused": refused},
+                {"button": "cloze", "command": None, "pressed": False, "refused": refused},
+                {"button": "known", "command": None, "pressed": False, "refused": refused},
+                {"button": "skip", "command": None, "pressed": False, "refused": refused},
             ],
         }
         assert (here["is_done"], sibling["is_done"]) == (True, True)
@@ -223,21 +222,25 @@ class TestDecisionsOnCards:
     def test_a_skipped_sibling_of_a_decided_word_can_be_unskipped(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        client.put(f"/phrases/{bench.second_glare}/decision", json={"status": "skip"})
-        client.put(f"/phrases/{GLARE_PHRASE}/decision", json={"status": "learn"})
+        client.post(f"/phrases/{bench.second_glare}/decision", json={"button": "skip"})
+        client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
         sibling = _card(client, bench.second_glare)
-        assert _actions(sibling)["skip"] == "unskip"
-        response = client.put(
-            f"/phrases/{bench.second_glare}/decision", json={"status": "unskip"},
+        skip = next(b for b in sibling["state"]["buttons"] if b["button"] == "skip")  # type: ignore[index]
+        assert (skip["command"], skip["pressed"]) == ("decide", True)
+        response = client.post(
+            f"/phrases/{bench.second_glare}/decision", json={"button": "skip"},
         )
         assert response.status_code == 200
-        assert _card(client, bench.second_glare)["phrase_skipped"] is False
+        assert response.json()["shown"]["skipped"] is False
+        assert _card(client, bench.second_glare)["choice"] == "none"
 
     def test_skip_is_one_card_only(self, client: TestClient, bench: Bench) -> None:
-        client.put(f"/phrases/{GLARE_PHRASE}/decision", json={"status": "skip"})
-        assert _card(client, GLARE_PHRASE)["status"] == "skip"
-        assert _card(client, GLARE_PHRASE)["phrase_skipped"] is True
-        assert _card(client, bench.second_glare)["status"] == "pending"
+        client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "skip"})
+        assert _card(client, GLARE_PHRASE)["choice"] == "skip"
+        assert _card(client, GLARE_PHRASE)["shown"] == {
+            "status": "new", "skipped": True, "where": "nowhere",
+        }
+        assert _card(client, bench.second_glare)["shown"]["status"] == "new"  # type: ignore[index]
         assert client.get(f"/sources/{SOURCE}").json()["progress"] == {"decided": 1, "total": 3}
 
     def test_a_word_known_elsewhere_is_reviewed_and_counts_as_reviewed(
@@ -246,9 +249,12 @@ class TestDecisionsOnCards:
         SqlaKnownWordRepository(session).add("spark", None)
         session.commit()
         card = _card(client, SPARK_PHRASE)
-        assert card["state"]["elsewhere"] == "known"  # type: ignore[index]
+        assert card["shown"]["where"] == "other_source"  # type: ignore[index]
+        assert card["shown"]["status"] == "known"  # type: ignore[index]
         # P6 (G6): Known is refused too on a card decided in another source.
-        assert _actions(card) == {"learn": None, "cloze": None, "known": None, "skip": "skip"}
+        assert _commands(card) == {
+            "learn": None, "cloze": None, "known": None, "skip": "decide",
+        }
         assert card["is_done"] is True
         assert card["section"] == "reviewed"
         # Q9: Reviewed / (Reviewed + open Ready), a card done elsewhere included.
@@ -343,7 +349,7 @@ class TestBoard:
     def test_counts_are_of_cards_and_learn_words(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        client.put(f"/phrases/{GLARE_PHRASE}/decision", json={"status": "learn"})
+        client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
         [summary] = _board(client)
         assert summary["candidate_count"] == 3
         assert summary["learn_count"] == 1
@@ -354,7 +360,7 @@ class TestBoard:
     def test_done_cards_are_reviewed_and_listed_last(
         self, client: TestClient, bench: Bench, sort: str,
     ) -> None:
-        client.put(f"/phrases/{GLARE_PHRASE}/decision", json={"status": "learn"})
+        client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
         cards = _cards(client, sort)
         assert [(c["phrase_id"], c["section"]) for c in cards] == [
             (SPARK_PHRASE, "ready"),
@@ -363,7 +369,7 @@ class TestBoard:
         ]
 
     def test_board_and_review_agree_on_progress(self, client: TestClient, bench: Bench) -> None:
-        client.put(f"/phrases/{SPARK_PHRASE}/decision", json={"status": "skip"})
+        client.post(f"/phrases/{SPARK_PHRASE}/decision", json={"button": "skip"})
         [summary] = _board(client)
         assert summary["progress"] == client.get(f"/sources/{SOURCE}").json()["progress"]
 

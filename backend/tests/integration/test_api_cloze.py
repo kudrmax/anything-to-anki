@@ -97,18 +97,18 @@ class TestSaveClozeAPI:
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["status"] == "learn"
+        assert (body["choice"], body["shown"]["status"]) == ("cloze", "learn")
         assert body["cloze"] == {
             "hidden_word_indices": [2, 3], "hint_kind": "first_letter", "custom_hint": None,
         }
-        assert body["can_cloze"] is True
+        assert body["can_edit_cloze"] is True
 
         candidate = _candidate_in_source(client, PHRASE_ID)
-        assert candidate["status"] == "learn"
+        assert candidate["choice"] == "cloze"
         assert candidate["cloze"]["hidden_word_indices"] == [2, 3]
 
     def test_a_cloze_in_anki_keeps_its_markup(self, client: TestClient) -> None:
-        assert _candidate_in_source(client, SYNCED_PHRASE_ID)["can_cloze"] is False
+        assert _candidate_in_source(client, SYNCED_PHRASE_ID)["can_edit_cloze"] is False
         response = client.put(
             f"/phrases/{SYNCED_PHRASE_ID}/cloze",
             json={"hidden_word_indices": [4], "hint_kind": "none", "phrase": GIVE_UP},
@@ -141,9 +141,9 @@ class TestSaveClozeAPI:
             f"/phrases/{PHRASE_ID}/cloze",
             json={"hidden_word_indices": [2, 3], "hint_kind": "none", "phrase": GIVE_UP},
         )
-        response = client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "skip"})
+        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "skip"})
         assert response.status_code == 200
-        response = client.put(f"/phrases/{PHRASE_ID}/decision", json={"status": "learn"})
+        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
         assert response.status_code == 200
         assert _candidate_in_source(client, PHRASE_ID)["cloze"] is None
 
@@ -153,7 +153,7 @@ class TestSaveClozeAPI:
             json={"hidden_word_indices": [2], "hint_kind": "none", "phrase": "Old phrase."},
         )
         assert response.status_code == 409
-        assert _candidate_in_source(client, PHRASE_ID)["status"] == "pending"
+        assert _candidate_in_source(client, PHRASE_ID)["choice"] == "none"
 
     def test_missing_phrase_is_rejected(self, client: TestClient) -> None:
         response = client.put(

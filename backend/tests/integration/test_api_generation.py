@@ -197,7 +197,7 @@ class TestGenerationApi:
         assert _meaning_status(client)["missing"] == 1
 
     @pytest.mark.parametrize(("method", "path", "body"), [
-        ("put", f"/phrases/{SECOND_PHRASE}/decision", {"status": "learn"}),
+        ("post", f"/phrases/{SECOND_PHRASE}/decision", {"button": "learn"}),
         ("put", f"/phrases/{SECOND_PHRASE}/phrase-boundary", {"selection": _SELECTION}),
         (
             "post", f"/phrases/{SECOND_PHRASE}/replace-with-example",

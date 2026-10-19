@@ -4,7 +4,7 @@ import { keepLayout } from './keptLayout'
 import { listItems, visibleCandidates } from './sections'
 
 const card = (id: number, section: CandidateSection, isDone = section === 'reviewed') =>
-  ({ phrase_id: id, section, is_done: isDone, status: isDone ? 'learn' : 'pending' }) as StoredCandidate
+  ({ phrase_id: id, section, is_done: isDone, choice: isDone ? 'learn' : 'none' }) as StoredCandidate
 
 const ids = (cards: StoredCandidate[]) => cards.map(c => c.phrase_id)
 const groups = (cards: StoredCandidate[]) => {
@@ -28,7 +28,7 @@ describe('keepLayout', () => {
   it('takes the fresh data of every card', () => {
     const pressed = keepLayout(LOADED, AFTER_PRESS).find(c => c.phrase_id === 1)
     expect(pressed?.is_done).toBe(true)
-    expect(pressed?.status).toBe('learn')
+    expect(pressed?.choice).toBe('learn')
   })
 
   it('drops a card that is no longer shown', () => {

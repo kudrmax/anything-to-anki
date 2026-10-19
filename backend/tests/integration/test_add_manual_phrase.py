@@ -7,14 +7,13 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.dto.analysis_dtos import OccurrenceDTO, OccurrenceKeyDTO
 from backend.application.dto.candidate_dtos import SelectionDTO
-from backend.application.dto.decision_compat import DecisionAction, button_action
 from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
 from backend.application.utils.export_queue import ExportQueue
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.entities.token_data import TokenData
 from backend.domain.exceptions import ActionRefusedError
-from backend.domain.services.card_view import Where
+from backend.domain.services.card_view import Command, Where
 from backend.domain.value_objects.card_choice import CardChoice, Press
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -235,19 +234,19 @@ def test_learn_on_a_manual_card_closes_the_word_and_exports_one_phrase(bench: Be
     decisions = Decisions(bench.session)
     decide = decisions.decide_phrase()
 
-    decide.execute(manual.id, DecisionAction.LEARN)
+    decide.press(manual.id, Press.LEARN)
 
     assert first.id is not None
     sibling = decide.view(first.id)
     assert sibling.shown.where is Where.OTHER_CARD
     assert sibling.shown.status is WordStatus.LEARN
-    assert {button_action(b, sibling) for b in sibling.buttons} == {None}
+    assert {b.command for b in sibling.buttons} == {None}
     decision_card = decide.view(manual.id)
     learn = next(b for b in decision_card.buttons if b.button is Press.LEARN)
     assert learn.pressed
-    assert button_action(learn, decision_card) is DecisionAction.PENDING
+    assert learn.command is Command.DECIDE
     with pytest.raises(ActionRefusedError):
-        decide.execute(first.id, DecisionAction.KNOWN)
+        decide.press(first.id, Press.KNOWN)
     queue = ExportQueue(
         bench.candidates, bench.occurrences, decisions.word_states, decisions.vocabulary,
     )

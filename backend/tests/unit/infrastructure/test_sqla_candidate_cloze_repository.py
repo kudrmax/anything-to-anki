@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.candidate_cloze import CandidateCloze
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
@@ -32,7 +31,7 @@ def session() -> Generator[Session, None, None]:
     s = sessionmaker(bind=engine)()
     insert_word(
         s, CANDIDATE_ID, source_id=SOURCE_ID, lemma="test", phrase_text="a test",
-        status=CandidateStatus.LEARN.value, zipf_frequency=4.0, is_sweet_spot=True,
+        status="learn", zipf_frequency=4.0, is_sweet_spot=True,
     )
     s.flush()
     yield s

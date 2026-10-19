@@ -66,7 +66,7 @@ class TestGetCandidatesUseCase:
         self.occurrence_repo.shown_by_word.return_value = {
             1: [occurrence(1, 1, exported=True, decision_kind=DecisionKind.CLOZE)],
         }
-        assert self.use_case.execute(1)[0].can_cloze is False
+        assert self.use_case.execute(1)[0].can_edit_cloze is False
 
     def test_source_not_found(self) -> None:
         self.source_repo.get_by_id.return_value = None

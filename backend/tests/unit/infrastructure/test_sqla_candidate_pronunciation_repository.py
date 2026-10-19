@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import (
     CandidatePronunciationModel,
@@ -37,7 +36,7 @@ def session() -> Generator[Session, None, None]:
 
 def _insert_candidate(session: Session, candidate_id: int, source_id: int = 1) -> None:
     insert_word(
-        session, candidate_id, source_id=source_id, status=CandidateStatus.LEARN.value,
+        session, candidate_id, source_id=source_id, status="learn",
         zipf_frequency=4.0, is_sweet_spot=True,
     )
     session.flush()

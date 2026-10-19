@@ -27,7 +27,6 @@ const BUTTON_LOOK: Record<DecisionButton, { label: string; kbd: string }> = {
   known: { label: 'Know', kbd: '3' },
   skip: { label: 'Skip', kbd: '4' },
 }
-const ALREADY_IN_ANKI = 'Already in Anki'
 
 interface PhraseActionsProps {
   candidate: StoredCandidate
@@ -38,21 +37,15 @@ interface DecisionButtonsProps extends PhraseActionsProps {
   cloze: ClozeEditor
 }
 
-/** Решения по фразе: Learn 1 · Cloze 2 · Know 3 · Skip 4. Что делает кнопка, решает backend. */
+/**
+ * Решения по фразе: Learn 1 · Cloze 2 · Know 3 · Skip 4. Что делает кнопка, решает backend.
+ * У неработающей кнопки подсказка — подпись карточки: она и говорит, почему.
+ */
 export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsProps) {
   const { state } = candidate
   const variant = (button: CardButton) => {
     if (button.button === 'cloze') return isClozePressed(button, cloze.active) ? 'fill' : 'soft'
     return !cloze.active && button.pressed ? 'fill' : 'soft'
-  }
-  const press = (button: CardButton) => {
-    if (button.action === null) return
-    if (button.button === 'cloze') {
-      cloze.start()
-      return
-    }
-    if (cloze.active) cloze.cancel()
-    void review.mark(candidate.phrase_id, button.action)
   }
   const note = cardNoteText(state)
   return (
@@ -64,10 +57,10 @@ export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsPro
             key={button.button}
             variant={variant(button)}
             kbd={BUTTON_LOOK[button.button].kbd}
-            disabled={button.action === null}
-            title={button.button === 'cloze' && !candidate.can_cloze ? ALREADY_IN_ANKI : undefined}
+            disabled={button.command === null}
+            title={button.refused !== null ? note ?? undefined : undefined}
             onMouseDown={keepFocusOnMouseDown}
-            onClick={() => press(button)}
+            onClick={() => void review.press(candidate.phrase_id, button)}
           >
             {BUTTON_LOOK[button.button].label}
           </Button>

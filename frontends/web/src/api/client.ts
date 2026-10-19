@@ -5,7 +5,7 @@ import type {
   BootstrapStatus,
   BootstrapWord,
   CandidateSortOrder,
-  DecisionAction,
+  DecisionButton,
   CleanupMediaKind,
   ClozeDraft,
   ClozePreview,
@@ -123,10 +123,10 @@ export const api = {
   saveCloze: (phraseId: number, request: SaveClozeRequest) =>
     req<StoredCandidate>(`/phrases/${phraseId}/cloze`, { method: 'PUT', body: JSON.stringify(request) }),
 
-  decidePhrase: (phraseId: number, status: DecisionAction) =>
-    req<{ id: number; status: string }>(`/phrases/${phraseId}/decision`, {
-      method: 'PUT',
-      body: JSON.stringify({ status }),
+  decidePhrase: (phraseId: number, button: DecisionButton) =>
+    req<StoredCandidate>(`/phrases/${phraseId}/decision`, {
+      method: 'POST',
+      body: JSON.stringify({ button }),
     }),
 
   getAnkiStatus: () => req<AnkiStatus>('/anki/status'),
