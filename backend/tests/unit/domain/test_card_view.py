@@ -11,10 +11,8 @@ import pytest
 from backend.domain.exceptions import ActionRefusedError, NoDecisionRuleError
 from backend.domain.services import card_view as card_view_module
 from backend.domain.services.card_view import (
-    NOTE_RULES,
     CardView,
     Command,
-    NoteKey,
     Shown,
     ShownTone,
     Where,
@@ -24,9 +22,7 @@ from backend.domain.services.card_view import (
     in_export_queue,
     is_protected,
     keeps_word,
-    note_key,
     open_elsewhere,
-    possible_note,
     progress,
     reach,
     section,
@@ -41,16 +37,13 @@ from backend.domain.value_objects.card_choice import (
     CardState,
     NoteKind,
     Press,
-    Role,
     WordState,
     decision_status,
     is_skipped,
     status_of,
 )
-from backend.domain.value_objects.card_note import CardNote
 from backend.domain.value_objects.decision_progress import DecisionProgress, ReviewReach
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
-from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
 from backend.domain.value_objects.user_work import NO_USER_WORK
 from backend.domain.value_objects.word_status import WordStatus
@@ -107,31 +100,46 @@ class TestButtonsFollowTheTable:
                 unpresses = target.refusal is None and target.choice is N
                 assert button.pressed is unpresses
 
-    def test_a_decided_card_has_its_decision_pressed(self) -> None:
+    def test_a_card_has_a_button_pressed_exactly_when_it_is_done(self) -> None:
         for world in worlds():
-            role = press_key(
-                world.word, ACTED, Press.SKIP, world.knowledge(), world.elsewhere(), NOW,
-            ).role
-            deciding = [
-                b.button for b in _view_of(world).buttons
-                if b.pressed and b.button is not Press.SKIP
+            view = _view_of(world)
+            pressed = [b.button for b in view.buttons if b.pressed]
+            assert len(pressed) == (1 if view.is_done else 0)
+
+    def test_every_card_of_a_decided_word_has_the_same_button_pressed(self) -> None:
+        """One rule for all cards: the button of the status the user sees."""
+        for world in worlds():
+            knowledge, elsewhere = world.knowledge(), world.elsewhere()
+            views = [
+                card_view(world.word, card.card_id, knowledge, elsewhere, NOW)
+                for card in world.word.cards
             ]
-            assert len(deciding) == (0 if role is Role.OPEN else 1)
+            decided = [v for v in views if v.shown.status is not WordStatus.NEW]
+            assert len({_pressed(v) for v in decided}) <= 1
 
-    def test_skip_is_pressed_exactly_on_a_skip_card(self) -> None:
+    def test_skip_is_pressed_on_a_skipped_card_of_an_open_word(self) -> None:
         for world in worlds():
-            skip = next(b for b in _view_of(world).buttons if b.button is Press.SKIP)
-            assert skip.pressed is (world.word.card(ACTED).choice is S)
+            view = _view_of(world)
+            skip = next(b for b in view.buttons if b.button is Press.SKIP)
+            assert skip.pressed is (view.shown.skipped and view.shown.status is WordStatus.NEW)
 
-    def test_a_card_that_reads_known_has_known_pressed(self) -> None:
+    def test_known_is_pressed_exactly_when_the_card_shows_known(self) -> None:
         for world in worlds():
-            word, knowledge = world.word, world.knowledge()
-            if status_of(word, knowledge, NOW) is not WordStatus.KNOWN:
-                continue
-            if press_key(word, ACTED, Press.KNOWN, knowledge, None, NOW).role is Role.OPEN:
-                continue
-            pressed = {b.button for b in _view_of(world).buttons if b.pressed}
-            assert pressed - {Press.SKIP} == {Press.KNOWN}
+            view = _view_of(world)
+            known = next(b for b in view.buttons if b.button is Press.KNOWN)
+            assert known.pressed is (view.shown.status is WordStatus.KNOWN)
+
+    def test_only_the_decision_card_or_an_open_word_has_its_buttons_on(self) -> None:
+        """Rule 2 and 3: all four buttons work on the decision card and on a card of an
+        undecided word; every other card of the word has all four off."""
+        for world in worlds():
+            view = _view_of(world)
+            on = {b.command is not None for b in view.buttons}
+            assert on == {view.shown.where in {Where.HERE, Where.NOWHERE}}
+
+
+def _pressed(view: CardView) -> frozenset[Press]:
+    return frozenset(b.button for b in view.buttons if b.pressed)
 
 
 @pytest.mark.unit
@@ -148,22 +156,6 @@ class TestDerivedConsistency:
             view = _view_of(world)
             if view.shown.where in {Where.HERE, Where.OTHER_CARD}:
                 assert view.shown.status is status_of(world.word, world.knowledge(), NOW)
-
-    def test_every_possible_note_key_has_one_row(self) -> None:
-        keys = [
-            NoteKey(*fields) for fields in itertools.product(
-                Role, (False, True), (False, True), (False, True), (False, True),
-                (None, *ElsewhereStatus), (False, True), (False, True),
-            )
-        ]
-        assert {key for key in keys if possible_note(key)} == set(NOTE_RULES)
-
-    def test_every_reachable_note_key_is_ruled(self) -> None:
-        reached = {
-            note_key(w.word, w.word.card(ACTED), w.knowledge(), w.elsewhere(), NOW)
-            for w in worlds()
-        }
-        assert reached == set(NOTE_RULES)
 
     def test_can_edit_cloze_is_an_unbound_cloze(self) -> None:
         for world in worlds():
@@ -220,7 +212,6 @@ STATES: dict[str, State] = {
     "other_open": State(_word(_card(N), CardState(SIBLING, L))),
     "other_skip": State(_word(_card(S), CardState(SIBLING, K)), known_marked=True),
 }
-KNOWN_ON_FRESH = FRESH + LEARNING_KNOWN_AFTER
 _NEW, _LEARN, _LEARNING, _KNOWN = (
     WordStatus.NEW, WordStatus.LEARN, WordStatus.LEARNING, WordStatus.KNOWN,
 )
@@ -234,38 +225,28 @@ def _per_state(expected: dict[str, object]) -> list[tuple[str, object]]:
 @pytest.mark.unit
 class TestPerState:
     @pytest.mark.parametrize(("state", "expected"), _per_state({
-        "open_new": set(), "open_skip": {Press.SKIP}, "open_known_elsewhere": set(),
-        "open_learning_elsewhere": set(), "open_learn_elsewhere": set(),
+        "open_new": set(), "open_skip": {Press.SKIP}, "open_known_elsewhere": {Press.KNOWN},
+        "open_learning_elsewhere": {Press.LEARN}, "open_learn_elsewhere": {Press.LEARN},
         "learn": {Press.LEARN}, "cloze": {Press.CLOZE}, "known": {Press.KNOWN},
         "learning": {Press.LEARN}, "learning_cloze": {Press.CLOZE},
         "known_by_timer": {Press.KNOWN}, "known_by_list": {Press.KNOWN},
         "learn_then_listed": {Press.KNOWN}, "known_in_anki": {Press.KNOWN},
         "in_anki_unknown": {Press.LEARN},
         "other_open": {Press.LEARN},
-        "other_skip": {Press.KNOWN, Press.SKIP},
+        "other_skip": {Press.KNOWN},
     }))
     def test_pressed(self, state: str, expected: set[Press]) -> None:
         assert {b.button for b in STATES[state].view().buttons if b.pressed} == expected
 
     @pytest.mark.parametrize(("state", "expected"), _per_state({
-        "open_new": (None, None), "open_skip": (None, None),
-        "open_known_elsewhere": (CardNote.KNOWN_ELSEWHERE, None),
-        "open_learning_elsewhere": (CardNote.LEARNING_ELSEWHERE, None),
-        "open_learn_elsewhere": (CardNote.LEARN_ELSEWHERE, None),
-        "learn": (None, None), "cloze": (None, None), "known": (None, None),
-        "learning": (CardNote.IN_ANKI, KNOWN_ON_FRESH),
-        "learning_cloze": (CardNote.IN_ANKI, KNOWN_ON_FRESH),
-        "known_by_timer": (CardNote.KNOWN_BY_TIMER, None),
-        "known_by_list": (CardNote.KNOWN_BY_LIST, None),
-        "learn_then_listed": (CardNote.KNOWN_BY_LIST, None),
-        "known_in_anki": (CardNote.IN_ANKI, None),
-        "in_anki_unknown": (CardNote.IN_ANKI, None),
-        "other_open": (CardNote.LEARNED_ON_OTHER_CARD, None),
-        "other_skip": (CardNote.KNOWN_ON_OTHER_CARD, None),
+        name: name in {"open_new", "open_skip"} or name in {
+            "learn", "cloze", "known", "learning", "learning_cloze", "known_by_timer",
+            "known_by_list", "learn_then_listed", "known_in_anki", "in_anki_unknown",
+        } for name in STATES
     }))
-    def test_note(self, state: str, expected: tuple[CardNote | None, datetime | None]) -> None:
-        view = STATES[state].view()
-        assert (view.note, view.known_on) == expected
+    def test_buttons_on(self, state: str, expected: bool) -> None:
+        commands = {b.command is not None for b in STATES[state].view().buttons}
+        assert commands == {expected}
 
     @pytest.mark.parametrize(("state", "expected"), _per_state({
         "open_new": Shown(_NEW, False, Where.NOWHERE),
@@ -415,19 +396,24 @@ def test_the_stored_decision_status_reads_as_the_word_predicates(
 
 
 @pytest.mark.unit
-class TestSiblingNoteFollowsTheShownStatus:
-    """A sibling of a card in Anki says what the user sees: Learned until the 30 days pass,
+class TestSiblingPressFollowsTheShownStatus:
+    """A sibling of a card in Anki shows what the user sees: Learn until the 30 days pass,
     Known from day 30 (its timer, not a stored decision)."""
 
-    @pytest.mark.parametrize(("since", "note"), [
-        pytest.param(DUE + timedelta(seconds=1), CardNote.LEARNED_ON_OTHER_CARD, id="day-29"),
-        pytest.param(DUE, CardNote.KNOWN_ON_OTHER_CARD, id="day-30"),
+    @pytest.mark.parametrize(("since", "pressed"), [
+        pytest.param(DUE + timedelta(seconds=1), Press.LEARN, id="day-29"),
+        pytest.param(DUE, Press.KNOWN, id="day-30"),
     ])
-    def test_a_sibling_of_a_learning_card(self, since: datetime, note: CardNote) -> None:
+    def test_a_sibling_of_a_learning_card(self, since: datetime, pressed: Press) -> None:
         exported = CardState(SIBLING, L, Binding(NoteKind.LEARN, since))
-        state = State(_word(_card(N), exported))
+        view = State(_word(_card(N), exported)).view()
 
-        assert state.view().note is note
+        assert _pressed(view) == {pressed}
+
+    def test_a_sibling_of_a_cloze_has_cloze_pressed(self) -> None:
+        view = State(_word(_card(N), CardState(SIBLING, C))).view()
+
+        assert _pressed(view) == {Press.CLOZE}
 
 
 @pytest.mark.unit
@@ -442,8 +428,10 @@ class TestOneDefinitionOfDone:
                 listed_elsewhere = open_elsewhere(world.word, world.knowledge())
                 assert card_is_done(stored, is_skipped(card), listed_elsewhere) is view.is_done
 
-    def test_a_gap_in_the_note_table_is_a_rule_gap(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(card_view_module, "NOTE_RULES", MappingProxyType({}))
+    def test_a_gap_in_the_pressed_table_is_a_rule_gap(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(card_view_module, "PRESSED", MappingProxyType({}))
         world = next(iter(worlds()))
 
         with pytest.raises(NoDecisionRuleError):

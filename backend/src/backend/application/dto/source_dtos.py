@@ -25,7 +25,6 @@ from backend.domain.value_objects.card_choice import (  # Pydantic needs the enu
     Refusal,
     is_cloze,
 )
-from backend.domain.value_objects.card_note import CardNote  # noqa: TC001 — Pydantic
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
 from backend.domain.value_objects.word_status import WordStatus
@@ -238,23 +237,13 @@ class ShownDTO(BaseModel):
 
 
 class CardStateDTO(BaseModel):
-    """Why a card shows what it shows, and what each button does.
+    """What each button does: Learn, Cloze, Known, Skip, in this order."""
 
-    `note`: why the card shows what it shows; `known_on`: when a card in Anki reads Known by
-    its timer, if the note tells it.
-    `buttons`: Learn, Cloze, Known, Skip, in this order."""
-
-    note: CardNote | None = None
-    known_on: datetime | None = None
     buttons: list[ButtonDTO] = []
 
     @staticmethod
     def of(view: CardView) -> CardStateDTO:
-        return CardStateDTO(
-            note=view.note,
-            known_on=view.known_on,
-            buttons=[ButtonDTO.of(b) for b in view.buttons],
-        )
+        return CardStateDTO(buttons=[ButtonDTO.of(b) for b in view.buttons])
 
 
 class CardDTO(BaseModel):

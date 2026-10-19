@@ -142,6 +142,10 @@ def _card(client: TestClient, source_id: int, word_id: int) -> Json:
     return next(card for card in cards if card["word_id"] == word_id)
 
 
+def _pressed(card: Json) -> list[str]:
+    return [b["button"] for b in card["state"]["buttons"] if b["pressed"]]
+
+
 def _known_list(client: TestClient) -> list[Json]:
     return list(client.get("/known-words").json())
 
@@ -153,12 +157,12 @@ def _known_count(client: TestClient) -> int:
 def test_at_day_30_every_reader_sees_the_word_known(client: TestClient) -> None:
     own = _card(client, HERE, GLARE)
     assert own["shown"]["status"] == "known"
-    assert own["state"]["note"] == "known_by_timer"
+    assert _pressed(own) == ["known"]
     there = _card(client, THERE, GLARE_THERE)
     assert there["shown"] == {
         "status": "known", "skipped": False, "where": "other_source", "tone": "settled",
     }
-    assert there["state"]["note"] == "known_elsewhere"
+    assert _pressed(there) == ["known"]
     assert there["is_done"]
     assert _card(client, THERE, DRIFT)["section"] == "ready"
     assert [(w["lemma"], w["by_timer"]) for w in _known_list(client)] == [("glare", True)]
@@ -174,8 +178,7 @@ def test_at_day_29_every_reader_sees_the_word_learning(
 
     own = _card(client, HERE, GLARE)
     assert own["shown"]["status"] == "learning"
-    assert own["state"]["note"] == "in_anki"
-    assert own["state"]["known_on"].startswith(DAY_30.date().isoformat())
+    assert _pressed(own) == ["learn"]
     assert _card(client, THERE, GLARE_THERE)["shown"] == {
         "status": "learning", "skipped": False, "where": "other_source", "tone": "learning",
     }
@@ -191,8 +194,7 @@ def test_at_day_29_every_reader_sees_the_word_learning(
 def test_a_word_in_unknown_is_never_known_by_its_timer(client: TestClient) -> None:
     own = _card(client, HERE, SPARK)
     assert own["shown"]["status"] == "learning"
-    assert own["state"]["note"] == "in_anki"
-    assert own["state"]["known_on"] is None
+    assert _pressed(own) == ["learn"]
     assert _card(client, THERE, SPARK_THERE)["shown"]["where"] == "nowhere"
     assert "spark" not in {w["lemma"] for w in _known_list(client)}
     assert _known_count(client) == 1
@@ -209,7 +211,7 @@ def test_deleting_a_word_known_by_its_timer_makes_its_cards_new_everywhere(
     assert response.status_code == 200
     own = _card(client, HERE, GLARE)
     assert own["shown"]["status"] == "new"
-    assert own["state"]["note"] is None
+    assert _pressed(own) == []
     there = _card(client, THERE, GLARE_THERE)
     assert there["shown"]["where"] == "nowhere"
     assert not there["is_done"]

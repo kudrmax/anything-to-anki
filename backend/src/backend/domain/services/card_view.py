@@ -3,15 +3,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from itertools import product
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Protocol
 
 from backend.domain.services.decision_rules import PRESS_RULES, press_key, role_of, rule
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import (
+    KIND_OF_CHOICE,
     CardChoice,
     CardState,
     DecisionStatus,
+    NoteKind,
     Press,
     Refusal,
     Role,
@@ -20,13 +23,10 @@ from backend.domain.value_objects.card_choice import (
     decision_status,
     in_anki,
     is_skipped,
-    reads_known,
     status_of,
 )
-from backend.domain.value_objects.card_note import CardNote
 from backend.domain.value_objects.decision_progress import DecisionProgress, ReviewReach
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
-from backend.domain.value_objects.learning_timer import known_on
 from backend.domain.value_objects.user_work import NO_USER_WORK
 from backend.domain.value_objects.word_status import WordStatus
 
@@ -107,8 +107,6 @@ class CardView:
     card_id: int
     buttons: tuple[ButtonState, ...]
     can_edit_cloze: bool
-    note: CardNote | None
-    known_on: datetime | None     # when a card in Anki reads Known by its timer
     shown: Shown
     wants_generation: bool
 
@@ -126,16 +124,31 @@ _COMMANDS: Mapping[tuple[bool, bool], Command | None] = MappingProxyType(
         (False, False): Command.DECIDE,
     },
 )
-_SHOWN_PRESS: Mapping[tuple[CardChoice, bool], Press | None] = MappingProxyType(
-    {  # (the decision card's choice, it reads Known)
-        (CardChoice.NONE, False): None,
-        (CardChoice.LEARN, False): Press.LEARN,
-        (CardChoice.CLOZE, False): Press.CLOZE,
-        (CardChoice.KNOWN, False): Press.KNOWN,
-        (CardChoice.LEARN, True): Press.KNOWN,
-        (CardChoice.CLOZE, True): Press.KNOWN,
-    },
+_BOTH = (False, True)
+_KINDS: tuple[NoteKind | None, ...] = (None, *NoteKind)
+_LEARN_PRESS: Mapping[NoteKind | None, Press] = MappingProxyType(
+    {None: Press.LEARN, NoteKind.LEARN: Press.LEARN, NoteKind.CLOZE: Press.CLOZE},
 )
+_SKIP_PRESS: Mapping[bool, Press | None] = MappingProxyType({False: None, True: Press.SKIP})
+PRESSED: Mapping[tuple[WordStatus, bool, NoteKind | None], Press | None] = MappingProxyType({
+    # (the status shown, the phrase is skipped, the kind the word's decision card chose)
+    **{(WordStatus.NEW, skipped, kind): _SKIP_PRESS[skipped]
+       for skipped, kind in product(_BOTH, _KINDS)},
+    **{(status, skipped, kind): _LEARN_PRESS[kind]
+       for status, skipped, kind in product(
+           (WordStatus.LEARN, WordStatus.LEARNING), _BOTH, _KINDS,
+       )},
+    **{(WordStatus.KNOWN, skipped, kind): Press.KNOWN
+       for skipped, kind in product(_BOTH, _KINDS)},
+})
+"""The button of the status the user sees, on every card of the word: the decision beats
+the phrase's Skip, as in the tone."""
+
+
+def _shown_press(word: WordState, shown: Shown) -> Press | None:
+    return rule(
+        PRESSED, (shown.status, shown.skipped, KIND_OF_CHOICE.get(word.decision_choice)),
+    )
 
 
 def _button(
@@ -147,105 +160,13 @@ def _button(
     return ButtonState(
         button=button,
         command=_COMMANDS[(target.refusal is not None, opens_editor)],
-        pressed=button is shown_press or (button is Press.SKIP and is_skipped(card)),
+        pressed=button is shown_press,
         refused=target.refusal,
     )
 
 
-# --- note -------------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class NoteKey:
-    role: Role
-    bound: bool
-    known_choice: bool
-    reads_known: bool
-    listed: bool                        # normalised: reads Known through the Known list
-    elsewhere: ElsewhereStatus | None   # normalised: OPEN cards only
-    unknown: bool = False               # normalised: a Learning card in Anki, lemma in Unknown
-    decided_known: bool = False         # normalised: OTHER cards, the word reads Known
-
-
-@dataclass(frozen=True)
-class NoteRow:
-    note: CardNote | None
-    dated: bool = False
-
-
-def possible_note(key: NoteKey) -> bool:
-    decision = key.role is Role.DECISION
-    return (
-        (key.elsewhere is None or key.role is Role.OPEN)
-        and (not key.bound or decision)
-        and (not key.known_choice or decision)
-        and (not key.reads_known or (decision and not key.known_choice))
-        and (not key.reads_known or key.bound or key.listed)
-        and (not key.listed or key.reads_known)
-        and (not key.unknown or (key.bound and not key.known_choice and not key.reads_known))
-        and (not key.decided_known or key.role is Role.OTHER)
-    )
-
-
-_ELSEWHERE_NOTES: Mapping[ElsewhereStatus | None, CardNote | None] = MappingProxyType(
-    {
-        None: None,
-        ElsewhereStatus.KNOWN: CardNote.KNOWN_ELSEWHERE,
-        ElsewhereStatus.LEARNING: CardNote.LEARNING_ELSEWHERE,
-        ElsewhereStatus.LEARN: CardNote.LEARN_ELSEWHERE,
-    },
-)
-NOTE_RULES: Mapping[NoteKey, NoteRow] = MappingProxyType(
-    {
-        **{
-            NoteKey(Role.OPEN, False, False, False, False, elsewhere): NoteRow(note)
-            for elsewhere, note in _ELSEWHERE_NOTES.items()
-        },
-        NoteKey(Role.OTHER, False, False, False, False, None):
-            NoteRow(CardNote.LEARNED_ON_OTHER_CARD),
-        NoteKey(Role.OTHER, False, False, False, False, None, decided_known=True):
-            NoteRow(CardNote.KNOWN_ON_OTHER_CARD),
-        NoteKey(Role.DECISION, False, False, False, False, None): NoteRow(None),
-        NoteKey(Role.DECISION, False, True, False, False, None): NoteRow(None),
-        NoteKey(Role.DECISION, True, False, False, False, None):
-            NoteRow(CardNote.IN_ANKI, dated=True),
-        NoteKey(Role.DECISION, True, True, False, False, None): NoteRow(CardNote.IN_ANKI),
-        NoteKey(Role.DECISION, True, False, True, False, None): NoteRow(CardNote.KNOWN_BY_TIMER),
-        NoteKey(Role.DECISION, True, False, True, True, None): NoteRow(CardNote.KNOWN_BY_LIST),
-        # Q15: a Learn not in Anki yet whose lemma was put in Known after it.
-        NoteKey(Role.DECISION, False, False, True, True, None): NoteRow(CardNote.KNOWN_BY_LIST),
-        # Unknown wins (Q8): the timer never makes it Known, so there is no date.
-        NoteKey(Role.DECISION, True, False, False, False, None, unknown=True):
-            NoteRow(CardNote.IN_ANKI),
-    },
-)
-
-
 def _open_elsewhere(role: Role, elsewhere: ElsewhereStatus | None) -> ElsewhereStatus | None:
     return elsewhere if role is Role.OPEN else None
-
-
-def note_key(
-    word: WordState, card: CardState, lemma: LemmaKnowledge, elsewhere: ElsewhereStatus | None,
-    now: datetime,
-) -> NoteKey:
-    role = role_of(word, card)
-    known = reads_known(card, lemma, now)
-    return NoteKey(
-        role=role,
-        bound=in_anki(card),
-        known_choice=card.choice is CardChoice.KNOWN,
-        reads_known=known,
-        listed=known and lemma.known_marked,
-        elsewhere=_open_elsewhere(role, elsewhere),
-        unknown=in_anki(card) and card.choice is not CardChoice.KNOWN and lemma.unknown,
-        decided_known=role is Role.OTHER and status_of(word, lemma, now) is WordStatus.KNOWN,
-    )
-
-
-def _known_on(card: CardState, row: NoteRow) -> datetime | None:
-    binding = card.binding
-    return known_on(binding.learning_since) if row.dated and binding else None
 
 
 # --- shown ------------------------------------------------------------------------------
@@ -289,17 +210,15 @@ def card_view(
     card = word.card(card_id)
     role = role_of(word, card)
     open_elsewhere = _open_elsewhere(role, elsewhere)
-    shown_press = _SHOWN_PRESS[(word.decision_choice, decision_reads_known(word, lemma, now))]
-    note = rule(NOTE_RULES, note_key(word, card, lemma, elsewhere, now))
+    shown = _shown(word, card, open_elsewhere, lemma, now)
+    shown_press = _shown_press(word, shown)
     return CardView(
         card_id=card_id,
         buttons=tuple(
             _button(word, card, button, shown_press, lemma, elsewhere, now) for button in Press
         ),
         can_edit_cloze=card.choice is CardChoice.CLOZE and not in_anki(card),
-        note=note.note,
-        known_on=_known_on(card, note),
-        shown=_shown(word, card, open_elsewhere, lemma, now),
+        shown=shown,
         wants_generation=(
             (role is Role.DECISION and in_export_queue(word, lemma, now))
             or (role is Role.OPEN and card.choice is CardChoice.NONE and open_elsewhere is None)

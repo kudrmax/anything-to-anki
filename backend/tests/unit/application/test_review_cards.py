@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.utils.review_cards import ReviewCards
-from backend.domain.value_objects.card_note import CardNote
+from backend.domain.value_objects.card_choice import Press
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.word_status import WordStatus
@@ -60,33 +60,34 @@ def _open_card(vocabulary: UserVocabulary) -> ReviewCard:
 
 
 @pytest.mark.parametrize(
-    ("vocabulary", "elsewhere", "note", "shown"),
+    ("vocabulary", "elsewhere", "pressed", "shown"),
     [
         pytest.param(
             user_vocabulary(learning_lemmas={LEMMA}), ElsewhereStatus.LEARN,
-            CardNote.LEARN_ELSEWHERE, WordStatus.LEARN, id="learn-waiting-for-export",
+            Press.LEARN, WordStatus.LEARN, id="learn-waiting-for-export",
         ),
         pytest.param(
             user_vocabulary(active_since={LEMMA: FRESH}), ElsewhereStatus.LEARNING,
-            CardNote.LEARNING_ELSEWHERE, WordStatus.LEARNING, id="in-anki",
+            Press.LEARN, WordStatus.LEARNING, id="in-anki",
         ),
         pytest.param(
             user_vocabulary(active_since={LEMMA: DUE}), ElsewhereStatus.KNOWN,
-            CardNote.KNOWN_ELSEWHERE, WordStatus.KNOWN, id="known-by-timer",
+            Press.KNOWN, WordStatus.KNOWN, id="known-by-timer",
         ),
         pytest.param(
             user_vocabulary(_known(LEMMA)), ElsewhereStatus.KNOWN,
-            CardNote.KNOWN_ELSEWHERE, WordStatus.KNOWN, id="known-by-list",
+            Press.KNOWN, WordStatus.KNOWN, id="known-by-list",
         ),
     ],
 )
 def test_a_word_open_here_is_done_by_what_another_source_holds(
-    vocabulary: UserVocabulary, elsewhere: ElsewhereStatus, note: CardNote, shown: WordStatus,
+    vocabulary: UserVocabulary, elsewhere: ElsewhereStatus, pressed: Press, shown: WordStatus,
 ) -> None:
     card = _open_card(vocabulary)
 
     assert card.elsewhere is elsewhere
-    assert card.view.note is note
+    assert [b.button for b in card.view.buttons if b.pressed] == [pressed]
+    assert all(b.command is None for b in card.view.buttons)
     assert card.view.shown.status is shown
     assert card.view.is_done
 
@@ -105,7 +106,7 @@ def test_a_word_open_here_stays_open(vocabulary: UserVocabulary) -> None:
     card = _open_card(vocabulary)
 
     assert card.elsewhere is None
-    assert card.view.note is None
+    assert not any(b.pressed for b in card.view.buttons)
     assert not card.view.is_done
 
 
@@ -118,5 +119,5 @@ def test_a_word_decided_here_shows_its_own_decision() -> None:
 
     [card] = cards.of_source(10)
 
-    assert card.view.note is None
+    assert card.elsewhere is None
     assert card.view.shown.status is WordStatus.LEARN

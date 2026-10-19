@@ -85,7 +85,8 @@ def test_the_cards_in_another_source_are_done_as_learn_elsewhere(client: TestCli
     assert card["shown"] == {
         "status": "learn", "skipped": False, "where": "other_source", "tone": "learning",
     }
-    assert card["state"]["note"] == "learn_elsewhere"
+    assert [b["button"] for b in card["state"]["buttons"] if b["pressed"]] == ["learn"]
+    assert [b["command"] for b in card["state"]["buttons"]] == [None] * 4
     assert card["is_done"]
 
 

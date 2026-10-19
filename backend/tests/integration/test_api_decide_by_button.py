@@ -333,7 +333,7 @@ def test_the_card_tells_what_each_button_does(client: TestClient) -> None:
     for gone in ("status", "word_status", "phrase_skipped", "is_decision", "decision_kind",
                  "can_cloze"):
         assert gone not in card
-    assert set(card["state"]) == {"note", "known_on", "buttons"}
+    assert set(card["state"]) == {"buttons"}
 
 
 def test_on_a_cloze_card_cloze_undoes_and_its_markup_is_editable(
@@ -357,7 +357,7 @@ def test_a_cloze_in_anki_keeps_its_markup(
 
     assert card["can_edit_cloze"] is False
     assert card["shown"]["status"] == "learning"
-    assert card["state"]["note"] == "in_anki"
+    assert [b["button"] for b in card["state"]["buttons"] if b["pressed"]] == ["cloze"]
 
 
 def test_a_card_known_by_its_timer_shows_known_pressed(
@@ -368,7 +368,6 @@ def test_a_card_known_by_its_timer_shows_known_pressed(
     card = _card(client, CARD)
 
     assert card["shown"]["status"] == "known"
-    assert card["state"]["note"] == "known_by_timer"
     assert [b["button"] for b in card["state"]["buttons"] if b["pressed"]] == ["known"]
 
 
