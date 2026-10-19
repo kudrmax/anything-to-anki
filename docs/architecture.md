@@ -31,7 +31,7 @@ frontends/* ──► application ──► domain ◄── infrastructure
 | `infrastructure/adapters/` | Реализации портов (внешние API, AI, файлы) |
 | `infrastructure/persistence/` | SQLAlchemy-модели, репозитории, Alembic |
 | `infrastructure/api/` | FastAPI endpoints, тонкие обёртки над use cases |
-| `infrastructure/workers.py` | arq worker (см. `docs/workers.md`) |
+| `infrastructure/queue/` | Очередь задач в SQLite и `JobWorker` (см. `docs/workers.md`) |
 | `infrastructure/container.py` | **Единственное** место сборки зависимостей (DI) |
 
 ## Порты и адаптеры
@@ -46,10 +46,11 @@ frontends/* ──► application ──► domain ◄── infrastructure
 
 Доменная модель источника (спека — `docs/specs/words-phrases-rebuild.md`):
 
-- **Слово** (`Word`, таблица `candidates`) — одна лемма источника `(source_id, lower(lemma), is_phrasal_verb)`: CEFR, частотность, произношение, картинка и **решение** Learn/Known (`WordStatus`: pending / learn / known).
-- **Фраза** (таблица `phrases`) — вхождение слова в текст со всем, что к нему относится: текст, Polish, определение, озвучка, клип, cloze, граница. Поля: `origin` (`auto` / `manual` / `example` / `collected`), `shown_by` (`selection` | `user` | NULL), `skipped`, `is_decision`, `decision_kind` (learn | cloze), `revision`, `replaces_selection`.
+- **Слово** (`Word`, таблица `candidates`) — одна лемма источника `(source_id, lower(lemma), is_phrasal_verb)`: CEFR, частотность, произношение, картинка и статус решения (`candidates.status`, `DecisionStatus`: pending / learn / learning / known).
+- **Фраза** (таблица `phrases`) — вхождение слова в текст со всем, что к нему относится: текст, Polish, определение, озвучка, клип, cloze, граница. Поля: `origin` (`auto` / `manual` / `example` / `collected`), `shown_by` (`selection` | `user` | NULL), `choice` (`CardChoice`: none / learn / cloze / known / skip), `revision`, `replaces_selection`.
 - **Карточка** на экране = одна показанная фраза (`shown_by` не NULL). Ключ карточки в API и во фронте — `phrase_id`.
-- **Решение живёт на слове** и привязано ровно к одной фразе — фразе решения (`is_decision`); она уходит в Anki. Остальные карточки решённого слова только показывают решение. **Skip** относится к одной фразе, слово не меняется.
+- **Решение — выбор на одной карточке слова**, его карточке решения (`choice` learn, cloze или known); она уходит в Anki. Остальные карточки решённого слова только показывают решение. **Skip** — выбор одной фразы, слово не меняется.
+- Что делает нажатие, перенос, экспорт и снятие Known, решают таблицы `domain/services/decision_rules.py`; что видит карточка — `card_view.py`. Модель статусов — `docs/specs/words-phrases-rebuild.md`.
 - Какие фразы показывать, решает чистая функция `select_phrases` (`domain/services/phrase_selection.py`); защита от потерь — `phrase_protection.py` (`is_touched`), план пересборки — `rebuild_plan.py`.
 
 ### Lossless Rebuild
@@ -62,7 +63,8 @@ frontends/* ──► application ──► domain ◄── infrastructure
 
 `CachingDocumentAnalyzer` (декоратор над анализатором) хранит разбор spaCy в `document_parses`, ключ `(document_hash, analyzer_version)`. Повторный анализ того же текста не разбирает его заново.
 
-### Learning и зрелость в Anki
+### Learning и таймер
 
-- «Учу» — отдельное состояние слова: Learn без экспорта плюс заметка в `anki_notes`, не удалённая и не зрелая. Приоритет Unknown > Known > «учу». В других источниках «учу» не предлагается как новое слово, но во фразах считается незнакомым.
-- Заметка зрелая, когда интервал всех не приостановленных карточек >= `MATURE_INTERVAL_DAYS` (21). Зрелость проверяется при каждом экспорте и по «Check progress in Anki» (`CheckAnkiProgress`), пачками по `ANKI_BATCH_SIZE` (500). Зрелое слово становится Known с пометкой `from_anki`.
+- Экспорт привязывает карточку к заметке Anki: строка `anki_synced_cards` (лемма, вид заметки, `learning_since`, `released_at`), слово становится Learning. Приложение никогда не спрашивает Anki о прогрессе.
+- Learning читается как Known через 30 дней после экспорта (`LEARNING_KNOWN_AFTER_DAYS`); это вычисляется при чтении, ничего не переключается. Приоритет Unknown > Known > Learning > Learn. Слово Learning или Learn в других источниках не предлагается как новое, но во фразах считается незнакомым.
+- Снять Known любым способом (кнопкой, в Settings, через Unknown) значит сделать слово новым во всех источниках: привязки отпускаются, заметки остаются в Anki. Удалённый источник оставляет привязки своих карточек Learn и Cloze: слово остаётся Learning до таймера.
