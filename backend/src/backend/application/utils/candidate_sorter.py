@@ -9,16 +9,13 @@ from backend.application.constants import (
     USAGE_GROUP_ORDER_SETTING,
 )
 from backend.domain.services import candidate_sorting
-from backend.domain.services.candidate_sections import card_section, section_of
+from backend.domain.services.candidate_sections import card_section
 from backend.domain.services.card_view import progress
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from backend.application.utils.frequent_word_threshold_resolver import (
-        FrequentWordThresholdResolver,
-    )
     from backend.application.utils.user_knowledge_reader import UserKnowledgeReader
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.services.candidate_sections import ShownCardFacts
@@ -43,7 +40,7 @@ class ArrangedCards:
 
 
 class CandidateSorter:
-    """Puts cards in the order the user picked and into sections, by what the user knows now.
+    """Puts cards in the order the user picked and into the sections their phrases earned.
 
     Text order has no sections in its order but Reviewed: done cards go below open ones. A
     done card is in Reviewed in every order.
@@ -52,11 +49,9 @@ class CandidateSorter:
     def __init__(
         self,
         settings_repo: SettingsRepository,
-        threshold_resolver: FrequentWordThresholdResolver,
         knowledge: UserKnowledgeReader,
     ) -> None:
         self._settings_repo = settings_repo
-        self._threshold_resolver = threshold_resolver
         self._knowledge = knowledge
 
     def arrange(
@@ -65,43 +60,33 @@ class CandidateSorter:
         order: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
     ) -> ArrangedCards:
         knowledge = self._knowledge.current()
-        threshold = self._threshold_resolver.resolve()
         if order == CandidateSortOrder.CHRONOLOGICAL:
             ordered = candidate_sorting.sort_chronologically(cards)
         elif order == CandidateSortOrder.KEY_WORDS:
             ordered = candidate_sorting.sort_by_key_words(
-                cards, frequent_threshold=threshold, knowledge=knowledge,
+                cards, knowledge=knowledge,
             )
         else:
             ordered = candidate_sorting.sort_by_relevance(
                 cards,
                 usage_order=self._usage_order(),
-                frequent_threshold=threshold,
                 knowledge=knowledge,
             )
         return ArrangedCards(
             cards=ordered,
-            sections={c.phrase_id: card_section(c, knowledge, threshold) for c in ordered},
+            sections={c.phrase_id: card_section(c) for c in ordered},
         )
 
     def section(self, card: ReviewCard) -> CandidateSection:
-        """The section of one card, by what the user knows now."""
-        return card_section(card, self._knowledge.current(), self._threshold_resolver.resolve())
-
-    def earned_sections(self, cards: list[ReviewCard]) -> dict[int, CandidateSection]:
-        """The section each card's phrase earns, done or not (by phrase id)."""
-        knowledge = self._knowledge.current()
-        threshold = self._threshold_resolver.resolve()
-        return {c.phrase_id: section_of(c, knowledge, threshold) for c in cards}
+        """The section of one card: Reviewed once done, else the one its phrase earned."""
+        return card_section(card)
 
     def progress(
         self, cards_by_source: Mapping[int, Sequence[ShownCardFacts]],
     ) -> dict[int, DecisionProgress]:
-        """Progress of each source from its cards, reading what the user knows once."""
-        knowledge = self._knowledge.current()
-        threshold = self._threshold_resolver.resolve()
+        """Progress of each source from its cards."""
         return {
-            source_id: progress(card_section(card, knowledge, threshold) for card in cards)
+            source_id: progress(card_section(card) for card in cards)
             for source_id, cards in cards_by_source.items()
         }
 

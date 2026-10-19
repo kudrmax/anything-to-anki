@@ -166,7 +166,7 @@ def test_at_day_30_every_reader_sees_the_word_known(client: TestClient) -> None:
     }
     assert _pressed(there) == ["known"]
     assert there["is_done"]
-    assert _card(client, THERE, DRIFT)["section"] == "ready"
+    assert _card(client, THERE, DRIFT)["section"] == "extra", "stamped while glare was learning"
     assert [(w["lemma"], w["by_timer"]) for w in _known_list(client)] == [("glare", True)]
     assert _known_count(client) == 1
     learning = client.get("/vocabulary/learning").json()
@@ -264,11 +264,12 @@ def _stored_status(factory: sessionmaker[Session], source_id: int) -> str:
         ).scalar_one())
 
 
-def test_a_timer_coming_due_reopens_a_reviewed_source_with_nothing_written(
+def test_a_timer_coming_due_leaves_a_reviewed_source_reviewed(
     client: TestClient, factory: sessionmaker[Session], moment: Moment,
 ) -> None:
-    """Day 29: glare is learning, so BLIND's phrase is Extra and the skipped ECHO is the
-    only Ready card: reviewed. Day 30: glare is known, BLIND's phrase is Ready and open."""
+    """Day 29: glare is learning, so BLIND's phrase is stamped Extra and the skipped ECHO is
+    the only Ready card: reviewed. Day 30: glare is known, but sections are stored, so
+    BLIND's phrase stays Extra and the source stays reviewed."""
     moment.at = DAY_29
     before = _listed(client, BOARD)
     reviewed_before = client.get("/collections").json()["all"]["reviewed"]
@@ -280,9 +281,8 @@ def test_a_timer_coming_due_reopens_a_reviewed_source_with_nothing_written(
         "reviewed", "reviewed", 1.0,
     )
     assert (after["status"], after["stage"], after["review_fraction"]) == (
-        "partially_reviewed", "in_progress", 0.5,
+        "reviewed", "reviewed", 1.0,
     )
-    assert client.get("/collections").json()["all"]["reviewed"] == reviewed_before - 1
-    assert after["can_review"]
+    assert client.get("/collections").json()["all"]["reviewed"] == reviewed_before
     assert not after["can_export"], "nothing in BOARD is to learn"
     assert _stored_status(factory, BOARD) == "done"

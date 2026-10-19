@@ -66,7 +66,7 @@ class RunGenerationUseCase:
             raise GenerationBlockedError(source_id, blocker.value)
 
         of_source = self._cards.of_source(source_id)
-        ready = ReadyCards.of(of_source, self._candidate_sorter)
+        ready = ReadyCards.of(of_source)
         cards = target.cards(of_source)
         jobs = CardJobs.of(self._job_repo, cards)
         chosen = [

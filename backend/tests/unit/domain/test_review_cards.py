@@ -54,7 +54,7 @@ def _card(
     at: int | None = None,
 ) -> ReviewCard:
     assert word.id is not None
-    return ReviewCard(
+    made = ReviewCard(
         word=replace(word, status=status),
         occurrence=Occurrence(
             id=phrase_id, candidate_id=word.id, origin=OccurrenceOrigin.AUTO,
@@ -67,6 +67,8 @@ def _card(
         ),
         elsewhere=elsewhere,
     )
+    earned = section_of(made, KNOWLEDGE, THRESHOLD)
+    return replace(made, occurrence=replace(made.occurrence, earned_section=earned))
 
 
 class TestSections:
@@ -113,7 +115,7 @@ class TestProgress:
             _card(_word(5, "cinder"), 6, new=("quill",), skipped=True),
             _card(_word(6, "notion", zipf=4.8), 7),
         ]
-        sections = [card_section(c, KNOWLEDGE, THRESHOLD) for c in cards]
+        sections = [card_section(c) for c in cards]
         assert progress(sections) == DecisionProgress(decided=4, total=5)
 
 

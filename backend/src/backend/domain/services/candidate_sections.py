@@ -47,9 +47,14 @@ class CardFacts(WordFacts, Protocol):
         ...
 
 
-class ShownCardFacts(CardFacts, Protocol):
+class ShownCardFacts(Protocol):
     @property
     def is_done(self) -> bool: ...
+
+    @property
+    def earned_section(self) -> CandidateSection:
+        """The section the card's phrase earned when it was added or its text last changed."""
+        ...
 
 
 def new_words(phrase: Phrase, knowledge: UserKnowledge | None) -> list[str]:
@@ -77,13 +82,9 @@ def section_of(
     return CandidateSection.READY
 
 
-def card_section(
-    card: ShownCardFacts,
-    knowledge: UserKnowledge | None,
-    frequent_threshold: FrequentWordThreshold | None,
-) -> CandidateSection:
-    """Where the card stands: Reviewed once done, else the section its phrase earns."""
-    return section(card, section_of(card, knowledge, frequent_threshold))
+def card_section(card: ShownCardFacts) -> CandidateSection:
+    """Where the card stands: Reviewed once done, else the section its phrase earned."""
+    return section(card, card.earned_section)
 
 
 @dataclass(frozen=True)

@@ -158,6 +158,13 @@ class _Setup:
         elsewhere: dict[str, ElsewhereStatus] | None = None,
         extra_phrases: frozenset[int] = frozenset(),
     ) -> None:
+        cards = [
+            (word, [
+                replace(o, earned_section=CandidateSection.EXTRA) if o.id in extra_phrases else o
+                for o in shown
+            ])
+            for word, shown in cards
+        ]
         self.source_repo = MagicMock()
         self.source_repo.get_by_id.return_value = source or _source()
         self.candidate_repo = MagicMock()
@@ -186,13 +193,6 @@ class _Setup:
         sorter.arrange.side_effect = lambda cs, _order: ArrangedCards(
             cards=_words_reversed(cs), sections={},
         )
-        sorter.earned_sections.side_effect = lambda cs: {
-            c.phrase_id: (
-                CandidateSection.EXTRA if c.phrase_id in extra_phrases
-                else CandidateSection.READY
-            )
-            for c in cs
-        }
         stamper = MagicMock()
         stamper.earned.return_value = CandidateSection.EXTRA
         targets = [
@@ -216,7 +216,7 @@ class _Setup:
         )
         self.status = GetGenerationStatusUseCase(
             source_repo=self.source_repo, cards=generation_cards,
-            job_repo=self.job_repo, candidate_sorter=sorter, targets=targets,
+            job_repo=self.job_repo, targets=targets,
         )
 
     def kind_status(self, kind: GenerationKind) -> GenerationKindStatusDTO:

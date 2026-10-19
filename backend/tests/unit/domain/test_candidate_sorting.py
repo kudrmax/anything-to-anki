@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import replace
+from functools import partial
 from typing import TYPE_CHECKING
 
 import pytest
@@ -38,6 +39,7 @@ def _knowledge(vocabulary: Vocabulary = EMPTY_VOCABULARY) -> UserKnowledge:
 
 
 KNOWLEDGE = _knowledge()
+THRESHOLD = FrequentWordThreshold.from_key("4.5")
 
 
 def _make(
@@ -53,11 +55,14 @@ def _make(
     unknowns: int = 0,
     position: DocumentPosition | None = None,
     shown: Phrase | None = None,
+    threshold: FrequentWordThreshold | None = None,
+    vocabulary: Vocabulary = EMPTY_VOCABULARY,
 ) -> ReviewCard:
-    """A card of its own word; ids follow the order cards are made."""
+    """A card of its own word, its phrase stamped with the section it earns for `threshold`
+    and `vocabulary`; ids follow the order cards are made."""
     card_id = next(_IDS)
     text = shown or _phrase(lemma, context_fragment, unknowns)
-    return ReviewCard(
+    made = ReviewCard(
         word=StoredCandidate(
             id=card_id,
             source_id=1,
@@ -77,9 +82,15 @@ def _make(
             shown_by=ShownBy.SELECTION,
         ),
     )
+    earned = section_of(made, _knowledge(vocabulary), threshold)
+    return replace(made, occurrence=replace(made.occurrence, earned_section=earned))
 
 
 _IDS = itertools.count(1)
+
+
+# A card whose phrase was stamped with frequent words counted as known.
+_make_frequent = partial(_make, threshold=THRESHOLD)
 
 
 def _with_id(card: ReviewCard, card_id: int) -> ReviewCard:
@@ -314,17 +325,15 @@ class TestSortByRelevanceWithUsage:
 class TestSortByRelevanceGroups:
     """Probably useless cards go down instead of disappearing."""
 
-    THRESHOLD = FrequentWordThreshold.from_key("4.5")
-
     def _lemmas(self, candidates: list[StoredCandidate]) -> list[str]:
         result = sort_by_relevance(
-            candidates, frequent_threshold=self.THRESHOLD, knowledge=KNOWLEDGE,
+            candidates, knowledge=KNOWLEDGE,
         )
         return [c.lemma for c in result]
 
     def test_too_frequent_word_goes_below_rarer_one(self) -> None:
-        frequent = _make("concept", 4.77)
-        rare = _make("feast", 3.95)
+        frequent = _make_frequent("concept", 4.77)
+        rare = _make_frequent("feast", 3.95)
         assert self._lemmas([frequent, rare]) == ["feast", "concept"]
 
     def test_no_threshold_keeps_frequent_word_on_top(self) -> None:
@@ -334,38 +343,38 @@ class TestSortByRelevanceGroups:
         assert [c.lemma for c in result] == ["concept", "feast"]
 
     def test_dirty_phrase_goes_below_clean_one(self) -> None:
-        dirty = _make("paleontology", 2.8, unknowns=1)
-        clean = _make("feast", 3.95)
+        dirty = _make_frequent("paleontology", 2.8, unknowns=1)
+        clean = _make_frequent("feast", 3.95)
         assert self._lemmas([dirty, clean]) == ["feast", "paleontology"]
 
     def test_fewer_extra_unknowns_go_higher(self) -> None:
-        two = _make("cider", 3.5, unknowns=2)
-        one = _make("dare", 4.3, unknowns=1)
+        two = _make_frequent("cider", 3.5, unknowns=2)
+        one = _make_frequent("dare", 4.3, unknowns=1)
         assert self._lemmas([two, one]) == ["dare", "cider"]
 
     def test_clean_phrasal_verb_goes_above_dirty_regular_word(self) -> None:
-        dirty = _make("paleontology", 2.8, unknowns=1)
-        phrasal = _make("chip in", 4.3, is_phrasal_verb=True)
+        dirty = _make_frequent("paleontology", 2.8, unknowns=1)
+        phrasal = _make_frequent("chip in", 4.3, is_phrasal_verb=True)
         assert self._lemmas([dirty, phrasal]) == ["chip in", "paleontology"]
 
     def test_dirty_rare_word_goes_above_too_frequent_clean_one(self) -> None:
-        frequent = _make("concept", 4.77)
-        dirty = _make("paleontology", 2.8, unknowns=1)
+        frequent = _make_frequent("concept", 4.77)
+        dirty = _make_frequent("paleontology", 2.8, unknowns=1)
         assert self._lemmas([frequent, dirty]) == ["paleontology", "concept"]
 
     def test_word_missing_from_dictionary_goes_to_the_very_bottom(self) -> None:
-        junk = _make("turking", 0.0)
-        frequent = _make("concept", 4.77)
+        junk = _make_frequent("turking", 0.0)
+        frequent = _make_frequent("concept", 4.77)
         assert self._lemmas([junk, frequent]) == ["concept", "turking"]
 
     def test_interjection_goes_to_the_very_bottom(self) -> None:
-        interjection = _make("heh", 3.67, pos="INTJ")
-        frequent = _make("concept", 4.77)
+        interjection = _make_frequent("heh", 3.67, pos="INTJ")
+        frequent = _make_frequent("concept", 4.77)
         assert self._lemmas([interjection, frequent]) == ["concept", "heh"]
 
     def test_collocation_missing_from_dictionary_is_not_junk(self) -> None:
-        collocation = _make("starting salary", 0.0)
-        frequent = _make("concept", 4.77)
+        collocation = _make_frequent("starting salary", 0.0)
+        frequent = _make_frequent("concept", 4.77)
         assert self._lemmas([frequent, collocation]) == ["starting salary", "concept"]
 
 
@@ -373,51 +382,49 @@ class TestSortByRelevanceGroups:
 class TestSortByKeyWords:
     """Words the text leans on most come first; useless ones still go down."""
 
-    THRESHOLD = FrequentWordThreshold.from_key("4.5")
-
     def _lemmas(self, candidates: list[StoredCandidate]) -> list[str]:
         result = sort_by_key_words(
-            candidates, frequent_threshold=self.THRESHOLD, knowledge=KNOWLEDGE,
+            candidates, knowledge=KNOWLEDGE,
         )
         return [c.lemma for c in result]
 
     def test_more_occurrences_go_first(self) -> None:
-        once = _make("feast", 3.95, occurrences=1)
-        often = _make("scythe", 2.6, occurrences=7)
+        once = _make_frequent("feast", 3.95, occurrences=1)
+        often = _make_frequent("scythe", 2.6, occurrences=7)
         assert self._lemmas([once, often]) == ["scythe", "feast"]
 
     def test_occurrences_beat_frequency_in_language(self) -> None:
-        common_once = _make("dare", 4.3, occurrences=1)
-        rare_twice = _make("gallows", 2.4, occurrences=2)
+        common_once = _make_frequent("dare", 4.3, occurrences=1)
+        rare_twice = _make_frequent("gallows", 2.4, occurrences=2)
         assert self._lemmas([common_once, rare_twice]) == ["gallows", "dare"]
 
     def test_rarer_word_goes_first_on_equal_occurrences(self) -> None:
-        common = _make("dare", 4.3, occurrences=3)
-        rare = _make("gallows", 2.4, occurrences=3)
+        common = _make_frequent("dare", 4.3, occurrences=3)
+        rare = _make_frequent("gallows", 2.4, occurrences=3)
         assert self._lemmas([common, rare]) == ["gallows", "dare"]
 
     def test_phrase_with_other_new_words_goes_below_ready_ones(self) -> None:
-        clean = _make("feast", 3.95, occurrences=1)
-        dirty = _make("scythe", 2.6, occurrences=5, unknowns=2)
+        clean = _make_frequent("feast", 3.95, occurrences=1)
+        dirty = _make_frequent("scythe", 2.6, occurrences=5, unknowns=2)
         assert self._lemmas([clean, dirty]) == ["feast", "scythe"]
 
     def test_cleaner_phrase_goes_first_on_equal_word(self) -> None:
-        dirty = _make("scythe", 2.6, occurrences=5, unknowns=1)
-        clean = _make("scythe", 2.6, occurrences=5)
+        dirty = _make_frequent("scythe", 2.6, occurrences=5, unknowns=1)
+        clean = _make_frequent("scythe", 2.6, occurrences=5)
         result = sort_by_key_words(
-            [dirty, clean], frequent_threshold=self.THRESHOLD, knowledge=KNOWLEDGE,
+            [dirty, clean], knowledge=KNOWLEDGE,
         )
         assert [len(new_words(c.phrase, KNOWLEDGE)) for c in result] == [0, 1]
 
     def test_too_frequent_word_goes_below_even_if_repeated(self) -> None:
-        frequent = _make("concept", 4.77, occurrences=9)
-        rare = _make("feast", 3.95, occurrences=1)
+        frequent = _make_frequent("concept", 4.77, occurrences=9)
+        rare = _make_frequent("feast", 3.95, occurrences=1)
         assert self._lemmas([frequent, rare]) == ["feast", "concept"]
 
     def test_junk_goes_to_the_very_bottom(self) -> None:
-        junk = _make("turking", 0.0, occurrences=12)
-        interjection = _make("heh", 3.67, pos="INTJ", occurrences=12)
-        frequent = _make("concept", 4.77)
+        junk = _make_frequent("turking", 0.0, occurrences=12)
+        interjection = _make_frequent("heh", 3.67, pos="INTJ", occurrences=12)
+        frequent = _make_frequent("concept", 4.77)
         assert self._lemmas([junk, interjection, frequent]) == ["concept", "turking", "heh"]
 
     def test_empty_list(self) -> None:
@@ -438,79 +445,75 @@ class TestSections:
     """Ready cards first, then cards with other new words, then probably known; done cards
     go to Reviewed, last."""
 
-    THRESHOLD = FrequentWordThreshold.from_key("4.5")
-
     def _lemmas(
         self, candidates: list[ReviewCard], vocabulary: Vocabulary = EMPTY_VOCABULARY,
     ) -> list[str]:
-        result = sort_by_relevance(
-            candidates, frequent_threshold=self.THRESHOLD, knowledge=_knowledge(vocabulary),
-        )
+        result = sort_by_relevance(candidates, knowledge=_knowledge(vocabulary))
         return [c.lemma for c in result]
 
     def test_done_cards_go_to_reviewed_below_every_open_section(self) -> None:
-        decided = _decided(_make("feast", 3.95), WordStatus.LEARN)
-        extra = _make("scythe", 2.6, unknowns=1)
-        frequent = _make("concept", 4.77)
+        decided = _decided(_make_frequent("feast", 3.95), WordStatus.LEARN)
+        extra = _make_frequent("scythe", 2.6, unknowns=1)
+        frequent = _make_frequent("concept", 4.77)
         assert self._lemmas([decided, frequent, extra]) == ["scythe", "concept", "feast"]
 
     def test_done_cards_go_to_reviewed_by_key_words_too(self) -> None:
-        skipped = _skipped(_make("feast", 3.95, occurrences=5))
-        extra = _make("scythe", 2.6, unknowns=1)
+        skipped = _skipped(_make_frequent("feast", 3.95, occurrences=5))
+        extra = _make_frequent("scythe", 2.6, unknowns=1)
         result = sort_by_key_words(
-            [skipped, extra], frequent_threshold=self.THRESHOLD, knowledge=KNOWLEDGE,
+            [skipped, extra], knowledge=KNOWLEDGE,
         )
         assert [c.lemma for c in result] == ["scythe", "feast"]
 
     def test_reviewed_cards_keep_the_order_of_their_sort(self) -> None:
-        rare = _decided(_make("gallows", 2.4), WordStatus.KNOWN)
-        common = _skipped(_make("feast", 3.95))
+        rare = _decided(_make_frequent("gallows", 2.4), WordStatus.KNOWN)
+        common = _skipped(_make_frequent("feast", 3.95))
         assert self._lemmas([rare, common]) == ["feast", "gallows"]
 
     def test_decided_card_goes_below_pending_one_of_its_section(self) -> None:
-        decided = _skipped(_make("feast", 3.95))
-        pending = _make("gallows", 2.4)
+        decided = _skipped(_make_frequent("feast", 3.95))
+        pending = _make_frequent("gallows", 2.4)
         assert self._lemmas([decided, pending]) == ["gallows", "feast"]
 
     def test_section_is_reviewed_for_a_done_card_else_earned_by_the_phrase(self) -> None:
-        threshold = self.THRESHOLD
-        extra = _make("scythe", 2.6, unknowns=1)
-        assert card_section(extra, KNOWLEDGE, threshold) is CandidateSection.EXTRA
-        assert card_section(_skipped(extra), KNOWLEDGE, threshold) is CandidateSection.REVIEWED
-        decided = _decided(_make("concept", 4.77), WordStatus.LEARN)
-        assert card_section(decided, KNOWLEDGE, threshold) is CandidateSection.REVIEWED
+        extra = _make_frequent("scythe", 2.6, unknowns=1)
+        assert card_section(extra) is CandidateSection.EXTRA
+        assert card_section(_skipped(extra)) is CandidateSection.REVIEWED
+        decided = _decided(_make_frequent("concept", 4.77), WordStatus.LEARN)
+        assert card_section(decided) is CandidateSection.REVIEWED
 
-    def test_known_word_no_longer_holds_phrase_back(self) -> None:
-        extra = _make("feast", 3.95, unknowns=1)
-        ready = _make("scythe", 2.6)
+    def test_a_card_keeps_its_stored_section_whatever_the_user_knows_now(self) -> None:
+        extra = _make_frequent("feast", 3.95, unknowns=1)
+        ready = _make_frequent("scythe", 2.6)
         known = Vocabulary.of(known={"strange0"}, unknown=set())
-        assert self._lemmas([ready, extra]) == ["scythe", "feast"]
-        assert self._lemmas([ready, extra], known) == ["feast", "scythe"]
+        assert self._lemmas([extra, ready]) == ["scythe", "feast"]
+        assert self._lemmas([extra, ready], known) == ["scythe", "feast"]
 
     def test_unknown_word_holds_phrase_back_even_if_common(self) -> None:
-        held = _make("scythe", 2.6)
-        ready = _make("feast", 3.95)
         unknown = Vocabulary.of(known=set(), unknown={"context"})
+        held = _make_frequent("scythe", 2.6, vocabulary=unknown)
+        ready = _make_frequent("feast", 3.95, vocabulary=unknown)
         assert self._lemmas([held, ready], unknown) == ["feast", "scythe"]
 
     def test_section_of_each_kind(self) -> None:
-        threshold = self.THRESHOLD
-        assert section_of(_make("feast", 3.95), KNOWLEDGE, threshold) is (
+        assert section_of(_make_frequent("feast", 3.95), KNOWLEDGE, THRESHOLD) is (
             CandidateSection.READY
         )
-        assert section_of(_make("scythe", 2.6, unknowns=1), KNOWLEDGE, threshold) is (
+        assert section_of(_make_frequent("scythe", 2.6, unknowns=1), KNOWLEDGE, THRESHOLD) is (
             CandidateSection.EXTRA
         )
-        assert section_of(_make("concept", 4.77, unknowns=1), KNOWLEDGE, threshold) is (
+        assert section_of(_make_frequent("concept", 4.77, unknowns=1), KNOWLEDGE, THRESHOLD) is (
             CandidateSection.PROBABLY_KNOWN
         )
 
     def test_new_words_are_listed_once(self) -> None:
-        candidate = _make(
+        candidate = _make_frequent(
             "scythe", 2.6, shown=phrase("grim grim the scythe", "scythe", new=["grim"]),
         )
         assert new_words(candidate.phrase, KNOWLEDGE) == ["grim"]
 
     def test_new_target_is_not_an_extra_word(self) -> None:
-        candidate = _make("scythe", 2.6, shown=phrase("the scythe", "scythe", new=["scythe"]))
+        candidate = _make_frequent(
+            "scythe", 2.6, shown=phrase("the scythe", "scythe", new=["scythe"]),
+        )
         assert new_words(candidate.phrase, KNOWLEDGE) == []

@@ -12,7 +12,6 @@ from backend.domain.value_objects.generation_scope import GenerationScope
 from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
-    from backend.application.utils.candidate_sorter import CandidateSorter
     from backend.application.utils.generation_targets import (
         GenerationCard,
         GenerationCards,
@@ -31,13 +30,11 @@ class GetGenerationStatusUseCase:
         source_repo: SourceRepository,
         cards: GenerationCards,
         job_repo: JobRepository,
-        candidate_sorter: CandidateSorter,
         targets: list[GenerationTarget],
     ) -> None:
         self._source_repo = source_repo
         self._cards = cards
         self._job_repo = job_repo
-        self._candidate_sorter = candidate_sorter
         self._targets = targets
 
     def execute(self, source_id: int) -> GenerationStatusDTO:
@@ -49,7 +46,7 @@ class GetGenerationStatusUseCase:
         video_downloading = self._job_repo.has_active_jobs_for_source(
             source_id, frozenset({JobType.VIDEO_DOWNLOAD}),
         )
-        ready = ReadyCards.of(cards, self._candidate_sorter)
+        ready = ReadyCards.of(cards)
         kinds = [
             self._kind_status(target, source, cards, jobs, ready, video_downloading)
             for target in self._targets

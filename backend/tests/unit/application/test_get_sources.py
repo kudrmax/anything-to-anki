@@ -13,6 +13,7 @@ from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.services.card_view import Command
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
@@ -40,6 +41,7 @@ def _row(
         source_id=source_id, word_id=phrase_id, phrase_id=phrase_id, lemma=f"word{phrase_id}",
         pos="NOUN", zipf_frequency=4.0, word_status=status, skipped=False,
         phrase=phrase(f"a word{phrase_id}", f"word{phrase_id}"),
+        earned_section=CandidateSection.READY,
     )
 
 
