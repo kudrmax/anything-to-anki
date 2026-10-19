@@ -22,6 +22,7 @@ export function useSettings() {
   const [unknownWords, setUnknownWords] = useState<UnknownWord[]>([])
   const [learningWords, setLearningWords] = useState<LearningWords>({ in_anki: [], awaiting_export: [] })
   const [deletingKey, setDeletingKey] = useState<string | null>(null)
+  const [knownError, setKnownError] = useState<string | null>(null)
   const [noteTypes, setNoteTypes] = useState<NoteTypeCheck[] | null>(null)
   const [noteTypesError, setNoteTypesError] = useState<string | null>(null)
   const [fixingNoteType, setFixingNoteType] = useState<NoteTypeKind | null>(null)
@@ -133,11 +134,14 @@ export function useSettings() {
   /** Запись списка удаляется по id, слово Known по таймеру — по lemma; списки перечитываются. */
   const deleteWord = async (word: KnownWord) => {
     setDeletingKey(knownWordKey(word))
+    setKnownError(null)
     try {
       await (word.id === null ? api.deleteTimerKnownWord(word.lemma) : api.deleteKnownWord(word.id))
       const [known, learning] = await Promise.all([api.getKnownWords(), api.getLearningWords()])
       setKnownWords(known)
       setLearningWords(learning)
+    } catch (e) {
+      setKnownError(e instanceof Error ? e.message : 'Failed to remove the word')
     } finally {
       setDeletingKey(null)
     }
@@ -189,7 +193,7 @@ export function useSettings() {
 
   return {
     form, loading, saving, saved, saveError, setField, save,
-    knownWords, deletingKey, deleteWord, unknownWords, deleteUnknownWord, learningWords,
+    knownWords, knownError, deletingKey, deleteWord, unknownWords, deleteUnknownWord, learningWords,
     noteTypes, noteTypesError, fixingNoteType, fixNoteType,
     copiedTemplate, copyTemplate,
     bootstrapStatus, buildBootstrap,

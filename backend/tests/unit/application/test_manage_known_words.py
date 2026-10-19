@@ -117,3 +117,33 @@ class TestManageKnownWordsUseCase:
         )
         use_case.add_bulk(["nuance"])
         unknown_word_repo.remove_by_lemma.assert_called_once_with("nuance")
+
+    def test_entries_of_one_lemma_in_different_case_are_one_word(self) -> None:
+        self.known_word_repo.list_all.return_value = [
+            KnownWord(id=1, lemma="Spark", pos="VERB"), KnownWord(id=2, lemma="spark", pos="NOUN"),
+        ]
+
+        self.use_case.delete(1)
+
+        self.known_word_repo.remove.assert_called_once_with(1)
+        self.effects.known_removed.assert_not_called()
+
+    def test_an_entry_for_any_pos_is_the_last_entry_of_its_word(self) -> None:
+        self.known_word_repo.list_all.return_value = [
+            KnownWord(id=1, lemma="go", pos=None), KnownWord(id=2, lemma="run", pos="VERB"),
+        ]
+        before = self.vocabulary.of("go")
+
+        self.use_case.delete(1)
+
+        self.effects.known_removed.assert_called_once_with("go", before)
+
+    def test_an_entry_for_any_pos_next_to_a_pos_entry_is_an_entry_edit(self) -> None:
+        self.known_word_repo.list_all.return_value = [
+            KnownWord(id=1, lemma="go", pos=None), KnownWord(id=2, lemma="go", pos="VERB"),
+        ]
+
+        self.use_case.delete(1)
+
+        self.known_word_repo.remove.assert_called_once_with(1)
+        self.effects.known_removed.assert_not_called()

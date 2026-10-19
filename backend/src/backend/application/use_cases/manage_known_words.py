@@ -46,7 +46,9 @@ class ManageKnownWordsUseCase:
         removal does (§2.7), and its cards that read Known turn new in every source."""
         entries = self._vocabulary.known_words()
         entry = next((e for e in entries if e.id == known_word_id), None)
-        if entry is None or any(e.lemma == entry.lemma and e.id != entry.id for e in entries):
+        if entry is None or any(
+            e.lemma.lower() == entry.lemma.lower() and e.id != entry.id for e in entries
+        ):
             self._vocabulary.remove_known(known_word_id)
             return
         self._effects.known_removed(entry.lemma, self._vocabulary.of(entry.lemma))

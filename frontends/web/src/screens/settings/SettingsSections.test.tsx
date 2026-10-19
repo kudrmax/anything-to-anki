@@ -45,6 +45,12 @@ describe('Settings word lists', () => {
       expect(deleteWord.mock.calls).toEqual([[BY_TIMER], [LISTED]])
     })
 
+    it('shows why a word could not be removed', () => {
+      act(() => root.render(<KnownWords store={store({ knownWords: [LISTED], knownError: '409: busy' })} />))
+
+      expect(host.textContent).toContain('409: busy')
+    })
+
     it('holds the word being removed', () => {
       act(() => root.render(<KnownWords store={store({ knownWords: [LISTED, BY_TIMER], deletingKey: 'timer:glare' })} />))
 

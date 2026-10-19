@@ -398,16 +398,19 @@ const knownWordLabel = (word: KnownWord): string =>
 
 export function KnownWords({ store }: { store: SettingsStore }) {
   return (
-    <WordList
-      words={store.knownWords.map(word => ({
-        key: knownWordKey(word),
-        label: knownWordLabel(word),
-        onRemove: () => void store.deleteWord(word),
-      }))}
-      hint={KNOWN_WORDS_HINT}
-      empty={`No known words yet. ${KNOWN_WORDS_HINT}`}
-      deletingKey={store.deletingKey}
-    />
+    <>
+      {store.knownError && <Text tone="err">{store.knownError}</Text>}
+      <WordList
+        words={store.knownWords.map(word => ({
+          key: knownWordKey(word),
+          label: knownWordLabel(word),
+          onRemove: () => void store.deleteWord(word),
+        }))}
+        hint={KNOWN_WORDS_HINT}
+        empty={`No known words yet. ${KNOWN_WORDS_HINT}`}
+        deletingKey={store.deletingKey}
+      />
+    </>
   )
 }
 
