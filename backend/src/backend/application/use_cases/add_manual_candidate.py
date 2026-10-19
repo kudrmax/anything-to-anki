@@ -130,7 +130,7 @@ class AddManualCandidateUseCase:
             self._occurrences.set_replaces_selection(existing.id, True)
         self._occurrences.set_shown([existing.id], ShownBy.USER)
         if is_skipped(existing.card_state):
-            self._decide_phrase.press(existing.id, Press.SKIP)
+            self._decide_phrase.press_unless_done(existing.id, Press.SKIP)
         return existing.id
 
     def _add_phrase(self, word_id: int, card: NewCard, key: OccurrenceKey) -> int:

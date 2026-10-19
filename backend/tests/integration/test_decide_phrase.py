@@ -229,6 +229,19 @@ def test_learn_on_a_word_known_elsewhere_is_refused(bench: Bench) -> None:
     assert bench.status() == "pending"
 
 
+@pytest.mark.parametrize("button", list(Press))
+def test_a_press_for_the_user_leaves_a_card_decided_elsewhere_as_it_is(
+    bench: Bench, button: Press,
+) -> None:
+    """Saved phrases' Learn and a manual add's unskip: the card stays done."""
+    bench.list_known("VERB")
+
+    bench.decisions.decide_phrase().press_unless_done(FIRST, button)
+
+    assert bench.choice(FIRST) is CardChoice.NONE
+    assert bench.status() == "pending"
+
+
 def test_learn_on_a_word_marked_unknown_but_learning_elsewhere_is_allowed(
     bench: Bench, db_session: Session,
 ) -> None:

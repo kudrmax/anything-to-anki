@@ -20,6 +20,9 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
+from backend.infrastructure.persistence.sqla_known_word_repository import (
+    SqlaKnownWordRepository,
+)
 
 from tests.decision_support import Decisions
 from tests.lock_support import free_lock
@@ -182,6 +185,25 @@ def test_a_manual_add_at_a_hidden_auto_phrase_shows_it_without_a_duplicate(
     bench.rebuild().execute(SOURCE, include_open=True)
 
     assert sorted(o.id for o in _shown(bench, "glare")) == sorted(o.id for o in occurrences)
+
+
+@pytest.mark.parametrize("decided", ["on_another_card", "in_the_known_list"])
+def test_a_skipped_phrase_of_a_decided_word_is_shown_and_stays_done(
+    bench: Bench, decided: str,
+) -> None:
+    bench.processed(word("glare", at(0, 0.1), _at(GLARE_LINE, GLARE_CHAR)))
+    hidden = bench.phrase_on("glare", GLARE_LINE)
+    bench.set_choice(hidden.id, "skip")
+    if decided == "on_another_card":
+        bench.decide_learn("glare", bench.phrase_on("glare", 0).id)
+    else:
+        SqlaKnownWordRepository(bench.session).add("glare", None)
+        bench.session.commit()
+
+    Manual(bench).add(GLARE_LINE, 1)
+
+    made_shown = next(o for o in _of(bench, "glare") if o.id == hidden.id)
+    assert (made_shown.shown_by, made_shown.choice) == (ShownBy.USER, CardChoice.SKIP)
 
 
 def test_a_manual_add_on_the_selection_card_keeps_one_card(bench: Bench) -> None:

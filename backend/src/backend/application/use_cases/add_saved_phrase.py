@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import contextlib
 from typing import TYPE_CHECKING
 
 from backend.application.utils.candidate_factory import CandidateFactory
 from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.domain.entities.source import Source
-from backend.domain.exceptions import ActionRefusedError, InvalidPhraseError
+from backend.domain.exceptions import InvalidPhraseError
 from backend.domain.value_objects.card_choice import Press
 from backend.domain.value_objects.source_role import SourceRole
 
@@ -73,13 +72,8 @@ class AddSavedPhraseUseCase:
         )
         [collected] = self._collected.add(source_id, [card])
         if collected.new_word:
-            self._learn(collected.phrase_id)
+            self._decide_phrase.press_unless_done(collected.phrase_id, Press.LEARN)
         return self._card_views.one(collected.phrase_id)
-
-    def _learn(self, phrase_id: int) -> None:
-        """Decided in another source, the card shows that decision instead."""
-        with contextlib.suppress(ActionRefusedError):
-            self._decide_phrase.press(phrase_id, Press.LEARN)
 
     def _saved_phrases_source_id(self) -> int:
         source = self._source_repo.get_first_by_role(SourceRole.SAVED_PHRASES)

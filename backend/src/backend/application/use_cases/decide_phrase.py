@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
@@ -65,6 +66,12 @@ class DecidePhraseUseCase:
     def press(self, occurrence_id: int, button: Press) -> None:
         word, state = self._word(occurrence_id)
         self._press(word, state, occurrence_id, button, self._elsewhere(word, state))
+
+    def press_unless_done(self, occurrence_id: int, button: Press) -> None:
+        """A press the system makes for the user: on a card done because its word is
+        decided elsewhere the table refuses it, and the card stays as it is."""
+        with contextlib.suppress(ActionRefusedError):
+            self.press(occurrence_id, button)
 
     def _press(
         self, word: StoredCandidate, state: WordState, occurrence_id: int, button: Press,
