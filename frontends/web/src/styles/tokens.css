@@ -197,7 +197,7 @@
   --card-head-pb: var(--s5);
   --card-cols-pb: var(--s5);         /* под колонками — линия нижней полосы, большой отступ не нужен */
   --card-left-display: flex;
-  --card-left-item-mx: 0;
+  --card-left-item-mx: 0px;
   --card-left-item-mt: 0;
   --card-left-first-mt: 0px;
   --card-right-pt: var(--s5);

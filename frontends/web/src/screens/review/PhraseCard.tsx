@@ -117,7 +117,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
       </header>
 
       <div className={css.cardLeft}>
-        <p className={css.lemma}>{candidate.lemma}</p>
+        <p className={css.lemma}><b className={`${phrase.target} ${phrase.targetCurrent}`}>{candidate.lemma}</b></p>
         {meaning?.translation && <p className={css.translation}>{meaning.translation}</p>}
         {retold && <p className={css.retold}><RichText text={retold} candidate={candidate} /></p>}
         {paragraphs.length === 0 && (
