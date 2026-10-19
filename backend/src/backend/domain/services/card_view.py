@@ -92,6 +92,15 @@ class Shown:
     def tone(self) -> ShownTone:
         return _TONES[(self.status, self.skipped)]
 
+    @property
+    def is_done(self) -> bool:
+        return is_done(self.status, self.skipped)
+
+
+def is_done(status: WordStatus, skipped: bool) -> bool:
+    """The one definition of a done card: its word reads decided, or its phrase is skipped."""
+    return status is not WordStatus.NEW or skipped
+
 
 @dataclass(frozen=True)
 class CardView:
@@ -105,7 +114,7 @@ class CardView:
 
     @property
     def is_done(self) -> bool:
-        return self.shown.status is not WordStatus.NEW or self.shown.skipped
+        return self.shown.is_done
 
 
 # --- buttons ----------------------------------------------------------------------------
@@ -281,7 +290,7 @@ def card_view(
     role = role_of(word, card)
     open_elsewhere = _open_elsewhere(role, elsewhere)
     shown_press = _SHOWN_PRESS[(word.decision_choice, decision_reads_known(word, lemma, now))]
-    note = NOTE_RULES[note_key(word, card, lemma, elsewhere, now)]
+    note = rule(NOTE_RULES, note_key(word, card, lemma, elsewhere, now))
     return CardView(
         card_id=card_id,
         buttons=tuple(
@@ -354,8 +363,8 @@ def stored_chosen_to_learn(stored: WordStatus) -> bool:
 
 def card_is_done(stored: WordStatus, skipped: bool, elsewhere: ElsewhereStatus | None) -> bool:
     """A listed card is done when its word is decided, its phrase skipped, or the word is
-    known or learned via another source."""
-    return stored_decided(stored) or skipped or elsewhere is not None
+    known or learned via another source: done as its card view says."""
+    return is_done(_SEEN_ELSEWHERE.get(elsewhere, stored), skipped)
 
 
 def learning_in_anki(word: WordState) -> bool:

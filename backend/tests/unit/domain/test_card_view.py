@@ -4,10 +4,12 @@ from __future__ import annotations
 import itertools
 from dataclasses import dataclass
 from datetime import timedelta
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 import pytest
-from backend.domain.exceptions import ActionRefusedError
+from backend.domain.exceptions import ActionRefusedError, NoDecisionRuleError
+from backend.domain.services import card_view as card_view_module
 from backend.domain.services.card_view import (
     NOTE_RULES,
     CardView,
@@ -23,6 +25,7 @@ from backend.domain.services.card_view import (
     is_protected,
     keeps_word,
     note_key,
+    open_elsewhere,
     possible_note,
     progress,
     reach,
@@ -40,6 +43,8 @@ from backend.domain.value_objects.card_choice import (
     Press,
     Role,
     WordState,
+    decision_status,
+    is_skipped,
     status_of,
 )
 from backend.domain.value_objects.card_note import CardNote
@@ -423,3 +428,23 @@ class TestSiblingNoteFollowsTheShownStatus:
         state = State(_word(_card(N), exported))
 
         assert state.view().note is note
+
+
+@pytest.mark.unit
+class TestOneDefinitionOfDone:
+    def test_a_card_listed_by_its_stored_status_is_done_as_its_view_says(self) -> None:
+        for world in worlds():
+            for card in world.word.cards:
+                view = card_view(
+                    world.word, card.card_id, world.knowledge(), world.elsewhere(), NOW,
+                )
+                stored = WordStatus(decision_status(world.word).value)
+                listed_elsewhere = open_elsewhere(world.word, world.knowledge())
+                assert card_is_done(stored, is_skipped(card), listed_elsewhere) is view.is_done
+
+    def test_a_gap_in_the_note_table_is_a_rule_gap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(card_view_module, "NOTE_RULES", MappingProxyType({}))
+        world = next(iter(worlds()))
+
+        with pytest.raises(NoDecisionRuleError):
+            _view_of(world)
