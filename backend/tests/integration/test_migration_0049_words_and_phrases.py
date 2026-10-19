@@ -19,7 +19,7 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session
 
 from tests.decision_support import Decisions
-from tests.migration_0049_checks import Before, check_upgraded, read_before
+from tests.migration_0049_checks import Before, app_export_queue, check_upgraded, read_before
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
@@ -734,6 +734,7 @@ def test_the_migrated_database_meets_every_prod_copy_assert(migrated: Migrated) 
     with sqlite3.connect(migrated.path) as conn:
         report = check_upgraded(
             conn, migrated.before, migrated.started, migrated.finished, migrated.dropped,
+            app_export_queue(migrated.path),
         )
     assert report.counts["active binding on a KNOWN card"] == 2  # noqa: PLR2004 — 101 102
     assert report.listed["old SKIP: released original → NONE"] == [CARD_C]

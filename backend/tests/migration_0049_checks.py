@@ -3,7 +3,9 @@
 `read_before` reads the old cards before the upgrade; `check_upgraded` asserts every §4.1
 row on the upgraded database and returns the counts to report. The expected outcome of
 every card comes from an oracle written from the §4 mapping table, independent of the
-migration's code. Both the synthetic fixture test and the prod-copy test run these.
+migration's code. `app_export_queue` runs the app's own ExportQueue on the upgraded
+database, for `check_upgraded` to compare with the oracle. Both the synthetic fixture test
+and the prod-copy test run these.
 """
 from __future__ import annotations
 
@@ -12,9 +14,20 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
+from backend.application.utils.export_queue import ExportQueue
+from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
+from backend.infrastructure.persistence.sqla_occurrence_repository import (
+    SqlaOccurrenceRepository,
+)
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+
+from tests.decision_support import Decisions
+
 if TYPE_CHECKING:
     import sqlite3
     from collections.abc import Iterable
+    from pathlib import Path
 
 DECIDED = ("learn", "known")
 DECISION_CHOICES = ("learn", "cloze", "known")
@@ -157,10 +170,26 @@ def read_before(conn: sqlite3.Connection) -> Before:
     )
 
 
+def app_export_queue(db_path: Path) -> frozenset[int]:
+    """The word ids the app's ExportQueue would export from every source."""
+    engine = create_engine(f"sqlite:///{db_path}")
+    try:
+        with Session(engine) as session:
+            decisions = Decisions(session)
+            queue = ExportQueue(
+                SqlaCandidateRepository(session), SqlaOccurrenceRepository(session),
+                decisions.word_states, decisions.vocabulary,
+            )
+            return frozenset(card.word_id for card in queue.for_all().pending)
+    finally:
+        engine.dispose()
+
+
 def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row, in its order
     conn: sqlite3.Connection, before: Before, started: datetime, finished: datetime,
-    dropped_log: Iterable[int],
+    dropped_log: Iterable[int], export_queue: frozenset[int],
 ) -> Report:
+    """`export_queue`: what the app's ExportQueue exports (`app_export_queue`)."""
     report = Report()
     phrase_of = _phrase_of_card(conn, before)
     words = {
@@ -316,12 +345,7 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
         report.list("merge loser with a dropped decision", card_id)
 
     # the export queue = the old Learn words not exported (Q15: not those now in Known)
-    queue = {
-        row[0] for row in conn.execute(
-            "SELECT c.id FROM candidates c WHERE c.status = 'learn'"
-        )
-        if words[row[0]][0].lower() not in before.known
-    }
+    queue = export_queue
     expected_queue = {
         winner.id for winner in winners.values()
         if winner.status == "learn" and not winner.exported

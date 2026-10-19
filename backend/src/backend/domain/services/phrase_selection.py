@@ -5,6 +5,7 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from backend.domain.services.card_view import is_skipped
 from backend.domain.services.phrase_protection import is_untouchable
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
@@ -56,7 +57,8 @@ def select_phrases(
         return _keep(selected, set())
     candidates = [
         o for o in word_occurrences
-        if o.origin is OccurrenceOrigin.AUTO and not o.skipped and o.shown_by is not ShownBy.USER
+        if o.origin is OccurrenceOrigin.AUTO and not is_skipped(o.card_state)
+        and o.shown_by is not ShownBy.USER
     ]
     if not candidates:
         return _keep(selected, set())

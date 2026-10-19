@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import TargetNotInPhraseError
+from backend.domain.services.card_view import is_skipped
 from backend.domain.services.topic_phrase_selection import (
     find_shortest_sentence,
     parse_marked_phrase,
@@ -149,7 +150,7 @@ class TopicPhraseCollector:
         }
         shown = [
             occ for word_id in sources for occ in self._occurrence_repo.of_word(word_id)
-            if occ.is_shown and not occ.skipped
+            if occ.is_shown and not is_skipped(occ.card_state)
         ]
         best = pick_easiest_phrase(shown, knowledge)
         if best is not None:

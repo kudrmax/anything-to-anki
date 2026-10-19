@@ -5,9 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
+from backend.domain.services.card_view import is_decided, keeps_word
 from backend.domain.services.phrase_protection import is_touched, is_untouchable
 from backend.domain.services.phrase_selection import SelectionChange, select_phrases
-from backend.domain.value_objects.card_choice import CardChoice
+from backend.domain.value_objects.card_choice import CardChoice, WordState
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
@@ -130,10 +131,10 @@ def plan_rebuild(
     same text gets its new score, and its new words unless polished; a touched phrase whose
     text changed waits for `include_open` (then its revision goes up and its results are
     reset); an untouched phrase gets everything. Occurrences the analysis no longer has go
-    unless touched — with `include_open`, unless untouchable. A word with no phrase and no
-    decision left goes. The selection then runs on what is left.
+    unless touched — with `include_open`, unless untouchable. A word goes when no phrase is
+    left and nothing keeps it (`keeps_word`). The selection then runs on what is left.
     """
-    planner = _Planner(include_open)
+    planner = _Planner(source_id, include_open)
     rows_by_word: dict[int, list[OccurrenceRow]] = {}
     for o in existing:
         rows_by_word.setdefault(o.candidate_id, []).append(o)
@@ -147,13 +148,14 @@ def plan_rebuild(
     for key, b in built_by_key.items():
         if key not in known_keys:
             planner.new_word(b)
-    return planner.plan(source_id)
+    return planner.plan()
 
 
 class _Planner:
     """Collects the plan word by word."""
 
-    def __init__(self, include_open: bool) -> None:
+    def __init__(self, source_id: int, include_open: bool) -> None:
+        self._source_id = source_id
         self._include_open = include_open
         self._new_words: list[NewWord] = []
         self._word_updates: list[WordUpdate] = []
@@ -169,9 +171,9 @@ class _Planner:
         self._text_reset = 0
         self._without_generation = 0
 
-    def plan(self, source_id: int) -> RebuildPlan:
+    def plan(self) -> RebuildPlan:
         return RebuildPlan(
-            source_id=source_id,
+            source_id=self._source_id,
             words_to_create=tuple(self._new_words),
             words_to_update=tuple(self._word_updates),
             words_to_delete=tuple(self._word_deletes),
@@ -193,19 +195,23 @@ class _Planner:
     def word(self, w: WordRow, rows: list[OccurrenceRow], b: BuiltWord | None) -> None:
         analysed = _by_key(b)
         rows = [self._found_again(o) for o in _moved_keys(rows, analysed)]
+        state = WordState(
+            w.id, w.lemma, w.data.pos, self._source_id, tuple(o.card_state for o in rows),
+        )
+        decided = is_decided(state)
         after: list[OccurrenceRow] = []
         for o in sorted(rows, key=lambda o: o.id):
-            kept = self._phrase(o, analysed.get(o.key) if o.key is not None else None, w)
+            kept = self._phrase(o, analysed.get(o.key) if o.key is not None else None, decided)
             if kept is not None:
                 after.append(kept)
         taken = {o.key for o in rows if o.key is not None}
         fresh = [occ for key, occ in analysed.items() if key not in taken]
-        if not w.decided and not after and not fresh:
+        if not keeps_word(state, {o.id: o.user_work for o in rows}) and not after and not fresh:
             self._word_deletes.append(w.id)
             return
         if b is not None and b.data != w.data:
             self._word_updates.append(WordUpdate(word_id=w.id, data=b.data))
-        self._select(w.key, w.id, w.decided, rows, after, fresh)
+        self._select(w.key, w.id, decided, rows, after, fresh)
 
     def new_word(self, b: BuiltWord) -> None:
         fresh = list(_by_key(b).values())
@@ -225,12 +231,12 @@ class _Planner:
         return replace(o, key=key)
 
     def _phrase(
-        self, o: OccurrenceRow, analysed: BuiltOccurrence | None, w: WordRow,
+        self, o: OccurrenceRow, analysed: BuiltOccurrence | None, word_decided: bool,
     ) -> OccurrenceRow | None:
         """The phrase as the plan leaves it, or None when the plan deletes it."""
         if o.origin is not OccurrenceOrigin.AUTO or is_untouchable(o):
             return o
-        touched = is_touched(o, w.decided)
+        touched = is_touched(o, word_decided)
         if analysed is None:
             if touched and not self._include_open:
                 return o
@@ -385,7 +391,7 @@ def _fresh_row(placeholder: int, word_id: int, occ: BuiltOccurrence) -> Occurren
         revision=0,
         edited_by_user=False,
         has_results=False,
-        in_anki=False,
+        binding=None,
         has_active_job=False,
         text_hash=OccurrenceRow.hash_text(occ.phrase.text),
         fragment_score=occ.fragment_score,

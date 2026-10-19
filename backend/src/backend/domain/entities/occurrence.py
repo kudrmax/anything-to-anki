@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.card_choice import DECISION_CHOICES, CardChoice, CardState
-from backend.domain.value_objects.phrase_origin_kind import DecisionKind
+from backend.domain.value_objects.card_choice import CardChoice, CardState
 
 if TYPE_CHECKING:
     from backend.domain.entities.candidate_cloze import CandidateCloze
@@ -16,11 +15,6 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.phrase_origin import PhraseOrigin
     from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
-
-_DECISION_KIND_OF_CHOICE = {
-    CardChoice.LEARN: DecisionKind.LEARN, CardChoice.CLOZE: DecisionKind.CLOZE,
-}
-
 
 @dataclass(frozen=True)
 class OccurrenceKey:
@@ -68,24 +62,6 @@ class Occurrence:
     def card_state(self) -> CardState:
         assert self.id is not None
         return CardState(self.id, self.choice, self.binding)
-
-    # Compatibility until the readers move to `choice` / `in_anki` (plan step 7).
-    @property
-    def skipped(self) -> bool:
-        return self.choice is CardChoice.SKIP
-
-    @property
-    def is_decision(self) -> bool:
-        return self.choice in DECISION_CHOICES
-
-    @property
-    def decision_kind(self) -> DecisionKind | None:
-        return _DECISION_KIND_OF_CHOICE.get(self.choice)
-
-    @property
-    def exported(self) -> bool:
-        """In Anki: the card has an active binding."""
-        return self.binding is not None
 
     @property
     def phrase(self) -> Phrase:

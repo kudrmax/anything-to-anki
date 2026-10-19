@@ -1,12 +1,13 @@
 """Light phrase rows, words and analysis results for tests of selection and rebuild."""
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.services.cefr_level_resolver import resolve_cefr_level
 from backend.domain.value_objects.built_analysis import BuiltOccurrence, BuiltWord, WordData
-from backend.domain.value_objects.card_choice import CardChoice
+from backend.domain.value_objects.card_choice import Binding, CardChoice, NoteKind
 from backend.domain.value_objects.cefr_breakdown import (
     CAMBRIDGE,
     CEFRPY,
@@ -35,6 +36,7 @@ MANUAL = OccurrenceOrigin.MANUAL
 EXAMPLE = OccurrenceOrigin.EXAMPLE
 COLLECTED = OccurrenceOrigin.COLLECTED
 DEFAULT_TEXT = "He glared at me."
+EXPORTED = Binding(NoteKind.LEARN, datetime(2026, 1, 1, tzinfo=UTC))
 WORD_ID = 1
 
 
@@ -72,23 +74,26 @@ def row(
     variant: bool = False,
     shows_polish: bool = False,
     replaces: bool = False,
+    choice: CardChoice | None = None,
 ) -> OccurrenceRow:
     """A phrase row; its key is at `line` (the id unless given). `is_decision` makes it a
-    Learn decision, `exported` puts it in Anki."""
+    Learn decision, `choice` any other, `exported` puts it in Anki."""
     at = id if line is None else line
+    if choice is None:
+        choice = (
+            CardChoice.LEARN if is_decision else CardChoice.SKIP if skipped else CardChoice.NONE
+        )
     return OccurrenceRow(
         id=id,
         candidate_id=candidate_id,
         key=key_at(at),
         origin=origin,
         shown_by=shown,
-        choice=(
-            CardChoice.LEARN if is_decision else CardChoice.SKIP if skipped else CardChoice.NONE
-        ),
+        choice=choice,
         revision=revision,
         edited_by_user=edited,
         has_results=has_results,
-        in_anki=exported,
+        binding=EXPORTED if exported else None,
         has_active_job=has_job,
         text_hash=OccurrenceRow.hash_text(text),
         fragment_score=score,

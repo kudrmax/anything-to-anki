@@ -4,13 +4,15 @@ import hashlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.card_choice import DECISION_CHOICES, CardChoice
+from backend.domain.value_objects.card_choice import CardState
+from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.user_work import UserWork
 
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import OccurrenceKey
+    from backend.domain.value_objects.card_choice import Binding, CardChoice
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
-    from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
 
 @dataclass(frozen=True)
@@ -21,6 +23,7 @@ class OccurrenceRow:
     the source phrase with the facts about its words and its place (see `hash_phrase`).
     `shows_polish`: the card shows the polished phrase, not the source one.
     `replaces_selection`: the phrase took the place of the word's selection card.
+    `binding`: the card's active binding to an Anki note.
     """
 
     id: int
@@ -32,7 +35,7 @@ class OccurrenceRow:
     revision: int
     edited_by_user: bool
     has_results: bool
-    in_anki: bool
+    binding: Binding | None
     has_active_job: bool
     text_hash: str
     fragment_score: float | None
@@ -44,18 +47,17 @@ class OccurrenceRow:
     def is_shown(self) -> bool:
         return self.shown_by is not None
 
-    # Compatibility until the readers move to `choice` / `in_anki` (plan step 7).
     @property
-    def skipped(self) -> bool:
-        return self.choice is CardChoice.SKIP
+    def card_state(self) -> CardState:
+        return CardState(self.id, self.choice, self.binding)
 
     @property
-    def is_decision(self) -> bool:
-        return self.choice in DECISION_CHOICES
-
-    @property
-    def exported(self) -> bool:
-        return self.in_anki
+    def user_work(self) -> UserWork:
+        return UserWork(
+            edited=self.edited_by_user,
+            picked=self.shown_by is ShownBy.USER,
+            added=self.origin is not OccurrenceOrigin.AUTO,
+        )
 
     @staticmethod
     def hash_text(text: str) -> str:

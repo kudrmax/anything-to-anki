@@ -25,7 +25,7 @@ from backend.domain.services.meaning_action import (  # Pydantic needs it at run
     MeaningAction,
     meaning_action,
 )
-from backend.domain.value_objects.card_choice import CardChoice
+from backend.domain.value_objects.card_choice import NoteKind, export_kind, in_anki
 from backend.domain.value_objects.card_note import CardNote  # noqa: TC001 — Pydantic
 from backend.domain.value_objects.elsewhere import (
     ElsewhereStatus,  # noqa: TC001 — Pydantic needs it
@@ -367,8 +367,8 @@ def card_to_dto(
         status=card_status(view).value,
         word_status=word_status(view).value,
         phrase_skipped=view.shown.skipped,
-        is_decision=occ.is_decision,
-        decision_kind=occ.decision_kind.value if occ.decision_kind is not None else None,
+        is_decision=occ.card_state.is_decision,
+        decision_kind=_value(export_kind(occ.card_state)),
         state=state,
         is_done=view.is_done,
         is_phrasal_verb=word.is_phrasal_verb,
@@ -398,7 +398,7 @@ def card_to_dto(
             else None
         ),
         cloze=_cloze_dto(card),
-        can_cloze=not (occ.exported and _cloze_action(state) is None),
+        can_cloze=not (in_anki(occ.card_state) and _cloze_action(state) is None),
         phrase_position=(
             DocumentPositionDTO.from_position(occ.phrase_position)
             if occ.phrase_position
@@ -473,6 +473,10 @@ def _tts_dto(tts: CandidateTTS | None, job: Job | None) -> CandidateTTSDTO | Non
     )
 
 
+def _value(kind: NoteKind | None) -> str | None:
+    return kind.value if kind is not None else None
+
+
 def _cloze_action(state: CardStateDTO) -> DecisionAction | None:
     return next((b.action for b in state.buttons if b.button is DecisionButton.CLOZE), None)
 
@@ -481,7 +485,7 @@ def _cloze_dto(card: ReviewCard) -> CandidateClozeDTO | None:
     """The markup of a cloze card, in Anki or not; markup kept on a card that is no cloze
     now is moot."""
     occ = card.occurrence
-    if occ.choice is not CardChoice.CLOZE:
+    if export_kind(occ.card_state) is not NoteKind.CLOZE:
         return None
     cloze = ClozeBuilder().effective_for(occ.phrase, occ.cloze)
     if cloze is None:

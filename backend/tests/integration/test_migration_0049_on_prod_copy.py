@@ -23,7 +23,7 @@ from alembic import command
 from alembic.config import Config
 from backend.infrastructure.persistence import database
 
-from tests.migration_0049_checks import check_upgraded, read_before
+from tests.migration_0049_checks import app_export_queue, check_upgraded, read_before
 
 pytestmark = [
     pytest.mark.integration,
@@ -80,7 +80,9 @@ def test_prod_copy_meets_every_section_4_1_assert(
     ]
 
     with sqlite3.connect(db_path) as conn:
-        report = check_upgraded(conn, before, started, finished, dropped)
+        report = check_upgraded(
+            conn, before, started, finished, dropped, app_export_queue(db_path),
+        )
     # The numbers go into the commit that ran this test.
     print("counts by §4 mapping row and reason:")  # noqa: T201
     for reason, count in sorted(report.counts.items()):

@@ -13,6 +13,7 @@ from backend.domain.entities.occurrence import Occurrence
 from backend.domain.exceptions import PhraseNotFoundError, TargetNotInPhraseError
 from backend.domain.services.export_readiness import missing_parts
 from backend.domain.services.phrase_building import target_by_lemma
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
@@ -168,7 +169,7 @@ def test_the_example_is_a_new_phrase_of_the_word_shown_instead_of_the_card(bench
     assert example.phrase_position is None
     replaced = bench.get(CARD)
     assert replaced.shown_by is None
-    assert not replaced.skipped
+    assert replaced.choice is not CardChoice.SKIP
     bench.review_status.refresh.assert_called_once_with(1)
 
 

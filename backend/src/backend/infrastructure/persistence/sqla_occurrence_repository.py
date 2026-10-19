@@ -160,9 +160,12 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             select(
                 PhraseModel,
                 has_results.label("has_results"),
-                self._in_anki().label("in_anki"),
+                AnkiSyncedCardModel.note_kind,
+                AnkiSyncedCardModel.learning_since,
                 self._has_active_job().label("has_active_job"),
-            ).where(self._of_source(source_id)).order_by(PhraseModel.id)
+            )
+            .outerjoin(AnkiSyncedCardModel, self._active_binding())
+            .where(self._of_source(source_id)).order_by(PhraseModel.id)
         ).all()
         return [
             OccurrenceRow(
@@ -175,7 +178,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 revision=phrase.revision,
                 edited_by_user=phrase.edited_by_user,
                 has_results=bool(results),
-                in_anki=bool(bound),
+                binding=Binding(NoteKind(kind), since) if kind is not None else None,
                 has_active_job=bool(active),
                 text_hash=OccurrenceRow.hash_text(json.loads(phrase.source_phrase)["text"]),
                 fragment_score=phrase.fragment_score,
@@ -185,7 +188,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                     _required(phrase.source_phrase), load_position(phrase.phrase_position),
                 ),
             )
-            for phrase, results, bound, active in rows
+            for phrase, results, kind, since, active in rows
         ]
 
     def get(self, occurrence_id: int) -> Occurrence | None:
@@ -359,11 +362,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 AnkiSyncedCardModel.learning_since,
                 self._has_active_job().label("has_active_job"),
             )
-            .outerjoin(
-                AnkiSyncedCardModel,
-                (AnkiSyncedCardModel.phrase_id == PhraseModel.id)
-                & AnkiSyncedCardModel.released_at.is_(None),
-            )
+            .outerjoin(AnkiSyncedCardModel, self._active_binding())
             .where(*where).order_by(PhraseModel.id)
         ).all()
         results = self._results.by_phrase(
@@ -390,10 +389,10 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         )
 
     @staticmethod
-    def _in_anki() -> ColumnElement[bool]:
-        return exists().where(
-            AnkiSyncedCardModel.phrase_id == PhraseModel.id,
-            AnkiSyncedCardModel.released_at.is_(None),
+    def _active_binding() -> ColumnElement[bool]:
+        """At most one per card: a partial unique index holds one active binding per phrase."""
+        return (AnkiSyncedCardModel.phrase_id == PhraseModel.id) & (
+            AnkiSyncedCardModel.released_at.is_(None)
         )
 
     @staticmethod

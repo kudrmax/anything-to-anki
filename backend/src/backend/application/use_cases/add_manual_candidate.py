@@ -6,6 +6,7 @@ from backend.application.utils.candidate_factory import CandidateFactory
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundError
+from backend.domain.services.card_view import is_skipped
 from backend.domain.services.document_layout import DocumentLayout
 from backend.domain.value_objects.built_analysis import WordKey
 from backend.domain.value_objects.card_choice import Press
@@ -133,7 +134,7 @@ class AddManualCandidateUseCase:
         if existing.shown_by is ShownBy.SELECTION:
             self._occurrences.set_replaces_selection(existing.id, True)
         self._occurrences.set_shown([existing.id], ShownBy.USER)
-        if existing.skipped:
+        if is_skipped(existing.card_state):
             self._decide_phrase.press(existing.id, Press.SKIP)
         return existing.id
 

@@ -50,7 +50,7 @@ def test_a_collected_phrase_is_a_shown_phrase_of_a_new_word(
     assert (added.origin, added.shown_by) == (OccurrenceOrigin.COLLECTED, ShownBy.USER)
     assert added.collected_from == PhraseOrigin.generated()
     assert added.source_phrase.text == "he glare at me"
-    assert not added.is_decision
+    assert not added.card_state.is_decision
     word = SqlaCandidateRepository(db_session).get_by_id(added.candidate_id)
     assert word is not None
     assert (word.lemma, word.status) == ("glare", WordStatus.NEW)

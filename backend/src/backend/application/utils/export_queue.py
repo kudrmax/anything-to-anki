@@ -5,14 +5,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.candidate_cloze import CandidateCloze
-from backend.domain.services.card_view import CHOSEN_TO_LEARN, in_export_queue
+from backend.domain.services.card_view import CHOSEN_TO_LEARN, in_export_queue, learning_in_anki
 from backend.domain.services.export_readiness import export_group
-from backend.domain.value_objects.card_choice import (
-    DecisionStatus,
-    NoteKind,
-    decision_status,
-    export_kind,
-)
+from backend.domain.value_objects.card_choice import NoteKind, export_kind
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.word_status import WordStatus
 
@@ -139,6 +134,6 @@ class ExportQueue:
                 logger.warning("export: word %s chosen to learn has no decision card", word.id)
             elif in_export_queue(state, self._vocabulary.of(word.lemma), now):
                 pending.append(ExportCard(word=word, phrase=phrase, state=state))
-            elif decision_status(state) is DecisionStatus.LEARNING:
+            elif learning_in_anki(state):
                 exported_count += 1
         return ExportBatch(pending=pending, exported_count=exported_count)

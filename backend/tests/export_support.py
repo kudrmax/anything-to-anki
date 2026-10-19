@@ -21,6 +21,7 @@ from backend.domain.value_objects.card_choice import (
     CardState,
     NoteKind,
     WordState,
+    export_kind,
 )
 from backend.domain.value_objects.phrase_origin_kind import (
     DecisionKind,
@@ -188,12 +189,17 @@ class ExportCards(WordStateRepository, AnkiSyncRepository):
         )
 
 
+def _decision_kind(phrase: Occurrence) -> DecisionKind | None:
+    kind = export_kind(phrase.card_state)
+    return DecisionKind(kind.value) if kind is not None else None
+
+
 def in_anki(card: ExportCard) -> ExportCard:
     """The card as an earlier export left it: bound to its note, its word Learning."""
     return export_card(
         card.word, card.phrase.source_phrase, meaning=card.phrase.meaning,
         media=card.phrase.media, tts=card.phrase.tts, cloze=card.phrase.cloze,
-        kind=card.phrase.decision_kind, exported_at=NOW,
+        kind=_decision_kind(card.phrase), exported_at=NOW,
     )
 
 

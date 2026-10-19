@@ -34,7 +34,7 @@
 
 Если отбор выбирает фразу, на которой уже есть сгенерированное, — оно используется, повторной генерации нет. **Тронутая фраза** (её нельзя удалить при пересборке ни в каком режиме) = есть результат, задача, ручная правка, выбор не NONE, в Anki, не `auto`, `shown_by = user`, или показана у слова с решением.
 
-**Неприкосновенная фраза** (`is_protected` + правило пользовательской работы) — выбор не NONE (Learn, Cloze, Known, Skip), в Anki, `edited_by_user`, `shown_by = user` или не `auto`: Rebuild её не удаляет, не меняет её текст и результаты никогда, в том числе с `include_open`. Отметка «показана» сама по себе фразу не трогает. Определения в домене (`is_touched`, `is_untouchable`), по лёгкой проекции фраз; заморозка отметки отбора опирается на то же `is_untouchable`. Слово уходит при пересборке, если его нет в анализе, у него нет решения и не осталось фраз (`keeps_word`).
+**Неприкосновенная фраза** (`is_protected`, включая работу пользователя) — выбор не NONE (Learn, Cloze, Known, Skip), в Anki, `edited_by_user`, `shown_by = user` или не `auto`: Rebuild её не удаляет, не меняет её текст и результаты никогда, в том числе с `include_open`. Отметка «показана» сама по себе фразу не трогает. Определения в домене (`is_touched`, `is_untouchable`), по лёгкой проекции фраз; заморозка отметки отбора опирается на то же `is_untouchable`. Слово уходит при пересборке, если его нет в анализе, у него нет решения и не осталось фраз (`keeps_word`).
 
 ## Статусы и решения
 
@@ -169,7 +169,7 @@ SyncToAnki создаёт заметку или находит существу�
 | `is_done` | `shown.status ≠ NEW` или карточка SKIP |
 | `section` | REVIEWED, если `is_done`, иначе Ready / Extra / Probably known по фразе; REVIEWED — последний |
 | прогресс | Reviewed / (Reviewed + открытые Ready) (Q9) |
-| `is_protected` | выбор не NONE или карточка в Anki |
+| `is_protected` | выбор не NONE, карточка в Anki или работа пользователя (`edited_by_user`, `shown_by = user`, не `auto`) |
 | `keeps_word` | `decision_status ≠ NEW` или есть защищённая карточка |
 | `in_export_queue` | `decision_status = LEARN` |
 | `chosen_to_learn` | `decision_status` ∈ {LEARN, LEARNING} (`learn_count`) |

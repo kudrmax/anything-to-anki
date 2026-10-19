@@ -97,7 +97,9 @@ class ReviewCard:
 
     @property
     def skipped(self) -> bool:
-        return self.occurrence.skipped
+        from backend.domain.services.card_view import is_skipped
+
+        return is_skipped(self.occurrence.card_state)
 
     @property
     def is_done(self) -> bool:

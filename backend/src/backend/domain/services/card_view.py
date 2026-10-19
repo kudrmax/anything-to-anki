@@ -26,6 +26,7 @@ from backend.domain.value_objects.card_note import CardNote
 from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.learning_timer import known_on
+from backend.domain.value_objects.user_work import NO_USER_WORK
 from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
+    from backend.domain.value_objects.user_work import UserWork
 
 
 class Command(StrEnum):
@@ -70,7 +72,6 @@ class CardView:
     note: CardNote | None
     known_on: datetime | None     # when a card in Anki reads Known by its timer
     shown: Shown
-    is_protected: bool
     wants_generation: bool
 
     @property
@@ -108,7 +109,7 @@ def _button(
     return ButtonState(
         button=button,
         command=_COMMANDS[(target.refusal is not None, opens_editor)],
-        pressed=button is shown_press or (button is Press.SKIP and card.choice is CardChoice.SKIP),
+        pressed=button is shown_press or (button is Press.SKIP and is_skipped(card)),
         refused=target.refusal,
     )
 
@@ -235,7 +236,7 @@ def _shown(
     """An open word's own status is NEW, so the other source's status shows instead."""
     return Shown(
         status=_SEEN_ELSEWHERE.get(open_elsewhere, status_of(word, lemma, now)),
-        skipped=card.choice is CardChoice.SKIP,
+        skipped=is_skipped(card),
         where=_WHERE[(role_of(word, card), open_elsewhere is not None)],
     )
 
@@ -261,7 +262,6 @@ def card_view(
         note=note.note,
         known_on=_known_on(card, note),
         shown=_shown(word, card, open_elsewhere, lemma, now),
-        is_protected=is_protected(card),
         wants_generation=(
             (role is Role.DECISION and in_export_queue(word, lemma, now))
             or (role is Role.OPEN and card.choice is CardChoice.NONE and open_elsewhere is None)
@@ -274,14 +274,24 @@ def open_elsewhere(word: WordState, lemma: LemmaKnowledge) -> ElsewhereStatus | 
     return lemma.elsewhere if word.decision_card is None else None
 
 
-def is_protected(card: CardState) -> bool:
-    """The choice or the binding; rebuild adds its user-work rule on top (plan step 7)."""
-    return card.choice is not CardChoice.NONE or in_anki(card)
+def is_skipped(card: CardState) -> bool:
+    return card.choice is CardChoice.SKIP
 
 
-def keeps_word(word: WordState) -> bool:
-    return decision_status(word) is not DecisionStatus.NEW or any(
-        is_protected(card) for card in word.cards
+def is_decided(word: WordState) -> bool:
+    return decision_status(word) is not DecisionStatus.NEW
+
+
+def is_protected(card: CardState, work: UserWork) -> bool:
+    """Rebuild never changes nor deletes the card: the user chose on it, it is in Anki, or
+    the user made something of it."""
+    return card.choice is not CardChoice.NONE or in_anki(card) or work.any
+
+
+def keeps_word(word: WordState, work: Mapping[int, UserWork]) -> bool:
+    """`work`: the user's work by card id; a card not in it has none."""
+    return is_decided(word) or any(
+        is_protected(card, work.get(card.card_id, NO_USER_WORK)) for card in word.cards
     )
 
 
@@ -299,6 +309,11 @@ CHOSEN_TO_LEARN: frozenset[DecisionStatus] = frozenset(
 
 def chosen_to_learn(word: WordState) -> bool:
     return decision_status(word) in CHOSEN_TO_LEARN
+
+
+def learning_in_anki(word: WordState) -> bool:
+    """Chosen to learn and exported."""
+    return decision_status(word) is DecisionStatus.LEARNING
 
 
 def section(view: CardView, open_section: CandidateSection) -> CandidateSection:

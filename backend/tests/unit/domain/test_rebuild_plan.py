@@ -42,6 +42,11 @@ SCORES = (0.1, 0.2, 0.5, None)
 KEY_LINES = 5
 
 
+def _decided(w: WordRow) -> bool:
+    """The stored status, as the oracle for what the plan derives from the cards."""
+    return w.status is not WordStatus.NEW
+
+
 def plan(
     existing: list[OccurrenceRow],
     words: list[WordRow],
@@ -104,7 +109,7 @@ class Store:
                 origin=OccurrenceOrigin.AUTO,
                 shown_by=ShownBy.SELECTION if insert.shown else None,
                 choice=CardChoice.NONE, revision=0, edited_by_user=False,
-                has_results=False, in_anki=False, has_active_job=False,
+                has_results=False, binding=None, has_active_job=False,
                 text_hash=OccurrenceRow.hash_text(o.phrase.text),
                 fragment_score=o.fragment_score, shows_polish=False, replaces_selection=False,
                 phrase_hash=OccurrenceRow.hash_phrase(o.phrase, o.phrase_position),
@@ -223,7 +228,7 @@ def test_untouchable_phrases_are_never_deleted_nor_changed(
 @pytest.mark.parametrize("seed", range(GENERATED_CASES))
 def test_without_include_open_touched_phrases_stay_and_keep_their_text(seed: int) -> None:
     rows, words, analysed = random_source(seed)
-    decided = {w.id for w in words if w.decided}
+    decided = {w.id for w in words if _decided(w)}
     touched = {r.id for r in rows if is_touched(r, r.candidate_id in decided)}
     text_of = {r.id: r.text_hash for r in rows}
 
@@ -242,7 +247,7 @@ def test_decided_words_are_never_removed(seed: int, include_open: bool) -> None:
 
     result = plan_rebuild(SOURCE, rows, words, analysed, include_open)
 
-    assert not set(result.words_to_delete) & {w.id for w in words if w.decided}
+    assert not set(result.words_to_delete) & {w.id for w in words if _decided(w)}
 
 
 @pytest.mark.parametrize(("seed", "include_open"), CASES)
@@ -258,8 +263,8 @@ def test_after_a_rebuild_selection_holds_its_invariant(seed: int, include_open: 
             assert kept.shown_by is USER
     for w in store.words.values():
         mine = [r for r in store.rows.values() if r.candidate_id == w.id]
-        assert select_phrases(mine, w.decided, include_open).is_empty
-        if w.decided:
+        assert select_phrases(mine, _decided(w), include_open).is_empty
+        if _decided(w):
             continue
         selected = [r for r in mine if r.shown_by is SELECTION]
         loose = [r for r in selected if not is_frozen(r, include_open)]
@@ -276,7 +281,7 @@ def test_words_without_phrases_and_decision_go(seed: int, include_open: bool) ->
     store.apply(store.plan(analysed, include_open))
 
     for w in store.words.values():
-        assert w.decided or any(r.candidate_id == w.id for r in store.rows.values())
+        assert _decided(w) or any(r.candidate_id == w.id for r in store.rows.values())
 
 
 # ── the rules one by one ────────────────────────────────────────────────────
@@ -579,3 +584,67 @@ def test_of_two_occurrences_on_its_line_a_moved_key_takes_the_one_of_its_own_tar
         OccurrenceRekey(occurrence_id=5, key=OccurrenceKey(block=0, line=2, char=14)),
     )
     assert [i.occurrence.key.char for i in result.occ_to_insert] == [3]
+
+
+# ── protection: the user's marks and work survive, with or without include_open ─
+
+PROTECTED_ROWS = {
+    "learn": (row(id=1, shown=SELECTION, choice=CardChoice.LEARN), WordStatus.LEARN),
+    "cloze": (row(id=1, shown=SELECTION, choice=CardChoice.CLOZE), WordStatus.LEARN),
+    "known": (row(id=1, shown=SELECTION, choice=CardChoice.KNOWN), WordStatus.KNOWN),
+    "skip": (row(id=1, shown=SELECTION, choice=CardChoice.SKIP), WordStatus.NEW),
+    "in anki": (
+        row(id=1, shown=SELECTION, choice=CardChoice.LEARN, exported=True), WordStatus.LEARNING,
+    ),
+    "known in anki": (
+        row(id=1, shown=SELECTION, choice=CardChoice.KNOWN, exported=True), WordStatus.KNOWN,
+    ),
+    "edited": (row(id=1, shown=SELECTION, edited=True), WordStatus.NEW),
+    "picked by the user": (row(id=1, shown=USER), WordStatus.NEW),
+    "manual": (row(id=1, origin=MANUAL, shown=USER), WordStatus.NEW),
+    "example": (row(id=1, origin=EXAMPLE, shown=USER), WordStatus.NEW),
+    "collected": (row(id=1, origin=COLLECTED, shown=USER), WordStatus.NEW),
+}
+CHANGED_TEXT = "He glared at me, again."
+
+
+@pytest.mark.parametrize("include_open", [False, True])
+@pytest.mark.parametrize("kind", PROTECTED_ROWS)
+def test_a_protected_card_the_analysis_lost_stays_with_its_word(
+    kind: str, include_open: bool,
+) -> None:
+    protected, status = PROTECTED_ROWS[kind]
+    protected = replace(protected, has_results=True)
+
+    result = plan([protected], [word(status=status)], [], include_open=include_open)
+
+    assert result.occ_to_delete == ()
+    assert result.words_to_delete == ()
+
+
+@pytest.mark.parametrize("include_open", [False, True])
+@pytest.mark.parametrize("kind", PROTECTED_ROWS)
+def test_a_protected_card_keeps_its_text_and_results(kind: str, include_open: bool) -> None:
+    protected, status = PROTECTED_ROWS[kind]
+    protected = replace(protected, has_results=True, has_active_job=True)
+
+    result = plan(
+        [protected], [word(status=status)],
+        [built("glare", occ(1, 0.1, text=CHANGED_TEXT))], include_open=include_open,
+    )
+
+    assert (result.occ_to_update_text, result.occ_to_update_score, result.occ_to_delete) == (
+        (), (), (),
+    )
+    assert result.counts.cards_text_reset == 0
+
+
+@pytest.mark.parametrize("work", ["results", "job"])
+def test_results_and_a_job_keep_a_lost_card_only_without_include_open(work: str) -> None:
+    generated = row(id=1, shown=SELECTION, has_results=work == "results", has_job=work == "job")
+
+    kept = plan([generated], [word()], [], include_open=False)
+    rebuilt = plan([generated], [word()], [], include_open=True)
+
+    assert (kept.occ_to_delete, kept.words_to_delete) == ((), ())
+    assert (rebuilt.occ_to_delete, rebuilt.words_to_delete) == ((1,), (1,))

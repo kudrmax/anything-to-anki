@@ -42,6 +42,7 @@ from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
+from backend.domain.value_objects.user_work import NO_USER_WORK
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.decision_worlds import ACTED, DUE, FRESH, LEMMA, NOW, SIBLING, World, worlds
@@ -297,8 +298,7 @@ class TestPerState:
         } for name in STATES
     }))
     def test_is_protected(self, state: str, expected: bool) -> None:
-        assert is_protected(STATES[state].word.card(ACTED)) is expected
-        assert STATES[state].view().is_protected is expected
+        assert is_protected(STATES[state].word.card(ACTED), NO_USER_WORK) is expected
 
     @pytest.mark.parametrize(("state", "expected"), _per_state({
         name: name not in {
@@ -307,7 +307,7 @@ class TestPerState:
         } for name in STATES
     }))
     def test_keeps_word(self, state: str, expected: bool) -> None:
-        assert keeps_word(STATES[state].word) is expected
+        assert keeps_word(STATES[state].word, {}) is expected
 
     @pytest.mark.parametrize(("state", "expected"), _per_state(
         {name: name in {"learn", "cloze", "other_open"} for name in STATES},

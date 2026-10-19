@@ -15,7 +15,7 @@ from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.entities.token_data import TokenData
 from backend.domain.exceptions import ActionRefusedError
 from backend.domain.services.card_view import Where
-from backend.domain.value_objects.card_choice import Press
+from backend.domain.value_objects.card_choice import CardChoice, Press
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
@@ -178,7 +178,7 @@ def test_a_manual_add_at_a_hidden_auto_phrase_shows_it_without_a_duplicate(
     assert len(occurrences) == 2
     made_shown = next(o for o in occurrences if o.id == hidden.id)
     assert made_shown.shown_by is ShownBy.USER
-    assert not made_shown.skipped
+    assert made_shown.choice is not CardChoice.SKIP
     assert not made_shown.replaces_selection
 
     bench.rebuild().execute(SOURCE, include_open=True)
@@ -210,8 +210,8 @@ def test_adding_the_same_selection_twice_shows_one_manual_card(bench: Bench) -> 
     manual.add(GLARE_LINE, 1)
 
     manuals = [o for o in _of(bench, "glare") if o.origin is OccurrenceOrigin.MANUAL]
-    assert [(o.id, o.shown_by, o.skipped) for o in manuals] == [
-        (added.id, ShownBy.USER, False),
+    assert [(o.id, o.shown_by, o.choice) for o in manuals] == [
+        (added.id, ShownBy.USER, CardChoice.NONE),
     ]
 
 
@@ -224,7 +224,7 @@ def test_a_manual_add_keeps_the_decision_card(bench: Bench) -> None:
     bench.rebuild().execute(SOURCE, include_open=True)
 
     shown = _shown(bench, "glare")
-    assert [o.id for o in shown if o.is_decision] == [decision.id]
+    assert [o.id for o in shown if o.card_state.is_decision] == [decision.id]
     assert len(shown) == 2
 
 

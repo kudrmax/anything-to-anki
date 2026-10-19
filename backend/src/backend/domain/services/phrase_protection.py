@@ -3,44 +3,25 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.services.card_view import is_protected
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.occurrence_row import OccurrenceRow
 
 
 def is_untouchable(o: OccurrenceRow) -> bool:
-    """A phrase the user marked or made their own: a rebuild never changes its text or
+    """The card is protected (`card_view.is_protected`): a rebuild never changes its text or
     results, nor deletes it."""
-    return (
-        o.is_decision
-        or o.skipped
-        or o.exported
-        or o.edited_by_user
-        or o.shown_by is ShownBy.USER
-        or o.origin is not OccurrenceOrigin.AUTO
-    )
+    return is_protected(o.card_state, o.user_work)
 
 
 def is_touched(o: OccurrenceRow, word_decided: bool) -> bool:
     """Something of the user's is on the phrase: no rebuild deletes it for being gone from
-    the analysis, unless asked to rebuild open cards too and it is not untouchable."""
+    the analysis, unless asked to rebuild open cards too and it is not untouchable. Besides
+    protection: results, a queued job, or shown at a decided word."""
     return (
-        has_user_work(o, word_decided)
-        or o.shown_by is ShownBy.USER
-        or o.origin is not OccurrenceOrigin.AUTO
-    )
-
-
-def has_user_work(o: OccurrenceRow, word_decided: bool) -> bool:
-    """The user did something with the phrase, whatever its origin: decided on it,
-    exported it, edited, generated for it, queued work on it or skipped it."""
-    return (
-        o.is_decision
-        or o.exported
-        or o.edited_by_user
+        is_untouchable(o)
         or o.has_results
         or o.has_active_job
-        or o.skipped
         or (o.is_shown and word_decided)
     )

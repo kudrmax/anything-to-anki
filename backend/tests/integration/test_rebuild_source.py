@@ -10,6 +10,7 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     SourceOperationBusyError,
 )
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
@@ -65,7 +66,7 @@ def test_a_decided_word_the_analysis_lost_keeps_its_card(bench: Bench) -> None:
     assert linger.status is WordStatus.LEARN
     kept = bench.occurrences.get(decision.id)
     assert kept is not None
-    assert kept.is_decision
+    assert kept.choice is CardChoice.LEARN
     assert bench.shown_lines("linger") == [3]
 
 
@@ -173,6 +174,74 @@ def test_jobs_of_a_reset_phrase_are_cancelled(bench: Bench) -> None:
     reset = bench.occurrences.get(phrase.id)
     assert reset is not None
     assert (reset.meaning, reset.source_phrase.text, reset.revision) == (None, CHANGED, 1)
+
+
+# ── protection: what the user marked or made survives either way ──────────
+
+PROTECTED = {  # the card's choice, the word's stored status, bound to a note, edited, picked
+    "learn": ("learn", "learn", False, False, False),
+    "cloze": ("cloze", "learn", False, False, False),
+    "known": ("known", "known", False, False, False),
+    "skip": ("skip", "pending", False, False, False),
+    "in anki": ("learn", "learn", True, False, False),
+    "known in anki": ("known", "known", True, False, False),
+    "edited": ("none", "pending", False, True, False),
+    "picked by the user": ("none", "pending", False, False, True),
+}
+
+
+def _protect(bench: Bench, phrase_id: int, word_id: int, kind: str) -> None:
+    choice, status, bound, edited, picked = PROTECTED[kind]
+    bench.session.execute(
+        text("UPDATE candidates SET status = :status WHERE id = :id"),
+        {"status": status, "id": word_id},
+    )
+    bench.session.execute(
+        text(
+            "UPDATE phrases SET choice = :choice, edited_by_user = :edited,"
+            " shown_by = CASE WHEN :picked THEN 'user' ELSE shown_by END WHERE id = :id"
+        ),
+        {"choice": choice, "edited": edited, "picked": picked, "id": phrase_id},
+    )
+    if bound:
+        bind(bench.session, word_id, phrase_id)
+    bench.session.commit()
+
+
+@pytest.mark.parametrize("include_open", [False, True])
+@pytest.mark.parametrize("kind", PROTECTED)
+def test_a_protected_card_keeps_its_text_results_and_word(
+    bench: Bench, kind: str, include_open: bool,
+) -> None:
+    bench.processed(word("glare", at(0)), word("linger", at(3)))
+    card = bench.phrase_on("linger", 3)
+    bench.give_meaning(card.id)
+    _protect(bench, card.id, card.candidate_id, kind)
+    bench.analysis = [word("glare", at(0)), word("linger", at(3, text=CHANGED))]
+
+    bench.rebuild().execute(SOURCE, include_open=include_open)
+
+    kept = bench.occurrences.get(card.id)
+    assert kept is not None
+    assert (kept.source_phrase.text, kept.revision) == (LINES[3], 0)
+    assert kept.meaning is not None
+
+
+@pytest.mark.parametrize("include_open", [False, True])
+@pytest.mark.parametrize("kind", PROTECTED)
+def test_a_protected_card_the_analysis_lost_stays_with_its_word(
+    bench: Bench, kind: str, include_open: bool,
+) -> None:
+    bench.processed(word("glare", at(0)), word("linger", at(3)))
+    card = bench.phrase_on("linger", 3)
+    _protect(bench, card.id, card.candidate_id, kind)
+    bench.analysis = [word("glare", at(0))]
+
+    summary = bench.rebuild().execute(SOURCE, include_open=include_open)
+
+    assert bench.occurrences.get(card.id) is not None
+    assert "linger" in {w.lemma for w in bench.occurrences.word_rows(SOURCE)}
+    assert summary.counts.words_removed == 0
 
 
 # ── a second rebuild, preview and counts ──────────────────────────────

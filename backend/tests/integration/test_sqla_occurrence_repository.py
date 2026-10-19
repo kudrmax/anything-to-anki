@@ -15,7 +15,7 @@ from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
-from backend.domain.value_objects.phrase_origin_kind import DecisionKind, ShownBy
+from backend.domain.value_objects.phrase_origin_kind import ShownBy
 from backend.infrastructure.persistence.models import (
     JobModel,
     PhraseWordModel,
@@ -188,9 +188,7 @@ def test_set_shown_keeps_the_choice(repo: SqlaOccurrenceRepository) -> None:
 
     stored = repo.get(phrase_id)
     assert stored is not None
-    assert (stored.shown_by, stored.choice, stored.skipped) == (
-        ShownBy.USER, CardChoice.SKIP, True,
-    )
+    assert (stored.shown_by, stored.choice) == (ShownBy.USER, CardChoice.SKIP)
     repo.set_shown([phrase_id], None)
     stored = repo.get(phrase_id)
     assert stored is not None
@@ -207,7 +205,7 @@ def test_the_decision_phrases_are_the_cards_whose_choice_decides(
     [decision] = repo.decision_phrases([WORD]).values()
 
     assert decision.id == second
-    assert (decision.is_decision, decision.decision_kind) == (True, DecisionKind.CLOZE)
+    assert decision.choice is CardChoice.CLOZE
 
 
 def test_by_source_attaches_results_export_and_active_job(
@@ -234,11 +232,11 @@ def test_by_source_attaches_results_export_and_active_job(
     stored = found[phrase_id]
     assert stored.meaning is not None
     assert (stored.meaning.meaning, stored.meaning.ipa) == ("to look angrily", "/ɡleə/")
-    assert (stored.exported, stored.has_active_job, stored.has_results) == (True, True, True)
+    assert (stored.has_active_job, stored.has_results) == (True, True)
     assert stored.binding is not None
     assert stored.binding.note_kind is NoteKind.LEARN
     plain = found[WORD_PHRASE]
-    assert (plain.exported, plain.has_active_job, plain.has_results) == (False, False, False), (
+    assert (plain.binding, plain.has_active_job, plain.has_results) == (None, False, False), (
         "a released binding is not in Anki"
     )
 
@@ -257,13 +255,33 @@ def test_projection_is_light_and_marks_what_matters(
     assert rows[phrase_id] == OccurrenceRow(
         id=phrase_id, candidate_id=WORD, key=OccurrenceKey(block=1, line=0, char=3),
         origin=rows[phrase_id].origin, shown_by=None, choice=CardChoice.NONE,
-        revision=0, edited_by_user=False, has_results=True, in_anki=False,
+        revision=0, edited_by_user=False, has_results=True, binding=None,
         has_active_job=False, text_hash=OccurrenceRow.hash_text("He glared at me."),
         fragment_score=None, shows_polish=False,
         phrase_hash=OccurrenceRow.hash_phrase(phrase("He glared at me."), POSITION),
     )
     assert not rows[WORD_PHRASE].has_results
     assert [row.candidate_id for row in repo.projection(OTHER_SOURCE)] == [OTHER_WORD]
+
+
+def test_projection_carries_the_active_binding_only(
+    repo: SqlaOccurrenceRepository, db_session: Session,
+) -> None:
+    phrase_id = _added(repo)
+    db_session.execute(
+        text("UPDATE phrases SET choice = 'cloze' WHERE id = :id"), {"id": phrase_id},
+    )
+    bind(db_session, WORD, phrase_id, note_id=NOTE, kind="cloze")
+    bind(db_session, WORD, WORD_PHRASE, note_id=NOTE, released_at=CREATED_AT)
+    db_session.flush()
+
+    rows = {row.id: row for row in repo.projection(SOURCE)}
+
+    bound = rows[phrase_id].binding
+    assert bound is not None
+    assert bound.note_kind is NoteKind.CLOZE
+    assert rows[WORD_PHRASE].binding is None
+    assert [row.id for row in repo.projection(SOURCE)].count(phrase_id) == 1
 
 
 def test_reset_results_drops_everything_made_for_the_phrase(
