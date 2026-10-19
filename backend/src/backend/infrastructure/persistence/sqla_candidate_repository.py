@@ -3,134 +3,88 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 
 from backend.domain.ports.candidate_repository import CandidateRepository
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
-    CandidateClozeModel,
     CandidateMeaningImageModel,
-    CandidateMeaningModel,
-    CandidateMediaModel,
     CandidatePronunciationModel,
-    CandidateTTSModel,
     StoredCandidateModel,
-    dump_phrase,
-    dump_position,
 )
+from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
+    from sqlalchemy import ColumnElement
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.stored_candidate import StoredCandidate
-    from backend.domain.value_objects.candidate_status import CandidateStatus
-    from backend.domain.value_objects.document_position import DocumentPosition
-    from backend.domain.value_objects.phrase import Phrase
+    from backend.domain.value_objects.built_analysis import WordKey
 
 
 class SqlaCandidateRepository(CandidateRepository):
-    """SQLAlchemy implementation of CandidateRepository.
-
-    On read methods, attaches `meaning` and `media` from sibling tables in a
-    single follow-up query (one per kind, by candidate_id IN (...)).
-    """
+    """SQLAlchemy implementation of CandidateRepository: the words of sources, with their
+    pronunciation and picture attached."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def create_batch(self, candidates: list[StoredCandidate]) -> list[StoredCandidate]:
-        models = [StoredCandidateModel.from_entity(c) for c in candidates]
-        self._session.add_all(models)
+    def add_word(self, word: StoredCandidate) -> int:
+        model = StoredCandidateModel.from_entity(word)
+        model.status = WordStatus.NEW.value
+        self._session.add(model)
         self._session.flush()
-        # Fresh candidates never have enrichments yet — skip the lookup.
-        return [m.to_entity() for m in models]
+        return model.id
 
     def get_by_source(self, source_id: int) -> list[StoredCandidate]:
-        models = (
-            self._session.query(StoredCandidateModel)
-            .filter(StoredCandidateModel.source_id == source_id)
-            .all()
+        return self._read(StoredCandidateModel.source_id == source_id)
+
+    def word_id(self, source_id: int, key: WordKey) -> int | None:
+        return self._session.scalar(
+            select(StoredCandidateModel.id).where(
+                StoredCandidateModel.source_id == source_id,
+                func.lower(StoredCandidateModel.lemma) == key.lemma,
+                StoredCandidateModel.is_phrasal_verb.is_(key.is_phrasal_verb),
+            )
         )
-        entities = [m.to_entity() for m in models]
-        return self._bulk_attach(entities)
 
     def get_by_id(self, candidate_id: int) -> StoredCandidate | None:
-        model = self._session.get(StoredCandidateModel, candidate_id)
-        if model is None:
-            return None
-        return self._attach_enrichments(model.to_entity())
+        found = self._read(StoredCandidateModel.id == candidate_id)
+        return found[0] if found else None
 
-    def update_status(self, candidate_id: int, status: CandidateStatus) -> None:
-        model = self._session.get(StoredCandidateModel, candidate_id)
-        if model is not None:
-            model.status = status.value
-            self._session.flush()
-
-    def count_by_status(self, status: CandidateStatus) -> int:
-        result = (
-            self._session.query(func.count(StoredCandidateModel.id))
-            .filter(StoredCandidateModel.status == status.value)
-            .scalar()
-        )
-        return result or 0
+    def count_chosen_to_learn(self) -> int:
+        return self._session.scalar(
+            select(func.count(StoredCandidateModel.id))
+            .where(StoredCandidateModel.chosen_to_learn())
+        ) or 0
 
     def count_all(self) -> int:
         result = self._session.query(func.count(StoredCandidateModel.id)).scalar()
         return result or 0
 
-    def set_source_phrase(
-        self, candidate_id: int, phrase: Phrase, position: DocumentPosition,
-    ) -> None:
-        model = self._session.get(StoredCandidateModel, candidate_id)
-        if model is not None:
-            model.source_phrase = _dumped(phrase)
-            model.phrase_position = dump_position(position)
-            model.polished_phrase = None
-            model.polish_reverted = False
-            self._session.flush()
-
-    def set_polished_phrase(self, candidate_id: int, phrase: Phrase | None) -> None:
-        model = self._session.get(StoredCandidateModel, candidate_id)
-        if model is not None:
-            model.polished_phrase = dump_phrase(phrase)
-            model.polish_reverted = False
-            self._session.flush()
-
-    def set_polish_reverted(self, candidate_id: int, reverted: bool) -> None:
-        model = self._session.get(StoredCandidateModel, candidate_id)
-        if model is not None:
-            model.polish_reverted = reverted
-            self._session.flush()
-
     def get_by_ids(self, candidate_ids: list[int]) -> list[StoredCandidate]:
         if not candidate_ids:
             return []
-        models = (
-            self._session.query(StoredCandidateModel)
-            .filter(StoredCandidateModel.id.in_(candidate_ids))
-            .all()
-        )
+        found = self._read(StoredCandidateModel.id.in_(candidate_ids))
         order_map = {cid: idx for idx, cid in enumerate(candidate_ids)}
-        models.sort(key=lambda m: order_map.get(m.id, 999999))
-        entities = [m.to_entity() for m in models]
-        return self._bulk_attach(entities)
+        found.sort(key=lambda c: order_map.get(c.id or 0, len(order_map)))
+        return found
 
     def get_by_lemma(self, lemma: str) -> list[StoredCandidate]:
-        models = (
-            self._session.query(StoredCandidateModel)
-            .filter(func.lower(StoredCandidateModel.lemma) == lemma.lower())
-            .all()
-        )
-        return [m.to_entity() for m in models]
+        return self._read(func.lower(StoredCandidateModel.lemma) == lemma.lower())
 
-    def get_all_by_status(self, status: CandidateStatus) -> list[StoredCandidate]:
-        models = (
-            self._session.query(StoredCandidateModel)
-            .filter(StoredCandidateModel.status == status.value)
-            .order_by(StoredCandidateModel.source_id)
-            .all()
-        )
-        entities = [m.to_entity() for m in models]
-        return self._bulk_attach(entities)
+    def chosen_to_learn(self, source_ids: Collection[int] | None = None) -> list[StoredCandidate]:
+        if source_ids is None:
+            return self._read(StoredCandidateModel.chosen_to_learn())
+        return [
+            word for chunk in chunks(list(source_ids))
+            for word in self._read(
+                StoredCandidateModel.chosen_to_learn(),
+                StoredCandidateModel.source_id.in_(chunk),
+            )
+        ]
 
     def get_lemma_map(self, candidate_ids: list[int]) -> dict[int, str]:
         if not candidate_ids:
@@ -143,12 +97,11 @@ class SqlaCandidateRepository(CandidateRepository):
         return {row.id: row.lemma for row in rows}
 
     def delete_by_source(self, source_id: int) -> None:
-        """Delete all candidates for a source.
+        """Delete all words of a source.
 
-        Related rows (meanings, media, pronunciation, cefr_breakdowns,
-        anki_synced_cards) are removed automatically by DB-level
-        ON DELETE CASCADE — no need to enumerate tables here.
-        Requires PRAGMA foreign_keys = ON (set in database.py).
+        Their phrases, results and jobs go by DB-level ON DELETE CASCADE; their Anki
+        bindings stay, with no card (SET NULL). Requires PRAGMA foreign_keys = ON (set in
+        database.py).
         """
         models = (
             self._session.query(StoredCandidateModel)
@@ -161,75 +114,34 @@ class SqlaCandidateRepository(CandidateRepository):
 
     # ── private helpers ────────────────────────────────────────────────
 
-    def _attach_enrichments(self, entity: StoredCandidate) -> StoredCandidate:
-        if entity.id is None:
-            return entity
-        meaning_model = self._session.get(CandidateMeaningModel, entity.id)
-        media_model = self._session.get(CandidateMediaModel, entity.id)
-        pron_model = self._session.get(CandidatePronunciationModel, entity.id)
-        tts_model = self._session.get(CandidateTTSModel, entity.id)
-        entity.meaning = meaning_model.to_entity() if meaning_model else None
-        entity.media = media_model.to_entity() if media_model else None
-        entity.pronunciation = pron_model.to_entity() if pron_model else None
-        entity.tts = tts_model.to_entity() if tts_model else None
-        cloze_model = self._session.get(CandidateClozeModel, entity.id)
-        entity.cloze = cloze_model.to_entity() if cloze_model else None
-        image_model = self._session.get(CandidateMeaningImageModel, entity.id)
-        entity.meaning_image = image_model.to_entity() if image_model else None
-        return entity
+    def _read(self, *where: ColumnElement[bool]) -> list[StoredCandidate]:
+        stmt = select(StoredCandidateModel).where(*where).order_by(StoredCandidateModel.id)
+        return self._with_results(list(self._session.scalars(stmt).unique()))
 
-    def _bulk_attach(self, entities: list[StoredCandidate]) -> list[StoredCandidate]:
-        ids = [e.id for e in entities if e.id is not None]
-        if not ids:
-            return entities
-        meaning_rows = (
-            self._session.query(CandidateMeaningModel)
-            .filter(CandidateMeaningModel.candidate_id.in_(ids))
-            .all()
-        )
-        media_rows = (
-            self._session.query(CandidateMediaModel)
-            .filter(CandidateMediaModel.candidate_id.in_(ids))
-            .all()
-        )
-        pron_rows = (
-            self._session.query(CandidatePronunciationModel)
-            .filter(CandidatePronunciationModel.candidate_id.in_(ids))
-            .all()
-        )
-        tts_rows = (
-            self._session.query(CandidateTTSModel)
-            .filter(CandidateTTSModel.candidate_id.in_(ids))
-            .all()
-        )
-        cloze_rows = (
-            self._session.query(CandidateClozeModel)
-            .filter(CandidateClozeModel.candidate_id.in_(ids))
-            .all()
-        )
-        image_rows = (
-            self._session.query(CandidateMeaningImageModel)
-            .filter(CandidateMeaningImageModel.candidate_id.in_(ids))
-            .all()
-        )
-        meanings = {r.candidate_id: r.to_entity() for r in meaning_rows}
-        medias = {r.candidate_id: r.to_entity() for r in media_rows}
-        prons = {r.candidate_id: r.to_entity() for r in pron_rows}
-        ttses = {r.candidate_id: r.to_entity() for r in tts_rows}
-        clozes = {r.candidate_id: r.to_entity() for r in cloze_rows}
-        images = {r.candidate_id: r.to_entity() for r in image_rows}
-        for e in entities:
-            if e.id is not None:
-                e.meaning = meanings.get(e.id)
-                e.media = medias.get(e.id)
-                e.pronunciation = prons.get(e.id)
-                e.tts = ttses.get(e.id)
-                e.cloze = clozes.get(e.id)
-                e.meaning_image = images.get(e.id)
-        return entities
-
-
-def _dumped(phrase: Phrase) -> str:
-    stored = dump_phrase(phrase)
-    assert stored is not None
-    return stored
+    def _with_results(self, words: list[StoredCandidateModel]) -> list[StoredCandidate]:
+        """Words with their pronunciation and picture attached."""
+        ids = [w.id for w in words]
+        prons = {
+            r.candidate_id: r.to_entity()
+            for r in self._session.scalars(
+                select(CandidatePronunciationModel)
+                .where(
+                    CandidatePronunciationModel.candidate_id.in_(ids),
+                    CandidatePronunciationModel.is_generated(),
+                )
+            )
+        }
+        images = {
+            r.candidate_id: r.to_entity()
+            for r in self._session.scalars(
+                select(CandidateMeaningImageModel)
+                .where(CandidateMeaningImageModel.candidate_id.in_(ids))
+            )
+        }
+        read: list[StoredCandidate] = []
+        for word in words:
+            entity = word.to_entity()
+            entity.pronunciation = prons.get(word.id)
+            entity.meaning_image = images.get(word.id)
+            read.append(entity)
+        return read

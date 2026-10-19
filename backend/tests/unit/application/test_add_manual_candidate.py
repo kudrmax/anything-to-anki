@@ -16,15 +16,18 @@ is always saved. The branches that matter:
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import replace
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
 from backend.application.dto.candidate_dtos import SelectionDTO
+from backend.application.dto.source_dtos import CardDTO, card_to_dto
 from backend.application.use_cases.add_manual_candidate import (
     AddManualCandidateUseCase,
 )
+from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.token_data import TokenData
@@ -33,19 +36,24 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     TargetNotInPhraseError,
 )
+from backend.domain.ports.unit_of_work import UnitOfWork
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbMatch
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.format import Format
+from backend.domain.value_objects.review_card import ReviewCard
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.card_support import context
+from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from backend.domain.value_objects.phrase import Phrase
 
 
@@ -117,9 +125,17 @@ def _phrase_reader() -> MagicMock:
 
 
 def _saved(candidate_repo: MagicMock) -> StoredCandidate:
-    (saved,) = candidate_repo.create_batch.call_args[0][0]
-    assert isinstance(saved, StoredCandidate)
-    return saved
+    """The new word as stored, with the id its phrase points at."""
+    (word,) = candidate_repo.add_word.call_args[0]
+    assert isinstance(word, StoredCandidate)
+    return replace(word, id=_added(candidate_repo).candidate_id)
+
+
+def _added(candidate_repo: MagicMock) -> Occurrence:
+    """The phrase the use case added."""
+    (occurrence,) = candidate_repo.occurrences.add.call_args[0]
+    assert isinstance(occurrence, Occurrence)
+    return occurrence
 
 
 def _patch_classify_detailed(mock: MagicMock) -> MagicMock:
@@ -148,40 +164,114 @@ def _make_use_case(
     cefr_classifier: MagicMock | None = None,
     frequency_provider: MagicMock | None = None,
     phrasal_verb_detector: MagicMock | None = None,
-    review_status: MagicMock | None = None,
+    unit_of_work: UnitOfWork | None = None,
 ) -> AddManualCandidateUseCase:
     classifier = cefr_classifier or MagicMock()
     _patch_classify_detailed(classifier)
+    repo = candidate_repo or MagicMock()
     return AddManualCandidateUseCase(
         source_repo=source_repo or MagicMock(),
         document_repo=_documents(document_text),
-        candidate_repo=candidate_repo or MagicMock(),
+        candidate_repo=repo,
+        occurrence_repo=repo.occurrences,
         text_analyzer=text_analyzer or MagicMock(),
         cefr_classifier=classifier,
         frequency_provider=frequency_provider or MagicMock(),
         phrasal_verb_detector=phrasal_verb_detector or MagicMock(),
-        review_status=review_status or MagicMock(),
         phrase_reader=_phrase_reader(),
+        lock=free_lock(),
+        card_views=_card_views(repo),
+        decide_phrase=MagicMock(),
+        unit_of_work=unit_of_work or MagicMock(),
     )
 
 
-def _stored(candidate: StoredCandidate, new_id: int = 99) -> StoredCandidate:
-    # Simulate repo assigning an id on save.
-    return replace(candidate, id=new_id)
+class _RecordingUnitOfWork(UnitOfWork):
+    """Says whether a write transaction is open."""
+
+    def __init__(self) -> None:
+        self.open = False
+
+    def commit(self) -> None:
+        pass
+
+    def rollback(self) -> None:
+        pass
+
+    @contextmanager
+    def write(self) -> Iterator[None]:
+        self.open = True
+        try:
+            yield
+        finally:
+            self.open = False
+
+
+NEW_WORD_ID = 100
+NEW_PHRASE_ID = 200
+
+
+def _card_views(repo: MagicMock) -> MagicMock:
+    """Answers with the card of the phrase the use case added."""
+    views = MagicMock()
+
+    def one(phrase_id: int) -> CardDTO:
+        (added,) = repo.occurrences.add.call_args[0]
+        shown = replace(added, id=phrase_id)
+        return card_to_dto(ReviewCard(
+            word=_saved(repo), occurrence=shown, context=context(_saved(repo), shown),
+        ))
+
+    views.one.side_effect = one
+    return views
 
 
 def _mock_repo_save() -> MagicMock:
-    """Returns a candidate_repo mock whose create_batch echoes input with id set."""
+    """A candidate_repo mock storing one new word; `.occurrences` stores its phrase."""
     repo = MagicMock()
-
-    def _create(candidates: list[StoredCandidate]) -> list[StoredCandidate]:
-        return [_stored(c, new_id=100 + i) for i, c in enumerate(candidates)]
-
-    repo.create_batch.side_effect = _create
+    repo.word_id.return_value = None
+    repo.add_word.return_value = NEW_WORD_ID
+    repo.occurrences.add.side_effect = lambda occurrence: replace(occurrence, id=NEW_PHRASE_ID)
+    repo.get_by_id.side_effect = lambda _word_id: _saved(repo)
     return repo
 
 
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_the_word_and_its_phrase_are_written_in_one_write_transaction() -> None:
+    source_repo = MagicMock()
+    source_repo.get_by_id.return_value = _source()
+    candidate_repo = _mock_repo_save()
+    unit_of_work = _RecordingUnitOfWork()
+    written_inside: list[bool] = []
+    add = candidate_repo.occurrences.add.side_effect
+    candidate_repo.occurrences.add.side_effect = lambda occ: (
+        written_inside.append(unit_of_work.open) or add(occ)
+    )
+    text_analyzer = MagicMock()
+    text_analyzer.analyze.return_value = [_token(0, "word", "word", pos="NOUN", tag="NN")]
+    detector = MagicMock()
+    detector.detect.return_value = []
+    frequency = MagicMock()
+    frequency.get_zipf_value.return_value = 3.7
+    classifier = MagicMock()
+    classifier.classify.return_value = CEFRLevel.C1
+    use_case = _make_use_case(
+        source_repo=source_repo, candidate_repo=candidate_repo, text_analyzer=text_analyzer,
+        phrasal_verb_detector=detector, frequency_provider=frequency,
+        cefr_classifier=classifier, unit_of_work=unit_of_work,
+    )
+
+    use_case.execute(
+        source_id=1,
+        target_words=_picked("word in context", "word"),
+        selection=_select("word in context", "word in context"),
+    )
+
+    assert written_inside == [True]
+    assert not unit_of_work.open
 
 
 @pytest.mark.unit
@@ -219,7 +309,6 @@ class TestRegularWordPath:
         frequency_provider = MagicMock()
         frequency_provider.get_zipf_value.return_value = 3.7
 
-        review_status = MagicMock()
         use_case = _make_use_case(
             source_repo=source_repo,
             document_text=text,
@@ -228,7 +317,6 @@ class TestRegularWordPath:
             phrasal_verb_detector=phrasal_verb_detector,
             cefr_classifier=cefr_classifier,
             frequency_provider=frequency_provider,
-            review_status=review_status,
         )
         dto = use_case.execute(
             source_id=1,
@@ -236,16 +324,15 @@ class TestRegularWordPath:
             selection=_select(text, "I procrastinate today"),
         )
 
-        review_status.refresh.assert_called_once_with(1)
         assert dto.lemma == "procrastinate"
         assert dto.pos == "VERB"
         assert dto.cefr_level == "C1"
         assert dto.zipf_frequency == 3.7
         assert dto.is_sweet_spot is True  # 3.0 ≤ 3.7 ≤ 4.5
-        assert _saved(candidate_repo).phrase.target_text() == "procrastinate"
+        assert _added(candidate_repo).phrase.target_text() == "procrastinate"
         assert dto.is_phrasal_verb is False
         assert dto.occurrences == 2  # two occurrences in the document
-        assert dto.status == CandidateStatus.PENDING.value
+        assert dto.shown.status == "new"
         cefr_classifier.classify.assert_called_once_with("procrastinate", "VB")
         frequency_provider.get_zipf_value.assert_called_once_with("procrastinate")
 
@@ -407,7 +494,7 @@ class TestSelection:
                 target_words=_picked("lorem ipsum", "dolor"),
                 selection=_select("lorem ipsum dolor", "lorem ipsum"),
             )
-        candidate_repo.create_batch.assert_not_called()
+        candidate_repo.add_word.assert_not_called()
 
     def test_phrase_and_target_are_placed_in_the_document(self) -> None:
         source_repo = MagicMock()
@@ -434,7 +521,7 @@ class TestSelection:
             selection=_select("It was Dolor  sit amet.", " Dolor  sit amet. "[:-1]),
         )
 
-        saved = _saved(candidate_repo)
+        saved = _added(candidate_repo)
         assert saved.source_phrase.text == "Dolor  sit amet."
         assert saved.phrase_position == DocumentPosition(0, 0, 7, 0, 23)
         assert saved.source_phrase.target == (0, 1)

@@ -21,7 +21,7 @@ export function shownCandidates(
   if (pageSize == null) {
     return { shown: candidates, hiddenCount: 0, nextPageCount: 0, pages }
   }
-  const currentIndex = candidates.findIndex(c => c.id === currentId)
+  const currentIndex = candidates.findIndex(c => c.phrase_id === currentId)
   const neededPages = currentIndex < 0 ? 1 : Math.ceil((currentIndex + 1) / pageSize)
   const shownPages = Math.max(pages, neededPages)
   const shown = candidates.slice(0, shownPages * pageSize)

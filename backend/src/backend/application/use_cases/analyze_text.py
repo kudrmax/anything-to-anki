@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.application.dto.analysis_dtos import (
     AnalyzeTextRequest,
     AnalyzeTextResponse,
-    WordCandidateDTO,
+    OccurrenceDTO,
+    OccurrenceKeyDTO,
+    WordDTO,
 )
 from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.application.utils.word_knowledge import WordKnowledge
-from backend.domain.entities.word_candidate import WordCandidate
 from backend.domain.services.candidate_filter import CandidateFilter
 from backend.domain.services.fragment_selection import (
     FragmentSelectionConfig,
@@ -19,7 +21,6 @@ from backend.domain.services.fragment_selection import (
 )
 from backend.domain.services.phrase_building import build_phrase
 from backend.domain.value_objects.cefr_level import CEFRLevel
-from backend.domain.value_objects.frequency_band import FrequencyBand
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,6 @@ if TYPE_CHECKING:
     from backend.domain.ports.frequency_provider import FrequencyProvider
     from backend.domain.ports.usage_source import UsageSource
     from backend.domain.services.document_layout import DocumentLayout
-    from backend.domain.services.fragment_selection import SelectedFragment
     from backend.domain.services.fragment_selection.scoring.scorer import (
         UnknownCounter,
     )
@@ -43,8 +43,6 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.phrase import Phrase
 
 PHRASAL_VERB_POS = "VERB"
-# Each occurrence costs a fragment selection; a few are enough to find a good phrase.
-MAX_OCCURRENCES_COMPARED: int = 10
 
 
 @dataclass(frozen=True)
@@ -55,16 +53,22 @@ class _Occurrence:
     protected_indices: frozenset[int]
     pos: str
     tag: str
-    surface_form: str
-    cefr_breakdown: CEFRBreakdown | None
+
+
+@dataclass(frozen=True)
+class _Form:
+    """The part of speech of a word: its most frequent tag in the text."""
+
+    pos: str
+    tag: str
 
 
 class AnalyzeTextUseCase:
-    """Finds the words worth learning in a document, each with its phrase.
+    """Finds the words worth learning in a document, each with every place it occurs.
 
-    One candidate per word: its phrase is the best one among the places
-    where the word occurs. Words the user already knows are not candidates.
-    The phrase and the target are kept as positions in the document.
+    A word is a lemma, or a phrasal verb; every occurrence comes with its phrase and the
+    phrase's score. Words the user already knows, or below the user's level, are left out.
+    Phrases and targets are kept as positions in the document.
     """
 
     def __init__(
@@ -99,7 +103,7 @@ class AnalyzeTextUseCase:
         )
         if not tokens:
             return AnalyzeTextResponse(
-                text=layout.text, candidates=[], total_tokens=0, unique_lemmas=0,
+                text=layout.text, words=[], total_tokens=0, unique_lemmas=0,
             )
 
         knowledge = WordKnowledge(
@@ -109,169 +113,164 @@ class AnalyzeTextUseCase:
             vocabulary=request.vocabulary,
             frequent_zipf=request.frequent_word_zipf,
         )
-        words = self._collect_words(tokens, knowledge, user_level)
-        phrasal_verbs = self._collect_phrasal_verbs(tokens, knowledge)
-
-        candidates = [
-            self._build_candidate(
-                lemma, occurrences, tokens, layout, knowledge, is_phrasal_verb=False,
-            )
-            for lemma, occurrences in words.items()
+        occurrences = _Occurrences(tokens, layout, knowledge, self._selector)
+        words = [
+            word
+            for lemma, found in self._collect_words(tokens, knowledge).items()
+            if (word := self._word(lemma, found, occurrences, user_level)) is not None
         ] + [
-            self._build_candidate(
-                lemma, occurrences, tokens, layout, knowledge, is_phrasal_verb=True,
-            )
-            for lemma, occurrences in phrasal_verbs.items()
+            self._phrasal_verb(lemma, found, occurrences)
+            for lemma, found in self._collect_phrasal_verbs(tokens, knowledge).items()
         ]
 
         unique_lemmas = len({t.lemma.lower() for t in tokens if t.is_alpha})
-
         logger.info(
-            "analyze_text: done (total_tokens=%d, unique_lemmas=%d, candidates=%d)",
-            len(tokens), unique_lemmas, len(candidates),
+            "analyze_text: done (total_tokens=%d, unique_lemmas=%d, words=%d, "
+            "occurrences=%d)",
+            len(tokens), unique_lemmas, len(words), sum(len(w.occurrences) for w in words),
         )
         return AnalyzeTextResponse(
             text=layout.text,
-            candidates=[self._to_dto(c) for c in candidates],
+            words=words,
             total_tokens=len(tokens),
             unique_lemmas=unique_lemmas,
         )
 
     def _collect_words(
-        self,
-        tokens: list[TokenData],
-        knowledge: WordKnowledge,
-        user_level: CEFRLevel,
+        self, tokens: list[TokenData], knowledge: WordKnowledge,
     ) -> dict[str, list[_Occurrence]]:
         words: dict[str, list[_Occurrence]] = {}
         for token in tokens:
             if not self._candidate_filter.is_relevant_token(token):
                 continue
             lemma = knowledge.lemma_of(token)
-            if knowledge.is_known(lemma):
-                continue
-            breakdown = self._cefr_classifier.classify_detailed(lemma, token.tag)
-            if not self._candidate_filter.is_above_user_level(
-                breakdown.final_level, user_level,
-            ):
+            if knowledge.is_known_or_learning(lemma):
                 continue
             words.setdefault(lemma, []).append(_Occurrence(
                 target_index=token.index,
                 protected_indices=frozenset({token.index}),
                 pos=token.pos,
                 tag=token.tag,
-                surface_form=token.text,
-                cefr_breakdown=breakdown,
             ))
         return words
 
     def _collect_phrasal_verbs(
-        self,
-        tokens: list[TokenData],
-        knowledge: WordKnowledge,
+        self, tokens: list[TokenData], knowledge: WordKnowledge,
     ) -> dict[str, list[_Occurrence]]:
         phrasal_verbs: dict[str, list[_Occurrence]] = {}
         for match in self._phrasal_verb_detector.detect(tokens):
-            if knowledge.is_known(match.lemma):
+            if knowledge.is_known_or_learning(match.lemma):
                 continue
-            verb_token = tokens[match.verb_index]
             phrasal_verbs.setdefault(match.lemma, []).append(_Occurrence(
                 target_index=match.verb_index,
                 protected_indices=frozenset({match.verb_index, *match.component_indices}),
                 pos=PHRASAL_VERB_POS,
-                tag=verb_token.tag,
-                surface_form=match.surface_form,
-                cefr_breakdown=None,
+                tag=tokens[match.verb_index].tag,
             ))
         return phrasal_verbs
 
-    def _build_candidate(
+    def _word(
         self,
         lemma: str,
-        occurrences: list[_Occurrence],
+        found: list[_Occurrence],
+        occurrences: _Occurrences,
+        user_level: CEFRLevel,
+    ) -> WordDTO | None:
+        """The word, unless its level is not above the user's."""
+        form = _most_frequent_form(found)
+        breakdown = self._cefr_classifier.classify_detailed(lemma, form.tag)
+        if not self._candidate_filter.is_above_user_level(breakdown.final_level, user_level):
+            return None
+        return self._dto(
+            lemma, form, found, occurrences, breakdown=breakdown, is_phrasal_verb=False,
+        )
+
+    def _phrasal_verb(
+        self, lemma: str, found: list[_Occurrence], occurrences: _Occurrences,
+    ) -> WordDTO:
+        form = _most_frequent_form(found)
+        return self._dto(lemma, form, found, occurrences, breakdown=None, is_phrasal_verb=True)
+
+    def _dto(
+        self,
+        lemma: str,
+        form: _Form,
+        found: list[_Occurrence],
+        occurrences: _Occurrences,
+        *,
+        breakdown: CEFRBreakdown | None,
+        is_phrasal_verb: bool,
+    ) -> WordDTO:
+        from backend.application.dto.cefr_dtos import breakdown_to_dto
+
+        usage = (
+            self._usage_lookup.get_distribution(lemma, form.tag)
+            if self._usage_lookup is not None
+            else None
+        )
+        return WordDTO(
+            lemma=lemma,
+            is_phrasal_verb=is_phrasal_verb,
+            pos=form.pos,
+            cefr_level=breakdown.final_level.name if breakdown else None,
+            cefr_breakdown=breakdown_to_dto(breakdown) if breakdown else None,
+            zipf_frequency=occurrences.knowledge.zipf(lemma),
+            usage_distribution=usage.to_dict() if usage else None,
+            occurrences=[occurrences.dto(occurrence) for occurrence in found],
+        )
+
+
+class _Occurrences:
+    """Turns the occurrences of one parsed document into their phrases."""
+
+    def __init__(
+        self,
         tokens: list[TokenData],
         layout: DocumentLayout,
         knowledge: WordKnowledge,
-        *,
-        is_phrasal_verb: bool,
-    ) -> WordCandidate:
-        fragment, occurrence = self._best_fragment(occurrences, tokens, knowledge)
-        phrase_position = _position(layout, tokens, fragment.indices)
-        phrase = _phrase(layout, phrase_position, tokens, fragment.indices, occurrence, knowledge)
-        zipf = knowledge.zipf(lemma)
-        breakdown = occurrence.cefr_breakdown
-        return WordCandidate(
-            lemma=lemma,
-            pos=occurrence.pos,
-            cefr_level=breakdown.final_level if breakdown else None,
-            frequency_band=FrequencyBand.from_zipf(zipf),
-            zipf_frequency=zipf,
+        selector: FragmentSelector,
+    ) -> None:
+        self._tokens = tokens
+        self._layout = layout
+        self.knowledge = knowledge
+        self._selector = selector
+
+    def dto(self, occurrence: _Occurrence) -> OccurrenceDTO:
+        selected = self._selector.select_scored(
+            tokens=self._tokens,
+            target_index=occurrence.target_index,
+            protected_indices=occurrence.protected_indices,
+            unknown_counter=self._unknown_counter(occurrence.protected_indices),
+        )
+        position = _position(self._layout, self._tokens, selected.indices)
+        phrase = _phrase(
+            self._layout, position, self._tokens, selected.indices, occurrence, self.knowledge,
+        )
+        return OccurrenceDTO(
             phrase=phrase,
-            occurrences=len(occurrences),
-            is_phrasal_verb=is_phrasal_verb,
-            cefr_breakdown=breakdown,
-            usage_distribution=(
-                self._usage_lookup.get_distribution(lemma, occurrence.tag)
-                if self._usage_lookup is not None
-                else None
-            ),
-            phrase_position=phrase_position,
+            phrase_position=DocumentPositionDTO.from_position(position),
+            # The one rule of a key, as for a phrase added by hand: where the phrase's target
+            # starts — a phrase word may hold several tokens ("self-esteem").
+            key=OccurrenceKeyDTO.from_key(self._layout.target_key(position, phrase)),
+            fragment_score=selected.score.as_number(),
         )
 
-    def _best_fragment(
-        self,
-        occurrences: list[_Occurrence],
-        tokens: list[TokenData],
-        knowledge: WordKnowledge,
-    ) -> tuple[SelectedFragment, _Occurrence]:
-        """The best phrase among the first occurrences; ties go to the earliest."""
-        best: tuple[SelectedFragment, _Occurrence] | None = None
-        for occurrence in occurrences[:MAX_OCCURRENCES_COMPARED]:
-            selected = self._selector.select_scored(
-                tokens=tokens,
-                target_index=occurrence.target_index,
-                protected_indices=occurrence.protected_indices,
-                unknown_counter=self._unknown_counter(knowledge, occurrence.protected_indices),
-            )
-            if best is None or selected.score < best[0].score:
-                best = (selected, occurrence)
-        assert best is not None
-        return best
+    def _unknown_counter(self, target_indices: frozenset[int]) -> UnknownCounter:
+        knowledge = self.knowledge
 
-    @staticmethod
-    def _unknown_counter(
-        knowledge: WordKnowledge, target_indices: frozenset[int],
-    ) -> UnknownCounter:
         def count(indices: Sequence[int], tokens: list[TokenData]) -> int:
             return knowledge.count_unknowns(indices, tokens, target_indices)
 
         return count
 
-    def _to_dto(self, candidate: WordCandidate) -> WordCandidateDTO:
-        from backend.application.dto.cefr_dtos import breakdown_to_dto
 
-        bd_dto = breakdown_to_dto(candidate.cefr_breakdown) if candidate.cefr_breakdown else None
-        return WordCandidateDTO(
-            lemma=candidate.lemma,
-            pos=candidate.pos,
-            cefr_level=candidate.cefr_level.name if candidate.cefr_level else None,
-            zipf_frequency=candidate.zipf_frequency,
-            is_sweet_spot=candidate.frequency_band.is_sweet_spot,
-            phrase=candidate.phrase,
-            occurrences=candidate.occurrences,
-            is_phrasal_verb=candidate.is_phrasal_verb,
-            cefr_breakdown=bd_dto,
-            usage_distribution=(
-                candidate.usage_distribution.to_dict()
-                if candidate.usage_distribution
-                else None
-            ),
-            phrase_position=(
-                DocumentPositionDTO.from_position(candidate.phrase_position)
-                if candidate.phrase_position
-                else None
-            ),
-        )
+def _most_frequent_form(found: list[_Occurrence]) -> _Form:
+    """The most frequent tag, and its most frequent part of speech; ties go to the first
+    in alphabetical order, so the order of the occurrences does not matter."""
+    tags = Counter(occurrence.tag for occurrence in found)
+    tag = min(tags, key=lambda t: (-tags[t], t))
+    parts = Counter(occurrence.pos for occurrence in found if occurrence.tag == tag)
+    return _Form(pos=min(parts, key=lambda p: (-parts[p], p)), tag=tag)
 
 
 def _position(

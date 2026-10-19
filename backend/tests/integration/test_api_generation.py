@@ -6,12 +6,11 @@ import pytest
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.models import dump_phrase
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from tests.phrase_support import phrase
+from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -78,15 +77,7 @@ def _insert_source(session: Session, source_id: int, title: str | None = None) -
 
 
 def _insert_candidate(session: Session, candidate_id: int, source_id: int) -> None:
-    session.execute(
-        text(
-            "INSERT INTO candidates (id, source_id, lemma, pos, "
-            "zipf_frequency, is_sweet_spot, source_phrase, "
-            "occurrences, status, is_phrasal_verb) "
-            "VALUES (:id, :sid, 'word', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
-        ),
-        {"id": candidate_id, "sid": source_id, "phrase": dump_phrase(phrase("a word", "word"))},
-    )
+    insert_word(session, candidate_id, source_id=source_id)
     session.flush()
 
 
@@ -95,10 +86,14 @@ def _insert_job(
 ) -> None:
     session.execute(
         text(
-            "INSERT INTO jobs (id, job_type, candidate_id, source_id, status, created_at) "
-            "VALUES (:id, 'meaning', :cid, :sid, :status, '2026-01-01 00:00:00')"
+            "INSERT INTO jobs (id, job_type, candidate_id, source_id, status, created_at,"
+            " phrase_id, phrase_revision)"
+            " VALUES (:id, 'meaning', :cid, :sid, :status, '2026-01-01 00:00:00', :pid, 0)"
         ),
-        {"id": job_id, "cid": candidate_id, "sid": source_id, "status": status},
+        {
+            "id": job_id, "cid": candidate_id, "sid": source_id, "status": status,
+            "pid": phrase_id_of(candidate_id),
+        },
     )
     session.flush()
 
@@ -106,10 +101,10 @@ def _insert_job(
 def _insert_meaning(session: Session, candidate_id: int) -> None:
     session.execute(
         text(
-            "INSERT INTO candidate_meanings (candidate_id, meaning, translation, synonyms) "
-            "VALUES (:cid, 'm', 't', 's')"
+            "INSERT INTO candidate_meanings (phrase_id, meaning, translation, synonyms) "
+            "VALUES (:pid, 'm', 't', 's')"
         ),
-        {"cid": candidate_id},
+        {"pid": phrase_id_of(candidate_id)},
     )
     session.flush()
 
@@ -124,6 +119,13 @@ def seeded(db_session: Session) -> None:
     _insert_job(db_session, 30, 3, 1, "queued")
     _insert_job(db_session, 40, 4, 1, "failed")
     db_session.commit()
+
+
+SECOND_PHRASE = phrase_id_of(2)
+_SELECTION = {
+    "start_block": 0, "start_line": 0, "start_char": 0,
+    "end_block": 0, "end_line": 0, "end_char": 5,
+}
 
 
 def _meaning_status(client: TestClient) -> dict[str, object]:
@@ -181,3 +183,47 @@ class TestGenerationApi:
 
     def test_unknown_source_is_404(self, client: TestClient) -> None:
         assert client.get("/sources/99/generation").status_code == 404
+
+    def test_a_source_being_rebuilt_is_409_and_queues_nothing(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        db_session.execute(text(
+            "INSERT INTO source_operations (source_id, kind, started_at)"
+            " VALUES (1, 'rebuild', '2026-01-01 00:00:00')"
+        ))
+        db_session.commit()
+
+        assert client.post("/sources/1/generation/meaning?scope=missing").status_code == 409
+        assert client.post(f"/phrases/{SECOND_PHRASE}/generate-tts").status_code == 409
+        assert _meaning_status(client)["missing"] == 1
+
+    @pytest.mark.parametrize(("method", "path", "body"), [
+        ("post", f"/phrases/{SECOND_PHRASE}/decision", {"button": "learn"}),
+        ("put", f"/phrases/{SECOND_PHRASE}/phrase-boundary", {"selection": _SELECTION}),
+        (
+            "post", f"/phrases/{SECOND_PHRASE}/replace-with-example",
+            {"example_text": "A word2 here."},
+        ),
+        ("put", f"/phrases/{SECOND_PHRASE}/cloze", {
+            "phrase": "word2", "hidden_word_indices": [0], "hint_kind": "none",
+        }),
+        ("post", "/sources/1/candidates/manual", {"target_words": [0], "selection": _SELECTION}),
+    ])
+    def test_manual_phrase_changes_wait_for_the_rebuild(
+        self, client: TestClient, db_session: Session, method: str, path: str,
+        body: dict[str, object],
+    ) -> None:
+        db_session.execute(text(
+            "INSERT INTO source_operations (source_id, kind, started_at)"
+            " VALUES (1, 'rebuild', '2026-01-01 00:00:00')"
+        ))
+        db_session.commit()
+
+        response = client.request(method, path, json=body)
+
+        assert response.status_code == 409, response.text
+        phrase = db_session.execute(text(
+            "SELECT choice, edited_by_user FROM phrases WHERE id = :id"
+        ), {"id": SECOND_PHRASE}).one()
+        assert tuple(phrase) == ("none", 0)
+        assert db_session.execute(text("SELECT COUNT(*) FROM phrases")).scalar_one() == 4

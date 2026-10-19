@@ -1,23 +1,26 @@
 from __future__ import annotations
 
-import dataclasses
 from typing import TYPE_CHECKING
 
-from backend.application.dto.source_dtos import StoredCandidateDTO, stored_candidate_to_dto
 from backend.application.utils.candidate_factory import CandidateFactory
+from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import InvalidPhraseError
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.card_choice import Press
 from backend.domain.value_objects.source_role import SourceRole
 
 if TYPE_CHECKING:
+    from backend.application.dto.source_dtos import CardDTO
+    from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
+    from backend.application.utils.card_views import CardViews
     from backend.application.utils.phrase_reader import PhraseReader
-    from backend.application.utils.review_status_updater import ReviewStatusUpdater
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.cefr_classifier import CEFRClassifier
     from backend.domain.ports.frequency_provider import FrequencyProvider
+    from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.text_analyzer import TextAnalyzer
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
 
 SINGLE_OCCURRENCE = 1
@@ -26,8 +29,9 @@ SINGLE_OCCURRENCE = 1
 class AddSavedPhraseUseCase:
     """Saves a phrase met anywhere, with the target the user picked in it.
 
-    The phrase goes to the built-in "Saved phrases" source as a candidate
-    already marked to learn: the user chose it, there is nothing to review.
+    The phrase goes to the built-in "Saved phrases" source; a word new there is pressed
+    Learn: the user chose it, there is nothing to review. That press goes by the press
+    table, as any Learn: a word Known or learned in another source only shows that (Q4).
     """
 
     def __init__(
@@ -38,34 +42,43 @@ class AddSavedPhraseUseCase:
         cefr_classifier: CEFRClassifier,
         frequency_provider: FrequencyProvider,
         phrasal_verb_detector: PhrasalVerbDetector,
-        review_status: ReviewStatusUpdater,
         phrase_reader: PhraseReader,
+        occurrence_repo: OccurrenceRepository,
+        card_views: CardViews,
+        decide_phrase: DecidePhraseUseCase,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._source_repo = source_repo
-        self._candidate_repo = candidate_repo
+        self._decide_phrase = decide_phrase
+        self._occurrences = occurrence_repo
+        self._card_views = card_views
+        self._collected = CollectedPhrases(candidate_repo, occurrence_repo)
         self._candidate_factory = CandidateFactory(
             text_analyzer=text_analyzer,
             cefr_classifier=cefr_classifier,
             frequency_provider=frequency_provider,
             phrasal_verb_detector=phrasal_verb_detector,
         )
-        self._review_status = review_status
         self._phrase_reader = phrase_reader
 
-    def execute(self, phrase: str, target_words: list[int]) -> StoredCandidateDTO:
+    def execute(self, phrase: str, target_words: list[int]) -> CardDTO:
+        """Answers with the card of the saved phrase. Saving and its press are one write
+        transaction."""
         text = " ".join(phrase.split())
         if not text:
             raise InvalidPhraseError("Phrase cannot be empty")
         read = self._phrase_reader.read_picked(text, target_words)
 
-        source_id = self._saved_phrases_source_id()
-        candidate = self._candidate_factory.build(
-            source_id=source_id, phrase=read, occurrences=SINGLE_OCCURRENCE,
-        )
-        learned = dataclasses.replace(candidate, status=CandidateStatus.LEARN)
-        saved = self._candidate_repo.create_batch([learned])[0]
-        self._review_status.refresh(source_id)
-        return stored_candidate_to_dto(saved)
+        with self._unit_of_work.write():
+            source_id = self._saved_phrases_source_id()
+            card = self._candidate_factory.build(
+                source_id=source_id, phrase=read, occurrences=SINGLE_OCCURRENCE,
+            )
+            [collected] = self._collected.add(source_id, [card])
+            if collected.new_word:
+                self._decide_phrase.press_unless_done(collected.phrase_id, Press.LEARN)
+        return self._card_views.one(collected.phrase_id)
 
     def _saved_phrases_source_id(self) -> int:
         source = self._source_repo.get_first_by_role(SourceRole.SAVED_PHRASES)

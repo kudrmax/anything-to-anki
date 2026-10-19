@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from typing import TYPE_CHECKING
+
 import pytest
-from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services.topic_phrase_selection import (
     find_shortest_sentence,
     parse_marked_phrase,
-    pick_best_candidate_phrase,
+    pick_easiest_phrase,
 )
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.user_knowledge import UserKnowledge
 from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY, Vocabulary
 
-from tests.phrase_support import phrase
+from tests.phrase_support import make_occurrence, phrase
+
+if TYPE_CHECKING:
+    from backend.domain.entities.occurrence import Occurrence
 
 pytestmark = pytest.mark.unit
 
@@ -21,16 +25,9 @@ def _knowledge(vocabulary: Vocabulary = EMPTY_VOCABULARY) -> UserKnowledge:
     return UserKnowledge(vocabulary, CEFRLevel.B1, frequent_zipf=None)
 
 
-def _candidate(fragment: str, new_words: tuple[str, ...] = ()) -> StoredCandidate:
-    return StoredCandidate(
-        source_id=1,
-        lemma="negotiate",
-        pos="VERB",
-        cefr_level="B2",
-        zipf_frequency=3.5,
-        source_phrase=phrase(fragment, "negotiate", new=new_words),
-        occurrences=1,
-        status=CandidateStatus.PENDING,
+def _candidate(fragment: str, new_words: tuple[str, ...] = ()) -> Occurrence:
+    return replace(
+        make_occurrence(), source_phrase=phrase(fragment, "negotiate", new=new_words),
     )
 
 
@@ -60,25 +57,25 @@ class TestParseMarkedPhrase:
         assert parse_marked_phrase("We agreed **  ** to it.") is None
 
 
-class TestPickBestCandidatePhrase:
+class TestPickEasiestPhrase:
     def test_prefers_clean_phrase_over_shorter_dirty_one(self) -> None:
         dirty = _candidate("They negotiate stealthily.", new_words=("stealthily",))
         clean = _candidate("We will negotiate the price tomorrow.")
-        assert pick_best_candidate_phrase([dirty, clean], _knowledge()) is clean
+        assert pick_easiest_phrase([dirty, clean], _knowledge()) is clean
 
     def test_word_the_user_knows_does_not_make_phrase_dirty(self) -> None:
         known = _candidate("They negotiate stealthily.", new_words=("stealthily",))
         longer = _candidate("We will negotiate the price tomorrow.")
         vocabulary = Vocabulary.of(known={"stealthily"}, unknown=set())
-        assert pick_best_candidate_phrase([known, longer], _knowledge(vocabulary)) is known
+        assert pick_easiest_phrase([known, longer], _knowledge(vocabulary)) is known
 
     def test_prefers_shorter_phrase_among_clean_ones(self) -> None:
         long = _candidate("We will negotiate the price with them tomorrow morning.")
         short = _candidate("We will negotiate the price.")
-        assert pick_best_candidate_phrase([long, short], _knowledge()) is short
+        assert pick_easiest_phrase([long, short], _knowledge()) is short
 
     def test_returns_none_for_no_candidates(self) -> None:
-        assert pick_best_candidate_phrase([], _knowledge()) is None
+        assert pick_easiest_phrase([], _knowledge()) is None
 
 
 class TestFindShortestSentence:

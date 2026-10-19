@@ -1,19 +1,26 @@
 from __future__ import annotations
 
+import asyncio
 import json
-from collections.abc import Generator  # noqa: TC003
+from collections.abc import Callable, Coroutine, Generator  # noqa: TC003
 from datetime import UTC, datetime, timedelta
 from pathlib import Path  # noqa: TC003
 
 import pytest
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.api.routes import sources as sources_routes
+from backend.infrastructure.api.source_operations import SourceOperationRegistry
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import (
+    PhraseModel,
     SourceModel,
     StoredCandidateModel,
     dump_phrase,
+)
+from backend.infrastructure.persistence.sqla_source_operation_lock import (
+    SqlaSourceOperationLock,
 )
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
@@ -64,6 +71,25 @@ def client(_db_engine: object) -> Generator[TestClient, None, None]:
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_operations_of_other_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Sources of every test get the same ids: operations of one must not show in another."""
+    monkeypatch.setattr(sources_routes, "OPERATIONS", SourceOperationRegistry())
+
+
+@pytest.fixture()
+def spawned(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    """Background operations started by the routes; none of them runs."""
+    started: list[object] = []
+
+    def record(work: Coroutine[object, object, None]) -> None:
+        work.close()
+        started.append(work)
+
+    monkeypatch.setattr(sources_routes, "_in_background", record)
+    return started
 
 
 @pytest.fixture()
@@ -213,6 +239,116 @@ class TestSourcesAPI:
         response = client.post(f"/sources/{source_id}/process")
         assert response.status_code == 202
 
+    def test_rebuild_runs_in_the_background_and_holds_the_source(
+        self, client: TestClient, db_session: Session, spawned: list[object],
+    ) -> None:
+        source_id = self._processed_source(client, db_session)
+
+        started = client.post(f"/sources/{source_id}/rebuild", json={"include_open": True})
+
+        assert started.status_code == 202
+        operation = started.json()
+        assert (operation["kind"], operation["state"]) == ("rebuild", "running")
+        assert len(spawned) == 1
+        state = client.get(f"/sources/{source_id}/operation")
+        assert state.status_code == 200
+        assert state.json()["operation_id"] == operation["operation_id"]
+        assert client.post(f"/sources/{source_id}/rebuild/preview").status_code == 409
+        assert client.post(f"/sources/{source_id}/rebuild", json={}).status_code == 409
+
+    def test_rebuild_preview_runs_in_the_background(
+        self, client: TestClient, db_session: Session, spawned: list[object],
+    ) -> None:
+        source_id = self._processed_source(client, db_session)
+
+        started = client.post(f"/sources/{source_id}/rebuild/preview")
+
+        assert started.status_code == 202
+        assert (started.json()["kind"], started.json()["state"]) == ("preview", "running")
+        assert len(spawned) == 1
+
+    def test_a_topic_is_refreshed_in_the_background(
+        self, client: TestClient, db_session: Session, spawned: list[object],
+    ) -> None:
+        topic_id = client.post("/sources/topic", json={"query": "salary talk"}).json()["id"]
+        db_session.query(SourceModel).filter_by(id=topic_id).update({"status": "done"})
+        db_session.commit()
+
+        [row] = [s for s in client.get("/sources").json() if s["id"] == topic_id]
+        started = client.post(f"/sources/{topic_id}/refresh")
+
+        assert row["available_operation"] == "refresh"
+        assert started.status_code == 202
+        assert (started.json()["kind"], started.json()["state"]) == ("refresh", "running")
+        assert len(spawned) == 1
+        assert client.post(f"/sources/{topic_id}/refresh").status_code == 409
+        assert client.post(f"/sources/{topic_id}/rebuild", json={}).status_code == 400
+
+    def test_a_content_source_offers_rebuild_and_cannot_be_refreshed(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        source_id = self._new_source(client)
+        [new] = [s for s in client.get("/sources").json() if s["id"] == source_id]
+        db_session.query(SourceModel).filter_by(id=source_id).update({"status": "done"})
+        db_session.commit()
+        [done] = [s for s in client.get("/sources").json() if s["id"] == source_id]
+
+        assert (new["available_operation"], done["available_operation"]) == (None, "rebuild")
+        assert client.post(f"/sources/{source_id}/refresh").status_code == 400
+
+    def test_an_operation_that_never_runs_frees_its_source(
+        self, client: TestClient, db_session: Session, _db_engine: object,
+    ) -> None:
+        source_id = self._new_source(client)
+        lock = SqlaSourceOperationLock(db_session)
+        lock.acquire(source_id, SourceOperationKind.REBUILD)
+        db_session.commit()
+        operation = sources_routes.OPERATIONS.started(source_id, SourceOperationKind.REBUILD)
+
+        def broken(_session: Session) -> Callable[[], None]:
+            raise RuntimeError("could not build the use case")
+
+        asyncio.run(sources_routes._operation_background(
+            source_id, operation.operation_id, sessionmaker(bind=_db_engine), broken,
+        ))
+
+        db_session.expire_all()
+        assert lock.held(source_id) is None
+        state = client.get(f"/sources/{source_id}/operation").json()
+        assert (state["state"], state["error"]) == ("error", "could not build the use case")
+
+    def test_a_source_with_no_operation_has_no_operation_state(
+        self, client: TestClient,
+    ) -> None:
+        source_id = self._new_source(client)
+        assert client.get(f"/sources/{source_id}/operation").status_code == 404
+
+    def test_rebuild_of_a_missing_source_is_404(self, client: TestClient) -> None:
+        assert client.post("/sources/999/rebuild", json={}).status_code == 404
+
+    @staticmethod
+    def _new_source(client: TestClient) -> int:
+        create = client.post(
+            "/sources/add", json={"text": "The quick brown fox", "answers": TEXT_ANSWER},
+        )
+        source_id: int = create.json()["source_ids"][0]
+        return source_id
+
+    def _processed_source(self, client: TestClient, db_session: Session) -> int:
+        source_id = self._new_source(client)
+        db_session.query(SourceModel).filter_by(id=source_id).update({"status": "done"})
+        db_session.commit()
+        return source_id
+
+    def test_a_new_source_offers_no_rebuild(
+        self, client: TestClient, spawned: list[object],
+    ) -> None:
+        source_id = self._new_source(client)
+
+        assert client.post(f"/sources/{source_id}/rebuild/preview").status_code == 400
+        assert client.post(f"/sources/{source_id}/rebuild", json={}).status_code == 400
+        assert spawned == []
+
     def test_process_not_found(self, client: TestClient) -> None:
         response = client.post("/sources/999/process")
         assert response.status_code == 404
@@ -230,12 +366,18 @@ class TestSourcesAPI:
             pos="VERB",
             zipf_frequency=3.8,
             is_sweet_spot=True,
-            source_phrase=dump_phrase(phrase("I'm gonna do it", "gonna")),
             occurrences=1,
             status="pending",
             usage_distribution_json=json.dumps({"informal": 0.8, "neutral": 0.2}),
         )
         db_session.add(candidate)
+        db_session.flush()
+        db_session.add(PhraseModel(
+            candidate_id=candidate.id,
+            source_phrase=dump_phrase(phrase("I'm gonna do it", "gonna")),
+            origin="auto",
+            shown_by="selection",
+        ))
         db_session.commit()
 
         response = client.get(f"/sources/{source.id}")
@@ -305,7 +447,7 @@ class TestSavedPhrasesAPI:
 
         assert response.status_code == 201
         candidate = response.json()
-        assert candidate["status"] == "learn"
+        assert (candidate["choice"], candidate["shown"]["status"]) == ("learn", "learn")
         assert candidate["lemma"] == "give in"
         sources = client.get("/sources").json()
         assert len(sources) == 1
@@ -334,7 +476,7 @@ class TestSavedPhrasesAPI:
         )
         assert response.status_code == 400
 
-    def test_saved_phrases_source_cannot_be_deleted_or_reprocessed(
+    def test_saved_phrases_source_cannot_be_deleted_or_rebuilt(
         self, client: TestClient,
     ) -> None:
         client.post(
@@ -344,7 +486,8 @@ class TestSavedPhrasesAPI:
         source_id = client.get("/sources").json()[0]["id"]
 
         assert client.delete(f"/sources/{source_id}").status_code == 409
-        assert client.post(f"/sources/{source_id}/reprocess").status_code == 409
+        assert client.post(f"/sources/{source_id}/rebuild", json={}).status_code == 400
+        assert client.post(f"/sources/{source_id}/rebuild/preview").status_code == 400
 
 
 @pytest.mark.integration

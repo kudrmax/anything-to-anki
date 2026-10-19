@@ -9,9 +9,9 @@ from backend.application.dto.collection_dtos import (
 )
 from backend.application.dto.source_dtos import ProgressDTO
 from backend.domain.services.collection_tree import CollectionTree
+from backend.domain.services.source_review_status import IS_REVIEWED, derive_review_status
 from backend.domain.services.source_stage import is_pending
 from backend.domain.value_objects.decision_progress import DecisionProgress
-from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
     from backend.application.utils.review_progress import ReviewProgress
@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.collection import Collection
     from backend.domain.entities.source import Source
     from backend.domain.ports.collection_repository import CollectionRepository
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
 
 
@@ -31,7 +32,9 @@ class ListCollectionsUseCase:
         source_repo: SourceRepository,
         review_progress: ReviewProgress,
         generation_probe: TopicGenerationProbe,
+        lock: SourceOperationLock,
     ) -> None:
+        self._lock = lock
         self._collection_repo = collection_repo
         self._source_repo = source_repo
         self._review_progress = review_progress
@@ -40,12 +43,20 @@ class ListCollectionsUseCase:
     def execute(self) -> CollectionTreeDTO:
         tree = CollectionTree(self._collection_repo.list_all())
         sources = self._source_repo.list_all()
+        busy = self._lock.operations()
         pending = {
             s.id for s in sources
-            if is_pending(s.status, awaiting_generation=self._generation_probe.of(s).awaiting)
+            if is_pending(
+                s.status,
+                awaiting_generation=self._generation_probe.of(s).awaiting,
+                busy=s.id in busy,
+            )
         }
-        progress = {
-            s.id: self._review_progress.of_source(s.id) for s in sources if s.id is not None
+        progress = self._review_progress.of_sources([s.id for s in sources if s.id is not None])
+        reviewed = {
+            s.id for s in sources
+            if s.id is not None
+            and IS_REVIEWED[derive_review_status(s.status, progress[s.id])]
         }
 
         def counts(selected: list[Source]) -> ScopeCountsDTO:
@@ -55,7 +66,7 @@ class ListCollectionsUseCase:
             )
             return ScopeCountsDTO(
                 total=len(selected),
-                reviewed=sum(1 for s in selected if s.status is SourceStatus.REVIEWED),
+                reviewed=sum(1 for s in selected if s.id in reviewed),
                 pending=sum(1 for s in selected if s.id in pending),
                 progress=ProgressDTO.of(decisions),
             )

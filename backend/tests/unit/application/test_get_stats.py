@@ -2,8 +2,6 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.get_stats import GetStatsUseCase
-from backend.application.utils.export_queue import ExportBatch
-from backend.domain.value_objects.candidate_status import CandidateStatus
 
 from tests.vocabulary_support import user_vocabulary
 
@@ -14,7 +12,8 @@ class TestGetStatsUseCase:
         self.candidate_repo = MagicMock()
         self.known_word_repo = MagicMock()
         self.export_queue = MagicMock()
-        self.export_queue.for_all.return_value = ExportBatch(pending=[], exported_count=0)
+        self.export_queue.for_all.side_effect = AssertionError("stats only count the queue")
+        self.export_queue.pending_count.return_value = 0
         self.job_repo = MagicMock()
         self.job_repo.get_queue_summary.return_value = {}
         self.use_case = GetStatsUseCase(
@@ -25,20 +24,21 @@ class TestGetStatsUseCase:
         )
 
     def test_returns_correct_counts(self) -> None:
-        self.candidate_repo.count_by_status.return_value = 7
+        """Chosen to learn: Learn and Learning words. Known: each lemma once, by the list
+        or by the timer."""
+        self.candidate_repo.count_chosen_to_learn.return_value = 12
         self.candidate_repo.count_all.return_value = 120
-        self.known_word_repo.count.return_value = 43
+        self.known_word_repo.get_all_pairs.return_value = {
+            ("glare", "VERB"), ("glare", "NOUN"), ("linger", None),
+        }
         result = self.use_case.execute()
-        assert result.learn_count == 7
+        assert result.learn_count == 12
         assert result.candidate_count == 120
-        assert result.known_word_count == 43
-        self.candidate_repo.count_by_status.assert_called_once_with(CandidateStatus.LEARN)
-        self.known_word_repo.count.assert_called_once()
+        assert result.known_word_count == 2
 
     def test_returns_zeros_when_empty(self) -> None:
-        self.candidate_repo.count_by_status.return_value = 0
+        self.candidate_repo.count_chosen_to_learn.return_value = 0
         self.candidate_repo.count_all.return_value = 0
-        self.known_word_repo.count.return_value = 0
         result = self.use_case.execute()
         assert result.learn_count == 0
         assert result.candidate_count == 0
@@ -47,11 +47,8 @@ class TestGetStatsUseCase:
         assert result.queue_active_count == 0
 
     def test_export_pending_count_excludes_already_exported(self) -> None:
-        self.candidate_repo.count_by_status.return_value = 31
-        self.export_queue.for_all.return_value = ExportBatch(
-            pending=[MagicMock(), MagicMock(), MagicMock()],
-            exported_count=28,
-        )
+        self.candidate_repo.count_chosen_to_learn.return_value = 31
+        self.export_queue.pending_count.return_value = 3
         result = self.use_case.execute()
         assert result.learn_count == 31
         assert result.export_pending_count == 3

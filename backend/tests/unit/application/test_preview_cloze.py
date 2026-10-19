@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -13,13 +14,15 @@ from backend.application.dto.cloze_dtos import (
 from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
-from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.exceptions import CandidateNotFoundError, InvalidClozeError
+from backend.domain.exceptions import InvalidClozeError, PhraseNotFoundError
 from backend.domain.services.cloze_builder import ClozeBuilder
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
+from tests.card_support import occurrence
 from tests.phrase_support import phrase
+
+if TYPE_CHECKING:
+    from backend.domain.entities.occurrence import Occurrence
 
 pytestmark = pytest.mark.unit
 
@@ -40,30 +43,26 @@ def _candidate(
     synonyms: str = "quit, stop",
     cloze: CandidateCloze | None = None,
     with_meaning: bool = True,
-) -> StoredCandidate:
+) -> Occurrence:
+    """The phrase of `give up` the cloze is made on."""
     meaning = CandidateMeaning(
         candidate_id=1, meaning="To stop.", translation=translation,
         synonyms=synonyms, examples=None, ipa=None, generated_at=None,
     ) if with_meaning else None
-    return StoredCandidate(
-        id=1, source_id=5, lemma="give up", pos="VERB", cefr_level="B1",
-        zipf_frequency=4.0, source_phrase=phrase(GIVE_UP, "gave up"),
-        occurrences=1, status=CandidateStatus.LEARN,
-        is_phrasal_verb=True, meaning=meaning, cloze=cloze,
-    )
+    return occurrence(1, 1, phrase(GIVE_UP, "gave up"), meaning=meaning, cloze=cloze)
 
 
 class TestPreviewCloze:
     def setup_method(self) -> None:
-        self.candidate_repo = MagicMock()
+        self.occurrence_repo = MagicMock()
         self.settings_repo = MagicMock()
         self.default_hint = "none"
         self.settings_repo.get.side_effect = lambda key, default=None: (
             self.default_hint if key == "cloze_default_hint" else default
         )
-        self.candidate_repo.get_by_id.return_value = _candidate()
+        self.occurrence_repo.get.return_value = _candidate()
         self.use_case = PreviewClozeUseCase(
-            candidate_repo=self.candidate_repo,
+            occurrence_repo=self.occurrence_repo,
             settings_repo=self.settings_repo,
             builder=ClozeBuilder(),
         )
@@ -90,7 +89,7 @@ class TestPreviewCloze:
 
     def test_preview_falls_back_to_none_when_default_unavailable(self) -> None:
         self.default_hint = "translation"
-        self.candidate_repo.get_by_id.return_value = _candidate(with_meaning=False)
+        self.occurrence_repo.get.return_value = _candidate(with_meaning=False)
         preview = self.use_case.execute(1, PreviewClozeRequest())
         assert preview.hint_kind == "none"
         assert _gaps(preview) == ["[…]"]
@@ -110,7 +109,7 @@ class TestPreviewCloze:
         assert preview.custom_hint == " stop it "
 
     def test_preview_uses_stored_markup(self) -> None:
-        self.candidate_repo.get_by_id.return_value = _candidate(
+        self.occurrence_repo.get.return_value = _candidate(
             cloze=CandidateCloze(1, (4,), ClozeHintKind.CUSTOM, "a habit", GIVE_UP),
         )
         preview = self.use_case.execute(1, PreviewClozeRequest())
@@ -120,7 +119,7 @@ class TestPreviewCloze:
         assert _gaps(preview) == ["[a habit]"]
 
     def test_preview_rebuilds_stale_markup(self) -> None:
-        self.candidate_repo.get_by_id.return_value = _candidate(
+        self.occurrence_repo.get.return_value = _candidate(
             cloze=CandidateCloze(
                 1, (0,), ClozeHintKind.NONE, None, "Old phrase where she gave up.",
             ),
@@ -135,7 +134,7 @@ class TestPreviewCloze:
         assert preview.can_save is False
 
     def test_preview_echoes_the_card_phrase(self) -> None:
-        self.candidate_repo.get_by_id.return_value = replace(
+        self.occurrence_repo.get.return_value = replace(
             _candidate(), polished_phrase=phrase("She gave up smoking.", "gave up"),
         )
         preview = self.use_case.execute(1, PreviewClozeRequest())
@@ -155,7 +154,7 @@ class TestPreviewCloze:
         assert preview.can_save is True
 
     def test_preview_drops_leaking_hint_to_none(self) -> None:
-        self.candidate_repo.get_by_id.return_value = _candidate(synonyms="give up, quit")
+        self.occurrence_repo.get.return_value = _candidate(synonyms="give up, quit")
         preview = self.use_case.execute(1, PreviewClozeRequest(hint_kind="synonyms"))
         assert preview.hint_kind == "none"
         assert "synonyms" not in preview.available_hints
@@ -165,8 +164,8 @@ class TestPreviewCloze:
             self.use_case.execute(1, PreviewClozeRequest(hidden_word_indices=[42]))
 
     def test_preview_missing_candidate(self) -> None:
-        self.candidate_repo.get_by_id.return_value = None
-        with pytest.raises(CandidateNotFoundError):
+        self.occurrence_repo.get.return_value = None
+        with pytest.raises(PhraseNotFoundError):
             self.use_case.execute(1, PreviewClozeRequest())
 
 

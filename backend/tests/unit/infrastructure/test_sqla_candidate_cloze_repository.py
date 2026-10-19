@@ -4,20 +4,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.candidate_cloze import CandidateCloze
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.models import StoredCandidateModel, dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
-)
-from backend.infrastructure.persistence.sqla_candidate_repository import (
-    SqlaCandidateRepository,
 )
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from tests.phrase_support import phrase
+from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -25,6 +20,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 CANDIDATE_ID = 1
+PHRASE_ID = phrase_id_of(CANDIDATE_ID)
 SOURCE_ID = 1
 
 
@@ -33,17 +29,10 @@ def session() -> Generator[Session, None, None]:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     s = sessionmaker(bind=engine)()
-    s.add(StoredCandidateModel(
-        id=CANDIDATE_ID,
-        source_id=SOURCE_ID,
-        lemma="test",
-        pos="NOUN",
-        zipf_frequency=4.0,
-        is_sweet_spot=True,
-        source_phrase=dump_phrase(phrase("a test", "test")),
-        occurrences=1,
-        status=CandidateStatus.LEARN.value,
-    ))
+    insert_word(
+        s, CANDIDATE_ID, source_id=SOURCE_ID, lemma="test", phrase_text="a test",
+        status="learn", zipf_frequency=4.0, is_sweet_spot=True,
+    )
     s.flush()
     yield s
     s.close()
@@ -64,41 +53,26 @@ class TestCandidateClozeRepository:
         cloze = CandidateCloze(
             CANDIDATE_ID, (2, 3), ClozeHintKind.CUSTOM, "своя", "She gave up.",
         )
-        repo.upsert(cloze)
-        assert repo.get_by_candidate_id(CANDIDATE_ID) == cloze
+        repo.upsert_for_phrase(PHRASE_ID, cloze)
+        assert repo.get_by_phrase_id(PHRASE_ID) == cloze
 
     def test_get_returns_none_for_missing(self, session: Session) -> None:
-        assert SqlaCandidateClozeRepository(session).get_by_candidate_id(999) is None
+        assert SqlaCandidateClozeRepository(session).get_by_phrase_id(999) is None
 
     def test_upsert_overwrites(self, session: Session) -> None:
         repo = SqlaCandidateClozeRepository(session)
-        repo.upsert(_cloze((1,), ClozeHintKind.NONE))
-        repo.upsert(_cloze((0,), ClozeHintKind.FIRST_LETTER))
-        stored = repo.get_by_candidate_id(CANDIDATE_ID)
+        repo.upsert_for_phrase(PHRASE_ID, _cloze((1,), ClozeHintKind.NONE))
+        repo.upsert_for_phrase(PHRASE_ID, _cloze((0,), ClozeHintKind.FIRST_LETTER))
+        stored = repo.get_by_phrase_id(PHRASE_ID)
         assert stored is not None
         assert stored.hidden_word_indices == (0,)
         assert stored.hint_kind == ClozeHintKind.FIRST_LETTER
 
     def test_delete(self, session: Session) -> None:
         repo = SqlaCandidateClozeRepository(session)
-        repo.upsert(_cloze())
-        repo.delete_by_candidate_id(CANDIDATE_ID)
-        assert repo.get_by_candidate_id(CANDIDATE_ID) is None
+        repo.upsert_for_phrase(PHRASE_ID, _cloze())
+        repo.delete_by_phrase_id(PHRASE_ID)
+        assert repo.get_by_phrase_id(PHRASE_ID) is None
 
     def test_delete_missing_is_noop(self, session: Session) -> None:
-        SqlaCandidateClozeRepository(session).delete_by_candidate_id(999)
-
-    def test_candidate_repository_attaches_cloze(self, session: Session) -> None:
-        SqlaCandidateClozeRepository(session).upsert(_cloze())
-        candidate_repo = SqlaCandidateRepository(session)
-        by_id = candidate_repo.get_by_id(CANDIDATE_ID)
-        assert by_id is not None
-        assert by_id.cloze is not None
-        assert candidate_repo.get_by_source(SOURCE_ID)[0].cloze is not None
-
-    def test_candidate_without_cloze_has_none(self, session: Session) -> None:
-        candidate_repo = SqlaCandidateRepository(session)
-        by_id = candidate_repo.get_by_id(CANDIDATE_ID)
-        assert by_id is not None
-        assert by_id.cloze is None
-        assert candidate_repo.get_by_source(SOURCE_ID)[0].cloze is None
+        SqlaCandidateClozeRepository(session).delete_by_phrase_id(999)

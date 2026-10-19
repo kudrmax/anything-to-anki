@@ -1,3 +1,11 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from backend.domain.value_objects.card_choice import Refusal
+
+
 class DomainError(Exception):
     """Base class for domain exceptions."""
 
@@ -33,15 +41,15 @@ class UnknownReportReasonError(DomainError):
 
 
 class KnownWordNotFoundError(DomainError):
-    """Raised when a known word entry is not found by ID."""
+    """Raised when a known word entry is not found by its ID or removal key."""
 
-    def __init__(self, known_word_id: int) -> None:
+    def __init__(self, known_word_id: int | str) -> None:
         super().__init__(f"Known word not found: {known_word_id}")
         self.known_word_id = known_word_id
 
 
 class SourceIsProcessingError(DomainError):
-    """Raised when trying to delete a source that is currently being processed."""
+    """Raised when trying to delete a source a long operation (processing, rebuild) holds."""
 
     def __init__(self, source_id: int) -> None:
         super().__init__(f"Source is currently being processed: {source_id}")
@@ -56,28 +64,31 @@ class SourceAlreadyProcessedError(DomainError):
         self.source_id = source_id
 
 
-class SourceNotReprocessableError(DomainError):
-    """Raised when trying to reprocess a source that is not in a reprocessable status."""
+class SourceOperationBusyError(DomainError):
+    """Raised when a source is held by another long operation (processing, rebuild)."""
+
+    def __init__(self, source_id: int, kind: str | None = None) -> None:
+        busy_with = f" ({kind})" if kind else ""
+        super().__init__(f"Source is busy with another operation{busy_with}: {source_id}")
+        self.source_id = source_id
+        self.kind = kind
+
+
+class RebuildNotSupportedError(DomainError):
+    """Raised when the source offers no rebuild: it has no text of its own (a topic, saved
+    phrases) or was never processed."""
 
     def __init__(self, source_id: int) -> None:
-        super().__init__(f"Source cannot be reprocessed (wrong status): {source_id}")
+        super().__init__(f"Only a processed source with its own text can be rebuilt: {source_id}")
         self.source_id = source_id
 
 
-class SourceHasActiveJobsError(DomainError):
-    """Raised when trying to reprocess a source that has active enrichment jobs."""
+class RefreshNotSupportedError(DomainError):
+    """Raised when refreshing a source that is not a processed topic."""
 
     def __init__(self, source_id: int) -> None:
-        super().__init__(f"Source has active enrichment jobs: {source_id}")
+        super().__init__(f"Only a processed topic can be refreshed: {source_id}")
         self.source_id = source_id
-
-
-class InvalidCandidateStatusError(DomainError):
-    """Raised when an invalid candidate status is provided."""
-
-    def __init__(self, status: str) -> None:
-        super().__init__(f"Invalid candidate status: {status}")
-        self.status_value = status
 
 
 class AnkiNotAvailableError(DomainError):
@@ -277,10 +288,10 @@ class CandidateNotPolishedError(DomainError):
 
 
 class PermanentSourceError(DomainError):
-    """Raised when deleting or reprocessing a built-in source the app always keeps."""
+    """Raised when deleting a built-in source the app always keeps."""
 
     def __init__(self, source_id: int) -> None:
-        super().__init__(f"Built-in source can't be deleted or reprocessed: {source_id}")
+        super().__init__(f"Built-in source can't be deleted: {source_id}")
         self.source_id = source_id
 
 
@@ -356,3 +367,37 @@ class ClozePhraseChangedError(DomainError):
     def __init__(self, candidate_id: int) -> None:
         super().__init__(f"Phrase of candidate {candidate_id} changed, mark the words again")
         self.candidate_id = candidate_id
+
+
+class PhraseNotFoundError(DomainError):
+    """Raised when a phrase (an occurrence of a word) does not exist."""
+
+    def __init__(self, phrase_id: int) -> None:
+        super().__init__(f"Phrase {phrase_id} not found")
+        self.phrase_id = phrase_id
+
+
+class ActionRefusedError(DomainError):
+    """Raised when the decision table refuses a button on a card. `reason`: why, for the
+    person who pressed it."""
+
+    def __init__(self, card_id: int, refusal: Refusal, reason: str | None = None) -> None:
+        super().__init__(reason or f"Card {card_id}: {refusal.value}")
+        self.card_id = card_id
+        self.refusal = refusal
+
+
+class NoDecisionRuleError(DomainError):
+    """Raised when no row of a decision table matches: the state is impossible, a bug."""
+
+    def __init__(self, key: object) -> None:
+        super().__init__(f"No decision rule for {key!r}")
+        self.key = key
+
+
+class PhraseChangedError(DomainError):
+    """Raised when a phrase changed or went while something was being made for it."""
+
+    def __init__(self, phrase_id: int) -> None:
+        super().__init__(f"Phrase {phrase_id} changed meanwhile, try again")
+        self.phrase_id = phrase_id

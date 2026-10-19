@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 _ANKI_URL = os.getenv("ANKI_URL", "http://localhost:8765")
 _VERSION = 6
-
 _CARD_TEMPLATE_NAME = "AnythingToAnki Card"
 _CLOZE_TEMPLATE_NAME = "AnythingToAnki Cloze"
 

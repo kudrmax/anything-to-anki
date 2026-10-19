@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.services.document_layout import DocumentLayout
 from backend.domain.services.document_time import time_of
 from backend.domain.value_objects.document import (
@@ -13,6 +14,8 @@ from backend.domain.value_objects.document import (
 )
 from backend.domain.value_objects.document_position import DocumentPosition
 
+from tests.phrase_support import phrase
+
 DOCUMENT = Document((
     Heading(1, "Title"),
     Paragraph((Line("I told him", 0, 900), Line("nothing.", 1000, 1500)), ParagraphMode.FLOW),
@@ -24,6 +27,12 @@ LAYOUT = DocumentLayout(DOCUMENT)
 
 @pytest.mark.unit
 class TestDocumentLayout:
+    def test_the_key_of_a_target_is_where_its_first_word_starts(self) -> None:
+        position = DocumentPosition(1, 0, 7, 1, 8)
+        found = phrase(LAYOUT.fragment(position), "nothing")
+
+        assert LAYOUT.target_key(position, found) == OccurrenceKey(block=1, line=1, char=0)
+
     def test_text_is_the_document_text(self) -> None:
         assert LAYOUT.text == DOCUMENT.text == (
             "Title\n\nI told him nothing.\n\nLa la\nna na\n\nItem"

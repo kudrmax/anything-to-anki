@@ -13,8 +13,6 @@ export type SourceFormat = 'plain' | 'markdown' | 'html' | 'epub' | 'srt' | 'vid
 
 export type ProcessingStage = 'analyzing_text' | 'collecting_phrases'
 
-export type CandidateStatus = 'pending' | 'learn' | 'known' | 'skip'
-
 export type CandidateSortOrder = 'relevance' | 'chronological' | 'key_words'
 
 export type Scope = 'all' | 'unsorted' | number
@@ -106,9 +104,25 @@ export interface SourceSummary {
   awaiting_generation: boolean
   generation_status: GenerationStatus | null
   generation_error: string | null
-  /** Встроенный источник: его нельзя удалить и переобработать. */
-  is_permanent: boolean
+  /** Как привести источник в актуальное состояние; решает backend. */
+  available_operation: 'rebuild' | 'refresh' | null
+  /** false — источник занят другой операцией: пункт виден, но недоступен. */
+  can_start_operation: boolean
+  /** Операция, которой занят источник; другую сейчас не начать. */
+  busy_with: SourceOperationKind | null
+  /** Почему операция сейчас недоступна. */
+  operation_hint: string | null
+  /** Что источник позволяет сейчас; решает backend. */
+  can_review: boolean
+  can_export: boolean
+  can_delete: boolean
+  /** Доля разобранного, 0..1; разобранный источник — 1. */
+  review_fraction: number
+  /** Подпись под шкалой: чем занят источник или где его разбор. */
+  progress_caption: string
 }
+
+export type SourceOperationKind = 'process' | 'rebuild' | 'preview' | 'refresh'
 
 export type GenerationStatus = 'queued' | 'running' | 'failed'
 
@@ -235,11 +249,51 @@ export interface CardPhrase {
   target: number[]
 }
 
-/** Where a card stands in review: only the target is new, more words are new, or probably known. */
-export type CandidateSection = 'ready' | 'extra' | 'probably_known'
+/** Where a card stands in review: only the target is new, more words are new, probably known, or done (reviewed). */
+export type CandidateSection = 'ready' | 'extra' | 'probably_known' | 'reviewed'
 
+export type DecisionButton = 'learn' | 'cloze' | 'known' | 'skip'
+
+/** Что делает нажатие: decide шлёт кнопку, edit_cloze открывает разметку cloze — её Save и есть нажатие. */
+export type ButtonCommand = 'decide' | 'edit_cloze'
+
+/** Почему кнопка не работает: слово решено на другой фразе или в другом источнике. */
+export type Refusal = 'not_decision_card' | 'decided_elsewhere'
+
+/** Кнопка решения: что делает нажатие (null — кнопка неактивна, refused — почему), нажата ли она; решает backend. */
+export interface CardButton {
+  button: DecisionButton
+  command: ButtonCommand | null
+  pressed: boolean
+  refused: Refusal | null
+}
+
+/** Выбор пользователя на карточке. */
+export type CardChoice = 'none' | 'learn' | 'cloze' | 'known' | 'skip'
+
+/** Что карточка показывает о слове: статус, пропущена ли фраза и откуда статус — здесь, другая фраза, другой источник. */
+export interface Shown {
+  status: ShownStatus
+  skipped: boolean
+  where: ShownWhere
+  /** Как карточка читается с одного взгляда; решение слова важнее Skip — решает backend. */
+  tone: ShownTone
+}
+
+export type ShownStatus = 'new' | 'learn' | 'learning' | 'known'
+export type ShownWhere = 'here' | 'other_card' | 'other_source' | 'nowhere'
+export type ShownTone = 'open' | 'learning' | 'settled'
+
+/** Что делает каждая кнопка карточки; считает backend. */
+export interface CardState {
+  /** Learn, Cloze, Known, Skip — в этом порядке. */
+  buttons: CardButton[]
+}
+
+/** Карточка — показанная фраза слова; ключ карточки — phrase_id. */
 export interface StoredCandidate {
-  id: number
+  phrase_id: number
+  word_id: number
   lemma: string
   pos: string
   cefr_level: string | null
@@ -258,11 +312,17 @@ export interface StoredCandidate {
   polish_status: EnrichmentStatus | null
   section: CandidateSection | null
   occurrences: number
-  status: CandidateStatus
+  choice: CardChoice
+  shown: Shown
+  state: CardState
+  /** Карточка разобрана: слово решено, фраза пропущена или слово разобрано в другом источнике. */
+  is_done: boolean
   is_phrasal_verb: boolean
   /** Где фраза источника стоит в документе; у примера, темы и сохранённой фразы её нет. */
   phrase_position: DocumentPosition | null
   meaning: CandidateMeaning | null
+  /** Что предложить, пока текста значения нет: сгенерировать или повторить; решает backend. */
+  meaning_action: 'generate' | 'retry' | null
   media: CandidateMedia | null
   /** Картинка-значение target'а: идёт на оборот карточки, кадр из видео — в media. */
   meaning_image_path: string | null
@@ -274,8 +334,8 @@ export interface StoredCandidate {
   origin: PhraseOrigin | null
   /** Разметка cloze; есть только у фраз на изучение. */
   cloze: CandidateCloze | null
-  /** false — карточка уже в Anki, превратить её в cloze нельзя. */
-  can_cloze: boolean
+  /** Скрытые слова cloze можно поменять: cloze ещё не в Anki. */
+  can_edit_cloze: boolean
 }
 
 export interface SourceDetail {
@@ -292,6 +352,9 @@ export interface SourceDetail {
   video_downloaded: boolean
   error_message: string | null
   processing_stage: ProcessingStage | null
+  busy_with: SourceOperationKind | null
+  /** Слов на изучение (не карточек). */
+  learn_count: number
   created_at: string
   candidates: StoredCandidate[]
   /** How many candidates to show before "Show more"; null — show all. */
@@ -308,6 +371,8 @@ export interface AnkiStatus {
 
 export interface CardPreview {
   candidate_id: number
+  /** Карточка списка ревью, откуда пришла заметка: фраза решения. */
+  phrase_id: number
   lemma: string
   sentence: string
   meaning: string | null
@@ -326,7 +391,7 @@ export interface CardPreview {
   is_cloze: boolean
 }
 
-export type MissingCardPart = 'meaning' | 'audio'
+export type MissingCardPart = 'meaning' | 'audio' | 'cloze'
 
 export type ExportGroup = 'ready' | 'incomplete'
 
@@ -360,6 +425,18 @@ export interface SyncResult {
   errors: number
   skipped_lemmas: string[]
   error_lemmas: string[]
+}
+
+/** Слово в Anki и день, когда оно станет Known. */
+export interface InAnkiWord {
+  lemma: string
+  known_on: string
+}
+
+/** Слова «учу», только для просмотра: заметки в Anki и Learn, ещё не экспортированные. */
+export interface LearningWords {
+  in_anki: InAnkiWord[]
+  awaiting_export: string[]
 }
 
 export interface Settings {
@@ -413,11 +490,14 @@ export interface UnknownWord {
   created_at: string
 }
 
+/** Слово из списка Known (есть id) или Known по 30 дням в Anki (by_timer, без id); удаляется по removal_key. */
 export interface KnownWord {
-  id: number
+  id: number | null
   lemma: string
   pos: string | null
   created_at: string
+  removal_key: string
+  by_timer: boolean
 }
 
 export interface Stats {
@@ -474,12 +554,46 @@ export interface GenerationOverview {
   in_progress: boolean
 }
 
-export interface ReprocessStats {
-  learn_count: number
-  known_count: number
-  skip_count: number
-  pending_count: number
-  has_active_jobs: boolean
+/** Что меняет Rebuild — числа для человека; считает backend. */
+export interface RebuildCounts {
+  words_added: number
+  words_removed: number
+  /** Карточки получат другую фразу без генерации. */
+  cards_new_phrase: number
+  /** У карточек изменился текст: их генерация сбросится. */
+  cards_text_reset: number
+  /** Показанные карточки без генерации после Rebuild. */
+  cards_without_generation: number
+  nothing_to_update: boolean
+}
+
+/** Превью Rebuild: без галочки «Also unreviewed cards» и с ней. */
+export interface RebuildPreview {
+  without_open: RebuildCounts
+  with_open: RebuildCounts
+}
+
+export interface RebuildSummary {
+  include_open: boolean
+  counts: RebuildCounts
+}
+
+export interface TopicRefreshSummary {
+  words_added: number
+  phrases_added: number
+}
+
+/** Долгая операция над источником (Rebuild, его превью, Refresh темы), запущенная в фоне. */
+export interface SourceOperation {
+  operation_id: number
+  kind: SourceOperationKind
+  state: 'running' | 'done' | 'error'
+  /** Что сказать, пока операция идёт; пишет backend. */
+  caption: string
+  preview: RebuildPreview | null
+  summary: RebuildSummary | null
+  refresh: TopicRefreshSummary | null
+  error: string | null
 }
 
 /** Кусок одного блока документа источника; символы — code points, конец не включается. */
@@ -516,7 +630,8 @@ export interface DocumentBlock {
 }
 
 export interface Highlight {
-  candidate_id: number
+  phrase_id: number
+  word_id: number
   position: DocumentPosition
   cefr_level: string | null
   is_phrasal_verb: boolean

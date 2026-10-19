@@ -10,17 +10,16 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.models import dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_pronunciation_repository import (
     SqlaCandidatePronunciationRepository,
 )
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from tests.phrase_support import phrase
+from tests.word_support import insert_word
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -29,13 +28,10 @@ if TYPE_CHECKING:
 
 
 def _insert_candidate(session: Session, candidate_id: int, lemma: str, source_id: int = 1) -> None:
-    session.execute(text(
-        "INSERT INTO candidates (id, source_id, lemma, pos, "
-        "zipf_frequency, is_sweet_spot, source_phrase, "
-        "occurrences, status, is_phrasal_verb) "
-        f"VALUES ({candidate_id}, {source_id}, '{lemma}', 'NOUN', "
-        "4.0, 1, :phrase, 1, 'learn', 0)"
-    ), {"phrase": dump_phrase(phrase(f"a {lemma}", lemma))})
+    insert_word(
+        session, candidate_id, source_id=source_id, lemma=lemma, status="learn",
+        phrase_text=f"a {lemma}", zipf_frequency=4.0, is_sweet_spot=True,
+    )
 
 
 @pytest.mark.integration
@@ -59,11 +55,7 @@ class TestPronunciationPipeline:
             pron_repo = SqlaCandidatePronunciationRepository(session)
             candidate_repo = SqlaCandidateRepository(session)
 
-            # Step 1: verify eligibility
-            eligible = pron_repo.get_eligible_candidate_ids(source_id=1)
-            assert set(eligible) == {1, 2}
-
-            # Step 2: run download use case
+            # Step 1: run download use case
             pron_source = MagicMock()
             pron_source.get_audio_urls.return_value = (
                 "https://cdn/us/hello.mp3",
@@ -82,17 +74,15 @@ class TestPronunciationPipeline:
 
             session.commit()
 
-            # Step 3: verify result
-            result = pron_repo.get_by_candidate_id(1)
+            # Step 2: verify result
+            word = candidate_repo.get_by_id(1)
+            assert word is not None
+            result = word.pronunciation
             assert result is not None
             assert result.us_audio_path is not None
             assert "1_pron_us.mp3" in result.us_audio_path
             assert result.uk_audio_path is not None
             assert "1_pron_uk.mp3" in result.uk_audio_path
-
-            # Step 4: candidate 1 no longer eligible
-            remaining = pron_repo.get_eligible_candidate_ids(source_id=1)
-            assert 1 not in remaining
 
     def test_no_audio_available(self, tmp_path: Path) -> None:
         """Word not in Cambridge -> stored with no paths."""
@@ -121,7 +111,9 @@ class TestPronunciationPipeline:
             use_case.execute_one(1)
             session.commit()
 
-            result = pron_repo.get_by_candidate_id(1)
+            word = candidate_repo.get_by_id(1)
+            assert word is not None
+            result = word.pronunciation
             assert result is not None
             assert result.us_audio_path is None
             assert result.uk_audio_path is None

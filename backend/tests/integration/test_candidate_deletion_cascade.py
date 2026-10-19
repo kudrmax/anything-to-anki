@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
@@ -18,6 +18,7 @@ from sqlalchemy import text
 
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.word_support import CardSeed, store_cards
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -25,40 +26,43 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.integration
 
 SOURCE_ID = 1
-ENRICHMENT_TABLES = (
-    "candidate_meanings",
-    "candidate_media",
-    "candidate_pronunciations",
-    "candidate_tts",
-    "anki_synced_cards",
-)
+WORD_TABLES = ("candidate_pronunciations", "anki_synced_cards", "phrases")
+PHRASE_TABLES = ("candidate_meanings", "candidate_media", "candidate_tts")
 
 
 def _create_candidate(repo: SqlaCandidateRepository, lemma: str) -> int:
-    created = repo.create_batch([
-        StoredCandidate(
-            source_id=SOURCE_ID,
-            lemma=lemma,
-            pos="NOUN",
-            cefr_level=None,
-            zipf_frequency=4.0,
-            source_phrase=phrase(f"a {lemma}", lemma),
-            occurrences=1,
-            status=CandidateStatus.PENDING,
+    created = store_cards(repo._session, [
+        CardSeed(
+            StoredCandidate(
+                source_id=SOURCE_ID,
+                lemma=lemma,
+                pos="NOUN",
+                cefr_level=None,
+                zipf_frequency=4.0,
+                occurrences=1,
+                status=WordStatus.NEW,
+            ),
+            phrase(f"a {lemma}", lemma),
         )
     ])[0]
-    assert created.id is not None
-    return created.id
+    return created.word_id
 
 
-def _enrich(session: Session, candidate_id: int) -> None:
-    params = {"cid": candidate_id}
+def _phrase_of(session: Session, candidate_id: int) -> int:
+    phrase_id: int = session.execute(
+        text("SELECT id FROM phrases WHERE candidate_id = :cid"), {"cid": candidate_id},
+    ).scalar_one()
+    return phrase_id
+
+
+def _enrich(session: Session, candidate_id: int, phrase_id: int) -> None:
+    params = {"cid": candidate_id, "pid": phrase_id}
     session.execute(
-        text("INSERT INTO candidate_meanings (candidate_id, meaning) VALUES (:cid, 'm')"),
+        text("INSERT INTO candidate_meanings (phrase_id, meaning) VALUES (:pid, 'm')"),
         params,
     )
     session.execute(
-        text("INSERT INTO candidate_media (candidate_id, screenshot_path) VALUES (:cid, 's')"),
+        text("INSERT INTO candidate_media (phrase_id, screenshot_path) VALUES (:pid, 's')"),
         params,
     )
     session.execute(
@@ -69,19 +73,23 @@ def _enrich(session: Session, candidate_id: int) -> None:
         params,
     )
     session.execute(
-        text("INSERT INTO candidate_tts (candidate_id, audio_path) VALUES (:cid, 't')"),
+        text("INSERT INTO candidate_tts (phrase_id, audio_path) VALUES (:pid, 't')"),
         params,
     )
     session.execute(
-        text("INSERT INTO anki_synced_cards (candidate_id, anki_note_id) VALUES (:cid, 1)"),
+        text(
+            "INSERT INTO anki_synced_cards (candidate_id, phrase_id, anki_note_id, lemma,"
+            " note_kind, card_choice, learning_since) VALUES (:cid, :pid, 1, 'advance',"
+            " 'learn', 'learn', '2026-10-18 12:00:00')"
+        ),
         params,
     )
 
 
-def _rows_for(session: Session, table: str, candidate_id: int) -> int:
+def _rows_for(session: Session, table: str, column: str, row_id: int) -> int:
     count: int = session.execute(
-        text(f"SELECT COUNT(*) FROM {table} WHERE candidate_id = :cid"),
-        {"cid": candidate_id},
+        text(f"SELECT COUNT(*) FROM {table} WHERE {column} = :id"),  # noqa: S608
+        {"id": row_id},
     ).scalar_one()
     return count
 
@@ -90,12 +98,21 @@ def test_deleting_candidates_removes_their_enrichment(db_session: Session) -> No
     insert_source(db_session, SOURCE_ID)
     repo = SqlaCandidateRepository(db_session)
     candidate_id = _create_candidate(repo, "advance")
-    _enrich(db_session, candidate_id)
+    phrase_id = _phrase_of(db_session, candidate_id)
+    _enrich(db_session, candidate_id, phrase_id)
 
     repo.delete_by_source(SOURCE_ID)
 
-    for table in ENRICHMENT_TABLES:
-        assert _rows_for(db_session, table, candidate_id) == 0, table
+    for table in WORD_TABLES:
+        assert _rows_for(db_session, table, "candidate_id", candidate_id) == 0, table
+    for table in PHRASE_TABLES:
+        assert _rows_for(db_session, table, "phrase_id", phrase_id) == 0, table
+    kept = db_session.execute(text(
+        "SELECT candidate_id, phrase_id, lemma FROM anki_synced_cards"
+    )).all()
+    assert [tuple(row) for row in kept] == [(None, None, "advance")], (
+        "an Anki binding outlives its card: the word stays learning by its lemma"
+    )
 
 
 def test_candidate_ids_are_never_reused(db_session: Session) -> None:

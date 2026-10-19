@@ -8,11 +8,11 @@ from backend.domain.entities.job import Job
 from backend.domain.value_objects.job_selection import UNKNOWN_JOB_ERROR, JobSelection
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
-from backend.infrastructure.persistence.models import JobModel, dump_phrase
+from backend.infrastructure.persistence.models import JobModel
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from sqlalchemy import text
 
-from tests.phrase_support import phrase
+from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -27,12 +27,7 @@ def _insert_source(session: Session, source_id: int) -> None:
 
 
 def _insert_candidate(session: Session, candidate_id: int, source_id: int) -> None:
-    session.execute(text(
-        "INSERT INTO candidates (id, source_id, lemma, pos, "
-        "zipf_frequency, is_sweet_spot, source_phrase, "
-        "occurrences, status, is_phrasal_verb) "
-        "VALUES (:id, :sid, 'word', 'NOUN', 3.0, 0, :phrase, 1, 'pending', 0)"
-    ), {"id": candidate_id, "sid": source_id, "phrase": dump_phrase(phrase("word"))})
+    insert_word(session, candidate_id, source_id=source_id)
     session.flush()
 
 
@@ -763,3 +758,89 @@ class TestSqlaJobRepository:
         assert groups[0].count == 3
         assert groups[1].error == "rare"
         assert groups[1].count == 1
+
+
+FIRST = phrase_id_of(1)
+SECOND = FIRST + 1
+
+
+def _add_phrase(session: Session, phrase_id: int, word_id: int) -> None:
+    """Another shown phrase of the word."""
+    session.execute(text(
+        "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, choice,"
+        " created_at)"
+        " SELECT :id, candidate_id, source_phrase, 'manual', 'user', 'none', created_at"
+        " FROM phrases WHERE id = :first"
+    ), {"id": phrase_id, "first": phrase_id_of(word_id)})
+
+
+def _phrase_job(
+    phrase_id: int, status: JobStatus = JobStatus.QUEUED, word_id: int = 1,
+) -> Job:
+    return Job(
+        id=None, job_type=JobType.MEANING, candidate_id=word_id, source_id=1, status=status,
+        error="boom" if status is JobStatus.FAILED else None,
+        created_at=datetime(2026, 1, 1, tzinfo=UTC), started_at=None,
+        phrase_id=phrase_id, phrase_revision=0,
+    )
+
+
+@pytest.mark.integration
+class TestJobsOfPhrases:
+    """A phrase job is keyed by its phrase: the phrases of one word are worked on apart."""
+
+    @pytest.fixture()
+    def repo(self, db_session: Session) -> SqlaJobRepository:
+        _insert_source(db_session, 1)
+        _insert_candidate(db_session, 1, 1)
+        _add_phrase(db_session, SECOND, 1)
+        return SqlaJobRepository(db_session)
+
+    def test_each_phrase_of_a_word_gets_its_own_job(self, repo: SqlaJobRepository) -> None:
+        queued = repo.enqueue([_phrase_job(FIRST), _phrase_job(SECOND)])
+
+        assert [(j.candidate_id, j.phrase_id, j.phrase_revision) for j in queued] == [
+            (1, FIRST, 0), (1, SECOND, 0),
+        ]
+
+    def test_a_phrase_already_queued_is_not_queued_again(
+        self, repo: SqlaJobRepository,
+    ) -> None:
+        repo.enqueue([_phrase_job(FIRST)])
+
+        assert repo.enqueue([_phrase_job(FIRST)]) == []
+        assert [j.phrase_id for j in repo.enqueue([_phrase_job(SECOND)])] == [SECOND]
+
+    def test_completing_a_phrase_job_keeps_the_failure_of_another_phrase(
+        self, repo: SqlaJobRepository, db_session: Session,
+    ) -> None:
+        _insert(db_session, [_phrase_job(SECOND, JobStatus.FAILED)])
+        [queued] = repo.enqueue([_phrase_job(FIRST)])
+
+        repo.complete([queued])
+
+        assert [j.phrase_id for j in repo.get_jobs_by_status([JobStatus.FAILED])] == [SECOND]
+
+    def test_retry_keeps_a_failure_whose_phrase_is_queued_elsewhere_apart(
+        self, repo: SqlaJobRepository, db_session: Session,
+    ) -> None:
+        _insert(db_session, [_phrase_job(SECOND, JobStatus.FAILED)])
+        repo.enqueue([_phrase_job(FIRST)])
+
+        assert repo.retry(JobSelection(job_type=JobType.MEANING)) == 1
+
+    def test_jobs_are_read_by_phrase(
+        self, repo: SqlaJobRepository, db_session: Session,
+    ) -> None:
+        _insert(db_session, [_phrase_job(FIRST), _phrase_job(SECOND, JobStatus.FAILED)])
+
+        jobs = repo.get_jobs_for_phrases([FIRST, SECOND])
+
+        assert {pid: by_type["meaning"].status for pid, by_type in jobs.items()} == {
+            FIRST: JobStatus.QUEUED, SECOND: JobStatus.FAILED,
+        }
+
+    def test_a_word_job_has_no_phrase(self, repo: SqlaJobRepository) -> None:
+        [queued] = repo.enqueue([Job.queued(JobType.PRONUNCIATION, 1, 1)])
+
+        assert (queued.phrase_id, queued.phrase_revision) == (None, None)

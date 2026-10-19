@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import NoteTemplates
-from backend.application.utils.export_queue import ExportQueue
+from backend.application.utils.export_queue import ExportCard
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
@@ -15,17 +15,18 @@ from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import AnkiNotAvailableError, AnkiNoteTypeIncompleteError
-from backend.domain.services.cloze_builder import ClozeBuilder
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.word_status import WordStatus
 
+from tests.export_support import ExportCards, export_card, in_anki, with_phrase, with_word
 from tests.phrase_support import phrase
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.scope_fakes import empty_scope_resolver
 from tests.unit.application.source_fakes import InMemorySourceRepository
 from tests.vocabulary_support import user_vocabulary
+from tests.word_support import phrase_id_of
 
 
 class _EveryField(list[str]):
@@ -38,7 +39,7 @@ class _EveryField(list[str]):
 def _make_candidate(
     candidate_id: int,
     lemma: str,
-    status: CandidateStatus,
+    status: WordStatus,
     meaning: str | None = None,
     ipa: str | None = None,
     translation: str | None = None,
@@ -46,7 +47,7 @@ def _make_candidate(
     examples: str | None = None,
     source_id: int = 1,
     tts_path: str | None = "/tmp/tts.mp3",
-) -> StoredCandidate:
+) -> ExportCard:
     meaning_obj = None
     if any(v is not None for v in (meaning, ipa, translation, synonyms, examples)):
         meaning_obj = CandidateMeaning(
@@ -58,16 +59,18 @@ def _make_candidate(
             ipa=ipa,
             generated_at=datetime(2026, 4, 7, tzinfo=UTC),
         )
-    return StoredCandidate(
-        id=candidate_id,
-        source_id=source_id,
-        lemma=lemma,
-        pos="NOUN",
-        cefr_level="B2",
-        zipf_frequency=3.5,
-        source_phrase=phrase(f"context with {lemma} here", lemma),
-        occurrences=1,
-        status=status,
+    return export_card(
+        StoredCandidate(
+            id=candidate_id,
+            source_id=source_id,
+            lemma=lemma,
+            pos="NOUN",
+            cefr_level="B2",
+            zipf_frequency=3.5,
+            occurrences=1,
+            status=status,
+        ),
+        phrase(f"context with {lemma} here", lemma),
         meaning=meaning_obj,
         media=None,
         tts=CandidateTTS(candidate_id=candidate_id, audio_path=tts_path, generated_at=None),
@@ -77,51 +80,44 @@ def _make_candidate(
 @pytest.mark.unit
 class TestSyncToAnkiUseCase:
     def setup_method(self) -> None:
-        self.candidate_repo = MagicMock()
+        self.cards = ExportCards()
         self.anki_connector = MagicMock()
         self.settings_repo = MagicMock()
-        self.anki_sync_repo = MagicMock()
         self.template_renderer = MagicMock()
-        self.known_word_repo = MagicMock()
         self.template_renderer.render_recognition.return_value = NoteTemplates(
             "<front/>", "<back/>", "",
         )
         self.settings_repo.get.return_value = None  # use default deck
         self.anki_connector.get_model_field_names.return_value = _EveryField()
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
-        self.use_case = SyncToAnkiUseCase(
-            export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
-            anki_connector=self.anki_connector,
-            settings_repo=self.settings_repo,
-            anki_sync_repo=self.anki_sync_repo,
-            template_renderer=self.template_renderer,
-            vocabulary=user_vocabulary(self.known_word_repo),
-            cloze_builder=ClozeBuilder(),
-            scope_resolver=empty_scope_resolver(),
+        self.use_case = self.cards.sync(
+            self.anki_connector,
+            self.settings_repo,
+            self.template_renderer,
+            empty_scope_resolver(),
         )
 
     def test_returns_zero_when_no_learn_candidates(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "word", CandidateStatus.SKIP),
-        ]
+        self.cards.put([
+            _make_candidate(1, "word", WordStatus.NEW),
+        ])
         result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
         assert result.total == 0
         assert result.added == 0
-        self.anki_connector.is_available.assert_not_called()
+        self.anki_connector.add_notes.assert_not_called()
 
     def test_raises_when_anki_unavailable(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "word", CandidateStatus.LEARN),
-        ]
+        self.cards.put([
+            _make_candidate(1, "word", WordStatus.LEARN),
+        ])
         self.anki_connector.is_available.return_value = False
         with pytest.raises(AnkiNotAvailableError):
             self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
 
     def test_adds_new_cards(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "burnout", CandidateStatus.LEARN, meaning="выгорание"),
-            _make_candidate(2, "relentless", CandidateStatus.LEARN, meaning="неумолимый"),
-        ]
+        self.cards.put([
+            _make_candidate(1, "burnout", WordStatus.LEARN, meaning="выгорание"),
+            _make_candidate(2, "relentless", WordStatus.LEARN, meaning="неумолимый"),
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -131,16 +127,15 @@ class TestSyncToAnkiUseCase:
         assert result.added == 2
         assert result.skipped == 0
         assert result.errors == 0
-        assert self.known_word_repo.add.call_count == 2
-        self.known_word_repo.add.assert_any_call("burnout", "NOUN")
-        self.known_word_repo.add.assert_any_call("relentless", "NOUN")
+        assert self.cards.bound_notes() == [
+            (12345, "burnout", "NOUN"), (12345, "relentless", "NOUN"),
+        ]
 
     def test_exports_only_not_yet_exported_candidates(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "burnout", CandidateStatus.LEARN),
-            _make_candidate(2, "relentless", CandidateStatus.LEARN),
-        ]
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}  # burnout already exported
+        self.cards.put([
+            in_anki(_make_candidate(1, "burnout", WordStatus.LEARN)),
+            _make_candidate(2, "relentless", WordStatus.LEARN),
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [99999]
 
@@ -153,40 +148,40 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.add_notes.assert_called_once()
         call_notes = self.anki_connector.add_notes.call_args[1]["notes"]
         assert call_notes[0]["Target"] == "relentless"
-        self.known_word_repo.add.assert_called_once_with("relentless", "NOUN")
+        assert self.cards.bound_notes() == [(99999, "relentless", "NOUN")]
 
     def test_all_already_exported_returns_without_calling_anki(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "burnout", CandidateStatus.LEARN),
-        ]
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = {1}
+        self.cards.put([
+            in_anki(_make_candidate(1, "burnout", WordStatus.LEARN)),
+        ])
 
         result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
 
         assert result.total == 0
         assert result.added == 0
         assert result.skipped == 0
-        self.anki_connector.is_available.assert_not_called()
         self.anki_connector.add_notes.assert_not_called()
-        self.known_word_repo.add.assert_not_called()
+        assert self.cards.bindings == []
 
     def test_marks_synced_after_successful_add(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "burnout", CandidateStatus.LEARN),
-        ]
+        self.cards.put([
+            _make_candidate(1, "burnout", WordStatus.LEARN),
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
         self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
 
-        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 12345)
-        self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
+        assert [(b.word_id, b.phrase_id, b.note_id) for b in self.cards.bindings] == [
+            (1, phrase_id_of(1), 12345),
+        ]
+        assert self.cards.bound_notes() == [(12345, "burnout", "NOUN")]
 
     def test_counts_as_skipped_when_note_already_exists_in_anki(self) -> None:
         # add_notes returns None (allowDuplicate=False), but note exists in Anki
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "burnout", CandidateStatus.LEARN),
-        ]
+        self.cards.put([
+            _make_candidate(1, "burnout", WordStatus.LEARN),
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [None]
         self.anki_connector.find_notes_by_target.return_value = [99999]
@@ -197,13 +192,15 @@ class TestSyncToAnkiUseCase:
         assert result.skipped == 1
         assert result.skipped_lemmas == ["burnout"]
         assert result.errors == 0
-        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 99999)
-        self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
+        assert [(b.word_id, b.phrase_id, b.note_id) for b in self.cards.bindings] == [
+            (1, phrase_id_of(1), 99999),
+        ]
+        assert self.cards.bound_notes() == [(99999, "burnout", "NOUN")]
 
     def test_counts_errors_when_add_fails_and_note_not_found(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "burnout", CandidateStatus.LEARN),
-        ]
+        self.cards.put([
+            _make_candidate(1, "burnout", WordStatus.LEARN),
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [None]
         self.anki_connector.find_notes_by_target.return_value = []
@@ -213,13 +210,12 @@ class TestSyncToAnkiUseCase:
         assert result.added == 0
         assert result.errors == 1
         assert result.error_lemmas == ["burnout"]
-        self.anki_sync_repo.mark_synced.assert_not_called()
-        self.known_word_repo.add.assert_not_called()
+        assert self.cards.bindings == []
 
     def test_duplicate_exception_marks_synced_and_counts_as_skipped(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "burnout", CandidateStatus.LEARN),
-        ]
+        self.cards.put([
+            _make_candidate(1, "burnout", WordStatus.LEARN),
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.side_effect = RuntimeError(
             "AnkiConnect error: ['cannot create note because it is a duplicate']"
@@ -232,13 +228,15 @@ class TestSyncToAnkiUseCase:
         assert result.skipped == 1
         assert result.skipped_lemmas == ["burnout"]
         assert result.errors == 0
-        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 99999)
-        self.known_word_repo.add.assert_called_once_with("burnout", "NOUN")
+        assert [(b.word_id, b.phrase_id, b.note_id) for b in self.cards.bindings] == [
+            (1, phrase_id_of(1), 99999),
+        ]
+        assert self.cards.bound_notes() == [(99999, "burnout", "NOUN")]
 
     def test_counts_errors_on_exception(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "burnout", CandidateStatus.LEARN),
-        ]
+        self.cards.put([
+            _make_candidate(1, "burnout", WordStatus.LEARN),
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.side_effect = RuntimeError("some unexpected error")
 
@@ -247,13 +245,12 @@ class TestSyncToAnkiUseCase:
         assert result.added == 0
         assert result.errors == 1
         assert result.error_lemmas == ["burnout"]
-        self.anki_sync_repo.mark_synced.assert_not_called()
-        self.known_word_repo.add.assert_not_called()
+        assert self.cards.bindings == []
 
     def test_meaning_from_candidate(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "thug", CandidateStatus.LEARN, meaning="бандит, головорез"),
-        ]
+        self.cards.put([
+            _make_candidate(1, "thug", WordStatus.LEARN, meaning="бандит, головорез"),
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -264,9 +261,9 @@ class TestSyncToAnkiUseCase:
         assert note[0]["Meaning"] == "бандит, головорез"
 
     def test_no_meaning_becomes_empty_string(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "thug", CandidateStatus.LEARN, meaning=None),
-        ]
+        self.cards.put([
+            _make_candidate(1, "thug", WordStatus.LEARN, meaning=None),
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -277,9 +274,9 @@ class TestSyncToAnkiUseCase:
         assert note[0]["Meaning"] == ""
 
     def test_ipa_from_candidate(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "thug", CandidateStatus.LEARN, ipa="/θʌɡ/"),
-        ]
+        self.cards.put([
+            _make_candidate(1, "thug", WordStatus.LEARN, ipa="/θʌɡ/"),
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -290,18 +287,8 @@ class TestSyncToAnkiUseCase:
         assert note[0]["IPA"] == "/θʌɡ/"
 
     def test_image_field_populated_when_media_present(self) -> None:
-        candidate = _make_candidate(1, "thug", CandidateStatus.LEARN, meaning="бандит")
-        candidate = StoredCandidate(
-            id=candidate.id,
-            source_id=candidate.source_id,
-            lemma=candidate.lemma,
-            pos=candidate.pos,
-            cefr_level=candidate.cefr_level,
-            zipf_frequency=candidate.zipf_frequency,
-            source_phrase=candidate.source_phrase,
-            occurrences=candidate.occurrences,
-            status=candidate.status,
-            meaning=candidate.meaning,
+        candidate = with_phrase(
+            _make_candidate(1, "thug", WordStatus.LEARN, meaning="бандит"),
             media=CandidateMedia(
                 candidate_id=1,
                 screenshot_path="/tmp/img.png",
@@ -311,7 +298,7 @@ class TestSyncToAnkiUseCase:
                 generated_at=datetime(2026, 4, 8, tzinfo=UTC),
             ),
         )
-        self.candidate_repo.get_by_source.return_value = [candidate]
+        self.cards.put([candidate])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -328,15 +315,15 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.store_media_file.assert_any_call("snd.mp3", "/tmp/snd.mp3")
 
     def test_frame_and_meaning_image_go_to_their_own_fields(self) -> None:
-        candidate = _make_candidate(1, "drain", CandidateStatus.LEARN, meaning="слив")
-        candidate.media = CandidateMedia(
+        candidate = _make_candidate(1, "drain", WordStatus.LEARN, meaning="слив")
+        candidate = with_phrase(candidate, media=CandidateMedia(
             candidate_id=1, screenshot_path="/tmp/1_screenshot.webp", audio_path=None,
             start_ms=0, end_ms=1000, generated_at=None,
-        )
-        candidate.meaning_image = CandidateMeaningImage(
+        ))
+        candidate = with_word(candidate, meaning_image=CandidateMeaningImage(
             candidate_id=1, image_path="/tmp/1_meaning.0a1b2c3d4e.webp",
-        )
-        self.candidate_repo.get_by_source.return_value = [candidate]
+        ))
+        self.cards.put([candidate])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -349,11 +336,11 @@ class TestSyncToAnkiUseCase:
         assert note["MeaningImage"] == '<img src="1_meaning.0a1b2c3d4e.webp">'
 
     def test_meaning_image_without_a_frame_leaves_the_front_picture_empty(self) -> None:
-        candidate = _make_candidate(1, "drain", CandidateStatus.LEARN, meaning="слив")
-        candidate.meaning_image = CandidateMeaningImage(
+        candidate = _make_candidate(1, "drain", WordStatus.LEARN, meaning="слив")
+        candidate = with_word(candidate, meaning_image=CandidateMeaningImage(
             candidate_id=1, image_path="/tmp/1_meaning.0a1b2c3d4e.webp",
-        )
-        self.candidate_repo.get_by_source.return_value = [candidate]
+        ))
+        self.cards.put([candidate])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -367,9 +354,9 @@ class TestSyncToAnkiUseCase:
 
     def test_image_audio_fields_absent_when_no_media(self) -> None:
         # _make_candidate constructs StoredCandidate with media=None
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "thug", CandidateStatus.LEARN, meaning="бандит"),
-        ]
+        self.cards.put([
+            _make_candidate(1, "thug", WordStatus.LEARN, meaning="бандит"),
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -383,11 +370,10 @@ class TestSyncToAnkiUseCase:
 
     def test_all_scope_aggregates_results(self) -> None:
         """The all scope pushes the learn candidates of every source in one go."""
-        candidate1 = _make_candidate(10, "burnout", CandidateStatus.LEARN, source_id=1)
-        candidate2 = _make_candidate(20, "pursuit", CandidateStatus.LEARN, source_id=2)
+        candidate1 = _make_candidate(10, "burnout", WordStatus.LEARN, source_id=1)
+        candidate2 = _make_candidate(20, "pursuit", WordStatus.LEARN, source_id=2)
 
-        self.candidate_repo.get_all_by_status.return_value = [candidate1, candidate2]
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        self.cards.put([candidate1, candidate2])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -398,13 +384,10 @@ class TestSyncToAnkiUseCase:
         assert result.errors == 0
 
     def test_all_scope_skips_sources_with_everything_exported(self) -> None:
-        exported = _make_candidate(10, "burnout", CandidateStatus.LEARN, source_id=1)
-        fresh = _make_candidate(20, "pursuit", CandidateStatus.LEARN, source_id=2)
+        exported = in_anki(_make_candidate(10, "burnout", WordStatus.LEARN, source_id=1))
+        fresh = _make_candidate(20, "pursuit", WordStatus.LEARN, source_id=2)
 
-        self.candidate_repo.get_all_by_status.return_value = [exported, fresh]
-        self.anki_sync_repo.get_synced_candidate_ids.side_effect = (
-            lambda ids: {10} & set(ids)
-        )
+        self.cards.put([exported, fresh])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -419,11 +402,11 @@ class TestSyncToAnkiUseCase:
         return list(self.anki_connector.add_notes.call_args_list)
 
     def test_exports_only_the_requested_group(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "ready", CandidateStatus.LEARN, meaning="done"),
-            _make_candidate(2, "no_meaning", CandidateStatus.LEARN),
-            _make_candidate(3, "no_audio", CandidateStatus.LEARN, meaning="done", tts_path=None),
-        ]
+        self.cards.put([
+            _make_candidate(1, "ready", WordStatus.LEARN, meaning="done"),
+            _make_candidate(2, "no_meaning", WordStatus.LEARN),
+            _make_candidate(3, "no_audio", WordStatus.LEARN, meaning="done", tts_path=None),
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -439,20 +422,20 @@ class TestSyncToAnkiUseCase:
         assert notes == ["no_meaning", "no_audio"]
 
     def test_all_scope_empty_when_no_learn(self) -> None:
-        self.candidate_repo.get_all_by_status.return_value = []
+        self.cards.put([])
         result = self.use_case.execute_scope(SourceScope.all(), ExportGroup.READY)
         assert result.total == 0
         assert result.added == 0
 
     def test_translation_and_synonyms_from_candidate(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
+        self.cards.put([
             _make_candidate(
-                1, "thug", CandidateStatus.LEARN,
+                1, "thug", WordStatus.LEARN,
                 meaning="бандит",
                 translation="бандит",
                 synonyms="ruffian, gangster",
             ),
-        ]
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -465,9 +448,9 @@ class TestSyncToAnkiUseCase:
 
     def test_translation_synonyms_omitted_for_legacy_records(self) -> None:
         # Legacy candidate has meaning but translation and synonyms are NULL
-        self.candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "thug", CandidateStatus.LEARN, meaning="бандит"),
-        ]
+        self.cards.put([
+            _make_candidate(1, "thug", WordStatus.LEARN, meaning="бандит"),
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -479,16 +462,16 @@ class TestSyncToAnkiUseCase:
         assert "Synonyms" not in note[0]
 
     def test_examples_formatted_as_bullet_list(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
+        self.cards.put([
             _make_candidate(
-                1, "aisle", CandidateStatus.LEARN,
+                1, "aisle", WordStatus.LEARN,
                 meaning="проход",
                 examples=(
                     "The bride walked down the **aisle**.\n"
                     "All guests stood at the end of the **aisle**."
                 ),
             ),
-        ]
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -506,14 +489,14 @@ class TestSyncToAnkiUseCase:
         assert examples.count("<li>") == 2
 
     def test_translation_and_synonyms_formatted_with_highlight(self) -> None:
-        self.candidate_repo.get_by_source.return_value = [
+        self.cards.put([
             _make_candidate(
-                1, "thug", CandidateStatus.LEARN,
+                1, "thug", WordStatus.LEARN,
                 meaning="бандит",
                 translation="бандит\nголоворез",
                 synonyms="ruffian\ngangster",
             ),
-        ]
+        ])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -527,16 +510,18 @@ class TestSyncToAnkiUseCase:
 
     def test_image_field_skipped_when_file_missing(self) -> None:
         # Media is recorded but the file no longer exists on disk.
-        candidate = StoredCandidate(
-            id=1,
-            source_id=1,
-            lemma="thug",
-            pos="NOUN",
-            cefr_level="B2",
-            zipf_frequency=3.5,
-            source_phrase=phrase("context with thug here", "thug"),
-            occurrences=1,
-            status=CandidateStatus.LEARN,
+        candidate = export_card(
+            StoredCandidate(
+                id=1,
+                source_id=1,
+                lemma="thug",
+                pos="NOUN",
+                cefr_level="B2",
+                zipf_frequency=3.5,
+                occurrences=1,
+                status=WordStatus.LEARN,
+            ),
+            phrase("context with thug here", "thug"),
             meaning=CandidateMeaning(
                 candidate_id=1,
                 meaning="бандит",
@@ -555,7 +540,7 @@ class TestSyncToAnkiUseCase:
                 generated_at=datetime(2026, 4, 8, tzinfo=UTC),
             ),
         )
-        self.candidate_repo.get_by_source.return_value = [candidate]
+        self.cards.put([candidate])
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
@@ -573,27 +558,21 @@ class TestSyncToAnkiUseCase:
 @pytest.mark.unit
 class TestSyncRefusesIncompleteNoteType:
     def _use_case(self, model_fields: list[str] | None) -> tuple[SyncToAnkiUseCase, MagicMock]:
-        candidate_repo = MagicMock()
-        candidate_repo.get_by_source.return_value = [
-            _make_candidate(1, "burnout", CandidateStatus.LEARN, meaning="выгорание"),
-        ]
+        cards = ExportCards()
+        cards.put([
+            _make_candidate(1, "burnout", WordStatus.LEARN, meaning="выгорание"),
+        ])
         connector = MagicMock()
         connector.is_available.return_value = True
         connector.get_model_field_names.return_value = model_fields
         settings_repo = MagicMock()
         names = {"anki_note_type": "Main"}
         settings_repo.get.side_effect = lambda key, default=None: names.get(key)
-        anki_sync_repo = MagicMock()
-        anki_sync_repo.get_synced_candidate_ids.return_value = set()
-        use_case = SyncToAnkiUseCase(
-            export_queue=ExportQueue(candidate_repo, anki_sync_repo),
-            anki_connector=connector,
-            settings_repo=settings_repo,
-            anki_sync_repo=anki_sync_repo,
-            template_renderer=MagicMock(),
-            vocabulary=user_vocabulary(MagicMock()),
-            cloze_builder=ClozeBuilder(),
-            scope_resolver=empty_scope_resolver(),
+        use_case = cards.sync(
+            connector,
+            settings_repo,
+            MagicMock(),
+            empty_scope_resolver(),
         )
         return use_case, connector
 
@@ -619,13 +598,11 @@ class TestSyncRefusesIncompleteNoteType:
 @pytest.mark.unit
 class TestSyncCollectionScope:
     def test_sync_scope_pushes_only_scope_cards(self) -> None:
-        candidate_repo = MagicMock()
-        candidate_repo.get_all_by_status.return_value = [
-            _make_candidate(1, "burnout", CandidateStatus.LEARN, meaning="done", source_id=1),
-            _make_candidate(2, "pursuit", CandidateStatus.LEARN, meaning="done", source_id=2),
-        ]
-        anki_sync_repo = MagicMock()
-        anki_sync_repo.get_synced_candidate_ids.return_value = set()
+        cards = ExportCards()
+        cards.put([
+            _make_candidate(1, "burnout", WordStatus.LEARN, meaning="done", source_id=1),
+            _make_candidate(2, "pursuit", WordStatus.LEARN, meaning="done", source_id=2),
+        ])
         connector = MagicMock()
         connector.is_available.return_value = True
         connector.get_model_field_names.return_value = _EveryField()
@@ -634,17 +611,13 @@ class TestSyncCollectionScope:
             Source(id=1, status=SourceStatus.DONE, collection_id=5),
             Source(id=2, status=SourceStatus.DONE),
         ]
-        use_case = SyncToAnkiUseCase(
-            export_queue=ExportQueue(candidate_repo, anki_sync_repo),
-            anki_connector=connector,
-            settings_repo=MagicMock(get=MagicMock(return_value=None)),
-            anki_sync_repo=anki_sync_repo,
-            template_renderer=MagicMock(
+        use_case = cards.sync(
+            connector,
+            MagicMock(get=MagicMock(return_value=None)),
+            MagicMock(
                 render_recognition=MagicMock(return_value=NoteTemplates("F", "B", "")),
             ),
-            vocabulary=user_vocabulary(),
-            cloze_builder=ClozeBuilder(),
-            scope_resolver=SourceScopeResolver(
+            SourceScopeResolver(
                 InMemorySourceRepository(sources),
                 InMemoryCollectionRepository([Collection(id=5, name="IELTS")]),
             ),
@@ -655,3 +628,85 @@ class TestSyncCollectionScope:
         pushed = [c.kwargs["notes"][0]["Target"] for c in connector.add_notes.call_args_list]
         assert result.total == 1
         assert pushed == ["burnout"]
+
+
+@pytest.mark.unit
+class TestSyncWhenAnkiIsOffline:
+    def setup_method(self) -> None:
+        self.cards = ExportCards()
+        self.cards.put([])
+        self.anki_connector = MagicMock()
+        self.anki_connector.is_available.return_value = True
+        self.anki_connector.get_model_field_names.return_value = _EveryField()
+        self.anki_connector.add_notes.return_value = [12345]
+        settings_repo = MagicMock()
+        settings_repo.get.return_value = None
+        renderer = MagicMock()
+        renderer.render_recognition.return_value = NoteTemplates("F", "B", "")
+        self.use_case = self.cards.sync(
+            self.anki_connector,
+            settings_repo,
+            renderer,
+            empty_scope_resolver(),
+        )
+
+    def test_an_export_with_nothing_new_does_not_ask_anki(self) -> None:
+        self.anki_connector.is_available.return_value = False
+
+        result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
+
+        assert result.total == 0
+        self.anki_connector.is_available.assert_not_called()
+
+    def test_anki_offline_with_new_cards_is_an_error(self) -> None:
+        self.anki_connector.is_available.return_value = False
+        self.cards.put([
+            _make_candidate(1, "burnout", WordStatus.LEARN),
+        ])
+
+        with pytest.raises(AnkiNotAvailableError):
+            self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+
+    def test_an_exported_word_records_its_note(self) -> None:
+        self.cards.put([
+            _make_candidate(1, "burnout", WordStatus.LEARN),
+        ])
+
+        result = self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+
+        assert result.added == 1
+        assert self.cards.bound_notes() == [(12345, "burnout", "NOUN")]
+
+
+@pytest.mark.unit
+class TestSyncInOneBatch:
+    """An export reads what the user knows a fixed number of times, however many cards it
+    binds."""
+
+    CARDS = 200
+
+    def test_a_big_export_reads_the_knowledge_a_fixed_number_of_times(self) -> None:
+        cards = ExportCards()
+        cards.put([
+            _make_candidate(i, f"word{i}", WordStatus.LEARN, meaning="m", source_id=1 + i % 2)
+            for i in range(1, self.CARDS + 1)
+        ])
+        known = MagicMock()
+        known.get_all_pairs.return_value = set()
+        connector = MagicMock()
+        connector.is_available.return_value = True
+        connector.get_model_field_names.return_value = _EveryField()
+        connector.add_notes.return_value = [12345]
+        settings = MagicMock()
+        settings.get.return_value = None
+        renderer = MagicMock()
+        renderer.render_recognition.return_value = NoteTemplates("F", "B", "")
+        use_case = cards.sync(
+            connector, settings, renderer, empty_scope_resolver(), user_vocabulary(known),
+        )
+
+        result = use_case.execute_scope(SourceScope.all(), ExportGroup.READY)
+
+        assert result.added == self.CARDS
+        assert len(cards.bindings) == self.CARDS
+        assert known.get_all_pairs.call_count <= 2  # noqa: PLR2004 — before, and once after

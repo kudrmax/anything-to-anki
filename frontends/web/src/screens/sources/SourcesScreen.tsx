@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { CollectionNode, Scope, ScopeCounts, SourceStage } from '@/api/types'
+import type { CollectionNode, Scope, ScopeCounts, SourceStage, SourceSummary } from '@/api/types'
 import { statsStore, useStats } from '@/hooks/useStats'
 import { backTo } from '@/lib/backLink'
 import { usePhone } from '@/lib/device'
@@ -15,7 +15,7 @@ import { AddSourceForm } from './AddSourceForm'
 import { CollectionTree } from './CollectionTree'
 import { MoveToModal } from './MoveToModal'
 import { NameModal } from './NameModal'
-import { ReprocessModal } from './ReprocessModal'
+import { RebuildDialog } from './RebuildDialog'
 import { ScopeHeader } from './ScopeHeader'
 import { ScopePicker } from './ScopePicker'
 import { SelectionBar } from './SelectionBar'
@@ -39,6 +39,7 @@ const END_POSITION = Number.MAX_SAFE_INTEGER
 
 type MoveTarget = { kind: 'sources'; ids: number[] } | { kind: 'collection'; id: number } | null
 type Naming = { kind: 'rename'; node: CollectionNode } | { kind: 'create'; parent: CollectionNode } | null
+type Operating = { id: number; title: string; operation: NonNullable<SourceSummary['available_operation']> } | null
 
 const sourcesWord = (n: number) => (n === 1 ? '1 source' : `${n} sources`)
 
@@ -56,7 +57,7 @@ export function SourcesScreen() {
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION)
   const [moveTarget, setMoveTarget] = useState<MoveTarget>(null)
   const [naming, setNaming] = useState<Naming>(null)
-  const [reprocessId, setReprocessId] = useState<number | null>(null)
+  const [operating, setOperating] = useState<Operating>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [processingAll, setProcessingAll] = useState(false)
   const [toast, showToast] = useToast()
@@ -87,6 +88,7 @@ export function SourcesScreen() {
   })
 
   const tree = collections.tree
+  const reloadBoard = useCallback(() => void boardReload.current(), [])
   const open = (next: Scope) => {
     setPickerOpen(false)
     setScope(next)
@@ -136,12 +138,6 @@ export function SourcesScreen() {
   const review = (id: number) => navigate(`/sources/${id}/review`, { state: backTo(`/${scopeQuery(scope)}`) })
   const exportSource = (id: number) => navigate(`/sources/${id}/export`)
   const exportScope = () => navigate(`${EXPORT_PATH}${scopeQuery(scope)}`)
-
-  const reprocess = (id: number) => {
-    const source = board.board?.groups.flatMap(g => g.sources).find(s => s.id === id)
-    if (source?.status === 'error') void board.reprocess(id)
-    else setReprocessId(id)
-  }
 
   const processAll = async () => {
     setProcessingAll(true)
@@ -307,7 +303,7 @@ export function SourcesScreen() {
                         onExport={exportSource}
                         onDelete={deleteSource}
                         onRename={(id, newTitle) => void board.rename(id, newTitle)}
-                        onReprocess={reprocess}
+                        onOperation={() => source.available_operation && setOperating({ id: source.id, title: source.title, operation: source.available_operation })}
                         onRowClick={rowClick}
                         onMoveTo={id => setMoveTarget({ kind: 'sources', ids: [id] })}
                         dragIds={() => dragIds(source.id)}
@@ -332,6 +328,15 @@ export function SourcesScreen() {
           )}
         </div>
       </div>
+      {operating && (
+        <RebuildDialog
+          sourceId={operating.id}
+          title={operating.title}
+          operation={operating.operation}
+          onFinished={reloadBoard}
+          onClose={() => { setOperating(null); void board.reload() }}
+        />
+      )}
       {moveTarget && tree && (
         <MoveToModal
           tree={tree}
@@ -349,14 +354,6 @@ export function SourcesScreen() {
           submitLabel={naming.kind === 'rename' ? 'Rename' : 'Create'}
           onSubmit={submitName}
           onClose={() => setNaming(null)}
-        />
-      )}
-      {reprocessId !== null && (
-        <ReprocessModal
-          sourceId={reprocessId}
-          onClose={() => setReprocessId(null)}
-          onReprocess={() => { const id = reprocessId; setReprocessId(null); void board.reprocess(id) }}
-          onOpenExport={exportSource}
         />
       )}
       <ToastStack raised={selectedIds.length > 0}>

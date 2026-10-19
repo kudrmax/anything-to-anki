@@ -3,21 +3,21 @@ from __future__ import annotations
 
 import json
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
 
 import pytest
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.usage_distribution import UsageDistribution
-from backend.infrastructure.persistence.models import StoredCandidateModel
+from backend.domain.value_objects.word_status import WordStatus
+from backend.infrastructure.persistence.models import (
+    StoredCandidateModel,
+)
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
 )
 
 from tests.candidate_sorter_support import threshold_resolver
-from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -29,7 +29,7 @@ class TestUsageSortingPipeline:
         """Settings roundtrip for usage_group_order."""
         settings_repo = SqlaSettingsRepository(db_session)
         settings_uc = ManageSettingsUseCase(
-            settings_repo, threshold_resolver(settings_repo), MagicMock(),
+            settings_repo, threshold_resolver(settings_repo),
         )
         custom_order = [
             "informal",
@@ -60,9 +60,8 @@ class TestUsageSortingPipeline:
             pos="JJ",
             cefr_level="B1",
             zipf_frequency=4.5,
-            source_phrase=phrase("that's cool", "cool"),
             occurrences=1,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.NEW,
             usage_distribution=UsageDistribution({"neutral": 0.6, "informal": 0.4}),
         )
         model = StoredCandidateModel.from_entity(candidate)
@@ -80,9 +79,8 @@ class TestUsageSortingPipeline:
             pos="NN",
             cefr_level="B1",
             zipf_frequency=3.0,
-            source_phrase=phrase("some context"),
             occurrences=1,
-            status=CandidateStatus.PENDING,
+            status=WordStatus.NEW,
             usage_distribution=None,
         )
         model = StoredCandidateModel.from_entity(candidate)

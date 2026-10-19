@@ -4,7 +4,18 @@ import json
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    UniqueConstraint,
+    or_,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.domain.entities.ai_usage_record import AIUsageRecord
@@ -19,31 +30,46 @@ from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.card_report import CardReport
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.known_word import KnownWord
+from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.topic_target import TopicTarget
 from backend.domain.entities.unknown_word import UnknownWord
 from backend.domain.entities.word_decision import WordDecision
+from backend.domain.services.card_view import CHOSEN_TO_LEARN
 from backend.domain.value_objects.ai_feature import AIFeature
-from backend.domain.value_objects.candidate_status import CandidateStatus
-from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
+from backend.domain.value_objects.built_analysis import WordData
+from backend.domain.value_objects.card_choice import DECISION_CHOICES, CardChoice, DecisionStatus
+from backend.domain.value_objects.cefr_breakdown import (
+    CAMBRIDGE,
+    CEFRPY,
+    EFLLEX,
+    KELLY,
+    OXFORD,
+    CEFRBreakdown,
+    SourceVote,
+)
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.format import Format
+from backend.domain.value_objects.frequency_band import FrequencyBand
 from backend.domain.value_objects.phrase import Phrase, Word
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
-from backend.domain.value_objects.processing_stage import ProcessingStage
+from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.source_eviction import SourceEviction
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.token_usage import TokenUsage
 from backend.domain.value_objects.usage_distribution import UsageDistribution
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.utc_datetime import UTCDateTime
 
 if TYPE_CHECKING:
+    from sqlalchemy import ColumnElement
+
     from backend.domain.entities.job import Job
 
 
@@ -101,6 +127,14 @@ def load_phrase(stored: str | None) -> Phrase | None:
         ),
         target=tuple(raw["target"]),
     )
+
+
+def cefr_level_of(breakdown: CEFRBreakdownModel | None) -> str | None:
+    """The word's level by its stored breakdown; None when unknown."""
+    if breakdown is None:
+        return None
+    level = _model_to_breakdown(breakdown).final_level
+    return None if level is CEFRLevel.UNKNOWN else level.name
 
 
 def _required_phrase(stored: str) -> Phrase:
@@ -188,7 +222,6 @@ class SourceModel(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="new")
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    processing_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     video_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     audio_track_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     collection_id: Mapped[int | None] = mapped_column(
@@ -211,9 +244,6 @@ class SourceModel(Base):
             status=SourceStatus(self.status),
             source_url=self.source_url,
             error_message=self.error_message,
-            processing_stage=(
-                ProcessingStage(self.processing_stage) if self.processing_stage else None
-            ),
             video_path=self.video_path,
             audio_track_index=self.audio_track_index,
             collection_id=self.collection_id,
@@ -258,49 +288,21 @@ class CEFRBreakdownModel(Base):
     kelly: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
 
-def _level_to_str(level: CEFRLevel) -> str | None:
-    """Convert CEFRLevel to string for DB storage. UNKNOWN -> None."""
-    if level is CEFRLevel.UNKNOWN:
-        return None
-    return level.name
-
-
 def _breakdown_to_model(breakdown: CEFRBreakdown) -> CEFRBreakdownModel:
-    """Map domain CEFRBreakdown to SQLAlchemy model."""
-    all_votes = [*breakdown.priority_votes, *breakdown.votes]
+    """Map domain CEFRBreakdown to SQLAlchemy model: what `CEFRBreakdown.reduced` keeps."""
+    model = CEFRBreakdownModel()
+    _write_breakdown(model, breakdown)
+    return model
 
-    cambridge: str | None = None
-    cefrpy: str | None = None
-    efllex_distribution: str | None = None
-    oxford: str | None = None
-    kelly: str | None = None
 
-    for vote in all_votes:
-        level_str = _level_to_str(vote.top_level)
-        if vote.source_name == "Cambridge Dictionary":
-            cambridge = level_str
-        elif vote.source_name == "CEFRpy":
-            cefrpy = level_str
-        elif vote.source_name == "EFLLex":
-            dist = {
-                lvl.name: round(prob, 4)
-                for lvl, prob in vote.distribution.items()
-                if lvl is not CEFRLevel.UNKNOWN and prob > 0
-            }
-            efllex_distribution = json.dumps(dist) if dist else None
-        elif vote.source_name == "Oxford 5000":
-            oxford = level_str
-        elif vote.source_name == "Kelly List":
-            kelly = level_str
-
-    return CEFRBreakdownModel(
-        decision_method=breakdown.decision_method,
-        cambridge=cambridge,
-        cefrpy=cefrpy,
-        efllex_distribution=efllex_distribution,
-        oxford=oxford,
-        kelly=kelly,
-    )
+def _write_breakdown(model: CEFRBreakdownModel, breakdown: CEFRBreakdown) -> None:
+    reduced = breakdown.reduced()
+    model.decision_method = breakdown.decision_method
+    model.cambridge = reduced.level_of(CAMBRIDGE)
+    model.cefrpy = reduced.level_of(CEFRPY)
+    model.efllex_distribution = json.dumps(dict(reduced.efllex)) if reduced.efllex else None
+    model.oxford = reduced.level_of(OXFORD)
+    model.kelly = reduced.level_of(KELLY)
 
 
 def _model_to_breakdown(model: CEFRBreakdownModel) -> CEFRBreakdown:
@@ -330,13 +332,13 @@ def _model_to_breakdown(model: CEFRBreakdownModel) -> CEFRBreakdown:
         return SourceVote(source_name=name, distribution=dist, top_level=top)
 
     priority_votes = [
-        _make_vote("Oxford 5000", model.oxford),
-        _make_vote("Cambridge Dictionary", model.cambridge),
+        _make_vote(OXFORD, model.oxford),
+        _make_vote(CAMBRIDGE, model.cambridge),
     ]
     votes = [
-        _make_vote("CEFRpy", model.cefrpy),
-        _make_vote("EFLLex", None, model.efllex_distribution),
-        _make_vote("Kelly List", model.kelly),
+        _make_vote(CEFRPY, model.cefrpy),
+        _make_vote(EFLLEX, None, model.efllex_distribution),
+        _make_vote(KELLY, model.kelly),
     ]
 
     final_level, decision_method = resolve_cefr_level(priority_votes, votes)
@@ -350,16 +352,22 @@ def _model_to_breakdown(model: CEFRBreakdownModel) -> CEFRBreakdown:
 
 
 class StoredCandidateModel(Base):
-    """SQLAlchemy model for word candidates.
-
-    Note: meaning and media live in separate tables (CandidateMeaningModel,
-    CandidateMediaModel) and are loaded by SqlaCandidateRepository, not here.
-    """
+    """SQLAlchemy model for the words of a source: one per lowercase lemma and
+    phrasal-verb flag. Its phrases live in `phrases` (PhraseModel)."""
 
     __tablename__ = "candidates"
     # Media files and enrichment are keyed by candidate id — an id must never
     # be handed out twice, which plain SQLite rowids do after deletions.
-    __table_args__ = {"sqlite_autoincrement": True}
+    __table_args__ = (
+        Index(
+            "ux_candidates_word",
+            "source_id",
+            text("lower(lemma)"),
+            "is_phrasal_verb",
+            unique=True,
+        ),
+        {"sqlite_autoincrement": True},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     source_id: Mapped[int] = mapped_column(
@@ -369,85 +377,93 @@ class StoredCandidateModel(Base):
     pos: Mapped[str] = mapped_column(String(10), nullable=False)
     zipf_frequency: Mapped[float] = mapped_column(Float, nullable=False)
     is_sweet_spot: Mapped[bool] = mapped_column(nullable=False)
-    source_phrase: Mapped[str] = mapped_column(Text, nullable=False)
     occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False, default=False)
     usage_distribution_json: Mapped[str | None] = mapped_column(
         "usage_distribution", Text, nullable=True
     )
-    origin_kind: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    origin_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    polished_phrase: Mapped[str | None] = mapped_column(Text, nullable=True)
-    polish_reverted: Mapped[bool] = mapped_column(
-        nullable=False, default=False, server_default="0"
-    )
-    phrase_position: Mapped[str | None] = mapped_column(Text, nullable=True)
-
     cefr_breakdown: Mapped[CEFRBreakdownModel | None] = relationship(
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
     )
 
+    # The SQL forms of the card view's word predicates, over the stored decision status.
+
+    @classmethod
+    def chosen_to_learn(cls) -> ColumnElement[bool]:
+        """`card_view.chosen_to_learn`: Learn or Learning."""
+        return cls.status.in_([status.value for status in CHOSEN_TO_LEARN])
+
+    @classmethod
+    def in_export_queue(cls) -> ColumnElement[bool]:
+        """`card_view.in_export_queue` as far as the stored decision says: a Learn not in
+        Anki yet. Whether its lemma was put in Known since (Q15) is knowledge, read in
+        `card_view.in_export_queue` with the request's knowledge scope."""
+        return cls.status == DecisionStatus.LEARN.value
+
     def to_entity(self) -> StoredCandidate:
-        """Build a StoredCandidate WITHOUT meaning/media — those are loaded
-        separately by SqlaCandidateRepository which then attaches them."""
-        bd: CEFRBreakdown | None = None
-        if self.cefr_breakdown is not None:
-            bd = _model_to_breakdown(self.cefr_breakdown)
-
-        cefr_level: str | None = None
-        if bd is not None and bd.final_level is not CEFRLevel.UNKNOWN:
-            cefr_level = bd.final_level.name
-
-        ud: UsageDistribution | None = None
-        if self.usage_distribution_json is not None:
-            ud = UsageDistribution(json.loads(self.usage_distribution_json))
-
+        """The word, WITHOUT its pronunciation and picture — the repository attaches those."""
+        data = self.word_data()
         return StoredCandidate(
             id=self.id,
             source_id=self.source_id,
             lemma=self.lemma,
-            pos=self.pos,
-            cefr_level=cefr_level,
-            zipf_frequency=self.zipf_frequency,
-            source_phrase=_required_phrase(self.source_phrase),
-            occurrences=self.occurrences,
+            pos=data.pos,
+            cefr_level=data.cefr_level,
+            zipf_frequency=data.zipf_frequency,
+            occurrences=data.occurrence_count,
             is_phrasal_verb=self.is_phrasal_verb,
-            status=CandidateStatus(self.status),
-            meaning=None,
-            media=None,
-            cefr_breakdown=bd,
-            usage_distribution=ud,
-            origin=self._origin(),
-            polished_phrase=load_phrase(self.polished_phrase),
-            polish_reverted=self.polish_reverted,
-            phrase_position=load_position(self.phrase_position),
+            status=WordStatus(self.status),
+            cefr_breakdown=data.cefr_breakdown,
+            usage_distribution=data.usage_distribution,
         )
 
-    def _origin(self) -> PhraseOrigin | None:
-        if self.origin_kind is None:
-            return None
-        return PhraseOrigin(
-            kind=PhraseOriginKind(self.origin_kind), source_title=self.origin_title,
+    def word_data(self) -> WordData:
+        """What the analysis said of the word, as stored."""
+        breakdown = (
+            _model_to_breakdown(self.cefr_breakdown) if self.cefr_breakdown is not None else None
         )
+        return WordData(
+            pos=self.pos,
+            cefr_level=cefr_level_of(self.cefr_breakdown),
+            zipf_frequency=self.zipf_frequency,
+            usage_distribution=(
+                UsageDistribution(json.loads(self.usage_distribution_json))
+                if self.usage_distribution_json is not None
+                else None
+            ),
+            occurrence_count=self.occurrences,
+            cefr_breakdown=breakdown,
+        )
+
+    def write_data(self, data: WordData) -> None:
+        self.pos = data.pos
+        self.zipf_frequency = data.zipf_frequency
+        self.is_sweet_spot = FrequencyBand.from_zipf(data.zipf_frequency).is_sweet_spot
+        self.occurrences = data.occurrence_count
+        groups = data.usage_distribution.to_dict() if data.usage_distribution else None
+        self.usage_distribution_json = json.dumps(groups) if groups else None
+        # The stored breakdown is rewritten in place: a new row for the word would be
+        # inserted before the old one is deleted and break the one-per-word index.
+        if data.cefr_breakdown is None:
+            self.cefr_breakdown = None
+        elif self.cefr_breakdown is None:
+            self.cefr_breakdown = _breakdown_to_model(data.cefr_breakdown)
+        else:
+            _write_breakdown(self.cefr_breakdown, data.cefr_breakdown)
 
     @staticmethod
     def from_entity(candidate: StoredCandidate) -> StoredCandidateModel:
+        """The word; its phrases are stored separately."""
         model = StoredCandidateModel(
             source_id=candidate.source_id,
             lemma=candidate.lemma,
             pos=candidate.pos,
             zipf_frequency=candidate.zipf_frequency,
             is_sweet_spot=candidate.is_sweet_spot,
-            source_phrase=dump_phrase(candidate.source_phrase),
             occurrences=candidate.occurrences,
             is_phrasal_verb=candidate.is_phrasal_verb,
             status=candidate.status.value,
-            origin_kind=candidate.origin.kind.value if candidate.origin else None,
-            origin_title=candidate.origin.source_title if candidate.origin else None,
-            polished_phrase=dump_phrase(candidate.polished_phrase),
-            polish_reverted=candidate.polish_reverted,
-            phrase_position=dump_position(candidate.phrase_position),
         )
         if candidate.cefr_breakdown is not None:
             model.cefr_breakdown = _breakdown_to_model(candidate.cefr_breakdown)
@@ -455,6 +471,169 @@ class StoredCandidateModel(Base):
             dist = candidate.usage_distribution.to_dict()
             model.usage_distribution_json = json.dumps(dist) if dist else None
         return model
+
+
+class PhraseModel(Base):
+    """SQLAlchemy model for the phrases of a word: an occurrence of it in the text."""
+
+    __tablename__ = "phrases"
+    __table_args__ = (
+        Index(
+            "ux_phrases_auto_key",
+            "candidate_id",
+            "block",
+            "line",
+            "char",
+            unique=True,
+            sqlite_where=text("origin = 'auto'"),
+        ),
+        Index(
+            "ux_phrases_decision",
+            "candidate_id",
+            unique=True,
+            sqlite_where=text("choice IN ('learn', 'cloze', 'known')"),
+        ),
+        {"sqlite_autoincrement": True},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    candidate_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    block: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    line: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    char: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_phrase: Mapped[str] = mapped_column(Text, nullable=False)
+    phrase_position: Mapped[str | None] = mapped_column(Text, nullable=True)
+    polished_phrase: Mapped[str | None] = mapped_column(Text, nullable=True)
+    polish_reverted: Mapped[bool] = mapped_column(
+        nullable=False, default=False, server_default="0",
+    )
+    fragment_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    shown_by: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    origin: Mapped[str] = mapped_column(String(10), nullable=False)
+    choice: Mapped[str] = mapped_column(
+        String(10), nullable=False, default=CardChoice.NONE.value,
+        server_default=CardChoice.NONE.value,
+    )
+    edited_by_user: Mapped[bool] = mapped_column(
+        nullable=False, default=False, server_default="0",
+    )
+    replaces_selection: Mapped[bool] = mapped_column(
+        nullable=False, default=False, server_default="0",
+    )
+    collected_kind: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    collected_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
+    )
+
+    # The SQL forms of the card predicates over the stored choice.
+
+    @classmethod
+    def is_decision(cls) -> ColumnElement[bool]:
+        """`CardState.is_decision`: the word's decision card."""
+        return cls.choice.in_([choice.value for choice in DECISION_CHOICES])
+
+    @classmethod
+    def is_skipped(cls) -> ColumnElement[bool]:
+        """`card_choice.is_skipped`."""
+        return cls.choice == CardChoice.SKIP.value
+
+    @property
+    def shown_text(self) -> str:
+        """The stored phrase the card shows: the polished one unless it was reverted."""
+        if self.polished_phrase is not None and not self.polish_reverted:
+            return self.polished_phrase
+        return self.source_phrase
+
+    def key(self) -> OccurrenceKey | None:
+        if self.block is None or self.line is None or self.char is None:
+            return None
+        return OccurrenceKey(block=self.block, line=self.line, char=self.char)
+
+    def to_entity(self) -> Occurrence:
+        """The phrase WITHOUT results, binding and job marks — the repository attaches them."""
+        return Occurrence(
+            id=self.id,
+            candidate_id=self.candidate_id,
+            origin=OccurrenceOrigin(self.origin),
+            source_phrase=_required_phrase(self.source_phrase),
+            phrase_position=load_position(self.phrase_position),
+            key=self.key(),
+            fragment_score=self.fragment_score,
+            revision=self.revision,
+            shown_by=ShownBy(self.shown_by) if self.shown_by is not None else None,
+            choice=CardChoice(self.choice),
+            edited_by_user=self.edited_by_user,
+            replaces_selection=self.replaces_selection,
+            polished_phrase=load_phrase(self.polished_phrase),
+            polish_reverted=self.polish_reverted,
+            collected_from=(
+                PhraseOrigin(
+                    kind=PhraseOriginKind(self.collected_kind),
+                    source_title=self.collected_title,
+                )
+                if self.collected_kind is not None
+                else None
+            ),
+        )
+
+    @staticmethod
+    def from_entity(occurrence: Occurrence) -> PhraseModel:
+        key = occurrence.key
+        return PhraseModel(
+            candidate_id=occurrence.candidate_id,
+            block=key.block if key else None,
+            line=key.line if key else None,
+            char=key.char if key else None,
+            source_phrase=dump_phrase(occurrence.source_phrase),
+            phrase_position=dump_position(occurrence.phrase_position),
+            polished_phrase=dump_phrase(occurrence.polished_phrase),
+            polish_reverted=occurrence.polish_reverted,
+            fragment_score=occurrence.fragment_score,
+            revision=occurrence.revision,
+            shown_by=occurrence.shown_by.value if occurrence.shown_by else None,
+            origin=occurrence.origin.value,
+            choice=occurrence.choice.value,
+            edited_by_user=occurrence.edited_by_user,
+            replaces_selection=occurrence.replaces_selection,
+            collected_kind=(
+                occurrence.collected_from.kind.value if occurrence.collected_from else None
+            ),
+            collected_title=(
+                occurrence.collected_from.source_title if occurrence.collected_from else None
+            ),
+        )
+
+
+class DocumentParseModel(Base):
+    """A cached parse of a document by one version of the analyzer."""
+
+    __tablename__ = "document_parses"
+
+    document_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    analyzer_version: Mapped[str] = mapped_column(String(60), primary_key=True)
+    tokens: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
+    )
+
+
+class SourceOperationModel(Base):
+    """The long operation a source is busy with; at most one per source."""
+
+    __tablename__ = "source_operations"
+
+    source_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sources.id", ondelete="CASCADE"), primary_key=True,
+        autoincrement=False,
+    )
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    # What a running process is doing now; other operations have no stages.
+    stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
 
 
 class TopicTargetModel(Base):
@@ -557,6 +736,7 @@ class CardReportModel(Base):
     source_id: Mapped[int] = mapped_column(Integer, nullable=False)
     source_title: Mapped[str] = mapped_column(String(200), nullable=False)
     candidate_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    phrase_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     lemma: Mapped[str] = mapped_column(String(100), nullable=False)
     surface_form: Mapped[str | None] = mapped_column(String(100), nullable=True)
     context_fragment: Mapped[str] = mapped_column(Text, nullable=False)
@@ -578,6 +758,7 @@ class CardReportModel(Base):
             source_id=self.source_id,
             source_title=self.source_title,
             candidate_id=self.candidate_id,
+            phrase_id=self.phrase_id,
             lemma=self.lemma,
             surface_form=self.surface_form,
             context_fragment=self.context_fragment,
@@ -603,25 +784,52 @@ class SettingModel(Base):
 
 
 class AnkiSyncedCardModel(Base):
-    """SQLAlchemy model for tracking candidates successfully synced to Anki."""
+    """The binding of a card to its Anki note: the only note table.
+
+    A binding is active while `released_at` is NULL; release keeps the row as history. A row
+    is never deleted: it outlives its card and its word (both SET NULL), so a deleted
+    source's word stays learning by its lemma. A note may have several rows over time."""
 
     __tablename__ = "anki_synced_cards"
+    __table_args__ = (
+        Index(
+            "ux_anki_synced_cards_active",
+            "phrase_id",
+            unique=True,
+            sqlite_where=text("released_at IS NULL AND phrase_id IS NOT NULL"),
+        ),
+        # Lemmas are matched in lowercase: Known removal and the knowledge snapshot.
+        Index("ix_anki_synced_cards_lemma", text("lower(lemma)")),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    candidate_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, unique=True
+    candidate_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("candidates.id", ondelete="SET NULL"), nullable=True, index=True,
+    )
+    phrase_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("phrases.id", ondelete="SET NULL"), nullable=True, index=True,
     )
     anki_note_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    lemma: Mapped[str] = mapped_column(String(100), nullable=False)
+    pos: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    note_kind: Mapped[str] = mapped_column(String(10), nullable=False)
+    # The choice of the bound card, kept by the card's writer: an orphan still tells a
+    # Known card's binding from a Learn one's.
+    card_choice: Mapped[str] = mapped_column(String(10), nullable=False)
+    learning_since: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    released_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
 
 class CandidateMeaningModel(Base):
-    """SQLAlchemy model for the meaning enrichment of a candidate (1:1)."""
+    """SQLAlchemy model for the meaning of a phrase (1:1).
+
+    The IPA of the word lives in `candidate_pronunciations`."""
 
     __tablename__ = "candidate_meanings"
 
-    candidate_id: Mapped[int] = mapped_column(
+    phrase_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("candidates.id", ondelete="CASCADE"),
+        ForeignKey("phrases.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
@@ -629,29 +837,27 @@ class CandidateMeaningModel(Base):
     translation: Mapped[str | None] = mapped_column(Text, nullable=True)
     synonyms: Mapped[str | None] = mapped_column(Text, nullable=True)
     examples: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ipa: Mapped[str | None] = mapped_column(String(100), nullable=True)
     generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
-    def to_entity(self) -> CandidateMeaning:
+    def to_entity(self, candidate_id: int, ipa: str | None) -> CandidateMeaning:
         return CandidateMeaning(
-            candidate_id=self.candidate_id,
+            candidate_id=candidate_id,
             meaning=self.meaning,
             translation=self.translation,
             synonyms=self.synonyms,
             examples=self.examples,
-            ipa=self.ipa,
+            ipa=ipa,
             generated_at=self.generated_at,
         )
 
     @staticmethod
-    def from_entity(entity: CandidateMeaning) -> CandidateMeaningModel:
+    def from_entity(phrase_id: int, entity: CandidateMeaning) -> CandidateMeaningModel:
         return CandidateMeaningModel(
-            candidate_id=entity.candidate_id,
+            phrase_id=phrase_id,
             meaning=entity.meaning,
             translation=entity.translation,
             synonyms=entity.synonyms,
             examples=entity.examples,
-            ipa=entity.ipa,
             generated_at=entity.generated_at,
         )
 
@@ -661,9 +867,9 @@ class CandidateMediaModel(Base):
 
     __tablename__ = "candidate_media"
 
-    candidate_id: Mapped[int] = mapped_column(
+    phrase_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("candidates.id", ondelete="CASCADE"),
+        ForeignKey("phrases.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
@@ -673,9 +879,9 @@ class CandidateMediaModel(Base):
     end_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
-    def to_entity(self) -> CandidateMedia:
+    def to_entity(self, candidate_id: int) -> CandidateMedia:
         return CandidateMedia(
-            candidate_id=self.candidate_id,
+            candidate_id=candidate_id,
             screenshot_path=self.screenshot_path,
             audio_path=self.audio_path,
             start_ms=self.start_ms,
@@ -684,9 +890,9 @@ class CandidateMediaModel(Base):
         )
 
     @staticmethod
-    def from_entity(entity: CandidateMedia) -> CandidateMediaModel:
+    def from_entity(phrase_id: int, entity: CandidateMedia) -> CandidateMediaModel:
         return CandidateMediaModel(
-            candidate_id=entity.candidate_id,
+            phrase_id=phrase_id,
             screenshot_path=entity.screenshot_path,
             audio_path=entity.audio_path,
             start_ms=entity.start_ms,
@@ -708,7 +914,18 @@ class CandidatePronunciationModel(Base):
     )
     us_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     uk_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ipa: Mapped[str | None] = mapped_column(String(100), nullable=True)
     generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+    @classmethod
+    def is_generated(cls) -> ColumnElement[bool]:
+        """The recordings were looked for: any row but one holding only the IPA."""
+        return or_(
+            cls.generated_at.is_not(None),
+            cls.us_audio_path.is_not(None),
+            cls.uk_audio_path.is_not(None),
+            cls.ipa.is_(None),
+        )
 
     def to_entity(self) -> CandidatePronunciation:
         return CandidatePronunciation(
@@ -733,26 +950,26 @@ class CandidateTTSModel(Base):
 
     __tablename__ = "candidate_tts"
 
-    candidate_id: Mapped[int] = mapped_column(
+    phrase_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("candidates.id", ondelete="CASCADE"),
+        ForeignKey("phrases.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
     audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
-    def to_entity(self) -> CandidateTTS:
+    def to_entity(self, candidate_id: int) -> CandidateTTS:
         return CandidateTTS(
-            candidate_id=self.candidate_id,
+            candidate_id=candidate_id,
             audio_path=self.audio_path,
             generated_at=self.generated_at,
         )
 
     @staticmethod
-    def from_entity(entity: CandidateTTS) -> CandidateTTSModel:
+    def from_entity(phrase_id: int, entity: CandidateTTS) -> CandidateTTSModel:
         return CandidateTTSModel(
-            candidate_id=entity.candidate_id,
+            phrase_id=phrase_id,
             audio_path=entity.audio_path,
             generated_at=entity.generated_at,
         )
@@ -763,9 +980,9 @@ class CandidateClozeModel(Base):
 
     __tablename__ = "candidate_clozes"
 
-    candidate_id: Mapped[int] = mapped_column(
+    phrase_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("candidates.id", ondelete="CASCADE"),
+        ForeignKey("phrases.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
@@ -774,9 +991,9 @@ class CandidateClozeModel(Base):
     custom_hint: Mapped[str | None] = mapped_column(Text, nullable=True)
     phrase: Mapped[str] = mapped_column(Text, nullable=False)
 
-    def to_entity(self) -> CandidateCloze:
+    def to_entity(self, candidate_id: int) -> CandidateCloze:
         return CandidateCloze(
-            candidate_id=self.candidate_id,
+            candidate_id=candidate_id,
             hidden_word_indices=tuple(json.loads(self.hidden_word_indices)),
             hint_kind=ClozeHintKind(self.hint_kind),
             custom_hint=self.custom_hint,
@@ -784,9 +1001,9 @@ class CandidateClozeModel(Base):
         )
 
     @staticmethod
-    def from_entity(entity: CandidateCloze) -> CandidateClozeModel:
+    def from_entity(phrase_id: int, entity: CandidateCloze) -> CandidateClozeModel:
         return CandidateClozeModel(
-            candidate_id=entity.candidate_id,
+            phrase_id=phrase_id,
             hidden_word_indices=json.dumps(list(entity.hidden_word_indices)),
             hint_kind=entity.hint_kind.value,
             custom_hint=entity.custom_hint,
@@ -831,38 +1048,6 @@ class SourceDocumentModel(Base):
     document: Mapped[str] = mapped_column(Text, nullable=False)
 
 
-class EnrichmentCacheModel(Base):
-    """Temporary cache for enrichment data during source reprocessing."""
-
-    __tablename__ = "enrichment_cache"
-
-    source_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
-    lemma: Mapped[str] = mapped_column(String(100), primary_key=True, nullable=False)
-    pos: Mapped[str] = mapped_column(String(10), primary_key=True, nullable=False)
-    context_fragment: Mapped[str] = mapped_column(Text, primary_key=True, nullable=False)
-    # meaning
-    meaning: Mapped[str | None] = mapped_column(Text, nullable=True)
-    translation: Mapped[str | None] = mapped_column(Text, nullable=True)
-    synonyms: Mapped[str | None] = mapped_column(Text, nullable=True)
-    examples: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ipa: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    meaning_generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
-    # media
-    screenshot_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    start_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    end_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    media_generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
-    # pronunciation
-    us_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    uk_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    pronunciation_generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
-    # tts
-    tts_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    tts_generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
-    meaning_image_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
 class JobModel(Base):
     """SQLAlchemy model for the job queue."""
 
@@ -882,6 +1067,13 @@ class JobModel(Base):
         nullable=False,
         index=True,
     )
+    phrase_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("phrases.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    phrase_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="queued", index=True,
     )
@@ -899,6 +1091,8 @@ class JobModel(Base):
             job_type=JobType(self.job_type),
             candidate_id=self.candidate_id,
             source_id=self.source_id,
+            phrase_id=self.phrase_id,
+            phrase_revision=self.phrase_revision,
             status=JobStatus(self.status),
             error=self.error,
             created_at=self.created_at,
@@ -912,6 +1106,8 @@ class JobModel(Base):
             job_type=entity.job_type.value,
             candidate_id=entity.candidate_id,
             source_id=entity.source_id,
+            phrase_id=entity.phrase_id,
+            phrase_revision=entity.phrase_revision,
             status=entity.status.value,
             error=entity.error,
             created_at=entity.created_at,

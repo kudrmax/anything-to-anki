@@ -1,0 +1,36 @@
+"""Writes every change of a phrase's text or results goes through."""
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from sqlalchemy import delete
+
+from backend.infrastructure.persistence.models import (
+    CandidateClozeModel,
+    CandidateMeaningModel,
+    CandidateMediaModel,
+    CandidateTTSModel,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator, Sequence
+
+    from sqlalchemy.orm import Session
+
+RESULT_MODELS = (
+    CandidateMeaningModel, CandidateMediaModel, CandidateTTSModel, CandidateClozeModel,
+)
+# Ids per `IN (…)`: well under SQLite's limit of bound parameters.
+SQL_IN_CHUNK = 500
+
+
+def chunks(ids: Sequence[int]) -> Iterator[list[int]]:
+    for start in range(0, len(ids), SQL_IN_CHUNK):
+        yield list(ids[start:start + SQL_IN_CHUNK])
+
+
+def drop_results(session: Session, phrase_ids: Sequence[int]) -> None:
+    """Everything made for the phrases except polish, which lives on the phrase itself."""
+    for chunk in chunks(phrase_ids):
+        for model in RESULT_MODELS:
+            session.execute(delete(model).where(model.phrase_id.in_(chunk)))

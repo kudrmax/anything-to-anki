@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { Brackets, Check, ChevronDown, ChevronUp, Target, Volume2 } from 'lucide-react'
-import type { CandidateCloze, EnrichmentStatus, PhraseOrigin, StoredCandidate } from '@/api/types'
+import type { CandidateCloze, DecisionButton, EnrichmentStatus, PhraseOrigin, StoredCandidate } from '@/api/types'
 import { CLOZE_HINT_LABEL } from '@/lib/clozeHints'
-import { chosenDecision, type ChosenDecision } from '@/lib/decision'
-import { FREQ_BAND_LABEL, isDivider, meaningAction, meaningParts, mediaUrl, nonEmptyLines, primaryUsageGroup } from '@/lib/text/meaning'
+import { FREQ_BAND_LABEL, isDivider, meaningParts, mediaUrl, nonEmptyLines, primaryUsageGroup } from '@/lib/text/meaning'
 import { Button, Chip, Icon, MediaThumb, Spinner, Text } from '@/ui'
 import { targetText } from '@/lib/text/phraseParts'
 import { CardPhrase } from './CardPhrase'
@@ -26,7 +25,8 @@ const GENERATED_PHRASE = 'generated phrase'
 const KEYS_HINT = '↑↓ · Space · ⌘V'
 const KEYS_HINT_TITLE = '↑↓ — phrases · Space — audio · ⌘V — paste a picture'
 
-const DECIDED_LABEL: Record<ChosenDecision, string> = { learn: 'Learn', cloze: 'Cloze', known: 'Known', skip: 'Skipped' }
+/** Подпись нажатой кнопки рядом с фразой; какая нажата, решает backend. */
+const DECIDED_LABEL: Record<DecisionButton, string> = { learn: 'Learn', cloze: 'Cloze', known: 'Known', skip: 'Skipped' }
 
 /** Откуда фраза кандидата темы: из другого источника или сгенерирована. */
 const originLabel = (origin: PhraseOrigin): string =>
@@ -76,7 +76,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
     clozeEditor.cancel()
     phraseEditor.start()
   }
-  const decided = chosenDecision(candidate)
+  const decided = candidate.state.buttons.find(button => button.pressed)?.button ?? null
 
   const usUrl = mediaUrl(sourceId, candidate.pronunciation?.us_audio_path)
   const ukUrl = mediaUrl(sourceId, candidate.pronunciation?.uk_audio_path)
@@ -93,7 +93,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
     </Chip>
   )
 
-  const action = meaningAction(meaning)
+  const action = candidate.meaning_action
   const hasMeta = Boolean(meaning?.ipa || usUrl || ukUrl || ttsUrl)
     || isActive(candidate.pronunciation?.status) || isActive(candidate.tts?.status)
   const paragraphs = meaning?.meaning ? nonEmptyLines(meaning.meaning) : []
@@ -105,7 +105,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   const more = retold ? rest.slice(1) : rest
 
   return (
-    <article className={clozeEditor.active ? `${css.card} ${css.clozeEditing}` : css.card} data-candidate-id={candidate.id}>
+    <article className={clozeEditor.active ? `${css.card} ${css.clozeEditing}` : css.card} data-candidate-id={candidate.phrase_id}>
       <header className={css.cardHead}>
         <div className={css.phraseRow}>
           <CardPhrase candidate={candidate} editor={phraseEditor} cloze={clozeEditor} />
@@ -123,7 +123,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
           <div className={css.status}>
             <StatusText status={meaning?.status} error={meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
             {action && (
-              <Button variant="accent-link" busy={review.busy.generating.has(candidate.id)} onClick={() => void review.generate(candidate.id)}>
+              <Button variant="accent-link" busy={review.busy.generating.has(candidate.phrase_id)} onClick={() => void review.generate(candidate.phrase_id)}>
                 {action === 'retry' ? 'Retry' : 'Generate meaning'}
               </Button>
             )}
@@ -171,7 +171,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             {examples.map((line, i) => (
               <li key={i} className={openExample === i ? `${css.example} ${css.exampleOpen}` : css.example} onClick={() => setOpenExample(i)}>
                 <span><RichText text={line} candidate={candidate} /></span>
-                <button type="button" className={css.useExample} onClick={() => void review.replaceWithExample(candidate.id, line.trim())}>
+                <button type="button" className={css.useExample} onClick={() => void review.replaceWithExample(candidate.phrase_id, line.trim())}>
                   Use as phrase
                 </button>
               </li>

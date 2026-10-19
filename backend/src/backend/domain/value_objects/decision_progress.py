@@ -1,30 +1,23 @@
 from __future__ import annotations
 
-from collections import Counter
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from enum import StrEnum
 
-from backend.domain.value_objects.candidate_status import CandidateStatus
 
-if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+class ReviewReach(StrEnum):
+    """How many of the cards that count are done: none, some or all."""
+
+    NONE = "none"
+    SOME = "some"
+    ALL = "all"
 
 
 @dataclass(frozen=True)
 class DecisionProgress:
-    """How many candidates the user has already decided on: any status but pending."""
+    """How many of the cards that count the user is done with."""
 
     decided: int = 0
     total: int = 0
-
-    @classmethod
-    def of_counts(cls, counts: Mapping[CandidateStatus, int]) -> DecisionProgress:
-        total = sum(counts.values())
-        return cls(decided=total - counts.get(CandidateStatus.PENDING, 0), total=total)
-
-    @classmethod
-    def of_statuses(cls, statuses: Iterable[CandidateStatus]) -> DecisionProgress:
-        return cls.of_counts(Counter(statuses))
 
     def __add__(self, other: DecisionProgress) -> DecisionProgress:
         return DecisionProgress(

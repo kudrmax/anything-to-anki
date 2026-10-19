@@ -3,10 +3,8 @@ from __future__ import annotations
 import pytest
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
-from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import InvalidClozeError
 from backend.domain.services.cloze_builder import ClozeBuilder, ClozeFrontPart
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
 from tests.phrase_support import phrase
@@ -30,21 +28,6 @@ def _meaning(
         examples=None,
         ipa=None,
         generated_at=None,
-    )
-
-
-def _candidate(text: str, cloze: CandidateCloze | None) -> StoredCandidate:
-    return StoredCandidate(
-        source_id=1,
-        lemma="give up",
-        pos="VERB",
-        cefr_level=None,
-        zipf_frequency=4.0,
-        source_phrase=phrase(text, "gave up"),
-        occurrences=1,
-        status=CandidateStatus.LEARN,
-        id=1,
-        cloze=cloze,
     )
 
 
@@ -201,18 +184,18 @@ def test_available_hints_leak_check_uses_word_boundaries() -> None:
 
 def test_effective_keeps_markup_for_same_phrase() -> None:
     cloze = CandidateCloze(1, (3,), ClozeHintKind.TRANSLATION, None, GIVE_UP_TEXT)
-    assert builder.effective(_candidate(GIVE_UP_TEXT, cloze)) == cloze
+    assert builder.effective_for(phrase(GIVE_UP_TEXT, "gave up"), cloze) == cloze
 
 
 def test_effective_rebuilds_markup_for_changed_phrase() -> None:
     cloze = CandidateCloze(1, (3,), ClozeHintKind.TRANSLATION, None, GIVE_UP_TEXT)
     new_phrase = "Finally she gave up."
-    result = builder.effective(_candidate(new_phrase, cloze))
+    result = builder.effective_for(phrase(new_phrase, "gave up"), cloze)
     assert result == CandidateCloze(1, (2, 3), ClozeHintKind.TRANSLATION, None, new_phrase)
 
 
 def test_effective_without_cloze_is_none() -> None:
-    assert builder.effective(_candidate(GIVE_UP_TEXT, None)) is None
+    assert builder.effective_for(phrase(GIVE_UP_TEXT, "gave up"), None) is None
 
 
 def test_highlight_hidden_wraps_runs_and_keeps_punctuation_outside() -> None:

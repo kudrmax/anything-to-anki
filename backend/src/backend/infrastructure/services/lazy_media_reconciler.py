@@ -15,13 +15,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_FILENAME_PATTERN = re.compile(r"^(\d+)_(screenshot|audio)\.")
+_FILENAME_PATTERN = re.compile(r"^p?\d+_(screenshot|audio)\.")
 
 
 class LazyMediaReconciler:
     """Background reconciler triggered when a SPECIFIC media file 404s at runtime.
 
-    Each call clears EXACTLY ONE candidate's ONE field (screenshot or audio).
+    Each call clears EXACTLY the media fields that point at the ONE missing file, by
+    their path value — whichever phrase they belong to.
     The deduplication key is `(source_id, filename)` so concurrent 404s for the
     same file collapse into one task, but unrelated 404s run independently.
 
@@ -63,11 +64,8 @@ class LazyMediaReconciler:
         await asyncio.to_thread(self._reconcile_sync, source_id, filename)
 
     def _reconcile_sync(self, source_id: int, filename: str) -> None:
-        m = _FILENAME_PATTERN.match(filename)
-        if not m:
+        if not _FILENAME_PATTERN.match(filename):
             return  # unknown filename shape — leave the DB alone
-        candidate_id = int(m.group(1))
-        kind = m.group(2)
 
         # Race protection: maybe the file appeared between the route's check
         # and our async task running. Re-stat before clearing.
@@ -77,17 +75,11 @@ class LazyMediaReconciler:
 
         session = self._session_factory()
         try:
-            media_repo = SqlaCandidateMediaRepository(session)
-            media_repo.clear_paths(
-                candidate_id,
-                clear_screenshot=(kind == "screenshot"),
-                clear_audio=(kind == "audio"),
-            )
+            SqlaCandidateMediaRepository(session).clear_missing_file(full)
             session.commit()
             logger.warning(
-                "LazyReconcile: cleared %s_path for candidate %d "
-                "(source %d, file %s missing)",
-                kind, candidate_id, source_id, full,
+                "LazyReconcile: cleared the rows pointing at %s (source %d, file missing)",
+                full, source_id,
             )
         finally:
             session.close()

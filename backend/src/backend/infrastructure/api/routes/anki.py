@@ -59,3 +59,5 @@ def get_anki_templates(
     container: Container = Depends(get_container),  # noqa: B008
 ) -> AnkiTemplatesDTO:
     return container.get_anki_templates_use_case(session).execute()
+
+

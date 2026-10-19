@@ -15,13 +15,13 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from backend.application.utils.anki_note_settings import AnkiFieldNames
+    from backend.application.utils.export_queue import ExportCard
     from backend.domain.entities.candidate_cloze import CandidateCloze
-    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.anki_connector import AnkiConnector
     from backend.domain.services.cloze_builder import ClozeBuilder
 
 class NoteMedia:
-    """Copies a candidate's local media files into Anki and returns the field markup for them."""
+    """Copies a card's local media files into Anki and returns the field markup for them."""
 
     def __init__(self, connector: AnkiConnector) -> None:
         self._connector = connector
@@ -49,31 +49,31 @@ class _CardContent:
         self._fields = fields
         self._media = media
 
-    def fill(self, note: dict[str, str], candidate: StoredCandidate) -> None:
+    def fill(self, note: dict[str, str], card: ExportCard) -> None:
         fields = self._fields
-        meaning = candidate.meaning
+        meaning = card.phrase.meaning
         if fields.target:
-            note[fields.target] = candidate.lemma
+            note[fields.target] = card.word.lemma
         if fields.meaning:
-            note[fields.meaning] = self._highlight(meaning.meaning if meaning else None, candidate)
+            note[fields.meaning] = self._highlight(meaning.meaning if meaning else None, card)
         if fields.ipa:
             note[fields.ipa] = (meaning.ipa if meaning else None) or ""
         if fields.translation and meaning and meaning.translation:
-            note[fields.translation] = self._highlight(meaning.translation, candidate)
+            note[fields.translation] = self._highlight(meaning.translation, card)
         if fields.synonyms and meaning and meaning.synonyms:
-            note[fields.synonyms] = self._highlight(meaning.synonyms, candidate)
+            note[fields.synonyms] = self._highlight(meaning.synonyms, card)
         if fields.examples and meaning and meaning.examples:
             note[fields.examples] = format_examples_as_list(
-                self._highlight(meaning.examples, candidate)
+                self._highlight(meaning.examples, card)
             )
-        self._fill_media(note, candidate)
+        self._fill_media(note, card)
 
-    def _fill_media(self, note: dict[str, str], candidate: StoredCandidate) -> None:
+    def _fill_media(self, note: dict[str, str], card: ExportCard) -> None:
         fields = self._fields
-        media = candidate.media
-        meaning_image = candidate.meaning_image
-        voice = candidate.pronunciation
-        tts = candidate.tts
+        media = card.phrase.media
+        meaning_image = card.word.meaning_image
+        voice = card.word.pronunciation
+        tts = card.phrase.tts
         image, sound = self._media.image, self._media.sound
         sources: list[tuple[str, str | None, Callable[[str | None], str | None]]] = [
             (fields.image, media.screenshot_path if media else None, image),
@@ -88,10 +88,10 @@ class _CardContent:
                 note[name] = value
 
     @staticmethod
-    def _highlight(text: str | None, candidate: StoredCandidate) -> str:
+    def _highlight(text: str | None, card: ExportCard) -> str:
         if not text:
             return ""
-        return highlight_all_forms(text, candidate.lemma, candidate.phrase.target_text())
+        return highlight_all_forms(text, card.word.lemma, card.phrase.phrase.target_text())
 
 
 class RecognitionNoteBuilder:
@@ -101,11 +101,11 @@ class RecognitionNoteBuilder:
         self._fields = fields
         self._content = _CardContent(fields, media)
 
-    def build(self, candidate: StoredCandidate) -> dict[str, str]:
+    def build(self, card: ExportCard) -> dict[str, str]:
         note: dict[str, str] = {}
         if self._fields.sentence:
-            note[self._fields.sentence] = highlight_target(candidate.phrase)
-        self._content.fill(note, candidate)
+            note[self._fields.sentence] = highlight_target(card.phrase.phrase)
+        self._content.fill(note, card)
         return note
 
 
@@ -120,20 +120,19 @@ class ClozeNoteBuilder:
         self._fields = fields
         self._content = _CardContent(fields, media)
 
-    def build(self, candidate: StoredCandidate, cloze: CandidateCloze) -> dict[str, str]:
+    def build(self, card: ExportCard, cloze: CandidateCloze) -> dict[str, str]:
         indices = cloze.hidden_word_indices
-        phrase = candidate.phrase
+        phrase = card.phrase.phrase
+        meaning = card.phrase.meaning
         hidden = self._builder.hidden_words(phrase, indices)
         kind = cloze.hint_kind
-        if kind not in self._builder.available_hints(candidate.meaning, hidden):
+        if kind not in self._builder.available_hints(meaning, hidden):
             kind = ClozeHintKind.NONE
-        hints = self._builder.gap_hints(
-            kind, candidate.meaning, phrase, indices, cloze.custom_hint,
-        )
+        hints = self._builder.gap_hints(kind, meaning, phrase, indices, cloze.custom_hint)
         note: dict[str, str] = {}
         if self._fields.sentence:
             note[self._fields.sentence] = line_breaks(
                 self._builder.cloze_text(phrase, indices, hints),
             )
-        self._content.fill(note, candidate)
+        self._content.fill(note, card)
         return note

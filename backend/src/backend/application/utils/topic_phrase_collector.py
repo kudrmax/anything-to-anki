@@ -8,8 +8,9 @@ from backend.domain.exceptions import TargetNotInPhraseError
 from backend.domain.services.topic_phrase_selection import (
     find_shortest_sentence,
     parse_marked_phrase,
-    pick_best_candidate_phrase,
+    pick_easiest_phrase,
 )
+from backend.domain.value_objects.card_choice import is_skipped
 from backend.domain.value_objects.document import block_text
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
 
@@ -18,28 +19,20 @@ if TYPE_CHECKING:
     from backend.application.utils.phrase_reader import PhraseReader
     from backend.application.utils.user_knowledge_reader import UserKnowledgeReader
     from backend.domain.entities.source import Source
-    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.entities.topic_target import TopicTarget
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.document_repository import DocumentRepository
+    from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.topic_target_repository import TopicTargetRepository
     from backend.domain.value_objects.document import Document
+    from backend.domain.value_objects.new_card import NewCard
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.user_knowledge import UserKnowledge
 
 logger = logging.getLogger(__name__)
 
 SINGLE_OCCURRENCE = 1
-PHRASE_SEPARATOR = "\n"
-
-
-@dataclass(frozen=True)
-class CollectedTopic:
-    """Candidates of a topic and the text they read as, one phrase per line."""
-
-    candidates: list[StoredCandidate]
-    text: str
 
 
 @dataclass(frozen=True)
@@ -49,12 +42,12 @@ class _Found:
 
 
 class TopicPhraseCollector:
-    """Turns the targets of a topic into candidates. Mechanical, no AI.
+    """Turns the targets of a topic into cards. Mechanical, no AI.
 
     For every target it looks for a real phrase among the sources the user has
-    added: first a phrase the pipeline already cut out for the same lemma,
-    then any sentence of their documents that contains the target verbatim.
-    Only when neither exists does the candidate keep the example AI generated.
+    added: first a phrase shown for the same lemma in a source, then any sentence of
+    their documents that contains the target verbatim. Only when neither exists does
+    the card keep the example AI generated.
     """
 
     def __init__(
@@ -63,6 +56,7 @@ class TopicPhraseCollector:
         source_repo: SourceRepository,
         document_repo: DocumentRepository,
         candidate_repo: CandidateRepository,
+        occurrence_repo: OccurrenceRepository,
         knowledge: UserKnowledgeReader,
         candidate_factory: CandidateFactory,
         phrase_reader: PhraseReader,
@@ -71,6 +65,7 @@ class TopicPhraseCollector:
         self._source_repo = source_repo
         self._document_repo = document_repo
         self._candidate_repo = candidate_repo
+        self._occurrence_repo = occurrence_repo
         self._knowledge = knowledge
         self._candidate_factory = candidate_factory
         self._phrase_reader = phrase_reader
@@ -78,7 +73,7 @@ class TopicPhraseCollector:
     def has_targets(self, source_id: int) -> bool:
         return self._topic_target_repo.has_targets(source_id)
 
-    def collect(self, source_id: int) -> CollectedTopic:
+    def collect(self, source_id: int) -> list[NewCard]:
         targets = self._topic_target_repo.get_by_source(source_id)
         knowledge = self._knowledge.current()
         library = {
@@ -86,17 +81,18 @@ class TopicPhraseCollector:
             if s.id is not None and (document := self._document_repo.get(s.id)) is not None
         }
 
-        candidates: list[StoredCandidate] = []
+        cards: list[NewCard] = []
         seen: set[str] = set()
         for target in targets:
-            generated = self._generated_candidate(source_id, target)
+            generated = self._generated_card(source_id, target)
             if generated is None:
                 continue
-            if generated.lemma in seen or knowledge.vocabulary.is_known(generated.lemma):
+            lemma = generated.word.lemma
+            if lemma in seen or knowledge.vocabulary.is_known_or_learning(lemma):
                 continue
-            seen.add(generated.lemma)
+            seen.add(lemma)
             found = self._real_phrase(generated, target, library, knowledge)
-            candidates.append(
+            cards.append(
                 generated if found is None else self._candidate_factory.build(
                     source_id=source_id,
                     phrase=found.phrase,
@@ -106,19 +102,16 @@ class TopicPhraseCollector:
             )
 
         borrowed = sum(
-            1 for c in candidates if c.origin and c.origin.kind == PhraseOriginKind.SOURCE
+            1 for c in cards if c.origin and c.origin.kind == PhraseOriginKind.SOURCE
         )
         logger.info(
             "topic_phrase_collector: done (source_id=%d, targets=%d, candidates=%d, "
             "from_sources=%d)",
-            source_id, len(targets), len(candidates), borrowed,
+            source_id, len(targets), len(cards), borrowed,
         )
-        return CollectedTopic(
-            candidates=candidates,
-            text=PHRASE_SEPARATOR.join(c.source_phrase.text for c in candidates),
-        )
+        return cards
 
-    def _generated_candidate(self, source_id: int, target: TopicTarget) -> StoredCandidate | None:
+    def _generated_card(self, source_id: int, target: TopicTarget) -> NewCard | None:
         example = parse_marked_phrase(target.example)
         if example is None:
             logger.warning(
@@ -145,23 +138,30 @@ class TopicPhraseCollector:
 
     def _real_phrase(
         self,
-        generated: StoredCandidate,
+        generated: NewCard,
         target: TopicTarget,
         library: dict[int, tuple[Source, Document]],
         knowledge: UserKnowledge,
     ) -> _Found | None:
-        same_lemma = [
-            c for c in self._candidate_repo.get_by_lemma(generated.lemma)
-            if c.source_id in library
+        sources = {
+            word.id: word.source_id
+            for word in self._candidate_repo.get_by_lemma(generated.word.lemma)
+            if word.id is not None and word.source_id in library
+        }
+        shown = [
+            occ for word_id in sources for occ in self._occurrence_repo.of_word(word_id)
+            if occ.is_shown and not is_skipped(occ.card_state)
         ]
-        best = pick_best_candidate_phrase(same_lemma, knowledge)
+        best = pick_easiest_phrase(shown, knowledge)
         if best is not None:
             return _Found(
                 phrase=best.source_phrase,
-                origin=PhraseOrigin.from_source(_title(library[best.source_id][0])),
+                origin=PhraseOrigin.from_source(
+                    _title(library[sources[best.candidate_id]][0]),
+                ),
             )
 
-        variants = {target.phrase, generated.source_phrase.target_text()}
+        variants = {target.phrase, generated.phrase.target_text()}
         # A sentence never runs across blocks: a heading or a list item stands alone.
         found = [
             (sentence, source)

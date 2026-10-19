@@ -32,8 +32,8 @@ class TestLazyMediaReconciler:
             await reconciler.schedule(1, "10_screenshot.webp")
             await asyncio.sleep(0.1)
 
-            media_repo.clear_paths.assert_called_once_with(
-                10, clear_screenshot=True, clear_audio=False,
+            media_repo.clear_missing_file.assert_called_once_with(
+                str(media_root / "1" / "10_screenshot.webp"),
             )
             session.commit.assert_called_once()
             session.close.assert_called_once()
@@ -55,8 +55,8 @@ class TestLazyMediaReconciler:
             await reconciler.schedule(1, "42_audio.m4a")
             await asyncio.sleep(0.1)
 
-            media_repo.clear_paths.assert_called_once_with(
-                42, clear_screenshot=False, clear_audio=True,
+            media_repo.clear_missing_file.assert_called_once_with(
+                str(media_root / "1" / "42_audio.m4a"),
             )
 
     async def test_noop_when_file_reappears(self, tmp_path: Path) -> None:
@@ -78,7 +78,7 @@ class TestLazyMediaReconciler:
             await reconciler.schedule(1, "10_screenshot.webp")
             await asyncio.sleep(0.1)
 
-            media_repo.clear_paths.assert_not_called()
+            media_repo.clear_missing_file.assert_not_called()
             session.commit.assert_not_called()
 
     async def test_ignores_unknown_filename_shape(self, tmp_path: Path) -> None:
@@ -98,7 +98,7 @@ class TestLazyMediaReconciler:
             await reconciler.schedule(1, "weird.txt")
             await asyncio.sleep(0.1)
 
-            media_repo.clear_paths.assert_not_called()
+            media_repo.clear_missing_file.assert_not_called()
 
     async def test_dedupes_concurrent_requests_for_same_file(self, tmp_path: Path) -> None:
         media_root = tmp_path / "media"

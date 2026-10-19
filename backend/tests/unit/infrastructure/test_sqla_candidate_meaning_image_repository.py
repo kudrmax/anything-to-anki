@@ -4,9 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.models import StoredCandidateModel, dump_phrase
 from backend.infrastructure.persistence.sqla_candidate_meaning_image_repository import (
     SqlaCandidateMeaningImageRepository,
 )
@@ -16,7 +14,7 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from tests.phrase_support import phrase
+from tests.word_support import insert_word
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -34,20 +32,19 @@ def session() -> Generator[Session, None, None]:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     s = sessionmaker(bind=engine)()
-    s.add(StoredCandidateModel(
-        id=CANDIDATE_ID,
-        source_id=SOURCE_ID,
-        lemma="drain",
-        pos="NOUN",
-        zipf_frequency=4.0,
-        is_sweet_spot=True,
-        source_phrase=dump_phrase(phrase("the drain is blocked", "drain")),
-        occurrences=1,
-        status=CandidateStatus.LEARN.value,
-    ))
+    insert_word(
+        s, CANDIDATE_ID, source_id=SOURCE_ID, lemma="drain", phrase_text="the drain is blocked",
+        status="learn", zipf_frequency=4.0, is_sweet_spot=True,
+    )
     s.flush()
     yield s
     s.close()
+
+
+def _image(session: Session) -> CandidateMeaningImage | None:
+    word = SqlaCandidateRepository(session).get_by_id(CANDIDATE_ID)
+    assert word is not None
+    return word.meaning_image
 
 
 @pytest.mark.unit
@@ -56,13 +53,13 @@ class TestCandidateMeaningImageRepository:
         repo = SqlaCandidateMeaningImageRepository(session)
         image = CandidateMeaningImage(CANDIDATE_ID, FIRST_PATH)
         repo.upsert(image)
-        assert repo.get_by_candidate_id(CANDIDATE_ID) == image
+        assert _image(session) == image
 
     def test_upsert_replaces_the_previous_image(self, session: Session) -> None:
         repo = SqlaCandidateMeaningImageRepository(session)
         repo.upsert(CandidateMeaningImage(CANDIDATE_ID, FIRST_PATH))
         repo.upsert(CandidateMeaningImage(CANDIDATE_ID, SECOND_PATH))
-        assert repo.get_by_candidate_id(CANDIDATE_ID) == CandidateMeaningImage(
+        assert _image(session) == CandidateMeaningImage(
             CANDIDATE_ID, SECOND_PATH,
         )
 
@@ -70,7 +67,7 @@ class TestCandidateMeaningImageRepository:
         repo = SqlaCandidateMeaningImageRepository(session)
         repo.upsert(CandidateMeaningImage(CANDIDATE_ID, FIRST_PATH))
         repo.delete_by_candidate_id(CANDIDATE_ID)
-        assert repo.get_by_candidate_id(CANDIDATE_ID) is None
+        assert _image(session) is None
 
     def test_candidate_carries_its_meaning_image(self, session: Session) -> None:
         SqlaCandidateMeaningImageRepository(session).upsert(

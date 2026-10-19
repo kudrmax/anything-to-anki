@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import CancelledByUserError
+from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 
 if TYPE_CHECKING:
@@ -35,8 +36,9 @@ class ClaimedRun:
         return self.jobs[0]
 
     @property
-    def candidate_ids(self) -> list[int]:
-        return [j.candidate_id for j in self.jobs if j.candidate_id is not None]
+    def phrases(self) -> list[PhraseRef]:
+        """The phrases of the run's phrase jobs, at the revisions the jobs expect."""
+        return [ref for ref in map(phrase_of, self.jobs) if ref is not None]
 
     @contextmanager
     def session(self) -> Iterator[Session]:
@@ -45,12 +47,11 @@ class ClaimedRun:
             if not self._still_claimed():
                 raise CancelledByUserError(self._job_ids())
 
-    def still_wanted(self, candidate_ids: list[int]) -> set[int]:
+    def still_wanted(self, phrase_ids: list[int]) -> set[int]:
         claimed = self._still_claimed()
         return {
-            j.candidate_id for j in self.jobs
-            if j.candidate_id is not None and j.candidate_id in candidate_ids
-            and j.id in claimed
+            j.phrase_id for j in self.jobs
+            if j.phrase_id is not None and j.phrase_id in phrase_ids and j.id in claimed
         }
 
     def _still_claimed(self) -> set[int]:
@@ -59,3 +60,10 @@ class ClaimedRun:
 
     def _job_ids(self) -> list[int]:
         return [j.id for j in self.jobs if j.id is not None]
+
+
+def phrase_of(job: Job) -> PhraseRef | None:
+    """The phrase a phrase job works on; None for a job of a word or a source."""
+    if job.phrase_id is None or job.phrase_revision is None:
+        return None
+    return PhraseRef(job.phrase_id, job.phrase_revision)

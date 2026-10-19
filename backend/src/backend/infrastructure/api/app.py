@@ -19,26 +19,27 @@ from backend.infrastructure.api.dependencies import get_session_factory
 from backend.infrastructure.api.routes import (
     anki,
     bootstrap,
-    candidates,
     card_reports,
     collections,
     export,
     generation,
     known_words,
+    phrases,
     settings,
     sources,
     stats,
     unknown_words,
     usage,
+    vocabulary,
+    words,
 )
 from backend.infrastructure.api.routes.media import router as media_router
 from backend.infrastructure.api.routes.queue import router as queue_router
-from backend.infrastructure.api.routes.tts import router as tts_router
 from backend.infrastructure.logging_setup import configure_logging
 from backend.infrastructure.persistence.database import (
-    cleanup_enrichment_cache,
+    cleanup_parse_cache,
     reconcile_media_files,
-    reset_stuck_processing,
+    release_source_operations,
     run_alembic_migrations,
 )
 
@@ -55,8 +56,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     if ":memory:" not in db_url:
         run_alembic_migrations(db_url)
-    reset_stuck_processing(session_factory)
-    cleanup_enrichment_cache(session_factory)
+    release_source_operations(session_factory)
+    cleanup_parse_cache(session_factory)
     data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
     media_root = os.environ.get("MEDIA_ROOT", os.path.join(data_dir, "media"))
     reconcile_media_files(session_factory, media_root)
@@ -103,17 +104,18 @@ app.add_middleware(
 
 app.include_router(sources.router)
 app.include_router(media_router)
-app.include_router(candidates.router)
+app.include_router(words.router)
+app.include_router(phrases.router)
 app.include_router(card_reports.router)
 app.include_router(known_words.router)
 app.include_router(unknown_words.router)
+app.include_router(vocabulary.router)
 app.include_router(settings.router)
 app.include_router(anki.router)
 app.include_router(export.router)
 app.include_router(stats.router)
 app.include_router(usage.router)
 app.include_router(generation.router)
-app.include_router(tts_router)
 app.include_router(queue_router)
 app.include_router(collections.router)
 app.include_router(bootstrap.router)

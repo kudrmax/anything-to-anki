@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.application.dto.stats_dtos import StatsDTO
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.job_status import JobStatus
 
 if TYPE_CHECKING:
@@ -14,7 +13,8 @@ if TYPE_CHECKING:
 
 
 class GetStatsUseCase:
-    """Aggregate stats: LEARN candidates, cards awaiting export, active jobs, known words."""
+    """Aggregate stats: words chosen to learn (in Anki or not yet), cards in the export
+    queue, active jobs, Known words (by the list or the timer, each lemma once)."""
 
     def __init__(
         self,
@@ -29,8 +29,8 @@ class GetStatsUseCase:
         self._job_repo = job_repo
 
     def execute(self) -> StatsDTO:
-        learn_count = self._candidate_repo.count_by_status(CandidateStatus.LEARN)
-        export_pending_count = len(self._export_queue.for_all().pending)
+        learn_count = self._candidate_repo.count_chosen_to_learn()
+        export_pending_count = self._export_queue.pending_count()
         queue_active_count = self._count_active_jobs()
         candidate_count = self._candidate_repo.count_all()
         known_word_count = self._vocabulary.known_count()

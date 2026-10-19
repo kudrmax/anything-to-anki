@@ -11,8 +11,8 @@ if TYPE_CHECKING:
 class CardReport:
     """The user's complaint about a card, with a snapshot of the card.
 
-    The snapshot keeps the report meaningful after the candidate is
-    reprocessed or its source deleted — it is what gets analysed later.
+    The snapshot keeps the report meaningful after a rebuild removes the phrase or
+    the source is deleted — it is what gets analysed later.
     """
 
     source_id: int
@@ -31,5 +31,7 @@ class CardReport:
     # Source text around the phrase; None when the phrase is not in the source.
     text_before: str | None = None
     text_after: str | None = None
+    # The phrase the card showed; the report outlives it.
+    phrase_id: int | None = None
     id: int | None = None
     created_at: datetime | None = None

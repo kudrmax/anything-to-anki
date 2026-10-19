@@ -1,16 +1,24 @@
 """Integration test: CEFR breakdown flows from classify_detailed() to API response.
 
 Verifies the full pipeline:
-  classify_detailed() → WordCandidate → WordCandidateDTO → StoredCandidate
-  → CEFRBreakdownModel (DB) → StoredCandidate → StoredCandidateDTO (API)
+  classify_detailed() → WordDTO → StoredCandidate
+  → CEFRBreakdownModel (DB) → StoredCandidate → CardDTO (API)
 
 This test catches missing breakdown propagation in any layer.
 """
 from __future__ import annotations
 
 import pytest
-from backend.application.dto.analysis_dtos import WordCandidateDTO
-from backend.application.dto.source_dtos import PhraseDTO, StoredCandidateDTO
+from backend.application.dto.analysis_dtos import WordDTO
+from backend.application.dto.source_dtos import (
+    CardDTO,
+    CardStateDTO,
+    PhraseDTO,
+    ShownDTO,
+    ShownStatus,
+)
+from backend.domain.services.card_view import ShownTone, Where
+from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
 from tests.integration.dict_cache_support import make_voting_classifier
@@ -32,23 +40,21 @@ class TestCEFRBreakdownPipeline:
         names = {v.source_name for v in breakdown.votes}
         assert "CEFRpy" in names
 
-    def test_breakdown_in_word_candidate_dto(self) -> None:
-        """WordCandidateDTO must carry cefr_breakdown after analyze_text."""
+    def test_breakdown_in_word_dto(self) -> None:
+        """WordDTO must carry cefr_breakdown after analyze_text."""
         from backend.application.dto.cefr_dtos import breakdown_to_dto
 
         classifier = make_voting_classifier()
         breakdown = classifier.classify_detailed("happy", "JJ")
         dto = breakdown_to_dto(breakdown)
 
-        # Simulate what analyze_text._to_dto does
-        word_dto = WordCandidateDTO(
+        # Simulate what analyze_text._dto does
+        word_dto = WordDTO(
             lemma="happy",
             pos="JJ",
             cefr_level="A2",
             zipf_frequency=5.0,
-            is_sweet_spot=True,
-            phrase=phrase("I am happy", "happy"),
-            occurrences=1,
+            occurrences=[],
             cefr_breakdown=dto,
         )
         assert word_dto.cefr_breakdown is not None
@@ -72,7 +78,7 @@ class TestCEFRBreakdownPipeline:
         assert restored.final_level == original.final_level
 
     def test_breakdown_in_stored_candidate_dto(self) -> None:
-        """StoredCandidateDTO must carry cefr_breakdown."""
+        """CardDTO must carry cefr_breakdown."""
         from backend.application.dto.cefr_dtos import breakdown_to_dto
 
         classifier = make_voting_classifier()
@@ -80,8 +86,9 @@ class TestCEFRBreakdownPipeline:
         bd_dto = breakdown_to_dto(breakdown)
 
         # Simulate what get_sources._candidate_to_dto does
-        candidate_dto = StoredCandidateDTO(
-            id=1,
+        candidate_dto = CardDTO(
+            phrase_id=1,
+            word_id=1,
             lemma="happy",
             pos="JJ",
             cefr_level="A2",
@@ -90,7 +97,11 @@ class TestCEFRBreakdownPipeline:
             phrase=PhraseDTO.of(phrase("I am happy", "happy")),
             source_phrase=PhraseDTO.of(phrase("I am happy", "happy")),
             occurrences=1,
-            status="pending",
+            choice=CardChoice.NONE,
+            shown=ShownDTO(
+                status=ShownStatus.NEW, skipped=False, where=Where.NOWHERE, tone=ShownTone.OPEN,
+            ),
+            state=CardStateDTO(),
             cefr_breakdown=bd_dto,
         )
         assert candidate_dto.cefr_breakdown is not None

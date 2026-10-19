@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.domain.exceptions import CandidateNotFoundError, InvalidPhraseError
+from backend.application.utils.source_free import ensure_source_free
+from backend.domain.exceptions import InvalidPhraseError, PhraseNotFoundError
 
 if TYPE_CHECKING:
     from backend.application.utils.rewrite_phrase import RewritePhrase
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
 
 
 class EditCardPhraseUseCase:
@@ -17,17 +20,27 @@ class EditCardPhraseUseCase:
     A text without the target is refused (TargetNotInPhraseError).
     """
 
-    def __init__(self, candidate_repo: CandidateRepository, rewrite_phrase: RewritePhrase) -> None:
+    def __init__(
+        self,
+        occurrence_repo: OccurrenceRepository,
+        candidate_repo: CandidateRepository,
+        rewrite_phrase: RewritePhrase,
+        lock: SourceOperationLock,
+    ) -> None:
+        self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
         self._rewrite_phrase = rewrite_phrase
+        self._lock = lock
 
-    def execute(self, candidate_id: int, phrase: str) -> None:
-        candidate = self._candidate_repo.get_by_id(candidate_id)
-        if candidate is None or candidate.id is None:
-            raise CandidateNotFoundError(candidate_id)
+    def execute(self, phrase_id: int, phrase: str) -> None:
+        occ = self._occurrences.get(phrase_id)
+        word = self._candidate_repo.get_by_id(occ.candidate_id) if occ is not None else None
+        if occ is None or word is None:
+            raise PhraseNotFoundError(phrase_id)
+        ensure_source_free(self._lock, word.source_id)
         edited = phrase.strip()
         if not edited:
             raise InvalidPhraseError("Phrase cannot be empty")
-        if edited == candidate.phrase.text:
+        if edited == occ.phrase.text:
             return
-        self._rewrite_phrase.execute(candidate, edited)
+        self._rewrite_phrase.of_phrase(occ, word.lemma, edited)

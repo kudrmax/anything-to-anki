@@ -13,10 +13,17 @@ from backend.domain.exceptions import (
 )
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+def _free_lock() -> MagicMock:
+    lock = MagicMock()
+    lock.held.return_value = None
+    return lock
 
 
 @pytest.mark.unit
@@ -24,9 +31,11 @@ class TestDeleteSourceUseCase:
     def setup_method(self) -> None:
         self.source_repo = MagicMock()
         self.candidate_repo = MagicMock()
+        self.lock = _free_lock()
         self.use_case = DeleteSourceUseCase(
             source_repo=self.source_repo,
             candidate_repo=self.candidate_repo,
+            lock=self.lock,
             media_root="/tmp/nonexistent-media-root",
         )
 
@@ -62,10 +71,11 @@ class TestDeleteSourceUseCase:
         self.candidate_repo.delete_by_source.assert_not_called()
         self.source_repo.delete.assert_not_called()
 
-    def test_processing_raises(self) -> None:
+    def test_a_source_held_by_an_operation_is_not_deleted(self) -> None:
         self.source_repo.get_by_id.return_value = Source(
-            id=1, status=SourceStatus.PROCESSING, format=Format.PLAIN, kind=Kind.TEXT,
+            id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
             )
+        self.lock.held.return_value = SourceOperationKind.REBUILD
         with pytest.raises(SourceIsProcessingError):
             self.use_case.execute(1)
         self.candidate_repo.delete_by_source.assert_not_called()
@@ -88,6 +98,7 @@ class TestDeleteSourceUseCase:
         uc = DeleteSourceUseCase(
             source_repo=source_repo,
             candidate_repo=candidate_repo,
+            lock=_free_lock(),
             media_root=str(media_root),
         )
 
@@ -109,6 +120,7 @@ class TestDeleteSourceUseCase:
         uc = DeleteSourceUseCase(
             source_repo=source_repo,
             candidate_repo=candidate_repo,
+            lock=_free_lock(),
             media_root=str(media_root),
         )
 

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { backIn } from '@/lib/backLink'
-import { decisionChange, learnConvertsCloze, type Decision } from '@/lib/decision'
 import { allowedInClozeMarkup, reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { pastedPicture } from '@/lib/pastedPicture'
 import { phraseListShownPref, sourceTextShownPref } from '@/lib/preferences'
@@ -21,15 +20,16 @@ import { audioUrlForCandidate, useReview } from './useReview'
 import { useShownCandidates } from './useShownCandidates'
 import { useSwipe } from './useSwipe'
 import { listItems, sectionToggleLabel, visibleCandidates, type ListItem } from './sections'
-import type { CandidateSection } from '@/api/types'
+import type { CandidateSection, DecisionButton, SourceStatus } from '@/api/types'
 import css from './review.module.css'
 
-const DECISION: Partial<Record<ReviewAction, Decision>> = { learn: 'learn', known: 'known', skip: 'skip' }
+const DECISION: Partial<Record<ReviewAction, DecisionButton>> = { learn: 'learn', cloze: 'cloze', known: 'known', skip: 'skip' }
 type PhoneView = 'card' | 'text' | 'list'
 
 const SOURCES_PATH = '/'
-/** Все карточки Ready разобраны: остальное — по желанию. */
+/** Источник разобран (статус выводит backend): остальное — по желанию. */
 const DONE = 'Done'
+const REVIEWED: SourceStatus = 'reviewed'
 /** Ссылка на конкретную карточку: с ней ревью открывается сразу на ней. */
 const CANDIDATE_PARAM = 'candidate'
 
@@ -57,8 +57,8 @@ export function ReviewScreen() {
   // На телефоне карточка занимает экран, а текст источника и список открываются на её месте.
   const [phoneView, setPhoneView] = useState<PhoneView>('card')
   const togglePhoneView = (view: PhoneView) => setPhoneView(prev => (prev === view ? 'card' : view))
-  const current = candidates.find(c => c.id === currentId) ?? null
-  // Разделы есть во всех сортировках, кроме порядка текста; Probably known свёрнут, пока его не открыли.
+  const current = candidates.find(c => c.phrase_id === currentId) ?? null
+  // Разделы есть во всех сортировках, кроме порядка текста; разделы под Ready, Reviewed последним, свёрнуты, пока их не открыли.
   const sectioned = review.sortOrder !== 'chronological'
   const [openedSections, setOpenedSections] = useState<ReadonlySet<CandidateSection>>(new Set())
   // Карточка, открытая ссылкой или кликом по тексту, видна, даже если её раздел свёрнут.
@@ -79,9 +79,9 @@ export function ReviewScreen() {
 
   // Держим карточку в поле зрения: и когда список только появился (ревью открыли ссылкой на карточку),
   // и когда фоновое обновление переставило её в списке.
-  const currentIndex = visible.findIndex(c => c.id === currentId)
-  const prevId = visible[currentIndex - 1]?.id ?? null
-  const nextId = currentIndex >= 0 ? visible[currentIndex + 1]?.id ?? null : null
+  const currentIndex = visible.findIndex(c => c.phrase_id === currentId)
+  const prevId = visible[currentIndex - 1]?.phrase_id ?? null
+  const nextId = currentIndex >= 0 ? visible[currentIndex + 1]?.phrase_id ?? null : null
   // На телефоне фразы листают свайпом по карточке: влево — следующая, вправо — предыдущая.
   const swipe = useSwipe(direction => {
     const target = direction === 'left' ? nextId : prevId
@@ -93,7 +93,7 @@ export function ReviewScreen() {
     listRef.current?.querySelector(`[data-candidate-id="${currentId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [currentId, currentIndex, loading, phraseListShown])
 
-  const { mark, setCurrentId, cancelEditing, sourceId, clozeEditing, startCloze, cancelCloze } = review
+  const { press, setCurrentId, cancelEditing, sourceId, clozeEditing } = review
   const toggleAudio = review.player.toggle
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -114,18 +114,12 @@ export function ReviewScreen() {
         if (url) toggleAudio(url)
         return
       }
-      if (action === 'cloze') {
-        if (current.can_cloze) startCloze(current.id)
-        return
-      }
-      const status = DECISION[action]
-      if (!status) return
-      if (clozeEditing) cancelCloze()
-      void mark(current.id, decisionChange(current.status, status, learnConvertsCloze(current)))
+      const button = current.state.buttons.find(b => b.button === DECISION[action])
+      if (button) void press(current.phrase_id, button)
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [current, prevId, nextId, editing, selection, mark, setCurrentId, cancelEditing, toggleAudio, sourceId, clozeEditing, startCloze, cancelCloze])
+  }, [current, prevId, nextId, editing, selection, press, setCurrentId, cancelEditing, toggleAudio, sourceId, clozeEditing])
 
   const { pasteImage } = review
   useEffect(() => {
@@ -134,7 +128,7 @@ export function ReviewScreen() {
       const picture = pastedPicture(e)
       if (!picture) return
       e.preventDefault()
-      void pasteImage(current.id, picture)
+      void pasteImage(current.phrase_id, picture)
     }
     document.addEventListener('paste', onPaste)
     return () => document.removeEventListener('paste', onPaste)
@@ -189,7 +183,7 @@ export function ReviewScreen() {
         <>
           {/* Десктоп: прогресс — линия по нижнему краю вкладок, на всю ширину окна; видна краем глаза. */}
           <span className={css.windowProgress} style={{ '--p': `${Math.round(counts.progress * 100)}%` } as CSSProperties} />
-          {counts.reviewed === counts.total ? DONE : `${counts.reviewed} / ${counts.total}`}
+          {source.status === REVIEWED ? DONE : `${counts.reviewed} / ${counts.total}`}
         </>
       )}
     >
@@ -263,7 +257,7 @@ export function ReviewScreen() {
           <div className={css.listPanel}>
             {items.map(item => item.kind === 'section'
               ? sectionToggle(item.section, item.count, item.open)
-              : <PhraseRow key={item.candidate.id} candidate={item.candidate} current={item.candidate.id === currentId} onSelect={showCard} />)}
+              : <PhraseRow key={item.candidate.phrase_id} candidate={item.candidate} current={item.candidate.phrase_id === currentId} onSelect={showCard} />)}
             {list.hiddenCount > 0 && (
               <Button variant="link" onClick={list.showMore}>Show {list.nextPageCount} more · {list.hiddenCount} left</Button>
             )}
@@ -273,9 +267,9 @@ export function ReviewScreen() {
           {items.map(item => {
             if (item.kind === 'section') return sectionToggle(item.section, item.count, item.open)
             const { candidate } = item
-            return candidate.id === currentId
-              ? <PhraseCard key={candidate.id} candidate={candidate} review={review} />
-              : <PhraseRow key={candidate.id} candidate={candidate} onSelect={setCurrentId} />
+            return candidate.phrase_id === currentId
+              ? <PhraseCard key={candidate.phrase_id} candidate={candidate} review={review} />
+              : <PhraseRow key={candidate.phrase_id} candidate={candidate} onSelect={setCurrentId} />
           })}
         </div>
         {list.hiddenCount > 0 && (

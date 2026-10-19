@@ -3,37 +3,25 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from backend.application.dto.analysis_dtos import AnalyzeTextRequest, dto_to_usage_distribution
-from backend.application.dto.cefr_dtos import dto_to_breakdown
-from backend.domain.entities.candidate_media import CandidateMedia
-from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import (
     SourceAlreadyProcessedError,
-    SourceHasNoDocumentError,
     SourceNotFoundError,
+    SourceOperationBusyError,
     TopicTargetsMissingError,
 )
-from backend.domain.services.document_time import time_of
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.processing_stage import ProcessingStage
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
-    from backend.application.utils.frequent_word_threshold_resolver import (
-        FrequentWordThresholdResolver,
-    )
+    from backend.application.utils.collected_phrases import CollectedPhrases
+    from backend.application.utils.source_rebuilder import SourceRebuilder
     from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
-    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.source import Source
-    from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
-    from backend.domain.ports.candidate_repository import CandidateRepository
-    from backend.domain.ports.document_repository import DocumentRepository
-    from backend.domain.ports.settings_repository import SettingsRepository
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
 
@@ -41,32 +29,31 @@ _ALLOWED_START_STATUSES = frozenset({SourceStatus.NEW, SourceStatus.ERROR})
 
 
 class ProcessSourceUseCase:
-    """Orchestrates async source processing: validates, runs pipeline, saves results."""
+    """Processes a new source: a rebuild of a source with nothing in it yet.
+
+    `start` takes the source and must be committed before `execute`, which frees it
+    whatever happens. The source's status stays its last outcome meanwhile: the lock is
+    what shows it is being processed and keeps other operations off it.
+    """
 
     def __init__(
         self,
         source_repo: SourceRepository,
-        candidate_repo: CandidateRepository,
-        vocabulary: UserVocabulary,
-        settings_repo: SettingsRepository,
-        threshold_resolver: FrequentWordThresholdResolver,
-        analyze_text_use_case: AnalyzeTextUseCase,
-        document_repo: DocumentRepository,
-        media_repo: CandidateMediaRepository | None = None,
+        collected_phrases: CollectedPhrases,
+        lock: SourceOperationLock,
+        unit_of_work: UnitOfWork,
+        rebuilder: SourceRebuilder,
         topic_phrase_collector: TopicPhraseCollector | None = None,
     ) -> None:
         self._source_repo = source_repo
-        self._candidate_repo = candidate_repo
-        self._vocabulary = vocabulary
-        self._settings_repo = settings_repo
-        self._threshold_resolver = threshold_resolver
-        self._analyze_text = analyze_text_use_case
-        self._document_repo = document_repo
-        self._media_repo = media_repo
+        self._collected_phrases = collected_phrases
+        self._lock = lock
+        self._unit_of_work = unit_of_work
+        self._rebuilder = rebuilder
         self._topic_phrase_collector = topic_phrase_collector
 
     def start(self, source_id: int) -> None:
-        """Validate source and mark as PROCESSING. Call before launching background task."""
+        """Validate the source and take it. Call before launching the background task."""
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
@@ -74,7 +61,8 @@ class ProcessSourceUseCase:
             raise SourceAlreadyProcessedError(source_id)
         if source.role is SourceRole.TOPIC and not self._topic_ready(source_id):
             raise TopicTargetsMissingError(source_id)
-        self._source_repo.update_status(source_id, SourceStatus.PROCESSING)
+        if not self._lock.acquire(source_id, SourceOperationKind.PROCESS):
+            raise SourceOperationBusyError(source_id, self._lock.held(source_id))
 
     def _topic_ready(self, source_id: int) -> bool:
         return (
@@ -82,107 +70,48 @@ class ProcessSourceUseCase:
             and self._topic_phrase_collector.has_targets(source_id)
         )
 
-    def _notify_stage(
-        self,
-        source_id: int,
-        stage: ProcessingStage,
-        on_stage_commit: Callable[[], None] | None,
-    ) -> None:
+    def _notify_stage(self, source_id: int, stage: ProcessingStage) -> None:
+        """Shown at once; no transaction stays open into the work of the stage."""
         logger.info(
             "process_source: stage transition (source_id=%d, stage=%s)",
             source_id, stage.value,
         )
-        self._source_repo.update_status(
-            source_id, SourceStatus.PROCESSING, processing_stage=stage,
-        )
-        if on_stage_commit:
-            on_stage_commit()
+        self._lock.set_stage(source_id, stage)
+        self._unit_of_work.commit()
 
-    def execute(
-        self,
-        source_id: int,
-        *,
-        on_stage_commit: Callable[[], None] | None = None,
-    ) -> None:
-        """Run the full pipeline and save results. Call in background thread."""
+    def execute(self, source_id: int) -> None:
+        """Run the pipeline and save the results. Call in a background thread."""
         logger.info("process_source: execute start (source_id=%d)", source_id)
-        source = self._source_repo.get_by_id(source_id)
-        if source is None:
-            raise SourceNotFoundError(source_id)
-        if source.role is SourceRole.TOPIC:
-            self._process_topic(source, on_stage_commit)
-            return
+        try:
+            source = self._source_repo.get_by_id(source_id)
+            if source is None:
+                raise SourceNotFoundError(source_id)
+            if source.role is SourceRole.TOPIC:
+                self._process_topic(source)
+                return
+            self._notify_stage(source_id, ProcessingStage.ANALYZING_TEXT)
+            plan = self._rebuilder.apply(self._rebuilder.analyse(source_id), include_open=False)
+            logger.info(
+                "process_source: done (source_id=%d, words_created=%d, phrases_created=%d)",
+                source_id, len(plan.words_to_create), len(plan.occ_to_insert),
+            )
+        except BaseException:
+            self._unit_of_work.rollback()
+            raise
+        finally:
+            self._lock.release(source_id)
+            self._unit_of_work.commit()
 
-        document = self._document_repo.get(source_id)
-        if document is None:
-            raise SourceHasNoDocumentError(source_id)
-
-        self._notify_stage(source_id, ProcessingStage.ANALYZING_TEXT, on_stage_commit)
-        cefr_level = self._settings_repo.get("cefr_level", "B1") or "B1"
-        request = AnalyzeTextRequest(
-            user_level=cefr_level,
-            vocabulary=self._vocabulary.snapshot(),
-            frequent_word_zipf=self._threshold_resolver.resolve().zipf,
-        )
-        result = self._analyze_text.execute(document, request)
-
-        stored: list[StoredCandidate] = []
-        for c in result.candidates:
-            bd = dto_to_breakdown(c.cefr_breakdown) if c.cefr_breakdown else None
-            ud = dto_to_usage_distribution(c.usage_distribution)
-            stored.append(StoredCandidate(
-                source_id=source_id,
-                lemma=c.lemma,
-                pos=c.pos,
-                cefr_level=c.cefr_level,
-                zipf_frequency=c.zipf_frequency,
-                source_phrase=c.phrase,
-                occurrences=c.occurrences,
-                is_phrasal_verb=c.is_phrasal_verb,
-                status=CandidateStatus.PENDING,
-                cefr_breakdown=bd,
-                usage_distribution=ud,
-                phrase_position=c.phrase_position.to_position() if c.phrase_position else None,
-            ))
-        created = self._candidate_repo.create_batch(stored)
-
-        # A phrase of timed lines gets their time: the clip of its card
-        timed = 0
-        for candidate in created:
-            if candidate.id is None or candidate.phrase_position is None:
-                continue
-            time = time_of(document, candidate.phrase_position)
-            if time is None or self._media_repo is None:
-                continue
-            self._media_repo.upsert(CandidateMedia(
-                candidate_id=candidate.id,
-                screenshot_path=None,
-                audio_path=None,
-                start_ms=time[0],
-                end_ms=time[1],
-                generated_at=None,
-            ))
-            timed += 1
-        self._source_repo.update_status(source_id, SourceStatus.DONE)
-        logger.info(
-            "process_source: done (source_id=%d, candidates_created=%d, with_timecodes=%d)",
-            source_id, len(created), timed,
-        )
-
-    def _process_topic(
-        self,
-        source: Source,
-        on_stage_commit: Callable[[], None] | None,
-    ) -> None:
+    def _process_topic(self, source: Source) -> None:
         """Topics have no text to analyse: their phrases come from other sources."""
         assert source.id is not None
         if self._topic_phrase_collector is None:
             raise TopicTargetsMissingError(source.id)
-        self._notify_stage(source.id, ProcessingStage.COLLECTING_PHRASES, on_stage_commit)
+        self._notify_stage(source.id, ProcessingStage.COLLECTING_PHRASES)
         collected = self._topic_phrase_collector.collect(source.id)
-        created = self._candidate_repo.create_batch(collected.candidates)
+        created = self._collected_phrases.add(source.id, collected)
         self._source_repo.update_status(source.id, SourceStatus.DONE)
         logger.info(
-            "process_source: topic done (source_id=%d, candidates_created=%d)",
+            "process_source: topic done (source_id=%d, phrases_created=%d)",
             source.id, len(created),
         )

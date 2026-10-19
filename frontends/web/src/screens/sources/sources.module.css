@@ -66,3 +66,6 @@
 /* при переключении области остаётся прошлый список, а не пустой кадр; приглушается, только если загрузка затянулась */
 .listArea { transition: opacity var(--t); }
 .stale { opacity: var(--o-kbd); transition-delay: var(--stale-delay); }
+
+/* Rebuild и Refresh: строки превью и итога */
+.operationLines { display: flex; flex-direction: column; gap: var(--s2); padding-left: var(--s5); list-style: disc; }

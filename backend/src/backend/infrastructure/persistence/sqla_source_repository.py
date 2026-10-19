@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.source import Source
-    from backend.domain.value_objects.processing_stage import ProcessingStage
     from backend.domain.value_objects.source_role import SourceRole
     from backend.domain.value_objects.source_status import SourceStatus
 
@@ -48,21 +47,6 @@ class SqlaSourceRepository(SourceRepository):
             .first()
         )
         return model.to_entity() if model else None
-
-    def update_source(self, source: Source) -> None:
-        if source.id is None:
-            return
-        model = self._session.get(SourceModel, source.id)
-        if model is None:
-            return
-        model.status = source.status.value
-        model.error_message = source.error_message
-        model.processing_stage = source.processing_stage.value if source.processing_stage else None
-        model.title = source.title
-        model.source_url = source.source_url
-        model.video_path = source.video_path
-        model.audio_track_index = source.audio_track_index
-        self._session.flush()
 
     def update_title(self, source_id: int, title: str) -> None:
         model = self._session.get(SourceModel, source_id)
@@ -110,13 +94,11 @@ class SqlaSourceRepository(SourceRepository):
         status: SourceStatus,
         *,
         error_message: str | None = None,
-        processing_stage: ProcessingStage | None = None,
     ) -> None:
         model = self._session.get(SourceModel, source_id)
         if model is None:
             return
         model.status = status.value
-        model.processing_stage = processing_stage.value if processing_stage else None
         if error_message is not None:
             model.error_message = error_message
         self._session.flush()

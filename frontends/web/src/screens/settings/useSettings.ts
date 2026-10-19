@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { BootstrapStatus, NoteTypeCheck, NoteTypeKind, CleanupMediaKind, FrequentWordThresholdOption, KnownWord, Settings, SourceMediaStats, UnknownWord } from '@/api/types'
+import type { BootstrapStatus, NoteTypeCheck, NoteTypeKind, CleanupMediaKind, FrequentWordThresholdOption, KnownWord, LearningWords, Settings, SourceMediaStats, UnknownWord } from '@/api/types'
 
 const BOOTSTRAP_POLL_MS = 2000
+
+/** Ключ строки списков Known и Unknown: у слова Known по таймеру нет id. */
+export const unknownWordKey = (id: number): string => `unknown:${id}`
 const FLASH_MS = 2000
 
 export type TemplatePart = 'front' | 'back' | 'cloze_front' | 'cloze_back' | 'css'
@@ -16,7 +19,9 @@ export function useSettings() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [knownWords, setKnownWords] = useState<KnownWord[]>([])
   const [unknownWords, setUnknownWords] = useState<UnknownWord[]>([])
-  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [learningWords, setLearningWords] = useState<LearningWords>({ in_anki: [], awaiting_export: [] })
+  const [deletingKey, setDeletingKey] = useState<string | null>(null)
+  const [knownError, setKnownError] = useState<string | null>(null)
   const [noteTypes, setNoteTypes] = useState<NoteTypeCheck[] | null>(null)
   const [noteTypesError, setNoteTypesError] = useState<string | null>(null)
   const [fixingNoteType, setFixingNoteType] = useState<NoteTypeKind | null>(null)
@@ -76,11 +81,12 @@ export function useSettings() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [settings, words, unknown, thresholds] = await Promise.all([
-          api.getSettings(), api.getKnownWords(), api.getUnknownWords(), api.getFrequentWordThresholds(),
+        const [settings, words, unknown, thresholds, learning] = await Promise.all([
+          api.getSettings(), api.getKnownWords(), api.getUnknownWords(), api.getFrequentWordThresholds(), api.getLearningWords(),
         ])
         setForm(settings)
         setKnownWords(words)
+        setLearningWords(learning)
         setUnknownWords(unknown)
         setFrequentWordThresholds(thresholds)
       } catch (e) {
@@ -124,23 +130,29 @@ export function useSettings() {
     }
   }, [form, loadNoteTypes])
 
-  const deleteWord = async (id: number) => {
-    setDeletingId(id)
+  /** Слово удаляется по ключу, который дал backend; списки перечитываются. */
+  const deleteWord = async (word: KnownWord) => {
+    setDeletingKey(word.removal_key)
+    setKnownError(null)
     try {
-      await api.deleteKnownWord(id)
-      setKnownWords(prev => prev.filter(w => w.id !== id))
+      await api.deleteKnownWord(word.removal_key)
+      const [known, learning] = await Promise.all([api.getKnownWords(), api.getLearningWords()])
+      setKnownWords(known)
+      setLearningWords(learning)
+    } catch (e) {
+      setKnownError(e instanceof Error ? e.message : 'Failed to remove the word')
     } finally {
-      setDeletingId(null)
+      setDeletingKey(null)
     }
   }
 
   const deleteUnknownWord = async (id: number) => {
-    setDeletingId(id)
+    setDeletingKey(unknownWordKey(id))
     try {
       await api.deleteUnknownWord(id)
       setUnknownWords(prev => prev.filter(w => w.id !== id))
     } finally {
-      setDeletingId(null)
+      setDeletingKey(null)
     }
   }
 
@@ -180,7 +192,7 @@ export function useSettings() {
 
   return {
     form, loading, saving, saved, saveError, setField, save,
-    knownWords, deletingId, deleteWord, unknownWords, deleteUnknownWord,
+    knownWords, knownError, deletingKey, deleteWord, unknownWords, deleteUnknownWord, learningWords,
     noteTypes, noteTypesError, fixingNoteType, fixNoteType,
     copiedTemplate, copyTemplate,
     bootstrapStatus, buildBootstrap,

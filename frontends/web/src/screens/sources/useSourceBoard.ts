@@ -53,7 +53,7 @@ export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
   const reload = useCallback(async () => { await load(); callbacks.current.onChanged() }, [load])
 
   const sources = board?.groups.flatMap(g => g.sources) ?? []
-  const anyBusy = sources.some(s => s.status === 'processing' || s.generation_status === 'queued' || s.generation_status === 'running')
+  const anyBusy = sources.some(s => s.busy_with !== null || s.generation_status === 'queued' || s.generation_status === 'running')
   useEffect(() => {
     if (!anyBusy) return
     const timer = setInterval(() => {
@@ -94,7 +94,6 @@ export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
     generate: (id: number) => act(() => api.enqueueTopicGeneration(id)),
     cancelGeneration: (id: number) => act(() => api.cancelQueue({ job_type: TOPIC_JOB_TYPE, source_id: id })),
     retryGeneration: (id: number) => act(() => api.retryQueue({ job_type: TOPIC_JOB_TYPE, source_id: id })),
-    reprocess: (id: number) => act(() => api.reprocessSource(id)),
     vpnBlocked: sources.some(s => s.generation_status === 'failed' && isVpnErrorText(s.generation_error)),
   }
 }

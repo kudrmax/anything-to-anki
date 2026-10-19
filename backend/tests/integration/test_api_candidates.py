@@ -3,21 +3,42 @@ from __future__ import annotations
 from collections.abc import Generator  # noqa: TC003
 
 import pytest
+from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
+from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import SourceModel
-from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
+from backend.infrastructure.persistence.sqla_known_word_repository import (
+    SqlaKnownWordRepository,
+)
+from backend.infrastructure.persistence.sqla_occurrence_repository import (
+    SqlaOccurrenceRepository,
+)
 from fastapi.testclient import TestClient
-from sqlalchemy import StaticPool, create_engine
+from sqlalchemy import StaticPool, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.word_support import (
+    PHRASE_ID_OFFSET,
+    CardSeed,
+    bind,
+    insert_word,
+    phrase_id_of,
+    store_cards,
+)
+
+WORD_ID = 1
+PHRASE_ID = PHRASE_ID_OFFSET + 1
+OTHER_SOURCE = 2
+OTHER_WORD = 50
 
 
 @pytest.fixture()
@@ -40,14 +61,19 @@ def client() -> Generator[TestClient, None, None]:
         source.id, Document((Paragraph(lines=(Line(text),), mode=ParagraphMode.FLOW),)),
     )
     phrase_start = text.index("the pursuit of")
-    repo = SqlaCandidateRepository(session)
-    repo.create_batch([
-        StoredCandidate(
-            source_id=source.id, lemma="pursuit", pos="NOUN",
-            cefr_level="B2", zipf_frequency=3.5,
-            source_phrase=phrase("the pursuit of", "pursuit"),
-            occurrences=1, status=CandidateStatus.PENDING,
-            phrase_position=DocumentPosition(0, 0, phrase_start, 0, phrase_start + 14),
+    store_cards(session, [
+        CardSeed(
+            StoredCandidate(
+                source_id=source.id,
+                lemma="pursuit",
+                pos="NOUN",
+                cefr_level="B2",
+                zipf_frequency=3.5,
+                occurrences=1,
+                status=WordStatus.NEW,
+            ),
+            phrase("the pursuit of", "pursuit"),
+            position=DocumentPosition(0, 0, phrase_start, 0, phrase_start + 14),
         ),
     ])
     session.commit()
@@ -71,14 +97,14 @@ def client() -> Generator[TestClient, None, None]:
 
 
 @pytest.mark.integration
-class TestCandidatesAPI:
+class TestDecisionAPI:
     def test_mark_candidate_learn(self, client: TestClient) -> None:
-        response = client.patch("/candidates/1", json={"status": "learn"})
+        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
         assert response.status_code == 200
-        assert response.json()["status"] == "learn"
+        assert response.json()["choice"] == "learn"
 
     def test_mark_candidate_known(self, client: TestClient) -> None:
-        response = client.patch("/candidates/1", json={"status": "known"})
+        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "known"})
         assert response.status_code == 200
         # Verify it was added to known words
         kw_response = client.get("/known-words")
@@ -88,30 +114,56 @@ class TestCandidatesAPI:
         self, client: TestClient,
     ) -> None:
         assert client.get("/sources/1").json()["status"] == "done"
-        client.patch("/candidates/1", json={"status": "learn"})
+        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
         assert client.get("/sources/1").json()["status"] == "reviewed"
 
     def test_undo_returns_the_candidate_and_the_source_to_review(
         self, client: TestClient,
     ) -> None:
-        client.patch("/candidates/1", json={"status": "learn"})
-        response = client.patch("/candidates/1", json={"status": "pending"})
+        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
+        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
         assert response.status_code == 200
-        assert client.get("/sources/1").json()["status"] == "partially_reviewed"
+        # Nothing decided again: the source reads as not started, as its progress says.
+        assert client.get("/sources/1").json()["status"] == "done"
 
     def test_undoing_known_removes_the_word_from_known_words(
         self, client: TestClient,
     ) -> None:
-        client.patch("/candidates/1", json={"status": "known"})
-        client.patch("/candidates/1", json={"status": "pending"})
+        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "known"})
+        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "known"})
         assert all(w["lemma"] != "pursuit" for w in client.get("/known-words").json())
 
     def test_mark_candidate_not_found(self, client: TestClient) -> None:
-        response = client.patch("/candidates/999", json={"status": "learn"})
+        response = client.post("/phrases/999/decision", json={"button": "learn"})
         assert response.status_code == 404
 
+    def test_a_decision_on_a_sibling_card_is_refused(self, client: TestClient) -> None:
+        session = next(app.dependency_overrides[get_db_session]())
+        sibling = SqlaOccurrenceRepository(session).add(Occurrence(
+            candidate_id=WORD_ID, origin=OccurrenceOrigin.MANUAL,
+            source_phrase=phrase("the pursuit of", "pursuit"), phrase_position=None,
+            key=None, fragment_score=None, shown_by=ShownBy.USER,
+        ))
+        session.commit()
+        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
+
+        response = client.post(f"/phrases/{sibling.id}/decision", json={"button": "known"})
+
+        assert response.status_code == 409
+        assert response.json()["detail"] == "Learned via another phrase: change it on that card"
+
+    def test_learn_on_a_word_known_elsewhere_says_why(self, client: TestClient) -> None:
+        session = next(app.dependency_overrides[get_db_session]())
+        SqlaKnownWordRepository(session).add("pursuit", "NOUN")
+        session.commit()
+
+        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
+
+        assert response.status_code == 409
+        assert response.json()["detail"] == "Already known"
+
     def test_mark_candidate_invalid_status(self, client: TestClient) -> None:
-        response = client.patch("/candidates/1", json={"status": "invalid"})
+        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "invalid"})
         assert response.status_code == 422
 
 
@@ -119,7 +171,7 @@ class TestCandidatesAPI:
 class TestCardReportsAPI:
     def test_report_keeps_a_snapshot_of_the_card(self, client: TestClient) -> None:
         response = client.post(
-            "/candidates/1/report",
+            f"/phrases/{PHRASE_ID}/report",
             json={"reasons": ["Phrase too long"], "comment": " odd split "},
         )
         assert response.status_code == 201
@@ -133,41 +185,69 @@ class TestCardReportsAPI:
 
     def test_report_keeps_several_reasons(self, client: TestClient) -> None:
         reasons = ["Phrase too long", "Wrong word form"]
-        response = client.post("/candidates/1/report", json={"reasons": reasons})
+        response = client.post(f"/phrases/{PHRASE_ID}/report", json={"reasons": reasons})
         assert response.status_code == 201
         assert response.json()["reasons"] == reasons
         assert response.json()["comment"] == ""
 
     def test_reports_are_listed_newest_first(self, client: TestClient) -> None:
-        client.post("/candidates/1/report", json={"comment": "first"})
-        client.post("/candidates/1/report", json={"comment": "second"})
+        client.post(f"/phrases/{PHRASE_ID}/report", json={"comment": "first"})
+        client.post(f"/phrases/{PHRASE_ID}/report", json={"comment": "second"})
         comments = [r["comment"] for r in client.get("/api/card-reports").json()]
         assert comments == ["second", "first"]
 
     def test_report_outlives_the_source(self, client: TestClient) -> None:
-        client.post("/candidates/1/report", json={"reasons": ["Wrong phrase boundary"]})
+        client.post(f"/phrases/{PHRASE_ID}/report", json={"reasons": ["Wrong phrase boundary"]})
         client.delete("/sources/1")
         assert len(client.get("/api/card-reports").json()) == 1
 
     def test_report_without_reasons_or_comment_is_rejected(self, client: TestClient) -> None:
-        response = client.post("/candidates/1/report", json={"reasons": [], "comment": "   "})
+        response = client.post(
+            f"/phrases/{PHRASE_ID}/report", json={"reasons": [], "comment": "   "},
+        )
         assert response.status_code == 422
 
     def test_unknown_reason_is_rejected(self, client: TestClient) -> None:
-        response = client.post("/candidates/1/report", json={"reasons": ["Made up"]})
+        response = client.post(f"/phrases/{PHRASE_ID}/report", json={"reasons": ["Made up"]})
         assert response.status_code == 422
 
     def test_unknown_candidate(self, client: TestClient) -> None:
-        assert client.post("/candidates/999/report", json={"comment": "x"}).status_code == 404
+        assert client.post("/phrases/999/report", json={"comment": "x"}).status_code == 404
 
     def test_reported_candidate_is_marked(self, client: TestClient) -> None:
         def reported() -> bool:
             candidates = client.get("/sources/1/candidates").json()
-            return next(c for c in candidates if c["id"] == 1)["reported"]
+            return next(c for c in candidates if c["phrase_id"] == PHRASE_ID)["reported"]
 
         assert reported() is False
-        client.post("/candidates/1/report", json={"comment": "x"})
+        client.post(f"/phrases/{PHRASE_ID}/report", json={"comment": "x"})
         assert reported() is True
+
+    def test_marking_a_word_unknown_makes_its_known_cards_new_everywhere(
+        self, client: TestClient,
+    ) -> None:
+        """§2.7 (a): the Unknown of a report removes Known as any removal does."""
+        session = next(app.dependency_overrides[get_db_session]())
+        insert_source(session, OTHER_SOURCE)
+        insert_word(session, OTHER_WORD, source_id=OTHER_SOURCE, lemma="pursuit", status="known")
+        bind(session, OTHER_WORD, phrase_id_of(OTHER_WORD))
+        SqlaKnownWordRepository(session).add("pursuit", "NOUN")
+        session.commit()
+
+        response = client.post(
+            f"/phrases/{PHRASE_ID}/report",
+            json={"reasons": ["More than one unknown word"], "unknown_words": [1]},
+        )
+
+        assert response.status_code == 201
+        session = next(app.dependency_overrides[get_db_session]())
+        rows = session.execute(text(
+            "SELECT c.status, p.choice, a.released_at IS NOT NULL FROM candidates c"
+            " JOIN phrases p ON p.candidate_id = c.id"
+            " JOIN anki_synced_cards a ON a.phrase_id = p.id WHERE c.id = :id"
+        ), {"id": OTHER_WORD}).all()
+        assert [tuple(row) for row in rows] == [("pending", "none", 1)]
+        assert all(w["lemma"] != "pursuit" for w in client.get("/known-words").json())
 
     def test_reasons(self, client: TestClient) -> None:
         reasons = client.get("/api/card-reports/reasons").json()
@@ -178,18 +258,18 @@ class TestCardReportsAPI:
 @pytest.mark.integration
 class TestTargetImageAPI:
     def test_refuses_to_download_a_url_no_source_handed_out(self, client: TestClient) -> None:
-        response = client.put("/candidates/1/image", json={"url": "https://evil.example/x.jpg"})
+        response = client.put("/words/1/image", json={"url": "https://evil.example/x.jpg"})
 
         assert response.status_code == 400
 
     def test_unknown_candidate(self, client: TestClient) -> None:
-        response = client.get("/candidates/999/image-options")
+        response = client.get("/words/999/image-options")
 
         assert response.status_code == 404
 
     def test_pasting_for_an_unknown_candidate(self, client: TestClient) -> None:
         response = client.put(
-            "/candidates/999/image/pasted",
+            "/words/999/image/pasted",
             content=b"picture",
             headers={"Content-Type": "image/png"},
         )
@@ -211,7 +291,7 @@ class TestUnknownWordsAPI:
 
     def test_word_marked_in_a_report_moves_the_card_to_extra(self, client: TestClient) -> None:
         response = client.post(
-            "/candidates/1/report",
+            f"/phrases/{PHRASE_ID}/report",
             json={
                 "reasons": ["More than one unknown word"],
                 "unknown_words": [0],
@@ -224,17 +304,17 @@ class TestUnknownWordsAPI:
     def test_removing_the_unknown_word_returns_the_card_to_ready(
         self, client: TestClient,
     ) -> None:
-        client.post("/candidates/1/report", json={"unknown_words": [0]})
+        client.post(f"/phrases/{PHRASE_ID}/report", json={"unknown_words": [0]})
         word = client.get("/unknown-words").json()[0]
         assert client.delete(f"/unknown-words/{word['id']}").status_code == 200
         assert self._card(client) == {"section": "ready", "ready": 1}
 
     def test_source_with_no_ready_cards_left_is_reviewed(self, client: TestClient) -> None:
-        client.post("/candidates/1/report", json={"unknown_words": [0]})
+        client.post(f"/phrases/{PHRASE_ID}/report", json={"unknown_words": [0]})
         assert client.get("/sources/1").json()["status"] == "reviewed"
 
     def test_new_phrase_is_read_again(self, client: TestClient) -> None:
-        client.put("/candidates/1/phrase", json={"phrase": "the ominous pursuit of"})
+        client.put(f"/phrases/{PHRASE_ID}/phrase", json={"phrase": "the ominous pursuit of"})
         assert self._card(client) == {"section": "extra", "ready": 0}
-        client.put("/candidates/1/phrase", json={"phrase": "the long pursuit of"})
+        client.put(f"/phrases/{PHRASE_ID}/phrase", json={"phrase": "the long pursuit of"})
         assert self._card(client) == {"section": "ready", "ready": 1}

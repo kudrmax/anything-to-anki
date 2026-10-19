@@ -3,7 +3,10 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from backend.application.utils.knowledge_scope import KnowledgeScope
 from backend.application.utils.user_vocabulary import UserVocabulary
+
+from tests.decision_support import FixedClock
 
 
 @pytest.mark.unit
@@ -13,7 +16,13 @@ class TestUserVocabulary:
         self.known.get_all_pairs.return_value = {("lurk", "VERB"), ("feast", None)}
         self.unknown = MagicMock()
         self.unknown.lemmas.return_value = {"lurk"}
-        self.vocabulary = UserVocabulary(self.known, self.unknown)
+        self.learning = MagicMock()
+        self.learning.awaiting_export.return_value = frozenset({"gull", "feast"})
+        self.learning.active_since.return_value = {}
+        self.vocabulary = UserVocabulary(
+            self.known, self.unknown,
+            KnowledgeScope(FixedClock(), self.known, self.unknown, self.learning),
+        )
 
     def test_word_in_both_lists_is_unknown(self) -> None:
         snapshot = self.vocabulary.snapshot()
@@ -30,3 +39,12 @@ class TestUserVocabulary:
         self.vocabulary.mark_unknown("feast")
         self.known.remove_every_pos.assert_called_once_with("feast")
         self.unknown.add.assert_called_once_with("feast")
+
+    def test_the_snapshot_has_the_learning_words_below_known(self) -> None:
+        snapshot = self.vocabulary.snapshot()
+        assert snapshot.is_learning("gull") is True
+        assert snapshot.is_learning("feast") is False
+
+    def test_forgetting_known_takes_every_part_of_speech_out_of_known(self) -> None:
+        self.vocabulary.forget_every_pos("feast")
+        self.known.remove_every_pos.assert_called_once_with("feast")

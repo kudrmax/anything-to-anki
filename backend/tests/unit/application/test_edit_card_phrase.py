@@ -6,20 +6,24 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.use_cases.edit_card_phrase import EditCardPhraseUseCase
 from backend.application.utils.rewrite_phrase import RewritePhrase
-from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import (
-    CandidateNotFoundError,
     InvalidPhraseError,
+    PhraseNotFoundError,
+    SourceOperationBusyError,
     TargetNotInPhraseError,
 )
 from backend.domain.services.phrase_building import target_by_lemma
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
+from tests.card_support import occurrence, word
+from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
+    from backend.domain.entities.occurrence import Occurrence
     from backend.domain.value_objects.phrase import Phrase
 
+PHRASE_ID = 5
 SOURCE_PHRASE = "The air around us was stale"
 
 
@@ -30,89 +34,100 @@ def _read_for(text: str, lemma: str) -> Phrase:
     return found
 
 
-def _candidate(polished: str | None = None, reverted: bool = False) -> StoredCandidate:
-    return StoredCandidate(
-        id=5,
-        source_id=1,
-        lemma="stale",
-        pos="ADJ",
-        cefr_level="B2",
-        zipf_frequency=3.5,
-        source_phrase=phrase(SOURCE_PHRASE, "stale"),
-        occurrences=1,
-        status=CandidateStatus.PENDING,
+def _phrase(polished: str | None = None, reverted: bool = False) -> Occurrence:
+    return occurrence(
+        PHRASE_ID, 1, phrase(SOURCE_PHRASE, "stale"),
         polished_phrase=phrase(polished, "stale") if polished is not None else None,
         polish_reverted=reverted,
     )
 
 
-def _use_case(candidate: StoredCandidate | None) -> tuple[EditCardPhraseUseCase, MagicMock]:
-    candidate_repo = MagicMock()
-    candidate_repo.get_by_id.return_value = candidate
+def _use_case(
+    found: Occurrence | None, lock: MagicMock | None = None,
+) -> tuple[EditCardPhraseUseCase, MagicMock]:
+    occurrences = MagicMock()
+    occurrences.get.return_value = found
+    candidates = MagicMock()
+    candidates.get_by_id.return_value = word(1, "stale")
     reader = MagicMock()
     reader.read_for.side_effect = _read_for
-    rewrite = RewritePhrase(candidate_repo=candidate_repo, phrase_reader=reader)
-    use_case = EditCardPhraseUseCase(candidate_repo=candidate_repo, rewrite_phrase=rewrite)
-    return use_case, candidate_repo
+    rewrite = RewritePhrase(phrase_reader=reader, occurrence_repo=occurrences)
+    use_case = EditCardPhraseUseCase(
+        occurrence_repo=occurrences, candidate_repo=candidates, rewrite_phrase=rewrite,
+        lock=lock or free_lock(),
+    )
+    return use_case, occurrences
 
 
-def _written(repo: MagicMock) -> list[tuple[int, str, str]]:
+def _written(occurrences: MagicMock) -> list[tuple[int, str, str, bool]]:
     return [
-        (call.args[0], call.args[1].text, call.args[1].target_text())
-        for call in repo.set_polished_phrase.call_args_list
+        (
+            call.args[0], call.kwargs["polished"].text, call.kwargs["polished"].target_text(),
+            call.kwargs.get("polish_reverted", False),
+        )
+        for call in occurrences.write_text.call_args_list
     ]
 
 
 @pytest.mark.unit
-def test_edit_puts_phrase_on_card() -> None:
-    use_case, repo = _use_case(_candidate())
+def test_edit_puts_the_text_on_the_card_phrase() -> None:
+    use_case, occurrences = _use_case(_phrase())
 
-    use_case.execute(5, "  The air was stale.  ")
+    use_case.execute(PHRASE_ID, "  The air was stale.  ")
 
-    assert _written(repo) == [(5, "The air was stale.", "stale")]
-    repo.set_polish_reverted.assert_not_called()
+    assert _written(occurrences) == [(PHRASE_ID, "The air was stale.", "stale", False)]
 
 
 @pytest.mark.unit
 def test_edit_of_reverted_phrase_shows_the_edit() -> None:
-    """Storing the rewritten phrase clears the revert (the repository's contract)."""
-    use_case, repo = _use_case(_candidate("The air was old and stale.", reverted=True))
+    use_case, occurrences = _use_case(_phrase("The air was old and stale.", reverted=True))
 
-    use_case.execute(5, "The air was stale.")
+    use_case.execute(PHRASE_ID, "The air was stale.")
 
-    assert _written(repo) == [(5, "The air was stale.", "stale")]
+    assert _written(occurrences) == [(PHRASE_ID, "The air was stale.", "stale", False)]
 
 
 @pytest.mark.unit
 def test_unchanged_phrase_changes_nothing() -> None:
-    use_case, repo = _use_case(_candidate("The air was stale."))
+    use_case, occurrences = _use_case(_phrase("The air was stale."))
 
-    use_case.execute(5, "The air was stale.")
+    use_case.execute(PHRASE_ID, "The air was stale.")
 
-    repo.set_polished_phrase.assert_not_called()
+    occurrences.write_text.assert_not_called()
 
 
 @pytest.mark.unit
 def test_empty_phrase_is_rejected() -> None:
-    use_case, repo = _use_case(_candidate())
+    use_case, occurrences = _use_case(_phrase())
 
     with pytest.raises(InvalidPhraseError):
-        use_case.execute(5, "   ")
-    repo.set_polished_phrase.assert_not_called()
+        use_case.execute(PHRASE_ID, "   ")
+    occurrences.write_text.assert_not_called()
 
 
 @pytest.mark.unit
 def test_phrase_without_the_target_is_refused() -> None:
-    use_case, repo = _use_case(_candidate())
+    use_case, occurrences = _use_case(_phrase())
 
     with pytest.raises(TargetNotInPhraseError):
-        use_case.execute(5, "The air around us was fresh.")
-    repo.set_polished_phrase.assert_not_called()
+        use_case.execute(PHRASE_ID, "The air around us was fresh.")
+    occurrences.write_text.assert_not_called()
 
 
 @pytest.mark.unit
-def test_missing_candidate() -> None:
+def test_missing_phrase() -> None:
     use_case, _ = _use_case(None)
 
-    with pytest.raises(CandidateNotFoundError):
-        use_case.execute(5, "The air was stale.")
+    with pytest.raises(PhraseNotFoundError):
+        use_case.execute(PHRASE_ID, "The air was stale.")
+
+
+@pytest.mark.unit
+def test_refused_while_the_source_is_busy() -> None:
+    lock = MagicMock()
+    lock.held.return_value = SourceOperationKind.REBUILD
+    use_case, occurrences = _use_case(_phrase(), lock)
+
+    with pytest.raises(SourceOperationBusyError):
+        use_case.execute(PHRASE_ID, "The air was stale.")
+    occurrences.write_text.assert_not_called()

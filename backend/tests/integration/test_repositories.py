@@ -2,10 +2,12 @@ import pytest
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.built_analysis import WordKey
+from backend.domain.value_objects.card_choice import CardChoice, CardState
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -21,9 +23,13 @@ from backend.infrastructure.persistence.sqla_settings_repository import (
 from backend.infrastructure.persistence.sqla_source_repository import (
     SqlaSourceRepository,
 )
+from backend.infrastructure.persistence.sqla_word_state_repository import (
+    SqlaWordStateRepository,
+)
 from sqlalchemy.orm import Session
 
 from tests.phrase_support import phrase
+from tests.word_support import CardSeed, store_cards
 
 
 @pytest.mark.integration
@@ -88,21 +94,27 @@ class TestCandidateRepository:
         repo: SqlaCandidateRepository,
         source_id: int,
         lemma: str,
-        status: CandidateStatus,
+        status: WordStatus,
         meaning: str | None = None,
     ) -> None:
-        created = repo.create_batch([
-            StoredCandidate(
-                source_id=source_id, lemma=lemma, pos="NOUN",
-                cefr_level="B2", zipf_frequency=3.5,
-                source_phrase=phrase(f"context {lemma}", lemma),
-                occurrences=1, status=status,
+        created = store_cards(repo._session, [
+            CardSeed(
+                StoredCandidate(
+                    source_id=source_id,
+                    lemma=lemma,
+                    pos="NOUN",
+                    cefr_level="B2",
+                    zipf_frequency=3.5,
+                    occurrences=1,
+                    status=status,
+                ),
+                phrase(f"context {lemma}", lemma),
             )
         ])
-        if meaning is not None and created[0].id is not None:
+        if meaning is not None:
             meaning_repo = SqlaCandidateMeaningRepository(repo._session)
             meaning_repo.upsert(CandidateMeaning(
-                candidate_id=created[0].id,
+                candidate_id=created[0].word_id,
                 meaning=meaning,
                 translation=None,
                 synonyms=None,
@@ -114,22 +126,34 @@ class TestCandidateRepository:
         source_id = self._create_source(db_session)
         repo = SqlaCandidateRepository(db_session)
         candidates = [
-            StoredCandidate(
-                source_id=source_id, lemma="pursuit", pos="NOUN",
-                cefr_level="B2", zipf_frequency=3.5,
-                source_phrase=phrase("the pursuit of", "pursuit"),
-                occurrences=2, status=CandidateStatus.PENDING,
+            CardSeed(
+                StoredCandidate(
+                    source_id=source_id,
+                    lemma="pursuit",
+                    pos="NOUN",
+                    cefr_level="B2",
+                    zipf_frequency=3.5,
+                    occurrences=2,
+                    status=WordStatus.NEW,
+                ),
+                phrase("the pursuit of", "pursuit"),
             ),
-            StoredCandidate(
-                source_id=source_id, lemma="burnout", pos="NOUN",
-                cefr_level="C2", zipf_frequency=2.1,
-                source_phrase=phrase("leads to burnout", "burnout"),
-                occurrences=1, status=CandidateStatus.PENDING,
+            CardSeed(
+                StoredCandidate(
+                    source_id=source_id,
+                    lemma="burnout",
+                    pos="NOUN",
+                    cefr_level="C2",
+                    zipf_frequency=2.1,
+                    occurrences=1,
+                    status=WordStatus.NEW,
+                ),
+                phrase("leads to burnout", "burnout"),
             ),
         ]
-        created = repo.create_batch(candidates)
+        created = store_cards(repo._session, candidates)
         assert len(created) == 2
-        assert all(c.id is not None for c in created)
+        assert all(c.word.id is not None for c in created)
 
         by_source = repo.get_by_source(source_id)
         assert len(by_source) == 2
@@ -137,19 +161,27 @@ class TestCandidateRepository:
     def test_update_status(self, db_session: Session) -> None:
         source_id = self._create_source(db_session)
         repo = SqlaCandidateRepository(db_session)
-        created = repo.create_batch([
-            StoredCandidate(
-                source_id=source_id, lemma="test", pos="NOUN",
-                cefr_level="B1", zipf_frequency=4.0,
-                source_phrase=phrase("a test", "test"),
-                occurrences=1, status=CandidateStatus.PENDING,
+        created = store_cards(repo._session, [
+            CardSeed(
+                StoredCandidate(
+                    source_id=source_id,
+                    lemma="test",
+                    pos="NOUN",
+                    cefr_level="B1",
+                    zipf_frequency=4.0,
+                    occurrences=1,
+                    status=WordStatus.NEW,
+                ),
+                phrase("a test", "test"),
             ),
         ])
-        assert created[0].id is not None
-        repo.update_status(created[0].id, CandidateStatus.LEARN)
-        updated = repo.get_by_id(created[0].id)
+        states = SqlaWordStateRepository(db_session)
+        state = states.of_word(created[0].word_id)
+        assert state is not None
+        states.save(state.with_cards(CardState(created[0].phrase_id, CardChoice.LEARN)))
+        updated = repo.get_by_id(created[0].word_id)
         assert updated is not None
-        assert updated.status == CandidateStatus.LEARN
+        assert updated.status == WordStatus.LEARN
 
     def test_get_nonexistent(self, db_session: Session) -> None:
         repo = SqlaCandidateRepository(db_session)
@@ -158,10 +190,22 @@ class TestCandidateRepository:
     def test_count_all_counts_every_status(self, db_session: Session) -> None:
         source_id = self._create_source(db_session)
         repo = SqlaCandidateRepository(db_session)
-        self._create_candidate(repo, source_id, "one", CandidateStatus.PENDING)
-        self._create_candidate(repo, source_id, "two", CandidateStatus.LEARN)
-        self._create_candidate(repo, source_id, "three", CandidateStatus.SKIP)
+        self._create_candidate(repo, source_id, "one", WordStatus.NEW)
+        self._create_candidate(repo, source_id, "two", WordStatus.LEARN)
+        self._create_candidate(repo, source_id, "three", WordStatus.KNOWN)
         assert repo.count_all() == 3
+
+    def test_a_word_is_found_by_its_key_in_its_source(self, db_session: Session) -> None:
+        source_id = self._create_source(db_session)
+        other_source = self._create_source(db_session)
+        repo = SqlaCandidateRepository(db_session)
+        self._create_candidate(repo, source_id, "Glare", WordStatus.NEW)
+        self._create_candidate(repo, other_source, "linger", WordStatus.NEW)
+        [glare] = repo.get_by_source(source_id)
+
+        assert repo.word_id(source_id, WordKey.of("glare", False)) == glare.id
+        assert repo.word_id(source_id, WordKey.of("glare", True)) is None
+        assert repo.word_id(source_id, WordKey.of("linger", False)) is None
 
 
 @pytest.mark.integration

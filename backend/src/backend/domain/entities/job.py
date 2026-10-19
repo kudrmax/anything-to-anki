@@ -27,10 +27,19 @@ class Job:
     error: str | None
     created_at: datetime
     started_at: datetime | None
+    # The phrase a phrase-level job works on, and the revision of its text it expects.
+    phrase_id: int | None = None
+    phrase_revision: int | None = None
 
     @classmethod
     def queued(
-        cls, job_type: JobType, source_id: int, candidate_id: int | None = None,
+        cls,
+        job_type: JobType,
+        source_id: int,
+        candidate_id: int | None = None,
+        *,
+        phrase_id: int | None = None,
+        phrase_revision: int | None = None,
     ) -> Job:
         return cls(
             id=None,
@@ -41,4 +50,6 @@ class Job:
             error=None,
             created_at=datetime.now(tz=UTC),
             started_at=None,
+            phrase_id=phrase_id,
+            phrase_revision=phrase_revision,
         )

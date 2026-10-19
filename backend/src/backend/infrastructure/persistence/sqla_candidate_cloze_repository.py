@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from backend.domain.ports.candidate_cloze_repository import CandidateClozeRepository
 from backend.infrastructure.persistence.models import CandidateClozeModel
+from backend.infrastructure.persistence.phrase_owners import word_ids_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -13,19 +14,24 @@ if TYPE_CHECKING:
 
 
 class SqlaCandidateClozeRepository(CandidateClozeRepository):
-    """SQLAlchemy implementation of CandidateClozeRepository."""
+    """SQLAlchemy implementation of CandidateClozeRepository: the cloze markup of phrases.
+
+    The markup does not decide what kind of card the phrase is: its decision does."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def get_by_candidate_id(self, candidate_id: int) -> CandidateCloze | None:
-        model = self._session.get(CandidateClozeModel, candidate_id)
-        return model.to_entity() if model else None
+    def get_by_phrase_id(self, phrase_id: int) -> CandidateCloze | None:
+        model = self._session.get(CandidateClozeModel, phrase_id)
+        if model is None:
+            return None
+        word_id = word_ids_of(self._session, [phrase_id])[phrase_id]
+        return model.to_entity(word_id)
 
-    def upsert(self, cloze: CandidateCloze) -> None:
-        existing = self._session.get(CandidateClozeModel, cloze.candidate_id)
+    def upsert_for_phrase(self, phrase_id: int, cloze: CandidateCloze) -> None:
+        existing = self._session.get(CandidateClozeModel, phrase_id)
         if existing is None:
-            self._session.add(CandidateClozeModel.from_entity(cloze))
+            self._session.add(CandidateClozeModel.from_entity(phrase_id, cloze))
         else:
             existing.hidden_word_indices = json.dumps(list(cloze.hidden_word_indices))
             existing.hint_kind = cloze.hint_kind.value
@@ -33,8 +39,8 @@ class SqlaCandidateClozeRepository(CandidateClozeRepository):
             existing.phrase = cloze.phrase
         self._session.flush()
 
-    def delete_by_candidate_id(self, candidate_id: int) -> None:
-        model = self._session.get(CandidateClozeModel, candidate_id)
+    def delete_by_phrase_id(self, phrase_id: int) -> None:
+        model = self._session.get(CandidateClozeModel, phrase_id)
         if model is not None:
             self._session.delete(model)
             self._session.flush()

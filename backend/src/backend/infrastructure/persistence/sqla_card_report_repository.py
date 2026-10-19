@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+from sqlalchemy import select
+
 from backend.domain.ports.card_report_repository import CardReportRepository
 from backend.infrastructure.persistence.models import CardReportModel
+from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -23,6 +26,7 @@ class SqlaCardReportRepository(CardReportRepository):
             source_id=report.source_id,
             source_title=report.source_title,
             candidate_id=report.candidate_id,
+            phrase_id=report.phrase_id,
             lemma=report.lemma,
             surface_form=report.surface_form,
             context_fragment=report.context_fragment,
@@ -47,13 +51,12 @@ class SqlaCardReportRepository(CardReportRepository):
         )
         return [m.to_entity() for m in models]
 
-    def reported_candidate_ids(self, candidate_ids: list[int]) -> set[int]:
-        if not candidate_ids:
-            return set()
-        rows = (
-            self._session.query(CardReportModel.candidate_id)
-            .filter(CardReportModel.candidate_id.in_(candidate_ids))
-            .distinct()
-            .all()
-        )
-        return {row[0] for row in rows}
+    def reported_phrase_ids(self, phrase_ids: list[int]) -> set[int]:
+        found: set[int] = set()
+        for chunk in chunks(phrase_ids):
+            found.update(self._session.scalars(
+                select(CardReportModel.phrase_id)
+                .where(CardReportModel.phrase_id.in_(chunk))
+                .distinct()
+            ))
+        return found

@@ -4,7 +4,7 @@ from enum import Enum
 
 
 class ProcessingStage(Enum):
-    """Current stage within the PROCESSING status."""
+    """What a running process of a source is doing now."""
 
     ANALYZING_TEXT = "analyzing_text"
     COLLECTING_PHRASES = "collecting_phrases"

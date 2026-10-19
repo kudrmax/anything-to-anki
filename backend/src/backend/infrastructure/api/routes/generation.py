@@ -12,6 +12,7 @@ from backend.domain.exceptions import (
     GenerationNotSupportedError,
     SourceNotFoundError,
     SourceNotTopicError,
+    SourceOperationBusyError,
     TopicTargetsAlreadyGeneratedError,
 )
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
@@ -50,7 +51,9 @@ def enqueue_topic_generation(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except SourceNotTopicError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except (TopicTargetsAlreadyGeneratedError, GenerationAlreadyRunningError) as e:
+    except (
+        TopicTargetsAlreadyGeneratedError, GenerationAlreadyRunningError, SourceOperationBusyError,
+    ) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return {"status": "queued"}
 
@@ -87,7 +90,7 @@ def run_generation(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except GenerationNotSupportedError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except GenerationBlockedError as e:
+    except (GenerationBlockedError, SourceOperationBusyError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return {"enqueued": enqueued}
 

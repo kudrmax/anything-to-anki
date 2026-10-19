@@ -5,7 +5,7 @@ import type {
   BootstrapStatus,
   BootstrapWord,
   CandidateSortOrder,
-  CandidateStatus,
+  DecisionButton,
   CleanupMediaKind,
   ClozeDraft,
   ClozePreview,
@@ -28,11 +28,12 @@ import type {
   GlobalExport,
   ImageSearchResult,
   KnownWord,
+  LearningWords,
   ReportReason,
   QueueActionResult,
   QueueSelection,
   QueueSnapshot,
-  ReprocessStats,
+  SourceOperation,
   Settings,
   SourceDetail,
   SourceMediaStats,
@@ -117,17 +118,16 @@ export const api = {
     req<StoredCandidate[]>(`/sources/${id}/candidates?sort=${sort}`),
 
   previewCloze: (id: number, draft: Partial<ClozeDraft>, signal?: AbortSignal) =>
-    req<ClozePreview>(`/candidates/${id}/cloze/preview`, { method: 'POST', body: JSON.stringify(draft), signal }),
+    req<ClozePreview>(`/phrases/${id}/cloze/preview`, { method: 'POST', body: JSON.stringify(draft), signal }),
 
-  saveCloze: (id: number, request: SaveClozeRequest) =>
-    req<StoredCandidate>(`/candidates/${id}/cloze`, { method: 'PUT', body: JSON.stringify(request) }),
+  saveCloze: (phraseId: number, request: SaveClozeRequest) =>
+    req<StoredCandidate>(`/phrases/${phraseId}/cloze`, { method: 'PUT', body: JSON.stringify(request) }),
 
-  markCandidate: (id: number, status: CandidateStatus) =>
-    req<{ id: number; status: string }>(`/candidates/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
+  decidePhrase: (phraseId: number, button: DecisionButton) =>
+    req<StoredCandidate>(`/phrases/${phraseId}/decision`, {
+      method: 'POST',
+      body: JSON.stringify({ button }),
     }),
-
 
   getAnkiStatus: () => req<AnkiStatus>('/anki/status'),
 
@@ -154,8 +154,10 @@ export const api = {
 
   getKnownWords: () => req<KnownWord[]>('/known-words'),
 
-  deleteKnownWord: (id: number) =>
-    req<{ deleted: number }>(`/known-words/${id}`, { method: 'DELETE' }),
+  getLearningWords: () => req<LearningWords>('/vocabulary/learning'),
+
+  deleteKnownWord: (removalKey: string) =>
+    req<{ deleted: string }>(`/known-words/${encodeURIComponent(removalKey)}`, { method: 'DELETE' }),
 
   getUnknownWords: () => req<UnknownWord[]>('/unknown-words'),
 
@@ -164,25 +166,25 @@ export const api = {
 
   deleteSource: (id: number) => reqVoid(`/sources/${id}`, { method: 'DELETE' }),
 
-  generateMeaning: (candidateId: number, followUpAction?: FollowUpAction, followUpText?: string) =>
-    req<GenerateMeaningResult>(`/candidates/${candidateId}/generate-meaning`, {
+  generateMeaning: (phraseId: number, followUpAction?: FollowUpAction, followUpText?: string) =>
+    req<GenerateMeaningResult>(`/phrases/${phraseId}/generate-meaning`, {
       method: 'POST',
       body: followUpAction
         ? JSON.stringify({ action: followUpAction, ...(followUpText ? { text: followUpText } : {}) })
         : undefined,
     }),
 
-  regenerateCandidateMedia: (candidateId: number) =>
-    req<{ status: string }>(`/candidates/${candidateId}/regenerate-media`, { method: 'POST' }),
+  regeneratePhraseMedia: (phraseId: number) =>
+    req<{ status: string }>(`/phrases/${phraseId}/regenerate-media`, { method: 'POST' }),
 
-  searchTargetImages: (candidateId: number, query?: string) =>
-    req<ImageSearchResult>(`/candidates/${candidateId}/image-options${query === undefined ? '' : `?${new URLSearchParams({ query })}`}`),
+  searchTargetImages: (wordId: number, query?: string) =>
+    req<ImageSearchResult>(`/words/${wordId}/image-options${query === undefined ? '' : `?${new URLSearchParams({ query })}`}`),
 
-  applyTargetImage: (candidateId: number, url: string) =>
-    req<{ status: string }>(`/candidates/${candidateId}/image`, { method: 'PUT', body: JSON.stringify({ url }) }),
+  applyTargetImage: (wordId: number, url: string) =>
+    req<{ status: string }>(`/words/${wordId}/image`, { method: 'PUT', body: JSON.stringify({ url }) }),
 
-  pasteTargetImage: (candidateId: number, picture: Blob) =>
-    req<{ status: string }>(`/candidates/${candidateId}/image/pasted`, {
+  pasteTargetImage: (wordId: number, picture: Blob) =>
+    req<{ status: string }>(`/words/${wordId}/image/pasted`, {
       method: 'PUT',
       headers: { 'Content-Type': picture.type, ...buildHeaders() },
       body: picture,
@@ -191,23 +193,23 @@ export const api = {
   downloadVideo: (sourceId: number) =>
     req<{ status: string }>(`/sources/${sourceId}/download-video`, { method: 'POST' }),
 
-  polishPhraseAgain: (candidateId: number) =>
-    req<{ status: string }>(`/candidates/${candidateId}/polish`, { method: 'POST' }),
+  polishPhraseAgain: (phraseId: number) =>
+    req<{ status: string }>(`/phrases/${phraseId}/polish`, { method: 'POST' }),
 
-  setPolishReverted: (candidateId: number, reverted: boolean) =>
-    req<{ id: number; reverted: boolean }>(`/candidates/${candidateId}/polish/reverted`, {
+  setPolishReverted: (phraseId: number, reverted: boolean) =>
+    req<{ id: number; reverted: boolean }>(`/phrases/${phraseId}/polish/reverted`, {
       method: 'PUT',
       body: JSON.stringify({ reverted }),
     }),
 
-  editPhrase: (candidateId: number, phrase: string) =>
-    req<{ id: number }>(`/candidates/${candidateId}/phrase`, {
+  editPhrase: (phraseId: number, phrase: string) =>
+    req<{ id: number }>(`/phrases/${phraseId}/phrase`, {
       method: 'PUT',
       body: JSON.stringify({ phrase }),
     }),
 
-  generateCandidateTTS: (candidateId: number) =>
-    req<{ status: string }>(`/candidates/${candidateId}/generate-tts`, { method: 'POST' }),
+  generatePhraseTTS: (phraseId: number) =>
+    req<{ status: string }>(`/phrases/${phraseId}/generate-tts`, { method: 'POST' }),
 
   enqueueTopicGeneration: (sourceId: number) =>
     req<{ status: string }>(`/sources/${sourceId}/topic-targets/generate`, { method: 'POST' }),
@@ -224,11 +226,19 @@ export const api = {
   cancelGeneration: (sourceId: number, kind: GenerationKind) =>
     req<{ cancelled: number }>(`/sources/${sourceId}/generation/${kind}/cancel`, { method: 'POST' }),
 
-  getReprocessStats: (sourceId: number) =>
-    req<ReprocessStats>(`/sources/${sourceId}/reprocess-stats`),
+  previewRebuild: (sourceId: number) =>
+    req<SourceOperation>(`/sources/${sourceId}/rebuild/preview`, { method: 'POST' }),
 
-  reprocessSource: (sourceId: number) =>
-    req<{ status: string }>(`/sources/${sourceId}/reprocess`, { method: 'POST' }),
+  rebuildSource: (sourceId: number, includeOpen: boolean) =>
+    req<SourceOperation>(`/sources/${sourceId}/rebuild`, {
+      method: 'POST',
+      body: JSON.stringify({ include_open: includeOpen }),
+    }),
+
+  refreshTopic: (sourceId: number) =>
+    req<SourceOperation>(`/sources/${sourceId}/refresh`, { method: 'POST' }),
+
+  getOperation: (sourceId: number) => req<SourceOperation>(`/sources/${sourceId}/operation`),
 
   getStats: () => req<Stats>('/stats'),
 
@@ -240,22 +250,22 @@ export const api = {
   fixNoteType: (kind: NoteTypeKind) =>
     req<NoteTypeCheck>(`/anki/note-types/${kind}/fix`, { method: 'POST' }),
 
-  setPhraseBoundary: (candidateId: number, selection: DocumentSelection) =>
-    req<{ id: number; context_fragment: string }>(`/candidates/${candidateId}/phrase-boundary`, {
+  setPhraseBoundary: (phraseId: number, selection: DocumentSelection) =>
+    req<{ id: number; context_fragment: string }>(`/phrases/${phraseId}/phrase-boundary`, {
       method: 'PUT',
       body: JSON.stringify({ selection }),
     }),
 
-  reportCandidate: (candidateId: number, reasons: string[], comment: string, unknownWords: number[]) =>
-    req<unknown>(`/candidates/${candidateId}/report`, {
+  reportCandidate: (phraseId: number, reasons: string[], comment: string, unknownWords: number[]) =>
+    req<unknown>(`/phrases/${phraseId}/report`, {
       method: 'POST',
       body: JSON.stringify({ reasons, comment, unknown_words: unknownWords }),
     }),
 
   getReportReasons: () => req<ReportReason[]>('/api/card-reports/reasons'),
 
-  replaceWithExample: (candidateId: number, exampleText: string) =>
-    req<StoredCandidate>(`/candidates/${candidateId}/replace-with-example`, {
+  replaceWithExample: (phraseId: number, exampleText: string) =>
+    req<StoredCandidate>(`/phrases/${phraseId}/replace-with-example`, {
       method: 'POST',
       body: JSON.stringify({ example_text: exampleText }),
     }),

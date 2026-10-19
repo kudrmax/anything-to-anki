@@ -11,8 +11,13 @@ from backend.infrastructure.adapters.verse_sentence_ends import VerseSentenceEnd
 
 if TYPE_CHECKING:
     from backend.domain.entities.token_data import TokenData
-    from backend.domain.ports.text_analyzer import TextAnalyzer
     from backend.domain.value_objects.document import Document
+    from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
+
+# Bump whenever the tokens of the same text may change outside spaCy and its model: here,
+# in SpaCyTextAnalyzer, VerseSentenceEnds or TokenData. Cached parses of older versions
+# are not used.
+POSTPROCESS_VERSION = 1
 
 # Ends a line of verse for the parser; it is never part of the document or of a phrase.
 SENTENCE_END = "."
@@ -26,9 +31,14 @@ class SpacyDocumentAnalyzer(DocumentAnalyzer):
     it parses the line as the sentence it is. The period's token keeps no text.
     """
 
-    def __init__(self, text_analyzer: TextAnalyzer) -> None:
+    def __init__(self, text_analyzer: SpaCyTextAnalyzer) -> None:
         self._text_analyzer = text_analyzer
         self._verse = VerseSentenceEnds(text_analyzer)
+
+    @property
+    def version(self) -> str:
+        """Changes whenever the parse of the same document may change."""
+        return f"{self._text_analyzer.version}:{POSTPROCESS_VERSION}"
 
     def analyze(self, document: Document) -> AnalyzedDocument:
         layout = DocumentLayout(document)

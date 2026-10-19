@@ -21,9 +21,9 @@ class UserKnowledge:
     frequent_zipf: float | None
 
     def is_new(self, word: Word) -> bool:
-        """New if the user said they don't know it, or it is a content word above the user's
-        level, not frequent, and not one they said they know."""
-        if self.vocabulary.is_unknown(word.lemma):
+        """New if the user said they don't know it or is learning it, or it is a content word
+        above the user's level, not frequent, and not one they said they know."""
+        if self.vocabulary.is_unknown(word.lemma) or self.vocabulary.is_learning(word.lemma):
             return True
         if not word.content or self.vocabulary.is_known(word.lemma):
             return False

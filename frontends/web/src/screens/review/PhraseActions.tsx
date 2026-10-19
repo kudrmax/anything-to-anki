@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { ArrowRight, Check, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
-import type { FollowUpAction, StoredCandidate } from '@/api/types'
-import { chosenDecision, decisionChange, learnConvertsCloze, type ChosenDecision, type Decision } from '@/lib/decision'
+import type { ButtonCommand, CardButton, DecisionButton, FollowUpAction, StoredCandidate } from '@/api/types'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { phraseWordTexts } from '@/lib/text/phraseParts'
 import { toggled } from '@/lib/text/words'
@@ -20,13 +19,14 @@ const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string; icon: LucideIc
 
 const UNKNOWN_WORDS_HINT = 'Tap the words you don\'t know'
 
-const LEARN = { status: 'learn', label: 'Learn', kbd: '1' } as const
-const CLOZE = { label: 'Cloze', kbd: '2' } as const
-const OTHER_DECISIONS: { status: Decision; label: string; kbd: string }[] = [
-  { status: 'known', label: 'Know', kbd: '3' },
-  { status: 'skip', label: 'Skip', kbd: '4' },
-]
-const ALREADY_IN_ANKI = 'Already in Anki'
+const BUTTON_LOOK: Record<DecisionButton, { label: string; kbd: string; primary: boolean }> = {
+  learn: { label: 'Learn', kbd: '1', primary: true },
+  cloze: { label: 'Cloze', kbd: '2', primary: false },
+  known: { label: 'Know', kbd: '3', primary: false },
+  skip: { label: 'Skip', kbd: '4', primary: false },
+}
+
+const OPENS_EDITOR: Record<ButtonCommand, boolean> = { edit_cloze: true, decide: false }
 
 interface PhraseActionsProps {
   candidate: StoredCandidate
@@ -34,42 +34,39 @@ interface PhraseActionsProps {
 }
 
 /**
- * Решения по фразе: Learn 1 · Cloze 2 · Know 3 · Skip 4.
- * Learn залит всегда — это основное действие; уже принятое решение отмечено галочкой.
+ * Решения по фразе: Learn 1 · Cloze 2 · Know 3 · Skip 4. Что делает кнопка и какая нажата, решает backend.
+ * Learn залит всегда — это основное действие; нажатая кнопка отмечена галочкой.
  */
 export function DecisionButtons({ candidate, review }: PhraseActionsProps) {
-  const clozeActive = review.clozeEditingId === candidate.id
-  const chosen = chosenDecision(candidate)
-  const decide = (status: Decision) => {
-    if (clozeActive) review.cancelCloze()
-    void review.mark(candidate.id, decisionChange(candidate.status, status, learnConvertsCloze(candidate)))
-  }
-  const variant = (primary: boolean) => (primary ? 'fill' : 'soft')
-  const chosenClass = (decision: ChosenDecision) => (chosen === decision ? css.chosen : undefined)
-  const check = (decision: ChosenDecision) => chosen === decision && <Icon as={Check} size="s" />
+  const editing = review.clozeEditingId === candidate.phrase_id
+  const variant = (button: CardButton) => (isFilled(button, editing, candidate.can_edit_cloze) ? 'fill' : 'soft')
   return (
     <div className={css.decisions}>
-      <Button variant={variant(!clozeActive)} className={chosenClass(LEARN.status)} kbd={LEARN.kbd} onMouseDown={keepFocusOnMouseDown} onClick={() => decide(LEARN.status)}>
-        {check(LEARN.status)}{LEARN.label}
-      </Button>
-      <Button
-        variant={variant(clozeActive)}
-        className={chosenClass('cloze')}
-        kbd={CLOZE.kbd}
-        disabled={!candidate.can_cloze}
-        title={candidate.can_cloze ? undefined : ALREADY_IN_ANKI}
-        onMouseDown={keepFocusOnMouseDown}
-        onClick={() => review.startCloze(candidate.id)}
-      >
-        {check('cloze')}{CLOZE.label}
-      </Button>
-      {OTHER_DECISIONS.map(decision => (
-        <Button key={decision.status} variant="soft" className={chosenClass(decision.status)} kbd={decision.kbd} onMouseDown={keepFocusOnMouseDown} onClick={() => decide(decision.status)}>
-          {check(decision.status)}{decision.label}
+      {candidate.state.buttons.map(button => (
+        <Button
+          key={button.button}
+          variant={variant(button)}
+          className={button.pressed ? css.chosen : undefined}
+          kbd={BUTTON_LOOK[button.button].kbd}
+          disabled={button.command === null}
+          onMouseDown={keepFocusOnMouseDown}
+          onClick={() => void review.press(candidate.phrase_id, button)}
+        >
+          {button.pressed && <Icon as={Check} size="s" />}{BUTTON_LOOK[button.button].label}
         </Button>
       ))}
     </div>
   )
+}
+
+/**
+ * Пока открыта разметка cloze, залита кнопка, которая её открыла, а у карточки-cloze — её нажатая кнопка;
+ * иначе — основная. Всё это сказал backend: команда кнопки, нажата ли она, можно ли править cloze.
+ */
+const isFilled = (button: CardButton, editing: boolean, canEditCloze: boolean): boolean => {
+  if (!editing) return BUTTON_LOOK[button.button].primary
+  const opensEditor = button.command !== null && OPENS_EDITOR[button.command]
+  return opensEditor || (button.pressed && canEditCloze)
 }
 
 interface PhraseToolsProps extends PhraseActionsProps {
@@ -82,8 +79,8 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   const [reasons, setReasons] = useState<string[]>([])
   const [unknownWords, setUnknownWords] = useState<Set<number>>(new Set())
   const [pickingImage, setPickingImage] = useState(false)
-  const id = candidate.id
-  const isRated = candidate.status !== 'pending'
+  const id = candidate.phrase_id
+  const isRated = candidate.is_done
   const isVideo = review.source?.has_video ?? false
   const isEditing = review.editing?.candidateId === id
   const hasMeaning = Boolean(candidate.meaning?.meaning)

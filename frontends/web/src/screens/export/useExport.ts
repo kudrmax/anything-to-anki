@@ -44,7 +44,8 @@ export function useExport(sourceId?: number, scope: Scope = 'all') {
     setSyncing(group)
     setError(null)
     try {
-      setResult(await api.syncToAnki(group, sourceId, scope))
+      const synced = await api.syncToAnki(group, sourceId, scope)
+      setResult(synced)
       applyExport(await api.getExportCards(sourceId, scope))
       void statsStore.refresh()
     } catch (e) {

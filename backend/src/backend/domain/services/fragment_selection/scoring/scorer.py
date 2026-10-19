@@ -40,7 +40,20 @@ class FragmentScore:
     unknowns: int
     content_count: int
 
+    def as_number(self) -> float:
+        """The score as one number, ordered as the scores are: each field is a digit of
+        base SCORE_FIELD_BASE, from the first field, capped at the base's largest digit."""
+        number = 0
+        for field in (
+            self.length_overflow, self.incomplete, self.boundary_penalty, self.unknowns,
+            self.content_count,
+        ):
+            number = number * SCORE_FIELD_BASE + min(field, SCORE_FIELD_BASE - 1)
+        return float(number)
 
+
+# Five fields of base 1000 stay below 2**53: the number is exact as a float.
+SCORE_FIELD_BASE = 1000
 _WORST = sys.maxsize
 WORST_FRAGMENT_SCORE = FragmentScore(
     length_overflow=_WORST, incomplete=1, boundary_penalty=_WORST, unknowns=_WORST,

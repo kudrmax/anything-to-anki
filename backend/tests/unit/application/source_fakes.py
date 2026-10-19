@@ -10,7 +10,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from backend.domain.entities.source import Source
-    from backend.domain.value_objects.processing_stage import ProcessingStage
     from backend.domain.value_objects.source_role import SourceRole
     from backend.domain.value_objects.source_status import SourceStatus
 
@@ -45,11 +44,7 @@ class InMemorySourceRepository(SourceRepository):
         status: SourceStatus,
         *,
         error_message: str | None = None,
-        processing_stage: ProcessingStage | None = None,
     ) -> None:
-        raise NotImplementedError
-
-    def update_source(self, source: Source) -> None:
         raise NotImplementedError
 
     def update_title(self, source_id: int, title: str) -> None:

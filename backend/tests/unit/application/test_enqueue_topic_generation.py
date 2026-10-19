@@ -11,10 +11,12 @@ from backend.domain.exceptions import (
     GenerationAlreadyRunningError,
     SourceNotFoundError,
     SourceNotTopicError,
+    SourceOperationBusyError,
     TopicTargetsAlreadyGeneratedError,
 )
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 
@@ -40,11 +42,21 @@ class TestEnqueueTopicGeneration:
         self.topic_target_repo.has_targets.return_value = False
         self.job_repo = MagicMock()
         self.job_repo.has_active_jobs_for_source.return_value = False
+        self.lock = MagicMock()
+        self.lock.held.return_value = None
         self.use_case = EnqueueTopicGenerationUseCase(
             source_repo=self.source_repo,
             topic_target_repo=self.topic_target_repo,
             job_repo=self.job_repo,
+            lock=self.lock,
         )
+
+    def test_a_topic_being_refreshed_is_refused(self) -> None:
+        self.lock.held.return_value = SourceOperationKind.REFRESH
+
+        with pytest.raises(SourceOperationBusyError):
+            self.use_case.execute(SOURCE_ID)
+        self.job_repo.enqueue.assert_not_called()
 
     def test_queues_one_source_level_job(self) -> None:
         self.use_case.execute(SOURCE_ID)

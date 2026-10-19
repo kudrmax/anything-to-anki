@@ -4,52 +4,44 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from backend.domain.entities.candidate_media import CandidateMedia
 
 
 class CandidateMediaRepository(ABC):
-    """Port for the media enrichment (screenshot + audio + timecodes) of a candidate.
-
-    1:1 with candidates. `None` from get methods means no row exists for this
-    candidate (extraction has never been attempted)."""
+    """Port for the media (screenshot, clip, timecodes) of phrases. No row: extraction was
+    never attempted."""
 
     @abstractmethod
-    def get_by_candidate_id(self, candidate_id: int) -> CandidateMedia | None: ...
+    def get_by_phrase_id(self, phrase_id: int) -> CandidateMedia | None: ...
 
     @abstractmethod
-    def get_all_by_source(self, source_id: int) -> dict[int, CandidateMedia]: ...
+    def get_by_phrase_ids(self, phrase_ids: list[int]) -> dict[int, CandidateMedia]:
+        """Keyed by phrase id; phrases without a row are left out."""
 
     @abstractmethod
-    def get_all_by_source_id(self, source_id: int) -> list[CandidateMedia]: ...
+    def upsert_for_phrase(self, phrase_id: int, media: CandidateMedia) -> None: ...
 
     @abstractmethod
-    def get_by_candidate_ids(self, candidate_ids: list[int]) -> dict[int, CandidateMedia]: ...
-
-    @abstractmethod
-    def upsert(self, media: CandidateMedia) -> None:
-        """Insert or update the media row for the contained candidate_id."""
-
-    @abstractmethod
-    def clear_paths(
-        self,
-        candidate_id: int,
-        *,
-        clear_screenshot: bool,
-        clear_audio: bool,
+    def clear_phrase_paths(
+        self, phrase_id: int, *, clear_screenshot: bool, clear_audio: bool,
     ) -> None:
-        """Set screenshot_path and/or audio_path to NULL on the existing row.
-
-        Used by CleanupMediaUseCase when the user purges files but keeps the row
-        (so timecodes are not lost)."""
+        """The phrase's screenshot and/or clip paths become NULL; its timecodes stay, so the
+        files can be cut again."""
 
     @abstractmethod
-    def get_eligible_candidate_ids(
-        self,
-        source_id: int,
-    ) -> list[int]:
-        """Return ids of candidates of `source_id` that:
-        - have status PENDING or LEARN
-        - have a candidate_media row with start_ms / end_ms set
-        - have NULL screenshot_path on that row (= media not yet generated)
+    def clear_missing_file(self, path: str) -> None:
+        """Every row pointing at the file — as its screenshot or its clip — loses that path;
+        the rows themselves and their timecodes stay."""
 
-        Returned unsorted. Used by enqueue media generation use case."""
+    @abstractmethod
+    def set_timecodes(self, times: Mapping[int, tuple[int, int] | None]) -> None:
+        """Phrase id → the time of its phrase in the video, None when untimed.
+
+        A phrase whose screenshot or clip is made keeps its media as it is: the files were
+        cut at those times. No row is made for an untimed phrase."""
+
+    @abstractmethod
+    def get_all_by_source_id(self, source_id: int) -> list[CandidateMedia]:
+        """The media of every phrase of the source: all its files."""

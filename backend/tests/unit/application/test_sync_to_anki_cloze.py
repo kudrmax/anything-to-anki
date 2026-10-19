@@ -1,24 +1,27 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
-from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_note_settings import AnkiFieldNames
 from backend.application.utils.anki_template_renderer import NoteTemplates
-from backend.application.utils.export_queue import ExportQueue
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.services.cloze_builder import ClozeBuilder
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.export_group import ExportGroup
+from backend.domain.value_objects.phrase_origin_kind import DecisionKind
+from backend.domain.value_objects.word_status import WordStatus
 
+from tests.export_support import ExportCards, export_card, with_phrase
 from tests.phrase_support import phrase
 from tests.unit.application.scope_fakes import empty_scope_resolver
-from tests.vocabulary_support import user_vocabulary
+from tests.word_support import phrase_id_of
+
+if TYPE_CHECKING:
+    from backend.application.utils.export_queue import ExportCard
 
 pytestmark = pytest.mark.unit
 
@@ -50,17 +53,20 @@ def _candidate(
     text: str,
     surface: str | None = None,
     cloze: CandidateCloze | None = None,
-) -> StoredCandidate:
-    return StoredCandidate(
-        id=candidate_id,
-        source_id=1,
-        lemma=lemma,
-        pos="VERB",
-        cefr_level="B2",
-        zipf_frequency=4.0,
-        source_phrase=phrase(text, surface or lemma),
-        occurrences=1,
-        status=CandidateStatus.LEARN,
+    kind: DecisionKind | None = None,
+) -> ExportCard:
+    return export_card(
+        StoredCandidate(
+            id=candidate_id,
+            source_id=1,
+            lemma=lemma,
+            pos="VERB",
+            cefr_level="B2",
+            zipf_frequency=4.0,
+            occurrences=1,
+            status=WordStatus.LEARN,
+        ),
+        phrase(text, surface or lemma),
         meaning=CandidateMeaning(
             candidate_id=candidate_id,
             meaning="To stop doing something.",
@@ -71,44 +77,39 @@ def _candidate(
             generated_at=None,
         ),
         cloze=cloze,
+        kind=kind,
     )
 
 
-def _give_up(cloze: CandidateCloze | None) -> StoredCandidate:
-    return _candidate(1, "give up", GIVE_UP, surface="gave up", cloze=cloze)
+def _give_up(cloze: CandidateCloze | None, kind: DecisionKind | None = None) -> ExportCard:
+    return _candidate(1, "give up", GIVE_UP, surface="gave up", cloze=cloze, kind=kind)
 
 
-def _burnout() -> StoredCandidate:
+def _burnout() -> ExportCard:
     return _candidate(2, "burnout", "Burnout is real.")
 
 
 class TestSyncToAnkiCloze:
     def setup_method(self) -> None:
-        self.candidate_repo = MagicMock()
+        self.cards = ExportCards()
         self.connector = MagicMock()
         self.connector.is_available.return_value = True
         self.connector.add_notes.return_value = [111]
         self.connector.get_model_field_names.return_value = _EveryField()
         self.settings_repo = MagicMock()
         self.settings_repo.get.return_value = None
-        self.anki_sync_repo = MagicMock()
-        self.anki_sync_repo.get_synced_candidate_ids.return_value = set()
         self.renderer = MagicMock()
         self.renderer.render_recognition.return_value = NoteTemplates("F", "B", "C")
         self.renderer.render_cloze.return_value = NoteTemplates("CF", "CB", "C")
-        self.use_case = SyncToAnkiUseCase(
-            export_queue=ExportQueue(self.candidate_repo, self.anki_sync_repo),
-            anki_connector=self.connector,
-            settings_repo=self.settings_repo,
-            anki_sync_repo=self.anki_sync_repo,
-            template_renderer=self.renderer,
-            vocabulary=user_vocabulary(MagicMock()),
-            cloze_builder=ClozeBuilder(),
-            scope_resolver=empty_scope_resolver(),
+        self.use_case = self.cards.sync(
+            self.connector,
+            self.settings_repo,
+            self.renderer,
+            empty_scope_resolver(),
         )
 
-    def _sync(self, *candidates: StoredCandidate) -> None:
-        self.candidate_repo.get_by_source.return_value = list(candidates)
+    def _sync(self, *candidates: ExportCard) -> None:
+        self.cards.put(list(candidates))
         self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
 
     def _added(self) -> list[tuple[str, dict[str, str]]]:
@@ -130,6 +131,24 @@ class TestSyncToAnkiCloze:
         assert note["Target"] == "give up"
         assert note["IPA"] == "/ɡɪv ʌp/"
         assert note["Translation"] == "бросить"
+
+    def test_the_note_type_follows_the_kind_of_the_decision(self) -> None:
+        learn_with_markup = _give_up(_cloze(1), kind=DecisionKind.LEARN)
+
+        self._sync(learn_with_markup)
+
+        [(model, note)] = self._added()
+        assert model == "AnythingToAnkiType"
+        assert "{{c1::" not in note["Sentence"]
+
+    def test_a_cloze_decided_without_markup_hides_the_target(self) -> None:
+        bare = _give_up(None, kind=DecisionKind.CLOZE)
+
+        self._sync(bare)
+
+        [(model, note)] = self._added()
+        assert model == "AnythingToAnkiCloze"
+        assert note["Sentence"] == "She finally {{c1::gave up}} smoking last year."
 
     def test_cloze_model_created_with_is_cloze(self) -> None:
         self._sync(_give_up(_cloze(1)))
@@ -168,7 +187,9 @@ class TestSyncToAnkiCloze:
         self.connector.find_notes_by_target.assert_called_once_with(
             "Default", "AnythingToAnkiCloze", "Target", "give up"
         )
-        self.anki_sync_repo.mark_synced.assert_called_once_with(1, 555)
+        assert [(b.word_id, b.phrase_id, b.note_id) for b in self.cards.bindings] == [
+            (1, phrase_id_of(1), 555),
+        ]
 
     def test_recognition_duplicate_is_found_by_its_model_and_target_field(self) -> None:
         self.connector.add_notes.return_value = [None]
@@ -190,9 +211,9 @@ class TestSyncToAnkiCloze:
     def test_unavailable_hint_is_not_exported(self) -> None:
         cloze = replace(_cloze(1, indices=(2, 3)), hint_kind=ClozeHintKind.SYNONYMS)
         candidate = _give_up(cloze)
-        assert candidate.meaning is not None
-        leaking = replace(candidate.meaning, synonyms="give up, quit")
-        candidate = replace(candidate, meaning=leaking)
+        assert candidate.phrase.meaning is not None
+        leaking = replace(candidate.phrase.meaning, synonyms="give up, quit")
+        candidate = with_phrase(candidate, meaning=leaking)
         self._sync(candidate)
 
         [(_, note)] = self._added()

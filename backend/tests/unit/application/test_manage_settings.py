@@ -11,11 +11,9 @@ from tests.candidate_sorter_support import threshold_resolver
 class TestManageSettingsUseCase:
     def setup_method(self) -> None:
         self.settings_repo = MagicMock()
-        self.review_status = MagicMock()
         self.use_case = ManageSettingsUseCase(
             settings_repo=self.settings_repo,
             threshold_resolver=threshold_resolver(self.settings_repo),
-            review_status=self.review_status,
         )
 
     def test_get_settings(self) -> None:
@@ -175,17 +173,3 @@ class TestManageSettingsUseCase:
     def test_cloze_default_hint_rejects_unknown_kinds(self, value: str) -> None:
         with pytest.raises(ValueError, match="cloze_default_hint must be one of"):
             UpdateSettingsRequest(cloze_default_hint=value)
-
-    def test_changing_the_level_refreshes_review_statuses(self) -> None:
-        stored: dict[str, str] = {"cefr_level": "B1"}
-        self.settings_repo.get.side_effect = lambda key, default=None: stored.get(key, default)
-        self.settings_repo.set.side_effect = stored.__setitem__
-        self.use_case.update_settings(UpdateSettingsRequest(cefr_level="B2"))
-        self.review_status.refresh_all.assert_called_once()
-
-    def test_other_settings_leave_review_statuses_alone(self) -> None:
-        stored: dict[str, str] = {"cefr_level": "B1"}
-        self.settings_repo.get.side_effect = lambda key, default=None: stored.get(key, default)
-        self.settings_repo.set.side_effect = stored.__setitem__
-        self.use_case.update_settings(UpdateSettingsRequest(anki_deck_name="Words"))
-        self.review_status.refresh_all.assert_not_called()

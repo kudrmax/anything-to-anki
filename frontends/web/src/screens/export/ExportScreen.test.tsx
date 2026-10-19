@@ -8,7 +8,7 @@ import { ExportScreen } from './ExportScreen'
 
 const SCOPE_ID = 12
 const CARD: CardPreview = {
-  candidate_id: 5, lemma: 'run', sentence: 'I <b>run</b>.', meaning: null, translation: null,
+  candidate_id: 5, phrase_id: 7, lemma: 'run', sentence: 'I <b>run</b>.', meaning: null, translation: null,
   synonyms: null, examples: null, ipa: null, screenshot_url: null, audio_url: null,
   pronunciation_us_url: null, pronunciation_uk_url: null, tts_audio_url: null,
   missing: [], is_cloze: false,
@@ -59,5 +59,11 @@ describe('ExportScreen scope', () => {
     const button = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('Add to Anki'))
     await act(async () => { button?.click() })
     expect(sync).toHaveBeenCalledWith('ready', undefined, SCOPE_ID)
+  })
+
+  it('shows the empty state when everything is in Anki', async () => {
+    vi.spyOn(api, 'getExportCards').mockResolvedValue({ ...EXPORT, ready: [], exported_count: 3 })
+    await open()
+    expect(container.textContent).toContain('Everything marked for learning is already in Anki.')
   })
 })

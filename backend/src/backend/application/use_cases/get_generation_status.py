@@ -4,18 +4,21 @@ from collections import Counter
 from typing import TYPE_CHECKING
 
 from backend.application.dto.generation_dtos import GenerationKindStatusDTO, GenerationStatusDTO
-from backend.application.utils.generation_targets import job_of
+from backend.application.utils.generation_targets import CardJobs, ReadyCards
 from backend.domain.exceptions import SourceNotFoundError
-from backend.domain.value_objects.candidate_section import CandidateSection
+from backend.domain.services.generation_scope import in_scope
 from backend.domain.value_objects.card_generation_state import CardGenerationState
+from backend.domain.value_objects.generation_scope import GenerationScope
 from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
-    from backend.application.utils.candidate_sorter import ArrangedCandidates, CandidateSorter
-    from backend.application.utils.generation_targets import GenerationTarget
-    from backend.domain.entities.job import Job
+    from backend.application.utils.candidate_sorter import CandidateSorter
+    from backend.application.utils.generation_targets import (
+        GenerationCard,
+        GenerationCards,
+        GenerationTarget,
+    )
     from backend.domain.entities.source import Source
-    from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_repository import SourceRepository
 
@@ -26,13 +29,13 @@ class GetGenerationStatusUseCase:
     def __init__(
         self,
         source_repo: SourceRepository,
-        candidate_repo: CandidateRepository,
+        cards: GenerationCards,
         job_repo: JobRepository,
         candidate_sorter: CandidateSorter,
         targets: list[GenerationTarget],
     ) -> None:
         self._source_repo = source_repo
-        self._candidate_repo = candidate_repo
+        self._cards = cards
         self._job_repo = job_repo
         self._candidate_sorter = candidate_sorter
         self._targets = targets
@@ -41,16 +44,14 @@ class GetGenerationStatusUseCase:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
-        candidates = self._candidate_repo.get_by_source(source_id)
-        jobs = self._job_repo.get_jobs_for_candidates(
-            [c.id for c in candidates if c.id is not None],
-        )
+        cards = self._cards.of_source(source_id)
+        jobs = CardJobs.of(self._job_repo, cards)
         video_downloading = self._job_repo.has_active_jobs_for_source(
             source_id, frozenset({JobType.VIDEO_DOWNLOAD}),
         )
-        arranged = self._candidate_sorter.arrange(candidates)
+        ready = ReadyCards.of(cards, self._candidate_sorter)
         kinds = [
-            self._kind_status(target, source, arranged, jobs, video_downloading)
+            self._kind_status(target, source, cards, jobs, ready, video_downloading)
             for target in self._targets
             if target.applies_to(source)
         ]
@@ -63,17 +64,17 @@ class GetGenerationStatusUseCase:
     def _kind_status(
         target: GenerationTarget,
         source: Source,
-        arranged: ArrangedCandidates,
-        jobs: dict[int, dict[str, Job]],
+        cards: list[GenerationCard],
+        jobs: CardJobs,
+        ready: ReadyCards,
         video_downloading: bool,
     ) -> GenerationKindStatusDTO:
-        covered = [c for c in arranged.candidates if target.covers(c)]
-        state_of = {id(c): target.state(c, job_of(jobs, c, target.kind)) for c in covered}
+        covered = target.cards(cards)
+        state_of = {id(c): target.state(c, target.job_of(jobs, c)) for c in covered}
         states = Counter(state_of.values())
         ready_missing = sum(
             1 for c in covered
-            if state_of[id(c)] is CardGenerationState.MISSING
-            and arranged.section(c) is CandidateSection.READY
+            if in_scope(GenerationScope.READY_MISSING, state_of[id(c)], target.is_ready(ready, c))
         )
         return GenerationKindStatusDTO(
             kind=target.kind,

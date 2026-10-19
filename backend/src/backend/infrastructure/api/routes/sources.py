@@ -5,6 +5,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy.orm import Session, sessionmaker  # noqa: TC002 — FastAPI reads route annotations
 
 from backend.application.dto.add_source_dtos import (
     AddSourceRequest,
@@ -26,11 +27,15 @@ from backend.application.dto.collection_dtos import (  # noqa: TC001
     StartedSourcesDTO,
 )
 from backend.application.dto.document_dtos import SourceDocumentDTO  # noqa: TC001
+from backend.application.dto.rebuild_dtos import (  # noqa: TC001
+    RebuildRequest,
+    SourceOperationDTO,
+)
 from backend.application.dto.source_dtos import (  # noqa: TC001
+    CardDTO,
     SourceBoardDTO,
     SourceDetailDTO,
     SourceDTO,
-    StoredCandidateDTO,
     UpdateTitleRequest,
 )
 from backend.application.source_intake.typed_input import typed_input
@@ -42,13 +47,14 @@ from backend.domain.exceptions import (
     InvalidSourceInputError,
     NotATextFileError,
     PermanentSourceError,
+    RebuildNotSupportedError,
+    RefreshNotSupportedError,
     SourceAlreadyProcessedError,
-    SourceHasActiveJobsError,
     SourceHasNoDocumentError,
     SourceHasNoUrlError,
     SourceIsProcessingError,
     SourceNotFoundError,
-    SourceNotReprocessableError,
+    SourceOperationBusyError,
     SubtitlesNotAvailableError,
     TopicTargetsMissingError,
     UnsupportedUrlError,
@@ -56,6 +62,7 @@ from backend.domain.exceptions import (
 )
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.question import Answers
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.dependencies import (
     get_container,
@@ -63,15 +70,22 @@ from backend.infrastructure.api.dependencies import (
     get_session_factory,
 )
 from backend.infrastructure.api.scope_param import parse_scope
+from backend.infrastructure.api.source_operations import SourceOperationRegistry
+from backend.infrastructure.persistence.sqla_source_operation_lock import (
+    SqlaSourceOperationLock,
+)
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+    from collections.abc import Callable, Coroutine
 
     from backend.infrastructure.container import Container
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sources", tags=["sources"])
+
+OPERATIONS = SourceOperationRegistry()
+_background_tasks: set[asyncio.Task[None]] = set()
 
 
 @router.post("/add", status_code=201)
@@ -138,7 +152,7 @@ def add_saved_phrase(
     request: AddSavedPhraseRequest,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> StoredCandidateDTO:
+) -> CardDTO:
     try:
         use_case = container.add_saved_phrase_use_case(session)
         result = use_case.execute(request.phrase, request.target_words)
@@ -189,7 +203,7 @@ async def process_pending(
     scope: str = "all",
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-    session_factory: object = Depends(get_session_factory),  # noqa: B008
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
 ) -> StartedSourcesDTO:
     use_case = container.process_sources_use_case(session)
     try:
@@ -206,7 +220,7 @@ async def process_batch(
     request: SourceIdsRequest,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-    session_factory: object = Depends(get_session_factory),  # noqa: B008
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
 ) -> StartedSourcesDTO:
     result = container.process_sources_use_case(session).start(
         list(dict.fromkeys(request.source_ids)),
@@ -229,9 +243,11 @@ def delete_batch(
     return result
 
 
-def _launch(source_ids: list[int], container: Container, session_factory: object) -> None:
+def _launch(
+    source_ids: list[int], container: Container, session_factory: sessionmaker[Session],
+) -> None:
     for source_id in source_ids:
-        asyncio.create_task(_process_background(source_id, container, session_factory))
+        _in_background(_process_background(source_id, container, session_factory))
 
 
 @router.get("/{source_id}")
@@ -271,7 +287,7 @@ async def process_source(
     source_id: int,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-    session_factory: object = Depends(get_session_factory),  # noqa: B008
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
 ) -> dict[str, str]:
     try:
         use_case = container.process_source_use_case(session)
@@ -279,10 +295,12 @@ async def process_source(
         session.commit()
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except (SourceAlreadyProcessedError, TopicTargetsMissingError) as e:
+    except (
+        SourceAlreadyProcessedError, SourceOperationBusyError, TopicTargetsMissingError,
+    ) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
-    asyncio.create_task(_process_background(source_id, container, session_factory))
+    _in_background(_process_background(source_id, container, session_factory))
     return {"status": "processing"}
 
 
@@ -307,21 +325,24 @@ def download_video(
 async def _process_background(
     source_id: int,
     container: Container,
-    session_factory: object,
+    session_factory: sessionmaker[Session],
 ) -> None:
-    bg_session: Session = session_factory()  # type: ignore[operator]
+    entered = False
+    bg_session: Session | None = None
     try:
+        bg_session = session_factory()
         use_case = container.process_source_use_case(bg_session)
-        await asyncio.to_thread(use_case.execute, source_id, on_stage_commit=bg_session.commit)
-        # Restore enrichment from cache (best-effort, uses bg_session)
-        reprocess_uc = container.reprocess_source_use_case(bg_session)
-        reprocess_uc.finalize(source_id)
+        entered = True
+        await asyncio.to_thread(use_case.execute, source_id)
         bg_session.commit()
     except Exception:
         logger.exception("Background processing failed (source_id=%d)", source_id)
-        bg_session.rollback()
+        if bg_session is not None:
+            bg_session.rollback()
+        if not entered:
+            _free(source_id, session_factory)
         # Mark source as ERROR in a fresh session
-        err_session: Session = session_factory()  # type: ignore[operator]
+        err_session: Session = session_factory()
         try:
             import traceback
             error_detail = traceback.format_exc()
@@ -337,7 +358,8 @@ async def _process_background(
         finally:
             err_session.close()
     finally:
-        bg_session.close()
+        if bg_session is not None:
+            bg_session.close()
 
 
 @router.delete("/{source_id}", status_code=204)
@@ -362,7 +384,7 @@ def add_manual_candidate(
     request: AddManualCandidateRequest,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> StoredCandidateDTO:
+) -> CardDTO:
     try:
         use_case = container.add_manual_candidate_use_case(session)
         result = use_case.execute(source_id, request.target_words, request.selection)
@@ -370,6 +392,8 @@ def add_manual_candidate(
         return result
     except (SourceNotFoundError, SourceHasNoDocumentError) as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except SourceOperationBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidPhraseError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -387,46 +411,152 @@ def get_source_document(
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
-@router.get("/{source_id}/reprocess-stats")
-def get_reprocess_stats(
+@router.post("/{source_id}/rebuild/preview", status_code=202)
+async def preview_rebuild(
     source_id: int,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, Any]:
-    try:
-        use_case = container.get_reprocess_stats_use_case(session)
-        stats = use_case.execute(source_id)
-        return {
-            "learn_count": stats.learn_count,
-            "known_count": stats.known_count,
-            "skip_count": stats.skip_count,
-            "pending_count": stats.pending_count,
-            "has_active_jobs": stats.has_active_jobs,
-        }
-    except SourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
+) -> SourceOperationDTO:
+    """Starts the analysis of a rebuild; its counts come with the operation's state."""
+    operation = _start_rebuild(source_id, SourceOperationKind.PREVIEW, session, container)
+
+    def preview(bg_session: Session) -> Callable[[], None]:
+        use_case = container.rebuild_source_use_case(bg_session)
+        return lambda: OPERATIONS.finished(
+            source_id, operation.operation_id, preview=use_case.run_preview(source_id),
+        )
+
+    _in_background(_operation_background(
+        source_id, operation.operation_id, session_factory, preview,
+    ))
+    return operation
 
 
-@router.post("/{source_id}/reprocess", status_code=202)
-async def reprocess_source(
+@router.post("/{source_id}/rebuild", status_code=202)
+async def rebuild_source(
+    source_id: int,
+    request: RebuildRequest,
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
+) -> SourceOperationDTO:
+    operation = _start_rebuild(source_id, SourceOperationKind.REBUILD, session, container)
+
+    def rebuild(bg_session: Session) -> Callable[[], None]:
+        use_case = container.rebuild_source_use_case(bg_session)
+        return lambda: OPERATIONS.finished(
+            source_id, operation.operation_id,
+            summary=use_case.run(source_id, request.include_open),
+        )
+
+    _in_background(_operation_background(
+        source_id, operation.operation_id, session_factory, rebuild,
+    ))
+    return operation
+
+
+@router.post("/{source_id}/refresh", status_code=202)
+async def refresh_topic(
     source_id: int,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-    session_factory: object = Depends(get_session_factory),  # noqa: B008
-) -> dict[str, str]:
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
+) -> SourceOperationDTO:
+    """Adds to a topic the phrases its targets now have in the other sources."""
     try:
-        use_case = container.reprocess_source_use_case(session)
-        use_case.execute(source_id)
-        session.commit()
+        container.refresh_topic_use_case(session).start(source_id)
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except SourceNotReprocessableError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except (SourceHasActiveJobsError, TopicTargetsMissingError, PermanentSourceError) as e:
+    except SourceOperationBusyError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
+    except RefreshNotSupportedError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    session.commit()
+    operation = OPERATIONS.started(source_id, SourceOperationKind.REFRESH)
 
-    asyncio.create_task(_process_background(source_id, container, session_factory))
-    return {"status": "processing"}
+    def refresh(bg_session: Session) -> Callable[[], None]:
+        use_case = container.refresh_topic_use_case(bg_session)
+        return lambda: OPERATIONS.finished(
+            source_id, operation.operation_id, refresh=use_case.run(source_id),
+        )
+
+    _in_background(_operation_background(
+        source_id, operation.operation_id, session_factory, refresh,
+    ))
+    return operation
+
+
+@router.get("/{source_id}/operation")
+def get_source_operation(source_id: int) -> SourceOperationDTO:
+    """The last rebuild, preview or refresh started on the source: running, or its result."""
+    operation = OPERATIONS.last(source_id)
+    if operation is None:
+        raise HTTPException(status_code=404, detail=f"No operation on source {source_id}")
+    return operation
+
+
+def _start_rebuild(
+    source_id: int, kind: SourceOperationKind, session: Session, container: Container,
+) -> SourceOperationDTO:
+    try:
+        container.rebuild_source_use_case(session).start(source_id, kind)
+    except SourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except SourceOperationBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except RebuildNotSupportedError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    session.commit()
+    return OPERATIONS.started(source_id, kind)
+
+
+async def _operation_background(
+    source_id: int,
+    operation_id: int,
+    session_factory: sessionmaker[Session],
+    prepare: Callable[[Session], Callable[[], None]],
+) -> None:
+    """`prepare` builds the run in the background session; the run frees the source
+    itself. If the run is never entered, the source is freed here."""
+    entered = False
+    bg_session: Session | None = None
+    try:
+        bg_session = session_factory()
+        run = prepare(bg_session)
+        entered = True
+        await asyncio.to_thread(run)
+    except Exception as e:
+        logger.exception("Background operation failed (source_id=%d)", source_id)
+        OPERATIONS.failed(source_id, operation_id, str(e))
+        if not entered:
+            _free(source_id, session_factory)
+    finally:
+        if bg_session is not None:
+            bg_session.close()
+
+
+def _free(source_id: int, session_factory: sessionmaker[Session]) -> None:
+    """Release a source whose operation never started running."""
+    try:
+        session: Session = session_factory()
+    except Exception:
+        logger.exception("Failed to free source %d", source_id)
+        return
+    try:
+        SqlaSourceOperationLock(session).release(source_id)
+        session.commit()
+    except Exception:
+        logger.exception("Failed to free source %d", source_id)
+        session.rollback()
+    finally:
+        session.close()
+
+
+def _in_background(work: Coroutine[object, object, None]) -> None:
+    task = asyncio.create_task(work)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 @router.get("/{source_id}/candidates")

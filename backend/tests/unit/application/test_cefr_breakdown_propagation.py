@@ -6,11 +6,11 @@ and add_manual_candidate because _to_dto functions didn't include cefr_breakdown
 from __future__ import annotations
 
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.word_status import WordStatus
 
-from tests.phrase_support import phrase
+from tests.card_support import card
 
 
 def _make_breakdown() -> CEFRBreakdown:
@@ -55,21 +55,20 @@ def _make_stored_candidate(with_breakdown: bool = True) -> StoredCandidate:
         pos="JJ",
         cefr_level="B1",
         zipf_frequency=5.0,
-        source_phrase=phrase("I am happy", "happy"),
         occurrences=1,
-        status=CandidateStatus.PENDING,
+        status=WordStatus.NEW,
         cefr_breakdown=_make_breakdown() if with_breakdown else None,
     )
 
 
-class TestStoredCandidateToDto:
-    """stored_candidate_to_dto must include CEFR breakdown."""
+class TestCardToDto:
+    """card_to_dto must include the word's CEFR breakdown."""
 
     def test_breakdown_included(self) -> None:
-        from backend.application.dto.source_dtos import stored_candidate_to_dto
+        from backend.application.dto.source_dtos import card_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=True)
-        dto = stored_candidate_to_dto(candidate)
+        dto = card_to_dto(card(candidate))
 
         assert dto.cefr_breakdown is not None
         assert dto.cefr_breakdown.decision_method == "priority"
@@ -78,18 +77,18 @@ class TestStoredCandidateToDto:
         assert len(dto.cefr_breakdown.votes) == 3
 
     def test_no_breakdown_is_none(self) -> None:
-        from backend.application.dto.source_dtos import stored_candidate_to_dto
+        from backend.application.dto.source_dtos import card_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=False)
-        dto = stored_candidate_to_dto(candidate)
+        dto = card_to_dto(card(candidate))
 
         assert dto.cefr_breakdown is None
 
     def test_efllex_has_distribution(self) -> None:
-        from backend.application.dto.source_dtos import stored_candidate_to_dto
+        from backend.application.dto.source_dtos import card_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=True)
-        dto = stored_candidate_to_dto(candidate)
+        dto = card_to_dto(card(candidate))
 
         assert dto.cefr_breakdown is not None
         efllex_vote = next(v for v in dto.cefr_breakdown.votes if v.source_name == "EFLLex")
@@ -98,10 +97,10 @@ class TestStoredCandidateToDto:
         assert "B1" in efllex_vote.distribution
 
     def test_non_efllex_has_no_distribution(self) -> None:
-        from backend.application.dto.source_dtos import stored_candidate_to_dto
+        from backend.application.dto.source_dtos import card_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=True)
-        dto = stored_candidate_to_dto(candidate)
+        dto = card_to_dto(card(candidate))
 
         assert dto.cefr_breakdown is not None
         cefrpy_vote = next(v for v in dto.cefr_breakdown.votes if v.source_name == "CEFRpy")
@@ -109,7 +108,7 @@ class TestStoredCandidateToDto:
 
 
 class TestProcessSourceBreakdownPropagation:
-    """process_source must pass breakdown from WordCandidateDTO to StoredCandidate."""
+    """process_source must pass breakdown from WordDTO to StoredCandidate."""
 
     def test_dto_to_breakdown_roundtrip(self) -> None:
         """Simulates what process_source does: DTO → domain → StoredCandidate."""

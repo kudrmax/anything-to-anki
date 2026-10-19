@@ -11,9 +11,6 @@ class CandidateMeaningImageRepository(ABC):
     """Port for persisting the meaning image of a candidate."""
 
     @abstractmethod
-    def get_by_candidate_id(self, candidate_id: int) -> CandidateMeaningImage | None: ...
-
-    @abstractmethod
     def upsert(self, image: CandidateMeaningImage) -> None: ...
 
     @abstractmethod

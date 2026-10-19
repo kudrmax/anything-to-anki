@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
-from backend.application.dto.analysis_dtos import AnalyzeTextRequest
+from backend.application.dto.analysis_dtos import AnalyzeTextRequest, WordDTO
 from backend.application.source_intake.document_normalizer import DocumentNormalizer
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
@@ -68,6 +68,11 @@ def _document(text: str, kind: str) -> Document:
     return normalized.document
 
 
+def _best_phrase(word: WordDTO) -> str:
+    """The phrase the card gets: the best score, ties to the earliest."""
+    return min(word.occurrences, key=lambda o: o.fragment_score).phrase.text
+
+
 @pytest.fixture(scope="module")
 def use_case() -> AnalyzeTextUseCase:
     return AnalyzeTextUseCase(
@@ -82,14 +87,14 @@ def use_case() -> AnalyzeTextUseCase:
 def hpmor_fragments(use_case: AnalyzeTextUseCase) -> dict[str, str]:
     """lemma → phrase text mapping for the full HPMOR excerpt."""
     resp = use_case.execute(_document(HPMOR, "text"), AnalyzeTextRequest(user_level=USER_LEVEL))
-    return {c.lemma.lower(): c.phrase.text for c in resp.candidates}
+    return {w.lemma.lower(): _best_phrase(w) for w in resp.words}
 
 
 @pytest.fixture(scope="module")
 def lyrics_fragments(use_case: AnalyzeTextUseCase) -> dict[str, str]:
     """lemma → phrase text mapping for the full Evil Morty lyrics."""
     resp = use_case.execute(_document(LYRICS, "song"), AnalyzeTextRequest(user_level=USER_LEVEL))
-    return {c.lemma.lower(): c.phrase.text for c in resp.candidates}
+    return {w.lemma.lower(): _best_phrase(w) for w in resp.words}
 
 
 # ---------------------------------------------------------------------------

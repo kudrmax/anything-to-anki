@@ -46,3 +46,34 @@ class TestIsNew:
     def test_word_the_user_marked_unknown_is_new_whatever_it_is(self) -> None:
         unknown = Vocabulary.of(known=set(), unknown={"the"})
         assert _knowledge(unknown).is_new(_word("the", CEFRLevel.A1, 7.0, content=False)) is True
+
+
+class TestLearning:
+    """Priority: Unknown > Known > learning ("учу")."""
+
+    def test_a_learning_word_is_new_and_not_known(self) -> None:
+        learning = Vocabulary.of(known=set(), unknown=set(), learning={"gull"})
+        assert learning.is_learning("gull") is True
+        assert learning.is_known("gull") is False
+        assert _knowledge(learning).is_new(_word("gull", CEFRLevel.A1, 7.0)) is True
+
+    def test_known_is_stronger_than_learning(self) -> None:
+        both = Vocabulary.of(known={"gull"}, unknown=set(), learning={"gull"})
+        assert both.is_known("gull") is True
+        assert both.is_learning("gull") is False
+        assert _knowledge(both).is_new(_word("gull")) is False
+
+    def test_unknown_is_stronger_than_learning(self) -> None:
+        both = Vocabulary.of(known=set(), unknown={"gull"}, learning={"gull"})
+        assert both.is_unknown("gull") is True
+        assert both.is_learning("gull") is False
+
+    def test_known_or_learning_is_no_new_candidate(self) -> None:
+        vocabulary = Vocabulary.of(known={"gull"}, unknown=set(), learning={"Tern"})
+        assert vocabulary.is_known_or_learning("gull") is True
+        assert vocabulary.is_known_or_learning("tern") is True
+        assert vocabulary.is_known_or_learning("puffin") is False
+
+    def test_without_learning_drops_only_the_given_lemmas(self) -> None:
+        vocabulary = Vocabulary.of(known=set(), unknown=set(), learning={"gull", "tern"})
+        assert vocabulary.without_learning({"Gull"}).learning == frozenset({"tern"})

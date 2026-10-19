@@ -3,10 +3,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 from backend.application.utils.anki_note_settings import AnkiFieldNames
+from backend.application.utils.export_queue import ExportBatch
 from backend.domain.entities.stored_candidate import StoredCandidate
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
@@ -14,11 +16,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests.export_support import export_card
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
+    from backend.application.utils.export_queue import ExportCard
     from httpx import Response
 
 
@@ -62,6 +66,16 @@ def db_session(client: TestClient) -> Generator[Session, None, None]:
     yield session
     session.close()
     engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _no_real_anki() -> Generator[None, None, None]:
+    """Whatever a test does not stub finds Anki offline: no request leaves the machine."""
+    with patch(
+        "backend.infrastructure.adapters.anki_connect_connector.httpx.post",
+        side_effect=httpx.ConnectError("Anki is not running in tests"),
+    ):
+        yield
 
 
 _DEFAULT_CLOZE_FIELDS = AnkiFieldNames.read(MagicMock(**{"get.return_value": None})).cloze_fields()
@@ -185,10 +199,12 @@ class TestSyncToAnkiAPI:
         data = response.json()
         assert data["total"] == 0
         assert data["added"] == 0
+        assert "matured" not in data
 
     def test_sync_adds_cards_successfully(self, client: TestClient) -> None:
         post = _add_text(client, "burnout is exhausting")
         source_id = post.json()["source_ids"][0]
+        burnout = _burnout(source_id)
 
         # Mark first candidate as learn via mock on candidate repo
         with (
@@ -215,16 +231,12 @@ class TestSyncToAnkiAPI:
                 return_value=[12345],
             ),
             patch(
-                "backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository.get_by_source",
-                return_value=[
-                    StoredCandidate(
-                        id=1, source_id=source_id, lemma="burnout", pos="NOUN",
-                        cefr_level="B2", zipf_frequency=3.5,
-                        source_phrase=phrase("burnout is exhausting", "burnout"),
-                        occurrences=1, status=CandidateStatus.LEARN,
-                    )
-                ],
+                "backend.application.utils.export_queue.ExportQueue.for_source",
+                return_value=ExportBatch(pending=[burnout], exported_count=0),
             ),
+            patch(
+                "backend.application.utils.decision_effects.DecisionEffects.apply",
+            ) as bound,
         ):
             response = client.post(f"/export/sync-to-anki/{source_id}?group=incomplete")
 
@@ -233,6 +245,9 @@ class TestSyncToAnkiAPI:
         assert data["total"] == 1
         assert data["added"] == 1
         assert data["skipped"] == 0
+        [call] = bound.call_args_list
+        assert call.kwargs["note_id"] == 12345
+        assert call.args[1].row == "S1"
 
     def test_requires_export_group(self, client: TestClient) -> None:
         post = _add_text(client, "test text")
@@ -247,14 +262,7 @@ class TestSyncToAnkiAPI:
 
         with patch(
             "backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository.get_by_source",
-            return_value=[
-                StoredCandidate(
-                    id=1, source_id=source_id, lemma="burnout", pos="NOUN",
-                    cefr_level="B2", zipf_frequency=3.5,
-                    source_phrase=phrase("burnout is exhausting", "burnout"),
-                    occurrences=1, status=CandidateStatus.LEARN,
-                )
-            ],
+            return_value=[_burnout(source_id).word],
         ):
             response = client.post(f"/export/sync-to-anki/{source_id}?group=ready")
 
@@ -262,5 +270,23 @@ class TestSyncToAnkiAPI:
         assert response.json()["total"] == 0
 
 
+def _burnout(source_id: int) -> ExportCard:
+    return export_card(
+        StoredCandidate(
+            id=1, source_id=source_id, lemma="burnout", pos="NOUN", cefr_level="B2",
+            zipf_frequency=3.5, occurrences=1, status=WordStatus.LEARN,
+        ),
+        phrase("burnout is exhausting", "burnout"),
+    )
+
+
 def _add_text(client: TestClient, text: str) -> Response:
     return client.post("/sources/add", json={"text": text, "answers": {"text.kind": "text"}})
+
+
+@pytest.mark.integration
+class TestLearningAPI:
+    def test_the_learning_list_is_read_only_and_split(self, client: TestClient) -> None:
+        response = client.get("/vocabulary/learning")
+        assert response.status_code == 200
+        assert response.json() == {"in_anki": [], "awaiting_export": []}

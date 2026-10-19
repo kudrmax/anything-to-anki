@@ -9,7 +9,6 @@ from backend.domain.value_objects.source_role import SourceRole
 if TYPE_CHECKING:
     from backend.domain.value_objects.content import Kind
     from backend.domain.value_objects.format import Format
-    from backend.domain.value_objects.processing_stage import ProcessingStage
     from backend.domain.value_objects.source_status import SourceStatus
 
 
@@ -29,7 +28,6 @@ class Source:
     video_path: str | None = None
     audio_track_index: int | None = None
     collection_id: int | None = None
-    processing_stage: ProcessingStage | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
     format: Format | None = None
     kind: Kind | None = None
@@ -49,7 +47,7 @@ class Source:
 
     @property
     def is_permanent(self) -> bool:
-        """The app always keeps it: it can't be deleted, and there is nothing to reprocess."""
+        """The app always keeps it: it can't be deleted, and there is nothing to rebuild."""
         return self.role is SourceRole.SAVED_PHRASES
 
     @property
@@ -72,32 +70,3 @@ class Source:
         A hand-added phrase is kept exactly as the user met it.
         """
         return not self.has_video and self.role is not SourceRole.SAVED_PHRASES
-
-    def reset_to_initial_state(self) -> Source:
-        from backend.domain.value_objects.source_status import SourceStatus
-
-        return Source(
-            id=self.id,
-            title=self.title,
-            source_url=self.source_url,
-            video_path=self.video_path,
-            audio_track_index=self.audio_track_index,
-            collection_id=self.collection_id,
-            created_at=self.created_at,
-            format=self.format,
-            kind=self.kind,
-            role=self.role,
-            topic_query=self.topic_query,
-            status=SourceStatus.NEW,
-        )
-
-
-_SOURCE_INPUT_FIELDS: frozenset[str] = frozenset({
-    "id", "title",
-    "source_url", "video_path", "audio_track_index", "collection_id", "created_at",
-    "format", "kind", "role", "topic_query",
-})
-
-_SOURCE_DERIVED_FIELDS: frozenset[str] = frozenset({
-    "status", "error_message", "processing_stage",
-})

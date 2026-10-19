@@ -15,7 +15,7 @@ from backend.domain.services.candidate_sections import new_words
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.entities.occurrence import Occurrence
     from backend.domain.value_objects.user_knowledge import UserKnowledge
 
 MIN_SENTENCE_WORDS = 4
@@ -75,14 +75,14 @@ def _word_count(text: str) -> int:
     return len(text.split())
 
 
-def pick_best_candidate_phrase(
-    candidates: Iterable[StoredCandidate],
+def pick_easiest_phrase(
+    phrases: Iterable[Occurrence],
     knowledge: UserKnowledge,
-) -> StoredCandidate | None:
+) -> Occurrence | None:
     """Pick the phrase that is easiest to learn from: fewest new words, then shortest."""
     return min(
-        candidates,
-        key=lambda c: (len(new_words(c, knowledge)), len(c.phrase.words)),
+        phrases,
+        key=lambda o: (len(new_words(o.phrase, knowledge)), len(o.phrase.words)),
         default=None,
     )
 

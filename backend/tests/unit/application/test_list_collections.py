@@ -8,6 +8,8 @@ from backend.application.utils.topic_generation import TopicGeneration
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
 from backend.domain.value_objects.decision_progress import DecisionProgress
+from backend.domain.value_objects.held_operation import HeldOperation
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
@@ -16,10 +18,17 @@ from tests.unit.application.source_fakes import InMemorySourceRepository
 
 def _progress(by_source: dict[int, DecisionProgress] | None = None) -> MagicMock:
     progress = MagicMock()
-    progress.of_source.side_effect = lambda source_id: (by_source or {}).get(
-        source_id, DecisionProgress(),
-    )
+    progress.of_sources.side_effect = lambda source_ids: {
+        source_id: (by_source or {}).get(source_id, DecisionProgress())
+        for source_id in source_ids
+    }
     return progress
+
+
+def _free() -> MagicMock:
+    lock = MagicMock()
+    lock.operations.return_value = {}
+    return lock
 
 
 @pytest.mark.unit
@@ -33,12 +42,13 @@ def test_tree_with_subtree_counts_and_drag_hints() -> None:
             Collection(id=3, name="IELTS", position=1),
         ]),
         InMemorySourceRepository([
-            Source(id=10, status=SourceStatus.REVIEWED, collection_id=1),
+            Source(id=10, status=SourceStatus.DONE, collection_id=1),
             Source(id=11, status=SourceStatus.NEW, collection_id=2),
             Source(id=12, status=SourceStatus.ERROR, collection_id=None),
         ]),
-        _progress(),
+        _progress({10: DecisionProgress(decided=2, total=2)}),
         probe,
+        _free(),
     )
 
     tree = use_case.execute()
@@ -69,6 +79,7 @@ def test_tree_of_full_depth() -> None:
         InMemorySourceRepository([Source(id=10, status=SourceStatus.NEW, collection_id=5)]),
         _progress(),
         probe,
+        _free(),
     ).execute()
 
     levels = []
@@ -106,6 +117,7 @@ def test_progress_sums_the_progress_of_sources_of_the_whole_subtree() -> None:
             12: DecisionProgress(decided=4, total=4),
         }),
         probe,
+        _free(),
     ).execute()
 
     (books,) = tree.collections
@@ -115,3 +127,45 @@ def test_progress_sums_the_progress_of_sources_of_the_whole_subtree() -> None:
     assert (empty.counts.progress.decided, empty.counts.progress.total) == (0, 0)
     assert (tree.unsorted.progress.decided, tree.unsorted.progress.total) == (4, 4)
     assert (tree.all.progress.decided, tree.all.progress.total) == (45, 1074)
+
+
+@pytest.mark.unit
+def test_a_source_being_processed_is_not_pending() -> None:
+    probe = MagicMock()
+    probe.of.return_value = TopicGeneration()
+    lock = _free()
+    lock.operations.return_value = {10: HeldOperation(SourceOperationKind.PROCESS)}
+    tree = ListCollectionsUseCase(
+        InMemoryCollectionRepository([]),
+        InMemorySourceRepository([
+            Source(id=10, status=SourceStatus.NEW), Source(id=11, status=SourceStatus.NEW),
+        ]),
+        _progress(),
+        probe,
+        lock,
+    ).execute()
+    assert tree.all.pending == 1
+
+
+@pytest.mark.unit
+def test_a_source_counts_as_reviewed_by_its_progress_when_read() -> None:
+    """Every card done: reviewed; one left: not; nothing stored decides it."""
+    probe = MagicMock()
+    probe.of.return_value = TopicGeneration()
+    use_case = ListCollectionsUseCase(
+        InMemoryCollectionRepository([]),
+        InMemorySourceRepository([
+            Source(id=10, status=SourceStatus.DONE),
+            Source(id=11, status=SourceStatus.DONE),
+            Source(id=12, status=SourceStatus.DONE),
+        ]),
+        _progress({
+            10: DecisionProgress(decided=3, total=3),
+            11: DecisionProgress(decided=2, total=3),
+            12: DecisionProgress(decided=0, total=3),
+        }),
+        probe,
+        _free(),
+    )
+
+    assert use_case.execute().all.reviewed == 1

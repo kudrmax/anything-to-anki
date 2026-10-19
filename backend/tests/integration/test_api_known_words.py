@@ -56,8 +56,10 @@ class TestKnownWordsAPI:
         assert data[0]["lemma"] == "run"
 
     def test_delete(self, client: TestClient) -> None:
-        response = client.delete("/known-words/1")
-        assert response.status_code == 200
+        listed = client.get("/known-words").json()
+        assert [w["removal_key"] for w in listed] == ["entry:1"]
+        response = client.delete("/known-words/entry:1")
+        assert (response.status_code, response.json()) == (200, {"deleted": "entry:1"})
         response = client.get("/known-words")
         assert len(response.json()) == 0
 
@@ -108,7 +110,9 @@ class TestKnownWordsWildcardAPI:
     def test_delete_wildcard(self, client_with_wildcard: TestClient) -> None:
         response = client_with_wildcard.get("/known-words")
         wildcard = [w for w in response.json() if w["lemma"] == "go"][0]
-        delete_resp = client_with_wildcard.delete(f"/known-words/{wildcard['id']}")
+        delete_resp = client_with_wildcard.delete(
+            f"/known-words/{wildcard['removal_key']}",
+        )
         assert delete_resp.status_code == 200
         remaining = client_with_wildcard.get("/known-words").json()
         assert len(remaining) == 1

@@ -19,10 +19,6 @@ class SqlaCandidateMeaningImageRepository(CandidateMeaningImageRepository):
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def get_by_candidate_id(self, candidate_id: int) -> CandidateMeaningImage | None:
-        model = self._session.get(CandidateMeaningImageModel, candidate_id)
-        return model.to_entity() if model else None
-
     def upsert(self, image: CandidateMeaningImage) -> None:
         existing = self._session.get(CandidateMeaningImageModel, image.candidate_id)
         if existing is None:

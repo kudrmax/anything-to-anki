@@ -8,45 +8,17 @@ if TYPE_CHECKING:
 
 
 class CandidateMeaningRepository(ABC):
-    """Port for the meaning enrichment of a candidate.
-
-    1:1 with candidates. `None` from get methods means no row exists for this
-    candidate (i.e., generation has never been attempted).
-    """
+    """Port for the meanings of phrases. No row: generation was never attempted."""
 
     @abstractmethod
-    def get_by_candidate_id(self, candidate_id: int) -> CandidateMeaning | None: ...
+    def get_by_phrase_id(self, phrase_id: int) -> CandidateMeaning | None: ...
 
     @abstractmethod
-    def get_all_by_source(self, source_id: int) -> dict[int, CandidateMeaning]:
-        """Return a mapping {candidate_id: CandidateMeaning} for all rows belonging
-        to candidates of the given source. Used to bulk-load enrichments when
-        listing candidates."""
+    def get_by_phrase_ids(self, phrase_ids: list[int]) -> dict[int, CandidateMeaning]:
+        """Keyed by phrase id; phrases without a row are left out."""
 
     @abstractmethod
-    def get_by_candidate_ids(self, candidate_ids: list[int]) -> dict[int, CandidateMeaning]:
-        """Return a mapping for the explicit list of candidate ids."""
+    def upsert_for_phrase(self, phrase_id: int, meaning: CandidateMeaning) -> None: ...
 
     @abstractmethod
-    def upsert(self, meaning: CandidateMeaning) -> None:
-        """Insert or update the meaning row for the contained candidate_id."""
-
-    @abstractmethod
-    def delete_by_candidate_id(self, candidate_id: int) -> None: ...
-
-    @abstractmethod
-    def get_candidate_ids_without_meaning(
-        self,
-        source_id: int | None,
-        only_active: bool,
-    ) -> list[int]:
-        """Return ids of candidates that have no meaning row OR meaning row with
-        meaning IS NULL. If only_active=True, restrict to candidates with
-        status PENDING or LEARN. Returned unsorted."""
-
-    @abstractmethod
-    def count_candidate_ids_without_meaning(
-        self,
-        source_id: int | None,
-        only_active: bool,
-    ) -> int: ...
+    def delete_by_phrase_id(self, phrase_id: int) -> None: ...

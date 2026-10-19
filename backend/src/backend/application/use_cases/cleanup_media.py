@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     )
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.occurrence_repository import OccurrenceRepository
 
 logger = logging.getLogger(__name__)
 
@@ -20,17 +21,20 @@ logger = logging.getLogger(__name__)
 class CleanupMediaUseCase:
     """Deletes media files on disk and clears their DB paths for a source.
 
-    Images are both the video frames and the meaning images of the cards.
+    The video frames and clips are those of every phrase of the source, shown or not;
+    images are also the pictures of its words.
     """
 
     def __init__(
         self,
         candidate_repo: CandidateRepository,
+        occurrence_repo: OccurrenceRepository,
         media_repo: CandidateMediaRepository,
         image_repo: CandidateMeaningImageRepository,
         media_root: str,
     ) -> None:
         self._candidate_repo = candidate_repo
+        self._occurrence_repo = occurrence_repo
         self._media_repo = media_repo
         self._image_repo = image_repo
         self._media_root = media_root
@@ -38,37 +42,24 @@ class CleanupMediaUseCase:
     def execute(self, source_id: int, kind: CleanupMediaKind) -> None:
         clear_screenshot = kind in (CleanupMediaKind.ALL, CleanupMediaKind.IMAGES)
         clear_audio = kind in (CleanupMediaKind.ALL, CleanupMediaKind.AUDIO)
-
-        candidates = self._candidate_repo.get_by_source(source_id)
         removed_shot = 0
         removed_audio = 0
 
-        for c in candidates:
-            if c.id is None:
-                continue
-            if clear_screenshot and c.meaning_image is not None:
-                removed_shot += self._remove_meaning_image(c)
-            if c.media is None:
-                continue
-            if clear_screenshot and c.media.screenshot_path:
-                try:
-                    if os.path.exists(c.media.screenshot_path):
-                        os.remove(c.media.screenshot_path)
-                        removed_shot += 1
-                except OSError:
-                    logger.exception("Failed to remove screenshot %s", c.media.screenshot_path)
-            if clear_audio and c.media.audio_path:
-                try:
-                    if os.path.exists(c.media.audio_path):
-                        os.remove(c.media.audio_path)
-                        removed_audio += 1
-                except OSError:
-                    logger.exception("Failed to remove audio %s", c.media.audio_path)
+        if clear_screenshot:
+            for word in self._candidate_repo.get_by_source(source_id):
+                if word.id is not None and word.meaning_image is not None:
+                    removed_shot += self._remove_meaning_image(word)
 
-            self._media_repo.clear_paths(
-                c.id,
-                clear_screenshot=clear_screenshot,
-                clear_audio=clear_audio,
+        for occurrence in self._occurrence_repo.by_source(source_id):
+            media = occurrence.media
+            if occurrence.id is None or media is None:
+                continue
+            if clear_screenshot and media.screenshot_path:
+                removed_shot += _remove(media.screenshot_path)
+            if clear_audio and media.audio_path:
+                removed_audio += _remove(media.audio_path)
+            self._media_repo.clear_phrase_paths(
+                occurrence.id, clear_screenshot=clear_screenshot, clear_audio=clear_audio,
             )
 
         source_dir = os.path.join(self._media_root, str(source_id))
@@ -84,15 +75,19 @@ class CleanupMediaUseCase:
             source_id, kind.value, removed_shot, removed_audio,
         )
 
-    def _remove_meaning_image(self, candidate: StoredCandidate) -> int:
-        assert candidate.id is not None and candidate.meaning_image is not None
-        path = candidate.meaning_image.image_path
-        removed = 0
-        try:
-            if os.path.exists(path):
-                os.remove(path)
-                removed = 1
-        except OSError:
-            logger.exception("Failed to remove meaning image %s", path)
-        self._image_repo.delete_by_candidate_id(candidate.id)
+    def _remove_meaning_image(self, word: StoredCandidate) -> int:
+        assert word.id is not None and word.meaning_image is not None
+        removed = _remove(word.meaning_image.image_path)
+        self._image_repo.delete_by_candidate_id(word.id)
         return removed
+
+
+def _remove(path: str) -> int:
+    """1 when the file was there and is gone now."""
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+            return 1
+    except OSError:
+        logger.exception("Failed to remove media file %s", path)
+    return 0

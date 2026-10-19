@@ -4,17 +4,23 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
     from backend.domain.entities.stored_candidate import StoredCandidate
-    from backend.domain.value_objects.candidate_status import CandidateStatus
-    from backend.domain.value_objects.document_position import DocumentPosition
-    from backend.domain.value_objects.phrase import Phrase
+    from backend.domain.value_objects.built_analysis import WordKey
 
 
 class CandidateRepository(ABC):
-    """Port for persisting and retrieving word candidates."""
+    """Port for the words of sources. Their phrases go through the occurrence repository."""
 
     @abstractmethod
-    def create_batch(self, candidates: list[StoredCandidate]) -> list[StoredCandidate]: ...
+    def add_word(self, word: StoredCandidate) -> int:
+        """Store a new word without phrases; returns its id. Its phrases go through the
+        occurrence repository."""
+
+    @abstractmethod
+    def word_id(self, source_id: int, key: WordKey) -> int | None:
+        """The word of the source with this key, if the source has it."""
 
     @abstractmethod
     def get_by_source(self, source_id: int) -> list[StoredCandidate]:
@@ -24,26 +30,11 @@ class CandidateRepository(ABC):
     def get_by_id(self, candidate_id: int) -> StoredCandidate | None: ...
 
     @abstractmethod
-    def update_status(self, candidate_id: int, status: CandidateStatus) -> None: ...
-
-    @abstractmethod
-    def count_by_status(self, status: CandidateStatus) -> int: ...
+    def count_chosen_to_learn(self) -> int:
+        """Words chosen to learn (`card_view.chosen_to_learn`), across all sources."""
 
     @abstractmethod
     def count_all(self) -> int: ...
-
-    @abstractmethod
-    def set_source_phrase(
-        self, candidate_id: int, phrase: Phrase, position: DocumentPosition,
-    ) -> None:
-        """A new phrase from the source. Its polished version no longer applies and is dropped."""
-
-    @abstractmethod
-    def set_polished_phrase(self, candidate_id: int, phrase: Phrase | None) -> None:
-        """Store the rewritten phrase; None drops it. Clears a revert."""
-
-    @abstractmethod
-    def set_polish_reverted(self, candidate_id: int, reverted: bool) -> None: ...
 
     @abstractmethod
     def get_by_ids(self, candidate_ids: list[int]) -> list[StoredCandidate]:
@@ -57,8 +48,9 @@ class CandidateRepository(ABC):
     def delete_by_source(self, source_id: int) -> None: ...
 
     @abstractmethod
-    def get_all_by_status(self, status: CandidateStatus) -> list[StoredCandidate]:
-        """Return all candidates with the given status, across all sources."""
+    def chosen_to_learn(self, source_ids: Collection[int] | None = None) -> list[StoredCandidate]:
+        """Words chosen to learn (`card_view.chosen_to_learn`) of these sources, or of all
+        sources, by id."""
 
     @abstractmethod
     def get_by_lemma(self, lemma: str) -> list[StoredCandidate]:

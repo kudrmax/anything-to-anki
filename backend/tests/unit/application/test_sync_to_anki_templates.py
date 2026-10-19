@@ -4,16 +4,16 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
-from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
-from backend.application.utils.export_queue import ExportQueue
-from backend.domain.services.cloze_builder import ClozeBuilder
-from backend.domain.value_objects.candidate_status import CandidateStatus
+from backend.domain.entities.candidate_meaning import CandidateMeaning
+from backend.domain.entities.candidate_tts import CandidateTTS
+from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.export_group import ExportGroup
+from backend.domain.value_objects.word_status import WordStatus
 
+from tests.export_support import ExportCards, export_card
 from tests.phrase_support import phrase
 from tests.unit.application.scope_fakes import empty_scope_resolver
-from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -38,44 +38,42 @@ class TestSyncToAnkiTemplates:
     def test_passes_rendered_templates_to_ensure_note_type(
         self, templates_dir: Path
     ) -> None:
-        candidate_repo = MagicMock()
+        cards = ExportCards()
         anki_connector = MagicMock()
         settings_repo = MagicMock()
-        anki_sync_repo = MagicMock()
         renderer = AnkiTemplateRenderer(templates_dir)
 
         settings_repo.get.side_effect = lambda key, default: default
 
-        candidate = MagicMock()
-        candidate.id = 1
-        candidate.status = CandidateStatus.LEARN
-        candidate.lemma = "test"
-        candidate.phrase = phrase("This is a test", "test")
-        candidate.meaning = MagicMock()
-        candidate.meaning.meaning = "a trial"
-        candidate.meaning.ipa = "/tɛst/"
-        candidate.meaning.translation = None
-        candidate.meaning.synonyms = None
-        candidate.meaning.examples = None
-        candidate.media = None
-        candidate.cloze = None
-        candidate_repo.get_by_source.return_value = [candidate]
+        candidate = export_card(
+            StoredCandidate(
+                id=1,
+                source_id=1,
+                lemma="test",
+                pos="NOUN",
+                cefr_level="B2",
+                zipf_frequency=3.5,
+                occurrences=1,
+                status=WordStatus.LEARN,
+            ),
+            phrase("This is a test", "test"),
+            meaning=CandidateMeaning(
+                candidate_id=1, meaning="a trial", translation=None, synonyms=None,
+                examples=None, ipa="/tɛst/", generated_at=None,
+            ),
+            tts=CandidateTTS(candidate_id=1, audio_path="/tmp/test.m4a", generated_at=None),
+        )
+        cards.put([candidate])
 
         anki_connector.is_available.return_value = True
         anki_connector.get_model_field_names.return_value = _EveryField()
-        anki_sync_repo.get_synced_candidate_ids.return_value = set()
         anki_connector.add_notes.return_value = [12345]
 
-        known_word_repo = MagicMock()
-        use_case = SyncToAnkiUseCase(
-            export_queue=ExportQueue(candidate_repo, anki_sync_repo),
-            anki_connector=anki_connector,
-            settings_repo=settings_repo,
-            anki_sync_repo=anki_sync_repo,
-            template_renderer=renderer,
-            vocabulary=user_vocabulary(known_word_repo),
-            cloze_builder=ClozeBuilder(),
-            scope_resolver=empty_scope_resolver(),
+        use_case = cards.sync(
+            anki_connector,
+            settings_repo,
+            renderer,
+            empty_scope_resolver(),
         )
         use_case.execute(source_id=1, group=ExportGroup.READY)
 

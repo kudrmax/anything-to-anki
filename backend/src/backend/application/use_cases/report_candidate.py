@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 from backend.application.dto.card_report_dtos import CardReportDTO, ReportReasonDTO
 from backend.domain.entities.card_report import CardReport
 from backend.domain.exceptions import (
-    CandidateNotFoundError,
     EmptyReportCommentError,
+    PhraseNotFoundError,
     UnknownReportReasonError,
 )
 from backend.domain.services.candidate_sections import new_words
@@ -14,12 +14,13 @@ from backend.domain.value_objects.fragment_surroundings import FragmentSurroundi
 
 if TYPE_CHECKING:
     from backend.application.dto.card_report_dtos import ReportCandidateRequest
-    from backend.application.utils.review_status_updater import ReviewStatusUpdater
+    from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.user_knowledge_reader import UserKnowledgeReader
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.card_report_repository import CardReportRepository
     from backend.domain.ports.document_repository import DocumentRepository
+    from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.value_objects.phrase import Phrase
 
@@ -38,31 +39,34 @@ REPORT_REASONS: tuple[str, ...] = (
 
 
 class ReportCandidateUseCase:
-    """Saves a complaint about a card together with a snapshot of the card.
+    """Saves a complaint about a card — a shown phrase — together with a snapshot of it.
 
     Words of the phrase the user marked as not known go to their unknown words:
-    every card with them moves out of Ready.
+    every card with them moves out of Ready. That removes their Known as any removal does
+    (§2.7): every card of such a word that read Known, in every source, is new again.
     """
 
     def __init__(
         self,
         candidate_repo: CandidateRepository,
+        occurrence_repo: OccurrenceRepository,
         source_repo: SourceRepository,
         document_repo: DocumentRepository,
         report_repo: CardReportRepository,
         vocabulary: UserVocabulary,
         knowledge: UserKnowledgeReader,
-        review_status: ReviewStatusUpdater,
+        effects: DecisionEffects,
     ) -> None:
+        self._effects = effects
         self._candidate_repo = candidate_repo
+        self._occurrences = occurrence_repo
         self._document_repo = document_repo
         self._source_repo = source_repo
         self._report_repo = report_repo
         self._vocabulary = vocabulary
         self._knowledge = knowledge
-        self._review_status = review_status
 
-    def execute(self, candidate_id: int, request: ReportCandidateRequest) -> CardReportDTO:
+    def execute(self, phrase_id: int, request: ReportCandidateRequest) -> CardReportDTO:
         comment_text = request.comment.strip()
         chosen = tuple(dict.fromkeys(request.reasons))
         for reason in chosen:
@@ -70,31 +74,33 @@ class ReportCandidateUseCase:
                 raise UnknownReportReasonError(reason)
         if not chosen and not comment_text and not request.unknown_words:
             raise EmptyReportCommentError()
-        candidate = self._candidate_repo.get_by_id(candidate_id)
-        if candidate is None or candidate.id is None:
-            raise CandidateNotFoundError(candidate_id)
-        new = new_words(candidate, self._knowledge.current())
-        source = self._source_repo.get_by_id(candidate.source_id)
+        occ = self._occurrences.get(phrase_id)
+        word = self._candidate_repo.get_by_id(occ.candidate_id) if occ is not None else None
+        if occ is None or word is None or word.id is None:
+            raise PhraseNotFoundError(phrase_id)
+        new = new_words(occ.phrase, self._knowledge.current())
+        source = self._source_repo.get_by_id(word.source_id)
         around = FragmentSurroundings.around(
-            self._document_repo.get(candidate.source_id), candidate.phrase_position,
+            self._document_repo.get(word.source_id), occ.phrase_position,
         )
         saved = self._report_repo.add(CardReport(
-            source_id=candidate.source_id,
+            source_id=word.source_id,
             source_title=(source.title or "") if source else "",
-            candidate_id=candidate.id,
-            lemma=candidate.lemma,
-            surface_form=candidate.phrase.target_text(),
-            context_fragment=candidate.phrase.text,
-            zipf_frequency=candidate.zipf_frequency,
-            cefr_level=candidate.cefr_level,
+            candidate_id=word.id,
+            lemma=word.lemma,
+            surface_form=occ.phrase.target_text(),
+            context_fragment=occ.phrase.text,
+            zipf_frequency=word.zipf_frequency,
+            cefr_level=word.cefr_level,
             fragment_unknown_count=len(new),
-            is_phrasal_verb=candidate.is_phrasal_verb,
+            is_phrasal_verb=word.is_phrasal_verb,
             reasons=chosen,
             comment=comment_text,
             text_before=around.before if around else None,
             text_after=around.after if around else None,
+            phrase_id=phrase_id,
         ))
-        self._mark_unknown(candidate.phrase, request.unknown_words)
+        self._mark_unknown(occ.phrase, request.unknown_words)
         return to_dto(saved)
 
     def _mark_unknown(self, phrase: Phrase, indices: list[int]) -> None:
@@ -102,9 +108,9 @@ class ReportCandidateUseCase:
             phrase.words[i].lemma for i in indices if 0 <= i < len(phrase.words)
         ))
         for lemma in lemmas:
+            before = self._vocabulary.of(lemma)
             self._vocabulary.mark_unknown(lemma)
-        if lemmas:
-            self._review_status.refresh_all()
+            self._effects.known_removed(lemma, before)
 
     @staticmethod
     def reasons() -> list[ReportReasonDTO]:
