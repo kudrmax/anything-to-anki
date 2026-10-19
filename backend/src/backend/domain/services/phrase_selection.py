@@ -5,8 +5,8 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from backend.domain.services.card_view import is_skipped
 from backend.domain.services.phrase_protection import is_untouchable
+from backend.domain.value_objects.card_choice import is_skipped
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
 if TYPE_CHECKING:

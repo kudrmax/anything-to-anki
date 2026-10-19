@@ -19,6 +19,7 @@ from backend.domain.value_objects.card_choice import (
     decision_reads_known,
     decision_status,
     in_anki,
+    is_skipped,
     reads_known,
     status_of,
 )
@@ -272,10 +273,6 @@ def card_view(
 def open_elsewhere(word: WordState, lemma: LemmaKnowledge) -> ElsewhereStatus | None:
     """What other sources hold of a word open here; a decided word holds its own decision."""
     return lemma.elsewhere if word.decision_card is None else None
-
-
-def is_skipped(card: CardState) -> bool:
-    return card.choice is CardChoice.SKIP
 
 
 def is_decided(word: WordState) -> bool:

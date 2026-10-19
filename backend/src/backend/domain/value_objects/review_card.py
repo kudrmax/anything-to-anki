@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from backend.domain.value_objects.card_choice import is_skipped
 from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
@@ -97,8 +98,6 @@ class ReviewCard:
 
     @property
     def skipped(self) -> bool:
-        from backend.domain.services.card_view import is_skipped
-
         return is_skipped(self.occurrence.card_state)
 
     @property

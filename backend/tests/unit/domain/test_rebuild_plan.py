@@ -648,3 +648,16 @@ def test_results_and_a_job_keep_a_lost_card_only_without_include_open(work: str)
 
     assert (kept.occ_to_delete, kept.words_to_delete) == ((), ())
     assert (rebuilt.occ_to_delete, rebuilt.words_to_delete) == ((1,), (1,))
+
+
+def test_the_cards_choice_decides_the_word_not_its_stored_status() -> None:
+    learn = row(id=1, shown=SELECTION, choice=CardChoice.LEARN)
+    open_card = row(id=2, candidate_id=2, shown=SELECTION)
+
+    result = plan(
+        [learn, open_card],
+        [word(status=WordStatus.NEW), word(2, "linger", status=WordStatus.KNOWN)], [],
+    )
+
+    assert result.words_to_delete == (2,)
+    assert result.occ_to_delete == (2,)

@@ -5,12 +5,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import TargetNotInPhraseError
-from backend.domain.services.card_view import is_skipped
 from backend.domain.services.topic_phrase_selection import (
     find_shortest_sentence,
     parse_marked_phrase,
     pick_easiest_phrase,
 )
+from backend.domain.value_objects.card_choice import is_skipped
 from backend.domain.value_objects.document import block_text
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
 

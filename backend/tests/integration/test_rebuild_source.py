@@ -178,34 +178,78 @@ def test_jobs_of_a_reset_phrase_are_cancelled(bench: Bench) -> None:
 
 # ── protection: what the user marked or made survives either way ──────────
 
-PROTECTED = {  # the card's choice, the word's stored status, bound to a note, edited, picked
-    "learn": ("learn", "learn", False, False, False),
-    "cloze": ("cloze", "learn", False, False, False),
-    "known": ("known", "known", False, False, False),
-    "skip": ("skip", "pending", False, False, False),
-    "in anki": ("learn", "learn", True, False, False),
-    "known in anki": ("known", "known", True, False, False),
-    "edited": ("none", "pending", False, True, False),
-    "picked by the user": ("none", "pending", False, False, True),
+PROTECTED = {  # the card's choice, bound to a note, edited, shown by, origin
+    "learn": ("learn", False, False, None, "auto"),
+    "cloze": ("cloze", False, False, None, "auto"),
+    "known": ("known", False, False, None, "auto"),
+    "skip": ("skip", False, False, None, "auto"),
+    "in anki": ("learn", True, False, None, "auto"),
+    "known in anki": ("known", True, False, None, "auto"),
+    "edited": ("none", False, True, None, "auto"),
+    "picked by the user": ("none", False, False, "user", "auto"),
+    "manual": ("none", False, False, "user", "manual"),
 }
 
 
 def _protect(bench: Bench, phrase_id: int, word_id: int, kind: str) -> None:
-    choice, status, bound, edited, picked = PROTECTED[kind]
-    bench.session.execute(
-        text("UPDATE candidates SET status = :status WHERE id = :id"),
-        {"status": status, "id": word_id},
-    )
+    """Only the card changes: the word's stored status stays as processing left it, since
+    the rebuild reads the decision from the cards."""
+    choice, bound, edited, shown_by, origin = PROTECTED[kind]
     bench.session.execute(
         text(
             "UPDATE phrases SET choice = :choice, edited_by_user = :edited,"
-            " shown_by = CASE WHEN :picked THEN 'user' ELSE shown_by END WHERE id = :id"
+            " shown_by = COALESCE(:shown_by, shown_by), origin = :origin WHERE id = :id"
         ),
-        {"choice": choice, "edited": edited, "picked": picked, "id": phrase_id},
+        {
+            "choice": choice, "edited": edited, "shown_by": shown_by, "origin": origin,
+            "id": phrase_id,
+        },
     )
     if bound:
         bind(bench.session, word_id, phrase_id)
     bench.session.commit()
+
+
+def _store_status(bench: Bench, word_id: int, status: str) -> None:
+    bench.session.execute(
+        text("UPDATE candidates SET status = :status WHERE id = :id"),
+        {"status": status, "id": word_id},
+    )
+    bench.session.commit()
+
+
+def test_a_results_only_card_keeps_its_text_without_include_open(bench: Bench) -> None:
+    bench.processed(word("glare", at(0)))
+    phrase = bench.phrase_on("glare", 0)
+    bench.give_meaning(phrase.id)
+    bench.analysis = [word("glare", at(0, text=CHANGED))]
+
+    summary = bench.rebuild().execute(SOURCE, include_open=False)
+
+    assert summary.counts.cards_text_reset == 0
+    kept = bench.occurrences.get(phrase.id)
+    assert kept is not None
+    assert kept.meaning is not None
+    assert (kept.source_phrase.text, kept.revision) == (LINES[0], 0)
+
+
+def test_the_cards_choice_decides_the_word_not_its_stored_status(bench: Bench) -> None:
+    """A Learn card keeps a word stored as new; a word stored as known with no card
+    decided goes when the analysis loses it."""
+    bench.processed(word("glare", at(0)), word("linger", at(3)), word("wander", at(5)))
+    decided = bench.phrase_on("linger", 3)
+    bench.set_choice(decided.id, "learn")
+    bench.session.commit()
+    stale = bench.phrase_on("wander", 5)
+    _store_status(bench, stale.candidate_id, "known")
+    bench.analysis = [word("glare", at(0))]
+
+    bench.rebuild().execute(SOURCE, include_open=False)
+
+    lemmas = {w.lemma for w in bench.occurrences.word_rows(SOURCE)}
+    assert "linger" in lemmas
+    assert "wander" not in lemmas
+    assert bench.occurrences.get(decided.id) is not None
 
 
 @pytest.mark.parametrize("include_open", [False, True])

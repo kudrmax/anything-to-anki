@@ -6,10 +6,9 @@ from backend.application.utils.candidate_factory import CandidateFactory
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundError
-from backend.domain.services.card_view import is_skipped
 from backend.domain.services.document_layout import DocumentLayout
 from backend.domain.value_objects.built_analysis import WordKey
-from backend.domain.value_objects.card_choice import Press
+from backend.domain.value_objects.card_choice import Press, is_skipped
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
 if TYPE_CHECKING:

@@ -181,6 +181,10 @@ def in_anki(card: CardState) -> bool:
     return card.binding is not None
 
 
+def is_skipped(card: CardState) -> bool:
+    return card.choice is CardChoice.SKIP
+
+
 def export_kind(card: CardState) -> NoteKind | None:
     return KIND_OF_CHOICE.get(card.choice)
 
