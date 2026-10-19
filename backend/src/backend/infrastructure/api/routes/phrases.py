@@ -53,7 +53,7 @@ router = APIRouter(prefix="/phrases", tags=["phrases"])
 
 # The press table refuses the button, or a Rebuild or a refresh holds the source: no card
 # changes by hand meanwhile.
-REFUSED_DECISIONS = (ActionRefusedError, ClozeNotAllowedError, SourceOperationBusyError)
+REFUSED_DECISIONS = (ActionRefusedError, SourceOperationBusyError)
 # The source is busy with a long operation, or one changed the phrase meanwhile.
 REFUSED_GENERATION = (SourceOperationBusyError, PhraseChangedError)
 
@@ -93,7 +93,7 @@ def save_cloze(
         )
     except PhraseNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except (*REFUSED_DECISIONS, ClozePhraseChangedError) as e:
+    except (*REFUSED_DECISIONS, ClozeNotAllowedError, ClozePhraseChangedError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidClozeError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e

@@ -1,6 +1,8 @@
 """Time budget of the sources board over a book: light projections of shown phrases."""
 from __future__ import annotations
 
+import gc
+import statistics
 import time
 from typing import TYPE_CHECKING
 
@@ -20,6 +22,8 @@ pytestmark = pytest.mark.integration
 BOOK_WORDS = 4_000
 BOOK_PHRASES = 12_800
 BOARD_BUDGET_S = 0.3
+# The median of several timed runs: one run may catch a CPU spike.
+TIMED_RUNS = 5
 SOURCE = 1
 CREATED_AT = "2026-01-01 00:00:00"
 TEXT = "The quick brown {lemma} jumps over the lazy dog while a zephyr hums near the river bank"
@@ -66,9 +70,17 @@ def test_the_board_of_a_book_fits_the_budget(db_session: Session) -> None:
     use_case = Container().get_sources_use_case(db_session)
     use_case.board(SourceScope.parse("all"))
 
-    started = time.perf_counter()
-    board = use_case.board(SourceScope.parse("all"))
-    elapsed = time.perf_counter() - started
+    timings = []
+    gc.collect()
+    gc.disable()  # a collection inside a timed run is not the board's cost
+    try:
+        for _ in range(TIMED_RUNS):
+            started = time.perf_counter()
+            board = use_case.board(SourceScope.parse("all"))
+            timings.append(time.perf_counter() - started)
+    finally:
+        gc.enable()
+    elapsed = statistics.median(timings)
 
     [summary] = [s for g in board.groups for s in g.sources]
     assert summary.candidate_count == BOOK_WORDS

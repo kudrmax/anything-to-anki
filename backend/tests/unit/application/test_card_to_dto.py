@@ -286,7 +286,7 @@ class TestCardToDtoCloze:
             ),
         )
 
-    def test_a_cloze_card_has_its_effective_cloze_and_can_cloze(self) -> None:
+    def test_a_cloze_card_has_its_effective_cloze_and_can_edit_cloze(self) -> None:
         stale = CandidateCloze(1, (0,), ClozeHintKind.FIRST_LETTER, None, "Old phrase.")
         dto = card_to_dto(self._card(stale))
         assert dto.cloze is not None

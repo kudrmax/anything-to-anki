@@ -3,8 +3,11 @@ import { phraseParts } from '@/lib/text/phraseParts'
 import { Badge, StatusDot, type Tone } from '@/ui'
 import css from './review.module.css'
 
-// Точка — только у разобранной карточки; разобранная со статусом new — пропущенная фраза.
-const TONE: Record<Shown['status'], Tone> = { new: 'off', learn: 'ok', learning: 'ok', known: 'off' }
+const TONE: Record<Shown['status'], Tone> = { new: 'idle', learn: 'ok', learning: 'ok', known: 'off' }
+const SKIPPED_TONE: Tone = 'off'
+
+/** Решение слова важнее Skip фразы: тон пропущенной — только когда слово не решено. */
+const toneOf = ({ status, skipped }: Shown): Tone => (skipped && status === 'new' ? SKIPPED_TONE : TONE[status])
 
 interface PhraseRowProps {
   candidate: StoredCandidate
@@ -18,7 +21,7 @@ export function PhraseRow({ candidate, onSelect, current = false }: PhraseRowPro
   const classes = [css.queueItem, rated && css.queueItemRated, current && css.queueItemCurrent].filter(Boolean).join(' ')
   return (
     <button type="button" className={classes} data-candidate-id={candidate.phrase_id} title={candidate.phrase.text} onClick={() => onSelect(candidate.phrase_id)}>
-      {rated && <StatusDot tone={TONE[candidate.shown.status]} />}
+      {rated && <StatusDot tone={toneOf(candidate.shown)} />}
       <span className={css.queueText}>
         {phraseParts(candidate.phrase).map((part, i) =>
           part.target ? <span key={i} className={css.queueTarget}>{part.text}</span> : part.text,
