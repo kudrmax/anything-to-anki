@@ -77,6 +77,22 @@ describe('useReview layout', () => {
     expect(layout(latest)).toEqual(['2:ready', '1:reviewed', '3:reviewed'])
   })
 
+  it('toasts the reason of a refused press and of a refused cloze save, not the raw response', async () => {
+    const refused = new Error('409: {"detail":"Already known"}')
+    vi.mocked(api.decidePhrase).mockRejectedValue(refused)
+    vi.spyOn(api, 'saveCloze').mockRejectedValue(new Error('409: {"detail":"Phrase 1 is already in Anki"}'))
+    await act(async () => root.render(<Probe onRender={review => { latest = review }} />))
+    await flush()
+
+    await act(async () => { await latest.press(1, buttons()[0]) })
+    expect(latest.toast).toBe('Already known')
+
+    await act(async () => {
+      await latest.saveCloze(1, { phrase: 'p', hidden_word_indices: [0], hint_kind: 'none', custom_hint: null })
+    })
+    expect(latest.toast).toBe('Phrase 1 is already in Anki')
+  })
+
   it('opens the cloze editor on a Cloze that edits, without a decision or a focus move', async () => {
     await act(async () => root.render(<Probe onRender={review => { latest = review }} />))
     await flush()

@@ -3,6 +3,7 @@ import { api } from '@/api/client'
 import type { ButtonCommand, CardButton, DecisionButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, SaveClozeRequest, SourceDetail, SourceDocument, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
+import { messageOf } from '@/lib/apiError'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
 import { mediaUrl } from '@/lib/text/meaning'
 import { useToast } from '@/ui'
@@ -161,7 +162,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     try {
       decided = await api.decidePhrase(candidateId, button)
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Failed to save the decision')
+      showToast(messageOf(e))
       return
     }
     await settle(candidateId, decided)
@@ -196,7 +197,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     try {
       saved = await api.saveCloze(candidateId, request)
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Failed to save the cloze')
+      showToast(messageOf(e))
       return false
     }
     setClozeEditingId(null)
