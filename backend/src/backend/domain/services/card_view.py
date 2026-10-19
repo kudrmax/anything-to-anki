@@ -24,7 +24,7 @@ from backend.domain.value_objects.card_choice import (
     status_of,
 )
 from backend.domain.value_objects.card_note import CardNote
-from backend.domain.value_objects.decision_progress import DecisionProgress
+from backend.domain.value_objects.decision_progress import DecisionProgress, ReviewReach
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.learning_timer import known_on
 from backend.domain.value_objects.user_work import NO_USER_WORK
@@ -276,7 +276,7 @@ def open_elsewhere(word: WordState, lemma: LemmaKnowledge) -> ElsewhereStatus | 
 
 
 def is_decided(word: WordState) -> bool:
-    return decision_status(word) is not DecisionStatus.NEW
+    return stored_decided(_STORED[decision_status(word)])
 
 
 def is_protected(card: CardState, work: UserWork) -> bool:
@@ -308,6 +308,28 @@ def chosen_to_learn(word: WordState) -> bool:
     return decision_status(word) in CHOSEN_TO_LEARN
 
 
+# A word's decision status as stored in `candidates.status`, which reads it as a WordStatus.
+_STORED: Mapping[DecisionStatus, WordStatus] = MappingProxyType(
+    {status: WordStatus(status.value) for status in DecisionStatus},
+)
+
+
+def stored_decided(stored: WordStatus) -> bool:
+    """The stored decision status says the word is decided here."""
+    return stored is not WordStatus.NEW
+
+
+def stored_chosen_to_learn(stored: WordStatus) -> bool:
+    """`chosen_to_learn` of the word whose stored decision status this is."""
+    return DecisionStatus(stored.value) in CHOSEN_TO_LEARN
+
+
+def card_is_done(stored: WordStatus, skipped: bool, elsewhere: ElsewhereStatus | None) -> bool:
+    """A listed card is done when its word is decided, its phrase skipped, or the word is
+    known or learned via another source."""
+    return stored_decided(stored) or skipped or elsewhere is not None
+
+
 def learning_in_anki(word: WordState) -> bool:
     """Chosen to learn and exported."""
     return decision_status(word) is DecisionStatus.LEARNING
@@ -330,3 +352,18 @@ def progress(sections: Iterable[CandidateSection]) -> DecisionProgress:
     return DecisionProgress(
         decided=reviewed, total=reviewed + listed.count(CandidateSection.READY),
     )
+
+
+_REACH: Mapping[tuple[bool, bool], ReviewReach] = MappingProxyType(
+    {  # (every card that counts is done, none is)
+        (True, True): ReviewReach.ALL,
+        (True, False): ReviewReach.ALL,
+        (False, True): ReviewReach.NONE,
+        (False, False): ReviewReach.SOME,
+    },
+)
+
+
+def reach(progress: DecisionProgress) -> ReviewReach:
+    """How far the review has got; with nothing that counts, it is complete."""
+    return _REACH[(progress.decided == progress.total, progress.decided == 0)]

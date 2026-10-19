@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { CardButton, DecisionButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, SaveClozeRequest, SourceDetail, SourceDocument, StoredCandidate } from '@/api/types'
+import type { ButtonCommand, CardButton, DecisionButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, SaveClozeRequest, SourceDetail, SourceDocument, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
@@ -179,12 +179,14 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   /** Кнопка карточки делает то, что сказал backend: открывает разметку cloze или шлёт решение. */
   const press = useCallback(async (candidateId: number, button: CardButton) => {
     if (button.command === null) return
-    if (button.command === 'edit_cloze') {
-      startCloze(candidateId)
-      return
+    const run: Record<ButtonCommand, () => Promise<void>> = {
+      edit_cloze: async () => startCloze(candidateId),
+      decide: async () => {
+        setClozeEditingId(null)
+        await mark(candidateId, button.button)
+      },
     }
-    setClozeEditingId(null)
-    await mark(candidateId, button.button)
+    await run[button.command]()
   }, [startCloze, mark])
 
   /** true — разметка сохранена (фокус уходит, если карточка стала разобранной); при ошибке показывает её. */

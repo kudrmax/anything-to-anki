@@ -36,9 +36,10 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.topic_target import TopicTarget
 from backend.domain.entities.unknown_word import UnknownWord
 from backend.domain.entities.word_decision import WordDecision
+from backend.domain.services.card_view import CHOSEN_TO_LEARN
 from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.built_analysis import WordData
-from backend.domain.value_objects.card_choice import CardChoice
+from backend.domain.value_objects.card_choice import DECISION_CHOICES, CardChoice, DecisionStatus
 from backend.domain.value_objects.cefr_breakdown import (
     CAMBRIDGE,
     CEFRPY,
@@ -386,6 +387,20 @@ class StoredCandidateModel(Base):
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
     )
 
+    # The SQL forms of the card view's word predicates, over the stored decision status.
+
+    @classmethod
+    def chosen_to_learn(cls) -> ColumnElement[bool]:
+        """`card_view.chosen_to_learn`: Learn or Learning."""
+        return cls.status.in_([status.value for status in CHOSEN_TO_LEARN])
+
+    @classmethod
+    def in_export_queue(cls) -> ColumnElement[bool]:
+        """`card_view.in_export_queue` as far as the stored decision says: a Learn not in
+        Anki yet. Whether its lemma was put in Known since (Q15) is knowledge, read in
+        `card_view.in_export_queue` with the request's knowledge scope."""
+        return cls.status == DecisionStatus.LEARN.value
+
     def to_entity(self) -> StoredCandidate:
         """The word, WITHOUT its pronunciation and picture — the repository attaches those."""
         data = self.word_data()
@@ -513,6 +528,18 @@ class PhraseModel(Base):
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
+
+    # The SQL forms of the card predicates over the stored choice.
+
+    @classmethod
+    def is_decision(cls) -> ColumnElement[bool]:
+        """`CardState.is_decision`: the word's decision card."""
+        return cls.choice.in_([choice.value for choice in DECISION_CHOICES])
+
+    @classmethod
+    def is_skipped(cls) -> ColumnElement[bool]:
+        """`card_choice.is_skipped`."""
+        return cls.choice == CardChoice.SKIP.value
 
     @property
     def shown_text(self) -> str:

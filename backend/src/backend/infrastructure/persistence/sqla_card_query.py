@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 
 from backend.domain.ports.card_query import CardQuery
-from backend.domain.services.card_view import CHOSEN_TO_LEARN
-from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.review_card import CardRow
 from backend.domain.value_objects.shown_place import ShownPlace
 from backend.domain.value_objects.word_status import WordStatus
@@ -44,7 +42,7 @@ class SqlaCardQuery(CardQuery):
                     StoredCandidateModel.zipf_frequency,
                     StoredCandidateModel.status,
                     PhraseModel.id,
-                    PhraseModel.choice,
+                    PhraseModel.is_skipped(),
                     PhraseModel.source_phrase,
                     PhraseModel.polished_phrase,
                     PhraseModel.polish_reverted,
@@ -57,7 +55,7 @@ class SqlaCardQuery(CardQuery):
                 .order_by(PhraseModel.id)
             ).all()
             for (
-                source_id, word_id, lemma, pos, zipf, status, phrase_id, choice,
+                source_id, word_id, lemma, pos, zipf, status, phrase_id, skipped,
                 source_phrase, polished, reverted,
             ) in rows:
                 found.setdefault(source_id, []).append(CardRow(
@@ -68,7 +66,7 @@ class SqlaCardQuery(CardQuery):
                     pos=pos,
                     zipf_frequency=zipf,
                     word_status=WordStatus(status),
-                    skipped=choice == CardChoice.SKIP.value,
+                    skipped=bool(skipped),
                     phrase=_required(
                         polished if polished is not None and not reverted else source_phrase,
                     ),
@@ -82,7 +80,7 @@ class SqlaCardQuery(CardQuery):
                 select(StoredCandidateModel.source_id, func.count(StoredCandidateModel.id))
                 .where(
                     StoredCandidateModel.source_id.in_(chunk),
-                    StoredCandidateModel.status.in_([s.value for s in CHOSEN_TO_LEARN]),
+                    StoredCandidateModel.chosen_to_learn(),
                 )
                 .group_by(StoredCandidateModel.source_id)
             ).all()

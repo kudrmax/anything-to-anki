@@ -90,5 +90,6 @@ def test_a_collected_phrase_is_no_decision(db_session: Session, source_id: int) 
     collected.add(source_id, [_card(source_id, "linger", "we linger")])
 
     words = SqlaCandidateRepository(db_session)
-    assert words.count_by_status(WordStatus.NEW) == 2  # noqa: PLR2004 — both words
-    assert words.get_all_by_status(WordStatus.LEARN) == []
+    assert [w.status for w in words.get_by_source(source_id)] == [WordStatus.NEW] * 2
+    assert words.count_chosen_to_learn() == 0
+    assert words.chosen_to_learn() == []

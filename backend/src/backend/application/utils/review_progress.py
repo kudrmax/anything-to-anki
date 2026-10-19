@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
+from backend.domain.services.card_view import stored_decided
 from backend.domain.value_objects.decision_progress import DecisionProgress
-from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
     from backend.application.utils.candidate_sorter import CandidateSorter
@@ -44,13 +44,13 @@ class ReviewProgress:
         open_lemmas = {
             card.lemma
             for cards in found.values() for card in cards
-            if card.word_status is WordStatus.NEW
+            if not stored_decided(card.word_status)
         }
         elsewhere = self._decided_elsewhere.of_lemmas(open_lemmas)
         return {
             source_id: [
                 replace(card, elsewhere=elsewhere[card.lemma])
-                if card.word_status is WordStatus.NEW and elsewhere[card.lemma] is not None
+                if not stored_decided(card.word_status) and elsewhere[card.lemma] is not None
                 else card
                 for card in cards
             ]

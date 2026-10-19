@@ -1,6 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
+
+
+class ReviewReach(StrEnum):
+    """How many of the cards that count are done: none, some or all."""
+
+    NONE = "none"
+    SOME = "some"
+    ALL = "all"
 
 
 @dataclass(frozen=True)

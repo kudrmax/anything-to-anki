@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.utils.export_queue import ExportBatch
-from backend.domain.value_objects.word_status import WordStatus
 
 from tests.vocabulary_support import user_vocabulary
 
@@ -27,8 +26,7 @@ class TestGetStatsUseCase:
     def test_returns_correct_counts(self) -> None:
         """Chosen to learn: Learn and Learning words. Known: each lemma once, by the list
         or by the timer."""
-        counts = {WordStatus.LEARN: 7, WordStatus.LEARNING: 5}
-        self.candidate_repo.count_by_status.side_effect = lambda status: counts.get(status, 0)
+        self.candidate_repo.count_chosen_to_learn.return_value = 12
         self.candidate_repo.count_all.return_value = 120
         self.known_word_repo.get_all_pairs.return_value = {
             ("glare", "VERB"), ("glare", "NOUN"), ("linger", None),
@@ -39,7 +37,7 @@ class TestGetStatsUseCase:
         assert result.known_word_count == 2
 
     def test_returns_zeros_when_empty(self) -> None:
-        self.candidate_repo.count_by_status.return_value = 0
+        self.candidate_repo.count_chosen_to_learn.return_value = 0
         self.candidate_repo.count_all.return_value = 0
         result = self.use_case.execute()
         assert result.learn_count == 0
@@ -49,8 +47,7 @@ class TestGetStatsUseCase:
         assert result.queue_active_count == 0
 
     def test_export_pending_count_excludes_already_exported(self) -> None:
-        counts = {WordStatus.LEARN: 3, WordStatus.LEARNING: 28}
-        self.candidate_repo.count_by_status.side_effect = lambda status: counts.get(status, 0)
+        self.candidate_repo.count_chosen_to_learn.return_value = 31
         self.export_queue.for_all.return_value = ExportBatch(
             pending=[MagicMock(), MagicMock(), MagicMock()],
             exported_count=28,

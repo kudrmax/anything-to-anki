@@ -189,6 +189,11 @@ def export_kind(card: CardState) -> NoteKind | None:
     return KIND_OF_CHOICE.get(card.choice)
 
 
+def is_cloze(card: CardState) -> bool:
+    """The card goes to Anki as a cloze note."""
+    return export_kind(card) is NoteKind.CLOZE
+
+
 def decision_status(word: WordState) -> DecisionStatus:
     card = _decision(word)
     return _DECISION_STATUS[(card.choice, in_anki(card))]

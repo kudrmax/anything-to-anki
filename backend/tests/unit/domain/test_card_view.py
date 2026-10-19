@@ -15,6 +15,7 @@ from backend.domain.services.card_view import (
     NoteKey,
     Shown,
     Where,
+    card_is_done,
     card_view,
     chosen_to_learn,
     in_export_queue,
@@ -23,7 +24,10 @@ from backend.domain.services.card_view import (
     note_key,
     possible_note,
     progress,
+    reach,
     section,
+    stored_chosen_to_learn,
+    stored_decided,
 )
 from backend.domain.services.decision_rules import PRESS_RULES, press, press_key
 from backend.domain.value_objects.candidate_section import CandidateSection
@@ -38,7 +42,7 @@ from backend.domain.value_objects.card_choice import (
     status_of,
 )
 from backend.domain.value_objects.card_note import CardNote
-from backend.domain.value_objects.decision_progress import DecisionProgress
+from backend.domain.value_objects.decision_progress import DecisionProgress, ReviewReach
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
@@ -355,6 +359,35 @@ class TestProgress:
 
     def test_nothing_is_zero(self) -> None:
         assert progress([]) == DecisionProgress(decided=0, total=0)
+
+    @pytest.mark.parametrize(
+        ("decided", "total", "expected"),
+        [
+            (0, 0, ReviewReach.ALL),
+            (2, 2, ReviewReach.ALL),
+            (0, 2, ReviewReach.NONE),
+            (1, 2, ReviewReach.SOME),
+        ],
+    )
+    def test_reach(self, decided: int, total: int, expected: ReviewReach) -> None:
+        assert reach(DecisionProgress(decided=decided, total=total)) is expected
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("stored", "decided", "learns"),
+    [
+        (WordStatus.NEW, False, False),
+        (WordStatus.LEARN, True, True),
+        (WordStatus.LEARNING, True, True),
+        (WordStatus.KNOWN, True, False),
+    ],
+)
+def test_the_stored_decision_status_reads_as_the_word_predicates(
+    stored: WordStatus, decided: bool, learns: bool,
+) -> None:
+    assert (stored_decided(stored), stored_chosen_to_learn(stored)) == (decided, learns)
+    assert card_is_done(stored, skipped=False, elsewhere=None) is decided
 
 
 @pytest.mark.unit

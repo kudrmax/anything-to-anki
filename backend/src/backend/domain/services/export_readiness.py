@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.card_choice import NoteKind, export_kind
+from backend.domain.value_objects.card_choice import is_cloze
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.missing_card_part import MissingCardPart
 
@@ -18,7 +18,7 @@ def missing_parts(decision: Occurrence) -> list[MissingCardPart]:
         missing.append(MissingCardPart.MEANING)
     if not _has_phrase_audio(decision):
         missing.append(MissingCardPart.AUDIO)
-    if export_kind(decision.card_state) is NoteKind.CLOZE and decision.cloze is None:
+    if is_cloze(decision.card_state) and decision.cloze is None:
         missing.append(MissingCardPart.CLOZE)
     return missing
 

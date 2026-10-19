@@ -21,11 +21,12 @@ const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string; icon: LucideIc
 
 const UNKNOWN_WORDS_HINT = 'Tap the words you don\'t know'
 
-const BUTTON_LOOK: Record<DecisionButton, { label: string; kbd: string }> = {
-  learn: { label: 'Learn', kbd: '1' },
-  cloze: { label: 'Cloze', kbd: '2' },
-  known: { label: 'Know', kbd: '3' },
-  skip: { label: 'Skip', kbd: '4' },
+/** `editor`: кнопка горит, пока открыта разметка cloze. */
+const BUTTON_LOOK: Record<DecisionButton, { label: string; kbd: string; editor: boolean }> = {
+  learn: { label: 'Learn', kbd: '1', editor: false },
+  cloze: { label: 'Cloze', kbd: '2', editor: true },
+  known: { label: 'Know', kbd: '3', editor: false },
+  skip: { label: 'Skip', kbd: '4', editor: false },
 }
 
 interface PhraseActionsProps {
@@ -44,7 +45,7 @@ interface DecisionButtonsProps extends PhraseActionsProps {
 export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsProps) {
   const { state } = candidate
   const variant = (button: CardButton) => {
-    if (button.button === 'cloze') return isClozePressed(button, cloze.active) ? 'fill' : 'soft'
+    if (BUTTON_LOOK[button.button].editor) return isClozePressed(button, cloze.active) ? 'fill' : 'soft'
     return !cloze.active && button.pressed ? 'fill' : 'soft'
   }
   const note = cardNoteText(state)

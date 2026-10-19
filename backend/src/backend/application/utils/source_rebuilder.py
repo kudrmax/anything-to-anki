@@ -7,10 +7,9 @@ from typing import TYPE_CHECKING
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest
 from backend.application.utils.occurrence_builder import OccurrenceBuilder
 from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundError
-from backend.domain.services.card_view import CHOSEN_TO_LEARN
+from backend.domain.services.card_view import stored_chosen_to_learn
 from backend.domain.services.document_time import is_timed, time_of
 from backend.domain.services.rebuild_plan import plan_rebuild
-from backend.domain.value_objects.card_choice import DecisionStatus
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
@@ -101,7 +100,7 @@ class SourceRebuilder:
         elsewhere, they don't."""
         return {
             row.lemma for row in self._occurrence_repo.word_rows(source_id)
-            if DecisionStatus(row.status.value) in CHOSEN_TO_LEARN
+            if stored_chosen_to_learn(row.status)
         }
 
     def plan(self, analysed: AnalysedSource, include_open: bool) -> RebuildPlan:

@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 
 from backend.domain.ports.learning_query import LearningQuery
-from backend.domain.value_objects.card_choice import DecisionStatus
 from backend.infrastructure.persistence.models import AnkiSyncedCardModel, StoredCandidateModel
 
 if TYPE_CHECKING:
@@ -26,7 +25,7 @@ class SqlaLearningQuery(LearningQuery):
     def awaiting_export(self) -> frozenset[str]:
         return frozenset(self._session.scalars(
             select(func.lower(StoredCandidateModel.lemma))
-            .where(StoredCandidateModel.status == DecisionStatus.LEARN.value)
+            .where(StoredCandidateModel.in_export_queue())
             .distinct()
         ))
 

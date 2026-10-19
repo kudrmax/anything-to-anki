@@ -21,10 +21,9 @@ from backend.domain.services.meaning_action import (  # Pydantic needs it at run
 )
 from backend.domain.value_objects.card_choice import (  # Pydantic needs the enums at runtime
     CardChoice,
-    NoteKind,
     Press,
     Refusal,
-    export_kind,
+    is_cloze,
 )
 from backend.domain.value_objects.card_note import CardNote  # noqa: TC001 — Pydantic
 from backend.domain.value_objects.job_type import JobType
@@ -495,7 +494,7 @@ def _cloze_dto(card: ReviewCard) -> CandidateClozeDTO | None:
     """The markup of a cloze card, in Anki or not; markup kept on a card that is no cloze
     now is moot."""
     occ = card.occurrence
-    if export_kind(occ.card_state) is not NoteKind.CLOZE:
+    if not is_cloze(occ.card_state):
         return None
     cloze = ClozeBuilder().effective_for(occ.phrase, occ.cloze)
     if cloze is None:

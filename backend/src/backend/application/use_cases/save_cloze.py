@@ -10,7 +10,7 @@ from backend.domain.exceptions import (
     InvalidClozeError,
     PhraseNotFoundError,
 )
-from backend.domain.value_objects.card_choice import NoteKind, Press, export_kind
+from backend.domain.value_objects.card_choice import Press, is_cloze
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
 if TYPE_CHECKING:
@@ -66,8 +66,8 @@ class SaveClozeUseCase:
         if occ is None or word is None:
             raise PhraseNotFoundError(occurrence_id)
         ensure_source_free(self._lock, word.source_id)
-        is_cloze = export_kind(occ.card_state) is NoteKind.CLOZE
-        if is_cloze and not self._decide_phrase.view(occurrence_id).can_edit_cloze:
+        cloze_card = is_cloze(occ.card_state)
+        if cloze_card and not self._decide_phrase.view(occurrence_id).can_edit_cloze:
             raise ClozeNotAllowedError(f"Phrase {occurrence_id} is already in Anki")
 
         if phrase != occ.phrase.text:
@@ -83,7 +83,7 @@ class SaveClozeUseCase:
                 f"The {hint_kind.value} hint is unavailable for the hidden words",
             )
 
-        if not is_cloze:
+        if not cloze_card:
             self._decide_phrase.press(occurrence_id, Press.CLOZE)
         self._cloze_repo.upsert_for_phrase(occurrence_id, CandidateCloze(
             candidate_id=occ.candidate_id,

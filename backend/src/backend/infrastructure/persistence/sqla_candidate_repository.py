@@ -12,8 +12,11 @@ from backend.infrastructure.persistence.models import (
     CandidatePronunciationModel,
     StoredCandidateModel,
 )
+from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
     from sqlalchemy import ColumnElement
     from sqlalchemy.orm import Session
 
@@ -51,10 +54,10 @@ class SqlaCandidateRepository(CandidateRepository):
         found = self._read(StoredCandidateModel.id == candidate_id)
         return found[0] if found else None
 
-    def count_by_status(self, status: WordStatus) -> int:
+    def count_chosen_to_learn(self) -> int:
         return self._session.scalar(
             select(func.count(StoredCandidateModel.id))
-            .where(StoredCandidateModel.status == status.value)
+            .where(StoredCandidateModel.chosen_to_learn())
         ) or 0
 
     def count_all(self) -> int:
@@ -72,9 +75,16 @@ class SqlaCandidateRepository(CandidateRepository):
     def get_by_lemma(self, lemma: str) -> list[StoredCandidate]:
         return self._read(func.lower(StoredCandidateModel.lemma) == lemma.lower())
 
-    def get_all_by_status(self, status: WordStatus) -> list[StoredCandidate]:
-        found = self._read(StoredCandidateModel.status == status.value)
-        return sorted(found, key=lambda c: c.source_id)
+    def chosen_to_learn(self, source_ids: Collection[int] | None = None) -> list[StoredCandidate]:
+        if source_ids is None:
+            return self._read(StoredCandidateModel.chosen_to_learn())
+        return [
+            word for chunk in chunks(list(source_ids))
+            for word in self._read(
+                StoredCandidateModel.chosen_to_learn(),
+                StoredCandidateModel.source_id.in_(chunk),
+            )
+        ]
 
     def get_lemma_map(self, candidate_ids: list[int]) -> dict[int, str]:
         if not candidate_ids:

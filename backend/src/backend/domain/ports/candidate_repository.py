@@ -4,9 +4,10 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.built_analysis import WordKey
-    from backend.domain.value_objects.word_status import WordStatus
 
 
 class CandidateRepository(ABC):
@@ -29,8 +30,8 @@ class CandidateRepository(ABC):
     def get_by_id(self, candidate_id: int) -> StoredCandidate | None: ...
 
     @abstractmethod
-    def count_by_status(self, status: WordStatus) -> int:
-        """Words with this decision, across all sources."""
+    def count_chosen_to_learn(self) -> int:
+        """Words chosen to learn (`card_view.chosen_to_learn`), across all sources."""
 
     @abstractmethod
     def count_all(self) -> int: ...
@@ -47,8 +48,9 @@ class CandidateRepository(ABC):
     def delete_by_source(self, source_id: int) -> None: ...
 
     @abstractmethod
-    def get_all_by_status(self, status: WordStatus) -> list[StoredCandidate]:
-        """Words with this decision across all sources, by source."""
+    def chosen_to_learn(self, source_ids: Collection[int] | None = None) -> list[StoredCandidate]:
+        """Words chosen to learn (`card_view.chosen_to_learn`) of these sources, or of all
+        sources, by id."""
 
     @abstractmethod
     def get_by_lemma(self, lemma: str) -> list[StoredCandidate]:

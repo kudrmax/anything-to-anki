@@ -14,6 +14,7 @@ from backend.application.utils.export_queue import ExportCard, ExportQueue
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
 from backend.domain.ports.word_state_repository import WordStateRepository
+from backend.domain.services.card_view import stored_chosen_to_learn
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.card_choice import (
     Binding,
@@ -36,7 +37,7 @@ from tests.vocabulary_support import user_vocabulary
 from tests.word_support import phrase_id_of
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Collection, Iterable
     from datetime import datetime
 
     from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
@@ -114,7 +115,7 @@ class ExportCards(WordStateRepository, AnkiSyncRepository):
         self.words.get_by_source.side_effect = lambda source_id: [
             c.word for c in self._cards if c.word.source_id == source_id
         ]
-        self.words.get_all_by_status.side_effect = self._with_status
+        self.words.chosen_to_learn.side_effect = self._chosen_to_learn
 
     def put(self, cards: Iterable[ExportCard]) -> None:
         """These cards and no others."""
@@ -181,11 +182,12 @@ class ExportCards(WordStateRepository, AnkiSyncRepository):
     def orphans(self, lemma: str) -> list[BindingRef]:
         return []
 
-    def _with_status(self, status: WordStatus) -> list[StoredCandidate]:
-        return sorted(
-            (c.word for c in self._cards if c.word.status is status),
-            key=lambda w: w.source_id,
-        )
+    def _chosen_to_learn(self, source_ids: Collection[int] | None) -> list[StoredCandidate]:
+        return [
+            c.word for c in self._cards
+            if stored_chosen_to_learn(c.word.status)
+            and (source_ids is None or c.word.source_id in source_ids)
+        ]
 
 
 def _decision_kind(phrase: Occurrence) -> DecisionKind | None:

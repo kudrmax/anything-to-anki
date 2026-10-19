@@ -8,7 +8,6 @@ from sqlalchemy import CursorResult, exists, or_, select, update
 
 from backend.domain.ports.occurrence_repository import OccurrenceRepository
 from backend.domain.value_objects.card_choice import (
-    DECISION_CHOICES,
     Binding,
     CardChoice,
     NoteKind,
@@ -201,7 +200,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             occurrence.candidate_id: occurrence
             for occurrence in self._occurrences(
                 PhraseModel.candidate_id.in_(candidate_ids),
-                PhraseModel.choice.in_([choice.value for choice in DECISION_CHOICES]),
+                PhraseModel.is_decision(),
             )
         }
 

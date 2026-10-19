@@ -5,11 +5,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.candidate_cloze import CandidateCloze
-from backend.domain.services.card_view import CHOSEN_TO_LEARN, in_export_queue, learning_in_anki
+from backend.domain.services.card_view import in_export_queue, learning_in_anki
 from backend.domain.services.export_readiness import export_group
-from backend.domain.value_objects.card_choice import NoteKind, export_kind
+from backend.domain.value_objects.card_choice import is_cloze
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
-from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
     from collections.abc import Collection
@@ -25,8 +24,6 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.export_group import ExportGroup
 
 logger = logging.getLogger(__name__)
-
-_CHOSEN_STATUSES = tuple(WordStatus(status.value) for status in CHOSEN_TO_LEARN)
 
 
 @dataclass(frozen=True)
@@ -54,7 +51,7 @@ class ExportCard:
 
     @property
     def is_cloze(self) -> bool:
-        return export_kind(self.phrase.card_state) is NoteKind.CLOZE
+        return is_cloze(self.phrase.card_state)
 
     def cloze_markup(self, builder: ClozeBuilder) -> CandidateCloze | None:
         """The words a cloze card hides; none for a plain card. A cloze decided without
@@ -103,20 +100,16 @@ class ExportQueue:
         self._vocabulary = vocabulary
 
     def for_source(self, source_id: int) -> ExportBatch:
-        words = self._candidate_repo.get_by_source(source_id)
-        return self._split([w for w in words if w.status in _CHOSEN_STATUSES])
+        return self._split(self._candidate_repo.chosen_to_learn([source_id]))
 
     def for_all(self) -> ExportBatch:
-        return self._split(self._chosen())
+        return self._split(self._chosen(None))
 
     def for_sources(self, source_ids: Collection[int]) -> ExportBatch:
-        return self._split([w for w in self._chosen() if w.source_id in source_ids])
+        return self._split(self._chosen(source_ids))
 
-    def _chosen(self) -> list[StoredCandidate]:
-        found = [
-            word for status in _CHOSEN_STATUSES
-            for word in self._candidate_repo.get_all_by_status(status)
-        ]
+    def _chosen(self, source_ids: Collection[int] | None) -> list[StoredCandidate]:
+        found = self._candidate_repo.chosen_to_learn(source_ids)
         return sorted(found, key=lambda w: (w.source_id, w.id or 0))
 
     def _split(self, chosen: list[StoredCandidate]) -> ExportBatch:

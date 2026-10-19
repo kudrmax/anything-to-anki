@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from backend.domain.services.card_view import card_is_done, card_view
 from backend.domain.value_objects.card_choice import is_skipped
-from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -17,14 +17,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.frequency_band import FrequencyBand
     from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
     from backend.domain.value_objects.phrase import Phrase
-
-
-def card_is_done(
-    word_status: WordStatus, skipped: bool, elsewhere: ElsewhereStatus | None,
-) -> bool:
-    """A card is done when its word is decided, its phrase skipped, or the word is known or
-    learned via another source."""
-    return word_status is not WordStatus.NEW or skipped or elsewhere is not None
+    from backend.domain.value_objects.word_status import WordStatus
 
 
 @dataclass(frozen=True)
@@ -52,8 +45,6 @@ class ReviewCard:
 
     @property
     def view(self) -> CardView:
-        from backend.domain.services.card_view import card_view
-
         context = self.context
         assert context is not None, "a card shown to the user is read with its context"
         return card_view(

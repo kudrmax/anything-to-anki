@@ -3,11 +3,15 @@ import { phraseParts } from '@/lib/text/phraseParts'
 import { Badge, StatusDot, type Tone } from '@/ui'
 import css from './review.module.css'
 
-const TONE: Record<Shown['status'], Tone> = { new: 'idle', learn: 'ok', learning: 'ok', known: 'off' }
-const SKIPPED_TONE: Tone = 'off'
+/** Тон по статусу слова: [фраза не пропущена, пропущена]. Решение слова важнее Skip фразы. */
+const TONE: Record<Shown['status'], [open: Tone, skipped: Tone]> = {
+  new: ['idle', 'off'],
+  learn: ['ok', 'ok'],
+  learning: ['ok', 'ok'],
+  known: ['off', 'off'],
+}
 
-/** Решение слова важнее Skip фразы: тон пропущенной — только когда слово не решено. */
-const toneOf = ({ status, skipped }: Shown): Tone => (skipped && status === 'new' ? SKIPPED_TONE : TONE[status])
+const toneOf = ({ status, skipped }: Shown): Tone => TONE[status][skipped ? 1 : 0]
 
 interface PhraseRowProps {
   candidate: StoredCandidate
