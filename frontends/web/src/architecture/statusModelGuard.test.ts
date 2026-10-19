@@ -12,13 +12,13 @@ import { describe, expect, it } from 'vitest'
 
 /** Типы, значения которых — модель статусов карточки. */
 const CARD_TYPES = [
-  'CardChoice', 'CandidateSection', 'DecisionButton', 'ButtonCommand', 'Refusal', 'CardNote',
+  'CardChoice', 'CandidateSection', 'DecisionButton', 'ButtonCommand', 'Refusal',
   'ShownStatus', 'ShownWhere', 'ShownTone',
 ] as const
 /** Интерфейсы карточки: их поля — значения карточки, каким бы ни был тип поля. */
 const CARD_INTERFACES = new Set(['StoredCandidate', 'Shown', 'CardButton', 'CardState'])
 /** Поля этих интерфейсов, которые держат модель (у карточки есть и чужие статусы, например polish_status). */
-const CARD_FIELDS = new Set(['choice', 'section', 'status', 'where', 'tone', 'command', 'refused', 'note', 'button'])
+const CARD_FIELDS = new Set(['choice', 'section', 'status', 'where', 'tone', 'command', 'refused', 'button'])
 const EQUALITY = new Set([
   ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken,
   ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken,

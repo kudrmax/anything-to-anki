@@ -284,23 +284,8 @@ export type ShownStatus = 'new' | 'learn' | 'learning' | 'known'
 export type ShownWhere = 'here' | 'other_card' | 'other_source' | 'nowhere'
 export type ShownTone = 'open' | 'learning' | 'settled'
 
-/** Почему карточка показывает то, что показывает; решает backend. */
-export type CardNote =
-  | 'learned_on_other_card'
-  | 'known_on_other_card'
-  | 'known_elsewhere'
-  | 'learning_elsewhere'
-  | 'learn_elsewhere'
-  | 'in_anki'
-  | 'known_by_timer'
-  | 'known_by_list'
-
-/** Почему карточка показывает то, что показывает, и что делает каждая кнопка; считает backend. */
+/** Что делает каждая кнопка карточки; считает backend. */
 export interface CardState {
-  /** Подпись карточки; null — без подписи. */
-  note: CardNote | null
-  /** Когда карточка в Anki станет Known по таймеру, если подпись это говорит. */
-  known_on: string | null
   /** Learn, Cloze, Known, Skip — в этом порядке. */
   buttons: CardButton[]
 }

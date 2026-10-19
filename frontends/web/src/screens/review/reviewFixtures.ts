@@ -7,7 +7,7 @@ export const buttons = (changes: Partial<Record<DecisionButton, Partial<CardButt
   BUTTONS.map(button => ({ button, command: 'decide', pressed: false, refused: null, ...changes[button] }))
 
 export const state = (changes: Partial<CardState> = {}): CardState =>
-  ({ note: null, known_on: null, buttons: buttons(), ...changes })
+  ({ buttons: buttons(), ...changes })
 
 const NEW: Shown = { status: 'new', skipped: false, where: 'nowhere', tone: 'open' }
 

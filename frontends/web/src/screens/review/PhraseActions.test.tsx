@@ -2,7 +2,6 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import buttonCss from '@/ui/Button.module.css'
-import { CARD_NOTE_LABEL, TIMER_KNOWN_LABEL } from './cardNotes'
 import { DecisionButtons } from './PhraseActions'
 import { buttons, reviewCard, state } from './reviewFixtures'
 import type { ClozeEditor } from './useClozeEditor'
@@ -27,7 +26,6 @@ describe('DecisionButtons', () => {
 
   const render = (candidate = reviewCard()) => act(() => root.render(<DecisionButtons candidate={candidate} review={review} cloze={cloze} />))
   const button = (label: string) => [...host.querySelectorAll('button')].find(b => b.textContent?.startsWith(label))!
-  const shownNote = () => host.querySelector('[class*="decisionNote"]')?.textContent ?? null
 
   describe('which button is lit', () => {
     const editing = { active: true, start: vi.fn(), cancel: vi.fn() } as unknown as ClozeEditor
@@ -57,38 +55,28 @@ describe('DecisionButtons', () => {
     })
   })
 
-  it('gives a refused button the card note as its tooltip, and the others none', () => {
+  it('gives a refused button no tooltip, and writes no line about the card', () => {
     render(reviewCard({
-      state: state({ note: 'known_elsewhere', buttons: buttons({ learn: { command: null, refused: 'decided_elsewhere' } }) }),
+      state: state({ buttons: buttons({ learn: { command: null, refused: 'decided_elsewhere' } }) }),
     }))
 
-    expect(button('Learn').title).toBe(CARD_NOTE_LABEL.known_elsewhere)
+    expect(button('Learn').title).toBe('')
     expect(button('Learn').disabled).toBe(true)
-    expect(button('Skip').title).toBe('')
     expect(button('Skip').disabled).toBe(false)
+    expect(host.textContent).toBe('Learn1Cloze2Know3Skip4')
   })
 
-  it('shows on a card of a word decided on another phrase why its buttons are off', () => {
+  it('shows a card of a word decided elsewhere with its status pressed and every button off', () => {
     render(reviewCard({
-      shown: { status: 'known', skipped: false, where: 'other_card', tone: 'settled' },
+      shown: { status: 'known', skipped: false, where: 'other_source', tone: 'settled' },
       state: state({
-        note: 'known_on_other_card',
         buttons: buttons({ learn: REFUSED, cloze: REFUSED, known: { ...REFUSED, pressed: true }, skip: REFUSED }),
       }),
     }))
 
-    expect(shownNote()).toBe('Known via other phrase')
     expect([...host.querySelectorAll('button')].every(b => b.disabled)).toBe(true)
-    expect(button('Know').title).toBe('Known via other phrase')
-  })
-
-  it('shows the note of a card known by its 30 days in Anki', () => {
-    render(reviewCard({
-      shown: { status: 'known', skipped: false, where: 'here', tone: 'settled' },
-      state: state({ note: 'known_by_timer', buttons: buttons({ known: { pressed: true } }) }),
-    }))
-
-    expect(shownNote()).toBe(TIMER_KNOWN_LABEL)
+    expect(button('Know').className).toContain(buttonCss.fill)
+    expect(button('Know').title).toBe('')
   })
 
   it('hands each press to the review with the button the backend gave', () => {

@@ -6,7 +6,6 @@ import { CLOZE_DEFAULT_HINT_OPTIONS } from '@/lib/clozeHints'
 import { autoPlayAudioPref, type ThemePref } from '@/lib/preferences'
 import { formatBytes, formatDay } from '@/lib/text/format'
 import { useTheme } from '@/lib/theme'
-import { KNOWN_ON_LABEL, TIMER_KNOWN_LABEL } from '@/screens/review/cardNotes'
 import { Button, Chip, DividerRow, Empty, GroupLabel, Field, Icon, Label, Range, RemovableChip, Segmented, Select, Spinner, Stack, Switch, Text } from '@/ui'
 import { unknownWordKey, type SettingsStore, type TemplatePart } from './useSettings'
 import css from './settings.module.css'
@@ -390,6 +389,9 @@ function WordList({ words, hint, empty, deletingKey }: WordListProps) {
   )
 }
 
+/** Пометка слова Known по 30 дням в Anki в списке Known. */
+const TIMER_KNOWN_LABEL = 'Known: 30 days in Anki'
+const KNOWN_ON_LABEL = 'Known on'
 const KNOWN_WORDS_HINT = "Known words won't be suggested when processing new sources."
 const UNKNOWN_WORDS_HINT = 'Phrases with these words never count as ready: only their target should be new.'
 

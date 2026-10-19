@@ -5,7 +5,6 @@ import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { phraseWordTexts } from '@/lib/text/phraseParts'
 import { toggled } from '@/lib/text/words'
 import { Button, Field, Icon, IconButton, Menu, Spinner, Text, WordPicker, type MenuItem, type MenuPage } from '@/ui'
-import { cardNoteText } from './cardNotes'
 import { ImagePicker } from './ImagePicker'
 import { PolishComparison } from './PolishComparison'
 import type { ClozeEditor } from './useClozeEditor'
@@ -40,32 +39,26 @@ interface DecisionButtonsProps extends PhraseActionsProps {
 }
 
 /**
- * Решения по фразе: Learn 1 · Cloze 2 · Know 3 · Skip 4. Что делает кнопка, решает backend.
- * У неработающей кнопки подсказка — подпись карточки: она и говорит, почему.
+ * Решения по фразе: Learn 1 · Cloze 2 · Know 3 · Skip 4. Что делает кнопка и какая нажата, решает backend.
  */
 export function DecisionButtons({ candidate, review, cloze }: DecisionButtonsProps) {
   const { state } = candidate
   const variant = (button: CardButton) => (isLit(button, cloze.active, candidate.can_edit_cloze) ? 'fill' : 'soft')
-  const note = cardNoteText(state)
   return (
-    <>
-      {note && <div className={css.decisionNote}><Text tone="muted" size="s">{note}</Text></div>}
-      <div className={css.decisions}>
-        {state.buttons.map(button => (
-          <Button
-            key={button.button}
-            variant={variant(button)}
-            kbd={BUTTON_LOOK[button.button].kbd}
-            disabled={button.command === null}
-            title={button.refused !== null ? note ?? undefined : undefined}
-            onMouseDown={keepFocusOnMouseDown}
-            onClick={() => void review.press(candidate.phrase_id, button)}
-          >
-            {BUTTON_LOOK[button.button].label}
-          </Button>
-        ))}
-      </div>
-    </>
+    <div className={css.decisions}>
+      {state.buttons.map(button => (
+        <Button
+          key={button.button}
+          variant={variant(button)}
+          kbd={BUTTON_LOOK[button.button].kbd}
+          disabled={button.command === null}
+          onMouseDown={keepFocusOnMouseDown}
+          onClick={() => void review.press(candidate.phrase_id, button)}
+        >
+          {BUTTON_LOOK[button.button].label}
+        </Button>
+      ))}
+    </div>
   )
 }
 
