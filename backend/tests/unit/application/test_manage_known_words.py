@@ -71,9 +71,31 @@ class TestManageKnownWordsUseCase:
         self.effects.known_removed.assert_not_called()
         self.known_word_repo.remove_every_pos.assert_not_called()
 
-    def test_delete(self) -> None:
+    def test_deleting_the_last_entry_of_a_lemma_removes_the_word_from_known(self) -> None:
+        self.known_word_repo.list_all.return_value = [KnownWord(id=1, lemma="run", pos="VERB")]
+        before = self.vocabulary.of("run")
+
         self.use_case.delete(1)
+
+        self.effects.known_removed.assert_called_once_with("run", before)
+
+    def test_deleting_one_of_two_entries_of_a_lemma_is_only_an_entry_edit(self) -> None:
+        self.known_word_repo.list_all.return_value = [
+            KnownWord(id=1, lemma="run", pos="VERB"), KnownWord(id=2, lemma="run", pos="NOUN"),
+        ]
+
+        self.use_case.delete(1)
+
         self.known_word_repo.remove.assert_called_once_with(1)
+        self.effects.known_removed.assert_not_called()
+
+    def test_deleting_an_entry_already_gone_changes_nothing_else(self) -> None:
+        self.known_word_repo.list_all.return_value = []
+
+        self.use_case.delete(7)
+
+        self.known_word_repo.remove.assert_called_once_with(7)
+        self.effects.known_removed.assert_not_called()
 
     def test_add_bulk(self) -> None:
         self.known_word_repo.add.return_value = KnownWord(id=1, lemma="test", pos=None)

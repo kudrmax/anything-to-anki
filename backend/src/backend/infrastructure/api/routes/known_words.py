@@ -32,7 +32,10 @@ def delete_known_word(
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, Any]:
     use_case = container.manage_known_words_use_case(session)
-    use_case.delete(known_word_id)
+    try:
+        use_case.delete(known_word_id)
+    except SourceOperationBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     session.commit()
     return {"deleted": known_word_id}
 

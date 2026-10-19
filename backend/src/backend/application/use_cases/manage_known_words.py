@@ -42,7 +42,14 @@ class ManageKnownWordsUseCase:
         return listed + by_timer
 
     def delete(self, known_word_id: int) -> None:
-        self._vocabulary.remove_known(known_word_id)
+        """An entry edit, unless it is the lemma's last: then the word leaves Known as any
+        removal does (§2.7), and its cards that read Known turn new in every source."""
+        entries = self._vocabulary.known_words()
+        entry = next((e for e in entries if e.id == known_word_id), None)
+        if entry is None or any(e.lemma == entry.lemma and e.id != entry.id for e in entries):
+            self._vocabulary.remove_known(known_word_id)
+            return
+        self._effects.known_removed(entry.lemma, self._vocabulary.of(entry.lemma))
 
     def delete_timer_known(self, lemma: str) -> None:
         """Decided (c): the word leaves Known as any removal does — its cards that read
