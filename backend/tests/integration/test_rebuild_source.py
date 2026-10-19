@@ -557,3 +557,40 @@ def _active_jobs(bench: Bench) -> list[int | None]:
             JobModel.status.in_([JobStatus.QUEUED.value, JobStatus.RUNNING.value]),
         )
     ))
+
+
+# ── sections are re-stamped ───────────────────────────────────────────
+
+
+def _earned(bench: Bench) -> dict[int, str | None]:
+    return {p.id: p.earned_section for p in bench.phrases()}
+
+
+def test_rebuild_writes_the_restamped_sections(bench: Bench) -> None:
+    bench.processed(word("glare", at(0), at(1)), word("linger", at(3)))
+    open_phrase = bench.phrase_on("glare", 0)
+    chosen = bench.phrase_on("linger", 3)
+    bench.decide_learn("linger", chosen.id)
+    bench.session.execute(
+        text("UPDATE phrases SET earned_section = 'extra' WHERE id IN (:a, :b)"),
+        {"a": open_phrase.id, "b": chosen.id},
+    )
+    bench.session.commit()
+
+    bench.rebuild().execute(SOURCE, include_open=False)
+
+    earned = _earned(bench)
+    assert earned[open_phrase.id] == "ready"
+    assert earned[chosen.id] == "extra"
+
+
+def test_a_preview_that_only_moves_sections_offers_rebuild(bench: Bench) -> None:
+    bench.processed(word("glare", at(0)))
+    bench.session.execute(text("UPDATE phrases SET earned_section = 'extra'"))
+    bench.session.commit()
+
+    preview = bench.rebuild().preview(SOURCE)
+
+    assert not preview.without_open.nothing_to_update
+    assert preview.without_open.words_added == 0
+    assert preview.without_open.cards_new_phrase == 0

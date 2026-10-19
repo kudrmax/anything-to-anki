@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from backend.domain.services.card_view import is_decided, keeps_word
+from backend.domain.services.card_view import is_decided, keeps_section, keeps_word
 from backend.domain.services.phrase_protection import is_touched, is_untouchable
 from backend.domain.services.phrase_selection import SelectionChange, select_phrases
 from backend.domain.value_objects.card_choice import CardChoice, WordState
@@ -64,6 +64,14 @@ class OccurrenceTextUpdate:
 
 
 @dataclass(frozen=True)
+class SectionChange:
+    """A phrase whose stored section a rebuild moves, its text staying as it is."""
+
+    occurrence_id: int
+    earned_section: CandidateSection
+
+
+@dataclass(frozen=True)
 class OccurrenceRekey:
     """A phrase found again where its key moved within its line: it takes the new key."""
 
@@ -105,6 +113,7 @@ class RebuildPlan:
     occ_to_rekey: tuple[OccurrenceRekey, ...] = ()
     occ_to_delete: tuple[int, ...] = ()
     selection_changes: tuple[SelectionChange, ...] = ()
+    section_changes: tuple[SectionChange, ...] = ()
     counts: RebuildCounts = RebuildCounts()
 
     @property
@@ -114,6 +123,7 @@ class RebuildPlan:
             self.words_to_create or self.words_to_update or self.words_to_delete
             or self.occ_to_insert or self.occ_to_update_text or self.occ_to_update_score
             or self.occ_to_rekey or self.occ_to_delete or self.selection_changes
+            or self.section_changes
         )
 
 
@@ -138,7 +148,8 @@ def plan_rebuild(
     reset); an untouched phrase gets everything. Occurrences the analysis no longer has go
     unless touched — with `include_open`, unless untouchable. A word goes when no phrase is
     left and nothing keeps it (`keeps_word`). The selection then runs on what is left. Each
-    new phrase is stamped with the section `rule` says it earns.
+    new phrase is stamped with the section `rule` says it earns, and so is every kept phrase
+    without a choice and out of Anki, by the data of its word as the analysis leaves it.
     """
     planner = _Planner(source_id, include_open, rule)
     rows_by_word: dict[int, list[OccurrenceRow]] = {}
@@ -157,6 +168,36 @@ def plan_rebuild(
     return planner.plan()
 
 
+def plan_sections(
+    source_id: int,
+    existing: list[OccurrenceRow],
+    words: list[WordRow],
+    rule: SectionRule,
+) -> RebuildPlan:
+    """Only the sections of a source's phrases, by the data its words have stored."""
+    rows_by_word: dict[int, list[OccurrenceRow]] = {}
+    for o in existing:
+        rows_by_word.setdefault(o.candidate_id, []).append(o)
+    changes: list[SectionChange] = []
+    for w in sorted(words, key=lambda w: w.id):
+        changes.extend(_restamped(rows_by_word.get(w.id, []), w, rule))
+    return RebuildPlan(source_id=source_id, section_changes=tuple(changes))
+
+
+def _restamped(
+    rows: list[OccurrenceRow], facts: WordFacts, rule: SectionRule,
+) -> list[SectionChange]:
+    """The phrases that earn another section now; a chosen or exported one keeps its own."""
+    changes: list[SectionChange] = []
+    for o in rows:
+        if keeps_section(o.card_state):
+            continue
+        earned = rule.earned(o.shown_phrase, facts)
+        if earned != o.earned_section:
+            changes.append(SectionChange(occurrence_id=o.id, earned_section=earned))
+    return changes
+
+
 class _Planner:
     """Collects the plan word by word."""
 
@@ -173,6 +214,8 @@ class _Planner:
         self._rekeys: list[OccurrenceRekey] = []
         self._deletes: list[int] = []
         self._selection: list[SelectionChange] = []
+        self._sections: list[SectionChange] = []
+        self._rewritten: set[int] = set()
         self._next_placeholder = -1
         self._new_phrase = 0
         self._text_reset = 0
@@ -190,6 +233,7 @@ class _Planner:
             occ_to_rekey=tuple(self._rekeys),
             occ_to_delete=tuple(self._deletes),
             selection_changes=tuple(self._selection),
+            section_changes=tuple(self._sections),
             counts=RebuildCounts(
                 words_added=len(self._new_words),
                 words_removed=len(self._word_deletes),
@@ -214,6 +258,10 @@ class _Planner:
             )
             if kept is not None:
                 after.append(kept)
+        facts = b if b is not None else w
+        self._sections.extend(
+            _restamped([o for o in after if o.id not in self._rewritten], facts, self._rule),
+        )
         taken = {o.key for o in rows if o.key is not None}
         fresh = [occ for key, occ in analysed.items() if key not in taken]
         if not keeps_word(state, {o.id: o.user_work for o in rows}) and not after and not fresh:
@@ -279,6 +327,8 @@ class _Planner:
         bump: bool,
         reset: bool,
     ) -> OccurrenceRow:
+        earned = self._rule.earned(analysed.phrase, facts)
+        self._rewritten.add(o.id)
         self._text_updates.append(OccurrenceTextUpdate(
             occurrence_id=o.id,
             phrase=analysed.phrase,
@@ -286,7 +336,7 @@ class _Planner:
             fragment_score=analysed.fragment_score,
             bump_revision=bump,
             reset_results=reset,
-            earned_section=self._rule.earned(analysed.phrase, facts),
+            earned_section=earned,
         ))
         return replace(
             o,
@@ -296,6 +346,8 @@ class _Planner:
             revision=o.revision + 1 if bump else o.revision,
             has_results=False if reset else o.has_results,
             shows_polish=False if reset else o.shows_polish,
+            shown_phrase=o.shown_phrase if o.shows_polish and not reset else analysed.phrase,
+            earned_section=earned,
         )
 
     def _rescore(self, o: OccurrenceRow, score: float) -> OccurrenceRow:
@@ -314,8 +366,14 @@ class _Planner:
         fresh: _Fresh,
     ) -> None:
         placeholders = {self._placeholder(): occ for occ in fresh.occurrences}
+        earned = {
+            placeholder: self._rule.earned(occ.phrase, fresh.word)
+            for placeholder, occ in placeholders.items()
+            if fresh.word is not None
+        }
         candidates = after + [
-            _fresh_row(placeholder, word_id or 0, occ) for placeholder, occ in placeholders.items()
+            _fresh_row(placeholder, word_id or 0, occ, earned[placeholder])
+            for placeholder, occ in placeholders.items()
         ]
         change = select_phrases(candidates, decided, self._include_open)
         chosen = change.set_selection
@@ -325,7 +383,7 @@ class _Planner:
                 word=key,
                 occurrence=occ,
                 shown=placeholder == chosen,
-                earned_section=self._rule.earned(occ.phrase, fresh.word),
+                earned_section=earned[placeholder],
             ))
         existing_choice = chosen if chosen is not None and chosen > 0 else None
         kept = SelectionChange(
@@ -413,7 +471,9 @@ def _by_key(b: BuiltWord | None) -> dict[OccurrenceKey, BuiltOccurrence]:
     return analysed
 
 
-def _fresh_row(placeholder: int, word_id: int, occ: BuiltOccurrence) -> OccurrenceRow:
+def _fresh_row(
+    placeholder: int, word_id: int, occ: BuiltOccurrence, earned: CandidateSection,
+) -> OccurrenceRow:
     return OccurrenceRow(
         id=placeholder,
         candidate_id=word_id,
@@ -430,4 +490,6 @@ def _fresh_row(placeholder: int, word_id: int, occ: BuiltOccurrence) -> Occurren
         fragment_score=occ.fragment_score,
         shows_polish=False,
         phrase_hash=OccurrenceRow.hash_phrase(occ.phrase, occ.phrase_position),
+        shown_phrase=occ.phrase,
+        earned_section=earned,
     )

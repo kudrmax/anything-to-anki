@@ -306,6 +306,11 @@ def is_earnable(section: CandidateSection) -> bool:
     return section is not CandidateSection.REVIEWED
 
 
+def keeps_section(card: CardState) -> bool:
+    """A chosen or exported phrase keeps the section it has; a rebuild does not re-stamp it."""
+    return card.choice is not CardChoice.NONE or in_anki(card)
+
+
 def wants_ready_generation(wants_generation: bool, earned: CandidateSection) -> bool:
     """✨ for ready phrases makes the card's missing parts: the card wants generation and
     its phrase earns Ready (only the target is new), decided or not."""

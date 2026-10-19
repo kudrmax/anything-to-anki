@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import CursorResult, exists, or_, select, update
 
+from backend.domain.entities.occurrence import shown_phrase
 from backend.domain.ports.occurrence_repository import OccurrenceRepository
 from backend.domain.value_objects.card_choice import (
     Binding,
@@ -29,6 +30,7 @@ from backend.infrastructure.persistence.models import (
     StoredCandidateModel,
     dump_phrase,
     dump_position,
+    earned_section_of,
     load_phrase,
     load_position,
 )
@@ -183,6 +185,12 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 phrase_hash=OccurrenceRow.hash_phrase(
                     _required(phrase.source_phrase), load_position(phrase.phrase_position),
                 ),
+                shown_phrase=shown_phrase(
+                    _required(phrase.source_phrase),
+                    load_phrase(phrase.polished_phrase),
+                    phrase.polish_reverted,
+                ),
+                earned_section=earned_section_of(phrase.earned_section, phrase.id),
             )
             for phrase, results, kind, since, active in rows
         ]

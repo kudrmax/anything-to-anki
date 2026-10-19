@@ -268,6 +268,7 @@ def test_projection_is_light_and_marks_what_matters(
         has_active_job=False, text_hash=OccurrenceRow.hash_text("He glared at me."),
         fragment_score=None, shows_polish=False,
         phrase_hash=OccurrenceRow.hash_phrase(phrase("He glared at me."), POSITION),
+        shown_phrase=phrase("He glared at me."), earned_section=rows[phrase_id].earned_section,
     )
     assert not rows[WORD_PHRASE].has_results
     assert [row.candidate_id for row in repo.projection(OTHER_SOURCE)] == [OTHER_WORD]
