@@ -133,6 +133,7 @@ from backend.infrastructure.api.background_rebuild_launcher import (
 )
 from backend.infrastructure.config.prompts_loader import PromptsLoader
 from backend.infrastructure.persistence.database import app_session_factory
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.session_work import SessionWork
 from backend.infrastructure.persistence.sqla_anki_sync_repository import (
     SqlaAnkiSyncRepository,
@@ -262,6 +263,7 @@ logger = logging.getLogger(__name__)
 
 # Where a session keeps its knowledge scope (`Session.info`).
 KNOWLEDGE_SCOPE_KEY = "knowledge_scope"
+CHANGE_RECORDER_KEY = "change_recorder"
 
 
 class Container:
@@ -866,6 +868,14 @@ class Container:
 
     def _unit_of_work(self, session: Session) -> SqlaUnitOfWork:
         return SqlaUnitOfWork(session, self.knowledge_scope(session))
+
+    def _change_recorder(self, session: Session) -> SessionChangeRecorder:
+        """One per database session, shared by every owner of facts built for it."""
+        recorder = session.info.get(CHANGE_RECORDER_KEY)
+        if not isinstance(recorder, SessionChangeRecorder):
+            recorder = SessionChangeRecorder(session)
+            session.info[CHANGE_RECORDER_KEY] = recorder
+        return recorder
 
     def knowledge_scope(self, session: Session) -> KnowledgeScope:
         """One per database session, so one per request and one per job: a single `now`

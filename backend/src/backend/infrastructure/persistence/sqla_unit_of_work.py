@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import NestedWriteError, UncommittedWorkError
 from backend.domain.ports.unit_of_work import UnitOfWork
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -12,6 +13,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.application.utils.knowledge_scope import KnowledgeScope
+    from backend.domain.value_objects.card_change import CardChange
 
 # SQLite takes the write lock at the start of the transaction, not at its first write:
 # reads inside it see the state the writes are applied to.
@@ -31,11 +33,20 @@ class SqlaUnitOfWork(UnitOfWork):
     """SQLAlchemy implementation of UnitOfWork on one SQLite session; `knowledge` is the
     session's scope, read again inside each write transaction. A write open through any
     unit of work on the session makes another one there a nested write. The session's
-    commit checks run before each commit."""
+    commit checks run before each commit. The changes the session's recorder holds are
+    drained by every write: passed to `before_commit` right before the commit, or dropped
+    when there is none or the write fails."""
 
-    def __init__(self, session: Session, knowledge: KnowledgeScope) -> None:
+    def __init__(
+        self,
+        session: Session,
+        knowledge: KnowledgeScope,
+        before_commit: Callable[[tuple[CardChange, ...]], None] | None = None,
+    ) -> None:
         self._session = session
         self._knowledge = knowledge
+        self._recorder = SessionChangeRecorder(session)
+        self._before_commit = before_commit
 
     @contextmanager
     def write(self) -> Iterator[None]:
@@ -52,8 +63,12 @@ class SqlaUnitOfWork(UnitOfWork):
             yield
             for check in self._session.info.get(COMMIT_CHECKS_KEY, ()):
                 check()
+            changes = self._recorder.drain()
+            if self._before_commit is not None:
+                self._before_commit(changes)
             self._session.commit()
         except BaseException:
+            self._recorder.drain()
             self._session.rollback()
             raise
         finally:
