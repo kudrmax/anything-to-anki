@@ -62,14 +62,14 @@ Rebuild с галочкой «Also unreviewed cards» смешивает две 
 
 Выбор сравнивает фразы слова по оценке. Сейчас это `fragment_score`, посчитанный при нарезке, и при изменившемся знании он устаревает, а в Update текст не пересчитывается.
 
-Оценка фразы для выбора: сохранённый `fragment_score`, в котором разряд `unknowns` заменён на `weight_unknown × unknowns_now`.
+Оценка фразы для выбора — сохранённая `FragmentScore`, в которой поле `unknowns` заменено на `weight_unknown × unknowns_now`. Упакованное число разбирается и собирается только внутри `FragmentScore`: `FragmentScore.from_number(n)` (обратная `as_number`) и `with_unknowns(count)`; арифметики по разрядам вне value object нет.
 
 - `unknowns_now` — число незнакомых слов исходной фразы (не Polish) кроме target'а по знанию `SectionRule.knowledge` — тому же, по которому считаются секции.
 - Одна функция для всех кандидатов выбора: сохранённых фраз и свежих фраз анализа (`_fresh_row`).
 - `weight_unknown` берётся из настроек отбора фраз (`ScoringConfig`): `SourceRebuilder` передаёт его в `plan_rebuild`.
 - `fragment_score = None` остаётся `UNSCORED`.
 
-Домен: `selection_score(stored: float | None, phrase: Phrase, knowledge: UserKnowledge, weight_unknown: int) -> float`.
+Домен: `selection_score(stored: float | None, phrase: Phrase, knowledge: UserKnowledge, weight_unknown: int) -> float` — `FragmentScore.from_number(stored).with_unknowns(weight_unknown * unknowns_now).as_number()`.
 
 ## Кто какую операцию запускает
 
@@ -88,7 +88,8 @@ Rebuild с галочкой «Also unreviewed cards» смешивает две 
 - `SourceOperationKind`: `REBUILD` → `UPDATE`, добавляется `RECUT`. Обе — полноценные виды операции: блокировка, меню, подписи. `PREVIEW` остаётся одним видом, превью знает, чего оно (`previewed: UPDATE | RECUT`).
 - `available_operations`: источник со своим текстом → `(UPDATE, RECUT)`; тема → `(REFRESH, UPDATE)`; Saved phrases → `(UPDATE,)`. `_MENU_ORDER = (REFRESH, UPDATE, RECUT)`.
 - Подписи (`_BUSY_NAME`, `_BUSY_CAPTION`): `update` / `Updating…`, `re-cut` / `Re-cutting phrases…`, превью — `Checking what it changes…`.
-- `plan_rebuild(..., recut: bool, done_on_the_fly: frozenset[WordKey])` вместо `include_open`. `done_on_the_fly` — слова источника, сделанные на лету, из того же снимка знаний, что и анализ.
+- `RebuildMode(StrEnum)`: `UPDATE`, `RECUT` — `domain/value_objects`; вместо булева флага везде, где нужно знать, режет ли операция фразы.
+- `plan_rebuild(..., mode: RebuildMode, done_on_the_fly: frozenset[WordKey])` вместо `include_open`. `done_on_the_fly` — слова источника, сделанные на лету, из того же снимка знаний, что и анализ.
 - `_Planner._phrase`: правила Update п. 1–9 и Re-cut п. 7–8 вместо пары «touched / include_open». `is_touched` удаляется.
 - `OccurrenceTextUpdate.reset_results` → `drop_text_generation`.
 - `phrase_selection.is_frozen(o, include_open)` → `is_frozen(o)`: защищённая фраза или фраза с задачей. `select_phrases` ранжирует по `selection_score`.
@@ -107,8 +108,8 @@ Rebuild с галочкой «Also unreviewed cards» смешивает две 
 
 **Application:**
 - `RebuildRequest` удаляется.
-- `SourceRebuilder.plan/apply(analysed, recut)`; `analyse` собирает `done_on_the_fly`.
-- `RebuildSourceUseCase.execute/run(source_id, recut)`, `preview(source_id, recut)`; `ScopeOperationUseCase.update/recut/preview(scope, recut)`.
+- `SourceRebuilder.plan/apply(analysed, mode)`; `analyse` собирает `done_on_the_fly`.
+- `RebuildSourceUseCase.execute/run/preview(source_id, mode)`; `ScopeOperationUseCase.rebuild/preview(scope, mode)`. Вид операции для блокировки — из `mode` одной таблицей `MODE_OPERATION: {UPDATE: SourceOperationKind.UPDATE, RECUT: SourceOperationKind.RECUT}`.
 - `ScopeOperationUseCase.check/_targets` принимают отдельно вид блокировки и вид, который источник должен предлагать: у превью блокировка `PREVIEW`, а предлагаться должен `UPDATE` или `RECUT` по `of`. `_OFFERED` удаляется.
 - `RebuildPreviewDTO`: `previewed` и одно поле `counts`; `RebuildSummaryDTO.include_open` → `kind`.
 
