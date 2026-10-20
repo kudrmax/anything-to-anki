@@ -33,6 +33,7 @@ import type {
   QueueActionResult,
   QueueSelection,
   QueueSnapshot,
+  RebuildMode,
   SourceOperation,
   Settings,
   ReviewDetail,
@@ -218,14 +219,11 @@ export const api = {
   enqueueTopicGeneration: (sourceId: number) =>
     req<{ status: string }>(`/sources/${sourceId}/topic-targets/generate`, { method: 'POST' }),
 
-  previewRebuild: (scope: SetScope) =>
-    req<SourceOperation>(`/api/operations/rebuild/preview?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
+  previewRebuild: (scope: SetScope, mode: RebuildMode) =>
+    req<SourceOperation>(`/api/operations/preview?${new URLSearchParams({ scope: String(scope), of: mode })}`, { method: 'POST' }),
 
-  rebuild: (scope: SetScope, includeOpen: boolean) =>
-    req<SourceOperation>(`/api/operations/rebuild?${new URLSearchParams({ scope: String(scope) })}`, {
-      method: 'POST',
-      body: JSON.stringify({ include_open: includeOpen }),
-    }),
+  rebuild: (scope: SetScope, mode: RebuildMode) =>
+    req<SourceOperation>(`/api/operations/${mode}?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
 
   refresh: (scope: SetScope) =>
     req<SourceOperation>(`/api/operations/refresh?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),

@@ -7,7 +7,7 @@ import { ScopeHeader } from './ScopeHeader'
 const counts: ScopeCounts = {
   total: 2, reviewed: 1, pending: 0, progress: { decided: 3, total: 12 },
   status: 'partially_reviewed', can_process: false, can_review: true, review_fraction: 0.25, progress_caption: '3 of 12 phrases',
-  available_operations: ['rebuild'], can_start_operation: true, operation_hint: null, can_export: true,
+  available_operations: ['update'], can_start_operation: true, operation_hint: null, can_export: true,
 }
 const node = (id: number, name: string, depth: number): CollectionNode => ({
   id, name, parent_id: depth === 1 ? null : id - 1, counts, depth, accepts_collections: true, move_targets: [null], children: [],
@@ -129,15 +129,15 @@ describe('ScopeHeader', () => {
     render([], a)
     expect(buttons()).not.toContain('Export')
     openMenu()
-    expect(menuLabels()).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Rebuild…', 'Delete'])
+    expect(menuLabels()).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Update…', 'Delete'])
   })
 
   it('offers All only Export and the operations, and runs them on the whole scope', () => {
-    render([], null, { ...counts, available_operations: ['refresh', 'rebuild'] })
+    render([], null, { ...counts, available_operations: ['refresh', 'update'] })
     openMenu()
-    expect(menuLabels()).toEqual(['Export', 'Refresh…', 'Rebuild…'])
-    act(() => [...host.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(el => el.textContent === 'Rebuild…')!.click())
-    expect(onOperation).toHaveBeenCalledWith('rebuild')
+    expect(menuLabels()).toEqual(['Export', 'Refresh…', 'Update…'])
+    act(() => [...host.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(el => el.textContent === 'Update…')!.click())
+    expect(onOperation).toHaveBeenCalledWith('update')
   })
 
   it('keeps the place of the menu when a scope offers nothing', () => {
