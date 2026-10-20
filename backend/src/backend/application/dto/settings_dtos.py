@@ -4,9 +4,9 @@ from pydantic import BaseModel, field_validator, model_validator
 
 from backend.application.constants import MAX_IMAGES_PER_SOURCE, MIN_IMAGES_PER_SOURCE
 from backend.domain.value_objects.cefr_level import CEFRLevel
-from backend.domain.value_objects.chapter_title_template import ChapterTitleTemplate
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
+from backend.domain.value_objects.naming_rule import NamingRule
 from backend.domain.value_objects.source_order import (  # noqa: TC001
     SourceGrouping,
     SourceSort,
@@ -48,7 +48,7 @@ class SettingsDTO(BaseModel):
     anki_field_audio_tts: str
     images_per_source: int
     cloze_default_hint: str
-    book_chapter_title_template: str
+    naming_rule: str
     source_grouping: SourceGrouping
     source_sort: SourceSort
     source_sort_direction: SourceSortDirection
@@ -83,7 +83,7 @@ class UpdateSettingsRequest(BaseModel):
     anki_field_audio_tts: str | None = None
     images_per_source: int | None = None
     cloze_default_hint: str | None = None
-    book_chapter_title_template: str | None = None
+    naming_rule: str | None = None
     source_grouping: SourceGrouping | None = None
     source_sort: SourceSort | None = None
     source_sort_direction: SourceSortDirection | None = None
@@ -121,11 +121,11 @@ class UpdateSettingsRequest(BaseModel):
             )
         return v
 
-    @field_validator("book_chapter_title_template")
+    @field_validator("naming_rule")
     @classmethod
-    def validate_book_chapter_title_template(cls, v: str | None) -> str | None:
+    def validate_naming_rule(cls, v: str | None) -> str | None:
         if v is not None:
-            return ChapterTitleTemplate(v.strip()).pattern
+            return NamingRule(v.strip()).pattern
         return v
 
     @model_validator(mode="after")

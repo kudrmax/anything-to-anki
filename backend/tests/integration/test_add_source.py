@@ -309,7 +309,7 @@ class TestTitles:
         self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
     ) -> None:
         SqlaSettingsRepository(db_session).set(
-            "book_chapter_title_template", "{{n}}. {{chapter_title}} ({{book_name}})",
+            "naming_rule", "{{n}}. {{title}} ({{collection}})",
         )
         result = add_source.execute(
             LocalFile(_book(tmp_path, 2)), answers=Answers({"book.split": "split"}),

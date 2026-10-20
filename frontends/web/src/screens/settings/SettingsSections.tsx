@@ -319,9 +319,9 @@ export function Tts({ store, form }: SectionProps) {
 
 export function Books({ store, form }: SectionProps) {
   return (
-    <DividerRow last label="Chapter titles" hint="Title of each source when a book is split into chapters: {{book_name}} — the book, {{n}} — chapter number, {{chapter_title}} — its title in the book.">
+    <DividerRow last label="Default titles" hint="Titles when one add makes several sources: {{collection}} — the collection, {{n}} — number in order, {{title}} — the file's or chapter's own title.">
       <div className={css.control}>
-        <Field value={form.book_chapter_title_template} onChange={e => store.setField('book_chapter_title_template', e.target.value)} />
+        <Field value={form.naming_rule} onChange={e => store.setField('naming_rule', e.target.value)} />
       </div>
     </DividerRow>
   )

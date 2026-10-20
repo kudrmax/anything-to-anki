@@ -4,18 +4,15 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from backend.application.constants import BOOK_CHAPTER_TITLE_SETTING
+from backend.application.constants import NAMING_RULE_SETTING
 from backend.application.dto.add_source_dtos import SourcesCreated
 from backend.application.source_intake.kind_handler import KindHandler
 from backend.domain.entities.collection import Collection
 from backend.domain.services.collection_tree import CollectionTree
 from backend.domain.services.word_count import count_words
-from backend.domain.value_objects.chapter_title_template import (
-    DEFAULT_CHAPTER_TITLE_TEMPLATE,
-    ChapterTitleTemplate,
-)
 from backend.domain.value_objects.content import BookContent, Kind
 from backend.domain.value_objects.document import Document
+from backend.domain.value_objects.naming_rule import DEFAULT_NAMING_RULE, NamingRule
 from backend.domain.value_objects.question import (
     DetailItem,
     OptionDetails,
@@ -65,7 +62,10 @@ class BookHandler(KindHandler):
         template = self._title_template()
         counts = [count_words(chapter.document.text) for chapter in book.chapters]
         chapters = tuple(
-            DetailItem(text=template.render(name, number, chapter.title), note=_words(count))
+            DetailItem(
+                text=template.render(name, number, _own_title(chapter.title, number)),
+                note=_words(count),
+            )
             for number, (chapter, count) in enumerate(zip(book.chapters, counts, strict=True), 1)
         )
         split = QuestionOption(
@@ -100,7 +100,7 @@ class BookHandler(KindHandler):
         source_ids = [
             self._writer.write(
                 document=chapter.document,
-                title=template.render(name, number, chapter.title),
+                title=template.render(name, number, _own_title(chapter.title, number)),
                 source_format=source_format,
                 kind=Kind.BOOK,
                 collection_id=collection_id,
@@ -134,11 +134,15 @@ class BookHandler(KindHandler):
         assert collection.id is not None
         return collection.id
 
-    def _title_template(self) -> ChapterTitleTemplate:
+    def _title_template(self) -> NamingRule:
         pattern = self._settings_repo.get(
-            BOOK_CHAPTER_TITLE_SETTING, DEFAULT_CHAPTER_TITLE_TEMPLATE
+            NAMING_RULE_SETTING, DEFAULT_NAMING_RULE
         )
-        return ChapterTitleTemplate(pattern or DEFAULT_CHAPTER_TITLE_TEMPLATE)
+        return NamingRule(pattern or DEFAULT_NAMING_RULE)
+
+
+def _own_title(title: str | None, number: int) -> str:
+    return title or f"Chapter {number}"
 
 
 def _book(content: Content) -> BookContent:

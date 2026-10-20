@@ -488,7 +488,7 @@ export interface Settings {
   images_per_source: number
   cloze_default_hint: ClozeDefaultHint
   /** Как называется источник из главы книги, например «{{book_name}} ch{{n}}». */
-  book_chapter_title_template: string
+  naming_rule: string
   source_grouping: SourceGrouping
   source_sort: SourceSort
   source_sort_direction: SourceSortDirection
