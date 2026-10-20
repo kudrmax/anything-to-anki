@@ -49,14 +49,12 @@ from backend.domain.exceptions import (
     RefreshNotSupportedError,
     SourceAlreadyProcessedError,
     SourceHasNoDocumentError,
-    SourceHasNoUrlError,
     SourceIsProcessingError,
     SourceNotFoundError,
     SourceOperationBusyError,
     SubtitlesNotAvailableError,
     TopicTargetsMissingError,
     UnsupportedUrlError,
-    VideoAlreadyDownloadedError,
 )
 from backend.domain.value_objects.question import Answers
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
@@ -284,24 +282,6 @@ async def process_source(
 
     _in_background(_process_background(source_id, container, session_factory))
     return {"status": "processing"}
-
-
-@router.post("/{source_id}/download-video", status_code=202)
-def download_video(
-    source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, str]:
-    try:
-        container.request_video_download_use_case(session).execute(source_id)
-    except SourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except SourceHasNoUrlError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except VideoAlreadyDownloadedError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
-    session.commit()
-    return {"status": "downloading"}
 
 
 async def _process_background(

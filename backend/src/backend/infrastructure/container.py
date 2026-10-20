@@ -1289,7 +1289,7 @@ class Container:
             RequestVideoDownloadUseCase,
         )
         return RequestVideoDownloadUseCase(
-            source_repo=SqlaSourceRepository(session),
+            scope_resolver=self._scope_resolver(session),
             job_repo=SqlaJobRepository(session),
         )
 

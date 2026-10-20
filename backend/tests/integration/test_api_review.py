@@ -96,3 +96,12 @@ def test_old_source_detail_is_gone(client: TestClient) -> None:
 
 def test_sources_without_a_document_have_no_text(client: TestClient) -> None:
     assert client.get("/review/documents", params={"scope": _show(client)}).json() == []
+
+
+def test_download_video_of_a_set_without_links_is_400(client: TestClient) -> None:
+    scope = _show(client)
+    assert client.post("/review/download-video", params={"scope": scope}).status_code == 400
+    assert client.post(
+        "/review/download-video", params={"scope": "unsorted"},
+    ).status_code == 400
+    assert client.post(f"/sources/{PILOT}/download-video").status_code == 404

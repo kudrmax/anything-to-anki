@@ -13,8 +13,10 @@ from backend.domain.exceptions import (
     GenerationBlockedError,
     GenerationNotSupportedError,
     ScopeNotReviewableError,
+    SourceHasNoUrlError,
     SourceNotFoundError,
     SourceOperationBusyError,
+    VideoAlreadyDownloadedError,
 )
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.generation_kind import (
@@ -135,3 +137,23 @@ def cancel_generation(
         )
     session.commit()
     return {"cancelled": cancelled}
+
+
+@router.post("/download-video", status_code=202)
+def download_video(
+    scope: str = "all",
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> dict[str, int]:
+    """Queue the download of every video of the set that isn't here yet."""
+    with _scope_errors():
+        try:
+            queued = container.request_video_download_use_case(session).execute(
+                review_scope(scope),
+            )
+        except SourceHasNoUrlError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except VideoAlreadyDownloadedError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+    session.commit()
+    return {"queued": queued}
