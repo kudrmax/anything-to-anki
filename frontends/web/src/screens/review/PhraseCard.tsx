@@ -87,6 +87,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   const usage = primaryUsageGroup(candidate.usage_distribution)
   const frequency = candidate.frequency_band ? FREQ_BAND_LABEL[candidate.frequency_band]?.toLowerCase() : null
   const facts = [frequency, usage].filter((fact): fact is string => Boolean(fact))
+  const hasWordFacts = candidate.is_phrasal_verb || Boolean(candidate.cefr_level) || facts.length > 0
 
   const audioChip = (label: string, url: string | null, title: string) => url && (
     <Chip small on={player.playingUrl === url} title={title} onClick={() => player.toggle(url)}>
@@ -149,7 +150,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
       </button>
 
       <div className={detailsOpen ? css.cardRight : `${css.cardRight} ${css.collapsed}`}>
-        {hasMeta && (
+        {(hasMeta || hasWordFacts) && (
           <div className={css.meta}>
             {meaning?.ipa && <Text mono>{meaning.ipa}</Text>}
             {audioChip('US', usUrl, 'Play US pronunciation')}
@@ -160,6 +161,21 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             {audioChip('TTS', ttsUrl, 'Play TTS audio')}
             {!ttsUrl && (
               <StatusText status={candidate.tts?.status} error={candidate.tts?.error} labels={{ running: 'TTS...', queued: 'TTS queued', failed: 'TTS failed' }} />
+            )}
+            {hasWordFacts && (
+              <span className={css.wordFacts}>
+                {candidate.is_phrasal_verb ? <span>phrasal verb</span> : candidate.cefr_level && (
+                  <span
+                    className={css.cefr}
+                    onMouseEnter={e => candidate.cefr_breakdown && setCefrAnchor(e.currentTarget)}
+                    onMouseLeave={() => setCefrAnchor(null)}
+                  >
+                    {candidate.is_sweet_spot && <Icon as={Target} size="s" />}
+                    {candidate.cefr_level}
+                  </span>
+                )}
+                {facts.map(fact => <span key={fact}>{fact}</span>)}
+              </span>
             )}
           </div>
         )}
@@ -192,17 +208,6 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
           {candidate.cloze && (
             <span className={css.clozeFact}><Icon as={Brackets} size="s" />{clozeLabel(candidate.cloze)}</span>
           )}
-          {candidate.is_phrasal_verb ? <span>phrasal verb</span> : candidate.cefr_level && (
-            <span
-              className={css.cefr}
-              onMouseEnter={e => candidate.cefr_breakdown && setCefrAnchor(e.currentTarget)}
-              onMouseLeave={() => setCefrAnchor(null)}
-            >
-              {candidate.is_sweet_spot && <Icon as={Target} size="s" />}
-              {candidate.cefr_level}
-            </span>
-          )}
-          {facts.map(fact => <span key={fact}>{fact}</span>)}
           {candidate.origin && <span>{originLabel(candidate.origin)}</span>}
         </div>
         <PhraseTools candidate={candidate} review={review} onEditPhrase={editPhrase} />

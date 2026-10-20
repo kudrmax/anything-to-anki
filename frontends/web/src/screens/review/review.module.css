@@ -16,6 +16,8 @@
 .phraseEdit > textarea, .phraseEdit::after { grid-area: 1 / 1; padding: 0; border: none; background: none; color: inherit; font: inherit; letter-spacing: inherit; overflow-wrap: anywhere; resize: none; overflow: hidden; outline: none; }
 .meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s3); font-size: var(--fs-s); color: var(--tx3); }
 .cefr { display: inline-flex; align-items: center; gap: var(--s2); }
+/* факты о слове — справка: тихо, в конце строки произношения */
+.wordFacts { display: inline-flex; align-items: center; gap: var(--s5); margin-left: auto; }
 .status { display: inline-flex; align-items: center; gap: var(--s2); }
 .cardLeft > .lemma { margin: calc(var(--card-left-first-mt) - var(--s1)) calc(var(--card-left-item-mx) - var(--card-pad)) 0; padding: 0 var(--card-pad) var(--s6); border-bottom: var(--bw) solid var(--line); font-size: var(--fs-h1); font-weight: var(--fw-m); line-height: var(--lh-tight); letter-spacing: var(--ls-focus); }
 .translation { font-size: var(--fs-h1); font-weight: var(--fw-m); line-height: var(--lh); letter-spacing: var(--ls-focus); }
@@ -36,7 +38,6 @@
 .footDecisions { display: var(--desktop-flex); align-items: center; gap: var(--s3); }
 .footHint { font-size: var(--fs-xs); color: var(--tx3); white-space: nowrap; }
 .facts { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; justify-content: var(--facts-justify); align-items: center; gap: var(--s3); font-size: var(--fs-s); color: var(--tx3); }
-.facts > * + *::before { content: '·'; margin-right: var(--s3); }
 /* телефон: справка свёрнута в строку Details под тем, по чему решаешь; на десктопе её нет — справка всегда видна */
 .detailsToggle { display: var(--phone-flex); order: var(--details-toggle-order); align-items: center; justify-content: space-between; margin-top: auto; padding: var(--s4) var(--card-pad); font-size: var(--fs-m); color: var(--tx3); }
 .detailsToggle[aria-expanded="true"] { margin-top: var(--s3); color: var(--tx); }
