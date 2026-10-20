@@ -7,7 +7,7 @@ from backend.domain.exceptions import NestedWriteError
 from backend.domain.ports.unit_of_work import UnitOfWork
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
     from sqlalchemy.orm import Session
 
@@ -18,12 +18,20 @@ if TYPE_CHECKING:
 BEGIN_IMMEDIATE = "BEGIN IMMEDIATE"
 # Kept on the session, not the unit of work: every unit of work on a session sees it.
 WRITE_OPEN_KEY = "unit_of_work.write_open"
+COMMIT_CHECKS_KEY = "unit_of_work.commit_checks"
+
+
+def add_commit_check(session: Session, check: Callable[[], None]) -> None:
+    """Every write on the session runs `check` last, inside its transaction; a check that
+    raises rolls the write back."""
+    session.info.setdefault(COMMIT_CHECKS_KEY, []).append(check)
 
 
 class SqlaUnitOfWork(UnitOfWork):
     """SQLAlchemy implementation of UnitOfWork on one SQLite session; `knowledge` is the
     session's scope, read again inside each write transaction. A write open through any
-    unit of work on the session makes another one there a nested write."""
+    unit of work on the session makes another one there a nested write. The session's
+    commit checks run before each commit."""
 
     def __init__(self, session: Session, knowledge: KnowledgeScope) -> None:
         self._session = session
@@ -39,6 +47,8 @@ class SqlaUnitOfWork(UnitOfWork):
         try:
             self._knowledge.invalidate()
             yield
+            for check in self._session.info.get(COMMIT_CHECKS_KEY, ()):
+                check()
             self._session.commit()
         except BaseException:
             self._session.rollback()

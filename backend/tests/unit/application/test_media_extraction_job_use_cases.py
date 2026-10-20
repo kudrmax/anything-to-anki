@@ -103,6 +103,7 @@ class TestMediaExtractionUseCase:
             media_extractor=media_extractor,
             media_files=LocalMediaFiles(str(tmp_path / "media")),
             video_path_resolver=video_path_resolver,
+            unit_of_work=MagicMock(),
         )
         return uc, media_repo, media_extractor
 

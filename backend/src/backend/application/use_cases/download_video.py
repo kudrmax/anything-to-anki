@@ -9,6 +9,7 @@ from backend.domain.value_objects.format import Format
 
 if TYPE_CHECKING:
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.ports.video_downloader import VideoDownloader
     from backend.domain.ports.video_path_resolver import VideoPathResolver
 
@@ -26,10 +27,12 @@ class DownloadVideoUseCase:
         source_repo: SourceRepository,
         video_downloader: VideoDownloader,
         video_path_resolver: VideoPathResolver,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._source_repo = source_repo
         self._video_downloader = video_downloader
         self._video_path_resolver = video_path_resolver
+        self._unit_of_work = unit_of_work
 
     def execute(self, source_id: int) -> None:
         source = self._source_repo.get_by_id(source_id)
@@ -47,5 +50,6 @@ class DownloadVideoUseCase:
 
         self._video_downloader.download(source.source_url, absolute_path)
 
-        self._source_repo.update_video_path(source_id, filename)
+        with self._unit_of_work.write():
+            self._source_repo.update_video_path(source_id, filename)
         logger.info("Downloaded video for source %d → %s", source_id, filename)

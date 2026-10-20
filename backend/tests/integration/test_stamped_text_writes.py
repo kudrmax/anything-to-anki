@@ -117,6 +117,7 @@ class Fixture:
             prompts_config=POLISH_CONFIG,
             rewrite_phrase=self.rewrite,
             stamper=self.stamper,
+            unit_of_work=MagicMock(),
         ).execute_batch([PhraseRef(self.phrase_id, revision.revision)])
 
     def revert(self, *, reverted: bool) -> None:

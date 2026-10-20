@@ -28,6 +28,7 @@ class TestDownloadVideo:
             source_repo=self.source_repo,
             video_downloader=self.video_downloader,
             video_path_resolver=self.resolver,
+            unit_of_work=MagicMock(),
         )
 
     def test_downloads_and_sets_video_path(self) -> None:

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from fastapi import Depends
 
 from backend.infrastructure.container import Container
-from backend.infrastructure.persistence.database import create_session_factory
+from backend.infrastructure.persistence.database import app_session_factory
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterator
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session, sessionmaker
 
 _container: Container | None = None
-_session_factory = create_session_factory()
+_session_factory = app_session_factory()
 
 
 def get_container() -> Container:

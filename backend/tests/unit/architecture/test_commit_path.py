@@ -13,6 +13,9 @@ PERSISTENCE_DIR = "backend/src/backend/infrastructure/persistence/"
 API_DEPENDENCIES = "backend/src/backend/infrastructure/api/dependencies.py"
 CONTAINER = "backend/src/backend/infrastructure/container.py"
 ALEMBIC_DIR = "backend/src/backend/alembic/"
+# Writes a database of its own (the dictionary cache, rebuilt whole from the dictionary
+# files), never the app's: no card state lives there for a write to keep fresh.
+OTHER_DATABASE_WRITERS = ("backend/src/backend/cli/build_dict_cache.py",)
 
 ORM_MODULE = "sqlalchemy.orm"
 SQLALCHEMY_PREFIX = "sqlalchemy"
@@ -22,20 +25,12 @@ SESSION_NAMES = frozenset(
 TRANSACTION_METHODS = frozenset({"commit", "begin", "begin_nested"})
 TRANSACTION_CALLABLES = TRANSACTION_METHODS | SESSION_NAMES
 
-TRANSACTION_ALLOWED = (PERSISTENCE_DIR, API_DEPENDENCIES)
+TRANSACTION_ALLOWED = (PERSISTENCE_DIR, API_DEPENDENCIES, *OTHER_DATABASE_WRITERS)
 SESSION_ALLOWED = (PERSISTENCE_DIR, API_DEPENDENCIES, CONTAINER)
 
-# Files that offend today. Tasks 1.3-1.5 remove entries as they migrate; Task 1.6 empties both.
-PENDING_TRANSACTIONS: frozenset[str] = frozenset({
-    "backend/src/backend/cli/build_dict_cache.py",
-    "backend/src/backend/infrastructure/container.py",
-    "backend/src/backend/infrastructure/services/lazy_media_reconciler.py",
-})
-PENDING_SESSION_IMPORTS: frozenset[str] = frozenset({
-    "backend/src/backend/infrastructure/api/background_rebuild_launcher.py",
-    "backend/src/backend/infrastructure/queue/claimed_run.py",
-    "backend/src/backend/infrastructure/services/lazy_media_reconciler.py",
-})
+# Files that offend today: none since Task 1.5.
+PENDING_TRANSACTIONS: frozenset[str] = frozenset()
+PENDING_SESSION_IMPORTS: frozenset[str] = frozenset()
 
 
 def _is_allowed(relative: str, allowed: tuple[str, ...]) -> bool:

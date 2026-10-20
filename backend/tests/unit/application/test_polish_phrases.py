@@ -138,6 +138,7 @@ def _use_case(
         prompts_config=_CONFIG,
         rewrite_phrase=RewritePhrase(reader, occurrence_repo, stamper),
         stamper=stamper,
+        unit_of_work=MagicMock(),
     )
     return use_case, occurrence_repo, ai_service, reset
 

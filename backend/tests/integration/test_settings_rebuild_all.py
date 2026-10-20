@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+from contextlib import nullcontext
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
@@ -62,8 +63,7 @@ def _two_processed_sources(bench: Bench) -> None:
 
 def _launcher(bench: Bench) -> BackgroundSourcesRebuildLauncher:
     return BackgroundSourcesRebuildLauncher(
-        session_factory=lambda: bench.session,  # type: ignore[arg-type,return-value]
-        scope_operation=lambda _session: bench.scope_operation(),
+        scope_operations=lambda: nullcontext(bench.scope_operation()),
         spawn=lambda work: work(),
         passes=RebuildPasses(),
     )
@@ -114,8 +114,7 @@ def test_no_source_is_locked_before_its_turn(bench: Bench) -> None:
 
     inner.run = run  # type: ignore[method-assign,assignment]
     launcher = BackgroundSourcesRebuildLauncher(
-        session_factory=lambda: bench.session,  # type: ignore[arg-type,return-value]
-        scope_operation=lambda _session: bench.scope_operation(inner),
+        scope_operations=lambda: nullcontext(bench.scope_operation(inner)),
         spawn=lambda work: work(),
         passes=RebuildPasses(),
     )
@@ -183,7 +182,7 @@ def test_calls_close_together_never_overlap_and_a_full_pass_follows(
 
     monkeypatch.setattr(BackgroundSourcesRebuildLauncher, "_rebuild_pass", one_pass)
     launcher = BackgroundSourcesRebuildLauncher(
-        session_factory=MagicMock(), scope_operation=MagicMock(), passes=RebuildPasses(),
+        scope_operations=MagicMock(), passes=RebuildPasses(),
     )
 
     launcher.rebuild_all()

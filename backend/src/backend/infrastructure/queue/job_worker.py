@@ -17,7 +17,6 @@ from typing import IO, TYPE_CHECKING
 
 from backend.domain.exceptions import CancelledByUserError, PermanentError
 from backend.domain.value_objects.job_type import JobType
-from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.queue.claimed_run import ClaimedRun
 
 if TYPE_CHECKING:
@@ -48,6 +47,8 @@ class JobWorker:
 
     def __init__(self, container: Container) -> None:
         self._container = container
+        self._queue = container.job_queue()
+        self._work = container.session_work()
         self._shutdown = False
         self._tts_process: asyncio.subprocess.Process | None = None
 
@@ -76,21 +77,17 @@ class JobWorker:
     def _reconcile_on_startup(self) -> None:
         """Put RUNNING jobs back in line: the worker that ran them is gone.
         Every handler is idempotent, so the work is simply redone."""
-        with self._container.session_scope() as session:
-            count = SqlaJobRepository(session).requeue_running()
+        count = self._queue.requeue_running()
         if count:
             logger.warning("Startup reconciliation: requeued %d interrupted jobs", count)
 
     async def _process_one_job(self) -> bool:
         """Claim and process the head of the queue. Returns True if a run was processed."""
-        with self._container.session_scope() as session:
-            jobs = SqlaJobRepository(session).claim_next_run(
-                RUN_LIMITS, mixed_source_types=MIXED_SOURCE_TYPES,
-            )
+        jobs = self._queue.claim_next_run(RUN_LIMITS, mixed_source_types=MIXED_SOURCE_TYPES)
         if not jobs:
             return False
 
-        run = ClaimedRun(self._container, jobs)
+        run = ClaimedRun(self._queue, jobs)
         head = run.head
         logger.info(
             "Processing %d job(s) from %d: type=%s candidate=%s phrase=%s source=%d",
@@ -130,31 +127,31 @@ class JobWorker:
         """Do the run's work. Returns the phrases left without a result."""
         head = run.head
         c = self._container
-        with run.session() as session:
-            match head.job_type:
-                case JobType.MEANING:
-                    return set(c.meaning_generation_use_case(session).execute_batch(
-                        run.phrases, run.still_wanted,
-                    ))
-                case JobType.POLISH:
-                    return set(c.phrase_polish_use_case(session).execute_batch(
-                        run.phrases, run.still_wanted,
-                    ))
-                case JobType.MEDIA:
+        match head.job_type:
+            case JobType.MEANING:
+                with run.use_case(c.meaning_generation_use_case) as meaning:
+                    return set(meaning.execute_batch(run.phrases, run.still_wanted))
+            case JobType.POLISH:
+                with run.use_case(c.phrase_polish_use_case) as polish:
+                    return set(polish.execute_batch(run.phrases, run.still_wanted))
+            case JobType.MEDIA:
+                with run.use_case(c.media_extraction_use_case) as media:
                     for phrase in run.phrases:
-                        c.media_extraction_use_case(session).execute_one(phrase)
-                case JobType.PRONUNCIATION:
-                    assert head.candidate_id is not None
-                    c.download_pronunciation_use_case(session).execute_one(head.candidate_id)
-                case JobType.VIDEO_DOWNLOAD:
-                    c.download_video_use_case(session).execute(head.source_id)
-                case JobType.TOPIC_TARGETS:
-                    c.generate_topic_targets_use_case(session).execute(head.source_id)
-                case JobType.TTS:
-                    raise AssertionError("TTS runs in its own subprocess")
-        if head.job_type is JobType.MEDIA:
-            with c.session_scope() as session:
-                c.cleanup_youtube_video_use_case(session).execute(head.source_id)
+                        media.execute_one(phrase)
+                with self._work.open(c.cleanup_youtube_video_use_case) as cleanup:
+                    cleanup.execute(head.source_id)
+            case JobType.PRONUNCIATION:
+                assert head.candidate_id is not None
+                with run.use_case(c.download_pronunciation_use_case) as pronunciation:
+                    pronunciation.execute_one(head.candidate_id)
+            case JobType.VIDEO_DOWNLOAD:
+                with run.use_case(c.download_video_use_case) as video:
+                    video.execute(head.source_id)
+            case JobType.TOPIC_TARGETS:
+                with run.use_case(c.generate_topic_targets_use_case) as topic:
+                    topic.execute(head.source_id)
+            case JobType.TTS:
+                raise AssertionError("TTS runs in its own subprocess")
         return set()
 
     # ------------------------------------------------------------------
@@ -182,10 +179,7 @@ class JobWorker:
         logger.error("TTS subprocess exited with code %d", returncode)
         if self._shutdown:
             return  # interrupted on purpose; the next start requeues its job
-        with self._container.session_scope() as session:
-            SqlaJobRepository(session).fail_running(
-                JobType.TTS, TTS_CRASH_ERROR.format(code=returncode),
-            )
+        self._queue.fail_running(JobType.TTS, TTS_CRASH_ERROR.format(code=returncode))
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
@@ -195,14 +189,12 @@ class JobWorker:
         job_ids = [j.id for j in jobs if j.id is not None]
         if not job_ids:
             return
-        with self._container.session_scope() as session:
-            SqlaJobRepository(session).fail(job_ids, error)
+        self._queue.fail(job_ids, error)
 
     def _complete(self, jobs: list[Job]) -> None:
         if not jobs:
             return
-        with self._container.session_scope() as session:
-            SqlaJobRepository(session).complete(jobs)
+        self._queue.complete(jobs)
 
 
 def _acquire_single_worker_lock() -> IO[str]:

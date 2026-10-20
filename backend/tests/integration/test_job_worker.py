@@ -16,7 +16,10 @@ from backend.domain.value_objects.job_type import PHRASE_JOB_TYPES, JobType
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import JobModel
+from backend.infrastructure.persistence.session_work import SessionWork
+from backend.infrastructure.persistence.sqla_job_queue import SqlaJobQueue
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
+from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from backend.infrastructure.queue import job_worker
 from backend.infrastructure.queue.job_worker import NO_AI_RESULT_ERROR, JobWorker
 from backend.infrastructure.queue.tts_subprocess import process_tts_run
@@ -36,10 +39,12 @@ WRITTEN_TITLE = "written by the job"
 
 
 class _Container:
-    """The worker's view of the container: real sessions, fake use cases."""
+    """The worker's view of the container: real sessions and queue, fake use cases that
+    write through the unit of work of the session they are built on."""
 
     def __init__(self, factory: sessionmaker[Session]) -> None:
         self._factory = factory
+        self._work = SessionWork(factory, _unit_of_work)
         self.meaning = MagicMock()
         self.polish = MagicMock()
         self.media = MagicMock()
@@ -50,6 +55,12 @@ class _Container:
         self.tts = MagicMock()
         self.meaning.execute_batch.return_value = []
         self.polish.execute_batch.return_value = []
+
+    def session_work(self) -> SessionWork:
+        return self._work
+
+    def job_queue(self) -> SqlaJobQueue:
+        return SqlaJobQueue(self._work)
 
     @contextmanager
     def session_scope(self) -> Iterator[Session]:
@@ -90,7 +101,12 @@ class _Container:
     @staticmethod
     def _bound(use_case: MagicMock, session: Session) -> MagicMock:
         use_case.session = session
+        use_case.unit_of_work = _unit_of_work(session)
         return use_case
+
+
+def _unit_of_work(session: Session) -> SqlaUnitOfWork:
+    return SqlaUnitOfWork(session, MagicMock())
 
 
 @pytest.fixture()
@@ -149,6 +165,11 @@ def _title(container: _Container) -> str:
 
 
 def _write_title(use_case: MagicMock) -> None:
+    with use_case.unit_of_work.write():
+        _update_title(use_case)
+
+
+def _update_title(use_case: MagicMock) -> None:
     use_case.session.execute(
         text("UPDATE sources SET title = :t WHERE id = :id"),
         {"t": WRITTEN_TITLE, "id": SOURCE_ID},
@@ -310,8 +331,9 @@ class TestLifecycle:
         _enqueue(container, (JobType.POLISH, 1), (JobType.POLISH, 2))
 
         def write_then_raise(phrases: list[PhraseRef], wanted: CandidateFilter) -> list[int]:
-            _write_title(container.polish)
-            raise error
+            with container.polish.unit_of_work.write():
+                _update_title(container.polish)
+                raise error
 
         container.polish.execute_batch.side_effect = write_then_raise
 

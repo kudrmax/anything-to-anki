@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.document import Document
     from backend.domain.value_objects.phrase_ref import PhraseRef
     from backend.domain.value_objects.prompts_config import PromptsConfig
@@ -52,6 +53,7 @@ class PhrasePolishUseCase:
         prompts_config: PromptsConfig,
         rewrite_phrase: RewritePhrase,
         stamper: SectionStamper,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._job_phrases = job_phrases
         self._occurrence_repo = occurrence_repo
@@ -63,6 +65,7 @@ class PhrasePolishUseCase:
         self._prompts_config = prompts_config
         self._rewrite_phrase = rewrite_phrase
         self._stamper = stamper
+        self._unit_of_work = unit_of_work
 
     def execute_batch(
         self,
@@ -103,16 +106,17 @@ class PhrasePolishUseCase:
 
         changed = 0
         unanswered: list[int] = []
-        for i, c in enumerate(polishable, 1):
-            if c.phrase_id not in wanted or not self._job_phrases.holds(c):
-                continue
-            answer = by_index.get(i)
-            if answer is None:
-                unanswered.append(c.phrase_id)
-                continue
-            if self._polish(c, answer) != c.phrase.phrase.text:
-                self._enrichment_reset.reset_phrase(c.phrase_id)
-                changed += 1
+        with self._unit_of_work.write():
+            for i, c in enumerate(polishable, 1):
+                if c.phrase_id not in wanted or not self._job_phrases.holds(c):
+                    continue
+                answer = by_index.get(i)
+                if answer is None:
+                    unanswered.append(c.phrase_id)
+                    continue
+                if self._polish(c, answer) != c.phrase.phrase.text:
+                    self._enrichment_reset.reset_phrase(c.phrase_id)
+                    changed += 1
 
         logger.info(
             "PhrasePolish batch: %d answered, %d changed of %d, %d still wanted",

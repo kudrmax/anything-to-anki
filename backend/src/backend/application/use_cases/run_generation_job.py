@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from backend.application.utils.job_phrases import JobPhrases
     from backend.domain.ports.ai_service import AIService
     from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.phrase_ref import PhraseRef
     from backend.domain.value_objects.prompts_config import PromptsConfig
 
@@ -34,11 +35,13 @@ class MeaningGenerationUseCase:
         meaning_repo: CandidateMeaningRepository,
         ai_service: AIService,
         prompts_config: PromptsConfig,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._job_phrases = job_phrases
         self._meaning_repo = meaning_repo
         self._ai_service = ai_service
         self._prompts_config = prompts_config
+        self._unit_of_work = unit_of_work
 
     def execute_batch(
         self,
@@ -76,23 +79,24 @@ class MeaningGenerationUseCase:
         now = datetime.now(tz=UTC)
         matched = 0
         unanswered: list[int] = []
-        for i, c in enumerate(active, 1):
-            if c.phrase_id not in wanted or not self._job_phrases.holds(c):
-                continue
-            r = result_map.get(i)
-            if r is None:
-                unanswered.append(c.phrase_id)
-                continue
-            self._meaning_repo.upsert_for_phrase(c.phrase_id, CandidateMeaning(
-                candidate_id=c.word_id,
-                meaning=r.meaning,
-                translation=r.translation,
-                synonyms=r.synonyms,
-                examples=r.examples,
-                ipa=r.ipa,
-                generated_at=now,
-            ))
-            matched += 1
+        with self._unit_of_work.write():
+            for i, c in enumerate(active, 1):
+                if c.phrase_id not in wanted or not self._job_phrases.holds(c):
+                    continue
+                r = result_map.get(i)
+                if r is None:
+                    unanswered.append(c.phrase_id)
+                    continue
+                self._meaning_repo.upsert_for_phrase(c.phrase_id, CandidateMeaning(
+                    candidate_id=c.word_id,
+                    meaning=r.meaning,
+                    translation=r.translation,
+                    synonyms=r.synonyms,
+                    examples=r.examples,
+                    ipa=r.ipa,
+                    generated_at=now,
+                ))
+                matched += 1
 
         logger.info(
             "MeaningGeneration batch: %d/%d matched, %d still wanted",

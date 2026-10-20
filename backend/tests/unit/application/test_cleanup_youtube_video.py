@@ -45,6 +45,7 @@ class TestCleanupYoutubeVideo:
             media_repo=self.media_repo,
             job_repo=self.job_repo,
             video_path_resolver=self.video_path_resolver,
+            unit_of_work=MagicMock(),
         )
 
     def test_deletes_video_when_all_media_done(self) -> None:

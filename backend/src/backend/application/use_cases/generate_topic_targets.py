@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.topic_target_repository import TopicTargetRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.prompts_config import PromptsConfig
     from backend.domain.value_objects.topic_target_draft import TopicTargetDraft
 
@@ -36,12 +37,14 @@ class GenerateTopicTargetsUseCase:
         settings_repo: SettingsRepository,
         ai_service: AIService,
         prompts_config: PromptsConfig,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._source_repo = source_repo
         self._topic_target_repo = topic_target_repo
         self._settings_repo = settings_repo
         self._ai_service = ai_service
         self._prompts_config = prompts_config
+        self._unit_of_work = unit_of_work
 
     def execute(self, source_id: int) -> None:
         source = self._source_repo.get_by_id(source_id)
@@ -66,15 +69,16 @@ class GenerateTopicTargetsUseCase:
         if not usable:
             raise PermanentAIError("AI returned no usable targets for this topic")
 
-        self._topic_target_repo.create_batch([
-            TopicTarget(
-                source_id=source_id,
-                position=position,
-                phrase=draft.phrase.strip(),
-                example=draft.example.strip(),
-            )
-            for position, draft in enumerate(usable)
-        ])
+        with self._unit_of_work.write():
+            self._topic_target_repo.create_batch([
+                TopicTarget(
+                    source_id=source_id,
+                    position=position,
+                    phrase=draft.phrase.strip(),
+                    example=draft.example.strip(),
+                )
+                for position, draft in enumerate(usable)
+            ])
         logger.info(
             "generate_topic_targets: done (source_id=%d, proposed=%d, kept=%d)",
             source_id, len(drafts), len(usable),

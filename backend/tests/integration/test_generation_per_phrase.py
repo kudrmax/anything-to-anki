@@ -117,6 +117,7 @@ def _meaning_use_case(session: Session, ai_service: MagicMock) -> MeaningGenerat
         meaning_repo=SqlaCandidateMeaningRepository(session),
         ai_service=ai_service,
         prompts_config=CONFIG,
+        unit_of_work=MagicMock(),
     )
 
 
@@ -447,6 +448,7 @@ def _run_queued_polish(factory: sessionmaker[Session], ai_service: MagicMock) ->
             prompts_config=POLISH_CONFIG,
             rewrite_phrase=RewritePhrase(_reader(), occurrences, _stamper(session)),
             stamper=_stamper(session),
+            unit_of_work=MagicMock(),
         ).execute_batch([PhraseRef(PRIMARY, polish.phrase_revision)])
         session.commit()
 
@@ -561,4 +563,5 @@ def _tts_use_case(
         tts_generator=generator,
         settings_repo=settings,
         media_files=LocalMediaFiles(str(tmp_path / "media")),
+        unit_of_work=MagicMock(),
     )
