@@ -144,4 +144,31 @@ describe('useReview layout', () => {
     expect(api.decidePhrase).not.toHaveBeenCalled()
     expect(latest.currentId).toBe(1)
   })
+
+  it('plays the audio of every card it shows: on opening, after a decision and on moving', async () => {
+    const played: string[] = []
+    vi.stubGlobal('Audio', class {
+      constructor(url: string) { played.push(url) }
+      addEventListener() {}
+      pause() {}
+      play() { return Promise.resolve() }
+    })
+    const withAudio = (c: StoredCandidate) => ({ ...c, source: { id: 7 }, audio_path: `m/${c.phrase_id}.m4a` }) as StoredCandidate
+    backend = LOADED.map(withAudio)
+    vi.mocked(api.decidePhrase).mockImplementation(async id => {
+      backend = AFTER_PRESS.map(withAudio)
+      return backend.find(c => c.phrase_id === id)!
+    })
+    autoPlayAudioPref.write(true)
+    try {
+      await act(async () => root.render(<Probe onRender={review => { latest = review }} />))
+      await flush()
+      await act(async () => { await latest.press(1, buttons()[0]) })
+      await act(async () => latest.setCurrentId(3))
+
+      expect(played).toEqual(['/media/7/1.m4a', '/media/7/2.m4a', '/media/7/3.m4a'])
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })

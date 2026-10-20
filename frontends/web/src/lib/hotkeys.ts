@@ -1,8 +1,25 @@
-export type ReviewAction = 'prev' | 'next' | 'learn' | 'cloze' | 'known' | 'skip' | 'audio'
+export type ReviewAction =
+  | 'prev' | 'next'
+  | 'learn' | 'cloze' | 'known' | 'skip'
+  | 'audio'
+  | 'image' | 'edit' | 'regenerate' | 'report'
 
+export type ToolAction = Extract<ReviewAction, 'image' | 'edit' | 'regenerate' | 'report'>
+
+/** Клавиши — по физическому положению (KeyboardEvent.code), чтобы работали в любой раскладке. */
 const KEYS: Record<string, ReviewAction> = {
-  ArrowUp: 'prev', ArrowDown: 'next', '1': 'learn', '2': 'cloze', '3': 'known', '4': 'skip', ' ': 'audio',
+  ArrowUp: 'prev', ArrowLeft: 'prev', ArrowDown: 'next', ArrowRight: 'next',
+  KeyL: 'learn', Space: 'learn', KeyC: 'cloze', KeyK: 'known', KeyS: 'skip',
+  KeyA: 'audio',
+  KeyI: 'image', KeyE: 'edit', KeyR: 'regenerate', KeyF: 'report',
 }
+/** Как клавиша действия подписана на кнопке. */
+export const KEY_LABEL: Record<Exclude<ReviewAction, 'prev' | 'next'>, string> = {
+  learn: 'L', cloze: 'C', known: 'K', skip: 'S',
+  audio: 'A',
+  image: 'I', edit: 'E', regenerate: 'R', report: 'F',
+}
+const TOOLS: ReviewAction[] = ['image', 'edit', 'regenerate', 'report']
 export const OVERLAY = '[role="dialog"], [role="menu"]'
 const BLOCKING = `input, textarea, select, [contenteditable="true"], ${OVERLAY}`
 const ACTIVATED_BY_SPACE = 'button, a'
@@ -12,7 +29,7 @@ const ALLOWED_IN_CLOZE_MARKUP: ReviewAction[] = ['learn', 'known', 'skip', 'audi
 const REPEATABLE: ReviewAction[] = ['prev', 'next']
 
 interface KeyLike {
-  key: string
+  code: string
   metaKey: boolean
   ctrlKey: boolean
   altKey: boolean
@@ -27,13 +44,22 @@ export function reviewAction(e: KeyLike): ReviewAction | null {
   if (e.target instanceof Element) {
     if (e.target.closest(BLOCKING)) return null
     // Пробел на кнопке в фокусе — это нажатие самой кнопки.
-    if (e.key === ' ' && e.target.closest(ACTIVATED_BY_SPACE)) return null
+    if (e.code === 'Space' && e.target.closest(ACTIVATED_BY_SPACE)) return null
   }
-  const action = KEYS[e.key] ?? null
+  const action = KEYS[e.code] ?? null
   if (action && e.repeat && !REPEATABLE.includes(action)) return null
   return action
 }
 
+export function isToolAction(action: ReviewAction): action is ToolAction {
+  return TOOLS.includes(action)
+}
+
 export function allowedInClozeMarkup(action: ReviewAction): boolean {
   return ALLOWED_IN_CLOZE_MARKUP.includes(action)
+}
+
+/** Подсказка с клавишей для title кнопки. */
+export function withKey(label: string, action: keyof typeof KEY_LABEL): string {
+  return `${label} · ${KEY_LABEL[action]}`
 }

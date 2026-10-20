@@ -131,6 +131,15 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
 
   const { play, stop } = player
 
+  // Показанная карточка сама играет своё аудио: при открытии, после решения, при листании.
+  useEffect(() => {
+    if (currentId === null || !autoPlayAudioPref.read()) return
+    const shown = candidatesRef.current.find(c => c.phrase_id === currentId)
+    const url = shown ? audioUrlForCandidate(shown) : null
+    if (url) play(url)
+    else stop()
+  }, [currentId, play, stop])
+
   /**
    * После решения по фразе: свежие данные карточек, а нажатая остаётся на месте до перезагрузки списка.
    * Фокус уходит к следующей открытой, когда нажатая стала разобранной. Данные и фокус — одним рендером.
@@ -152,10 +161,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     const focusId = focusAfterPress(fresh, candidateId, marked?.is_done ?? false, sortOrder === 'chronological' ? null : markedSection)
     if (focusId === null) return
     setCurrentId(focusId)
-    const focus = fresh.find(c => c.phrase_id === focusId)
-    const nextUrl = focus && autoPlayAudioPref.read() ? audioUrlForCandidate(focus) : null
-    if (nextUrl) play(nextUrl)
-  }, [sortOrder, play, fetchReview])
+  }, [sortOrder, fetchReview])
 
   /** Нажатие кнопки, которую backend сказал слать; ответ — карточка после него. */
   const mark = useCallback(async (candidateId: number, button: DecisionButton) => {

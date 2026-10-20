@@ -267,7 +267,7 @@ export function ReviewPrefs({ store, form }: SectionProps) {
   const toggle = (next: boolean) => { setAutoPlay(next); autoPlayAudioPref.write(next) }
   return (
     <>
-      <DividerRow label="Auto-play audio" hint="After marking a word, automatically play the next word's audio (if available).">
+      <DividerRow label="Auto-play audio" hint="Play the card's audio when it opens (if available).">
         <Switch checked={autoPlay} onChange={toggle} label="Auto-play audio" />
       </DividerRow>
       <DividerRow last label="Default cloze hint" hint="Preselected when you mark a phrase as Cloze. You can change it on any card.">

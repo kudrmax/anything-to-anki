@@ -22,8 +22,8 @@ interface PhraseCardProps {
 
 const GENERATED_PHRASE = 'generated phrase'
 /** Цифры решений видны на кнопках, здесь — только неочевидные клавиши. */
-const KEYS_HINT = '↑↓ · Space · ⌘V'
-const KEYS_HINT_TITLE = '↑↓ — phrases · Space — audio · ⌘V — paste a picture'
+const KEYS_HINT = '←→ · A · ⌘V'
+const KEYS_HINT_TITLE = '←→ ↑↓ — phrases · Space — learn · A — audio · ⌘V — paste a picture'
 
 /** Подпись нажатой кнопки рядом с фразой; какая нажата, решает backend. */
 const DECIDED_LABEL: Record<DecisionButton, string> = { learn: 'Learn', cloze: 'Cloze', known: 'Known', skip: 'Skipped' }

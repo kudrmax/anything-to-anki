@@ -2,28 +2,14 @@ import { describe, expect, it } from 'vitest'
 import type { StoredCandidate } from '@/api/types'
 import { candidateAudioUrl } from './candidateAudio'
 
-const candidate = (paths: { media?: string; us?: string; tts?: string }) => ({
-  source: { id: 3 },
-  media: paths.media ? { audio_path: paths.media } : null,
-  pronunciation: paths.us ? { us_audio_path: paths.us } : null,
-  tts: paths.tts ? { audio_path: paths.tts } : null,
-}) as unknown as StoredCandidate
+const candidate = (sourceId: number, audioPath: string | null) =>
+  ({ source: { id: sourceId }, audio_path: audioPath }) as unknown as StoredCandidate
 
 describe('candidateAudioUrl', () => {
-  it('prefers the audio from the source video', () => {
-    expect(candidateAudioUrl(candidate({ media: '/m/1_audio.mp3', us: '/m/us.mp3', tts: '/m/tts.mp3' }))).toBe('/media/3/1_audio.mp3')
-  })
-  it('falls back to the US pronunciation', () => {
-    expect(candidateAudioUrl(candidate({ us: '/m/us.mp3', tts: '/m/tts.mp3' }))).toBe('/media/3/us.mp3')
-  })
-  it('falls back to TTS when nothing else exists', () => {
-    expect(candidateAudioUrl(candidate({ tts: '/m/tts.mp3' }))).toBe('/media/3/tts.mp3')
-  })
-  it('takes media from the card source', () => {
-    const card = { source: { id: 9 }, media: { audio_path: 'x/a.mp3' } } as StoredCandidate
-    expect(candidateAudioUrl(card)).toBe('/media/9/a.mp3')
+  it('plays the audio the backend chose, from the card source', () => {
+    expect(candidateAudioUrl(candidate(9, 'x/a.mp3'))).toBe('/media/9/a.mp3')
   })
   it('returns null without any audio', () => {
-    expect(candidateAudioUrl(candidate({}))).toBeNull()
+    expect(candidateAudioUrl(candidate(3, null))).toBeNull()
   })
 })

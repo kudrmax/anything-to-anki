@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { backIn, backTo } from '@/lib/backLink'
 import { exportPath, parseSetScope } from '@/lib/scope'
-import { allowedInClozeMarkup, reviewAction, type ReviewAction } from '@/lib/hotkeys'
+import { allowedInClozeMarkup, isToolAction, reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { pastedPicture } from '@/lib/pastedPicture'
 import { phraseListShownPref, sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
@@ -114,7 +114,8 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && editing && !selection) { cancelEditing(); return }
       const action = reviewAction(e)
-      if (!action) return
+      // Инструменты карточки слушает сама карточка.
+      if (!action || isToolAction(action)) return
       // В разметке cloze карточка остаётся на месте; оценка сначала закрывает разметку.
       if (clozeEditing && !allowedInClozeMarkup(action)) return
       e.preventDefault()
