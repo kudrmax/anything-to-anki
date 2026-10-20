@@ -16,24 +16,26 @@ if TYPE_CHECKING:
 # SQLite takes the write lock at the start of the transaction, not at its first write:
 # reads inside it see the state the writes are applied to.
 BEGIN_IMMEDIATE = "BEGIN IMMEDIATE"
+# Kept on the session, not the unit of work: every unit of work on a session sees it.
+WRITE_OPEN_KEY = "unit_of_work.write_open"
 
 
 class SqlaUnitOfWork(UnitOfWork):
     """SQLAlchemy implementation of UnitOfWork on one SQLite session; `knowledge` is the
-    session's scope, read again inside each write transaction."""
+    session's scope, read again inside each write transaction. A write open through any
+    unit of work on the session makes another one there a nested write."""
 
     def __init__(self, session: Session, knowledge: KnowledgeScope) -> None:
         self._session = session
         self._knowledge = knowledge
-        self._write_open = False
 
     @contextmanager
     def write(self) -> Iterator[None]:
-        if self._write_open:
+        if self._session.info.get(WRITE_OPEN_KEY, False):
             raise NestedWriteError
         self._session.commit()
         self._session.connection().exec_driver_sql(BEGIN_IMMEDIATE)
-        self._write_open = True
+        self._session.info[WRITE_OPEN_KEY] = True
         try:
             self._knowledge.invalidate()
             yield
@@ -42,4 +44,4 @@ class SqlaUnitOfWork(UnitOfWork):
             self._session.rollback()
             raise
         finally:
-            self._write_open = False
+            self._session.info[WRITE_OPEN_KEY] = False

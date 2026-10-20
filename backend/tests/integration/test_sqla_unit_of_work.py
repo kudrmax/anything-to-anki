@@ -99,3 +99,30 @@ def test_write_after_nested_error_still_works(
         _add_source(unit_of_work)
 
     assert _source_count(engine) == 1
+
+
+def test_nested_write_through_another_unit_of_work_on_the_session_raises(
+    unit_of_work: SqlaUnitOfWork, engine: Engine
+) -> None:
+    other = SqlaUnitOfWork(unit_of_work._session, MagicMock())
+    with pytest.raises(RuntimeError), unit_of_work.write():
+        _add_source(unit_of_work)
+        with pytest.raises(NestedWriteError), other.write():
+            pass
+        assert _count_in_open_transaction(unit_of_work) == 1
+        assert _source_count(engine) == 0
+        raise RuntimeError
+
+    assert _source_count(engine) == 0
+
+
+def test_another_unit_of_work_writes_after_the_first_closes(
+    unit_of_work: SqlaUnitOfWork, engine: Engine
+) -> None:
+    other = SqlaUnitOfWork(unit_of_work._session, MagicMock())
+    with unit_of_work.write():
+        pass
+    with other.write():
+        _add_source(other)
+
+    assert _source_count(engine) == 1

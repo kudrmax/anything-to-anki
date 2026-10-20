@@ -120,7 +120,10 @@ def test_the_same_values_rebuild_nothing(
         UpdateSettingsRequest(cefr_level="C1", frequent_word_threshold="5.0"),
     )
     use_case.update_cefr_level("C1")
-    assert "rebuild_all" not in events
+    assert events == [
+        "write", "set cefr_level", f"set {FREQUENT_WORD_THRESHOLD_SETTING}", "committed",
+        "write", "set cefr_level", "committed",
+    ]
 
 
 @pytest.mark.unit
@@ -130,7 +133,9 @@ def test_the_default_value_written_explicitly_rebuilds_nothing(
     use_case.update_settings(
         UpdateSettingsRequest(cefr_level="B1", frequent_word_threshold="auto"),
     )
-    assert "rebuild_all" not in events
+    assert events == [
+        "write", "set cefr_level", f"set {FREQUENT_WORD_THRESHOLD_SETTING}", "committed",
+    ]
 
 
 @pytest.mark.unit
@@ -140,7 +145,9 @@ def test_an_unrelated_setting_rebuilds_nothing(
     use_case.update_settings(
         UpdateSettingsRequest(anki_deck_name="Other", tts_speed=1.2, enable_definitions=False),
     )
-    assert "rebuild_all" not in events
+    assert events == [
+        "write", "set anki_deck_name", "set enable_definitions", "set tts_speed", "committed",
+    ]
 
 
 @pytest.mark.unit
