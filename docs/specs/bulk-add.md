@@ -19,7 +19,12 @@
 - **Заготовка** (`SourceDraft`) — будущий источник: всё, из чего `SourceWriter` его создаст, кроме названия и коллекции. Из одного ввода получается одна заготовка, из epub с ответом «по главам» — по одной на главу.
 - **Своё название** заготовки — ровно то, что источник получил бы при одиночном добавлении (`content.title` от читателя, как сейчас: метаданные или заголовок, иначе имя файла); у главы epub — заголовок главы, иначе `Chapter N`. Читатели не меняются.
 - **Подпись** заготовки — откуда она взялась, для левой колонки окна: имя файла с расширением; у главы epub — `chapter N`.
-- **Правило названий** (`NamingRule`) — строка с переменными `{n}` (номер по порядку, с 1) и `{title}` (своё название). Пример: `Atomic Habits ch{n}`.
+- **Правило названий** (`NamingRule`) — свободный текст с переменными, каждая необязательна:
+  - `{collection}` — имя выбранной коллекции; без коллекции пусто;
+  - `{n}` — номер по порядку, с 1;
+  - `{title}` — своё название.
+
+  Примеры: `{collection} ch{n}`, `Atomic Habits ch{n}`, `{title}`. Лишние пробелы схлопываются, как сейчас в `ChapterTitleTemplate.render`.
 - **Окно названий** — шаг добавления, когда заготовок две и больше.
 
 ## Окно названий
@@ -30,8 +35,8 @@
 Add 10 files                              (у epub: Add «Deep Work»)
 
 Collection   [ Atomic Habits          ▾ ]
-Name them    [ Atomic Habits ch{n}        ]
-             {n} — number in order, {title} — the file's own title
+Name them    [ {collection} ch{n}         ]
+             {collection} — collection name, {n} — number in order, {title} — the file's own title
 
 File                                  →  Source
 Atomic_Habits_FINAL(2)_01_scan.txt    →  Atomic Habits ch1
@@ -64,7 +69,7 @@ chapter three (copy).md               →  Atomic Habits ch3
 ## Модель
 
 **Домен:**
-- `NamingRule` (value object) вместо `ChapterTitleTemplate`: `pattern`, `render(number: int, own_title: str) -> str`. Проверка как сейчас: правило без `{n}` и `{title}` дало бы всем одно название — `ValueError`.
+- `NamingRule` (value object) вместо `ChapterTitleTemplate`: `pattern`, `render(collection: str | None, number: int, own_title: str) -> str`. Проверка как сейчас: правило без `{n}` и `{title}` дало бы всем одно название — `ValueError`.
 - `CollectionChoice` (value object): ровно одно из `existing_id: int`, `new_name: str`; пустой выбор — «No collection».
 
 **Application:**
@@ -80,14 +85,14 @@ chapter three (copy).md               →  Atomic Habits ch3
   3. Одна заготовка → создаётся как сейчас: название из `title`, иначе своё; без коллекции.
   4. Две и больше без `naming` → `NamingRequired`. Поле Title у одиночного epub работает как сейчас — заменяет имя книги до обработчика (`_titled`), поэтому попадает в заголовок окна и в коллекцию по умолчанию.
   5. Две и больше с `naming` → `SourceGroupWriter`.
-- `RenderNamesUseCase.execute(rule, own_titles) -> list[str]` — пересчёт правых названий при вводе правила. Файлы не перечитываются: окно присылает свои названия из `NamingRequired`.
+- `RenderNamesUseCase.execute(rule, collection_name, own_titles) -> list[str]` — пересчёт правых названий при вводе правила и смене коллекции. Файлы не перечитываются: окно присылает свои названия из `NamingRequired`.
 
 **DTO:**
 - `AddSourceRequest`: `text`, `subtitles_path`, `title` — как сейчас; `answers: list[dict[str, str]]` — по одному словарю на ввод (у двух epub в пачке одинаковый id вопроса `book.split`); `naming: NamingDTO | None`.
 - `NamingDTO`: `collection: CollectionChoiceDTO | None`, `rule: str`, `titles: dict[int, str]` — переписанные руками строки по номеру строки.
 - `QuestionDTO`: + `input_index: int`, `input_label: str | None` (подпись нужна, только когда вводов несколько).
 - `NamingRequired`: `heading` (`Add 10 files` / `Add «Deep Work»`), `items: list[{label, own_title, words}]` в порядке окна, `default_collection: CollectionChoiceDTO | None`, `default_rule: str`.
-- `RenderNamesRequest`: `rule`, `own_titles: list[str]` → `list[str]`. Ошибка правила — 422 с текстом для поля.
+- `RenderNamesRequest`: `rule`, `collection_name: str | None`, `own_titles: list[str]` → `list[str]`. Ошибка правила — 422 с текстом для поля.
 
 **API:**
 - `POST /sources/add` — тот же эндпоинт, ответ: `QuestionsRequired | NamingRequired | SourcesCreated`.
@@ -104,11 +109,7 @@ chapter three (copy).md               →  Atomic Habits ch3
 
 ## Настройка правила по умолчанию
 
-Настройка `book_chapter_title_template` (Settings) становится `naming_rule` — правилом по умолчанию в окне названий для любой группы, не только epub. Переменные `{{n}}` → `{n}`, `{{chapter_title}}` → `{title}`. Сохранённое значение переносит Alembic-миграция данных.
-
-`{{book_name}}` в новом правиле нет: название коллекции в правило не подставляется, оно пишется в правило текстом. **Открытый вопрос для Макса:** что делать с сохранённым правилом, где есть `{{book_name}}` (в том числе текущим умолчанием `{{book_name}} ch{{n}}`):
-1. сбросить в новое умолчание `{title}`;
-2. при открытии окна для epub подставлять имя книги текстом в правило по умолчанию (`Deep Work ch{n}`), то есть `{book}` остаётся переменной только для умолчания.
+Настройка `book_chapter_title_template` (Settings) становится `naming_rule` — правилом по умолчанию в окне названий для любой группы, не только epub. Переменные переименовываются один в один: `{{book_name}}` → `{collection}`, `{{n}}` → `{n}`, `{{chapter_title}}` → `{title}`. Умолчание `{{book_name}} ch{{n}}` становится `{collection} ch{n}`, главы epub называются как сейчас. Сохранённое значение переносит Alembic-миграция данных.
 
 ## Вне задачи
 
