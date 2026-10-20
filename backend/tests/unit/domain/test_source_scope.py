@@ -20,7 +20,10 @@ class TestSourceScope:
         assert SourceScope.parse("source-7") == SourceScope.source(7)
         assert SourceScope.parse("7") == SourceScope.collection(7)
 
-    @pytest.mark.parametrize("raw", ["source-", "source-x", "source--1", "source-1.5"])
+    @pytest.mark.parametrize(
+        "raw",
+        ["source-", "source-x", "source--1", "source-1.5", "source-7\n", "source-\u0663"],
+    )
     def test_parse_rejects_bad_source(self, raw: str) -> None:
         with pytest.raises(ValueError):
             SourceScope.parse(raw)

@@ -8,6 +8,8 @@ from backend.domain.exceptions import PhraseNotFoundError, SourceNotFoundError
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from backend.application.dto.source_dtos import CardDTO
     from backend.application.utils.candidate_sorter import ArrangedCards, CandidateSorter
     from backend.application.utils.review_cards import ReviewCards
@@ -18,6 +20,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.value_objects.decision_progress import DecisionProgress
+    from backend.domain.value_objects.held_operation import HeldOperation
     from backend.domain.value_objects.review_card import ReviewCard
     from backend.domain.value_objects.source_scope import SourceScope
 
@@ -80,16 +83,14 @@ class CardViews:
         jobs = self._jobs([card])
         reported = self._report_repo.reported_phrase_ids([phrase_id])
         return card_to_dto(
-            card, self._source_dtos([source])[source_id], jobs, reported=phrase_id in reported,
+            card, _source_dto(source, self._lock.operations()), jobs,
+            reported=phrase_id in reported,
             section=self._candidate_sorter.section(card),
         )
 
     def _source_dtos(self, sources: list[Source]) -> dict[int, CardSourceDTO]:
         operations = self._lock.operations()
-        return {
-            s.id: CardSourceDTO.of(s, op.kind if (op := operations.get(s.id)) else None)
-            for s in sources if s.id is not None
-        }
+        return {s.id: _source_dto(s, operations) for s in sources if s.id is not None}
 
     def _dtos(
         self, arranged: ArrangedCards, sources: dict[int, CardSourceDTO],
@@ -111,3 +112,9 @@ class CardViews:
                 list(dict.fromkeys(c.word_id for c in cards)),
             ),
         )
+
+
+def _source_dto(source: Source, operations: Mapping[int, HeldOperation]) -> CardSourceDTO:
+    assert source.id is not None
+    operation = operations.get(source.id)
+    return CardSourceDTO.of(source, operation.kind if operation is not None else None)

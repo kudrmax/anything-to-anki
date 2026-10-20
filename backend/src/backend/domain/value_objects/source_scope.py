@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 SOURCE_PREFIX = "source-"
-_SOURCE_TOKEN = re.compile(rf"^{SOURCE_PREFIX}(\d+)$")
+_SOURCE_TOKEN = re.compile(rf"{SOURCE_PREFIX}([0-9]+)")
 
 
 class ScopeKind(StrEnum):
@@ -51,7 +51,7 @@ class SourceScope:
             return cls.all()
         if raw == ScopeKind.UNSORTED:
             return cls.unsorted()
-        source_token = _SOURCE_TOKEN.match(raw)
+        source_token = _SOURCE_TOKEN.fullmatch(raw)
         if source_token is not None:
             return cls.source(int(source_token.group(1)))
         if raw.isdigit():
