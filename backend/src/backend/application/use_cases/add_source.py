@@ -11,6 +11,7 @@ from backend.application.dto.add_source_dtos import (
     NamingItemDTO,
     NamingRequired,
     NamingVariableDTO,
+    NumberFormatDTO,
     QuestionDTO,
     QuestionsRequired,
 )
@@ -63,6 +64,12 @@ NAMING_VARIABLES: tuple[NamingVariableDTO, ...] = (
     NamingVariableDTO(token=COLLECTION_PLACEHOLDER, label="Collection"),
     NamingVariableDTO(token=NUMBER_PLACEHOLDER, label="Number"),
     NamingVariableDTO(token=TITLE_PLACEHOLDER, label="Title from file"),
+)
+NUMBER_FORMATS: tuple[NumberFormatDTO, ...] = (
+    NumberFormatDTO(digits=None, label="Auto"),
+    NumberFormatDTO(digits=1, label="1"),
+    NumberFormatDTO(digits=2, label="01"),
+    NumberFormatDTO(digits=3, label="001"),
 )
 # What can go wrong reading one input; in a batch it is reported with the input's name.
 _INPUT_ERRORS: tuple[type[Exception], ...] = (
@@ -140,9 +147,10 @@ class AddSourceUseCase:
         if naming is None:
             return self._naming_required(drafts, reads, batch)
         collection_name = self._group_writer.name_of(naming.collection)
+        width = naming.number_format.width(len(drafts))
         titles = [
             naming.titles.get(index, "").strip()
-            or naming.rule.render(collection_name, index + 1, draft.own_title or "")
+            or naming.rule.render(collection_name, index + 1, draft.own_title or "", width)
             for index, draft in enumerate(drafts)
         ]
         return self._group_writer.write_group(drafts, naming.collection, titles)
@@ -223,6 +231,7 @@ class AddSourceUseCase:
             ),
             default_rule=self._settings_repo.get(NAMING_RULE_SETTING) or DEFAULT_NAMING_RULE,
             variables=list(NAMING_VARIABLES),
+            number_formats=list(NUMBER_FORMATS),
         )
 
     def _checked_input(self, source_input: SourceInput) -> SourceInput:

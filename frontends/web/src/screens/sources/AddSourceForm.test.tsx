@@ -28,6 +28,7 @@ const NAMING: NamingRequired = {
   default_collection: null,
   default_rule: 'Part {{n}}',
   variables: [{ token: '{{n}}', label: 'Number' }],
+  number_formats: [{ digits: null, label: 'Auto' }],
 }
 const BAD_LINK: InputDescription = {
   ...NOTHING, problem: 'unsupported_link', problem_message: "This link can't be read", problem_hint: 'Supported: YouTube.',
@@ -281,7 +282,7 @@ describe('AddSourceForm', () => {
     await described()
     await act(async () => [...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(b => b.textContent === 'Add')!.click())
 
-    expect(addSource).toHaveBeenLastCalledWith(BATCH_TEXT, '', '', [], { collection: null, rule: 'Part {{n}}', titles: {} })
+    expect(addSource).toHaveBeenLastCalledWith(BATCH_TEXT, '', '', [], { collection: null, rule: 'Part {{n}}', titles: {}, number_digits: null })
   })
 
   it('names the file without subtitles when several are added', async () => {

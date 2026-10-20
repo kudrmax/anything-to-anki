@@ -34,6 +34,7 @@ from backend.domain.value_objects.document import (
 )
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.naming_rule import NamingRule
+from backend.domain.value_objects.number_format import NumberFormat
 from backend.domain.value_objects.question import Answers
 from backend.domain.value_objects.source_input import LocalFile, PastedText, SourceInput, Url
 from backend.infrastructure.adapters.local_file_reader import LocalFileReader
@@ -488,6 +489,29 @@ class TestBatch:
         assert [s.title for s in sources if s] == ["Atomic Habits ch1", "Intro"]
         assert created.collection_id is not None
         assert {s.collection_id for s in sources if s} == {created.collection_id}
+
+    def test_numbers_can_be_padded_to_fixed_digits(
+        self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
+    ) -> None:
+        naming = Naming(CollectionChoice(), NamingRule("ch{{n}}"), {}, NumberFormat(digits=2))
+
+        created = _created(add_source.execute(
+            _files(tmp_path, "a.txt", "b.txt"), answers=[TEXT, TEXT], naming=naming,
+        ))
+
+        sources = [SqlaSourceRepository(db_session).get_by_id(i) for i in created.source_ids]
+        assert [s.title for s in sources if s] == ["ch01", "ch02"]
+
+    def test_naming_offers_number_formats_auto_first(
+        self, add_source: AddSourceUseCase, tmp_path: Path,
+    ) -> None:
+        inputs = _files(tmp_path, "a.txt", "b.txt")
+
+        naming = _naming(add_source.execute(inputs, answers=[TEXT, TEXT]))
+
+        assert [(f.digits, f.label) for f in naming.number_formats] == [
+            (None, "Auto"), (1, "1"), (2, "01"), (3, "001"),
+        ]
 
     def test_no_collection_leaves_it_out_of_titles(
         self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,

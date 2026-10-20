@@ -25,6 +25,11 @@ const REQUIRED: NamingRequired = {
     { token: '{{n}}', label: 'Number' },
     { token: '{{title}}', label: 'Title from file' },
   ],
+  number_formats: [
+    { digits: null, label: 'Auto' },
+    { digits: 1, label: '1' },
+    { digits: 2, label: '01' },
+  ],
 }
 
 describe('NamingModal', () => {
@@ -36,8 +41,8 @@ describe('NamingModal', () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     vi.useFakeTimers()
     onConfirm.mockReset()
-    renderNames = vi.spyOn(api, 'renderNames').mockImplementation((_rule, collection, titles) =>
-      Promise.resolve(titles.map((_, i) => `${collection ?? ''} ch${i + 1}`.trim())))
+    renderNames = vi.spyOn(api, 'renderNames').mockImplementation((_rule, collection, titles, digits) =>
+      Promise.resolve(titles.map((_, i) => `${collection ?? ''} ch${String(i + 1).padStart(digits ?? 1, '0')}`.trim())))
     root = createRoot(document.createElement('div'))
   })
 
@@ -78,7 +83,7 @@ describe('NamingModal', () => {
     expect(body().textContent).toContain('Add 2 files')
     expect(body().textContent).toContain('ah-01 v2.txt')
     expect(rows()).toEqual(['ch1', 'ch2'])
-    expect(renderNames).toHaveBeenCalledWith('{{collection}} ch{{n}}', null, ['ah-01 v2', 'chapter two'], expect.anything())
+    expect(renderNames).toHaveBeenCalledWith('{{collection}} ch{{n}}', null, ['ah-01 v2', 'chapter two'], null, expect.anything())
   })
 
   it('offers existing collections, a new one by the typed name and none', async () => {
@@ -110,6 +115,7 @@ describe('NamingModal', () => {
       collection: { existing_id: null, new_name: 'Dune' },
       rule: '{{collection}} ch{{n}}',
       titles: { 1: 'Intro' },
+      number_digits: null,
     })
   })
 
@@ -218,5 +224,15 @@ describe('NamingModal', () => {
     await act(async () => { collectionField().focus(); setValue(collectionField(), 'Season 1') })
 
     expect(options()).toEqual(['No collection', 'Friends / Season 1'])
+  })
+
+  it('pads numbers to the picked digits', async () => {
+    await render()
+    await act(async () => button('01').click())
+    await settled()
+
+    expect(rows()).toEqual(['ch01', 'ch02'])
+    await act(async () => button('Add').click())
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ number_digits: 2 }))
   })
 })

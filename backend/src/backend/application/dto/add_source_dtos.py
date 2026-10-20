@@ -101,6 +101,13 @@ class NamingVariableDTO(BaseModel):
     label: str
 
 
+class NumberFormatDTO(BaseModel):
+    """A way to write `{{n}}`: zeros up to `digits`; no digits — as many as the count needs."""
+
+    digits: int | None
+    label: str
+
+
 class NamingRequired(BaseModel):
     """The input becomes several sources; the user picks their collection and titles."""
 
@@ -109,6 +116,7 @@ class NamingRequired(BaseModel):
     default_collection: CollectionChoiceDTO | None
     default_rule: str
     variables: list[NamingVariableDTO]
+    number_formats: list[NumberFormatDTO]
 
 
 class SourcesCreated(BaseModel):
@@ -141,6 +149,7 @@ class NamingDTO(BaseModel):
     collection: CollectionChoiceDTO | None = None
     rule: str
     titles: dict[int, str] = {}
+    number_digits: int | None = None
 
 
 class AddSourceRequest(BaseModel):
@@ -158,6 +167,7 @@ class RenderNamesRequest(BaseModel):
     rule: str
     collection_name: str | None = None
     own_titles: list[str]
+    number_digits: int | None = None
 
 
 class DescribeInputRequest(BaseModel):

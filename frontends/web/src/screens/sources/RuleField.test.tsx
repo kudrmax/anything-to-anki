@@ -30,14 +30,20 @@ describe('RuleField', () => {
 
   const render = (value: string) => act(() => root.render(<RuleField value={value} variables={VARIABLES} onChange={onChange} />))
   const chips = () => [...host.querySelectorAll('[data-token]')].map(chip => chip.getAttribute('data-token'))
-  const texts = () => [...host.querySelectorAll('input')].map(input => input.value)
+  const texts = () => [...host.querySelectorAll('[data-text]')].map(part => part.textContent)
+  const input = () => host.querySelector('input')!
+  const typeInto = (value: string) => act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input(), value)
+    input().dispatchEvent(new Event('input', { bubbles: true }))
+  })
   const button = (label: string) => [...host.querySelectorAll('button')].find(b => b.textContent === label)!
 
-  it('shows variables as chips and the rest as text', () => {
-    render('{{collection}} ch{{n}}')
+  it('shows variables as chips and own text as a chip with every space visible', () => {
+    render('{{collection}}  ch{{n}}')
 
     expect(chips()).toEqual(['{{collection}}', '{{n}}'])
-    expect(texts()).toEqual(['', ' ch', ''])
+    expect(texts()).toEqual(['··ch'])
+    expect(host.querySelector('input')).toBeNull()
   })
 
   it('appends a variable from its button', () => {
@@ -56,16 +62,33 @@ describe('RuleField', () => {
     expect(onChange).toHaveBeenCalledWith(' ch{{n}}')
   })
 
-  it('edits the text between chips', () => {
+  it('edits own text in place', () => {
     render('{{collection}} ch{{n}}')
-    const input = host.querySelectorAll('input')[1]
 
-    act(() => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, ' part ')
-      input.dispatchEvent(new Event('input', { bubbles: true }))
-    })
+    act(() => host.querySelector<HTMLElement>('[data-text]')!.click())
+    expect(input().value).toBe(' ch')
+    expect(document.activeElement).toBe(input())
+    typeInto(' part ')
 
     expect(onChange).toHaveBeenCalledWith('{{collection}} part {{n}}')
+  })
+
+  it('types between chips where there is no text yet', () => {
+    render('{{collection}}{{n}}')
+
+    act(() => host.querySelectorAll<HTMLElement>('[data-slot]')[1].click())
+    typeInto(' ch')
+
+    expect(onChange).toHaveBeenCalledWith('{{collection}} ch{{n}}')
+  })
+
+  it('puts the cursor at the end on a click in the field', () => {
+    render('{{collection}} ch{{n}}')
+
+    act(() => host.querySelector<HTMLElement>('[data-rule-field]')!.click())
+    typeInto('!')
+
+    expect(onChange).toHaveBeenCalledWith('{{collection}} ch{{n}}!')
   })
 
   it('appends to an empty rule without a space', () => {

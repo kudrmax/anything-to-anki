@@ -20,3 +20,6 @@ class TestNamingRule:
     def test_rule_without_number_or_title_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="must contain"):
             NamingRule("{{collection}} chapter")
+
+    def test_number_is_padded_to_the_digits(self) -> None:
+        assert NamingRule("ch{{n}}").render(None, 5, "x", digits=2) == "ch05"

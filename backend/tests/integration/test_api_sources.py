@@ -533,3 +533,26 @@ class TestRenderNamesAPI:
 
         assert resp.status_code == 422
         assert "must contain" in resp.json()["detail"]["message"]
+
+    def test_renders_numbers_with_fixed_digits(self, client: TestClient) -> None:
+        resp = client.post(
+            "/sources/render-names",
+            json={"rule": "ch{{n}}", "own_titles": ["a", "b"], "number_digits": 2},
+        )
+
+        assert resp.json() == ["ch01", "ch02"]
+
+    def test_adds_with_fixed_digits(self, client: TestClient, tmp_path: Path) -> None:
+        for name in ("a.txt", "b.txt"):
+            (tmp_path / name).write_text(f"The story of {name} begins here.")
+        resp = client.post(
+            "/sources/add",
+            json={
+                "text": f"{tmp_path / 'a.txt'}\n{tmp_path / 'b.txt'}",
+                "answers": [TEXT_ANSWER] * 2,
+                "naming": {"rule": "ch{{n}}", "number_digits": 3},
+            },
+        )
+
+        assert resp.status_code == 201
+        assert [s["title"] for s in client.get("/sources").json()] == ["ch001", "ch002"]

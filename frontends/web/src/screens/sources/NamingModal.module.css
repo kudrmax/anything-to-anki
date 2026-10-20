@@ -11,3 +11,4 @@
 .title:hover, .title:focus { background: var(--soft); }
 .reset { display: inline-flex; color: var(--tx3); }
 .reset:hover { color: var(--tx); }
+.numbers { display: flex; align-items: center; gap: var(--s3); }
