@@ -45,7 +45,6 @@ from typing import TYPE_CHECKING
 
 import httpx
 import pytest
-from backend.domain.ports.ai_outage_recorder import AIOutageRecorder
 from backend.domain.ports.ai_usage_recorder import AIUsageRecorder
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
 from backend.domain.value_objects.generation_result import GenerationResult
@@ -71,19 +70,8 @@ class _NoUsageRecorder(AIUsageRecorder):
         pass
 
 
-class _NoOutageRecorder(AIOutageRecorder):
-    def unavailable(self, reason: str) -> None:
-        pass
-
-    def answered(self) -> None:
-        pass
-
-
 def _service(url: str, model: str) -> HttpAIService:
-    return HttpAIService(
-        url=url, model=model,
-        usage_recorder=_NoUsageRecorder(), outage_recorder=_NoOutageRecorder(),
-    )
+    return HttpAIService(url=url, model=model, usage_recorder=_NoUsageRecorder())
 
 
 def _find_python() -> str:

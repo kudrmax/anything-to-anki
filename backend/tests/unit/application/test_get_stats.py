@@ -16,14 +16,12 @@ class TestGetStatsUseCase:
         self.export_queue.pending_count.return_value = 0
         self.job_repo = MagicMock()
         self.job_repo.get_queue_summary.return_value = {}
-        self.ai_outage_repo = MagicMock()
-        self.ai_outage_repo.reason.return_value = None
+        self.job_repo.waiting_reason.return_value = None
         self.use_case = GetStatsUseCase(
             candidate_repo=self.candidate_repo,
             vocabulary=user_vocabulary(self.known_word_repo),
             export_queue=self.export_queue,
             job_repo=self.job_repo,
-            ai_outage_repo=self.ai_outage_repo,
         )
 
     def test_returns_correct_counts(self) -> None:

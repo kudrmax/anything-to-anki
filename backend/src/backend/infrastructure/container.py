@@ -136,9 +136,6 @@ from backend.infrastructure.api.background_rebuild_launcher import (
     BackgroundSourcesRebuildLauncher,
 )
 from backend.infrastructure.config.prompts_loader import PromptsLoader
-from backend.infrastructure.persistence.sqla_ai_outage_repository import (
-    SqlaAIOutageRepository,
-)
 from backend.infrastructure.persistence.sqla_anki_sync_repository import (
     SqlaAnkiSyncRepository,
 )
@@ -703,9 +700,6 @@ class Container:
         )
 
     def _ai_service(self, settings_repo: SqlaSettingsRepository) -> HttpAIService:
-        from backend.infrastructure.persistence.session_ai_outage_recorder import (
-            SessionAIOutageRecorder,
-        )
         from backend.infrastructure.persistence.session_ai_usage_recorder import (
             SessionAIUsageRecorder,
         )
@@ -714,14 +708,7 @@ class Container:
             url=os.environ["AI_PROXY_URL"],
             model=model_id_for(ai_model_key),
             usage_recorder=SessionAIUsageRecorder(self._get_session_factory()),
-            outage_recorder=SessionAIOutageRecorder(self._get_session_factory()),
         )
-
-    def check_ai_available(self) -> None:
-        """Ask the AI proxy whether the AI would answer; the outage follows the answer."""
-        with self.session_scope() as session:
-            ai_service = self._ai_service(SqlaSettingsRepository(session))
-        ai_service.check_available()
 
     def get_ai_usage_stats_use_case(self, session: Session) -> GetAIUsageStatsUseCase:
         from backend.application.use_cases.get_ai_usage_stats import GetAIUsageStatsUseCase
@@ -1072,7 +1059,6 @@ class Container:
             vocabulary=self._user_vocabulary(session),
             export_queue=self._export_queue(session),
             job_repo=SqlaJobRepository(session),
-            ai_outage_repo=SqlaAIOutageRepository(session),
         )
 
     def build_bootstrap_index_use_case(self, session: Session) -> BuildBootstrapIndexUseCase:

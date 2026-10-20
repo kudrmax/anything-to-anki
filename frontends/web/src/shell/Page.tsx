@@ -21,14 +21,14 @@ interface PageProps {
 }
 
 export function Page({ header, aside, banner, asideHidden = false, wide = false, fit = false, fill = false, immersive = false, children }: PageProps) {
-  const outage = useStats()?.ai_outage
+  const aiUnavailable = useStats()?.ai_unavailable
   const classes = [css.page, !aside && css.solo, aside && asideHidden && css.asideHidden, wide && css.wide, fit && css.fit, fill && css.fill].filter(Boolean).join(' ')
   return (
     <div className={classes} data-immersive={immersive || undefined}>
       <div className={css.full}>{header}</div>
-      {(outage || banner) && (
+      {(aiUnavailable || banner) && (
         <div className={`${css.full} ${css.banner}`}>
-          {outage && <AIOutageBanner outage={outage} />}
+          {aiUnavailable && <AIOutageBanner reason={aiUnavailable} />}
           {banner}
         </div>
       )}

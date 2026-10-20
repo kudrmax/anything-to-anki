@@ -96,37 +96,6 @@ def test_a_blocked_country_makes_the_ai_unavailable(monkeypatch: pytest.MonkeyPa
     assert response.json()["detail"] == "Blocked country: RU. Turn on VPN."
 
 
-def _logged_in(value: bool) -> object:
-    return lambda: value
-
-
-def test_status_runs_the_checks_of_every_call(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ai_proxy, "_get_country", _no_country)
-    monkeypatch.setattr(ai_proxy, "cli_logged_in", _logged_in(True))
-
-    assert TestClient(ai_proxy.app).get("/status").status_code == 200
-
-
-def test_status_reports_a_blocked_country(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ai_proxy, "_get_country", _blocked_country)
-    monkeypatch.setattr(ai_proxy, "cli_logged_in", _logged_in(True))
-
-    response = TestClient(ai_proxy.app).get("/status")
-
-    assert response.status_code == 503
-    assert response.json()["detail"] == "Blocked country: RU. Turn on VPN."
-
-
-def test_status_reports_a_missing_login(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ai_proxy, "_get_country", _no_country)
-    monkeypatch.setattr(ai_proxy, "cli_logged_in", _logged_in(False))
-
-    response = TestClient(ai_proxy.app).get("/status")
-
-    assert response.status_code == 503
-    assert response.json()["detail"] == ai_proxy.NOT_LOGGED_IN_MESSAGE
-
-
 def test_a_failed_call_is_not_an_unavailable_ai(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ai_proxy, "query", _broken_answer_query)
     monkeypatch.setattr(ai_proxy, "_get_country", _no_country)

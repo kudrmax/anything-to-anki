@@ -20,7 +20,6 @@ from backend.domain.value_objects.topic_target_draft import TopicTargetDraft
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from backend.domain.ports.ai_outage_recorder import AIOutageRecorder
     from backend.domain.ports.ai_usage_recorder import AIUsageRecorder
 
 logger = logging.getLogger(__name__)
@@ -37,7 +36,6 @@ POLISH_TIMEOUT_SECONDS = 540.0
 MS_PER_SECOND = 1000
 # What the proxy answers when the AI can serve no request (no login, blocked country).
 AI_UNAVAILABLE_STATUS = 503
-STATUS_TIMEOUT_SECONDS = 60.0
 PROXY_DOWN_REASON = "Cannot connect to AI proxy. Make sure ai_proxy.py is running on the host."
 
 
@@ -45,34 +43,12 @@ class HttpAIService(AIService):
     """AIService implementation that delegates to a remote AI proxy over HTTP.
 
     Every call the AI answered, successfully or not, is handed to the usage recorder.
-    Every call tells the outage recorder whether the AI is available, so any feature
-    that calls the AI keeps the outage everyone sees up to date.
     """
 
-    def __init__(
-        self,
-        url: str,
-        model: str,
-        usage_recorder: AIUsageRecorder,
-        outage_recorder: AIOutageRecorder,
-    ) -> None:
+    def __init__(self, url: str, model: str, usage_recorder: AIUsageRecorder) -> None:
         self._url = url.rstrip("/")
         self._model = model
         self._usage_recorder = usage_recorder
-        self._outage_recorder = outage_recorder
-
-    def check_available(self) -> None:
-        """Run the checks every AI call starts with, without calling the model.
-        Raises AIUnavailableError when the AI would answer nothing."""
-        endpoint = f"{self._url}/status"
-        try:
-            response = httpx.get(endpoint, timeout=STATUS_TIMEOUT_SECONDS)
-        except httpx.ConnectError as e:
-            raise self._unavailable(endpoint, PROXY_DOWN_REASON) from e
-        if response.status_code == AI_UNAVAILABLE_STATUS:
-            raise self._unavailable(endpoint, self._proxy_detail(response))
-        response.raise_for_status()
-        self._answered()
 
     def generate_meaning(self, system_prompt: str, user_prompt: str) -> GenerationResult:
         return self._post(
@@ -196,8 +172,6 @@ class HttpAIService(AIService):
                 },
                 timeout=timeout,
             )
-            if response.status_code != AI_UNAVAILABLE_STATUS:
-                self._answered()
             response.raise_for_status()
             data: dict[str, Any] = response.json()
             usage = self._parse_usage(data)
@@ -230,20 +204,10 @@ class HttpAIService(AIService):
             if reached:
                 self._record(feature, model, usage, item_count, started, succeeded)
 
-    def _unavailable(self, endpoint: str, reason: str) -> AIUnavailableError:
+    @staticmethod
+    def _unavailable(endpoint: str, reason: str) -> AIUnavailableError:
         logger.warning("http_ai_service: AI unavailable (endpoint=%s): %s", endpoint, reason)
-        # Losing the outage must not hide why the call failed.
-        try:
-            self._outage_recorder.unavailable(reason)
-        except Exception:
-            logger.exception("http_ai_service: failed to record the AI outage")
         return AIUnavailableError(reason)
-
-    def _answered(self) -> None:
-        try:
-            self._outage_recorder.answered()
-        except Exception:
-            logger.exception("http_ai_service: failed to clear the AI outage")
 
     @staticmethod
     def _proxy_detail(response: httpx.Response) -> str:

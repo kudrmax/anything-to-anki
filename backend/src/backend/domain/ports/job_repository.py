@@ -67,9 +67,13 @@ class JobRepository(ABC):
         """Mark RUNNING jobs FAILED. Jobs cancelled meanwhile stay gone."""
 
     @abstractmethod
-    def requeue(self, job_ids: list[int]) -> None:
-        """Return RUNNING jobs to QUEUED in their original place. Jobs cancelled meanwhile
-        stay gone."""
+    def requeue(self, job_ids: list[int], reason: str) -> None:
+        """Return RUNNING jobs to QUEUED in their original place, with why they wait.
+        Jobs cancelled meanwhile stay gone."""
+
+    @abstractmethod
+    def waiting_reason(self) -> str | None:
+        """Why the queue waits: the reason of the first queued job that went back in line."""
 
     @abstractmethod
     def requeue_running(self) -> int:

@@ -5,7 +5,6 @@ on the host over HTTP). All httpx calls are mocked — no real network.
 """
 from __future__ import annotations
 
-import contextlib
 import json
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
@@ -13,17 +12,15 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 from backend.domain.exceptions import AIServiceError, AIUnavailableError
-from backend.domain.ports.ai_outage_recorder import AIOutageRecorder
 from backend.domain.ports.ai_usage_recorder import AIUsageRecorder
 from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.token_usage import TokenUsage
-from backend.infrastructure.adapters.http_ai_service import PROXY_DOWN_REASON, HttpAIService
+from backend.infrastructure.adapters.http_ai_service import HttpAIService
 
 if TYPE_CHECKING:
     from backend.domain.entities.ai_usage_record import AIUsageRecord
 
 _MODULE = "backend.infrastructure.adapters.http_ai_service.httpx.post"
-_GET = "backend.infrastructure.adapters.http_ai_service.httpx.get"
 _BLOCKED = '{"detail":"Blocked country: RU. Turn on VPN."}'
 
 
@@ -35,23 +32,11 @@ class FakeUsageRecorder(AIUsageRecorder):
         self.records.append(record)
 
 
-class FakeOutageRecorder(AIOutageRecorder):
-    def __init__(self) -> None:
-        self.events: list[str | None] = []
-
-    def unavailable(self, reason: str) -> None:
-        self.events.append(reason)
-
-    def answered(self) -> None:
-        self.events.append(None)
-
-
 def _service(
     url: str, model: str = "m", usage_recorder: AIUsageRecorder | None = None,
 ) -> HttpAIService:
     return HttpAIService(
         url=url, model=model, usage_recorder=usage_recorder or FakeUsageRecorder(),
-        outage_recorder=FakeOutageRecorder(),
     )
 
 
@@ -107,7 +92,6 @@ class TestGenerateMeaning:
     def test_happy_path_returns_parsed_result(self) -> None:
         svc = HttpAIService(
             url="http://proxy:8766", model="claude-sonnet-4-5", usage_recorder=FakeUsageRecorder(),
-            outage_recorder=FakeOutageRecorder(),
         )
         payload = {
             "meaning": "to delay",
@@ -449,62 +433,3 @@ class TestUsageRecording:
         with patch(_MODULE, return_value=_ok_response(_MEANING_PAYLOAD)):
             result = svc.generate_meaning("s", "u")
         assert result.meaning == "m"
-
-
-# --- outage recording --------------------------------------------------------
-
-
-@pytest.mark.unit
-class TestOutageRecording:
-    """Every AI call, whatever feature makes it, keeps the outage everyone sees current."""
-
-    def _svc(self, recorder: FakeOutageRecorder) -> HttpAIService:
-        return HttpAIService(
-            url="http://x", model="m", usage_recorder=FakeUsageRecorder(),
-            outage_recorder=recorder,
-        )
-
-    def test_the_reason_the_proxy_gave_is_recorded(self) -> None:
-        recorder = FakeOutageRecorder()
-        error = _http_status_error(503, _BLOCKED)
-        with patch(_MODULE, return_value=_err_raising_response(error)), pytest.raises(
-            AIUnavailableError
-        ):
-            self._svc(recorder).generate_meaning("s", "u")
-
-        assert recorder.events == ["Blocked country: RU. Turn on VPN."]
-
-    def test_a_stopped_proxy_is_recorded(self) -> None:
-        recorder = FakeOutageRecorder()
-        with patch(_MODULE, side_effect=httpx.ConnectError("refused")), pytest.raises(
-            AIUnavailableError
-        ):
-            self._svc(recorder).polish_phrases_batch("s", "u")
-
-        assert recorder.events == [PROXY_DOWN_REASON]
-
-    @pytest.mark.parametrize("response", [
-        _ok_response(_MEANING_PAYLOAD),
-        _ok_response({}, status_code=502),
-    ])
-    def test_any_answer_ends_the_outage(self, response: MagicMock) -> None:
-        recorder = FakeOutageRecorder()
-        with patch(_MODULE, return_value=response), contextlib.suppress(AIServiceError):
-            self._svc(recorder).generate_meaning("s", "u")
-
-        assert recorder.events == [None]
-
-    def test_check_ends_the_outage_when_the_proxy_is_ready(self) -> None:
-        recorder = FakeOutageRecorder()
-        with patch(_GET, return_value=_ok_response({"available": True})):
-            self._svc(recorder).check_available()
-
-        assert recorder.events == [None]
-
-    def test_check_records_why_the_ai_is_unavailable(self) -> None:
-        recorder = FakeOutageRecorder()
-        response = _ok_response(json.loads(_BLOCKED), status_code=503)
-        with patch(_GET, return_value=response), pytest.raises(AIUnavailableError):
-            self._svc(recorder).check_available()
-
-        assert recorder.events == ["Blocked country: RU. Turn on VPN."]

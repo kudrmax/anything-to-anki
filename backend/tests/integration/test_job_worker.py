@@ -16,7 +16,6 @@ from backend.domain.value_objects.job_type import PHRASE_JOB_TYPES, JobType
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import JobModel
-from backend.infrastructure.persistence.sqla_ai_outage_repository import SqlaAIOutageRepository
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.queue import job_worker
 from backend.infrastructure.queue.job_worker import NO_AI_RESULT_ERROR, JobWorker
@@ -49,7 +48,6 @@ class _Container:
         self.topic = MagicMock()
         self.cleanup = MagicMock()
         self.tts = MagicMock()
-        self.check_ai_available = MagicMock()
         self.meaning.execute_batch.return_value = []
         self.polish.execute_batch.return_value = []
 
@@ -420,8 +418,8 @@ class TestAIOutage:
 
         assert _title(container) == "original"
         assert _jobs(container) == [
-            (JobType.POLISH, 1, JobStatus.QUEUED, None),
-            (JobType.POLISH, 2, JobStatus.QUEUED, None),
+            (JobType.POLISH, 1, JobStatus.QUEUED, NOT_LOGGED_IN),
+            (JobType.POLISH, 2, JobStatus.QUEUED, NOT_LOGGED_IN),
             (JobType.MEDIA, 3, JobStatus.QUEUED, None),
         ]
         container.media.execute_one.assert_not_called()
@@ -452,25 +450,6 @@ class TestAIOutage:
         worker._request_shutdown()
 
         assert await asyncio.wait_for(waiting, timeout=5)
-
-    async def test_an_idle_worker_checks_whether_an_outage_is_over(
-        self, container: _Container, monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setattr(job_worker, "AI_RETRY_DELAY", 3600)
-        with container.session_scope() as session:
-            SqlaAIOutageRepository(session).report(NOT_LOGGED_IN)
-        container.check_ai_available.side_effect = AIUnavailableError(NOT_LOGGED_IN)
-        worker = JobWorker(container)  # type: ignore[arg-type]
-
-        await worker._check_ai_during_outage()
-        await worker._check_ai_during_outage()
-
-        container.check_ai_available.assert_called_once()
-
-    async def test_no_check_without_an_outage(self, container: _Container) -> None:
-        await JobWorker(container)._check_ai_during_outage()  # type: ignore[arg-type]
-
-        container.check_ai_available.assert_not_called()
 
 
 @pytest.mark.integration

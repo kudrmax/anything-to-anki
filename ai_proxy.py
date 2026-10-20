@@ -9,7 +9,6 @@ Requires: pip install claude-agent-sdk fastapi uvicorn
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import logging
 import os
@@ -277,15 +276,11 @@ async def _call_ai(
         return await _generate_structured(req.system_prompt, req.user_prompt, req.model, schema)
     except AIUnavailableError as e:
         logger.error("%s: AI unavailable: %s", endpoint, e)
-        raise _unavailable_response(e) from e
+        # The detail is the reason itself, ready to show to the user.
+        raise HTTPException(status_code=503, detail=str(e)) from e
     except Exception as e:
         logger.exception("%s: AI call failed", endpoint)
         raise HTTPException(status_code=502, detail=f"AI call failed: {e}") from e
-
-
-def _unavailable_response(error: AIUnavailableError) -> HTTPException:
-    """A 503 whose detail says why the AI answers nothing, ready to show to the user."""
-    return HTTPException(status_code=503, detail=str(error))
 
 
 class GenerateResponse(BaseModel):
@@ -426,24 +421,10 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/status")
-async def status() -> dict[str, bool]:
-    """The checks every AI call starts with, without calling the model."""
-    try:
-        _ensure_country_allowed(await _get_country())
-        if not await asyncio.to_thread(cli_logged_in):
-            raise AIUnavailableError(NOT_LOGGED_IN_MESSAGE)
-    except AIUnavailableError as e:
-        logger.error("status: AI unavailable: %s", e)
-        raise _unavailable_response(e) from e
-    return {"available": True}
-
-
 # A process started from a Claude Code session inherits that session's variables. They
 # point the CLI at the session's own login, and the CLI answers "Not logged in".
 _INHERITED_ENV_PREFIXES = ("CLAUDE", "ANTHROPIC_")
 _AUTH_STATUS_TIMEOUT = 30
-NOT_LOGGED_IN_MESSAGE = "claude CLI is not logged in: run `claude` and /login in a terminal"
 
 
 def drop_inherited_claude_env(environ: MutableMapping[str, str]) -> list[str]:
@@ -476,6 +457,6 @@ if __name__ == "__main__":
     if dropped_env:
         logger.info("Dropped inherited env: %s", ", ".join(dropped_env))
     if not cli_logged_in():
-        logger.error(NOT_LOGGED_IN_MESSAGE)
+        logger.error("claude CLI is not logged in: run `claude` and /login in a terminal")
         sys.exit(1)
     uvicorn.run(app, host="0.0.0.0", port=args.port)
