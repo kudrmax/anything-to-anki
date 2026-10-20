@@ -15,6 +15,7 @@ from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind
+from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.candidate_sorter_support import candidate_sorter
@@ -40,7 +41,6 @@ class TestGetCandidatesUseCase:
         self.lock = MagicMock()
         self.lock.operations.return_value = {}
         self.use_case = GetCandidatesUseCase(
-            source_repo=self.source_repo,
             card_views=CardViews(
                 review_cards=ReviewCards(
                     self.candidate_repo, self.occurrence_repo,
@@ -67,7 +67,7 @@ class TestGetCandidatesUseCase:
         self.occurrence_repo.shown_by_word.return_value = {
             1: [occurrence(1, 1), occurrence(2, 1)],
         }
-        result = self.use_case.execute(SOURCE_ID)
+        result = self.use_case.execute(SourceScope.source(SOURCE_ID))
         assert [(c.phrase_id, c.word_id, c.lemma) for c in result] == [
             (1, 1, "test"), (2, 1, "test"),
         ]
@@ -76,12 +76,12 @@ class TestGetCandidatesUseCase:
         self.occurrence_repo.shown_by_word.return_value = {
             1: [occurrence(1, 1, exported=True, decision_kind=DecisionKind.CLOZE)],
         }
-        assert self.use_case.execute(SOURCE_ID)[0].can_edit_cloze is False
+        assert self.use_case.execute(SourceScope.source(SOURCE_ID))[0].can_edit_cloze is False
 
     def test_source_not_found(self) -> None:
         self.source_repo.get_by_id.return_value = None
         with pytest.raises(SourceNotFoundError):
-            self.use_case.execute(999)
+            self.use_case.execute(SourceScope.source(999))
 
     def test_dto_has_queued_status_when_the_phrase_has_a_job(self) -> None:
         self.occurrence_repo.shown_by_word.return_value = {1: [occurrence(1, 1)]}
@@ -90,7 +90,7 @@ class TestGetCandidatesUseCase:
             status=JobStatus.QUEUED, error=None, created_at=datetime(2025, 1, 1, tzinfo=UTC),
             started_at=None, phrase_id=1,
         )}}
-        [result] = self.use_case.execute(SOURCE_ID)
+        [result] = self.use_case.execute(SourceScope.source(SOURCE_ID))
         assert result.meaning is not None
         assert result.meaning.status == "queued"
 
@@ -100,6 +100,6 @@ class TestGetCandidatesUseCase:
             synonyms=None, examples=None, ipa=None, generated_at=datetime(2025, 1, 1, tzinfo=UTC),
         )
         self.occurrence_repo.shown_by_word.return_value = {1: [occurrence(1, 1, meaning=meaning)]}
-        [result] = self.use_case.execute(SOURCE_ID)
+        [result] = self.use_case.execute(SourceScope.source(SOURCE_ID))
         assert result.meaning is not None
         assert result.meaning.status == "done"

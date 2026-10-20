@@ -80,7 +80,7 @@ def client() -> Generator[TestClient, None, None]:
 
 
 def _candidate_in_source(client: TestClient, phrase_id: int) -> dict[str, Any]:
-    response = client.get(f"/sources/{SOURCE_ID}")
+    response = client.get("/review", params={"scope": f"source-{SOURCE_ID}"})
     assert response.status_code == 200
     candidates: list[dict[str, Any]] = response.json()["candidates"]
     return next(c for c in candidates if c["phrase_id"] == phrase_id)

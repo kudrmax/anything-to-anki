@@ -4,21 +4,15 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.get_sources import GetSourcesUseCase
-from backend.application.utils.card_views import CardViews
-from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.application.utils.topic_generation import TopicGenerationProbe
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
-from backend.domain.exceptions import SourceNotFoundError
-from backend.domain.services.card_view import Command
 from backend.domain.value_objects.candidate_section import CandidateSection
-from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.held_operation import HeldOperation
-from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 from backend.domain.value_objects.review_card import CardRow
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_role import SourceRole
@@ -27,9 +21,7 @@ from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.candidate_sorter_support import candidate_sorter
-from tests.card_support import PhraseWordStates, occurrence, word
 from tests.phrase_support import phrase
-from tests.vocabulary_support import user_vocabulary
 
 CLOZE_BUTTON = 1  # Learn, Cloze, Known, Skip
 
@@ -82,24 +74,6 @@ class TestGetSourcesUseCase:
             generation_probe=TopicGenerationProbe(self.job_repo, self.topic_target_repo),
             review_progress=ReviewProgress(self.card_query, sorter, elsewhere),
             card_query=self.card_query,
-            card_views=CardViews(
-                review_cards=ReviewCards(
-                    self.candidate_repo, self.occurrence_repo,
-                    PhraseWordStates(
-                        lambda: self.candidate_repo.get_by_source.return_value,
-                        lambda word_id: self.occurrence_repo.shown_by_word.return_value.get(
-                            word_id, [],
-                        ),
-                    ),
-                    user_vocabulary(),
-                ),
-                candidate_sorter=sorter,
-                job_repo=self.job_repo,
-                report_repo=self.report_repo,
-                scope_resolver=SourceScopeResolver(self.source_repo, self.collection_repo),
-                source_repo=self.source_repo,
-                lock=self.lock,
-            ),
             lock=self.lock,
         )
 
@@ -231,14 +205,6 @@ class TestGetSourcesUseCase:
             "done", "ready", True, False,
         )
 
-    def test_the_detail_reads_the_review_status_from_its_progress(self) -> None:
-        self.source_repo.get_by_id.return_value = _text(1)
-        self.candidate_repo.get_by_source.return_value = [
-            word(1, "burnout", status=WordStatus.LEARN, source_id=1),
-        ]
-        self.occurrence_repo.shown_by_word.return_value = {1: [occurrence(1, 1)]}
-        assert self.use_case.get_by_id(1).status == "reviewed"
-
     def test_a_busy_source_offers_its_operation_but_it_cant_start(self) -> None:
         self.source_repo.list_all.return_value = [_text(1)]
         self.lock.operations.return_value = {1: HeldOperation(SourceOperationKind.REBUILD)}
@@ -281,56 +247,3 @@ class TestGetSourcesUseCase:
         self.card_query.learn_counts.return_value = {4: 1}
         captions = [dto.progress_caption for dto in self.use_case.list_all()]
         assert captions == ["Nothing to learn", "2 phrases", "1 of 2 decided", "1 to learn"]
-
-    def test_get_by_id_found(self) -> None:
-        self.source_repo.get_by_id.return_value = _text(1)
-        result = self.use_case.get_by_id(1)
-        assert result.id == 1
-
-    def test_get_by_id_shows_first_fifteen_candidates_by_relevance(self) -> None:
-        self.source_repo.get_by_id.return_value = _text(1)
-        assert self.use_case.get_by_id(1).initially_shown_candidates == 15
-
-    def test_get_by_id_shows_all_candidates_in_text_order(self) -> None:
-        self.source_repo.get_by_id.return_value = _text(1)
-        result = self.use_case.get_by_id(1, sort_order=CandidateSortOrder.CHRONOLOGICAL)
-        assert result.initially_shown_candidates is None
-
-    def test_get_by_id_shows_first_fifteen_candidates_by_key_words(self) -> None:
-        self.source_repo.get_by_id.return_value = _text(1)
-        result = self.use_case.get_by_id(1, sort_order=CandidateSortOrder.KEY_WORDS)
-        assert result.initially_shown_candidates == 15
-
-    def test_get_by_id_forbids_new_markup_only_for_a_cloze_in_anki(self) -> None:
-        """Q11: a Learn card in Anki may still become a cloze (a new note)."""
-        self.source_repo.get_by_id.return_value = _text(1)
-        self.candidate_repo.get_by_source.return_value = [
-            word(1, "burnout", status=WordStatus.LEARNING, source_id=1),
-            word(2, "lizard", status=WordStatus.LEARN, source_id=1),
-            word(3, "gecko", status=WordStatus.LEARNING, source_id=1),
-        ]
-        self.occurrence_repo.shown_by_word.return_value = {
-            1: [occurrence(1, 1, exported=True, decision_kind=DecisionKind.CLOZE)],
-            2: [occurrence(2, 2)],
-            3: [occurrence(3, 3, exported=True)],
-        }
-        result = self.use_case.get_by_id(1)
-        cloze = {
-            c.phrase_id: (c.can_edit_cloze, c.state.buttons[CLOZE_BUTTON].command)
-            for c in result.candidates
-        }
-        # P17 on the cloze in Anki undoes it; P18 on the Learn in Anki makes a cloze.
-        assert (cloze[1], cloze[3]) == ((False, Command.DECIDE), (False, Command.EDIT_CLOZE))
-
-    def test_get_by_id_not_found(self) -> None:
-        self.source_repo.get_by_id.return_value = None
-        with pytest.raises(SourceNotFoundError):
-            self.use_case.get_by_id(999)
-
-    def test_card_carries_its_source(self) -> None:
-        self.source_repo.get_by_id.return_value = _text(1)
-        self.lock.operations.return_value = {1: HeldOperation(kind=SourceOperationKind.REBUILD)}
-        self.candidate_repo.get_by_source.return_value = [word(5, "glare", source_id=1)]
-        self.occurrence_repo.shown_by_word.return_value = {5: [occurrence(5, 5)]}
-        [card] = self.use_case.get_by_id(1).candidates
-        assert (card.source.id, card.source.busy_with) == (1, SourceOperationKind.REBUILD)

@@ -114,9 +114,9 @@ class TestDecisionAPI:
     def test_marking_the_last_pending_candidate_marks_the_source_reviewed(
         self, client: TestClient,
     ) -> None:
-        assert client.get("/sources/1").json()["status"] == "done"
+        assert client.get("/review", params={"scope": "source-1"}).json()["status"] == "done"
         client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
-        assert client.get("/sources/1").json()["status"] == "reviewed"
+        assert client.get("/review", params={"scope": "source-1"}).json()["status"] == "reviewed"
 
     def test_undo_returns_the_candidate_and_the_source_to_review(
         self, client: TestClient,
@@ -125,7 +125,7 @@ class TestDecisionAPI:
         response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
         assert response.status_code == 200
         # Nothing decided again: the source reads as not started, as its progress says.
-        assert client.get("/sources/1").json()["status"] == "done"
+        assert client.get("/review", params={"scope": "source-1"}).json()["status"] == "done"
 
     def test_undoing_known_removes_the_word_from_known_words(
         self, client: TestClient,
@@ -218,7 +218,7 @@ class TestCardReportsAPI:
 
     def test_reported_candidate_is_marked(self, client: TestClient) -> None:
         def reported() -> bool:
-            candidates = client.get("/sources/1/candidates").json()
+            candidates = client.get("/review/candidates", params={"scope": "source-1"}).json()
             return next(c for c in candidates if c["phrase_id"] == PHRASE_ID)["reported"]
 
         assert reported() is False
@@ -284,7 +284,7 @@ class TestUnknownWordsAPI:
     """Words of a phrase the user doesn't know take the card out of Ready."""
 
     def _card(self, client: TestClient) -> dict[str, object]:
-        source = client.get("/sources/1").json()
+        source = client.get("/review", params={"scope": "source-1"}).json()
         section = source["candidates"][0]["section"]
         return {"section": section, "ready": source["progress"]["total"]}
 
@@ -313,7 +313,7 @@ class TestUnknownWordsAPI:
 
     def test_source_with_no_ready_cards_left_is_reviewed(self, client: TestClient) -> None:
         client.post(f"/phrases/{PHRASE_ID}/report", json={"unknown_words": [0]})
-        assert client.get("/sources/1").json()["status"] == "reviewed"
+        assert client.get("/review", params={"scope": "source-1"}).json()["status"] == "reviewed"
 
     def test_new_phrase_is_read_again(self, client: TestClient) -> None:
         client.put(f"/phrases/{PHRASE_ID}/phrase", json={"phrase": "the ominous pursuit of"})

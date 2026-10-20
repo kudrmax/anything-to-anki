@@ -25,6 +25,7 @@ from backend.infrastructure.api.routes import (
     generation,
     known_words,
     phrases,
+    review,
     settings,
     sources,
     stats,
@@ -103,6 +104,7 @@ app.add_middleware(
 )
 
 app.include_router(sources.router)
+app.include_router(review.router)
 app.include_router(media_router)
 app.include_router(words.router)
 app.include_router(phrases.router)

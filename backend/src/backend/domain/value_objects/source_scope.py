@@ -45,6 +45,15 @@ class SourceScope:
         """Unsorted is a holding folder, not a set to review."""
         return self.kind is not ScopeKind.UNSORTED
 
+    @property
+    def token(self) -> str:
+        """The string form `parse` reads back."""
+        if self.kind is ScopeKind.SOURCE:
+            return f"{SOURCE_PREFIX}{self.source_id}"
+        if self.kind is ScopeKind.COLLECTION:
+            return str(self.collection_id)
+        return self.kind.value
+
     @classmethod
     def parse(cls, raw: str) -> SourceScope:
         if raw == ScopeKind.ALL:

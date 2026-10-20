@@ -34,7 +34,6 @@ from backend.application.dto.rebuild_dtos import (  # noqa: TC001
 from backend.application.dto.source_dtos import (  # noqa: TC001
     CardDTO,
     SourceBoardDTO,
-    SourceDetailDTO,
     SourceDTO,
     UpdateTitleRequest,
 )
@@ -60,7 +59,6 @@ from backend.domain.exceptions import (
     UnsupportedUrlError,
     VideoAlreadyDownloadedError,
 )
-from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.question import Answers
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
@@ -247,20 +245,6 @@ def _launch(
 ) -> None:
     for source_id in source_ids:
         _in_background(_process_background(source_id, container, session_factory))
-
-
-@router.get("/{source_id}")
-def get_source(
-    source_id: int,
-    sort: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> SourceDetailDTO:
-    try:
-        use_case = container.get_sources_use_case(session)
-        return use_case.get_by_id(source_id, sort_order=sort)
-    except SourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.patch("/{source_id}/title")
@@ -556,18 +540,3 @@ def _in_background(work: Coroutine[object, object, None]) -> None:
     task = asyncio.create_task(work)
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
-
-
-@router.get("/{source_id}/candidates")
-def get_candidates(
-    source_id: int,
-    sort: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> list[dict[str, Any]]:
-    try:
-        use_case = container.get_candidates_use_case(session)
-        candidates = use_case.execute(source_id, sort_order=sort)
-        return [c.model_dump() for c in candidates]
-    except SourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e

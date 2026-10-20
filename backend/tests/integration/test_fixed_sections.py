@@ -94,7 +94,7 @@ def client(factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
 
 
 def _section(client: TestClient, source_id: int, phrase_id: int) -> str:
-    source = client.get(f"/sources/{source_id}").json()
+    source = client.get("/review", params={"scope": f"source-{source_id}"}).json()
     card = next(c for c in source["candidates"] if c["phrase_id"] == phrase_id)
     return str(card["section"])
 

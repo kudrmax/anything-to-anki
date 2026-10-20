@@ -224,12 +224,12 @@ class TestSourcesAPI:
     def test_get_source(self, client: TestClient) -> None:
         create = client.post("/sources/add", json={"text": "Hello", "answers": TEXT_ANSWER})
         source_id = create.json()["source_ids"][0]
-        response = client.get(f"/sources/{source_id}")
+        response = client.get("/review", params={"scope": f"source-{source_id}"})
         assert response.status_code == 200
         assert response.json()["title"] == "Hello"
 
     def test_get_source_not_found(self, client: TestClient) -> None:
-        response = client.get("/sources/999")
+        response = client.get("/review", params={"scope": "source-999"})
         assert response.status_code == 404
 
     def test_process_returns_202(self, client: TestClient) -> None:
@@ -382,7 +382,7 @@ class TestSourcesAPI:
         ))
         db_session.commit()
 
-        response = client.get(f"/sources/{source.id}")
+        response = client.get("/review", params={"scope": f"source-{source.id}"})
         assert response.status_code == 200
         data = response.json()
         candidates = data["candidates"]
@@ -458,9 +458,9 @@ class TestSavedPhrasesAPI:
         assert saved_source["role"] == "saved_phrases"
         assert saved_source["is_permanent"] is True
         assert saved_source["learn_count"] == 1
-        detail = client.get(f"/sources/{saved_source['id']}").json()
-        assert detail["has_source_text"] is False
-        assert detail["can_polish_phrases"] is False
+        detail = client.get("/review", params={"scope": f"source-{saved_source['id']}"}).json()
+        [card] = detail["candidates"]
+        assert card["source"]["can_polish_phrases"] is False
 
     def test_second_phrase_reuses_the_same_source(self, client: TestClient) -> None:
         for text in ("It was a daunting task.", "Keep it concise."):

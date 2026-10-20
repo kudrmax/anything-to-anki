@@ -36,3 +36,7 @@ class TestSourceScope:
             SourceScope.source(1),
         ]
         assert [s.is_reviewable for s in scopes] == [True, False, True, True]
+
+    @pytest.mark.parametrize("raw", ["all", "unsorted", "12", "source-7"])
+    def test_token_parses_back(self, raw: str) -> None:
+        assert SourceScope.parse(raw).token == raw

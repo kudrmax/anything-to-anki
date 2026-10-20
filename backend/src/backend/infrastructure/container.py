@@ -33,6 +33,7 @@ from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsU
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
+from backend.application.use_cases.get_review import GetReviewUseCase
 from backend.application.use_cases.get_source_document import GetSourceDocumentUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
@@ -510,7 +511,14 @@ class Container:
             generation_probe=self._generation_probe(session),
             review_progress=self._review_progress(session),
             card_query=SqlaCardQuery(session),
+            lock=SqlaSourceOperationLock(session),
+        )
+
+    def get_review_use_case(self, session: Session) -> GetReviewUseCase:
+        return GetReviewUseCase(
             card_views=self._card_views(session),
+            scope_resolver=self._scope_resolver(session),
+            card_query=SqlaCardQuery(session),
             lock=SqlaSourceOperationLock(session),
         )
 
@@ -688,7 +696,6 @@ class Container:
 
     def get_candidates_use_case(self, session: Session) -> GetCandidatesUseCase:
         return GetCandidatesUseCase(
-            source_repo=SqlaSourceRepository(session),
             card_views=self._card_views(session),
         )
 

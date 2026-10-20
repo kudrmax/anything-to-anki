@@ -317,31 +317,23 @@ class CardDTO(BaseModel):
     phrase_position: DocumentPositionDTO | None = None
 
 
-class SourceDetailDTO(BaseModel):
-    """Detailed view of a source with candidates."""
+class ReviewDTO(BaseModel):
+    """The review screen of a set of sources: one source, a collection or all of them."""
 
-    id: int
+    # The set's token, as the scope query parameter takes it back.
+    scope: str
     title: str
     status: str
-    kind: str | None
-    role: str
-    has_video: bool = False
-    can_polish_phrases: bool = False
-    has_source_text: bool = True
-    source_url: str | None = None
-    video_downloaded: bool = False
-    error_message: str | None
-    processing_stage: str | None = None
-    busy_with: SourceOperationKind | None = None
-    learn_count: int = 0  # words to learn
-    created_at: datetime
-    candidates: list[CardDTO]
     progress: ProgressDTO = ProgressDTO()
+    learn_count: int = 0  # words to learn
+    candidates: list[CardDTO]
     # How many candidates to show before "show more"; None — show all.
     initially_shown_candidates: int | None = None
+    # Some source of the set is held by an operation: its cards wait for it.
+    busy: bool = False
 
 
-SourceDetailDTO.model_rebuild()
+ReviewDTO.model_rebuild()
 
 
 @dataclass(frozen=True)
