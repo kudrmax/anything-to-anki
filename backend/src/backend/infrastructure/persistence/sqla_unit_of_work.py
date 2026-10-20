@@ -27,12 +27,6 @@ class SqlaUnitOfWork(UnitOfWork):
         self._knowledge = knowledge
         self._write_open = False
 
-    def commit(self) -> None:
-        self._session.commit()
-
-    def rollback(self) -> None:
-        self._session.rollback()
-
     @contextmanager
     def write(self) -> Iterator[None]:
         if self._write_open:

@@ -93,9 +93,7 @@ class SourceRebuilder:
         self._builder = OccurrenceBuilder()
 
     def analyse(self, source_id: int) -> AnalysedSource:
-        """Runs outside any transaction: whatever was pending is committed first, so no
-        writer waits for the analysis."""
-        self._unit_of_work.commit()
+        """Runs outside any write transaction, so no writer waits for the analysis."""
         source = self._source_repo.get_by_id(source_id)
         if source is not None and not source.has_text:
             return AnalysedSource(source_id, None, None)

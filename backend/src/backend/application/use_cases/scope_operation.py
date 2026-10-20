@@ -113,18 +113,16 @@ class ScopeOperationUseCase:
         errors: list[Exception] = []
         for source_id in targets:
             try:
-                start(source_id)
+                with self._unit_of_work.write():
+                    start(source_id)
             except SourceOperationBusyError:
-                self._unit_of_work.rollback()
                 logger.info("%s: source %d is busy, skipped", offered.value, source_id)
                 skipped += 1
                 continue
             except DomainError as e:
-                self._unit_of_work.rollback()
                 logger.exception("%s: source %d can't start", offered.value, source_id)
                 errors.append(e)
                 continue
-            self._unit_of_work.commit()
             try:
                 results.append(run(source_id))
             except Exception as e:

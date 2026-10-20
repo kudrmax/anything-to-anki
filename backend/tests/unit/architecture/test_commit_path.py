@@ -27,12 +27,6 @@ SESSION_ALLOWED = (PERSISTENCE_DIR, API_DEPENDENCIES, CONTAINER)
 
 # Files that offend today. Tasks 1.3-1.5 remove entries as they migrate; Task 1.6 empties both.
 PENDING_TRANSACTIONS: frozenset[str] = frozenset({
-    "backend/src/backend/application/use_cases/manage_settings.py",
-    "backend/src/backend/application/use_cases/process_source.py",
-    "backend/src/backend/application/use_cases/rebuild_source.py",
-    "backend/src/backend/application/use_cases/refresh_topic.py",
-    "backend/src/backend/application/use_cases/scope_operation.py",
-    "backend/src/backend/application/utils/source_rebuilder.py",
     "backend/src/backend/cli/build_dict_cache.py",
     "backend/src/backend/infrastructure/api/background.py",
     "backend/src/backend/infrastructure/api/routes/bootstrap.py",

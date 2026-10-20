@@ -12,9 +12,19 @@ from backend.domain.value_objects.phrase_origin_kind import ShownBy
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
-from tests.source_rebuild_support import LINES, SOURCE, Bench, at, time_of_line, word
+from tests.source_rebuild_support import (
+    LINES,
+    SOURCE,
+    Bench,
+    SharedBench,
+    at,
+    time_of_line,
+    word,
+)
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from backend.domain.entities.stored_candidate import StoredCandidate
     from sqlalchemy.orm import Session
 
@@ -24,6 +34,19 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 def bench(db_session: Session) -> Bench:
     return Bench(db_session)
+
+
+def test_others_see_the_source_being_analysed_before_it_is_done(tmp_path: Path) -> None:
+    shared = SharedBench(tmp_path)
+    try:
+        shared.bench.processed(word("glare", at(0)))
+
+        assert shared.seen == [
+            HeldOperation(SourceOperationKind.PROCESS, ProcessingStage.ANALYZING_TEXT),
+        ]
+        assert shared.held_elsewhere() is None
+    finally:
+        shared.close()
 
 
 def test_every_occurrence_becomes_an_auto_phrase_with_its_key_and_score(bench: Bench) -> None:

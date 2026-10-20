@@ -69,7 +69,6 @@ class FixSectionsUseCase:
                 self._rebuild_source.execute(source.id, RebuildMode.UPDATE)
             except Exception:
                 logger.exception("fix sections: rebuild of source %d failed", source.id)
-                self._unit_of_work.rollback()
                 failed.append(source.id)
             else:
                 rebuilt += 1

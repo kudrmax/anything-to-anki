@@ -32,8 +32,8 @@ class RefreshTopicUseCase:
     Sources added since the topic was processed may hold real phrases for its targets; they
     are added beside the word's phrases, a generated one included. Nothing is replaced or
     removed: decisions, results and every phrase stay as they are.
-    `start` takes the source and must be committed before `run`, which frees it whatever
-    happens.
+    `start` takes the source inside a write its caller opens, committed before `run`, which
+    frees it whatever happens.
     """
 
     def __init__(
@@ -62,13 +62,12 @@ class RefreshTopicUseCase:
             raise SourceOperationBusyError(source_id, self._lock.held(source_id))
 
     def execute(self, source_id: int) -> TopicRefreshSummaryDTO:
-        self.start(source_id)
-        self._unit_of_work.commit()
+        with self._unit_of_work.write():
+            self.start(source_id)
         return self.run(source_id)
 
     def run(self, source_id: int) -> TopicRefreshSummaryDTO:
         try:
-            self._unit_of_work.commit()
             collected = self._collector.collect(source_id)
             with self._unit_of_work.write():
                 if self._source_repo.get_by_id(source_id) is None:
@@ -80,9 +79,8 @@ class RefreshTopicUseCase:
             )
             return summary
         finally:
-            self._unit_of_work.rollback()
-            self._lock.release(source_id)
-            self._unit_of_work.commit()
+            with self._unit_of_work.write():
+                self._lock.release(source_id)
 
     def _add_missing(self, source_id: int, collected: list[NewCard]) -> TopicRefreshSummaryDTO:
         words = {w.id: w.key for w in self._occurrence_repo.word_rows(source_id)}

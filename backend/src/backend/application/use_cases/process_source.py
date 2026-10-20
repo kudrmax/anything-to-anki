@@ -77,8 +77,8 @@ class ProcessSourceUseCase:
             "process_source: stage transition (source_id=%d, stage=%s)",
             source_id, stage.value,
         )
-        self._lock.set_stage(source_id, stage)
-        self._unit_of_work.commit()
+        with self._unit_of_work.write():
+            self._lock.set_stage(source_id, stage)
 
     def execute(self, source_id: int) -> None:
         """Run the pipeline and save the results. Call in a background thread."""
@@ -92,26 +92,31 @@ class ProcessSourceUseCase:
                 return
             self._notify_stage(source_id, ProcessingStage.ANALYZING_TEXT)
             plan = self._rebuilder.apply(self._rebuilder.analyse(source_id), RebuildMode.UPDATE)
-            logger.info(
-                "process_source: done (source_id=%d, words_created=%d, phrases_created=%d)",
-                source_id, len(plan.words_to_create), len(plan.occ_to_insert),
-            )
         except BaseException:
-            self._unit_of_work.rollback()
+            self._release(source_id)
             raise
-        finally:
+        self._release(source_id)
+        logger.info(
+            "process_source: done (source_id=%d, words_created=%d, phrases_created=%d)",
+            source_id, len(plan.words_to_create), len(plan.occ_to_insert),
+        )
+
+    def _release(self, source_id: int) -> None:
+        with self._unit_of_work.write():
             self._lock.release(source_id)
-            self._unit_of_work.commit()
 
     def _process_topic(self, source: Source) -> None:
-        """Topics have no text to analyse: their phrases come from other sources."""
+        """Topics have no text to analyse: their phrases come from other sources. The source
+        is done and free in the same write."""
         assert source.id is not None
         if self._topic_phrase_collector is None:
             raise TopicTargetsMissingError(source.id)
         self._notify_stage(source.id, ProcessingStage.COLLECTING_PHRASES)
         collected = self._topic_phrase_collector.collect(source.id)
-        created = self._collected_phrases.add(source.id, collected)
-        self._source_repo.update_status(source.id, SourceStatus.DONE)
+        with self._unit_of_work.write():
+            created = self._collected_phrases.add(source.id, collected)
+            self._source_repo.update_status(source.id, SourceStatus.DONE)
+            self._lock.release(source.id)
         logger.info(
             "process_source: topic done (source_id=%d, phrases_created=%d)",
             source.id, len(created),

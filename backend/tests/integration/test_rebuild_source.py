@@ -13,7 +13,9 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     SourceOperationBusyError,
 )
+from backend.domain.services.source_operations import REBUILD_OPERATION
 from backend.domain.value_objects.card_choice import CardChoice
+from backend.domain.value_objects.held_operation import HeldOperation
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin
@@ -29,6 +31,7 @@ from tests.source_rebuild_support import (
     LINES,
     SOURCE,
     Bench,
+    SharedBench,
     at,
     time_of_line,
     word,
@@ -37,6 +40,9 @@ from tests.vocabulary_support import user_vocabulary
 from tests.word_support import bind, store_card
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from pathlib import Path
+
     from backend.application.dto.analysis_dtos import AnalyzeTextRequest
     from backend.domain.value_objects.document import Document
     from sqlalchemy.orm import Session
@@ -57,6 +63,41 @@ def bench(db_session: Session) -> Bench:
 @pytest.fixture
 def video(db_session: Session) -> Bench:
     return Bench(db_session, timed=True)
+
+
+@pytest.fixture
+def shared(tmp_path: Path) -> Iterator[SharedBench]:
+    shared_bench = SharedBench(tmp_path)
+    yield shared_bench
+    shared_bench.close()
+
+
+# ── what other sessions see ───────────────────────────────────────────
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_others_see_the_source_busy_while_it_is_analysed(
+    shared: SharedBench, mode: RebuildMode,
+) -> None:
+    shared.bench.processed(word("glare", at(0)))
+    shared.seen.clear()
+
+    shared.bench.rebuild().execute(SOURCE, mode)
+
+    assert shared.seen == [HeldOperation(REBUILD_OPERATION[mode])]
+    assert shared.held_elsewhere() is None
+
+
+def test_others_see_the_source_busy_while_its_preview_is_analysed(
+    shared: SharedBench,
+) -> None:
+    shared.bench.processed(word("glare", at(0)))
+    shared.seen.clear()
+
+    shared.bench.rebuild().preview(SOURCE, UPDATE)
+
+    assert shared.seen == [HeldOperation(SourceOperationKind.PREVIEW)]
+    assert shared.held_elsewhere() is None
 
 
 # ── decisions and generation survive ──────────────────────────────────
