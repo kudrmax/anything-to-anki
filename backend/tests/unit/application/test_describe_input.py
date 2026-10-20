@@ -164,3 +164,17 @@ def test_long_single_line_is_a_text_source() -> None:
 def test_line_not_in_english_is_a_topic(text: str) -> None:
     described = describe(text)
     assert (described.kind, described.problem, described.label) == (InputKind.TOPIC, None, None)
+
+
+def test_several_existing_files_are_a_batch() -> None:
+    described = describe("/Users/max/notes.md\n/Users/max/lyrics.txt")
+    assert (described.kind, described.format, described.label, described.problem) == (
+        InputKind.SOURCE, None, "2 files", None,
+    )
+
+
+def test_a_missing_file_in_a_batch_is_named() -> None:
+    described = describe("/Users/max/notes.md\n/Users/max/missing chapter.txt")
+    assert described.problem == InputProblem.FILE_NOT_FOUND
+    assert described.problem_message == "No file at this path: missing chapter.txt"
+    assert described.kind is None

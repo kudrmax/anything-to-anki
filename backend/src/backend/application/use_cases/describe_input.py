@@ -4,7 +4,7 @@ from pathlib import PurePath
 from typing import TYPE_CHECKING
 
 from backend.application.dto.add_source_dtos import InputDescriptionDTO
-from backend.application.source_intake.typed_input import typed_input
+from backend.application.source_intake.typed_input import typed_inputs
 from backend.application.utils.typed_path import normalize_typed_path
 from backend.domain.exceptions import UnsupportedUrlError
 from backend.domain.services.input_language import is_english
@@ -64,7 +64,10 @@ class DescribeInputUseCase:
     def execute(self, text: str) -> InputDescriptionDTO:
         if not text.strip():
             return InputDescriptionDTO()
-        source_input = typed_input(text)
+        inputs = typed_inputs(text)
+        if len(inputs) > 1:
+            return self._describe_files([i for i in inputs if isinstance(i, LocalFile)])
+        source_input = inputs[0]
         if isinstance(source_input, Url):
             return self._describe_link(source_input)
         if isinstance(source_input, LocalFile):
@@ -95,6 +98,17 @@ class DescribeInputUseCase:
             extension = PurePath(path).suffix.lstrip(".").lower()
             label = f"{label} · {extension or PLAIN_TEXT_EXTENSION}"
         return InputDescriptionDTO(kind=InputKind.SOURCE, format=source_format, label=label)
+
+    def _describe_files(self, files: list[LocalFile]) -> InputDescriptionDTO:
+        for file in files:
+            path = normalize_typed_path(file.path)
+            if not self._file_reader.exists(path):
+                return InputDescriptionDTO(
+                    problem=InputProblem.FILE_NOT_FOUND,
+                    problem_message=f"{FILE_NOT_FOUND_MESSAGE}: {PurePath(path).name}",
+                    problem_hint=FILE_NOT_FOUND_HINT,
+                )
+        return InputDescriptionDTO(kind=InputKind.SOURCE, label=f"{len(files)} files")
 
     def _describe_text(self, pasted: PastedText) -> InputDescriptionDTO:
         line = pasted.text.strip()
