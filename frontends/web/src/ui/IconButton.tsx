@@ -14,11 +14,11 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function IconButton({ icon, label, busy = false, active = false, kbd, disabled, className, ...rest }: IconButtonProps) {
-  const classes = [css.iconButton, active && css.active, kbd && css.withKbd, className].filter(Boolean).join(' ')
+  const classes = [css.iconButton, active && css.active, className].filter(Boolean).join(' ')
   return (
     <button type="button" className={classes} title={label} aria-label={label} disabled={disabled || busy} {...rest}>
       {busy ? <Spinner /> : <Icon as={icon} />}
-      {kbd && <Kbd>{kbd}</Kbd>}
+      {kbd && <Kbd corner>{kbd}</Kbd>}
     </button>
   )
 }

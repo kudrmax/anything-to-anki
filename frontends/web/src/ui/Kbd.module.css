@@ -1,1 +1,2 @@
 .kbd { display: var(--kbd-display); font: var(--fs-xs) var(--mono); opacity: var(--o-kbd); border: var(--bw) solid currentColor; border-radius: var(--r-xs); padding: 0 var(--s2); }
+.corner { position: absolute; right: var(--s1); bottom: var(--s1); font-size: var(--fs-2xs); line-height: 1; padding: var(--s1) var(--s1); background: var(--card); opacity: 1; color: var(--tx3); }

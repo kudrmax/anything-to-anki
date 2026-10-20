@@ -5,7 +5,7 @@ import { KEY_LABEL, OVERLAY, toolKey, type ToolAction } from '@/lib/hotkeys'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { phraseWordTexts } from '@/lib/text/phraseParts'
 import { toggled } from '@/lib/text/words'
-import { Button, Field, Icon, IconButton, Menu, Spinner, Text, WordPicker, type MenuHandle, type MenuItem, type MenuPage } from '@/ui'
+import { Button, Field, Icon, IconButton, Menu, Spinner, Text, WordPicker, Kbd, type MenuHandle, type MenuItem, type MenuPage } from '@/ui'
 import { ImagePicker } from './ImagePicker'
 import { PolishComparison } from './PolishComparison'
 import type { Review } from './useReview'
@@ -234,8 +234,9 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   }, [markingCloze, imageBusy, pickingImage])
 
   const menuTrigger = (icon: LucideIcon, label: string, action: ToolAction, isBusy: boolean, className?: string) => (
-    <Button variant="link" className={[css.iconTrigger, css.toolTrigger, className].filter(Boolean).join(' ')} title={label} aria-label={label} kbd={KEY_LABEL[action]}>
+    <Button variant="link" className={[css.iconTrigger, className].filter(Boolean).join(' ')} title={label} aria-label={label}>
       {isBusy ? <Spinner /> : <Icon as={icon} />}
+      <Kbd corner>{KEY_LABEL[action]}</Kbd>
     </Button>
   )
 

@@ -23,7 +23,7 @@ interface PhraseCardProps {
 
 const GENERATED_PHRASE = 'generated phrase'
 /** Цифры решений видны на кнопках, здесь — только неочевидные клавиши. */
-const KEYS_HINT = '←→ phrases · Space learn · ⌘V paste a picture'
+const KEYS_HINT = '↑↓ ←→ phrases · Space learn · ⌘V paste a picture'
 
 /** Подпись нажатой кнопки рядом с фразой; какая нажата, решает backend. */
 const DECIDED_LABEL: Record<DecisionButton, string> = { learn: 'Learn', cloze: 'Cloze', known: 'Known', skip: 'Skipped' }
@@ -109,115 +109,122 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   const more = retold ? rest.slice(1) : rest
 
   return (
-    <article className={clozeEditor.active ? `${css.card} ${css.clozeEditing}` : css.card} data-candidate-id={candidate.phrase_id}>
-      <header className={css.cardHead}>
-        <div className={css.phraseRow}>
-          <CardPhrase candidate={candidate} editor={phraseEditor} cloze={clozeEditor} />
-          {decided && (
-            <span className={css.decided}><Icon as={Check} size="s" />{DECIDED_LABEL[decided]}</span>
-          )}
-        </div>
-        {clozeEditor.active && <ClozePanel editor={clozeEditor} />}
-      </header>
-
-      <div className={css.cardLeft}>
-        <p className={css.lemma}><b className={`${phrase.target} ${phrase.targetCurrent}`}>{candidate.lemma}</b></p>
-        {meaning?.translation && <p className={css.translation}>{meaning.translation}</p>}
-        {retold && <p className={css.retold}><RichText text={retold} candidate={candidate} /></p>}
-        {paragraphs.length === 0 && (
-          <div className={css.status}>
-            <StatusText status={meaning?.status} error={meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
-            {action && (
-              <Button variant="accent-link" busy={review.busy.generating.has(candidate.phrase_id)} onClick={() => void review.generate(candidate.phrase_id)}>
-                {action === 'retry' ? 'Retry' : 'Generate meaning'}
-              </Button>
+    <div className={css.cardBlock}>
+      <article className={clozeEditor.active ? `${css.card} ${css.clozeEditing}` : css.card} data-candidate-id={candidate.phrase_id}>
+        <header className={css.cardHead}>
+          <div className={css.phraseRow}>
+            <CardPhrase candidate={candidate} editor={phraseEditor} cloze={clozeEditor} />
+            {decided && (
+              <span className={css.decided}><Icon as={Check} size="s" />{DECIDED_LABEL[decided]}</span>
             )}
           </div>
-        )}
-        <div className={css.visuals}>
-          <MediaThumb
-            screenshotUrl={media.screenshotUrl}
-            audioUrl={media.audioUrl}
-            status={isActive(candidate.media?.status) ? candidate.media?.status : undefined}
-            error={candidate.media?.error}
-            playing={player.playingUrl === media.audioUrl}
-            onToggle={player.toggle}
-          />
-          {media.meaningImageUrl && <img className={css.meaningImage} src={media.meaningImageUrl} alt="" onError={e => { e.currentTarget.hidden = true }} />}
-        </div>
-      </div>
+          {clozeEditor.active && <ClozePanel editor={clozeEditor} />}
+        </header>
 
-      <button type="button" className={css.detailsToggle} aria-expanded={detailsOpen} onClick={() => setDetailsOpen(open => !open)}>
-        Details<Icon as={detailsOpen ? ChevronUp : ChevronDown} size="s" />
-      </button>
-
-      <div className={detailsOpen ? css.cardRight : `${css.cardRight} ${css.collapsed}`}>
-        {(hasMeta || hasWordFacts) && (
-          <div className={css.meta}>
-            {meaning?.ipa && <Text mono>{meaning.ipa}</Text>}
-            {audioChip('US', usUrl, 'Play US pronunciation')}
-            {audioChip('UK', ukUrl, 'Play UK pronunciation')}
-            {!hasPronunciationAudio && (
-              <StatusText status={candidate.pronunciation?.status} error={candidate.pronunciation?.error} labels={{ running: 'Downloading...', queued: 'Queued', failed: 'Failed' }} />
-            )}
-            {audioChip('TTS', ttsUrl, 'Play TTS audio')}
-            {!ttsUrl && (
-              <StatusText status={candidate.tts?.status} error={candidate.tts?.error} labels={{ running: 'TTS...', queued: 'TTS queued', failed: 'TTS failed' }} />
-            )}
-            {hasWordFacts && (
-              <span className={css.wordFacts}>
-                {candidate.is_phrasal_verb ? <span>phrasal verb</span> : candidate.cefr_level && (
-                  <span
-                    className={css.cefr}
-                    onMouseEnter={e => candidate.cefr_breakdown && setCefrAnchor(e.currentTarget)}
-                    onMouseLeave={() => setCefrAnchor(null)}
-                  >
-                    {candidate.is_sweet_spot && <Icon as={Target} size="s" />}
-                    {candidate.cefr_level}
-                  </span>
-                )}
-                {facts.map(fact => <span key={fact}>{fact}</span>)}
-              </span>
-            )}
-          </div>
-        )}
-        {meaning?.synonyms && <p className={css.synonyms}>{meaning.synonyms}</p>}
-        {definition && <p className={css.definition}><RichText text={definition} candidate={candidate} /></p>}
-        {more.map((paragraph, i) => isDivider(paragraph)
-          ? <hr key={i} className={phrase.divider} />
-          : <p key={i} className={css.context}><RichText text={paragraph} candidate={candidate} /></p>)}
-        {examples.length > 0 && (
-          <ul className={css.examples}>
-            {examples.map((line, i) => (
-              <li key={i} className={openExample === i ? `${css.example} ${css.exampleOpen}` : css.example} onClick={() => setOpenExample(i)}>
-                <span><RichText text={line} candidate={candidate} /></span>
-                <button type="button" className={css.useExample} onClick={() => void review.replaceWithExample(candidate.phrase_id, line.trim())}>
-                  Use as phrase
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <footer className={detailsOpen ? css.cardFoot : `${css.cardFoot} ${css.collapsed}`}>
-        {/* Десктоп: решения — в нижней полосе карточки; на телефоне они в панели под карточкой. */}
-        <div className={css.footDecisions}>
-          <DecisionButtons candidate={candidate} review={review} />
-          <span className={css.footHint}>{KEYS_HINT}</span>
-        </div>
-        <div className={css.facts}>
-          {candidate.cloze && (
-            <span className={css.clozeFact}><Icon as={Brackets} size="s" />{clozeLabel(candidate.cloze)}</span>
+        <div className={css.cardLeft}>
+          <p className={css.lemma}><b className={`${phrase.target} ${phrase.targetCurrent}`}>{candidate.lemma}</b></p>
+          {meaning?.translation && <p className={css.translation}>{meaning.translation}</p>}
+          {retold && <p className={css.retold}><RichText text={retold} candidate={candidate} /></p>}
+          {paragraphs.length === 0 && (
+            <div className={css.status}>
+              <StatusText status={meaning?.status} error={meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
+              {action && (
+                <Button variant="accent-link" busy={review.busy.generating.has(candidate.phrase_id)} onClick={() => void review.generate(candidate.phrase_id)}>
+                  {action === 'retry' ? 'Retry' : 'Generate meaning'}
+                </Button>
+              )}
+            </div>
           )}
-          {candidate.origin && <span>{originLabel(candidate.origin)}</span>}
+          <div className={css.visuals}>
+            <MediaThumb
+              screenshotUrl={media.screenshotUrl}
+              audioUrl={media.audioUrl}
+              status={isActive(candidate.media?.status) ? candidate.media?.status : undefined}
+              error={candidate.media?.error}
+              playing={player.playingUrl === media.audioUrl}
+              onToggle={player.toggle}
+              kbd={media.audioUrl === keyAudioUrl ? KEY_LABEL.audio : undefined}
+            />
+            {media.meaningImageUrl && <img className={css.meaningImage} src={media.meaningImageUrl} alt="" onError={e => { e.currentTarget.hidden = true }} />}
+          </div>
         </div>
-        <PhraseTools candidate={candidate} review={review} onEditPhrase={editPhrase} />
-      </footer>
 
-      {cefrAnchor && candidate.cefr_breakdown && candidate.cefr_level && (
-        <CefrTooltip breakdown={candidate.cefr_breakdown} cefrLevel={candidate.cefr_level} anchor={cefrAnchor} onClose={() => setCefrAnchor(null)} />
-      )}
-    </article>
+        <button type="button" className={css.detailsToggle} aria-expanded={detailsOpen} onClick={() => setDetailsOpen(open => !open)}>
+          Details<Icon as={detailsOpen ? ChevronUp : ChevronDown} size="s" />
+        </button>
+
+        <div className={detailsOpen ? css.cardRight : `${css.cardRight} ${css.collapsed}`}>
+          {(hasMeta || hasWordFacts) && (
+            <div className={css.meta}>
+              {meaning?.ipa && <Text mono>{meaning.ipa}</Text>}
+              {audioChip('US', usUrl, 'Play US pronunciation')}
+              {audioChip('UK', ukUrl, 'Play UK pronunciation')}
+              {!hasPronunciationAudio && (
+                <StatusText status={candidate.pronunciation?.status} error={candidate.pronunciation?.error} labels={{ running: 'Downloading...', queued: 'Queued', failed: 'Failed' }} />
+              )}
+              {audioChip('TTS', ttsUrl, 'Play TTS audio')}
+              {!ttsUrl && (
+                <StatusText status={candidate.tts?.status} error={candidate.tts?.error} labels={{ running: 'TTS...', queued: 'TTS queued', failed: 'TTS failed' }} />
+              )}
+              {hasWordFacts && (
+                <span className={css.wordFacts}>
+                  {candidate.is_phrasal_verb ? <span>phrasal verb</span> : candidate.cefr_level && (
+                    <span
+                      className={css.cefr}
+                      onMouseEnter={e => candidate.cefr_breakdown && setCefrAnchor(e.currentTarget)}
+                      onMouseLeave={() => setCefrAnchor(null)}
+                    >
+                      {candidate.is_sweet_spot && <Icon as={Target} size="s" />}
+                      {candidate.cefr_level}
+                    </span>
+                  )}
+                  {facts.map(fact => <span key={fact}>{fact}</span>)}
+                </span>
+              )}
+            </div>
+          )}
+          {meaning?.synonyms && <p className={css.synonyms}>{meaning.synonyms}</p>}
+          {definition && <p className={css.definition}><RichText text={definition} candidate={candidate} /></p>}
+          {more.map((paragraph, i) => isDivider(paragraph)
+            ? <hr key={i} className={phrase.divider} />
+            : <p key={i} className={css.context}><RichText text={paragraph} candidate={candidate} /></p>)}
+          {examples.length > 0 && (
+            <ul className={css.examples}>
+              {examples.map((line, i) => (
+                <li key={i} className={openExample === i ? `${css.example} ${css.exampleOpen}` : css.example} onClick={() => setOpenExample(i)}>
+                  <span><RichText text={line} candidate={candidate} /></span>
+                  <button type="button" className={css.useExample} onClick={() => void review.replaceWithExample(candidate.phrase_id, line.trim())}>
+                    Use as phrase
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <footer className={detailsOpen ? css.cardFoot : `${css.cardFoot} ${css.collapsed}`}>
+          {/* Десктоп: решения — в нижней полосе карточки; на телефоне они в панели под карточкой. */}
+          <div className={css.footDecisions}>
+            <DecisionButtons candidate={candidate} review={review} />
+          </div>
+          {/* Не влезает рядом с решениями — переносится под них. */}
+          <div className={css.footRest}>
+            <div className={css.facts}>
+              {candidate.cloze && (
+                <span className={css.clozeFact}><Icon as={Brackets} size="s" />{clozeLabel(candidate.cloze)}</span>
+              )}
+              {candidate.origin && <span>{originLabel(candidate.origin)}</span>}
+            </div>
+            <PhraseTools candidate={candidate} review={review} onEditPhrase={editPhrase} />
+          </div>
+        </footer>
+
+        {cefrAnchor && candidate.cefr_breakdown && candidate.cefr_level && (
+          <CefrTooltip breakdown={candidate.cefr_breakdown} cefrLevel={candidate.cefr_level} anchor={cefrAnchor} onClose={() => setCefrAnchor(null)} />
+        )}
+      </article>
+      {/* Клавиши без своей кнопки — под карточкой, а не в ней. */}
+      <p className={css.keysHint}>{KEYS_HINT}</p>
+    </div>
   )
 }
