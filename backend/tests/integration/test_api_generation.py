@@ -214,7 +214,7 @@ class TestGenerationApi:
         assert _meaning_status(client) == {
             "kind": "meaning", "total": 4, "done": 1, "running": 1, "failed": 1, "missing": 1,
             "ready_missing": 1,
-            "blocked_by": None,
+            "blocked_by": None, "videos_to_download": 0,
         }
 
     def test_generate_missing_then_retry_failed(self, client: TestClient) -> None:
