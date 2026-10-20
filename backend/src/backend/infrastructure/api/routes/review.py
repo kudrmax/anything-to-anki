@@ -36,7 +36,8 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.source_scope import SourceScope
     from backend.infrastructure.container import Container
 
-router = APIRouter(prefix="/review", tags=["review"])
+# Under /api: /review is the web app's own page, which a reload must get, not this JSON.
+router = APIRouter(prefix="/api/review", tags=["review"])
 
 
 def review_scope(raw: str) -> SourceScope:

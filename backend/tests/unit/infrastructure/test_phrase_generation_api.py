@@ -127,7 +127,7 @@ def test_generation_of_a_busy_source_is_refused(client: TestClient) -> None:
     use_case.execute.side_effect = BUSY
 
     response = client.post(
-        "/review/generation/meaning", params={"scope": "source-1", "cards": "missing"},
+        "/api/review/generation/meaning", params={"scope": "source-1", "cards": "missing"},
     )
 
     assert response.status_code == 409

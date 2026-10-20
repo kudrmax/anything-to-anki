@@ -134,11 +134,11 @@ def bench(session: Session) -> Bench:
 
 
 def _review(client: TestClient) -> Any:  # noqa: ANN401 — JSON of the API
-    return client.get("/review", params={"scope": f"source-{SOURCE}"}).json()
+    return client.get("/api/review", params={"scope": f"source-{SOURCE}"}).json()
 
 
 def _cards(client: TestClient, sort: str = "relevance") -> list[dict[str, object]]:
-    response = client.get("/review", params={"scope": f"source-{SOURCE}", "sort": sort})
+    response = client.get("/api/review", params={"scope": f"source-{SOURCE}", "sort": sort})
     assert response.status_code == 200
     cards: list[dict[str, object]] = response.json()["candidates"]
     return cards
@@ -186,7 +186,7 @@ class TestCardsArePhrases:
         assert words in ([GLARE, GLARE, SPARK, SPARK], [SPARK, SPARK, GLARE, GLARE])
 
     def test_get_candidates_lists_the_same_cards(self, client: TestClient, bench: Bench) -> None:
-        listed = client.get("/review/candidates", params={"scope": f"source-{SOURCE}"}).json()
+        listed = client.get("/api/review/candidates", params={"scope": f"source-{SOURCE}"}).json()
         assert [c["phrase_id"] for c in listed] == [c["phrase_id"] for c in _cards(client)]
 
 
@@ -349,7 +349,7 @@ class TestPhraseLevelRoutes:
 class TestDocument:
     def test_marks_are_the_shown_phrases(self, client: TestClient, bench: Bench) -> None:
         [document] = client.get(
-            "/review/documents", params={"scope": f"source-{SOURCE}"},
+            "/api/review/documents", params={"scope": f"source-{SOURCE}"},
         ).json()
         highlights = document["highlights"]
         assert sorted(h["phrase_id"] for h in highlights) == sorted(

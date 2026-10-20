@@ -108,25 +108,25 @@ export const api = {
   listSources: () => req<SourceSummary[]>('/sources'),
 
   getReview: (scope: SetScope, sort: CandidateSortOrder = 'relevance') =>
-    req<ReviewDetail>(`/review?${new URLSearchParams({ scope: String(scope), sort })}`),
+    req<ReviewDetail>(`/api/review?${new URLSearchParams({ scope: String(scope), sort })}`),
 
   getReviewDocuments: (scope: SetScope) =>
-    req<SourceDocument[]>(`/review/documents?${new URLSearchParams({ scope: String(scope) })}`),
+    req<SourceDocument[]>(`/api/review/documents?${new URLSearchParams({ scope: String(scope) })}`),
 
   getReviewGeneration: (scope: SetScope) =>
-    req<GenerationOverview>(`/review/generation?${new URLSearchParams({ scope: String(scope) })}`),
+    req<GenerationOverview>(`/api/review/generation?${new URLSearchParams({ scope: String(scope) })}`),
 
   runReviewGeneration: (scope: SetScope, kind: GenerationKind, cards: GenerationScope, sort: CandidateSortOrder = 'relevance') =>
     req<{ enqueued: number }>(
-      `/review/generation/${kind}?${new URLSearchParams({ scope: String(scope), cards, sort })}`,
+      `/api/review/generation/${kind}?${new URLSearchParams({ scope: String(scope), cards, sort })}`,
       { method: 'POST' },
     ),
 
   cancelReviewGeneration: (scope: SetScope, kind: GenerationKind) =>
-    req<{ cancelled: number }>(`/review/generation/${kind}/cancel?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
+    req<{ cancelled: number }>(`/api/review/generation/${kind}/cancel?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
 
   downloadReviewVideos: (scope: SetScope) =>
-    req<{ queued: number }>(`/review/download-video?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
+    req<{ queued: number }>(`/api/review/download-video?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
 
   processSource: (id: number) =>
     req<{ status: string }>(`/sources/${id}/process`, { method: 'POST' }),

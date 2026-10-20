@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -628,6 +629,17 @@ class TestSyncCollectionScope:
         pushed = [c.kwargs["notes"][0]["Target"] for c in connector.add_notes.call_args_list]
         assert result.total == 1
         assert pushed == ["burnout"]
+
+
+@pytest.mark.unit
+def test_a_source_export_logs_its_scope_token(caplog: pytest.LogCaptureFixture) -> None:
+    use_case = ExportCards().sync(
+        MagicMock(), MagicMock(get=MagicMock(return_value=None)), MagicMock(),
+        sources_scope_resolver(7),
+    )
+    with caplog.at_level(logging.INFO, logger="backend.application.use_cases.sync_to_anki"):
+        use_case.execute(SourceScope.source(7), ExportGroup.READY)
+    assert "scope=source-7" in caplog.text
 
 
 @pytest.mark.unit

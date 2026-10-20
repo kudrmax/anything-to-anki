@@ -152,7 +152,7 @@ class TestSourcesAPI:
     def test_source_document_with_marks(self, client: TestClient) -> None:
         source_id = client.post("/sources/add", json=TEXT_REQUEST).json()["source_ids"][0]
         [document] = client.get(
-            "/review/documents", params={"scope": f"source-{source_id}"},
+            "/api/review/documents", params={"scope": f"source-{source_id}"},
         ).json()
         assert document == {
             "source_id": source_id,
@@ -228,12 +228,12 @@ class TestSourcesAPI:
     def test_get_source(self, client: TestClient) -> None:
         create = client.post("/sources/add", json={"text": "Hello", "answers": TEXT_ANSWER})
         source_id = create.json()["source_ids"][0]
-        response = client.get("/review", params={"scope": f"source-{source_id}"})
+        response = client.get("/api/review", params={"scope": f"source-{source_id}"})
         assert response.status_code == 200
         assert response.json()["title"] == "Hello"
 
     def test_get_source_not_found(self, client: TestClient) -> None:
-        response = client.get("/review", params={"scope": "source-999"})
+        response = client.get("/api/review", params={"scope": "source-999"})
         assert response.status_code == 404
 
     def test_process_returns_202(self, client: TestClient) -> None:
@@ -386,7 +386,7 @@ class TestSourcesAPI:
         ))
         db_session.commit()
 
-        response = client.get("/review", params={"scope": f"source-{source.id}"})
+        response = client.get("/api/review", params={"scope": f"source-{source.id}"})
         assert response.status_code == 200
         data = response.json()
         candidates = data["candidates"]
@@ -423,7 +423,7 @@ class TestCreateFileSource:
         source = client.get("/sources").json()[0]
         assert (source["kind"], source["title"]) == ("text", "digest")
         [document] = client.get(
-            "/review/documents", params={"scope": f"source-{source['id']}"},
+            "/api/review/documents", params={"scope": f"source-{source['id']}"},
         ).json()
         blocks = document["blocks"]
         assert [(b["type"], b["lines"][0]["text"]) for b in blocks] == [
@@ -465,11 +465,11 @@ class TestSavedPhrasesAPI:
         assert saved_source["role"] == "saved_phrases"
         assert saved_source["is_permanent"] is True
         assert saved_source["learn_count"] == 1
-        detail = client.get("/review", params={"scope": f"source-{saved_source['id']}"}).json()
+        detail = client.get("/api/review", params={"scope": f"source-{saved_source['id']}"}).json()
         [card] = detail["candidates"]
         assert card["source"]["can_polish_phrases"] is False
         documents = client.get(
-            "/review/documents", params={"scope": f"source-{saved_source['id']}"},
+            "/api/review/documents", params={"scope": f"source-{saved_source['id']}"},
         ).json()
         assert documents == []
 

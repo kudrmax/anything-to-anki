@@ -94,7 +94,7 @@ def client(factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
 
 
 def _section(client: TestClient, source_id: int, phrase_id: int) -> str:
-    source = client.get("/review", params={"scope": f"source-{source_id}"}).json()
+    source = client.get("/api/review", params={"scope": f"source-{source_id}"}).json()
     card = next(c for c in source["candidates"] if c["phrase_id"] == phrase_id)
     return str(card["section"])
 
@@ -233,7 +233,7 @@ def test_ready_generation_takes_the_cards_that_are_ready_now_and_earned_ready(
 ) -> None:
     def missing(kind: str) -> int:
         kinds = client.get(
-            "/review/generation", params={"scope": f"source-{SOURCE}"},
+            "/api/review/generation", params={"scope": f"source-{SOURCE}"},
         ).json()["kinds"]
         return int(next(k for k in kinds if k["kind"] == kind)["ready_missing"])
 

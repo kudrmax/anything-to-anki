@@ -59,33 +59,33 @@ def _show(client: TestClient) -> str:
 
 def test_a_collection_reviews_the_cards_of_its_sources(client: TestClient) -> None:
     scope = _show(client)
-    review = client.get("/review", params={"scope": scope}).json()
+    review = client.get("/api/review", params={"scope": scope}).json()
     assert (review["scope"], review["title"], review["busy"]) == (scope, "Show", False)
     assert sorted(c["source"]["id"] for c in review["candidates"]) == [PILOT, FINALE]
-    candidates = client.get("/review/candidates", params={"scope": scope}).json()
+    candidates = client.get("/api/review/candidates", params={"scope": scope}).json()
     assert sorted(c["lemma"] for c in candidates) == ["glare", "relentless"]
 
 
 def test_a_source_is_a_set_of_one(client: TestClient) -> None:
-    review = client.get("/review", params={"scope": f"source-{PILOT}"}).json()
+    review = client.get("/api/review", params={"scope": f"source-{PILOT}"}).json()
     assert review["scope"] == f"source-{PILOT}"
     assert [c["lemma"] for c in review["candidates"]] == ["glare"]
 
 
 def test_all_sources_is_the_default(client: TestClient) -> None:
-    review = client.get("/review").json()
+    review = client.get("/api/review").json()
     assert (review["scope"], review["title"]) == ("all", "All sources")
     assert len(review["candidates"]) == 3
 
 
 def test_review_scope_errors(client: TestClient) -> None:
-    assert client.get("/review", params={"scope": "unsorted"}).status_code == 400
-    assert client.get("/review", params={"scope": "garbage"}).status_code == 400
-    assert client.get("/review", params={"scope": "source-99"}).status_code == 404
-    assert client.get("/review", params={"scope": "99"}).status_code == 404
-    assert client.get("/review/candidates", params={"scope": "unsorted"}).status_code == 400
-    assert client.get("/review/documents", params={"scope": "unsorted"}).status_code == 400
-    assert client.get("/review/documents", params={"scope": "source-99"}).status_code == 404
+    assert client.get("/api/review", params={"scope": "unsorted"}).status_code == 400
+    assert client.get("/api/review", params={"scope": "garbage"}).status_code == 400
+    assert client.get("/api/review", params={"scope": "source-99"}).status_code == 404
+    assert client.get("/api/review", params={"scope": "99"}).status_code == 404
+    assert client.get("/api/review/candidates", params={"scope": "unsorted"}).status_code == 400
+    assert client.get("/api/review/documents", params={"scope": "unsorted"}).status_code == 400
+    assert client.get("/api/review/documents", params={"scope": "source-99"}).status_code == 404
 
 
 def test_old_source_detail_is_gone(client: TestClient) -> None:
@@ -94,14 +94,19 @@ def test_old_source_detail_is_gone(client: TestClient) -> None:
     assert client.get(f"/sources/{PILOT}/document").status_code == 404
 
 
+def test_review_page_path_is_left_to_the_web_app(client: TestClient) -> None:
+    assert client.get("/review").status_code == 404
+    assert client.get("/api/review").status_code == 200
+
+
 def test_sources_without_a_document_have_no_text(client: TestClient) -> None:
-    assert client.get("/review/documents", params={"scope": _show(client)}).json() == []
+    assert client.get("/api/review/documents", params={"scope": _show(client)}).json() == []
 
 
 def test_download_video_of_a_set_without_links_is_400(client: TestClient) -> None:
     scope = _show(client)
-    assert client.post("/review/download-video", params={"scope": scope}).status_code == 400
+    assert client.post("/api/review/download-video", params={"scope": scope}).status_code == 400
     assert client.post(
-        "/review/download-video", params={"scope": "unsorted"},
+        "/api/review/download-video", params={"scope": "unsorted"},
     ).status_code == 400
     assert client.post(f"/sources/{PILOT}/download-video").status_code == 404
