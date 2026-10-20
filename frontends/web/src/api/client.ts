@@ -218,19 +218,20 @@ export const api = {
   enqueueTopicGeneration: (sourceId: number) =>
     req<{ status: string }>(`/sources/${sourceId}/topic-targets/generate`, { method: 'POST' }),
 
-  previewRebuild: (sourceId: number) =>
-    req<SourceOperation>(`/sources/${sourceId}/rebuild/preview`, { method: 'POST' }),
+  previewRebuild: (scope: SetScope) =>
+    req<SourceOperation>(`/api/operations/rebuild/preview?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
 
-  rebuildSource: (sourceId: number, includeOpen: boolean) =>
-    req<SourceOperation>(`/sources/${sourceId}/rebuild`, {
+  rebuild: (scope: SetScope, includeOpen: boolean) =>
+    req<SourceOperation>(`/api/operations/rebuild?${new URLSearchParams({ scope: String(scope) })}`, {
       method: 'POST',
       body: JSON.stringify({ include_open: includeOpen }),
     }),
 
-  refreshTopic: (sourceId: number) =>
-    req<SourceOperation>(`/sources/${sourceId}/refresh`, { method: 'POST' }),
+  refresh: (scope: SetScope) =>
+    req<SourceOperation>(`/api/operations/refresh?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
 
-  getOperation: (sourceId: number) => req<SourceOperation>(`/sources/${sourceId}/operation`),
+  getOperation: (scope: SetScope) =>
+    req<SourceOperation>(`/api/operations?${new URLSearchParams({ scope: String(scope) })}`),
 
   getStats: () => req<Stats>('/stats'),
 

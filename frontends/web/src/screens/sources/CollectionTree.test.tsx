@@ -1,10 +1,13 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CollectionNode, CollectionTree as Tree } from '@/api/types'
+import type { CollectionNode, CollectionTree as Tree, ScopeCounts } from '@/api/types'
 import { COLLECTION_MIME, CollectionTree } from './CollectionTree'
 
-const counts = { total: 1, reviewed: 0, pending: 1, progress: { decided: 0, total: 0 }, status: 'new' as const, can_process: true, can_review: false, review_fraction: 0, progress_caption: '' }
+const counts: ScopeCounts = {
+  total: 1, reviewed: 0, pending: 1, progress: { decided: 0, total: 0 }, status: 'new', can_process: true, can_review: false, review_fraction: 0, progress_caption: '',
+  available_operations: ['rebuild'], can_start_operation: true, operation_hint: null, can_export: true,
+}
 const node = (id: number, name: string, accepts: boolean, moveTargets: (number | null)[] = [null]): CollectionNode => ({
   id, name, parent_id: null, counts, depth: 1, accepts_collections: accepts, move_targets: moveTargets, children: [],
 })
@@ -20,7 +23,7 @@ describe('CollectionTree', () => {
   let root: Root
   const handlers = {
     onSelect: vi.fn(), onCreate: vi.fn(), onRename: vi.fn(), onMove: vi.fn(),
-    onDelete: vi.fn(), onMoveTo: vi.fn(), onDropSources: vi.fn(),
+    onDelete: vi.fn(), onMoveTo: vi.fn(), onDropSources: vi.fn(), onExport: vi.fn(), onOperation: vi.fn(),
   }
 
   beforeEach(() => {
@@ -208,6 +211,14 @@ describe('CollectionTree', () => {
     act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
     openMenu('Nested')
     expect(host.textContent).not.toContain('New subcollection')
+  })
+
+  it('offers a collection the actions of a source, in the same order', () => {
+    openMenu('Top')
+    const labels = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].map(el => el.textContent)
+    expect(labels).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Rebuild…', 'Delete'])
+    act(() => menuItem('Rebuild…').click())
+    expect(handlers.onOperation).toHaveBeenCalledWith(1, 'rebuild')
   })
 
   it('shows the decision progress of a collection and only the source count without candidates', () => {

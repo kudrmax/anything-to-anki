@@ -26,7 +26,7 @@ export interface Progress {
   total: number
 }
 
-export interface ScopeCounts {
+export interface ScopeCounts extends SetOffer {
   total: number
   reviewed: number
   pending: number
@@ -90,7 +90,20 @@ export interface SourcePlacement {
   collection_id: number | null
 }
 
-export interface SourceSummary {
+export type SetOperation = 'rebuild' | 'refresh'
+
+/** Что предлагает меню «…» источника или набора: одни поля у обоих; решает backend. */
+export interface SetOffer {
+  /** Как привести набор в актуальное состояние, в порядке меню. */
+  available_operations: SetOperation[]
+  /** false — всё, что можно обновить, занято другой операцией: пункт виден, но недоступен. */
+  can_start_operation: boolean
+  /** Почему операция сейчас недоступна. */
+  operation_hint: string | null
+  can_export: boolean
+}
+
+export interface SourceSummary extends SetOffer {
   id: number
   title: string
   status: SourceStatus
@@ -112,18 +125,11 @@ export interface SourceSummary {
   awaiting_generation: boolean
   generation_status: GenerationStatus | null
   generation_error: string | null
-  /** Как привести источник в актуальное состояние; решает backend. */
-  available_operations: ('rebuild' | 'refresh')[]
-  /** false — источник занят другой операцией: пункт виден, но недоступен. */
-  can_start_operation: boolean
   /** Операция, которой занят источник; другую сейчас не начать. */
   busy_with: SourceOperationKind | null
-  /** Почему операция сейчас недоступна. */
-  operation_hint: string | null
   /** Что источник позволяет сейчас; решает backend. */
   can_process: boolean
   can_review: boolean
-  can_export: boolean
   can_delete: boolean
   /** Доля разобранного, 0..1; разобранный источник — 1. */
   review_fraction: number
@@ -579,23 +585,29 @@ export interface RebuildCounts {
 }
 
 /** Превью Rebuild: без галочки «Also unreviewed cards» и с ней. */
-export interface RebuildPreview {
+/** Как прошли источники набора: занятые пропущены, упавшие посчитаны; у одного источника обоих нет. */
+export interface SetOutcome {
+  skipped: number
+  failed: number
+}
+
+export interface RebuildPreview extends SetOutcome {
   without_open: RebuildCounts
   /** null — у источника нет своего текста: галочки нет. */
   with_open: RebuildCounts | null
 }
 
-export interface RebuildSummary {
+export interface RebuildSummary extends SetOutcome {
   include_open: boolean
   counts: RebuildCounts
 }
 
-export interface TopicRefreshSummary {
+export interface TopicRefreshSummary extends SetOutcome {
   words_added: number
   phrases_added: number
 }
 
-/** Долгая операция над источником (Rebuild, его превью, Refresh темы), запущенная в фоне. */
+/** Долгая операция над набором источников (Rebuild, его превью, Refresh тем), запущенная в фоне. */
 export interface SourceOperation {
   operation_id: number
   kind: SourceOperationKind

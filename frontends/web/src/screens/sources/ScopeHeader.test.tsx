@@ -7,6 +7,7 @@ import { ScopeHeader } from './ScopeHeader'
 const counts: ScopeCounts = {
   total: 2, reviewed: 1, pending: 0, progress: { decided: 3, total: 12 },
   status: 'partially_reviewed', can_process: false, can_review: true, review_fraction: 0.25, progress_caption: '3 of 12 phrases',
+  available_operations: ['rebuild'], can_start_operation: true, operation_hint: null, can_export: true,
 }
 const node = (id: number, name: string, depth: number): CollectionNode => ({
   id, name, parent_id: depth === 1 ? null : id - 1, counts, depth, accepts_collections: true, move_targets: [null], children: [],
@@ -18,12 +19,14 @@ describe('ScopeHeader', () => {
   let root: Root
   const onOpenAncestor = vi.fn()
   const onReview = vi.fn()
+  const onOperation = vi.fn()
   const noop = () => {}
 
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     onOpenAncestor.mockReset()
     onReview.mockReset()
+    onOperation.mockReset()
     host = document.createElement('div')
     document.body.appendChild(host)
     root = createRoot(host)
@@ -34,10 +37,10 @@ describe('ScopeHeader', () => {
     host.remove()
   })
 
-  const render = (ancestors: CollectionNode[], current: CollectionNode, shown: ScopeCounts | null = counts, processing = false) => act(() => root.render(
+  const render = (ancestors: CollectionNode[], current: CollectionNode | null, shown: ScopeCounts | null = counts, processing = false) => act(() => root.render(
     <ScopeHeader
-      title={current.name} ancestors={ancestors} counts={shown} node={current} processing={processing}
-      onOpenAncestor={onOpenAncestor} onProcessAll={noop} onReview={onReview} onExport={noop}
+      title={current?.name ?? 'All sources'} ancestors={ancestors} counts={shown} node={current} processing={processing}
+      onOpenAncestor={onOpenAncestor} onProcessAll={noop} onReview={onReview} onExport={noop} onOperation={onOperation}
       onRename={noop} onNewSubcollection={noop} onMoveTo={noop} onDelete={noop}
     />,
   ))
@@ -104,7 +107,7 @@ describe('ScopeHeader', () => {
 
   it('shows no counts-made actions before the counts load', () => {
     render([], a, null)
-    expect(buttons()).toEqual(['Export', ''])
+    expect(buttons()).toEqual([''])
     expect(host.textContent).not.toContain('No sources yet')
   })
 
@@ -116,5 +119,29 @@ describe('ScopeHeader', () => {
   it('shows no review button where the backend refuses review', () => {
     render([], a, { ...counts, status: 'done', can_review: false })
     expect(buttons()).not.toContain('Review')
+  })
+
+  const trigger = () => host.querySelector<HTMLElement>('[aria-label$="ctions"]')
+  const openMenu = () => act(() => trigger()!.click())
+  const menuLabels = () => [...host.querySelectorAll<HTMLElement>('[role="menuitem"]')].map(el => el.textContent)
+
+  it('keeps Export in the menu of a collection, with the actions of a source', () => {
+    render([], a)
+    expect(buttons()).not.toContain('Export')
+    openMenu()
+    expect(menuLabels()).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Rebuild…', 'Delete'])
+  })
+
+  it('offers All only Export and the operations, and runs them on the whole scope', () => {
+    render([], null, { ...counts, available_operations: ['refresh', 'rebuild'] })
+    openMenu()
+    expect(menuLabels()).toEqual(['Export', 'Refresh…', 'Rebuild…'])
+    act(() => [...host.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(el => el.textContent === 'Rebuild…')!.click())
+    expect(onOperation).toHaveBeenCalledWith('rebuild')
+  })
+
+  it('keeps the place of the menu when a scope offers nothing', () => {
+    render([], null, { ...counts, available_operations: [], can_export: false })
+    expect(trigger()).toBeNull()
   })
 })

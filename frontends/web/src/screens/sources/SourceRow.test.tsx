@@ -133,6 +133,13 @@ describe('SourceRow', () => {
     expect(onOperation).toHaveBeenCalledWith(7, 'rebuild')
   })
 
+  it('lists the source actions in the order a collection has them', () => {
+    render(false, false, { ...source, available_operations: ['rebuild'], can_export: true, can_delete: true })
+    openMenu()
+    const labels = [...host.querySelectorAll('[role="menuitem"]')].map(item => item.textContent)
+    expect(labels).toEqual(['Export', 'Rename', 'Move to…', 'Rebuild…', 'Delete'])
+  })
+
   it('keeps the operation visible but unavailable with the backend hint while the source is busy', () => {
     render(false, false, {
       ...source, available_operations: ['rebuild'], can_start_operation: false, busy_with: 'preview',

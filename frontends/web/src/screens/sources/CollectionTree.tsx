@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderOpen, FolderPlus, Inbox, Layers, Plus, type LucideIcon } from 'lucide-react'
-import type { CollectionNode, CollectionTree as Tree, Scope, ScopeCounts } from '@/api/types'
+import type { CollectionNode, CollectionTree as Tree, Scope, ScopeCounts, SetOperation } from '@/api/types'
 import { useCollapsed } from '@/hooks/useCollapsed'
 import { collectionDrop, zoneAt, type DropZone } from '@/lib/treeDrop'
 import { Icon, IconButton, Menu, Progress } from '@/ui'
-import { collectionMenuItems } from './collectionMenu'
+import { collectionMenuItems } from './scopeMenu'
 import css from './CollectionTree.module.css'
 
 export const SOURCES_MIME = 'application/x-anki-sources'
@@ -37,6 +37,9 @@ interface CollectionTreeProps {
   onMove: (id: number, parentId: number | null, position: number) => void
   onDelete: (id: number) => void
   onMoveTo: (id: number) => void
+  onExport: (id: number) => void
+  /** Rebuild или Refresh коллекции целиком. */
+  onOperation: (id: number, operation: SetOperation) => void
   onDropSources: (sourceIds: number[], collectionId: number | null) => void
   /** На телефоне дерево без перетаскивания. */
   draggable: boolean
@@ -135,6 +138,8 @@ export function CollectionTree(props: CollectionTreeProps) {
   }
 
   const menuFor = (node: CollectionNode) => collectionMenuItems(node, {
+    onExport: () => props.onExport(node.id),
+    onOperation: operation => props.onOperation(node.id, operation),
     onRename: () => startRename(node),
     onNewSubcollection: () => startCreate(node.id),
     onMoveTo: () => props.onMoveTo(node.id),

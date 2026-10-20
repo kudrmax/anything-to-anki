@@ -3,10 +3,13 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import type { CollectionTree, InputDescription, Scope, SourceBoard, SourceSummary, Stats } from '@/api/types'
+import type { CollectionTree, InputDescription, Scope, ScopeCounts, SourceBoard, SourceSummary, Stats } from '@/api/types'
 import { SourcesScreen } from './SourcesScreen'
 
-const counts = { total: 3, reviewed: 1, pending: 0, progress: { decided: 0, total: 0 }, status: 'new' as const, can_process: false, can_review: false, review_fraction: 0, progress_caption: '' }
+const counts: ScopeCounts = {
+  total: 3, reviewed: 1, pending: 0, progress: { decided: 0, total: 0 }, status: 'new', can_process: false, can_review: false, review_fraction: 0, progress_caption: '',
+  available_operations: ['rebuild'], can_start_operation: true, operation_hint: null, can_export: true,
+}
 const tree: CollectionTree = {
   all: counts,
   unsorted: counts,
@@ -162,7 +165,7 @@ describe('SourcesScreen', () => {
     await render('/?scope=11')
     expect(shape()).toEqual(all)
     expect(host.querySelector('h1')?.textContent).toBe('FriendsSeason 1')
-    expect(all).toEqual({ leadLines: 2, actionSlots: 2, search: true })
+    expect(all).toEqual({ leadLines: 2, actionSlots: 1, search: true })
   })
 
   it('opens the parent from the path in the header', async () => {
@@ -251,9 +254,21 @@ describe('SourcesScreen', () => {
 
   it('exports the open collection and comes back to it', async () => {
     await render('/?scope=11')
+    act(() => button('Collection actions', host.querySelector('header')!).click())
     act(() => button('Export', host.querySelector('header')!).click())
     expect(seen.location).toBe('/export?scope=11')
     expect(seen.state).toEqual({ back: '/?scope=11' })
+  })
+
+  it('rebuilds the open collection through the same dialog a source uses', async () => {
+    const preview = vi.spyOn(api, 'previewRebuild').mockReturnValue(new Promise(() => {}))
+    await render('/?scope=11')
+    act(() => button('Collection actions', host.querySelector('header')!).click())
+    act(() => button('Rebuild…', host.querySelector('header')!).click())
+    const dialog = document.body.querySelector('[role="dialog"]')!
+    expect(dialog.textContent).toContain('Rebuild “Season 1”')
+    act(() => button('Preview', dialog).click())
+    expect(preview).toHaveBeenCalledWith(11)
   })
 
   it('opens the review of the open collection from its header', async () => {

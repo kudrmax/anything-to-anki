@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { CollectionNode, Scope, SourceStage, SourceSummary } from '@/api/types'
+import type { CollectionNode, Scope, SetOperation, SetScope, SourceStage } from '@/api/types'
 import { statsStore, useStats } from '@/hooks/useStats'
 import { backTo } from '@/lib/backLink'
 import { usePhone } from '@/lib/device'
@@ -37,7 +37,7 @@ const END_POSITION = Number.MAX_SAFE_INTEGER
 
 type MoveTarget = { kind: 'sources'; ids: number[] } | { kind: 'collection'; id: number } | null
 type Naming = { kind: 'rename'; node: CollectionNode } | { kind: 'create'; parent: CollectionNode } | null
-type Operating = { id: number; title: string; operation: SourceSummary['available_operations'][number] } | null
+type Operating = { scope: SetScope; title: string; operation: SetOperation } | null
 
 const sourcesWord = (n: number) => (n === 1 ? '1 source' : `${n} sources`)
 
@@ -136,8 +136,8 @@ export function SourcesScreen() {
   // Ревью и экспорт возвращают на открытую область.
   const backHere = backTo(`/${scopeQuery(scope)}`)
   const review = (id: number) => navigate(reviewPath(sourceScope(id)), { state: backHere })
-  const exportSource = (id: number) => navigate(exportPath(sourceScope(id)), { state: backHere })
-  const exportScope = () => navigate(exportPath(scope), { state: backHere })
+  const exportSet = (set: SetScope) => navigate(exportPath(set), { state: backHere })
+  const operate = (set: SetScope, setTitle: string, operation: SetOperation) => setOperating({ scope: set, title: setTitle, operation })
 
   const processAll = async () => {
     setProcessingAll(true)
@@ -201,6 +201,8 @@ export function SourcesScreen() {
           onMove={(id, parentId, position) => void collections.move(id, parentId, position)}
           onDelete={deleteCollection}
           onMoveTo={id => setMoveTarget({ kind: 'collection', id })}
+          onExport={exportSet}
+          onOperation={(id, operation) => operate(id, findNode(tree.collections, id)?.name ?? '', operation)}
           onDropSources={placeSources}
           draggable={!isPhone}
         />
@@ -264,7 +266,8 @@ export function SourcesScreen() {
             processing={processingAll}
             onProcessAll={() => void processAll()}
             onReview={() => navigate(reviewPath(scope), { state: backHere })}
-            onExport={exportScope}
+            onExport={() => exportSet(scope)}
+            onOperation={operation => operate(scope, title, operation)}
             onRename={() => node && setNaming({ kind: 'rename', node })}
             onNewSubcollection={() => node && setNaming({ kind: 'create', parent: node })}
             onMoveTo={() => node && setMoveTarget({ kind: 'collection', id: node.id })}
@@ -301,10 +304,10 @@ export function SourcesScreen() {
                         onCancelGeneration={id => void board.cancelGeneration(id)}
                         onRetryGeneration={id => void board.retryGeneration(id)}
                         onReview={review}
-                        onExport={exportSource}
+                        onExport={id => exportSet(sourceScope(id))}
                         onDelete={deleteSource}
                         onRename={(id, newTitle) => void board.rename(id, newTitle)}
-                        onOperation={(id, operation) => setOperating({ id, title: source.title, operation })}
+                        onOperation={(id, operation) => operate(sourceScope(id), source.title, operation)}
                         onRowClick={rowClick}
                         onMoveTo={id => setMoveTarget({ kind: 'sources', ids: [id] })}
                         dragIds={() => dragIds(source.id)}
@@ -331,7 +334,7 @@ export function SourcesScreen() {
       </div>
       {operating && (
         <RebuildDialog
-          sourceId={operating.id}
+          scope={operating.scope}
           title={operating.title}
           operation={operating.operation}
           onFinished={reloadBoard}
