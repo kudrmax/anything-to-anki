@@ -23,6 +23,8 @@ interface MediaRefs {
 
 export interface Editing {
   candidateId: number
+  /** Источник фразы: новая граница выделяется в его тексте. */
+  sourceId: number
   lemma: string
   pos: string
   originalFragment: string
@@ -317,7 +319,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
   const startEditing = (candidateId: number) => {
     const candidate = candidates.find(c => c.phrase_id === candidateId)
     if (!candidate) return
-    setEditing({ candidateId, lemma: candidate.lemma, pos: candidate.pos, originalFragment: candidate.source_phrase.text })
+    setEditing({ candidateId, sourceId: candidate.source.id, lemma: candidate.lemma, pos: candidate.pos, originalFragment: candidate.source_phrase.text })
   }
 
   const cancelEditing = useCallback(() => {

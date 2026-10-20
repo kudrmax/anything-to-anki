@@ -16,7 +16,8 @@ import { PhraseRow } from './PhraseRow'
 import { SelectionPopover } from './SelectionPopover'
 import { SortMenu } from './SortMenu'
 import { sortItems, sortLabel } from './sortItems'
-import { SourceText, type SelectedText, type SelectionPoint } from './SourceText'
+import type { SelectedText, SelectionPoint } from './SourceText'
+import { SourceTexts } from './SourceTexts'
 import { audioUrlForCandidate, useReview } from './useReview'
 import { useShownCandidates } from './useShownCandidates'
 import { useSwipe } from './useSwipe'
@@ -249,10 +250,11 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
   )
 
   const sourceText = (onWordClick: (id: number) => void) => hasSourceText && (
-    <SourceText
-      document={review.documents[0]}
+    <SourceTexts
+      documents={review.documents}
       candidates={candidates}
       focusId={editing?.candidateId ?? currentId}
+      editingSourceId={editing?.sourceId ?? null}
       onWordClick={onWordClick}
       onTextSelected={(selected, point) => setSelection({ selected, point })}
     />
