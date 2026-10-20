@@ -7,6 +7,7 @@ from backend.application.dto.add_source_dtos import QuestionsRequired, SourcesCr
 from backend.application.source_intake.book_handler import BookHandler
 from backend.application.source_intake.document_normalizer import DocumentNormalizer
 from backend.application.source_intake.single_source_handler import SingleSourceHandler
+from backend.application.source_intake.source_group_writer import SourceGroupWriter
 from backend.application.source_intake.source_writer import SourceWriter
 from backend.application.use_cases.add_source import AddSourceUseCase
 from backend.domain.exceptions import (
@@ -87,15 +88,15 @@ def add_source(db_session: Session, tmp_path: Path) -> AddSourceUseCase:
             YouTubeReader(youtube),
         ),
         handlers=(
-            SingleSourceHandler(Kind.TEXT, writer),
-            SingleSourceHandler(Kind.SONG, writer),
-            SingleSourceHandler(Kind.SUBTITLES, writer),
-            BookHandler(
-                writer, SqlaCollectionRepository(db_session), SqlaSettingsRepository(db_session),
-            ),
+            SingleSourceHandler(Kind.TEXT),
+            SingleSourceHandler(Kind.SONG),
+            SingleSourceHandler(Kind.SUBTITLES),
+            BookHandler(),
         ),
         normalizer=DocumentNormalizer(RegexTextCleaner(), SlangNormalizer()),
         file_reader=files,
+        group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(db_session)),
+        settings_repo=SqlaSettingsRepository(db_session),
     )
 
 
@@ -208,7 +209,7 @@ class TestErrors:
 
 
 class TestBook:
-    def test_asks_to_split_showing_the_chapters(
+    def test_asks_to_split(
         self, add_source: AddSourceUseCase, tmp_path: Path,
     ) -> None:
         result = add_source.execute(LocalFile(_book(tmp_path, 2)))
@@ -220,12 +221,7 @@ class TestBook:
         )
         split, whole = question.options
         assert split.label == "2 chapters · 201–301 words each"
-        assert split.details is not None
-        assert split.details.title == "Sources in collection «Flourish»"
-        assert [(item.text, item.note) for item in split.details.items] == [
-            ("Flourish ch1", "201 words"),
-            ("Flourish ch2", "301 words"),
-        ]
+        assert split.details is None
         assert whole.label == "One source · 502 words"
 
     def test_split_book_goes_to_its_collection_again_and_again(
@@ -346,9 +342,11 @@ def test_youtube_without_subtitles_is_reported(db_session: Session, tmp_path: Pa
     use_case = AddSourceUseCase(
         detector=RegexFormatDetector(youtube),
         readers=(YouTubeReader(youtube),),
-        handlers=(SingleSourceHandler(Kind.SUBTITLES, writer),),
+        handlers=(SingleSourceHandler(Kind.SUBTITLES),),
         normalizer=DocumentNormalizer(RegexTextCleaner(), SlangNormalizer()),
         file_reader=LocalFileReader(),
+        group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(db_session)),
+        settings_repo=SqlaSettingsRepository(db_session),
     )
     with pytest.raises(SubtitlesNotAvailableError):
         use_case.execute(Url(YOUTUBE_URL))

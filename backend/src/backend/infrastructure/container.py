@@ -13,6 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from backend.application.source_intake.book_handler import BookHandler
 from backend.application.source_intake.document_normalizer import DocumentNormalizer
 from backend.application.source_intake.single_source_handler import SingleSourceHandler
+from backend.application.source_intake.source_group_writer import SourceGroupWriter
 from backend.application.source_intake.source_writer import SourceWriter
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
 from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
@@ -466,17 +467,15 @@ class Container:
             detector=self._format_detector,
             readers=self._format_readers,
             handlers=(
-                SingleSourceHandler(Kind.TEXT, writer),
-                SingleSourceHandler(Kind.SONG, writer),
-                SingleSourceHandler(Kind.SUBTITLES, writer),
-                BookHandler(
-                    writer=writer,
-                    collection_repo=SqlaCollectionRepository(session),
-                    settings_repo=SqlaSettingsRepository(session),
-                ),
+                SingleSourceHandler(Kind.TEXT),
+                SingleSourceHandler(Kind.SONG),
+                SingleSourceHandler(Kind.SUBTITLES),
+                BookHandler(),
             ),
             normalizer=self._document_normalizer,
             file_reader=self._file_reader,
+            group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(session)),
+            settings_repo=SqlaSettingsRepository(session),
         )
 
     def describe_input_use_case(self) -> DescribeInputUseCase:

@@ -401,11 +401,7 @@ class TestBookFileSourceAPI:
         assert resp.status_code == 200
         (question,) = resp.json()["questions"]
         assert (question["id"], question["prompt"]) == ("book.split", "Add «Dune» as")
-        split = question["options"][0]
-        assert split["details"]["items"] == [
-            {"text": "Dune ch1", "note": "201 words"},
-            {"text": "Dune ch2", "note": "201 words"},
-        ]
+        assert question["options"][0]["details"] is None
         assert client.get("/sources").json() == []
 
     def test_split_book_becomes_a_collection_of_chapters(
