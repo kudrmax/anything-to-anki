@@ -25,6 +25,8 @@ class GenerationKindStatusDTO(BaseModel):
     missing: int
     ready_missing: int
     blocked_by: GenerationBlocker | None = None
+    # Sources whose video this kind needs and nobody downloads yet: neither here nor on its way.
+    videos_to_download: int = 0
 
 
 class GenerationStatusDTO(BaseModel):

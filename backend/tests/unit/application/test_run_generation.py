@@ -23,6 +23,7 @@ from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.candidate_tts import CandidateTTS
+from backend.domain.entities.collection import Collection
 from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.source import Source
@@ -56,6 +57,8 @@ from backend.domain.value_objects.word_status import WordStatus
 from tests.card_support import PhraseWordStates
 from tests.decision_support import NOW as REQUEST_MOMENT
 from tests.phrase_support import phrase
+from tests.unit.application.collection_fakes import InMemoryCollectionRepository
+from tests.unit.application.source_fakes import InMemorySourceRepository
 from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
@@ -539,6 +542,43 @@ class TestGetGenerationStatus:
         assert media.blocked_by == GenerationBlocker.VIDEO_DOWNLOADING
         assert media.total == 0  # the card has no timecodes
         assert status.in_progress is True
+
+    def test_counts_the_videos_a_set_can_still_download(self) -> None:
+        """Downloaded, downloading and not downloaded videos in one collection: only the
+        last can be downloaded, though the set's media is no longer held back."""
+        sources = [
+            Source(
+                id=source_id, status=SourceStatus.DONE, collection_id=1,
+                format=Format.YOUTUBE, source_url="https://youtu.be/x", video_path=video_path,
+            )
+            for source_id, video_path in [(1, "/v/1.mp4"), (2, None), (3, None), (4, None)]
+        ]
+        cards = MagicMock()
+        cards.of_source.return_value = []
+        job_repo = MagicMock()
+        job_repo.has_active_jobs_for_source.side_effect = lambda source_id, _types: source_id == 4
+        use_case = GetGenerationStatusUseCase(
+            scope_resolver=SourceScopeResolver(
+                InMemorySourceRepository(sources),
+                InMemoryCollectionRepository([Collection(id=1, name="Friends")]),
+            ),
+            cards=cards, job_repo=job_repo, candidate_sorter=MagicMock(), targets=[MediaTarget()],
+        )
+
+        status = use_case.execute(SourceScope.collection(1))
+
+        (media,) = status.kinds
+        assert (media.videos_to_download, media.blocked_by) == (2, None)
+
+    def test_a_downloaded_or_downloading_video_is_not_to_download(self) -> None:
+        downloaded = _Setup([_one(1)], source=_source(Format.VIDEO_FILE, video_path="/v.mp4"))
+        downloading = _Setup([_one(1)], source=_source(Format.VIDEO_FILE), video_downloading=True)
+        missing = _Setup([_one(1)], source=_source(Format.VIDEO_FILE))
+        assert [
+            s.kind_status(GenerationKind.MEDIA).videos_to_download
+            for s in (downloaded, downloading, missing)
+        ] == [0, 0, 1]
+        assert missing.kind_status(GenerationKind.MEANING).videos_to_download == 0
 
     def test_speech_without_audio_file_is_missing(self) -> None:
         shown = replace(

@@ -557,6 +557,8 @@ export interface GenerationKindStatus {
   missing: number
   ready_missing: number
   blocked_by: GenerationBlocker | null
+  /** Источники набора, которым этот вид ждёт видео, а оно не скачано и не скачивается. */
+  videos_to_download: number
 }
 
 /** Фоновая генерация по карточкам источника. */

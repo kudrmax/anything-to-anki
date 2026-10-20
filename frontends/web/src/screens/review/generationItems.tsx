@@ -19,18 +19,21 @@ function statusLead(status: GenerationKindStatus) {
 }
 
 function videoItems(status: GenerationKindStatus, review: Review): MenuItem[] {
-  if (status.blocked_by === 'video_downloading') {
-    return [{ label: 'Downloading video…', hint: 'Media is cut once it’s here', icon: Download, disabled: true }]
-  }
-  if (status.blocked_by === 'video_not_downloaded') {
-    return [{
-      label: 'Download video',
-      hint: 'Media is cut from the video file',
-      icon: Download,
-      onSelect: () => void review.generationActions.downloadVideo(),
-    }]
-  }
-  return []
+  const toDownload = status.videos_to_download
+  return [
+    ...(status.blocked_by === 'video_downloading'
+      ? [{ label: 'Downloading video…', hint: 'Media is cut once it’s here', icon: Download, disabled: true }]
+      : []),
+    ...(toDownload > 0
+      ? [{
+          label: 'Download video',
+          hint: 'Media is cut from the video file',
+          icon: Download,
+          value: toDownload > 1 ? String(toDownload) : undefined,
+          onSelect: () => void review.generationActions.downloadVideo(),
+        }]
+      : []),
+  ]
 }
 
 function kindItems(status: GenerationKindStatus, review: Review): MenuItem[] {

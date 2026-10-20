@@ -8,6 +8,7 @@ from backend.application.utils.generation_targets import CardJobs, ReadyCards
 from backend.domain.services.generation_blocker import set_blocker
 from backend.domain.services.generation_scope import in_scope
 from backend.domain.value_objects.card_generation_state import CardGenerationState
+from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_scope import GenerationScope
 from backend.domain.value_objects.job_type import JobType
 
@@ -85,6 +86,7 @@ class GetGenerationStatusUseCase:
         ready: ReadyCards,
         video_downloading: bool,
     ) -> GenerationKindStatusDTO:
+        blocker = target.blocker(source, video_downloading)
         covered = target.cards(cards)
         state_of = {id(c): target.state(c, target.job_of(jobs, c)) for c in covered}
         states = Counter(state_of.values())
@@ -100,13 +102,14 @@ class GetGenerationStatusUseCase:
             failed=states[CardGenerationState.FAILED],
             missing=states[CardGenerationState.MISSING],
             ready_missing=ready_missing,
-            blocked_by=target.blocker(source, video_downloading),
+            blocked_by=blocker,
+            videos_to_download=int(blocker is GenerationBlocker.VIDEO_NOT_DOWNLOADED),
         )
 
 
 def _summed(kinds: list[GenerationKindStatusDTO]) -> GenerationKindStatusDTO:
-    """One kind over several sources: counts add up; it is held back only when every
-    source holds it back."""
+    """One kind over several sources: counts add up, the videos to download too; it is held
+    back only when every source holds it back."""
     return GenerationKindStatusDTO(
         kind=kinds[0].kind,
         total=sum(k.total for k in kinds),
@@ -116,4 +119,5 @@ def _summed(kinds: list[GenerationKindStatusDTO]) -> GenerationKindStatusDTO:
         missing=sum(k.missing for k in kinds),
         ready_missing=sum(k.ready_missing for k in kinds),
         blocked_by=set_blocker([k.blocked_by for k in kinds]),
+        videos_to_download=sum(k.videos_to_download for k in kinds),
     )
