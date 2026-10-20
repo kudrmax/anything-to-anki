@@ -6,7 +6,11 @@ import pytest
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
-from backend.domain.exceptions import CollectionNotFoundError
+from backend.domain.exceptions import (
+    CollectionNotFoundError,
+    ScopeNotReviewableError,
+    SourceNotFoundError,
+)
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
@@ -44,3 +48,23 @@ class TestSourceScopeResolver:
     def test_unknown_collection(self) -> None:
         with pytest.raises(CollectionNotFoundError):
             self.resolver.sources(SourceScope.collection(9))
+
+    def test_source_scope_is_that_source(self) -> None:
+        assert [s.id for s in self.resolver.sources(SourceScope.source(2))] == [2]
+
+    def test_unknown_source(self) -> None:
+        with pytest.raises(SourceNotFoundError):
+            self.resolver.sources(SourceScope.source(9))
+
+    def test_source_title(self) -> None:
+        resolver = SourceScopeResolver(
+            InMemorySourceRepository([Source(id=5, title="Pilot", status=SourceStatus.DONE)]),
+            InMemoryCollectionRepository([]),
+        )
+        assert resolver.title(SourceScope.source(5)) == "Pilot"
+
+    def test_unsorted_is_not_for_review(self) -> None:
+        with pytest.raises(ScopeNotReviewableError):
+            self.resolver.reviewable_sources(SourceScope.unsorted())
+        reviewable = self.resolver.reviewable_sources(SourceScope.collection(1))
+        assert [s.id for s in reviewable] == [3, 2]
