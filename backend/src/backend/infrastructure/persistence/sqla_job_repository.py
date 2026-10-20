@@ -296,26 +296,23 @@ class SqlaJobRepository(JobRepository):
     def get_jobs_for_candidates(
         self, candidate_ids: list[int],
     ) -> dict[int, dict[str, Job]]:
-        if not candidate_ids:
-            return {}
-        stmt = (
-            select(JobModel)
-            .where(JobModel.candidate_id.in_(candidate_ids))
-            .order_by(
-                # Order so that queued/running come last (we keep last per candidate_id+type)
-                JobModel.status.asc(),
-            )
-        )
-        rows = self._session.execute(stmt).scalars().all()
-        # Build mapping; later rows overwrite earlier ones per (candidate_id, job_type).
-        # Status ordering: "failed" < "queued" < "running" (alphabetical asc)
-        # So queued/running overwrite failed — which is the desired behavior.
         result: dict[int, dict[str, Job]] = {}
-        for model in rows:
-            if model.candidate_id is not None:
-                if model.candidate_id not in result:
-                    result[model.candidate_id] = {}
-                result[model.candidate_id][model.job_type] = model.to_entity()
+        for chunk in chunks(candidate_ids):
+            stmt = (
+                select(JobModel)
+                .where(JobModel.candidate_id.in_(chunk))
+                .order_by(
+                    # Order so that queued/running come last (we keep last per candidate_id+type)
+                    JobModel.status.asc(),
+                )
+            )
+            # Build mapping; later rows overwrite earlier ones per (candidate_id, job_type).
+            # Status ordering: "failed" < "queued" < "running" (alphabetical asc)
+            # So queued/running overwrite failed — which is the desired behavior.
+            # A candidate's jobs all fall into its own chunk, so the order holds per candidate.
+            for model in self._session.execute(stmt).scalars():
+                if model.candidate_id is not None:
+                    result.setdefault(model.candidate_id, {})[model.job_type] = model.to_entity()
         return result
 
     def get_jobs_by_status(

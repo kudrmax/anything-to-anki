@@ -17,6 +17,9 @@ from tests.word_support import insert_word, phrase_id_of
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+# SQLite's default limit on bound parameters in one statement.
+SQLITE_MAX_VARIABLES = 32_766
+
 
 def _insert_source(session: Session, source_id: int) -> None:
     session.execute(text(
@@ -544,6 +547,17 @@ class TestSqlaJobRepository:
         ])
 
         mapping = repo.get_jobs_for_candidates([1])
+        assert mapping[1]["meaning"].status == JobStatus.QUEUED
+
+    def test_get_jobs_for_candidates_beyond_sqlite_variable_limit(
+        self, db_session: Session,
+    ) -> None:
+        self._setup_source_and_candidate(db_session)
+        repo = SqlaJobRepository(db_session)
+        _insert(db_session, [_make_job(candidate_id=1)])
+
+        mapping = repo.get_jobs_for_candidates(list(range(1, SQLITE_MAX_VARIABLES + 2)))
+
         assert mapping[1]["meaning"].status == JobStatus.QUEUED
 
     def test_get_jobs_for_candidates_empty_list(
