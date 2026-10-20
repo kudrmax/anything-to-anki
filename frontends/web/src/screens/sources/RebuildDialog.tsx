@@ -28,7 +28,6 @@ function outcomeLines(outcome: SetOutcome): string[] {
 
 /** Числа превью и итога: слова, удалённые и переехавшие карточки, заново нарезанные фразы. */
 function countLines(counts: RebuildCounts): string[] {
-  if (counts.nothing_to_update) return [UP_TO_DATE]
   return [
     `${plural(counts.words_added, 'new word', 'new words')}, ${plural(counts.words_removed, 'word removed', 'words removed')}`,
     counts.cards_lost_generation > 0 && `${plural(counts.cards_lost_generation, 'removed card had', 'removed cards had')} Polish, Meaning or audio`,
@@ -48,6 +47,17 @@ const Lines = ({ lines }: { lines: string[] }) => (
 
 const UP_TO_DATE = 'Already up to date'
 
+/** Что меняется; ничего не меняется — одна строка, а не список. */
+const Counts = ({ counts, outcome }: { counts: RebuildCounts; outcome: SetOutcome }) => {
+  const notReached = outcomeLines(outcome)
+  return (
+    <>
+      {counts.nothing_to_update ? <Text>{UP_TO_DATE}</Text> : <Lines lines={countLines(counts)} />}
+      {notReached.length > 0 && <Lines lines={notReached} />}
+    </>
+  )
+}
+
 const TITLE: Record<SetOperation, (title: string) => string> = {
   update: title => `Update “${title}”`,
   recut: title => `Re-cut phrases of “${title}”`,
@@ -56,7 +66,7 @@ const TITLE: Record<SetOperation, (title: string) => string> = {
 
 const ABOUT: Record<RebuildMode, string> = {
   update: 'Finds new words, removes words you no longer need and moves cards to simpler sentences. Phrase texts and their Polish, Meaning and audio stay.',
-  recut: 'Also cuts every phrase again by the current logic. A phrase that changes loses its Polish, audio and video; Meaning stays.',
+  recut: 'Does what Update does and cuts every phrase again by the current logic. A phrase that changes loses its Polish, audio and video; Meaning stays.',
 }
 
 /** Update, Re-cut с превью или Refresh темы: запуск, прогресс и итог. Что меняется, считает backend. */
@@ -93,7 +103,7 @@ export function RebuildDialog({ scope, title, operation, onFinished, onClose }: 
     if (run.phase === 'failed') return <Banner tone="err">{run.error}</Banner>
     if (running) return <span className={css.caption}><Spinner /><Text tone="muted">{run.caption}</Text></span>
     const { summary, refresh } = finished ? run.operation : { summary: null, refresh: null }
-    if (summary) return <Lines lines={[...countLines(summary.counts), ...outcomeLines(summary)]} />
+    if (summary) return <Counts counts={summary.counts} outcome={summary} />
     if (refresh) return <Lines lines={[...refreshLines(refresh), ...outcomeLines(refresh)]} />
     if (operation === 'refresh') {
       return <Text tone="muted">Looks for the words of {oneSource ? 'the topic' : 'the topics here'} in sources added later. New phrases are only added: decisions, generation and cards you worked on stay.</Text>
@@ -101,7 +111,7 @@ export function RebuildDialog({ scope, title, operation, onFinished, onClose }: 
     if (!counts || !preview) return <Text tone="muted">{ABOUT[operation]}</Text>
     return (
       <>
-        <Lines lines={[...countLines(counts), ...outcomeLines(preview)]} />
+        <Counts counts={counts} outcome={preview} />
         {!counts.nothing_to_update && <Text tone="muted" size="s">The numbers may differ slightly from the result.</Text>}
       </>
     )

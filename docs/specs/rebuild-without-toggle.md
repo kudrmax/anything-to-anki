@@ -133,7 +133,7 @@ Rebuild с галочкой «Also unreviewed cards» смешивает две 
 | Место | Update | Re-cut phrases |
 |---|---|---|
 | Заголовок | `Update “X”` | `Re-cut phrases of “X”` |
-| До превью | `Finds new words, removes words you no longer need and moves cards to simpler sentences. Phrase texts and their Polish, Meaning and audio stay.` | `Also cuts every phrase again by the current logic. A phrase that changes loses its Polish, audio and video; Meaning stays.` |
+| До превью | `Finds new words, removes words you no longer need and moves cards to simpler sentences. Phrase texts and their Polish, Meaning and audio stay.` | `Does what Update does and cuts every phrase again by the current logic. A phrase that changes loses its Polish, audio and video; Meaning stays.` |
 | Превью и итог | `N new words, M words removed` | то же |
 | | `K removed cards had Polish, Meaning or audio` (если > 0) | то же |
 | | `N cards move to a simpler sentence — need ✨ there` (если > 0) | то же |
