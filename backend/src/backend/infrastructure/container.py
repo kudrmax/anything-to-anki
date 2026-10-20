@@ -51,6 +51,7 @@ from backend.application.use_cases.rebuild_source import RebuildSourceUseCase
 from backend.application.use_cases.refresh_topic import RefreshTopicUseCase
 from backend.application.use_cases.rename_collection import RenameCollectionUseCase
 from backend.application.use_cases.rename_source import RenameSourceUseCase
+from backend.application.use_cases.render_names import RenderNamesUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
 from backend.application.use_cases.report_candidate import ReportCandidateUseCase
 from backend.application.use_cases.restore_collection import RestoreCollectionUseCase
@@ -477,6 +478,9 @@ class Container:
             group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(session)),
             settings_repo=SqlaSettingsRepository(session),
         )
+
+    def render_names_use_case(self) -> RenderNamesUseCase:
+        return RenderNamesUseCase()
 
     def describe_input_use_case(self) -> DescribeInputUseCase:
         return DescribeInputUseCase(

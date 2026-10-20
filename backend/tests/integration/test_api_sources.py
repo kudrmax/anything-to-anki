@@ -96,7 +96,7 @@ def launched(monkeypatch: pytest.MonkeyPatch) -> list[int]:
 
 
 TEXT_ANSWER = {"text.kind": "text"}
-TEXT_REQUEST = {"text": "Hello world", "answers": TEXT_ANSWER}
+TEXT_REQUEST = {"text": "Hello world", "answers": [TEXT_ANSWER]}
 
 
 @pytest.mark.integration
@@ -118,12 +118,12 @@ class TestSourcesAPI:
         assert (source["status"], source["kind"], source["role"]) == ("new", "text", "content")
 
     def test_create_empty_source(self, client: TestClient) -> None:
-        response = client.post("/sources/add", json={"text": "", "answers": TEXT_ANSWER})
+        response = client.post("/sources/add", json={"text": "", "answers": [TEXT_ANSWER]})
         assert response.status_code == 400
 
     def test_unknown_answer_is_rejected(self, client: TestClient) -> None:
         response = client.post(
-            "/sources/add", json={"text": "Hello", "answers": {"text.kind": "poem"}},
+            "/sources/add", json={"text": "Hello", "answers": [{"text.kind": "poem"}]},
         )
         assert response.status_code == 400
 
@@ -155,8 +155,8 @@ class TestSourcesAPI:
         }
 
     def test_list_sources(self, client: TestClient) -> None:
-        client.post("/sources/add", json={"text": "Text one", "answers": TEXT_ANSWER})
-        client.post("/sources/add", json={"text": "Text two", "answers": TEXT_ANSWER})
+        client.post("/sources/add", json={"text": "Text one", "answers": [TEXT_ANSWER]})
+        client.post("/sources/add", json={"text": "Text two", "answers": [TEXT_ANSWER]})
         response = client.get("/sources")
         assert response.status_code == 200
         assert len(response.json()) == 2
@@ -208,7 +208,7 @@ class TestSourcesAPI:
     def test_created_at_is_returned_with_utc_offset(self, client: TestClient) -> None:
         """Clients render times in the viewer's zone; they need the offset to do so."""
         before = datetime.now(tz=UTC)
-        client.post("/sources/add", json={"text": "Hello", "answers": TEXT_ANSWER})
+        client.post("/sources/add", json={"text": "Hello", "answers": [TEXT_ANSWER]})
 
         created_at = datetime.fromisoformat(client.get("/sources").json()[0]["created_at"])
 
@@ -216,7 +216,7 @@ class TestSourcesAPI:
         assert abs(created_at - before) < timedelta(minutes=1)
 
     def test_get_source(self, client: TestClient) -> None:
-        create = client.post("/sources/add", json={"text": "Hello", "answers": TEXT_ANSWER})
+        create = client.post("/sources/add", json={"text": "Hello", "answers": [TEXT_ANSWER]})
         source_id = create.json()["source_ids"][0]
         response = client.get("/api/review", params={"scope": f"source-{source_id}"})
         assert response.status_code == 200
@@ -228,7 +228,7 @@ class TestSourcesAPI:
 
     def test_process_returns_202(self, client: TestClient) -> None:
         create = client.post(
-            "/sources/add", json={"text": "The quick brown fox", "answers": TEXT_ANSWER},
+            "/sources/add", json={"text": "The quick brown fox", "answers": [TEXT_ANSWER]},
         )
         source_id = create.json()["source_ids"][0]
         response = client.post(f"/sources/{source_id}/process")
@@ -284,7 +284,7 @@ class TestCreateFileSource:
         txt_file.write_text("Hello world, this is a test article.", encoding="utf-8")
 
         resp = client.post("/sources/add", json={
-            "text": str(txt_file), "title": "Test Article", "answers": TEXT_ANSWER,
+            "text": str(txt_file), "title": "Test Article", "answers": [TEXT_ANSWER],
         })
 
         assert resp.status_code == 201
@@ -297,7 +297,7 @@ class TestCreateFileSource:
         md_file = tmp_path / "digest.md"
         md_file.write_text("# Preface\n\n**In short:** a *cautious* scientist.", encoding="utf-8")
 
-        resp = client.post("/sources/add", json={"text": str(md_file), "answers": TEXT_ANSWER})
+        resp = client.post("/sources/add", json={"text": str(md_file), "answers": [TEXT_ANSWER]})
 
         assert resp.status_code == 201
         source = client.get("/sources").json()[0]
@@ -314,7 +314,7 @@ class TestCreateFileSource:
         pdf = tmp_path / "book.pdf"
         pdf.write_bytes(b"%PDF-1.7\x00\x01")
 
-        resp = client.post("/sources/add", json={"text": str(pdf), "answers": TEXT_ANSWER})
+        resp = client.post("/sources/add", json={"text": str(pdf), "answers": [TEXT_ANSWER]})
 
         assert resp.status_code == 400
         assert "not a text file" in resp.json()["detail"].lower()
@@ -409,13 +409,32 @@ class TestBookFileSourceAPI:
     ) -> None:
         resp = client.post(
             "/sources/add",
-            json={"text": str(self._book(tmp_path)), "answers": {"book.split": "split"}},
+            json={"text": str(self._book(tmp_path)), "answers": [{"book.split": "split"}]},
         )
 
         assert resp.status_code == 200
         assert resp.json()["heading"] == "Add «Dune»"
         assert resp.json()["default_collection"] == {"existing_id": None, "new_name": "Dune"}
         assert client.get("/sources").json() == []
+
+    def test_named_chapters_become_a_collection(
+        self, client: TestClient, tmp_path: Path,
+    ) -> None:
+        resp = client.post(
+            "/sources/add",
+            json={
+                "text": str(self._book(tmp_path)),
+                "answers": [{"book.split": "split"}],
+                "naming": {"collection": {"new_name": "Dune"}, "rule": "{{collection}} ch{{n}}"},
+            },
+        )
+
+        assert resp.status_code == 201
+        assert len(resp.json()["source_ids"]) == 2
+        sources = client.get("/sources").json()
+        assert [s["title"] for s in sources] == ["Dune ch1", "Dune ch2"]
+        assert {tuple(s["collection_path"]) for s in sources} == {("Dune",)}
+        assert {s["kind"] for s in sources} == {"book"}
 
     def test_path_copied_from_a_shell_is_accepted(
         self, client: TestClient, tmp_path: Path,
@@ -432,3 +451,82 @@ class TestBookFileSourceAPI:
         resp = client.post("/sources/add", json={"text": str(path)})
 
         assert resp.status_code == 400
+
+
+class TestBatchSourceAPI:
+    def _files(self, tmp_path: Path, *names: str) -> str:
+        for name in names:
+            (tmp_path / name).write_text(f"The story of {name} begins here.")
+        return "\n".join(str(tmp_path / name) for name in names)
+
+    def test_several_files_ask_how_to_name_them(
+        self, client: TestClient, tmp_path: Path,
+    ) -> None:
+        resp = client.post(
+            "/sources/add",
+            json={"text": self._files(tmp_path, "b.txt", "a.txt"), "answers": [TEXT_ANSWER] * 2},
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["heading"] == "Add 2 files"
+        assert [item["label"] for item in body["items"]] == ["a.txt", "b.txt"]
+
+    def test_named_files_are_added_with_hand_edited_rows(
+        self, client: TestClient, tmp_path: Path,
+    ) -> None:
+        resp = client.post(
+            "/sources/add",
+            json={
+                "text": self._files(tmp_path, "a.txt", "b.txt"),
+                "answers": [TEXT_ANSWER] * 2,
+                "naming": {"collection": None, "rule": "Part {{n}}", "titles": {"1": "Intro"}},
+            },
+        )
+
+        assert resp.status_code == 201
+        assert [s["title"] for s in client.get("/sources").json()] == ["Part 1", "Intro"]
+
+    def test_bad_rule_is_rejected(self, client: TestClient, tmp_path: Path) -> None:
+        resp = client.post(
+            "/sources/add",
+            json={
+                "text": self._files(tmp_path, "a.txt", "b.txt"),
+                "answers": [TEXT_ANSWER] * 2,
+                "naming": {"collection": None, "rule": "Part"},
+            },
+        )
+
+        assert resp.status_code == 422
+
+    def test_a_bad_file_names_itself(self, client: TestClient, tmp_path: Path) -> None:
+        text = self._files(tmp_path, "a.txt")
+        (tmp_path / "picture.txt").write_bytes(b"\x00\x01\xff")
+
+        resp = client.post(
+            "/sources/add",
+            json={"text": f"{text}\n{tmp_path / 'picture.txt'}", "answers": [TEXT_ANSWER] * 2},
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["detail"].startswith("picture.txt: ")
+
+
+class TestRenderNamesAPI:
+    def test_renders_titles(self, client: TestClient) -> None:
+        resp = client.post(
+            "/sources/render-names",
+            json={"rule": "{{collection}} ch{{n}}", "own_titles": ["a", "b"]},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == ["ch1", "ch2"]
+
+    def test_bad_rule_is_explained(self, client: TestClient) -> None:
+        resp = client.post(
+            "/sources/render-names",
+            json={"rule": "{{collection}}", "collection_name": None, "own_titles": ["a"]},
+        )
+
+        assert resp.status_code == 422
+        assert "must contain" in resp.json()["detail"]["message"]

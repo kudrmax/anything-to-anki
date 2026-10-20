@@ -296,7 +296,7 @@ def _burnout(source_id: int) -> ExportCard:
 
 
 def _add_text(client: TestClient, text: str) -> Response:
-    return client.post("/sources/add", json={"text": text, "answers": {"text.kind": "text"}})
+    return client.post("/sources/add", json={"text": text, "answers": [{"text.kind": "text"}]})
 
 
 @pytest.mark.integration

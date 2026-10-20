@@ -9,11 +9,14 @@ from sqlalchemy.orm import Session, sessionmaker  # noqa: TC002 — FastAPI read
 
 from backend.application.dto.add_source_dtos import (
     AddSourceRequest,
+    CollectionChoiceDTO,
     CreateTopicRequest,
     DescribeInputRequest,
     InputDescriptionDTO,
+    NamingDTO,
     NamingRequired,
     QuestionsRequired,
+    RenderNamesRequest,
     SourcesCreated,
 )
 from backend.application.dto.candidate_dtos import (  # noqa: TC001
@@ -33,10 +36,12 @@ from backend.application.dto.source_dtos import (  # noqa: TC001
     SourceDTO,
     UpdateTitleRequest,
 )
-from backend.application.source_intake.typed_input import typed_input
+from backend.application.source_intake.naming import Naming
+from backend.application.source_intake.typed_input import typed_inputs
 from backend.domain.exceptions import (
     BookReadError,
     CollectionNotFoundError,
+    InputFailedError,
     InvalidAnswerError,
     InvalidPhraseError,
     InvalidSourceInputError,
@@ -51,6 +56,8 @@ from backend.domain.exceptions import (
     TopicTargetsMissingError,
     UnsupportedUrlError,
 )
+from backend.domain.value_objects.collection_choice import CollectionChoice
+from backend.domain.value_objects.naming_rule import NamingRule
 from backend.domain.value_objects.question import Answers
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.background import free_source, in_background
@@ -76,33 +83,77 @@ def add_source(
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> QuestionsRequired | NamingRequired | SourcesCreated:
-    """Pasted text, a file path or a link. Questions come back until every one is answered."""
+    """Pasted text, file paths or a link. Questions come back until every one is answered;
+    several sources ask how to name them."""
+    try:
+        naming = _naming(request.naming)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail={"message": str(e)}) from e
     try:
         result = container.add_source_use_case(session).execute(
-            [typed_input(request.text, request.subtitles_path)],
+            typed_inputs(request.text, request.subtitles_path),
             request.title,
-            [Answers(request.answers)],
+            [Answers(answers) for answers in request.answers],
+            naming,
         )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except SubtitlesNotAvailableError as e:
-        raise HTTPException(
-            status_code=422,
-            detail={"error": "subtitles_not_available", "message": str(e)},
-        ) from e
-    except (
-        InvalidSourceInputError,
-        InvalidAnswerError,
-        BookReadError,
-        NotATextFileError,
-        UnsupportedUrlError,
-    ) as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    except InputFailedError as e:
+        raise _intake_error(e.cause, str(e)) from e
+    except _INTAKE_ERRORS as e:
+        raise _intake_error(e, str(e)) from e
     if isinstance(result, QuestionsRequired | NamingRequired):
         response.status_code = 200
         return result
     session.commit()
     return result
+
+
+@router.post("/render-names")
+def render_names(
+    request: RenderNamesRequest,
+    container: Container = Depends(get_container),  # noqa: B008
+) -> list[str]:
+    """The titles a naming rule gives the sources of one add, for the naming window."""
+    try:
+        return container.render_names_use_case().execute(
+            request.rule, request.collection_name, request.own_titles,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail={"message": str(e)}) from e
+
+
+_INTAKE_ERRORS: tuple[type[Exception], ...] = (
+    FileNotFoundError,
+    SubtitlesNotAvailableError,
+    InvalidSourceInputError,
+    InvalidAnswerError,
+    BookReadError,
+    NotATextFileError,
+    UnsupportedUrlError,
+)
+
+
+def _intake_error(cause: Exception, message: str) -> HTTPException:
+    if isinstance(cause, FileNotFoundError):
+        return HTTPException(status_code=404, detail=message)
+    if isinstance(cause, SubtitlesNotAvailableError):
+        return HTTPException(
+            status_code=422,
+            detail={"error": "subtitles_not_available", "message": message},
+        )
+    return HTTPException(status_code=400, detail=message)
+
+
+def _naming(dto: NamingDTO | None) -> Naming | None:
+    if dto is None:
+        return None
+    collection = dto.collection or CollectionChoiceDTO()
+    return Naming(
+        collection=CollectionChoice(
+            existing_id=collection.existing_id, new_name=collection.new_name,
+        ),
+        rule=NamingRule(dto.rule),
+        titles=dto.titles,
+    )
 
 
 @router.post("/describe-input")

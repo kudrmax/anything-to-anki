@@ -126,13 +126,30 @@ class InputDescriptionDTO(BaseModel):
     problem_hint: str | None = None
 
 
+class NamingDTO(BaseModel):
+    """How the user named the sources of one add; `titles` are rows rewritten by hand, by
+    row index."""
+
+    collection: CollectionChoiceDTO | None = None
+    rule: str
+    titles: dict[int, str] = {}
+
+
 class AddSourceRequest(BaseModel):
-    """What the user put in the input field, with every answer given so far."""
+    """What the user put in the input field, with every answer given so far, one set of
+    answers per input, and the naming once it was asked."""
 
     text: str
     subtitles_path: str | None = None
     title: str | None = None
-    answers: dict[str, str] = {}
+    answers: list[dict[str, str]] = []
+    naming: NamingDTO | None = None
+
+
+class RenderNamesRequest(BaseModel):
+    rule: str
+    collection_name: str | None = None
+    own_titles: list[str]
 
 
 class DescribeInputRequest(BaseModel):
