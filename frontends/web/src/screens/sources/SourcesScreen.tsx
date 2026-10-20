@@ -5,7 +5,7 @@ import { statsStore, useStats } from '@/hooks/useStats'
 import { backTo } from '@/lib/backLink'
 import { usePhone } from '@/lib/device'
 import { OVERLAY } from '@/lib/hotkeys'
-import { reviewPath, scopeQuery, sourceScope, useScope } from '@/lib/scope'
+import { exportPath, reviewPath, scopeQuery, sourceScope, useScope } from '@/lib/scope'
 import { clickSelect, EMPTY_SELECTION, pruned, selectAll, type Selection } from '@/lib/selection'
 import { findNode } from '@/lib/treeDrop'
 import { typingIn } from '@/lib/typing'
@@ -32,7 +32,6 @@ const STAGE_LABEL: Record<SourceStage, string> = {
 }
 const SCOPE_TITLE = { all: 'All sources', unsorted: 'Unsorted' } as const
 const UNSORTED = 'Unsorted'
-const EXPORT_PATH = '/export'
 // Backend ставит коллекцию в конец, если позиция больше числа соседей.
 const END_POSITION = Number.MAX_SAFE_INTEGER
 
@@ -137,8 +136,8 @@ export function SourcesScreen() {
   // Ревью и экспорт возвращают на открытую область.
   const backHere = backTo(`/${scopeQuery(scope)}`)
   const review = (id: number) => navigate(reviewPath(sourceScope(id)), { state: backHere })
-  const exportSource = (id: number) => navigate(`${EXPORT_PATH}${scopeQuery(sourceScope(id))}`, { state: backHere })
-  const exportScope = () => navigate(`${EXPORT_PATH}${scopeQuery(scope)}`, { state: backHere })
+  const exportSource = (id: number) => navigate(exportPath(sourceScope(id)), { state: backHere })
+  const exportScope = () => navigate(exportPath(scope), { state: backHere })
 
   const processAll = async () => {
     setProcessingAll(true)

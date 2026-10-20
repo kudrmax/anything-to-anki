@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { backIn, backTo } from '@/lib/backLink'
-import { parseSetScope, scopeQuery } from '@/lib/scope'
+import { exportPath, parseSetScope } from '@/lib/scope'
 import { allowedInClozeMarkup, reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { pastedPicture } from '@/lib/pastedPicture'
 import { phraseListShownPref, sourceTextShownPref } from '@/lib/preferences'
@@ -180,7 +180,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
     </div>
   )
 
-  const goToExport = () => navigate(`/export${scopeQuery(scope)}`, { state: backTo(location.pathname + location.search) })
+  const goToExport = () => navigate(exportPath(scope), { state: backTo(location.pathname + location.search) })
   // На телефоне всё редкое — в одном меню, чтобы шапка уместилась в строку.
   const phoneMenu: MenuItem[] = [
     { label: 'Export to Anki', icon: Upload, value: `${counts.learn}`, onSelect: goToExport },

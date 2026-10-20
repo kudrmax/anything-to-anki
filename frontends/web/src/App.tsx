@@ -8,6 +8,7 @@ import { UsageScreen } from '@/screens/usage/UsageScreen'
 import { SettingsScreen } from '@/screens/settings/SettingsScreen'
 import { CalibrateScreen } from '@/screens/calibrate/CalibrateScreen'
 import { QUICK_ADD_PATH, QuickAddScreen } from '@/screens/quickAdd/QuickAddScreen'
+import { OldSourceExport, OldSourceReview } from './legacyRoutes'
 
 export function App() {
   return (
@@ -16,6 +17,8 @@ export function App() {
         <Route path={QUICK_ADD_PATH} element={<ErrorBoundary><QuickAddScreen /></ErrorBoundary>} />
         <Route element={<AppShell />}>
           <Route path="/add" element={<Navigate to="/" replace />} />
+          <Route path="/sources/:id/review" element={<OldSourceReview />} />
+          <Route path="/sources/:id/export" element={<OldSourceExport />} />
           <Route path="/settings" element={<ErrorBoundary><SettingsScreen /></ErrorBoundary>} />
           <Route path="/calibrate" element={<ErrorBoundary><CalibrateScreen /></ErrorBoundary>} />
           <Route path="/queue" element={<ErrorBoundary><QueueScreen /></ErrorBoundary>} />

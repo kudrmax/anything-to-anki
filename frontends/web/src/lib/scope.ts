@@ -5,6 +5,7 @@ import type { Scope, SetScope } from '@/api/types'
 const PARAM = 'scope'
 const CANDIDATE_PARAM = 'candidate'
 const REVIEW_PATH = '/review'
+const EXPORT_PATH = '/export'
 const ID = /^\d+$/
 const SOURCE = /^source-(\d+)$/
 
@@ -50,3 +51,6 @@ export function useScope(): [Scope, (next: Scope, change?: ScopeChange) => void]
   }, [setParams])
   return [scope, setScope]
 }
+
+/** Адрес экспорта набора. */
+export const exportPath = (scope: SetScope): string => `${EXPORT_PATH}${scopeQuery(scope)}`
