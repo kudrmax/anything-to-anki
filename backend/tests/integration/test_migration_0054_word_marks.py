@@ -127,8 +127,14 @@ def test_the_old_tables_go_and_the_new_ones_hold_the_rules(migrated: Engine) -> 
     tables = set(inspector.get_table_names())
     assert {"word_marks", "known_pos"} <= tables
     assert not {"known_words", "unknown_words"} & tables
-    assert inspector.get_pk_constraint("word_marks")["constrained_columns"] == ["lemma"]
-    assert inspector.get_pk_constraint("known_pos")["constrained_columns"] == ["lemma", "pos"]
+    assert inspector.get_pk_constraint("word_marks")["constrained_columns"] == ["id"]
+    assert inspector.get_pk_constraint("known_pos")["constrained_columns"] == ["id"]
+    assert [u["column_names"] for u in inspector.get_unique_constraints("word_marks")] == [
+        ["lemma"],
+    ]
+    assert [u["column_names"] for u in inspector.get_unique_constraints("known_pos")] == [
+        ["lemma", "pos"],
+    ]
     [fk] = inspector.get_foreign_keys("known_pos")
     assert (fk["referred_table"], fk["options"].get("ondelete")) == ("word_marks", "CASCADE")
     with migrated.begin() as conn:
@@ -159,3 +165,19 @@ def test_an_empty_database_writes_no_log(tmp_path: Path) -> None:
     command.upgrade(_alembic_config(db_url), REVISION_UNDER_TEST)
 
     assert not (tmp_path / LOG_NAME).exists()
+
+
+def test_ids_survive_a_vacuum(migrated: Engine) -> None:
+    query = (
+        "SELECT 'mark', id, lemma, NULL FROM word_marks"
+        " UNION ALL SELECT 'pos', id, lemma, pos FROM known_pos"
+    )
+    with migrated.begin() as conn:
+        conn.execute(text("DELETE FROM known_pos WHERE lemma = 'glare' AND pos = 'VERB'"))
+        conn.execute(text("DELETE FROM word_marks WHERE lemma = 'abide'"))
+        conn.execute(text("DELETE FROM known_pos WHERE lemma = 'abide'"))
+        before = set(conn.execute(text(query)).all())
+    with migrated.connect() as conn:
+        conn.execution_options(isolation_level="AUTOCOMMIT").exec_driver_sql("VACUUM")
+    with migrated.connect() as conn:
+        assert set(conn.execute(text(query)).all()) == before

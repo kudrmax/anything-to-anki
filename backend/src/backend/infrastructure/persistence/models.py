@@ -13,6 +13,7 @@ from sqlalchemy import (
     LargeBinary,
     String,
     Text,
+    UniqueConstraint,
     or_,
     text,
 )
@@ -691,13 +692,15 @@ class WordMarkModel(Base):
 
     __tablename__ = "word_marks"
 
-    lemma: Mapped[str] = mapped_column(Text, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lemma: Mapped[str] = mapped_column(Text, nullable=False)
     mark: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
 
     __table_args__ = (
+        UniqueConstraint("lemma", name="uq_word_marks_lemma"),
         CheckConstraint(
             f"mark IN ('{WordMark.KNOWN}','{WordMark.UNKNOWN}')", name="ck_word_marks_mark",
         ),
@@ -710,10 +713,13 @@ class KnownPosModel(Base):
 
     __tablename__ = "known_pos"
 
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     lemma: Mapped[str] = mapped_column(
-        Text, ForeignKey("word_marks.lemma", ondelete="CASCADE"), primary_key=True,
+        Text, ForeignKey("word_marks.lemma", ondelete="CASCADE"), nullable=False,
     )
-    pos: Mapped[str | None] = mapped_column(Text, primary_key=True, nullable=True)
+    pos: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (UniqueConstraint("lemma", "pos", name="uq_known_pos_lemma_pos"),)
 
 
 class WordDecisionModel(Base):

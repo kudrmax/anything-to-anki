@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Integer, delete, func, insert, literal_column, select
+from sqlalchemy import delete, func, insert, select
 
 from backend.domain.entities.known_word import KnownWord
 from backend.domain.entities.unknown_word import UnknownWord
@@ -18,13 +18,8 @@ if TYPE_CHECKING:
 
     from backend.domain.ports.change_recorder import ChangeRecorder
 
-ROW_ID = "rowid"
-
-
 class SqlaWordMarkRepository(WordMarkRepository):
-    """SQLAlchemy implementation of WordMarkRepository over word_marks and known_pos.
-
-    An entry's id is its row's SQLite rowid: the tables have no id column of their own."""
+    """SQLAlchemy implementation of WordMarkRepository over word_marks and known_pos."""
 
     def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
@@ -52,7 +47,7 @@ class SqlaWordMarkRepository(WordMarkRepository):
 
     def remove_known_entry(self, lemma: str, pos: str | None) -> None:
         key = lemma.lower()
-        mark = self._session.get(WordMarkModel, key)
+        mark = self._mark_of(key)
         if mark is None or mark.mark != WordMark.KNOWN:
             return
         held = self._pos_of(key)
@@ -93,7 +88,7 @@ class SqlaWordMarkRepository(WordMarkRepository):
     def _set_mark(self, key: str, kind: WordMark) -> bool:
         """The lemma carries `kind`, set now if it carried no mark or the other one; a Known
         mark it replaces takes its parts of speech along. Whether anything changed."""
-        mark = self._session.get(WordMarkModel, key)
+        mark = self._mark_of(key)
         if mark is not None and mark.mark == kind:
             return False
         if mark is None:
@@ -106,7 +101,7 @@ class SqlaWordMarkRepository(WordMarkRepository):
         return True
 
     def _remove(self, key: str, kind: WordMark) -> None:
-        mark = self._session.get(WordMarkModel, key)
+        mark = self._mark_of(key)
         if mark is None or mark.mark != kind:
             return
         self._delete_pos(key)
@@ -117,6 +112,11 @@ class SqlaWordMarkRepository(WordMarkRepository):
     def _delete_pos(self, key: str) -> None:
         self._session.execute(delete(KnownPosModel).where(KnownPosModel.lemma == key))
 
+    def _mark_of(self, key: str) -> WordMarkModel | None:
+        return self._session.scalars(
+            select(WordMarkModel).where(WordMarkModel.lemma == key),
+        ).one_or_none()
+
     def _pos_of(self, key: str) -> set[str | None]:
         rows = self._session.execute(
             select(KnownPosModel.pos).where(KnownPosModel.lemma == key),
@@ -126,7 +126,7 @@ class SqlaWordMarkRepository(WordMarkRepository):
     def _known(self, key: str | None) -> list[KnownWord]:
         query = (
             select(
-                literal_column(f"known_pos.{ROW_ID}", Integer), KnownPosModel.lemma,
+                KnownPosModel.id, KnownPosModel.lemma,
                 KnownPosModel.pos, WordMarkModel.created_at,
             )
             .join(WordMarkModel, WordMarkModel.lemma == KnownPosModel.lemma)
@@ -142,7 +142,7 @@ class SqlaWordMarkRepository(WordMarkRepository):
     def _unknown(self, key: str | None) -> list[UnknownWord]:
         query = (
             select(
-                literal_column(f"word_marks.{ROW_ID}", Integer), WordMarkModel.lemma,
+                WordMarkModel.id, WordMarkModel.lemma,
                 WordMarkModel.created_at,
             )
             .where(WordMarkModel.mark == WordMark.UNKNOWN)

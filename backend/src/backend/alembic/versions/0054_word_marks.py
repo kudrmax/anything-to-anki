@@ -1,5 +1,6 @@
 """Known and Unknown become one mark per lemma: word_marks, with the Known parts of speech
-in known_pos.
+in known_pos. Both keep an INTEGER PRIMARY KEY id, stable across VACUUM: the API hands
+the ids out as removal keys.
 
 Revision ID: 0054
 Revises: 0052
@@ -65,17 +66,20 @@ def upgrade() -> None:
 
     op.create_table(
         "word_marks",
-        sa.Column("lemma", sa.Text(), primary_key=True),
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("lemma", sa.Text(), nullable=False),
         sa.Column("mark", sa.Text(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.UniqueConstraint("lemma", name="uq_word_marks_lemma"),
         sa.CheckConstraint(f"mark IN ('{KNOWN}','{UNKNOWN}')", name="ck_word_marks_mark"),
     )
     op.create_table(
         "known_pos",
+        sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("lemma", sa.Text(), nullable=False),
         sa.Column("pos", sa.Text(), nullable=True),
         sa.ForeignKeyConstraint(["lemma"], ["word_marks.lemma"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("lemma", "pos"),
+        sa.UniqueConstraint("lemma", "pos", name="uq_known_pos_lemma_pos"),
     )
     if marks:
         bind.execute(

@@ -6,15 +6,17 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.value_objects.card_change import MarkChanged
+from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_word_mark_repository import SqlaWordMarkRepository
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from tests.word_marks_support import insert_known, known_rows, unknown_lemmas
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+    from pathlib import Path
 
 pytestmark = pytest.mark.integration
 
@@ -229,3 +231,31 @@ def test_the_schema_takes_only_known_or_unknown(marks: Marks) -> None:
             "INSERT INTO word_marks (lemma, mark, created_at)"
             " VALUES ('glare', 'maybe', '2026-01-01')"
         ))
+
+
+def test_entry_ids_survive_a_vacuum(tmp_path: Path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'marks.db'}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        marks = Marks(session)
+        for lemma in ("abide", "bask", "cower", "dwell"):
+            marks.repo.mark_known(lemma, "VERB")
+            marks.repo.mark_known(lemma, "NOUN")
+        marks.repo.mark_unknown("evade")
+        marks.repo.mark_unknown("fret")
+        marks.repo.remove_known("abide")
+        marks.repo.remove_known_entry("bask", "VERB")
+        marks.repo.remove_unknown("evade")
+        session.commit()
+        before = _ids(marks.repo)
+    with engine.connect() as conn:
+        conn.execution_options(isolation_level="AUTOCOMMIT").exec_driver_sql("VACUUM")
+    with Session(engine) as session:
+        assert _ids(SqlaWordMarkRepository(session, SessionChangeRecorder(session))) == before
+    engine.dispose()
+
+
+def _ids(repo: SqlaWordMarkRepository) -> set[tuple[int | None, str, str | None]]:
+    return {(e.id, e.lemma, e.pos) for e in repo.known_entries()} | {
+        (e.id, e.lemma, "unknown") for e in repo.unknown_entries()
+    }

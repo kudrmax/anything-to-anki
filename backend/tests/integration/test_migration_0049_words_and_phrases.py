@@ -561,9 +561,9 @@ def test_known_words_keep_no_anki_progress_and_there_is_no_note_table(db_url: st
     """Known words live in word marks since 0054."""
     engine = inspect(create_engine(db_url))
     assert {c["name"] for c in engine.get_columns("word_marks")} == {
-        "lemma", "mark", "created_at",
+        "id", "lemma", "mark", "created_at",
     }
-    assert {c["name"] for c in engine.get_columns("known_pos")} == {"lemma", "pos"}
+    assert {c["name"] for c in engine.get_columns("known_pos")} == {"id", "lemma", "pos"}
     assert "anki_notes" not in engine.get_table_names()
 
 
