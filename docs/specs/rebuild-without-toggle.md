@@ -15,7 +15,7 @@ Rebuild с галочкой «Also unreviewed cards» смешивает две 
 
 Две операции вместо одной, без галочки:
 
-1. **Update** никогда не меняет текст фраз и ничего не теряет. Делает всё, что зависит от знания и уровня.
+1. **Update** никогда не меняет текст фраз и не теряет генерацию нужных слов. Делает всё, что зависит от знания и уровня.
 2. **Re-cut phrases** делает то же, что Update, и вдобавок режет фразы заново. Генерация, сделанная по старому тексту, сбрасывается.
 
 ## Термины
@@ -25,95 +25,110 @@ Rebuild с галочкой «Also unreviewed cards» смешивает две 
 - **Место** — ключ фразы (`OccurrenceKey`): где в документе стоит target.
 - **Нарезка** — границы фразы внутри предложения; анализ выбирает их по `FragmentScore`.
 - **Защищённая фраза** — с выбором (Learn / Cloze / Known / Skip), в Anki или с работой пользователя (правка, ручной выбор, добавлена вручную): `is_protected`. Ни одна операция её не меняет и не удаляет.
-- **Решённое слово** — `is_decided`. Его фразы ни одна операция не меняет, показ не трогает.
-- **Слово выбыло** — анализ его больше не находит (повысился уровень, сменился порог частотности, поменялась логика отбора) и пользователь не отмечал его в другом источнике (`LemmaKnowledge.elsewhere is None`).
-- **Генерация по тексту** — Polish, TTS фразы, media из видео (скриншот, клип). Сделана из точного текста фразы.
-- **Генерация по месту** — Meaning (с переводом, синонимами, примерами). Объясняет target в этом месте документа.
+- **Решённое слово** — `is_decided`. Его фразы ни одна операция не меняет, показ не трогает. Проверяется первым.
+- **Слово сделано на лету** — у леммы задан `LemmaKnowledge.elsewhere` (Known-список, Learn в другом источнике, Learning в Anki). Review уже показывает его карточку сделанной и ставит в Reviewed (`card_is_done`).
+- **Слово выбыло** — анализ его больше не находит (повысился уровень, сменился порог частотности, поменялась логика отбора), и оно не сделано на лету.
+- **Генерация** — Polish, Meaning, TTS фразы, media из видео (скриншот, клип).
+- **Генерация по тексту** — Polish, TTS, media: сделаны из точного текста фразы.
+- **Задача** — job генерации фразы в очереди или в работе.
 
 ## Update
 
-Текст существующих фраз не меняется. Что делает:
+Текст существующих фраз не меняется. Что делает, по порядку проверки для каждого слова:
 
-1. **Новые слова.** Слово, которого в источнике не было, а анализ его теперь находит (ты убрал его из Known, понизил уровень, поменялась логика отбора), получает фразы во всех своих местах; одна из них становится карточкой.
-2. **Новые места.** У существующего слова анализ нашёл место, где фразы ещё нет: добавляется фраза с нарезкой анализа.
-3. **Выбывшие слова.** Незащищённые фразы выбывшего слова удаляются вместе со всей генерацией, задачи по ним отменяются. Слово удаляется, если его ничего не держит (`keeps_word`).
-4. **Слово, отмеченное в другом источнике** (Known, Learn, Learning там). Не трогается: его карточка уже на лету показана как сделанная и стоит в Reviewed.
-5. **Лучшее место.** Выбор (`select_phrases`) заново ищет лучшую фразу слова, и показ может перейти на другую фразу. Фразы сравниваются по их текущему тексту (см. «Оценка фразы»). Генерация старой фразы остаётся при ней: если та снова станет лучшей, карточка вернётся со своей генерацией.
-6. **Секции.** Заработанная секция (Ready / Extra / Probably known) пересчитывается у всех фраз без выбора и не в Anki, как сейчас.
-7. **Ключи.** Фраза, ключ которой сдвинулся внутри строки при том же тексте, получает новый ключ (`_moved_keys`), как сейчас.
-8. **Место пропало, слово осталось.** Фраза остаётся как есть, и в выборе она участвует наравне с остальными.
+1. **Решённое слово** — пропускается.
+2. **Слово сделано на лету** — пропускается.
+3. **Выбывшее слово.** Незащищённые фразы удаляются вместе с генерацией и её файлами, задачи по ним отменяются. Слово удаляется, если его ничего не держит (`keeps_word`). Так при повышении уровня во всех источниках пропадают карточки слов ниже нового уровня, с их Polish и Meaning.
+4. **Новое слово** (раньше в источнике не было, анализ теперь находит): фразы во всех местах, одна показана.
+5. **Новое место** у существующего слова: добавляется фраза с нарезкой анализа.
+6. **Тот же текст, другие данные.** Если анализ даёт для фразы тот же текст, но другие факты слов или позицию (`phrase_hash` другой), они переписываются без сброса генерации и без роста revision, как сейчас.
+7. **Другой текст у того же места.** Фраза не меняется: это работа Re-cut.
+8. **Место пропало, слово осталось.** Фраза без генерации и без задачи удаляется. Фраза с генерацией или задачей остаётся и участвует в выборе.
+9. **Ключи.** Фраза, ключ которой сдвинулся внутри строки при том же тексте, получает новый ключ (`_moved_keys`), как сейчас.
+10. **Лучшее место.** Выбор заново ищет лучшую фразу слова (см. «Оценка фразы»), и показ может перейти на другую фразу. Генерация старой фразы остаётся при ней: если та снова станет лучшей, карточка вернётся со своей генерацией. Показ не уходит с фразы, у которой есть задача.
+11. **Секции.** Заработанная секция пересчитывается у всех фраз без выбора и не в Anki, как сейчас.
 
 ## Re-cut phrases
 
-Всё, что делает Update, и вдобавок:
+Всё, что делает Update, кроме п. 7 и 8, вместо которых:
 
-9. **Новая нарезка.** Незащищённая фраза нерешённого слова, у которой анализ режет то же место иначе (другой текст), получает новый текст, а её revision растёт.
-   - Сбрасывается генерация по тексту: Polish (вместе с отменённым), TTS, media. Таймкоды media ставятся по новому тексту.
+7. **Другой текст у того же места.** Незащищённая фраза нерешённого слова получает новый текст анализа, revision растёт.
+   - Сбрасывается генерация по тексту: Polish (вместе с отменённым), TTS, media, с их файлами. Таймкоды media ставятся по новому тексту — после удаления старых записей, в той же транзакции.
    - Meaning остаётся.
-   - Задачи в очереди переходят на новую revision и сработают по новому тексту (`_queued_jobs_follow`). Задачи, которые уже выполняются, отменяются.
-10. **Место пропало, слово осталось.** Незащищённая фраза нерешённого слова удаляется вместе с генерацией; показ переходит по п. 5.
+   - Задачи в очереди переходят на новую revision и сработают по новому тексту. Задачи в работе отменяются.
+8. **Место пропало, слово осталось.** Незащищённая фраза удаляется вместе с генерацией и файлами; показ переходит по п. 10.
 
 ## Оценка фразы
 
-Сейчас выбор сравнивает фразы по `fragment_score`, посчитанному при нарезке. В Update текст не меняется, а знание меняется, поэтому оценка фразы считается по её показанному тексту (Polish, если он показан):
+Выбор сравнивает фразы слова по оценке. Сейчас это `fragment_score`, посчитанный при нарезке, и при изменившемся знании он устаревает, а в Update текст не пересчитывается.
 
-- поля `length_overflow`, `incomplete`, `boundary_penalty`, `content_count` берутся из сохранённого `fragment_score`;
-- поле `unknowns` считается заново: `len(new_words(shown_phrase, knowledge))`.
+Оценка фразы для выбора: сохранённый `fragment_score`, в котором разряд `unknowns` заменён на `weight_unknown × unknowns_now`.
 
-Функция в домене: `current_score(stored: float, unknowns: int) -> float`, она заменяет разряд `unknowns` в упакованном числе (`FragmentScore.as_number`). Выбор в обеих операциях ранжирует фразы по ней.
+- `unknowns_now` — число незнакомых слов исходной фразы (не Polish) кроме target'а по знанию `SectionRule.knowledge` — тому же, по которому считаются секции.
+- Одна функция для всех кандидатов выбора: сохранённых фраз и свежих фраз анализа (`_fresh_row`).
+- `fragment_score = None` остаётся `UNSCORED`.
+
+Домен: `selection_score(stored: float | None, phrase: Phrase, knowledge: UserKnowledge, weight_unknown: int) -> float`.
 
 ## Кто какую операцию запускает
 
 | Кто запускает | Операция |
 |---|---|
-| Пункт меню источника или набора источников | Update или Re-cut phrases, на выбор пользователя |
+| Пункт меню источника или набора источников | Update или Re-cut phrases |
 | Смена уровня CEFR или настройки порога (`background_rebuild_launcher`) | Update |
 | `make fix-sections` (`fix_sections`) | Update |
 | Первая обработка источника (`process_source`) | Update (фраз ещё нет, результат тот же, что сейчас) |
 
-У источников без своего текста (тема, Saved phrases) есть только Update; он пересчитывает секции (`plan_sections`), как сейчас Rebuild. Re-cut им не предлагается.
+У источников без своего текста (тема, Saved phrases) есть только Update; он пересчитывает секции (`plan_sections`). Re-cut им не предлагается.
 
 ## Модель
 
 **Домен:**
-- `RebuildMode(StrEnum)`: `UPDATE`, `RECUT` — в `domain/value_objects`.
-- `plan_rebuild(..., mode, done_elsewhere: frozenset[str])` вместо `include_open`. `done_elsewhere` — леммы, отмеченные в другом источнике (п. 4).
-- `_Planner._phrase`: правило по п. 3, 4, 8–10 вместо пары «touched / include_open». `is_touched` удаляется.
-- `OccurrenceTextUpdate.reset_results` → `drop_text_results`: удаляет Polish, TTS и media, оставляет Meaning.
-- `phrase_selection.is_frozen(o, include_open)` → `is_frozen(o)`: только защищённая фраза. `select_phrases` ранжирует по `current_score`.
-- `OccurrenceRow` получает `has_polish: bool` (`polished_phrase` задан, отменён или нет), `has_meaning: bool`, `has_text_media: bool` (TTS или media с файлом) для счётчиков.
-- `SourceOperationKind.RECUT`; `available_operations` для источника со своим текстом → `(REBUILD, RECUT)`. `REBUILD` в UI называется Update.
+- `SourceOperationKind`: `REBUILD` → `UPDATE`, добавляется `RECUT`. Обе — полноценные виды операции: блокировка, меню, подписи. `PREVIEW` остаётся одним видом, превью знает, чего оно (`previewed: UPDATE | RECUT`).
+- `available_operations`: источник со своим текстом → `(UPDATE, RECUT)`; тема → `(REFRESH, UPDATE)`; Saved phrases → `(UPDATE,)`. `_MENU_ORDER = (REFRESH, UPDATE, RECUT)`.
+- Подписи (`_BUSY_NAME`, `_BUSY_CAPTION`): `update` / `Updating…`, `re-cut` / `Re-cutting phrases…`, превью — `Checking what it changes…`.
+- `plan_rebuild(..., recut: bool, done_on_the_fly: frozenset[WordKey])` вместо `include_open`. `done_on_the_fly` — слова источника, сделанные на лету, из того же снимка знаний, что и анализ.
+- `_Planner._phrase`: правила Update п. 1–9 и Re-cut п. 7–8 вместо пары «touched / include_open». `is_touched` удаляется.
+- `OccurrenceTextUpdate.reset_results` → `drop_text_generation`.
+- `phrase_selection.is_frozen(o, include_open)` → `is_frozen(o)`: защищённая фраза или фраза с задачей. `select_phrases` ранжирует по `selection_score`.
+- `OccurrenceRow` получает `has_polish` (`polished_phrase` задан, отменён или нет), `has_meaning`, `has_text_media` (TTS или media с файлом); `has_results` остаётся их «или» плюс cloze.
 
 **Счётчики (`RebuildCounts`)**, каждый — по фразам плана:
-- `words_added` — новые слова (п. 1);
-- `words_removed` — выбывшие слова, которые удаляются (п. 3);
-- `cards_lost_generation` — удаляемые фразы с `has_polish` или `has_meaning` (п. 3, 10);
-- `cards_moved` — карточки, показ которых перешёл на фразу без генерации (п. 5);
-- `cards_recut` — фразы с новым текстом (п. 9);
-- `cards_recut_lost_polish` — из них с `has_polish` или `has_text_media`;
+- `words_added` — новые слова (п. 4);
+- `words_removed` — удаляемые выбывшие слова (п. 3);
+- `cards_lost_generation` — удаляемые показанные фразы с `has_polish`, `has_meaning` или `has_text_media` (п. 3, Re-cut п. 8);
+- `cards_moved` — слова, показ которых перешёл на фразу без генерации (п. 10);
+- `cards_recut` — фразы с новым текстом (Re-cut п. 7);
+- `cards_recut_lost_text_generation` — из них с `has_polish` или `has_text_media`;
 - `nothing_to_update` — план пуст.
 
 `cards_new_phrase`, `cards_text_reset`, `cards_without_generation` удаляются.
 
 **Application:**
-- `RebuildRequest.include_open` → `mode: RebuildMode`.
-- `SourceRebuilder.plan/apply(analysed, mode)`; `analyse` собирает `done_elsewhere` из `UserVocabulary`.
-- `RebuildSourceUseCase`, `ScopeOperationUseCase.rebuild/preview` принимают `mode`.
-- `RebuildPreviewDTO` → одно поле `counts`; `RebuildSummaryDTO.include_open` → `mode`.
+- `RebuildRequest` удаляется.
+- `SourceRebuilder.plan/apply(analysed, recut)`; `analyse` собирает `done_on_the_fly`.
+- `RebuildSourceUseCase.execute/run(source_id, recut)`, `preview(source_id, recut)`; `ScopeOperationUseCase.update/recut/preview(scope, recut)`; `_OFFERED`: `UPDATE → UPDATE`, `RECUT → RECUT`, превью — по своему виду.
+- `RebuildPreviewDTO`: `previewed` и одно поле `counts`; `RebuildSummaryDTO.include_open` → `kind`.
 
-**API:** `POST /api/operations/rebuild/preview?scope=&mode=` и `POST /api/operations/rebuild?scope=` с телом `{mode}`.
+**Infrastructure:**
+- `RebuildPlanWriter._rewrite`: при `drop_text_generation` обнуляет `polished_phrase`, `polish_reverted`, удаляет строки TTS и media; задачи в очереди переводит на новую revision (как `_queued_jobs_follow`), задачи в работе отменяет.
+- Удаление фраз и сброс TTS / media удаляют и файлы на диске (через `LocalMediaFiles`), после коммита.
+
+**API:**
+- `POST /api/operations/update?scope=`, `POST /api/operations/recut?scope=` — без тела.
+- `POST /api/operations/preview?scope=&of=update|recut`.
 
 **Frontend:**
-- `client.ts`: `previewRebuild(scope, mode)`, `rebuild(scope, mode)`; `types.ts` — новые DTO.
-- В меню источника и набора — два пункта: **Update** и **Re-cut phrases** (второй — только если backend его предлагает).
-- `RebuildDialog` получает `mode`, галочки нет. Тексты:
+- `client.ts`: `update(scope)`, `recut(scope)`, `preview(scope, of)`; `types.ts`: `SourceOperationKind`, `SetOperation`, DTO.
+- В меню источника и набора — пункты по `available_operations`: **Refresh**, **Update**, **Re-cut phrases**.
+- `RebuildDialog` → `UpdateDialog` с `kind: 'update' | 'recut'`, без галочки. Тексты:
 
 | Место | Update | Re-cut phrases |
 |---|---|---|
 | Заголовок | `Update “X”` | `Re-cut phrases of “X”` |
 | До превью | `Finds new words, removes words you no longer need and moves cards to simpler sentences. Phrase texts and their Polish, Meaning and audio stay.` | `Also cuts every phrase again by the current logic. A phrase that changes loses its Polish, audio and video; Meaning stays.` |
 | Превью и итог | `N new words, M words removed` | то же |
-| | `K of the removed cards had Polish or Meaning` (если > 0) | то же |
+| | `K removed cards had Polish, Meaning or audio` (если > 0) | то же |
 | | `N cards move to a simpler sentence — need ✨ there` (если > 0) | то же |
 | | — | `N phrases get a new cut, K of them lose Polish or audio` (если > 0) |
 | Пустой план | `Already up to date` + только Close | то же |
@@ -122,20 +137,22 @@ Rebuild с галочкой «Also unreviewed cards» смешивает две 
 
 ## Миграции
 
-Нет: схема не меняется.
+Нет: схема не меняется. `source_operations.kind` хранит только идущие операции; строка `rebuild`, если осталась от упавшего процесса, читается как `update`.
 
 ## Риски
 
 - После Re-cut Meaning объясняет target по старому тексту (`context=` в промпте). Если фраза стала короче, в объяснении может упоминаться то, чего во фразе уже нет.
+- Update п. 8: фраза с генерацией, которую анализ больше не находит, остаётся кандидатом выбора со старыми структурными полями оценки.
 
 ## Тесты
 
-- Update: новое слово → фразы во всех местах, одна показана; новое место → новая фраза; выбывшее слово с Polish, Meaning и TTS → удалено, задачи отменены, защищённая фраза того же слова осталась; слово Known в другом источнике → не тронуто.
-- Update: ни у одной фразы не меняются текст, Polish, Meaning, TTS, media; другая нарезка анализа игнорируется.
-- Update: выучил слова → показ переходит на фразу, где по `current_score` меньше незнакомых; старая фраза сохранила генерацию; решённое слово не меняется.
-- Re-cut: новая нарезка → текст новый, revision + 1, Polish (и отменённый), TTS, media удалены, Meaning на месте, таймкоды новые; задача в очереди перешла на новую revision, выполняющаяся отменена.
+- Update: новое слово → фразы во всех местах, одна показана; новое место → новая фраза; выбывшее слово с Polish, Meaning и TTS → удалено с файлами, задачи отменены, защищённая фраза того же слова осталась; слово сделано на лету → не тронуто; решённое слово → не тронуто.
+- Update: другая нарезка того же места → текст, Polish, Meaning, TTS, media не меняются; тот же текст с другими фактами → факты обновлены, revision прежняя.
+- Update: место пропало → фраза без генерации удалена; с генерацией осталась; нет дубля фразы того же места.
+- Update: выучил слова → показ переходит на фразу с меньшим `unknowns_now`; старая фраза сохранила генерацию; фраза с задачей показ не теряет.
+- `selection_score`: тот же порядок, что `fragment_score`, при неизменном знании; `None` → последней.
+- Re-cut: новая нарезка → текст новый, revision + 1, Polish (и отменённый), TTS, media удалены с файлами, Meaning на месте, таймкоды новые; задача в очереди на новой revision, задача в работе отменена.
 - Re-cut: место пропало → фраза удалена с генерацией, показ перешёл.
-- Защищённые фразы и решённые слова: ни одна операция их не меняет.
-- Тема и Saved phrases: только Update, меняет только секции.
+- Тема и Saved phrases: только Update, меняет только секции; Re-cut не предлагается.
 - Смена уровня и `fix_sections` запускают Update.
 - Счётчики превью совпадают с итогом на том же состоянии; пустой план → `nothing_to_update`.
