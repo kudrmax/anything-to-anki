@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 import pytest
@@ -104,3 +106,20 @@ class TestGetUsageLabels:
     def test_unknown(self, reader: DictCacheReader) -> None:
         labels = reader.get_usage_labels("zzz", "verb")
         assert labels is None
+
+
+class TestConcurrentReads:
+    def test_parallel_threads_read_consistently(self, reader: DictCacheReader) -> None:
+        threads = 16
+        lookups_per_thread = 2000
+        barrier = threading.Barrier(threads)
+
+        def lookup() -> None:
+            barrier.wait()
+            for _ in range(lookups_per_thread):
+                assert reader.get_cefr_distribution("abandon", "verb", "Source A") == {"B2": 1.0}
+                assert reader.get_cefr_distribution("missing", "verb", "Source A") is None
+
+        with ThreadPoolExecutor(max_workers=threads) as pool:
+            for future in [pool.submit(lookup) for _ in range(threads)]:
+                future.result()

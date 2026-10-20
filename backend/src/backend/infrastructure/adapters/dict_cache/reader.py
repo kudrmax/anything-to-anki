@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -13,17 +14,28 @@ logger = logging.getLogger(__name__)
 
 
 class DictCacheReader:
-    """Singleton-style read-only reader for dict.db."""
+    """Read-only reader for dict.db, shared across threads.
+
+    A sqlite3 connection must not be used by several threads at once, so each
+    thread opens its own.
+    """
 
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
-        self._conn: sqlite3.Connection | None = None
-        if db_path.exists():
-            self._conn = sqlite3.connect(
-                f"file:{db_path}?mode=ro", uri=True, check_same_thread=False,
-            )
-        else:
+        self._available = db_path.exists()
+        self._local = threading.local()
+        if not self._available:
             logger.warning("Dictionary cache not found at %s", db_path)
+
+    @property
+    def _conn(self) -> sqlite3.Connection | None:
+        if not self._available:
+            return None
+        conn: sqlite3.Connection | None = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = sqlite3.connect(f"file:{self._db_path}?mode=ro", uri=True)
+            self._local.conn = conn
+        return conn
 
     def get_cefr_sources(self) -> list[dict[str, str]]:
         if self._conn is None:
