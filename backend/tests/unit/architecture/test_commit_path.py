@@ -33,11 +33,6 @@ PENDING_TRANSACTIONS: frozenset[str] = frozenset({
 })
 PENDING_SESSION_IMPORTS: frozenset[str] = frozenset({
     "backend/src/backend/infrastructure/api/background_rebuild_launcher.py",
-    "backend/src/backend/infrastructure/api/routes/anki.py",
-    "backend/src/backend/infrastructure/api/routes/card_reports.py",
-    "backend/src/backend/infrastructure/api/routes/stats.py",
-    "backend/src/backend/infrastructure/api/routes/usage.py",
-    "backend/src/backend/infrastructure/api/routes/vocabulary.py",
     "backend/src/backend/infrastructure/queue/claimed_run.py",
     "backend/src/backend/infrastructure/services/lazy_media_reconciler.py",
 })
