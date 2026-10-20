@@ -6,7 +6,7 @@ import { api } from '@/api/client'
 import type { CollectionTree, InputDescription, Scope, SourceBoard, SourceSummary, Stats } from '@/api/types'
 import { SourcesScreen } from './SourcesScreen'
 
-const counts = { total: 3, reviewed: 1, pending: 0, progress: { decided: 0, total: 0 } }
+const counts = { total: 3, reviewed: 1, pending: 0, progress: { decided: 0, total: 0 }, status: 'new' as const, can_process: false, can_review: false, review_fraction: 0, progress_caption: '' }
 const tree: CollectionTree = {
   all: counts,
   unsorted: counts,
@@ -22,7 +22,7 @@ const source = (id: number, title: string, status: SourceSummary['status']): Sou
   created_at: '2026-10-01T00:00:00Z', candidate_count: 4, learn_count: 0, progress: { decided: 1, total: 4 }, processing_stage: null,
   collection_id: null, collection_path: [], stage: 'ready', awaiting_generation: false, generation_status: null,
   generation_error: null, available_operations: [], can_start_operation: true, busy_with: null, operation_hint: null, progress_caption: '4 phrases',
-  can_review: true, can_export: status !== 'done', can_delete: true, review_fraction: 0.25,
+  can_process: status === 'new' || status === 'error', can_review: true, can_export: status !== 'done', can_delete: true, review_fraction: 0.25,
 })
 
 const board: SourceBoard = {
@@ -245,8 +245,26 @@ describe('SourcesScreen', () => {
   it('opens Review remembering the scope to come back to', async () => {
     await render('/?scope=11')
     act(() => row('Finale').click())
-    expect(seen.location).toBe('/sources/3/review')
+    expect(seen.location).toBe('/review?scope=source-3')
     expect(seen.state).toEqual({ back: '/?scope=11' })
+  })
+
+  it('exports the open collection and comes back to it', async () => {
+    await render('/?scope=11')
+    act(() => button('Export', host.querySelector('header')!).click())
+    expect(seen.location).toBe('/export?scope=11')
+    expect(seen.state).toEqual({ back: '/?scope=11' })
+  })
+
+  it('opens the review of the open collection from its header', async () => {
+    const reviewable = { ...counts, status: 'partially_reviewed' as const, can_review: true }
+    vi.mocked(api.getCollectionTree).mockResolvedValue({
+      ...tree, collections: [{ ...tree.collections[0], counts: reviewable }],
+    })
+    await render('/?scope=10')
+    act(() => button('Continue', host.querySelector('header')!).click())
+    expect(seen.location).toBe('/review?scope=10')
+    expect(seen.state).toEqual({ back: '/?scope=10' })
   })
 
   it('drops the selection when the scope changes', async () => {

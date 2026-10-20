@@ -1,5 +1,8 @@
 import pytest
-from backend.domain.services.source_review_status import derive_review_status
+from backend.domain.services.source_review_status import (
+    derive_review_status,
+    stored_status_of_set,
+)
 from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.review_status import ReviewStatus
 from backend.domain.value_objects.source_status import SourceStatus
@@ -45,3 +48,15 @@ class TestDeriveReviewStatus:
 @pytest.mark.unit
 def test_only_processing_outcomes_are_stored() -> None:
     assert {s.value for s in SourceStatus} == {"new", "done", "error"}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(("statuses", "expected"), [
+    ([], SourceStatus.NEW),
+    ([SourceStatus.ERROR, SourceStatus.DONE], SourceStatus.DONE),
+    ([SourceStatus.ERROR, SourceStatus.ERROR], SourceStatus.ERROR),
+    ([SourceStatus.ERROR, SourceStatus.NEW], SourceStatus.NEW),
+    ([SourceStatus.DONE], SourceStatus.DONE),
+])
+def test_stored_status_of_set(statuses: list[SourceStatus], expected: SourceStatus) -> None:
+    assert stored_status_of_set(statuses) is expected

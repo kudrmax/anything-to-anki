@@ -149,11 +149,12 @@ class TestGetExportCardsAPI:
         post = _add_text(client, "burnout is common")
         source_id = post.json()["source_ids"][0]
 
-        response = client.get(f"/export/cards/{source_id}")
+        response = client.get(f"/export/cards?scope=source-{source_id}")
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data["ready"], list)
         assert isinstance(data["incomplete"], list)
+        assert data["title"] == client.get("/sources").json()[0]["title"]
 
     def test_returns_all_export_cards(self, client: TestClient) -> None:
         _add_text(client, "burnout is common")
@@ -173,6 +174,16 @@ class TestGetExportCardsAPI:
         assert client.get("/export/cards?scope=9999").status_code == 404
         assert client.post("/export/sync-to-anki?group=ready&scope=9999").status_code == 404
 
+    def test_missing_source_is_not_found(self, client: TestClient) -> None:
+        assert client.get("/export/cards?scope=source-9999").status_code == 404
+        assert client.post("/export/sync-to-anki?group=ready&scope=source-9999").status_code == 404
+
+    def test_per_source_paths_are_gone(self, client: TestClient) -> None:
+        post = _add_text(client, "burnout is common")
+        source_id = post.json()["source_ids"][0]
+        assert client.get(f"/export/cards/{source_id}").status_code == 404
+        assert client.post(f"/export/sync-to-anki/{source_id}?group=ready").status_code == 404
+
 
 @pytest.mark.integration
 class TestSyncToAnkiAPI:
@@ -186,7 +197,9 @@ class TestSyncToAnkiAPI:
         ):
             # Need at least one learn candidate - with empty source there are none,
             # so total=0 and returns 200
-            response = client.post(f"/export/sync-to-anki/{source_id}?group=incomplete")
+            response = client.post(
+                f"/export/sync-to-anki?group=incomplete&scope=source-{source_id}",
+            )
         assert response.status_code == 200
         assert response.json()["total"] == 0
 
@@ -194,7 +207,7 @@ class TestSyncToAnkiAPI:
         post = _add_text(client, "test text")
         source_id = post.json()["source_ids"][0]
 
-        response = client.post(f"/export/sync-to-anki/{source_id}?group=incomplete")
+        response = client.post(f"/export/sync-to-anki?group=incomplete&scope=source-{source_id}")
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 0
@@ -231,14 +244,16 @@ class TestSyncToAnkiAPI:
                 return_value=[12345],
             ),
             patch(
-                "backend.application.utils.export_queue.ExportQueue.for_source",
+                "backend.application.utils.export_queue.ExportQueue.for_sources",
                 return_value=ExportBatch(pending=[burnout], exported_count=0),
             ),
             patch(
                 "backend.application.utils.decision_effects.DecisionEffects.apply",
             ) as bound,
         ):
-            response = client.post(f"/export/sync-to-anki/{source_id}?group=incomplete")
+            response = client.post(
+                f"/export/sync-to-anki?group=incomplete&scope=source-{source_id}",
+            )
 
         assert response.status_code == 200
         data = response.json()
@@ -253,7 +268,7 @@ class TestSyncToAnkiAPI:
         post = _add_text(client, "test text")
         source_id = post.json()["source_ids"][0]
 
-        assert client.post(f"/export/sync-to-anki/{source_id}").status_code == 422
+        assert client.post(f"/export/sync-to-anki?scope=source-{source_id}").status_code == 422
         assert client.post("/export/sync-to-anki").status_code == 422
 
     def test_ready_group_leaves_incomplete_cards_out(self, client: TestClient) -> None:
@@ -264,7 +279,7 @@ class TestSyncToAnkiAPI:
             "backend.infrastructure.persistence.sqla_candidate_repository.SqlaCandidateRepository.get_by_source",
             return_value=[_burnout(source_id).word],
         ):
-            response = client.post(f"/export/sync-to-anki/{source_id}?group=ready")
+            response = client.post(f"/export/sync-to-anki?group=ready&scope=source-{source_id}")
 
         assert response.status_code == 200
         assert response.json()["total"] == 0

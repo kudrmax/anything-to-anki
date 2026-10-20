@@ -61,6 +61,10 @@ class HighlightDTO(BaseModel):
 
 
 class SourceDocumentDTO(BaseModel):
+    """The text of one source of a review set, with the targets to mark in it."""
+
+    source_id: int
+    title: str
     blocks: list[BlockDTO]
     # Targets that don't overlap, in reading order
     highlights: list[HighlightDTO]

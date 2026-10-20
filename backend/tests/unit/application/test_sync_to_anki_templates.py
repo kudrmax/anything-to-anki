@@ -9,11 +9,12 @@ from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.export_group import ExportGroup
+from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.export_support import ExportCards, export_card
 from tests.phrase_support import phrase
-from tests.unit.application.scope_fakes import empty_scope_resolver
+from tests.unit.application.scope_fakes import sources_scope_resolver
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -73,9 +74,9 @@ class TestSyncToAnkiTemplates:
             anki_connector,
             settings_repo,
             renderer,
-            empty_scope_resolver(),
+            sources_scope_resolver(1),
         )
-        use_case.execute(source_id=1, group=ExportGroup.READY)
+        use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         anki_connector.ensure_note_type.assert_called_once()
         call_kwargs = anki_connector.ensure_note_type.call_args

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { ButtonCommand, CardButton, DecisionButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, SaveClozeRequest, SourceDetail, SourceDocument, StoredCandidate } from '@/api/types'
+import type { ButtonCommand, CardButton, DecisionButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, ReviewDetail, SaveClozeRequest, SetScope, SourceDocument, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { messageOf } from '@/lib/apiError'
@@ -11,6 +11,7 @@ import { useAudioPlayer } from '@/lib/useAudioPlayer'
 import { initialFocusId } from './initialFocus'
 import { keepLayout } from './keptLayout'
 import { focusAfterPress } from './nextFocus'
+import type { SelectedText } from './SourceText'
 
 const POLL_INTERVAL_MS = 3000
 
@@ -22,6 +23,8 @@ interface MediaRefs {
 
 export interface Editing {
   candidateId: number
+  /** Источник фразы: новая граница выделяется в его тексте. */
+  sourceId: number
   lemma: string
   pos: string
   originalFragment: string
@@ -32,9 +35,9 @@ const hasCandidateVpnErrors = (candidates: StoredCandidate[]): boolean =>
 
 export const audioUrlForCandidate = candidateAudioUrl
 
-export function useReview(sourceId: number, requestedId: number | null = null) {
-  const [source, setSource] = useState<SourceDetail | null>(null)
-  const [document, setDocument] = useState<SourceDocument | null>(null)
+export function useReview(scope: SetScope, requestedId: number | null = null) {
+  const [detail, setDetail] = useState<ReviewDetail | null>(null)
+  const [documents, setDocuments] = useState<SourceDocument[]>([])
   const [candidates, setCandidates] = useState<StoredCandidate[]>([])
   const [loading, setLoading] = useState(true)
   const [currentId, setCurrentId] = useState<number | null>(null)
@@ -55,55 +58,54 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
 
   const setSortOrder = (order: SortOrder) => { sortOrderPref.write(order); setSortOrderState(order) }
 
-  // Источник вместе с кандидатами: разделы и счётчик считает backend по всем карточкам.
-  const fetchSource = useCallback(
-    () => api.getSource(sourceId, sortOrder),
-    [sourceId, sortOrder],
+  // Набор вместе с кандидатами: разделы и счётчик считает backend по всем карточкам.
+  const fetchReview = useCallback(
+    () => api.getReview(scope, sortOrder),
+    [scope, sortOrder],
   )
 
   // Перечитанные карточки встают в порядок, снятый при загрузке; перегруппирует их только загрузка списка.
-  const applySource = useCallback((src: SourceDetail) => {
-    setSource(src)
-    setCandidates(prev => keepLayout(prev, src.candidates))
-    if (hasCandidateVpnErrors(src.candidates)) setVpnBlocked(true)
+  const applyReview = useCallback((review: ReviewDetail) => {
+    setDetail(review)
+    setCandidates(prev => keepLayout(prev, review.candidates))
+    if (hasCandidateVpnErrors(review.candidates)) setVpnBlocked(true)
   }, [])
 
-  const loadDocument = useCallback(async (hasText: boolean) => {
-    // Подсветки на экране источника следуют за кандидатами: после правок их надо перечитать.
-    setDocument(hasText ? await api.getSourceDocument(sourceId).catch(() => null) : null)
-  }, [sourceId])
+  const loadDocuments = useCallback(async () => {
+    // Подсветки в текстах следуют за кандидатами: после правок их надо перечитать.
+    setDocuments(await api.getReviewDocuments(scope).catch(() => []))
+  }, [scope])
 
   const loadCandidates = useCallback(async () => {
-    const src = await fetchSource()
-    applySource(src)
-    await loadDocument(src.has_source_text)
-  }, [fetchSource, applySource, loadDocument])
+    applyReview(await fetchReview())
+    await loadDocuments()
+  }, [fetchReview, applyReview, loadDocuments])
 
   const loadGeneration = useCallback(async () => {
     try {
-      setGeneration(await api.getGenerationStatus(sourceId))
+      setGeneration(await api.getReviewGeneration(scope))
     } catch {
       // Панель генерации просто не покажет свежие числа до следующей попытки.
     }
-  }, [sourceId])
+  }, [scope])
 
   useEffect(() => {
     const load = async () => {
       try {
-        const src = await api.getSource(sourceId, sortOrder)
-        setSource(src)
-        setCandidates(src.candidates)
-        await loadDocument(src.has_source_text)
-        setCurrentId(prev => prev ?? initialFocusId(src.candidates, requestedId))
+        const review = await api.getReview(scope, sortOrder)
+        setDetail(review)
+        setCandidates(review.candidates)
+        await loadDocuments()
+        setCurrentId(prev => prev ?? initialFocusId(review.candidates, requestedId))
         await loadGeneration()
       } catch {
-        setSource(null)
+        setDetail(null)
       } finally {
         setLoading(false)
       }
     }
     void load()
-  }, [sourceId, sortOrder, loadGeneration, loadDocument, requestedId])
+  }, [scope, sortOrder, loadGeneration, loadDocuments, requestedId])
 
   const inProgress = generation?.in_progress ?? false
   useEffect(() => {
@@ -115,13 +117,13 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     return () => clearInterval(interval)
   }, [inProgress, loadCandidates, loadGeneration])
 
-  // Пока источник занят (Rebuild, Refresh), карточки перечитываются; последнее чтение — уже после операции.
-  const busyWith = source?.busy_with ?? null
+  // Пока источник набора занят (Rebuild, Refresh), карточки перечитываются; последнее чтение — уже после операции.
+  const busySet = detail?.busy ?? false
   useEffect(() => {
-    if (busyWith === null) return
+    if (!busySet) return
     const interval = setInterval(() => void loadCandidates(), POLL_INTERVAL_MS)
     return () => clearInterval(interval)
-  }, [busyWith, loadCandidates])
+  }, [busySet, loadCandidates])
 
   // Свежий список для settle(), чтобы не пересоздавать обработчик на каждое изменение.
   const candidatesRef = useRef<StoredCandidate[]>(candidates)
@@ -136,13 +138,13 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   const settle = useCallback(async (candidateId: number, saved?: StoredCandidate) => {
     const marked = candidatesRef.current.find(c => c.phrase_id === candidateId)
     const markedSection = marked?.section ?? null
-    const refreshed = await fetchSource().catch(() => null)
+    const refreshed = await fetchReview().catch(() => null)
     const fresh = keepLayout(
       candidatesRef.current,
       refreshed?.candidates ?? candidatesRef.current.map(c => (saved && c.phrase_id === candidateId ? saved : c)),
     )
     if (refreshed) {
-      setSource(refreshed)
+      setDetail(refreshed)
       if (hasCandidateVpnErrors(refreshed.candidates)) setVpnBlocked(true)
     }
     setCandidates(fresh)
@@ -151,9 +153,9 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     if (focusId === null) return
     setCurrentId(focusId)
     const focus = fresh.find(c => c.phrase_id === focusId)
-    const nextUrl = focus && autoPlayAudioPref.read() ? audioUrlForCandidate(focus, sourceId) : null
+    const nextUrl = focus && autoPlayAudioPref.read() ? audioUrlForCandidate(focus) : null
     if (nextUrl) play(nextUrl)
-  }, [sourceId, sortOrder, play, fetchSource])
+  }, [sortOrder, play, fetchReview])
 
   /** Нажатие кнопки, которую backend сказал слать; ответ — карточка после него. */
   const mark = useCallback(async (candidateId: number, button: DecisionButton) => {
@@ -256,12 +258,12 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   }
 
   const generationActions = {
-    run: (kind: GenerationKind, scope: GenerationScope) =>
-      runBatch(() => api.runGeneration(sourceId, kind, scope, sortOrder), 'Failed to start generation', { vpnAware: true }),
+    run: (kind: GenerationKind, cards: GenerationScope) =>
+      runBatch(() => api.runReviewGeneration(scope, kind, cards, sortOrder), 'Failed to start generation', { vpnAware: true }),
     cancel: (kind: GenerationKind) =>
-      runBatch(() => api.cancelGeneration(sourceId, kind), 'Failed to cancel'),
+      runBatch(() => api.cancelReviewGeneration(scope, kind), 'Failed to cancel'),
     downloadVideo: () =>
-      runBatch(() => api.downloadVideo(sourceId), 'Failed to download the video', { skipCandidates: true }),
+      runBatch(() => api.downloadReviewVideos(scope), 'Failed to download the video', { skipCandidates: true }),
   }
 
   const generateTTS = (candidateId: number) => withBusy(setGeneratingTTSIds, candidateId, async () => {
@@ -317,7 +319,7 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   const startEditing = (candidateId: number) => {
     const candidate = candidates.find(c => c.phrase_id === candidateId)
     if (!candidate) return
-    setEditing({ candidateId, lemma: candidate.lemma, pos: candidate.pos, originalFragment: candidate.source_phrase.text })
+    setEditing({ candidateId, sourceId: candidate.source.id, lemma: candidate.lemma, pos: candidate.pos, originalFragment: candidate.source_phrase.text })
   }
 
   const cancelEditing = useCallback(() => {
@@ -340,9 +342,9 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
   }
 
   /** true — слово добавлено; при ошибке показывает её и оставляет попап открытым. */
-  const addWord = async (targetWords: number[], selection: DocumentSelection): Promise<boolean> => {
+  const addWord = async (targetWords: number[], selected: SelectedText): Promise<boolean> => {
     try {
-      const result = await api.addManualCandidate(sourceId, targetWords, selection)
+      const result = await api.addManualCandidate(selected.sourceId, targetWords, selected.selection)
       window.getSelection()?.removeAllRanges()
       await loadCandidates()
       setCurrentId(result.phrase_id)
@@ -398,19 +400,20 @@ export function useReview(sourceId: number, requestedId: number | null = null) {
     }
   }
 
+  // Медиа лежат у источника карточки, а не у экрана: в наборе у карточек разные источники.
   const mediaFor = (candidate: StoredCandidate): MediaRefs => ({
-    screenshotUrl: mediaUrl(sourceId, candidate.media?.screenshot_path),
-    audioUrl: mediaUrl(sourceId, candidate.media?.audio_path),
-    meaningImageUrl: mediaUrl(sourceId, candidate.meaning_image_path),
+    screenshotUrl: mediaUrl(candidate.source.id, candidate.media?.screenshot_path),
+    audioUrl: mediaUrl(candidate.source.id, candidate.media?.audio_path),
+    meaningImageUrl: mediaUrl(candidate.source.id, candidate.meaning_image_path),
   })
 
   // Счётчик — Reviewed / (Reviewed + открытые Ready); числа считает backend.
-  const learnCount = source?.learn_count ?? 0
-  const progressTotal = source?.progress.total ?? 0
-  const progressReviewed = source?.progress.decided ?? 0
+  const learnCount = detail?.learn_count ?? 0
+  const progressTotal = detail?.progress.total ?? 0
+  const progressReviewed = detail?.progress.decided ?? 0
 
   return {
-    sourceId, source, document, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,
+    scope, detail, documents, candidates, loading, currentId, setCurrentId, sortOrder, setSortOrder,
     counts: { reviewed: progressReviewed, total: progressTotal, learn: learnCount, progress: progressTotal > 0 ? progressReviewed / progressTotal : 0 },
     generation, generationActions,
     press, generate, replaceWithExample,

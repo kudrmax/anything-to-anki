@@ -194,35 +194,50 @@ def _at(block: int, line: int, char: int) -> DocumentPosition:
     return DocumentPosition(block, line, char, line, char + 1)
 
 
+def _in_source(card: ReviewCard, source_id: int) -> ReviewCard:
+    return ReviewCard(word=replace(card.word, source_id=source_id), occurrence=card.occurrence)
+
+
 @pytest.mark.unit
 class TestSortChronologically:
     def test_by_position_in_the_document(self) -> None:
         c1 = _make("first", 4.0, position=_at(0, 3, 0))
         c2 = _make("second", 4.0, position=_at(1, 0, 5))
         c3 = _make("third", 4.0, position=_at(1, 0, 9))
-        result = sort_chronologically([c3, c1, c2])
+        result = sort_chronologically([c3, c1, c2], [1])
         assert [c.lemma for c in result] == ["first", "second", "third"]
 
     def test_phrase_without_a_place_goes_last(self) -> None:
         placed = _make("placed", 4.0, position=_at(5, 0, 0))
         example = _make("example", 4.0)
-        result = sort_chronologically([example, placed])
+        result = sort_chronologically([example, placed], [1])
         assert [c.lemma for c in result] == ["placed", "example"]
 
     def test_tiebreaker_by_id(self) -> None:
         c1 = _with_id(_make("a", 4.0, position=_at(0, 0, 0)), 10)
         c2 = _with_id(_make("b", 4.0, position=_at(0, 0, 0)), 5)
-        result = sort_chronologically([c1, c2])
+        result = sort_chronologically([c1, c2], [1])
         assert [c.lemma for c in result] == ["b", "a"]
 
     def test_empty_list(self) -> None:
-        assert sort_chronologically([]) == []
+        assert sort_chronologically([], [1]) == []
+
+    def test_sources_follow_the_set_order(self) -> None:
+        late = _in_source(_make("late", 4.0, position=_at(0, 0, 0)), 2)
+        early = _in_source(_make("early", 4.0, position=_at(9, 0, 0)), 1)
+        assert [c.lemma for c in sort_chronologically([late, early], [1, 2])] == ["early", "late"]
+        assert [c.lemma for c in sort_chronologically([late, early], [2, 1])] == ["late", "early"]
+
+    def test_done_cards_sink_below_every_source(self) -> None:
+        done = _decided(_in_source(_make("done", 4.0, position=_at(0, 0, 0)), 1), WordStatus.KNOWN)
+        open_ = _in_source(_make("open", 4.0, position=_at(0, 0, 0)), 2)
+        assert [c.lemma for c in sort_chronologically([done, open_], [1, 2])] == ["open", "done"]
 
     def test_phrases_without_places_keep_the_order_they_were_added(self) -> None:
         """A topic's phrases have no document: they stay as collected."""
         c1 = _with_id(_make("alpha", 4.0), 20)
         c2 = _with_id(_make("beta", 4.0), 10)
-        result = sort_chronologically([c1, c2])
+        result = sort_chronologically([c1, c2], [1])
         assert [c.lemma for c in result] == ["beta", "alpha"]
 
 
@@ -429,7 +444,7 @@ class TestDoneLastInTextOrder:
     def test_done_cards_go_below_open_ones_keeping_order(self) -> None:
         a, b, c, d, e = (_make(name, 4.0) for name in ("a", "b", "c", "d", "e"))
         cards = [_skipped(a), b, _decided(c, WordStatus.LEARN), _decided(d, WordStatus.KNOWN), e]
-        result = sort_chronologically(cards)
+        result = sort_chronologically(cards, [1])
         assert [card.lemma for card in result] == ["b", "e", "a", "c", "d"]
 
 

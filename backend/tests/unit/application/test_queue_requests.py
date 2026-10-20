@@ -10,6 +10,8 @@ from backend.application.use_cases.enqueue_phrase_tts import EnqueuePhraseTTSUse
 from backend.application.use_cases.manage_queue import ManageQueueUseCase
 from backend.application.use_cases.request_video_download import RequestVideoDownloadUseCase
 from backend.application.utils.requested_cards import RequestedCards
+from backend.application.utils.source_scope_resolver import SourceScopeResolver
+from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import (
     PhraseNotFoundError,
@@ -23,6 +25,7 @@ from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
+from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.phrase_support import make_occurrence
@@ -46,41 +49,98 @@ def _queued(job_repo: MagicMock) -> list[tuple[JobType, int, int | None]]:
     return [(j.job_type, j.source_id, j.candidate_id) for j in jobs]
 
 
+def _resolver(sources: list[Source], collection: int | None = None) -> SourceScopeResolver:
+    source_repo, collection_repo = MagicMock(), MagicMock()
+    source_repo.list_all.return_value = sources
+    source_repo.get_by_id.side_effect = lambda source_id: next(
+        (s for s in sources if s.id == source_id), None,
+    )
+    collection_repo.list_all.return_value = (
+        [Collection(id=collection, name="Show")] if collection is not None else []
+    )
+    return SourceScopeResolver(source_repo, collection_repo)
+
+
+def _jobs(downloading: frozenset[int] = frozenset()) -> MagicMock:
+    job_repo = MagicMock()
+    job_repo.has_active_jobs_for_source.side_effect = (
+        lambda source_id, job_types: source_id in downloading
+        and job_types == frozenset({JobType.VIDEO_DOWNLOAD})
+    )
+    return job_repo
+
+
 @pytest.mark.unit
 class TestRequestVideoDownload:
-    def setup_method(self) -> None:
-        self.source_repo = MagicMock()
-        self.job_repo = MagicMock()
-        self.use_case = RequestVideoDownloadUseCase(self.source_repo, self.job_repo)
-
     def test_queues_one_source_level_job(self) -> None:
-        self.source_repo.get_by_id.return_value = _youtube_source()
+        job_repo = _jobs()
+        use_case = RequestVideoDownloadUseCase(_resolver([_youtube_source()]), job_repo)
 
-        self.use_case.execute(SOURCE_ID)
+        assert use_case.execute(SourceScope.source(SOURCE_ID)) == 1
 
-        assert _queued(self.job_repo) == [(JobType.VIDEO_DOWNLOAD, SOURCE_ID, None)]
+        assert _queued(job_repo) == [(JobType.VIDEO_DOWNLOAD, SOURCE_ID, None)]
 
-    @pytest.mark.parametrize(("source", "error"), [
-        (None, SourceNotFoundError),
-        (_youtube_source(source_url=None), SourceHasNoUrlError),
-    ])
-    def test_rejects_sources_without_a_video_to_download(
-        self, source: Source | None, error: type[Exception],
-    ) -> None:
-        self.source_repo.get_by_id.return_value = source
+    def test_downloads_every_missing_video_of_the_set(self) -> None:
+        sources = [
+            Source(id=1, status=SourceStatus.DONE, source_url="u1", collection_id=7),
+            Source(
+                id=2, status=SourceStatus.DONE, source_url="u2", video_path="v.mp4",
+                collection_id=7,
+            ),
+            Source(id=3, status=SourceStatus.DONE, collection_id=7),
+        ]
+        job_repo = _jobs()
+        use_case = RequestVideoDownloadUseCase(_resolver(sources, collection=7), job_repo)
 
-        with pytest.raises(error):
-            self.use_case.execute(SOURCE_ID)
-        self.job_repo.enqueue.assert_not_called()
+        assert use_case.execute(SourceScope.collection(7)) == 1
+
+        [[job]] = job_repo.enqueue.call_args.args
+        assert job.source_id == 1
+
+    def test_skips_a_source_whose_download_is_already_queued(self) -> None:
+        sources = [
+            Source(id=1, status=SourceStatus.DONE, source_url="u1", collection_id=7),
+            Source(id=2, status=SourceStatus.DONE, source_url="u2", collection_id=7),
+        ]
+        job_repo = _jobs(downloading=frozenset({1}))
+        use_case = RequestVideoDownloadUseCase(_resolver(sources, collection=7), job_repo)
+
+        assert use_case.execute(SourceScope.collection(7)) == 1
+
+        [[job]] = job_repo.enqueue.call_args.args
+        assert job.source_id == 2
+
+    def test_a_second_request_queues_nothing(self) -> None:
+        job_repo = _jobs(downloading=frozenset({SOURCE_ID}))
+        use_case = RequestVideoDownloadUseCase(_resolver([_youtube_source()]), job_repo)
+
+        assert use_case.execute(SourceScope.source(SOURCE_ID)) == 0
+
+        job_repo.enqueue.assert_not_called()
+
+    def test_nothing_to_download_keeps_the_single_source_error(self) -> None:
+        use_case = RequestVideoDownloadUseCase(
+            _resolver([Source(id=3, status=SourceStatus.DONE)]), _jobs(),
+        )
+        with pytest.raises(SourceHasNoUrlError):
+            use_case.execute(SourceScope.source(3))
+
+    def test_unknown_source(self) -> None:
+        job_repo = _jobs()
+        with pytest.raises(SourceNotFoundError):
+            RequestVideoDownloadUseCase(_resolver([]), job_repo).execute(SourceScope.source(9))
+        job_repo.enqueue.assert_not_called()
 
     def test_rejects_already_downloaded_video(self) -> None:
         source = _youtube_source()
         source.video_path = "existing.mp4"
-        self.source_repo.get_by_id.return_value = source
+        job_repo = _jobs()
 
         with pytest.raises(VideoAlreadyDownloadedError):
-            self.use_case.execute(SOURCE_ID)
-        self.job_repo.enqueue.assert_not_called()
+            RequestVideoDownloadUseCase(_resolver([source]), job_repo).execute(
+                SourceScope.source(SOURCE_ID),
+            )
+        job_repo.enqueue.assert_not_called()
 
 
 def _requested(

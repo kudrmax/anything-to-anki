@@ -2,6 +2,14 @@
 import path from 'path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import type { IncomingMessage } from 'http'
+
+const BACKEND = 'http://localhost:17833'
+/** Префиксы API backend: всё, что web запрашивает у сервера. */
+const BACKEND_PREFIXES = [
+  '/api', '/sources', '/collections', '/phrases', '/words', '/known-words', '/unknown-words',
+  '/vocabulary', '/export', '/anki', '/stats', '/media',
+]
 
 export default defineConfig({
   plugins: [react()],
@@ -12,13 +20,10 @@ export default defineConfig({
     },
   },
   server: {
-    proxy: {
-      '/sources':     'http://localhost:17833',
-      '/candidates':  'http://localhost:17833',
-      '/known-words': 'http://localhost:17833',
-      '/settings':    'http://localhost:17833',
-      '/anki':        'http://localhost:17833',
-      '/stats':       'http://localhost:17833',
-    },
+    proxy: Object.fromEntries(BACKEND_PREFIXES.map(prefix => [prefix, {
+      target: BACKEND,
+      // Переход браузера на страницу (/sources/7/review, /export?scope=…) остаётся SPA.
+      bypass: (req: IncomingMessage) => (req.headers.accept?.includes('text/html') ? '/index.html' : undefined),
+    }])),
   },
 })

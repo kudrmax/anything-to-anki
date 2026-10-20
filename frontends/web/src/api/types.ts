@@ -16,6 +16,8 @@ export type ProcessingStage = 'analyzing_text' | 'collecting_phrases'
 export type CandidateSortOrder = 'relevance' | 'chronological' | 'key_words'
 
 export type Scope = 'all' | 'unsorted' | number
+/** Набор источников на ревью и экспорте: область или один источник (`source-<id>`). */
+export type SetScope = Scope | `source-${number}`
 export type SourceStage = 'in_progress' | 'preparing' | 'ready' | 'reviewed'
 
 /** Решённые карточки среди Ready: одни и те же числа у источника, его ревью и коллекции. */
@@ -29,6 +31,12 @@ export interface ScopeCounts {
   reviewed: number
   pending: number
   progress: Progress
+  /** Область как один набор на ревью: статус, есть ли что обработать, можно ли открыть ревью, доля и подпись — как у источника. */
+  status: SourceStatus
+  can_process: boolean
+  can_review: boolean
+  review_fraction: number
+  progress_caption: string
 }
 
 export interface CollectionNode {
@@ -113,6 +121,7 @@ export interface SourceSummary {
   /** Почему операция сейчас недоступна. */
   operation_hint: string | null
   /** Что источник позволяет сейчас; решает backend. */
+  can_process: boolean
   can_review: boolean
   can_export: boolean
   can_delete: boolean
@@ -336,30 +345,30 @@ export interface StoredCandidate {
   cloze: CandidateCloze | null
   /** Скрытые слова cloze можно поменять: cloze ещё не в Anki. */
   can_edit_cloze: boolean
+  /** Источник карточки: от него её медиа, видео и занятость. */
+  source: CardSource
 }
 
-export interface SourceDetail {
+export interface CardSource {
   id: number
-  title: string
-  status: SourceStatus
-  kind: SourceKind | null
-  role: SourceRole
   has_video: boolean
   can_polish_phrases: boolean
-  /** Есть ли у источника свой текст, который показывает ревью. */
-  has_source_text: boolean
-  source_url: string | null
-  video_downloaded: boolean
-  error_message: string | null
-  processing_stage: ProcessingStage | null
-  busy_with: SourceOperationKind | null
+}
+
+/** Ревью набора источников: один источник, коллекция или все. Статус, прогресс и занятость — по набору. */
+export interface ReviewDetail {
+  /** Токен набора, как его принимает параметр scope. */
+  scope: string
+  title: string
+  status: SourceStatus
+  progress: Progress
   /** Слов на изучение (не карточек). */
   learn_count: number
-  created_at: string
   candidates: StoredCandidate[]
   /** How many candidates to show before "Show more"; null — show all. */
   initially_shown_candidates: number | null
-  progress: Progress
+  /** Какой-то источник набора занят операцией: его карточки ждут её. */
+  busy: boolean
 }
 
 export interface AnkiStatus {
@@ -546,6 +555,8 @@ export interface GenerationKindStatus {
   missing: number
   ready_missing: number
   blocked_by: GenerationBlocker | null
+  /** Источники набора, которым этот вид ждёт видео, а оно не скачано и не скачивается. */
+  videos_to_download: number
 }
 
 /** Фоновая генерация по карточкам источника. */
@@ -639,6 +650,8 @@ export interface Highlight {
 }
 
 export interface SourceDocument {
+  source_id: number
+  title: string
   blocks: DocumentBlock[]
   /** Target'ы, которые не пересекаются, в порядке чтения. */
   highlights: Highlight[]

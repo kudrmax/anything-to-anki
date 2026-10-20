@@ -20,7 +20,7 @@ from backend.domain.services.candidate_sections import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
     from backend.domain.value_objects.review_card import ReviewCard
@@ -116,18 +116,23 @@ def sort_by_key_words(
     )
 
 
-def sort_chronologically(cards: list[ReviewCard]) -> list[ReviewCard]:
-    """In the order their phrases stand in the document; phrases without a place go last.
+def sort_chronologically(
+    cards: list[ReviewCard], source_order: Sequence[int],
+) -> list[ReviewCard]:
+    """By the place of their source in the set, then in the order their phrases stand in
+    the document; phrases without a place go last in their source.
 
     Done cards are in Reviewed, below every open card, so the phrase waiting for a decision
     stays where the user looks.
     """
+    rank = {source_id: i for i, source_id in enumerate(source_order)}
 
     def _position_key(c: ReviewCard) -> SortKey:
+        source_rank = rank[c.word.source_id]
         place = c.occurrence.phrase_position
         if place is None:
-            return (True, 0, 0, 0)
-        return (False, place.block, place.start_line, place.start_char)
+            return (source_rank, True, 0, 0, 0)
+        return (source_rank, False, place.block, place.start_line, place.start_char)
 
     return _grouped(
         cards, partition=lambda c: _REVIEWED if c.is_done else _OPEN, key=_position_key,

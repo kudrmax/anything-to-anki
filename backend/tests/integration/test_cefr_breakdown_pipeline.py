@@ -21,6 +21,7 @@ from backend.domain.services.card_view import ShownTone, Where
 from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
+from tests.card_support import CARD_SOURCE
 from tests.integration.dict_cache_support import make_voting_classifier
 from tests.phrase_support import phrase
 
@@ -89,6 +90,7 @@ class TestCEFRBreakdownPipeline:
         candidate_dto = CardDTO(
             phrase_id=1,
             word_id=1,
+            source=CARD_SOURCE,
             lemma="happy",
             pos="JJ",
             cefr_level="A2",

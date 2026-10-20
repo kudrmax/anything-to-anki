@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
 from backend.application.dto.candidate_dtos import SelectionDTO
-from backend.application.use_cases.get_source_document import GetSourceDocumentUseCase
+from backend.application.use_cases.get_review_documents import GetReviewDocumentsUseCase
 from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
+from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import InvalidPhraseError
@@ -21,15 +23,21 @@ from backend.domain.value_objects.document import (
     ParagraphMode,
 )
 from backend.domain.value_objects.document_position import DocumentPosition
+from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.container import Container
+from backend.infrastructure.persistence.models import CollectionModel, SourceModel
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
+from backend.infrastructure.persistence.sqla_collection_repository import (
+    SqlaCollectionRepository,
+)
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
 from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
+from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 
 from tests.candidate_sorter_support import section_stamper
 from tests.lock_support import free_lock
@@ -68,6 +76,50 @@ def _candidate(source_id: int, lemma: str, target: str) -> CardSeed:
     )
 
 
+def _screen(session: Session) -> GetReviewDocumentsUseCase:
+    return GetReviewDocumentsUseCase(
+        SourceScopeResolver(SqlaSourceRepository(session), SqlaCollectionRepository(session)),
+        SqlaDocumentRepository(session), SqlaCardQuery(session),
+    )
+
+
+COLLECTION, FIRST, SECOND, TOPIC = 7, 1, 2, 3
+
+
+def _phrases_of(session: Session, source_id: int) -> set[int]:
+    return {place.phrase_id for place in SqlaCardQuery(session).shown_places(source_id)}
+
+
+def test_documents_of_a_collection_in_set_order(db_session: Session) -> None:
+    db_session.add(CollectionModel(id=COLLECTION, name="Show"))
+    db_session.add_all([
+        SourceModel(
+            id=FIRST, title="Pilot", status="done", collection_id=COLLECTION,
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        ),
+        SourceModel(
+            id=SECOND, title="Episode 2", status="done", collection_id=COLLECTION,
+            created_at=datetime(2026, 1, 2, tzinfo=UTC),
+        ),
+        SourceModel(
+            id=TOPIC, title="Salary talk", status="done", collection_id=COLLECTION,
+            role="topic", created_at=datetime(2026, 1, 3, tzinfo=UTC),
+        ),
+    ])
+    db_session.flush()
+    for source_id in (FIRST, SECOND):
+        SqlaDocumentRepository(db_session).save(source_id, DOCUMENT)
+        store_cards(db_session, [_candidate(source_id, "pursuit", "pursuit")])
+
+    docs = _screen(db_session).execute(SourceScope.collection(COLLECTION))
+
+    assert [(d.source_id, d.title) for d in docs] == [(SECOND, "Episode 2"), (FIRST, "Pilot")]
+    assert all(
+        h.phrase_id in _phrases_of(db_session, d.source_id) for d in docs for h in d.highlights
+    )
+    assert all(d.highlights for d in docs)
+
+
 def test_marks_that_would_overlap_keep_the_first(db_session: Session, source_id: int) -> None:
     SqlaDocumentRepository(db_session).save(source_id, DOCUMENT)
     give_up, give, pursuit = store_cards(db_session, [
@@ -76,9 +128,7 @@ def test_marks_that_would_overlap_keep_the_first(db_session: Session, source_id:
         _candidate(source_id, "pursuit", "pursuit"),
     ])
 
-    screen = GetSourceDocumentUseCase(
-        SqlaDocumentRepository(db_session), SqlaCardQuery(db_session),
-    ).execute(source_id)
+    [screen] = _screen(db_session).execute(SourceScope.source(source_id))
 
     assert [b.type for b in screen.blocks] == ["heading", "paragraph"]
     assert [line.text for line in screen.blocks[1].lines] == [

@@ -10,7 +10,7 @@ from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVot
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.word_status import WordStatus
 
-from tests.card_support import card
+from tests.card_support import CARD_SOURCE, card
 
 
 def _make_breakdown() -> CEFRBreakdown:
@@ -68,7 +68,7 @@ class TestCardToDto:
         from backend.application.dto.source_dtos import card_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=True)
-        dto = card_to_dto(card(candidate))
+        dto = card_to_dto(card(candidate), CARD_SOURCE)
 
         assert dto.cefr_breakdown is not None
         assert dto.cefr_breakdown.decision_method == "priority"
@@ -80,7 +80,7 @@ class TestCardToDto:
         from backend.application.dto.source_dtos import card_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=False)
-        dto = card_to_dto(card(candidate))
+        dto = card_to_dto(card(candidate), CARD_SOURCE)
 
         assert dto.cefr_breakdown is None
 
@@ -88,7 +88,7 @@ class TestCardToDto:
         from backend.application.dto.source_dtos import card_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=True)
-        dto = card_to_dto(card(candidate))
+        dto = card_to_dto(card(candidate), CARD_SOURCE)
 
         assert dto.cefr_breakdown is not None
         efllex_vote = next(v for v in dto.cefr_breakdown.votes if v.source_name == "EFLLex")
@@ -100,7 +100,7 @@ class TestCardToDto:
         from backend.application.dto.source_dtos import card_to_dto
 
         candidate = _make_stored_candidate(with_breakdown=True)
-        dto = card_to_dto(card(candidate))
+        dto = card_to_dto(card(candidate), CARD_SOURCE)
 
         assert dto.cefr_breakdown is not None
         cefrpy_vote = next(v for v in dto.cefr_breakdown.votes if v.source_name == "CEFRpy")

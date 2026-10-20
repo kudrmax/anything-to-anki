@@ -78,6 +78,16 @@
 
 /* текст источника */
 .source { position: relative; margin-top: var(--source-leading-trim); mask-image: var(--source-mask); max-height: var(--source-max); overflow: auto; font-size: var(--fs-source); line-height: var(--lh-loose); color: var(--tx3); white-space: pre-line; }
+/* в наборе тексты источников идут подряд, у каждого заголовок */
+.sourceDocument + .sourceDocument { margin-top: var(--s7); }
+.sourceTitle { margin-bottom: var(--s3); font-size: var(--fs-s); font-weight: var(--fw-m); line-height: var(--lh-label); color: var(--tx2); }
+.sourceDocument:has([aria-expanded="false"]) .sourceTitle { margin-bottom: 0; }
+.sourceFold { display: inline-flex; align-items: center; gap: var(--s1); max-width: 100%; margin-inline-start: calc(-1 * var(--s1)); padding: var(--s1); border: none; border-radius: var(--r-s); background: none; color: inherit; font: inherit; cursor: pointer; }
+.sourceFold:hover { color: var(--tx); }
+.sourceFoldTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sourceChevron { display: inline-flex; flex: none; color: var(--tx3); }
+.sourceEllipsis { flex: none; color: var(--tx3); }
+.sourceDocument:has([aria-expanded="false"]) + .sourceDocument { margin-top: var(--s4); }
 .block, .heading, .listItem { margin-bottom: var(--s3); }
 .block:last-child, .heading:last-child, .listItem:last-child { margin-bottom: 0; }
 .heading { color: var(--tx2); font-weight: var(--fw-m); }

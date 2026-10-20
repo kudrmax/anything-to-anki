@@ -79,7 +79,7 @@ def _seed(session: Session) -> None:
 
 
 def _card(client: TestClient, source_id: int, word_id: int) -> Json:
-    cards = client.get(f"/sources/{source_id}/candidates").json()
+    cards = client.get("/api/review/candidates", params={"scope": f"source-{source_id}"}).json()
     return next(card for card in cards if card["word_id"] == word_id)
 
 

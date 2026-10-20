@@ -135,7 +135,7 @@ class TestCardsOfAWordStandTogether:
     def test_in_text_order_a_word_stands_where_its_first_open_card_is(self) -> None:
         glare, spark = _word(1, "glare"), _word(2, "spark")
         cards = [_card(glare, 1, at=10), _card(spark, 2, at=20), _card(glare, 3, at=30)]
-        ordered = sort_chronologically(cards)
+        ordered = sort_chronologically(cards, [1])
         assert [c.occurrence.id for c in ordered] == [1, 3, 2]
 
     def test_a_done_card_goes_down_with_its_word_kept_together(self) -> None:
@@ -145,7 +145,7 @@ class TestCardsOfAWordStandTogether:
             _card(spark, 2, at=20),
             _card(glare, 3, at=30),
         ]
-        assert [c.occurrence.id for c in sort_chronologically(cards)] == [2, 3, 1]
+        assert [c.occurrence.id for c in sort_chronologically(cards, [1])] == [2, 3, 1]
 
     def test_in_text_order_a_done_card_goes_last_though_its_word_has_an_open_card(
         self,
@@ -158,7 +158,7 @@ class TestCardsOfAWordStandTogether:
             _card(flame, 4, at=5, skipped=True),
             _card(glare, 5, at=40, skipped=True),
         ]
-        assert [c.occurrence.id for c in sort_chronologically(cards)] == [1, 3, 4, 2, 5]
+        assert [c.occurrence.id for c in sort_chronologically(cards, [1])] == [1, 3, 4, 2, 5]
 
     def test_by_relevance_a_done_card_goes_last_with_its_word_kept_together(self) -> None:
         common, middle = _word(1, "common", zipf=4.4), _word(2, "middle", zipf=2.6)

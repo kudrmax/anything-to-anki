@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Generator  # noqa: TC003
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 from backend.domain.entities.candidate_media import CandidateMedia
@@ -132,8 +133,12 @@ def bench(session: Session) -> Bench:
     return Bench(session)
 
 
+def _review(client: TestClient) -> Any:  # noqa: ANN401 — JSON of the API
+    return client.get("/api/review", params={"scope": f"source-{SOURCE}"}).json()
+
+
 def _cards(client: TestClient, sort: str = "relevance") -> list[dict[str, object]]:
-    response = client.get(f"/sources/{SOURCE}", params={"sort": sort})
+    response = client.get("/api/review", params={"scope": f"source-{SOURCE}", "sort": sort})
     assert response.status_code == 200
     cards: list[dict[str, object]] = response.json()["candidates"]
     return cards
@@ -181,7 +186,7 @@ class TestCardsArePhrases:
         assert words in ([GLARE, GLARE, SPARK, SPARK], [SPARK, SPARK, GLARE, GLARE])
 
     def test_get_candidates_lists_the_same_cards(self, client: TestClient, bench: Bench) -> None:
-        listed = client.get(f"/sources/{SOURCE}/candidates").json()
+        listed = client.get("/api/review/candidates", params={"scope": f"source-{SOURCE}"}).json()
         assert [c["phrase_id"] for c in listed] == [c["phrase_id"] for c in _cards(client)]
 
 
@@ -190,7 +195,7 @@ class TestDecisionsOnCards:
         self, client: TestClient, bench: Bench,
     ) -> None:
         client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
-        source = client.get(f"/sources/{SOURCE}").json()
+        source = _review(client)
         assert source["progress"] == {"decided": 2, "total": 3}
         sibling = _card(client, bench.second_glare)
         assert sibling["shown"] == {
@@ -247,7 +252,7 @@ class TestDecisionsOnCards:
             "status": "new", "skipped": True, "where": "nowhere", "tone": "settled",
         }
         assert _card(client, bench.second_glare)["shown"]["status"] == "new"  # type: ignore[index]
-        assert client.get(f"/sources/{SOURCE}").json()["progress"] == {"decided": 1, "total": 3}
+        assert _review(client)["progress"] == {"decided": 1, "total": 3}
 
     def test_a_word_known_elsewhere_is_reviewed_and_counts_as_reviewed(
         self, client: TestClient, bench: Bench, session: Session,
@@ -264,7 +269,7 @@ class TestDecisionsOnCards:
         assert card["is_done"] is True
         assert card["section"] == "reviewed"
         # Q9: Reviewed / (Reviewed + open Ready), a card done elsewhere included.
-        assert client.get(f"/sources/{SOURCE}").json()["progress"] == {"decided": 1, "total": 3}
+        assert _review(client)["progress"] == {"decided": 1, "total": 3}
         [summary] = _board(client)
         assert summary["progress"] == {"decided": 1, "total": 3}
 
@@ -343,7 +348,10 @@ class TestPhraseLevelRoutes:
 
 class TestDocument:
     def test_marks_are_the_shown_phrases(self, client: TestClient, bench: Bench) -> None:
-        highlights = client.get(f"/sources/{SOURCE}/document").json()["highlights"]
+        [document] = client.get(
+            "/api/review/documents", params={"scope": f"source-{SOURCE}"},
+        ).json()
+        highlights = document["highlights"]
         assert sorted(h["phrase_id"] for h in highlights) == sorted(
             [GLARE_PHRASE, bench.second_glare, SPARK_PHRASE],
         )
@@ -359,7 +367,7 @@ class TestBoard:
         [summary] = _board(client)
         assert summary["candidate_count"] == 3
         assert summary["learn_count"] == 1
-        assert client.get(f"/sources/{SOURCE}").json()["learn_count"] == 1
+        assert _review(client)["learn_count"] == 1
         assert summary["progress"] == {"decided": 2, "total": 3}
 
     @pytest.mark.parametrize("sort", SORTS)
@@ -377,7 +385,7 @@ class TestBoard:
     def test_board_and_review_agree_on_progress(self, client: TestClient, bench: Bench) -> None:
         client.post(f"/phrases/{SPARK_PHRASE}/decision", json={"button": "skip"})
         [summary] = _board(client)
-        assert summary["progress"] == client.get(f"/sources/{SOURCE}").json()["progress"]
+        assert summary["progress"] == _review(client)["progress"]
 
 
 class TestBusySource:
@@ -393,9 +401,8 @@ class TestBusySource:
         assert summary["status"] == "processing"
         assert summary["processing_stage"] == "analyzing_text"
         assert summary["busy_with"] == "process"
-        detail = client.get(f"/sources/{SOURCE}").json()
-        assert detail["status"] == "processing"
-        assert detail["processing_stage"] == "analyzing_text"
+        detail = _review(client)
+        assert (detail["status"], detail["busy"]) == ("new", True)
 
     def test_a_source_being_rebuilt_keeps_its_status_and_cant_start_another(
         self, client: TestClient, bench: Bench, session: Session,

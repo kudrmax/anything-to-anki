@@ -54,7 +54,7 @@ def _cards(
 
 def _open_card(vocabulary: UserVocabulary) -> ReviewCard:
     cards = _cards(vocabulary, word(1, LEMMA), occurrence(1, 1))
-    [found] = cards.of_source(10)
+    [found] = cards.of_sources([10])
     assert cards.of_phrase(1) == found, "one card, however it is read"
     return found
 
@@ -117,7 +117,23 @@ def test_a_word_decided_here_shows_its_own_decision() -> None:
         user_vocabulary(learning_lemmas={LEMMA}), the_word, occurrence(1, 1, is_decision=True),
     )
 
-    [card] = cards.of_source(10)
+    [card] = cards.of_sources([10])
 
     assert card.elsewhere is None
     assert card.view.shown.status is WordStatus.LEARN
+
+
+def test_cards_of_sources_follow_the_given_order() -> None:
+    first, second = word(1, "glare", source_id=20), word(2, "stare", source_id=10)
+    candidates = MagicMock()
+    candidates.get_by_source.side_effect = lambda sid: {20: [first], 10: [second]}[sid]
+    occurrences = MagicMock()
+    occurrences.shown_by_word.side_effect = lambda sid: {
+        20: {1: [occurrence(1, 1)]}, 10: {2: [occurrence(2, 2)]},
+    }[sid]
+    cards = ReviewCards(
+        candidates, occurrences,
+        PhraseWordStates(lambda: [first, second], lambda wid: [occurrence(wid, wid)]),
+        user_vocabulary(),
+    )
+    assert [c.word.source_id for c in cards.of_sources([20, 10])] == [20, 10]

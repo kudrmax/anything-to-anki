@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CollectionNode, CollectionTree as Tree } from '@/api/types'
 import { COLLECTION_MIME, CollectionTree } from './CollectionTree'
 
-const counts = { total: 1, reviewed: 0, pending: 1, progress: { decided: 0, total: 0 } }
+const counts = { total: 1, reviewed: 0, pending: 1, progress: { decided: 0, total: 0 }, status: 'new' as const, can_process: true, can_review: false, review_fraction: 0, progress_caption: '' }
 const node = (id: number, name: string, accepts: boolean, moveTargets: (number | null)[] = [null]): CollectionNode => ({
   id, name, parent_id: null, counts, depth: 1, accepts_collections: accepts, move_targets: moveTargets, children: [],
 })

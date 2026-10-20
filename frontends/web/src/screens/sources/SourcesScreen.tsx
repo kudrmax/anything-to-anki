@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { CollectionNode, Scope, ScopeCounts, SourceStage, SourceSummary } from '@/api/types'
+import type { CollectionNode, Scope, SourceStage, SourceSummary } from '@/api/types'
 import { statsStore, useStats } from '@/hooks/useStats'
 import { backTo } from '@/lib/backLink'
 import { usePhone } from '@/lib/device'
 import { OVERLAY } from '@/lib/hotkeys'
-import { scopeQuery, useScope } from '@/lib/scope'
+import { exportPath, reviewPath, scopeQuery, sourceScope, useScope } from '@/lib/scope'
 import { clickSelect, EMPTY_SELECTION, pruned, selectAll, type Selection } from '@/lib/selection'
 import { findNode } from '@/lib/treeDrop'
 import { typingIn } from '@/lib/typing'
@@ -31,9 +31,7 @@ const STAGE_LABEL: Record<SourceStage, string> = {
   reviewed: 'Reviewed',
 }
 const SCOPE_TITLE = { all: 'All sources', unsorted: 'Unsorted' } as const
-const NO_COUNTS: ScopeCounts = { total: 0, reviewed: 0, pending: 0, progress: { decided: 0, total: 0 } }
 const UNSORTED = 'Unsorted'
-const EXPORT_PATH = '/export'
 // Backend ставит коллекцию в конец, если позиция больше числа соседей.
 const END_POSITION = Number.MAX_SAFE_INTEGER
 
@@ -120,7 +118,7 @@ export function SourcesScreen() {
 
   const node = typeof scope === 'number' && tree ? findNode(tree.collections, scope) : null
   const ancestors = tree && node ? ancestorsOf(tree.collections, node) : []
-  const counts = node?.counts ?? (tree ? (scope === 'unsorted' ? tree.unsorted : tree.all) : NO_COUNTS)
+  const counts = !tree ? null : typeof scope === 'number' ? node?.counts ?? null : scope === 'unsorted' ? tree.unsorted : tree.all
   const title = node?.name ?? board.board?.title ?? (typeof scope === 'number' ? '' : SCOPE_TITLE[scope])
   const nameOf = (collectionId: number | null) =>
     collectionId === null ? UNSORTED : (tree && findNode(tree.collections, collectionId)?.name) ?? ''
@@ -135,9 +133,11 @@ export function SourcesScreen() {
   const longPress = (id: number) => setSelection(clickSelect(visibleSelection, order, id, { toggle: true, range: false }))
   const dragIds = (id: number) => (visibleSelection.ids.has(id) ? selectedIds : [id])
 
-  const review = (id: number) => navigate(`/sources/${id}/review`, { state: backTo(`/${scopeQuery(scope)}`) })
-  const exportSource = (id: number) => navigate(`/sources/${id}/export`)
-  const exportScope = () => navigate(`${EXPORT_PATH}${scopeQuery(scope)}`)
+  // Ревью и экспорт возвращают на открытую область.
+  const backHere = backTo(`/${scopeQuery(scope)}`)
+  const review = (id: number) => navigate(reviewPath(sourceScope(id)), { state: backHere })
+  const exportSource = (id: number) => navigate(exportPath(sourceScope(id)), { state: backHere })
+  const exportScope = () => navigate(exportPath(scope), { state: backHere })
 
   const processAll = async () => {
     setProcessingAll(true)
@@ -263,6 +263,7 @@ export function SourcesScreen() {
             node={node}
             processing={processingAll}
             onProcessAll={() => void processAll()}
+            onReview={() => navigate(reviewPath(scope), { state: backHere })}
             onExport={exportScope}
             onRename={() => node && setNaming({ kind: 'rename', node })}
             onNewSubcollection={() => node && setNaming({ kind: 'create', parent: node })}

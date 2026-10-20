@@ -292,7 +292,7 @@ def test_m3b_a_learning_card_gives_its_learn_to_the_example_back_in_the_queue(
     assert (bench.choice(example.id), bench.choice(CARD)) == ("learn", "none")
     assert bench.status() == "learn"
     assert bench.active_bindings() == []
-    [card] = bench.export_queue().for_source(1).pending
+    [card] = bench.export_queue().for_sources([1]).pending
     assert card.phrase_id == example.id
 
 
@@ -339,7 +339,7 @@ def test_export_takes_the_example_and_holds_it_back_until_generated(
     bench.give_meaning_and_audio(CARD)
     example = bench.replace(CARD)
 
-    batch = bench.export_queue().for_source(1)
+    batch = bench.export_queue().for_sources([1])
 
     [card] = batch.pending
     assert card.phrase.id == example.id

@@ -11,7 +11,7 @@ from backend.domain.value_objects.card_choice import is_cloze
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
 if TYPE_CHECKING:
-    from collections.abc import Collection
+    from collections.abc import Sequence
 
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.occurrence import Occurrence
@@ -99,14 +99,15 @@ class ExportQueue:
         self._word_states = word_states
         self._vocabulary = vocabulary
 
-    def for_source(self, source_id: int) -> ExportBatch:
-        return self._split(self._candidate_repo.chosen_to_learn([source_id]))
-
     def for_all(self) -> ExportBatch:
-        return self._split(self._chosen(None))
+        found = self._candidate_repo.chosen_to_learn(None)
+        return self._split(sorted(found, key=lambda w: (w.source_id, w.id or 0)))
 
-    def for_sources(self, source_ids: Collection[int]) -> ExportBatch:
-        return self._split(self._chosen(source_ids))
+    def for_sources(self, source_ids: Sequence[int]) -> ExportBatch:
+        """The words of these sources, source by source in the order given."""
+        place = {source_id: index for index, source_id in enumerate(source_ids)}
+        found = self._candidate_repo.chosen_to_learn(source_ids)
+        return self._split(sorted(found, key=lambda w: (place[w.source_id], w.id or 0)))
 
     def pending_count(self) -> int:
         """How many words the queue holds, read without their phrases."""
@@ -117,10 +118,6 @@ class ExportQueue:
             in_export_queue(state, self._vocabulary.of(state.lemma), now)
             for state in states.values()
         )
-
-    def _chosen(self, source_ids: Collection[int] | None) -> list[StoredCandidate]:
-        found = self._candidate_repo.chosen_to_learn(source_ids)
-        return sorted(found, key=lambda w: (w.source_id, w.id or 0))
 
     def _split(self, chosen: list[StoredCandidate]) -> ExportBatch:
         decisions = self._occurrences.decision_phrases([w.id for w in chosen if w.id is not None])

@@ -18,7 +18,6 @@ from backend.application.utils.anki_note_types import (
 )
 from backend.domain.exceptions import AnkiNotAvailableError, AnkiNoteTypeIncompleteError
 from backend.domain.services.decision_rules import on_bind
-from backend.domain.value_objects.source_scope import ScopeKind
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +36,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.source_scope import SourceScope
 
 _DEFAULT_DECK: str = "Default"
+
 
 @dataclass(frozen=True)
 class _NoteTarget:
@@ -92,18 +92,12 @@ class SyncToAnkiUseCase:
         self._cloze_builder = cloze_builder
         self._scope_resolver = scope_resolver
 
-    def execute(self, source_id: int, group: ExportGroup) -> SyncResultDTO:
-        pending = self._export_queue.for_source(source_id).in_group(group)
-        return self._push(pending, group, f"source_id={source_id}")
-
-    def execute_scope(self, scope: SourceScope, group: ExportGroup) -> SyncResultDTO:
-        if scope.kind is ScopeKind.ALL:
-            batch = self._export_queue.for_all()
-        else:
-            ids = {s.id for s in self._scope_resolver.sources(scope) if s.id is not None}
-            batch = self._export_queue.for_sources(ids)
-        label = f"scope={scope.kind}:{scope.collection_id}"
-        return self._push(batch.in_group(group), group, label)
+    def execute(self, scope: SourceScope, group: ExportGroup) -> SyncResultDTO:
+        """Pushes the group of a set of sources: one source, a collection, Unsorted or all."""
+        batch = self._export_queue.for_sources(
+            [s.id for s in self._scope_resolver.sources(scope) if s.id is not None],
+        )
+        return self._push(batch.in_group(group), group, f"scope={scope.token}")
 
     def _push(
         self, pending: list[ExportCard], group: ExportGroup, label: str,

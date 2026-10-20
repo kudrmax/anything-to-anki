@@ -7,6 +7,7 @@ from dataclasses import replace
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
+from backend.application.dto.source_dtos import CardSourceDTO
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.ports.word_state_repository import WordStateRepository
@@ -38,6 +39,10 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.elsewhere import ElsewhereStatus
     from backend.domain.value_objects.phrase import Phrase
     from sqlalchemy.orm import Session
+
+
+# The source of `word`'s cards as a card shows it.
+CARD_SOURCE = CardSourceDTO(id=10, has_video=False, can_polish_phrases=False)
 
 
 def word(
@@ -129,11 +134,15 @@ def card_views(session: Session) -> CardViews:
     """Real card views over the database; the user knows no words."""
     from backend.application.utils.card_views import CardViews
     from backend.application.utils.review_cards import ReviewCards
+    from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.infrastructure.persistence.sqla_candidate_repository import (
         SqlaCandidateRepository,
     )
     from backend.infrastructure.persistence.sqla_card_report_repository import (
         SqlaCardReportRepository,
+    )
+    from backend.infrastructure.persistence.sqla_collection_repository import (
+        SqlaCollectionRepository,
     )
     from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
     from backend.infrastructure.persistence.sqla_occurrence_repository import (
@@ -142,6 +151,7 @@ def card_views(session: Session) -> CardViews:
     from backend.infrastructure.persistence.sqla_settings_repository import (
         SqlaSettingsRepository,
     )
+    from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
     from backend.infrastructure.persistence.sqla_word_state_repository import (
         SqlaWordStateRepository,
     )
@@ -158,6 +168,10 @@ def card_views(session: Session) -> CardViews:
         candidate_sorter=candidate_sorter(SqlaSettingsRepository(session)),
         job_repo=SqlaJobRepository(session),
         report_repo=SqlaCardReportRepository(session),
+        scope_resolver=SourceScopeResolver(
+            SqlaSourceRepository(session), SqlaCollectionRepository(session),
+        ),
+        source_repo=SqlaSourceRepository(session),
     )
 
 

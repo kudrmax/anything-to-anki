@@ -33,7 +33,8 @@ from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsU
 from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
-from backend.application.use_cases.get_source_document import GetSourceDocumentUseCase
+from backend.application.use_cases.get_review import GetReviewUseCase
+from backend.application.use_cases.get_review_documents import GetReviewDocumentsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.list_collections import ListCollectionsUseCase
@@ -421,8 +422,9 @@ class Container:
             stamper=self._section_stamper(session),
         )
 
-    def get_source_document_use_case(self, session: Session) -> GetSourceDocumentUseCase:
-        return GetSourceDocumentUseCase(
+    def get_review_documents_use_case(self, session: Session) -> GetReviewDocumentsUseCase:
+        return GetReviewDocumentsUseCase(
+            scope_resolver=self._scope_resolver(session),
             document_repo=SqlaDocumentRepository(session),
             card_query=SqlaCardQuery(session),
         )
@@ -510,7 +512,14 @@ class Container:
             generation_probe=self._generation_probe(session),
             review_progress=self._review_progress(session),
             card_query=SqlaCardQuery(session),
+            lock=SqlaSourceOperationLock(session),
+        )
+
+    def get_review_use_case(self, session: Session) -> GetReviewUseCase:
+        return GetReviewUseCase(
             card_views=self._card_views(session),
+            scope_resolver=self._scope_resolver(session),
+            card_query=SqlaCardQuery(session),
             lock=SqlaSourceOperationLock(session),
         )
 
@@ -526,6 +535,7 @@ class Container:
             review_progress=self._review_progress(session),
             generation_probe=self._generation_probe(session),
             lock=SqlaSourceOperationLock(session),
+            card_query=SqlaCardQuery(session),
         )
 
     def rename_collection_use_case(self, session: Session) -> RenameCollectionUseCase:
@@ -688,7 +698,6 @@ class Container:
 
     def get_candidates_use_case(self, session: Session) -> GetCandidatesUseCase:
         return GetCandidatesUseCase(
-            source_repo=SqlaSourceRepository(session),
             card_views=self._card_views(session),
         )
 
@@ -808,6 +817,8 @@ class Container:
             candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
             report_repo=SqlaCardReportRepository(session),
+            scope_resolver=self._scope_resolver(session),
+            source_repo=SqlaSourceRepository(session),
         )
 
     def _user_vocabulary(self, session: Session) -> UserVocabulary:
@@ -1235,7 +1246,7 @@ class Container:
             GetGenerationStatusUseCase,
         )
         return GetGenerationStatusUseCase(
-            source_repo=SqlaSourceRepository(session),
+            scope_resolver=self._scope_resolver(session),
             cards=self._generation_cards(session),
             job_repo=SqlaJobRepository(session),
             candidate_sorter=self._candidate_sorter(session),
@@ -1245,7 +1256,7 @@ class Container:
     def run_generation_use_case(self, session: Session) -> RunGenerationUseCase:
         from backend.application.use_cases.run_generation import RunGenerationUseCase
         return RunGenerationUseCase(
-            source_repo=SqlaSourceRepository(session),
+            scope_resolver=self._scope_resolver(session),
             cards=self._generation_cards(session),
             job_repo=SqlaJobRepository(session),
             candidate_sorter=self._candidate_sorter(session),
@@ -1255,7 +1266,9 @@ class Container:
 
     def cancel_generation_use_case(self, session: Session) -> CancelGenerationUseCase:
         from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
-        return CancelGenerationUseCase(job_repo=SqlaJobRepository(session))
+        return CancelGenerationUseCase(
+            job_repo=SqlaJobRepository(session), scope_resolver=self._scope_resolver(session),
+        )
 
     def get_queue_snapshot_use_case(self, session: Session) -> GetQueueSnapshotUseCase:
         from backend.application.use_cases.get_queue_snapshot import GetQueueSnapshotUseCase
@@ -1276,7 +1289,7 @@ class Container:
             RequestVideoDownloadUseCase,
         )
         return RequestVideoDownloadUseCase(
-            source_repo=SqlaSourceRepository(session),
+            scope_resolver=self._scope_resolver(session),
             job_repo=SqlaJobRepository(session),
         )
 

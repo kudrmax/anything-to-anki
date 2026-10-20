@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { ExportGroup, ExportSection, GlobalExport, Scope, Settings, SyncResult } from '@/api/types'
+import type { ExportGroup, ExportSection, GlobalExport, SetScope, Settings, SyncResult } from '@/api/types'
 import { useAnkiStatus } from '@/hooks/useAnkiStatus'
 import { statsStore } from '@/hooks/useStats'
 import { messageOf } from '@/lib/apiError'
@@ -8,8 +8,8 @@ import { messageOf } from '@/lib/apiError'
 const countCards = (sections: ExportSection[]): number =>
   sections.reduce((sum, section) => sum + section.cards.length, 0)
 
-/** Экспорт одного источника (sourceId задан) или области: все, коллекция, неразобранное. */
-export function useExport(sourceId?: number, scope: Scope = 'all') {
+/** Экспорт набора источников: один источник, коллекция, неразобранное или все. */
+export function useExport(scope: SetScope) {
   const ankiStatus = useAnkiStatus()
   const [groups, setGroups] = useState<Record<ExportGroup, ExportSection[]>>({ ready: [], incomplete: [] })
   const [title, setTitle] = useState<string | null>(null)
@@ -29,7 +29,7 @@ export function useExport(sourceId?: number, scope: Scope = 'all') {
   useEffect(() => {
     const load = async () => {
       try {
-        applyExport(await api.getExportCards(sourceId, scope))
+        applyExport(await api.getExportCards(scope))
       } catch (e) {
         setError(messageOf(e))
       } finally {
@@ -38,22 +38,22 @@ export function useExport(sourceId?: number, scope: Scope = 'all') {
     }
     void load()
     api.getSettings().then(setSettings).catch(() => {})
-  }, [sourceId, scope, applyExport])
+  }, [scope, applyExport])
 
   const sync = useCallback(async (group: ExportGroup) => {
     setSyncing(group)
     setError(null)
     try {
-      const synced = await api.syncToAnki(group, sourceId, scope)
+      const synced = await api.syncToAnki(group, scope)
       setResult(synced)
-      applyExport(await api.getExportCards(sourceId, scope))
+      applyExport(await api.getExportCards(scope))
       void statsStore.refresh()
     } catch (e) {
       setError(messageOf(e))
     } finally {
       setSyncing(null)
     }
-  }, [sourceId, scope, applyExport])
+  }, [scope, applyExport])
 
   const counts: Record<ExportGroup, number> = { ready: countCards(groups.ready), incomplete: countCards(groups.incomplete) }
   const canSync = (group: ExportGroup) => ankiStatus?.available === true && counts[group] > 0 && syncing === null

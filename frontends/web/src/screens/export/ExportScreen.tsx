@@ -1,6 +1,7 @@
-import { useParams, useSearchParams } from 'react-router-dom'
-import type { ExportGroup, ExportSection, Scope } from '@/api/types'
-import { parseScope, scopeQuery } from '@/lib/scope'
+import { useLocation, useSearchParams } from 'react-router-dom'
+import type { ExportGroup, ExportSection, SetScope } from '@/api/types'
+import { backIn } from '@/lib/backLink'
+import { parseSetScope } from '@/lib/scope'
 import { useAudioPlayer, type AudioPlayer } from '@/lib/useAudioPlayer'
 import { Page, PageHeader } from '@/shell'
 import { Banner, Button, Empty, Spinner, Stat, StatGrid, StatusDot, Text } from '@/ui'
@@ -15,21 +16,18 @@ const GROUPS: { group: ExportGroup; title: string; hint: string; action: string;
 
 const cardsLabel = (count: number) => `${count} ${count === 1 ? 'card' : 'cards'}`
 
-/** Общий экспорт и экспорт источника — разные экземпляры: состояние одного не переходит в другой. */
+/** Экспорт набора: у каждого набора свой экземпляр, состояние одного не переходит в другой. */
 export function ExportScreen() {
-  const { id } = useParams<{ id: string }>()
   const [params] = useSearchParams()
-  const scope = parseScope(params.get('scope'))
-  const sourceId = id === undefined ? undefined : Number(id)
-  return <ExportView key={`${id ?? 'scope'}-${String(scope)}`} sourceId={sourceId} scope={scope} />
+  const scope = parseSetScope(params.get('scope'))
+  return <ExportView key={String(scope)} scope={scope} />
 }
 
-function ExportView({ sourceId, scope }: { sourceId: number | undefined; scope: Scope }) {
-  const exporter = useExport(sourceId, scope)
+function ExportView({ scope }: { scope: SetScope }) {
+  const exporter = useExport(scope)
   const player = useAudioPlayer()
-  const back = sourceId !== undefined
-    ? `/sources/${sourceId}/review`
-    : scope === 'all' ? undefined : `/${scopeQuery(scope)}`
+  // Стрелка «назад» — только если экран, открывший экспорт, сказал куда; из верхнего меню её нет.
+  const back = backIn(useLocation().state, undefined)
   const title = scope !== 'all' && exporter.title ? exporter.title : 'Export'
 
   if (exporter.loading) {
@@ -97,7 +95,7 @@ function ExportView({ sourceId, scope }: { sourceId: number | undefined; scope: 
               {action} · {cardsLabel(counts[group])}
             </Button>
           </header>
-          <ExportSections sections={groups[group]} showSourceTitles={sourceId === undefined} withMedia={withMedia} player={player} />
+          <ExportSections sections={groups[group]} withMedia={withMedia} player={player} />
         </section>
       ))}
     </Page>
@@ -106,17 +104,14 @@ function ExportView({ sourceId, scope }: { sourceId: number | undefined; scope: 
 
 interface ExportSectionsProps {
   sections: ExportSection[]
-  showSourceTitles: boolean
   withMedia: boolean
   player: AudioPlayer
 }
 
-function ExportSections({ sections, showSourceTitles, withMedia, player }: ExportSectionsProps) {
+function ExportSections({ sections, withMedia, player }: ExportSectionsProps) {
   return sections.map(section => (
     <section key={section.source_id} className={css.group}>
-      {showSourceTitles && (
-        <h3 className={css.groupTitle}>{section.source_title}<span>{section.cards.length}</span></h3>
-      )}
+      <h3 className={css.groupTitle}>{section.source_title}<span>{section.cards.length}</span></h3>
       {section.cards.map(card => (
         <ExportCardRow key={card.candidate_id} card={card} sourceId={section.source_id} withMedia={withMedia} player={player} />
       ))}

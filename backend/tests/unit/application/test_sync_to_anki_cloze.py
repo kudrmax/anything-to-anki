@@ -13,11 +13,12 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind
+from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.export_support import ExportCards, export_card, with_phrase
 from tests.phrase_support import phrase
-from tests.unit.application.scope_fakes import empty_scope_resolver
+from tests.unit.application.scope_fakes import sources_scope_resolver
 from tests.word_support import phrase_id_of
 
 if TYPE_CHECKING:
@@ -105,12 +106,12 @@ class TestSyncToAnkiCloze:
             self.connector,
             self.settings_repo,
             self.renderer,
-            empty_scope_resolver(),
+            sources_scope_resolver(1),
         )
 
     def _sync(self, *candidates: ExportCard) -> None:
         self.cards.put(list(candidates))
-        self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+        self.use_case.execute(SourceScope.source(1), group=ExportGroup.INCOMPLETE)
 
     def _added(self) -> list[tuple[str, dict[str, str]]]:
         return [
@@ -166,9 +167,10 @@ class TestSyncToAnkiCloze:
         self._sync(_burnout(), _give_up(_cloze(1)))
 
         assert self._ensured_models() == ["AnythingToAnkiType", "AnythingToAnkiCloze"]
+        # The export goes in word order: give up (1) before burnout (2).
         assert [model for model, _ in self._added()] == [
-            "AnythingToAnkiType",
             "AnythingToAnkiCloze",
+            "AnythingToAnkiType",
         ]
 
     def test_only_recognition_batch_does_not_touch_cloze_model(self) -> None:

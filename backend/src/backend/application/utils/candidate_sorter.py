@@ -64,11 +64,14 @@ class CandidateSorter:
         self,
         cards: list[ReviewCard],
         order: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
+        *,
+        source_order: Sequence[int],
     ) -> ArrangedCards:
+        """`source_order` is the order of the set's sources: text order follows it."""
         knowledge = self._knowledge.current()
         threshold = self._threshold_resolver.resolve()
         if order == CandidateSortOrder.CHRONOLOGICAL:
-            ordered = candidate_sorting.sort_chronologically(cards)
+            ordered = candidate_sorting.sort_chronologically(cards, source_order)
         elif order == CandidateSortOrder.KEY_WORDS:
             ordered = candidate_sorting.sort_by_key_words(
                 cards, frequent_threshold=threshold, knowledge=knowledge,

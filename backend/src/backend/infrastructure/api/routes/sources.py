@@ -26,7 +26,6 @@ from backend.application.dto.collection_dtos import (  # noqa: TC001
     SourceIdsRequest,
     StartedSourcesDTO,
 )
-from backend.application.dto.document_dtos import SourceDocumentDTO  # noqa: TC001
 from backend.application.dto.rebuild_dtos import (  # noqa: TC001
     RebuildRequest,
     SourceOperationDTO,
@@ -34,7 +33,6 @@ from backend.application.dto.rebuild_dtos import (  # noqa: TC001
 from backend.application.dto.source_dtos import (  # noqa: TC001
     CardDTO,
     SourceBoardDTO,
-    SourceDetailDTO,
     SourceDTO,
     UpdateTitleRequest,
 )
@@ -51,16 +49,13 @@ from backend.domain.exceptions import (
     RefreshNotSupportedError,
     SourceAlreadyProcessedError,
     SourceHasNoDocumentError,
-    SourceHasNoUrlError,
     SourceIsProcessingError,
     SourceNotFoundError,
     SourceOperationBusyError,
     SubtitlesNotAvailableError,
     TopicTargetsMissingError,
     UnsupportedUrlError,
-    VideoAlreadyDownloadedError,
 )
-from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.question import Answers
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
@@ -249,20 +244,6 @@ def _launch(
         _in_background(_process_background(source_id, container, session_factory))
 
 
-@router.get("/{source_id}")
-def get_source(
-    source_id: int,
-    sort: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> SourceDetailDTO:
-    try:
-        use_case = container.get_sources_use_case(session)
-        return use_case.get_by_id(source_id, sort_order=sort)
-    except SourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-
-
 @router.patch("/{source_id}/title")
 def rename_source(
     source_id: int,
@@ -301,24 +282,6 @@ async def process_source(
 
     _in_background(_process_background(source_id, container, session_factory))
     return {"status": "processing"}
-
-
-@router.post("/{source_id}/download-video", status_code=202)
-def download_video(
-    source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> dict[str, str]:
-    try:
-        container.request_video_download_use_case(session).execute(source_id)
-    except SourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except SourceHasNoUrlError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except VideoAlreadyDownloadedError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
-    session.commit()
-    return {"status": "downloading"}
 
 
 async def _process_background(
@@ -395,19 +358,6 @@ def add_manual_candidate(
         raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidPhraseError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@router.get("/{source_id}/document")
-def get_source_document(
-    source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> SourceDocumentDTO:
-    """The text of the source as its screen shows it, with the targets to mark."""
-    try:
-        return container.get_source_document_use_case(session).execute(source_id)
-    except SourceHasNoDocumentError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/{source_id}/rebuild/preview", status_code=202)
@@ -556,18 +506,3 @@ def _in_background(work: Coroutine[object, object, None]) -> None:
     task = asyncio.create_task(work)
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
-
-
-@router.get("/{source_id}/candidates")
-def get_candidates(
-    source_id: int,
-    sort: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> list[dict[str, Any]]:
-    try:
-        use_case = container.get_candidates_use_case(session)
-        candidates = use_case.execute(source_id, sort_order=sort)
-        return [c.model_dump() for c in candidates]
-    except SourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e

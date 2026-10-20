@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, type CSSProperties } from 'react'
 import type { DocumentBlock, DocumentSelection, SourceDocument, StoredCandidate } from '@/api/types'
 import { codePointOffset, lineSegments, type LineMark } from '@/lib/text/documentSegments'
-import { findMark } from './findMark'
 import css from './review.module.css'
 
 export interface SelectionPoint {
@@ -11,6 +10,8 @@ export interface SelectionPoint {
 }
 
 export interface SelectedText {
+  /** Источник, в тексте которого выделили: новая карточка добавляется в него. */
+  sourceId: number
   /** Выделенный текст — чтобы показать его и выбрать в нём слова. */
   text: string
   selection: DocumentSelection
@@ -22,7 +23,8 @@ interface SourceTextProps {
   /** Кандидат, чья фраза подсвечена: текущая фраза или фраза в режиме правки. */
   focusId: number | null
   onWordClick: (candidateId: number) => void
-  onTextSelected: (selected: SelectedText, point: SelectionPoint) => void
+  /** Нет — выделение в этом тексте ничего не делает (правится граница фразы другого источника). */
+  onTextSelected?: (selected: SelectedText, point: SelectionPoint) => void
 }
 
 const TOUCH_QUERY = '(hover: none)'
@@ -88,24 +90,15 @@ export function SourceText({ document, candidates, focusId, onWordClick, onTextS
   const markers = useMemo(() => listMarkers(document.blocks), [document])
   const ratedIds = useMemo(() => new Set(candidates.filter(c => c.is_done).map(c => c.phrase_id)), [candidates])
   const focused = candidates.find(c => c.phrase_id === focusId)
-  const fragment = focused?.phrase_position ?? null
-
-  // Держим слово текущей фразы в видимой части колонки.
-  useEffect(() => {
-    const container = containerRef.current
-    const mark = container && focusId !== null ? findMark(container, focusId, focused?.source_phrase.text ?? '') : null
-    if (!container || !mark) return
-    // Останавливаемся на границе строки, чтобы верхняя видимая строка была целой.
-    const lineHeight = parseFloat(getComputedStyle(container).lineHeight)
-    const top = Math.round((mark.offsetTop - container.clientHeight / 2) / lineHeight) * lineHeight
-    container.scrollTo({ top, behavior: 'smooth' })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- прокручиваем при смене фразы, а не при каждом обновлении списка
-  }, [focusId])
+  // Фрагмент фразы подсвечивается только в тексте её источника: позиции у каждого документа свои.
+  const fragment = focused?.source.id === document.source_id ? focused.phrase_position : null
 
   const reportSelection = () => {
     const selection = window.getSelection()
-    if (!selection || selection.isCollapsed || !selection.rangeCount) return
-    if (!containerRef.current?.contains(selection.anchorNode)) return
+    if (!onTextSelected || !selection || selection.isCollapsed || !selection.rangeCount) return
+    // Выделение, ушедшее в текст другого источника, не задаёт место ни в одном документе.
+    const container = containerRef.current
+    if (!container?.contains(selection.anchorNode) || !container.contains(selection.focusNode)) return
     const text = selection.toString().trim()
     if (!text) return
     const range = selection.getRangeAt(0)
@@ -115,6 +108,7 @@ export function SourceText({ document, candidates, focusId, onWordClick, onTextS
     const rect = range.getBoundingClientRect()
     onTextSelected(
       {
+        sourceId: document.source_id,
         text,
         selection: {
           start_block: start.block, start_line: start.line, start_char: start.char,
@@ -176,7 +170,7 @@ export function SourceText({ document, candidates, focusId, onWordClick, onTextS
   }
 
   return (
-    <div ref={containerRef} className={css.source} onMouseUp={reportSelection}>
+    <div ref={containerRef} onMouseUp={reportSelection}>
       {document.blocks.map(renderBlock)}
     </div>
   )

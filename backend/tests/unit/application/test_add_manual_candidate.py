@@ -48,7 +48,7 @@ from backend.domain.value_objects.review_card import ReviewCard
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.candidate_sorter_support import section_stamper
-from tests.card_support import context
+from tests.card_support import CARD_SOURCE, context
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 
@@ -222,7 +222,7 @@ def _card_views(repo: MagicMock) -> MagicMock:
         shown = replace(added, id=phrase_id)
         return card_to_dto(ReviewCard(
             word=_saved(repo), occurrence=shown, context=context(_saved(repo), shown),
-        ))
+        ), CARD_SOURCE)
 
     views.one.side_effect = one
     return views

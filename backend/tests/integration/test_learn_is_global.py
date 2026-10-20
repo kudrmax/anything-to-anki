@@ -80,7 +80,7 @@ def _vocabulary(factory: sessionmaker[Session]) -> Vocabulary:
 
 
 def test_the_cards_in_another_source_are_done_as_learn_elsewhere(client: TestClient) -> None:
-    [card] = client.get(f"/sources/{THERE}/candidates").json()
+    [card] = client.get("/api/review/candidates", params={"scope": f"source-{THERE}"}).json()
 
     assert card["shown"] == {
         "status": "learn", "skipped": False, "where": "other_source", "tone": "learning",

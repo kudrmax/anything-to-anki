@@ -35,7 +35,8 @@ import type {
   QueueSnapshot,
   SourceOperation,
   Settings,
-  SourceDetail,
+  ReviewDetail,
+  SetScope,
   SourceMediaStats,
   SourceSummary,
   Stats,
@@ -98,8 +99,6 @@ export const api = {
       body: JSON.stringify({ query, ...(title ? { title } : {}) }),
     }),
 
-  getSourceDocument: (sourceId: number) => req<SourceDocument>(`/sources/${sourceId}/document`),
-
   renameSource: (id: number, title: string) =>
     req<{ id: number; title: string }>(`/sources/${id}/title`, {
       method: 'PATCH',
@@ -108,14 +107,29 @@ export const api = {
 
   listSources: () => req<SourceSummary[]>('/sources'),
 
-  getSource: (id: number, sort: CandidateSortOrder = 'relevance') =>
-    req<SourceDetail>(`/sources/${id}?sort=${sort}`),
+  getReview: (scope: SetScope, sort: CandidateSortOrder = 'relevance') =>
+    req<ReviewDetail>(`/api/review?${new URLSearchParams({ scope: String(scope), sort })}`),
+
+  getReviewDocuments: (scope: SetScope) =>
+    req<SourceDocument[]>(`/api/review/documents?${new URLSearchParams({ scope: String(scope) })}`),
+
+  getReviewGeneration: (scope: SetScope) =>
+    req<GenerationOverview>(`/api/review/generation?${new URLSearchParams({ scope: String(scope) })}`),
+
+  runReviewGeneration: (scope: SetScope, kind: GenerationKind, cards: GenerationScope, sort: CandidateSortOrder = 'relevance') =>
+    req<{ enqueued: number }>(
+      `/api/review/generation/${kind}?${new URLSearchParams({ scope: String(scope), cards, sort })}`,
+      { method: 'POST' },
+    ),
+
+  cancelReviewGeneration: (scope: SetScope, kind: GenerationKind) =>
+    req<{ cancelled: number }>(`/api/review/generation/${kind}/cancel?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
+
+  downloadReviewVideos: (scope: SetScope) =>
+    req<{ queued: number }>(`/api/review/download-video?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
 
   processSource: (id: number) =>
     req<{ status: string }>(`/sources/${id}/process`, { method: 'POST' }),
-
-  getCandidates: (id: number, sort: CandidateSortOrder = 'relevance') =>
-    req<StoredCandidate[]>(`/sources/${id}/candidates?sort=${sort}`),
 
   previewCloze: (id: number, draft: Partial<ClozeDraft>, signal?: AbortSignal) =>
     req<ClozePreview>(`/phrases/${id}/cloze/preview`, { method: 'POST', body: JSON.stringify(draft), signal }),
@@ -131,18 +145,11 @@ export const api = {
 
   getAnkiStatus: () => req<AnkiStatus>('/anki/status'),
 
-  getExportCards: (sourceId?: number, scope: Scope = 'all') =>
-    req<GlobalExport>(
-      sourceId != null ? `/export/cards/${sourceId}` : `/export/cards?${new URLSearchParams({ scope: String(scope) })}`,
-    ),
+  getExportCards: (scope: SetScope = 'all') =>
+    req<GlobalExport>(`/export/cards?${new URLSearchParams({ scope: String(scope) })}`),
 
-  syncToAnki: (group: ExportGroup, sourceId?: number, scope: Scope = 'all') =>
-    req<SyncResult>(
-      sourceId != null
-        ? `/export/sync-to-anki/${sourceId}?${new URLSearchParams({ group })}`
-        : `/export/sync-to-anki?${new URLSearchParams({ group, scope: String(scope) })}`,
-      { method: 'POST' },
-    ),
+  syncToAnki: (group: ExportGroup, scope: SetScope = 'all') =>
+    req<SyncResult>(`/export/sync-to-anki?${new URLSearchParams({ group, scope: String(scope) })}`, { method: 'POST' }),
 
   getSettings: () => req<Settings>('/api/settings'),
 
@@ -190,9 +197,6 @@ export const api = {
       body: picture,
     }),
 
-  downloadVideo: (sourceId: number) =>
-    req<{ status: string }>(`/sources/${sourceId}/download-video`, { method: 'POST' }),
-
   polishPhraseAgain: (phraseId: number) =>
     req<{ status: string }>(`/phrases/${phraseId}/polish`, { method: 'POST' }),
 
@@ -213,18 +217,6 @@ export const api = {
 
   enqueueTopicGeneration: (sourceId: number) =>
     req<{ status: string }>(`/sources/${sourceId}/topic-targets/generate`, { method: 'POST' }),
-
-  getGenerationStatus: (sourceId: number) =>
-    req<GenerationOverview>(`/sources/${sourceId}/generation`),
-
-  runGeneration: (sourceId: number, kind: GenerationKind, scope: GenerationScope, sort: CandidateSortOrder = 'relevance') =>
-    req<{ enqueued: number }>(
-      `/sources/${sourceId}/generation/${kind}?scope=${scope}&sort=${sort}`,
-      { method: 'POST' },
-    ),
-
-  cancelGeneration: (sourceId: number, kind: GenerationKind) =>
-    req<{ cancelled: number }>(`/sources/${sourceId}/generation/${kind}/cancel`, { method: 'POST' }),
 
   previewRebuild: (sourceId: number) =>
     req<SourceOperation>(`/sources/${sourceId}/rebuild/preview`, { method: 'POST' }),

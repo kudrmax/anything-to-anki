@@ -281,7 +281,7 @@ def _decide(client: TestClient, phrase_id: int, button: str) -> Response:
 
 
 def _card(client: TestClient, phrase_id: int) -> Json:
-    cards = client.get(f"/sources/{HERE}/candidates").json()
+    cards = client.get("/api/review/candidates", params={"scope": f"source-{HERE}"}).json()
     return next(card for card in cards if card["phrase_id"] == phrase_id)
 
 
@@ -410,7 +410,10 @@ def test_removing_known_frees_the_word_kept_by_a_deleted_sources_known_card(
 
     assert client.get("/vocabulary/learning").json()["in_anki"] == []
     other = next(
-        card for card in client.get(f"/sources/{THERE}/candidates").json()
+        card
+        for card in client.get(
+            "/api/review/candidates", params={"scope": f"source-{THERE}"},
+        ).json()
         if card["phrase_id"] == phrase_id_of(OTHER_WORD)
     )
     assert other["shown"]["status"] == "new"

@@ -27,7 +27,7 @@ from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.candidate_sorter_support import section_stamper
-from tests.card_support import card, occurrence, word
+from tests.card_support import CARD_SOURCE, card, occurrence, word
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
@@ -79,7 +79,7 @@ class _Setup:
         self.card_views.one.side_effect = lambda phrase_id: card_to_dto(card(
             word(WORD_ID, status=WordStatus.LEARN),
             occurrence(phrase_id, WORD_ID, is_decision=True, decision_kind=DecisionKind.LEARN),
-        ))
+        ), CARD_SOURCE)
         self.decide_phrase = MagicMock()
         text_analyzer = MagicMock()
         text_analyzer.analyze.return_value = [_token(1, "procrastinating", "procrastinate")]

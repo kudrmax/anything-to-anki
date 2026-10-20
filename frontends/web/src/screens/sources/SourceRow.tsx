@@ -4,6 +4,7 @@ import type { GenerationStatus, ProcessingStage, SourceSummary } from '@/api/typ
 import { formatDate } from '@/lib/text/format'
 import { Button, Field, Icon, IconButton, Menu, Progress, Spinner, Text, type MenuItem } from '@/ui'
 import { SOURCES_MIME } from './CollectionTree'
+import { ReviewAction } from './ReviewAction'
 import css from './sources.module.css'
 
 interface SourceRowProps {
@@ -106,20 +107,21 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
     ...(source.can_delete ? [{ label: 'Delete', icon: Trash2, danger: true, separated: true, onSelect: () => onDelete(source.id) }] : []),
   ]
 
-  const reviewVariant = primary ? 'fill' : 'soft'
   const action = generation ? {
     idle: <Button onClick={() => onGenerate(source.id)}>Generate</Button>,
     queued: <Button variant="danger-link" onClick={() => onCancelGeneration(source.id)}>Cancel</Button>,
     running: <Button variant="danger-link" onClick={() => onCancelGeneration(source.id)}>Cancel</Button>,
     failed: <Button onClick={() => onRetryGeneration(source.id)}>Retry</Button>,
-  }[generation] : {
-    new: <Button onClick={() => onProcess(source.id)}>Process</Button>,
-    processing: null,
-    done: <Button variant={reviewVariant} onClick={() => onReview(source.id)}>Review</Button>,
-    partially_reviewed: <Button variant={reviewVariant} onClick={() => onReview(source.id)}>Continue</Button>,
-    reviewed: <Button variant="link" onClick={() => onReview(source.id)}>Open</Button>,
-    error: <Button onClick={() => onProcess(source.id)}>Retry</Button>,
-  }[source.status]
+  }[generation] : (
+    <ReviewAction
+      status={source.status}
+      canProcess={source.can_process}
+      canReview={source.can_review}
+      primary={primary}
+      onProcess={() => onProcess(source.id)}
+      onReview={() => onReview(source.id)}
+    />
+  )
 
   const progress = (() => {
     if (generation) {
