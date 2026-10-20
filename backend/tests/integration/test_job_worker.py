@@ -190,6 +190,36 @@ class TestOrder:
         ]
         assert _jobs(container) == []
 
+    async def test_an_ai_batch_takes_interleaved_sources_of_a_set(
+        self, container: _Container,
+    ) -> None:
+        other_source = SOURCE_ID + 1
+        with container.session_scope() as session:
+            session.execute(text(
+                "INSERT INTO sources (id, title, status, created_at)"
+                " VALUES (:id, 'other', 'done', '2026-01-01 00:00:00')"
+            ), {"id": other_source})
+            for cid in (11, 12):
+                insert_word(session, cid, source_id=other_source)
+            SqlaJobRepository(session).enqueue([
+                Job.queued(
+                    JobType.POLISH, source_id, cid,
+                    phrase_id=phrase_id_of(cid), phrase_revision=0,
+                )
+                for source_id, cid in (
+                    (SOURCE_ID, 1), (other_source, 11), (SOURCE_ID, 2), (other_source, 12),
+                )
+            ])
+        calls: list[list[int]] = []
+        container.polish.execute_batch.side_effect = (
+            lambda phrases, wanted: calls.append(_ids(phrases)) or []
+        )
+
+        await _drain(JobWorker(container))  # type: ignore[arg-type]
+
+        assert calls == [[phrase_id_of(c) for c in (1, 11, 2, 12)]]
+        assert _jobs(container) == []
+
 
 @pytest.mark.integration
 class TestPhraseGone:
