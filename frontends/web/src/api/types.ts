@@ -530,7 +530,7 @@ export interface KnownWord {
 }
 
 export interface Stats {
-  learn_count: number
+  learning_count: number
   export_pending_count: number
   queue_active_count: number
   candidate_count: number

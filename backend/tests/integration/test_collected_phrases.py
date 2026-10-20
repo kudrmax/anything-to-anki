@@ -98,7 +98,7 @@ def test_a_collected_phrase_is_no_decision(db_session: Session, source_id: int) 
 
     words = SqlaCandidateRepository(db_session)
     assert [w.status for w in words.get_by_source(source_id)] == [WordStatus.NEW] * 2
-    assert words.count_chosen_to_learn() == 0
+    assert words.count_learning_in_anki() == 0
     assert words.chosen_to_learn() == []
 
 

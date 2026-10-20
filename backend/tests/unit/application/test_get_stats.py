@@ -24,33 +24,32 @@ class TestGetStatsUseCase:
         )
 
     def test_returns_correct_counts(self) -> None:
-        """Chosen to learn: Learn and Learning words. Known: each lemma once, by the list
-        or by the timer."""
-        self.candidate_repo.count_chosen_to_learn.return_value = 12
+        """Learning: words in Anki. Known: each lemma once, by the list or by the timer."""
+        self.candidate_repo.count_learning_in_anki.return_value = 12
         self.candidate_repo.count_all.return_value = 120
         self.known_word_repo.get_all_pairs.return_value = {
             ("glare", "VERB"), ("glare", "NOUN"), ("linger", None),
         }
         result = self.use_case.execute()
-        assert result.learn_count == 12
+        assert result.learning_count == 12
         assert result.candidate_count == 120
         assert result.known_word_count == 2
 
     def test_returns_zeros_when_empty(self) -> None:
-        self.candidate_repo.count_chosen_to_learn.return_value = 0
+        self.candidate_repo.count_learning_in_anki.return_value = 0
         self.candidate_repo.count_all.return_value = 0
         result = self.use_case.execute()
-        assert result.learn_count == 0
+        assert result.learning_count == 0
         assert result.candidate_count == 0
         assert result.known_word_count == 0
         assert result.export_pending_count == 0
         assert result.queue_active_count == 0
 
     def test_export_pending_count_excludes_already_exported(self) -> None:
-        self.candidate_repo.count_chosen_to_learn.return_value = 31
+        self.candidate_repo.count_learning_in_anki.return_value = 31
         self.export_queue.pending_count.return_value = 3
         result = self.use_case.execute()
-        assert result.learn_count == 31
+        assert result.learning_count == 31
         assert result.export_pending_count == 3
 
     def test_queue_active_count_sums_queued_and_running_but_not_failed(self) -> None:

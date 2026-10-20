@@ -31,8 +31,8 @@ class CandidateRepository(ABC):
     def get_by_id(self, candidate_id: int) -> StoredCandidate | None: ...
 
     @abstractmethod
-    def count_chosen_to_learn(self) -> int:
-        """Words chosen to learn (`card_view.chosen_to_learn`), across all sources."""
+    def count_learning_in_anki(self) -> int:
+        """Words learning in Anki (`card_view.learning_in_anki`), across all sources."""
 
     @abstractmethod
     def count_all(self) -> int: ...

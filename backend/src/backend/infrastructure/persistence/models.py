@@ -399,6 +399,11 @@ class StoredCandidateModel(Base):
         return cls.status.in_([status.value for status in CHOSEN_TO_LEARN])
 
     @classmethod
+    def learning_in_anki(cls) -> ColumnElement[bool]:
+        """`card_view.learning_in_anki`: Learning."""
+        return cls.status == DecisionStatus.LEARNING.value
+
+    @classmethod
     def in_export_queue(cls) -> ColumnElement[bool]:
         """`card_view.in_export_queue` as far as the stored decision says: a Learn not in
         Anki yet. Whether its lemma was put in Known since (Q15) is knowledge, read in
