@@ -37,7 +37,8 @@ class PhraseNewness:
         return found
 
     def count(self, step: float | None) -> int:
-        return len(self.new_lemmas(step))
+        """How many lemmas are new at the threshold `step`."""
+        return len({word.lemma for word in self.words if is_new_at(word.newness, word.zipf, step)})
 
 
 NO_NEWNESS = PhraseNewness(())
