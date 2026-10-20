@@ -202,11 +202,14 @@ class UnsupportedUrlError(Exception):
 
 class CancelledByUserError(Exception):
     """Raised when finished work belongs to jobs no longer running: the user
-    cancelled them, or they already failed by timeout. Its result is dropped."""
+    cancelled them, or they already failed by timeout. Its result is dropped, except what
+    it wrote while they still ran: `wrote` tells whether there is any."""
 
-    def __init__(self, job_ids: list[int]) -> None:
+    def __init__(self, job_ids: list[int], wrote: bool = False) -> None:
         self.job_ids = job_ids
-        super().__init__(f"Jobs {job_ids} are no longer running, result dropped")
+        self.wrote = wrote
+        outcome = "what was written before that stays" if wrote else "result dropped"
+        super().__init__(f"Jobs {job_ids} are no longer running, {outcome}")
 
 
 class CollectionNotFoundError(DomainError):
@@ -444,3 +447,18 @@ class InvalidEarnedSectionError(DomainError):
     def __init__(self, section: object) -> None:
         super().__init__(f"A phrase cannot earn the section {section!r}")
         self.section = section
+
+
+class NestedWriteError(DomainError):
+    """Raised when a write transaction is opened inside another one of the same unit of work."""
+
+    def __init__(self) -> None:
+        super().__init__("A write transaction is already open: write() cannot be nested")
+
+
+class UncommittedWorkError(DomainError):
+    """Raised when a write transaction opens on a session that holds changes made outside
+    any write: they would be committed by a write that does not own them."""
+
+    def __init__(self) -> None:
+        super().__init__("Changes were made outside write(): the session has pending work")

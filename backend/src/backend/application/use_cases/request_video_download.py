@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.source import Source
     from backend.domain.exceptions import DomainError
     from backend.domain.ports.job_repository import JobRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.source_scope import SourceScope
 
 # Why a source of a set has no video to download: no link, or the file is here already.
@@ -23,12 +24,22 @@ class RequestVideoDownloadUseCase:
     file yet, once each; a source whose download is already queued or running is left as
     is. A set with nothing to download fails with its first source's reason."""
 
-    def __init__(self, scope_resolver: SourceScopeResolver, job_repo: JobRepository) -> None:
+    def __init__(
+        self,
+        scope_resolver: SourceScopeResolver,
+        job_repo: JobRepository,
+        unit_of_work: UnitOfWork,
+    ) -> None:
+        self._unit_of_work = unit_of_work
         self._scope_resolver = scope_resolver
         self._job_repo = job_repo
 
     def execute(self, scope: SourceScope) -> int:
         """Returns how many downloads were queued."""
+        with self._unit_of_work.write():
+            return self._request(scope)
+
+    def _request(self, scope: SourceScope) -> int:
         jobs: list[Job] = []
         skipped: list[DomainError] = []
         for source in self._scope_resolver.reviewable_sources(scope):

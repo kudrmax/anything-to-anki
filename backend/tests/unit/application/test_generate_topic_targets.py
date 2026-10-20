@@ -45,6 +45,7 @@ class TestGenerateTopicTargets:
             settings_repo=self.settings_repo,
             ai_service=self.ai_service,
             prompts_config=_CONFIG,
+            unit_of_work=MagicMock(),
         )
 
     def _saved(self) -> list[tuple[int, str, str]]:

@@ -27,6 +27,7 @@ from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.services.source_review_status import derive_review_status
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
+from backend.infrastructure.persistence.database import Base, create_session_factory
 from backend.infrastructure.persistence.models import PhraseModel
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
@@ -63,7 +64,10 @@ from tests.source_order_support import added_order
 from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+    from pathlib import Path
+
+    from backend.domain.value_objects.held_operation import HeldOperation
+    from sqlalchemy.orm import Session, sessionmaker
 
 SOURCE = 1
 LINES = (
@@ -281,3 +285,32 @@ class Bench:
             decided_elsewhere=DecidedElsewhere(self.vocabulary),
         ).of_sources([SOURCE])[SOURCE]
         return derive_review_status(source.status, progress).value
+
+
+class SharedBench:
+    """A bench on a database file, so another session sees only what the bench committed;
+    `seen` holds what it saw of the source's operation each time the analysis ran."""
+
+    def __init__(self, path: Path) -> None:
+        self._factory: sessionmaker[Session] = create_session_factory(
+            f"sqlite:///{path / 'shared.db'}",
+        )
+        Base.metadata.create_all(self._factory.kw["bind"])
+        self.bench = Bench(self._factory())
+        self.seen: list[HeldOperation | None] = []
+        analyse = self.bench.analyze_text.execute.side_effect
+
+        def look_then_analyse(document: Document, request: object) -> AnalyzeTextResponse:
+            self.seen.append(self.held_elsewhere())
+            response: AnalyzeTextResponse = analyse(document, request)
+            return response
+
+        self.bench.analyze_text.execute.side_effect = look_then_analyse
+
+    def held_elsewhere(self) -> HeldOperation | None:
+        with self._factory() as other:
+            return SqlaSourceOperationLock(other).operations().get(SOURCE)
+
+    def close(self) -> None:
+        self.bench.session.close()
+        self._factory.kw["bind"].dispose()

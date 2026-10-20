@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.file_downloader import FileDownloader
     from backend.domain.ports.pronunciation_source import PronunciationSource
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 
 class DownloadPronunciationUseCase:
@@ -28,12 +29,14 @@ class DownloadPronunciationUseCase:
         pronunciation_source: PronunciationSource,
         file_downloader: FileDownloader,
         media_root: str,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._candidate_repo = candidate_repo
         self._pronunciation_repo = pronunciation_repo
         self._pronunciation_source = pronunciation_source
         self._file_downloader = file_downloader
         self._media_root = media_root
+        self._unit_of_work = unit_of_work
 
     def execute_one(self, candidate_id: int) -> None:
         candidate = self._candidate_repo.get_by_id(candidate_id)
@@ -44,7 +47,7 @@ class DownloadPronunciationUseCase:
         us_url, uk_url = self._pronunciation_source.get_audio_urls(candidate.lemma)
 
         if us_url is None and uk_url is None:
-            self._pronunciation_repo.upsert(CandidatePronunciation(
+            self._store(CandidatePronunciation(
                 candidate_id=candidate_id,
                 us_audio_path=None,
                 uk_audio_path=None,
@@ -71,7 +74,7 @@ class DownloadPronunciationUseCase:
             uk_path = os.path.join(out_dir, f"{candidate_id}_pron_uk.mp3")
             self._file_downloader.download(uk_url, uk_path)
 
-        self._pronunciation_repo.upsert(CandidatePronunciation(
+        self._store(CandidatePronunciation(
             candidate_id=candidate_id,
             us_audio_path=us_path,
             uk_audio_path=uk_path,
@@ -84,3 +87,7 @@ class DownloadPronunciationUseCase:
             bool(us_path),
             bool(uk_path),
         )
+
+    def _store(self, pronunciation: CandidatePronunciation) -> None:
+        with self._unit_of_work.write():
+            self._pronunciation_repo.upsert(pronunciation)

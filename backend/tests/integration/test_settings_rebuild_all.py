@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+from contextlib import nullcontext
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
@@ -11,6 +12,7 @@ from backend.infrastructure.api.background_rebuild_launcher import (
     BackgroundSourcesRebuildLauncher,
     RebuildPasses,
 )
+from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from sqlalchemy import StaticPool, create_engine, text
@@ -62,8 +64,7 @@ def _two_processed_sources(bench: Bench) -> None:
 
 def _launcher(bench: Bench) -> BackgroundSourcesRebuildLauncher:
     return BackgroundSourcesRebuildLauncher(
-        session_factory=lambda: bench.session,  # type: ignore[arg-type,return-value]
-        scope_operation=lambda _session: bench.scope_operation(),
+        scope_operations=lambda: nullcontext(bench.scope_operation()),
         spawn=lambda work: work(),
         passes=RebuildPasses(),
     )
@@ -114,8 +115,7 @@ def test_no_source_is_locked_before_its_turn(bench: Bench) -> None:
 
     inner.run = run  # type: ignore[method-assign,assignment]
     launcher = BackgroundSourcesRebuildLauncher(
-        session_factory=lambda: bench.session,  # type: ignore[arg-type,return-value]
-        scope_operation=lambda _session: bench.scope_operation(inner),
+        scope_operations=lambda: nullcontext(bench.scope_operation(inner)),
         spawn=lambda work: work(),
         passes=RebuildPasses(),
     )
@@ -140,6 +140,12 @@ def test_the_patch_does_not_wait_for_the_rebuild(
         release.wait(timeout=10)
 
     monkeypatch.setattr(BackgroundSourcesRebuildLauncher, "_rebuild_pass", blocked)
+    monkeypatch.setattr(
+        Container, "_rebuild_launcher",
+        lambda _self: BackgroundSourcesRebuildLauncher(
+            scope_operations=MagicMock(), passes=RebuildPasses(),
+        ),
+    )
 
     def override_session():  # type: ignore[no-untyped-def]  # noqa: ANN202
         with factory() as session:
@@ -183,7 +189,7 @@ def test_calls_close_together_never_overlap_and_a_full_pass_follows(
 
     monkeypatch.setattr(BackgroundSourcesRebuildLauncher, "_rebuild_pass", one_pass)
     launcher = BackgroundSourcesRebuildLauncher(
-        session_factory=MagicMock(), scope_operation=MagicMock(), passes=RebuildPasses(),
+        scope_operations=MagicMock(), passes=RebuildPasses(),
     )
 
     launcher.rebuild_all()

@@ -11,6 +11,7 @@ from backend.domain.value_objects.source_eviction import SourceEviction
 if TYPE_CHECKING:
     from backend.domain.ports.collection_repository import CollectionRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 
 class DeleteCollectionUseCase:
@@ -20,11 +21,17 @@ class DeleteCollectionUseCase:
 
     def __init__(
         self, collection_repo: CollectionRepository, source_repo: SourceRepository,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._collection_repo = collection_repo
         self._source_repo = source_repo
 
     def execute(self, collection_id: int) -> DeletedCollectionDTO:
+        with self._unit_of_work.write():
+            return self._delete(collection_id)
+
+    def _delete(self, collection_id: int) -> DeletedCollectionDTO:
         tree = CollectionTree(self._collection_repo.list_all())
         node = tree.get(collection_id)
         subtree = tree.subtree_ids(collection_id)

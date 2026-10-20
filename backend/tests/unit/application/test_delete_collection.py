@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
 from backend.domain.entities.collection import Collection
@@ -27,7 +29,7 @@ class TestDeleteCollection:
             Collection(id=3, name="IELTS", position=1),
         ])
         self.sources = InMemorySourceRepository([source(10, 1), source(11, 2), source(12, 3)])
-        self.use_case = DeleteCollectionUseCase(self.collections, self.sources)
+        self.use_case = DeleteCollectionUseCase(self.collections, self.sources, MagicMock())
 
     def test_collection_sends_whole_subtree_to_unsorted(self) -> None:
         deleted = self.use_case.execute(1)
@@ -65,7 +67,7 @@ class TestDeleteDeepSubtree:
         self.sources = InMemorySourceRepository(
             [source(10, 1), source(11, 2), source(12, 3), source(13, 4), source(14, 5)],
         )
-        self.use_case = DeleteCollectionUseCase(self.collections, self.sources)
+        self.use_case = DeleteCollectionUseCase(self.collections, self.sources, MagicMock())
 
     def test_every_level_goes_with_the_node(self) -> None:
         self.use_case.execute(2)

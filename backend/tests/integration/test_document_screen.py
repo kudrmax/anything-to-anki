@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from backend.application.dto.candidate_dtos import SelectionDTO
@@ -182,6 +183,7 @@ def _set_boundary(db_session: Session) -> SetPhraseBoundaryUseCase:
         SqlaOccurrenceRepository(db_session), SqlaCandidateRepository(db_session),
         SqlaDocumentRepository(db_session), Container().phrase_reader, free_lock(),
         section_stamper(SqlaSettingsRepository(db_session)),
+        MagicMock(),
     )
 
 

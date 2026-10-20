@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.file_downloader import FileDownloader
     from backend.domain.ports.target_image_source import TargetImageSource
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,9 @@ class ApplyTargetImageUseCase:
         image_sources: Sequence[TargetImageSource],
         file_downloader: FileDownloader,
         picture_placer: MeaningImagePlacer,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._candidate_repo = candidate_repo
         self._image_sources = image_sources
         self._file_downloader = file_downloader
@@ -55,5 +58,6 @@ class ApplyTargetImageUseCase:
             if os.path.exists(downloaded_path):
                 os.remove(downloaded_path)
 
-        self._picture_placer.place(candidate, picture, origin=url.encode())
+        with self._unit_of_work.write():
+            self._picture_placer.place(candidate, picture, origin=url.encode())
         logger.info("apply_target_image: candidate %d got %s", candidate_id, url)

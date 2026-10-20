@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from backend.application.dto.add_source_dtos import (
@@ -109,6 +110,7 @@ def add_source(db_session: Session, tmp_path: Path) -> AddSourceUseCase:
         file_reader=files,
         group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(db_session)),
         settings_repo=SqlaSettingsRepository(db_session),
+        unit_of_work=MagicMock(),
     )
 
 
@@ -390,6 +392,7 @@ def test_youtube_without_subtitles_is_reported(db_session: Session, tmp_path: Pa
         file_reader=LocalFileReader(),
         group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(db_session)),
         settings_repo=SqlaSettingsRepository(db_session),
+        unit_of_work=MagicMock(),
     )
     with pytest.raises(SubtitlesNotAvailableError):
         _add(use_case, Url(YOUTUBE_URL))

@@ -2,13 +2,9 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Iterator  # noqa: TC003 — used at runtime by @contextmanager
-from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-from sqlalchemy.orm import sessionmaker
 
 from backend.application.source_intake.book_handler import BookHandler
 from backend.application.source_intake.document_normalizer import DocumentNormalizer
@@ -136,6 +132,8 @@ from backend.infrastructure.api.background_rebuild_launcher import (
     BackgroundSourcesRebuildLauncher,
 )
 from backend.infrastructure.config.prompts_loader import PromptsLoader
+from backend.infrastructure.persistence.database import app_session_factory
+from backend.infrastructure.persistence.session_work import SessionWork
 from backend.infrastructure.persistence.sqla_anki_sync_repository import (
     SqlaAnkiSyncRepository,
 )
@@ -171,6 +169,7 @@ from backend.infrastructure.persistence.sqla_collection_repository import (
     SqlaCollectionRepository,
 )
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
+from backend.infrastructure.persistence.sqla_job_queue import SqlaJobQueue
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
@@ -213,7 +212,7 @@ from backend.infrastructure.readers.youtube_reader import YouTubeReader
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+    from sqlalchemy.orm import Session, sessionmaker
 
     from backend.application.use_cases.apply_target_image import ApplyTargetImageUseCase
     from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
@@ -375,30 +374,21 @@ class Container:
         templates_dir = project_root / "anki-templates"
         self._anki_template_renderer = AnkiTemplateRenderer(templates_dir)
         self._clock = SystemClock()
-        # Session factory — lazy-loaded to avoid circular import with api.dependencies
         self._session_factory: sessionmaker[Session] | None = session_factory
 
     def _get_session_factory(self) -> sessionmaker[Session]:
-        """Lazy-load the session factory to avoid circular imports."""
+        """The app's one session factory unless the container was given another; taken on
+        first use, so a container made before the database is configured still finds it."""
         if self._session_factory is None:
-            from backend.infrastructure.api.dependencies import get_session_factory
-            self._session_factory = get_session_factory()
+            self._session_factory = app_session_factory()
         return self._session_factory
 
-    @contextmanager
-    def session_scope(self) -> Iterator[Session]:
-        """Context manager for a DB session with auto-commit/rollback.
-        Used by worker job functions which don't have FastAPI request scope."""
-        factory = self._get_session_factory()
-        session = factory()
-        try:
-            yield session
-            session.commit()
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
+    def session_work(self) -> SessionWork:
+        """Work outside a request, on sessions of its own."""
+        return SessionWork(self._get_session_factory(), self._unit_of_work)
+
+    def job_queue(self) -> SqlaJobQueue:
+        return SqlaJobQueue(self.session_work())
 
     def job_repository(self, session: Session) -> SqlaJobRepository:
         return SqlaJobRepository(session)
@@ -429,6 +419,7 @@ class Container:
             phrase_reader=self._phrase_reader,
             lock=SqlaSourceOperationLock(session),
             stamper=self._section_stamper(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def get_review_documents_use_case(self, session: Session) -> GetReviewDocumentsUseCase:
@@ -483,6 +474,7 @@ class Container:
             file_reader=self._file_reader,
             group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(session)),
             settings_repo=SqlaSettingsRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def render_names_use_case(self) -> RenderNamesUseCase:
@@ -497,11 +489,15 @@ class Container:
         )
 
     def create_topic_use_case(self, session: Session) -> CreateTopicUseCase:
-        return CreateTopicUseCase(source_repo=SqlaSourceRepository(session))
+        return CreateTopicUseCase(
+            source_repo=SqlaSourceRepository(session),
+            unit_of_work=self._unit_of_work(session),
+        )
 
     def rename_source_use_case(self, session: Session) -> RenameSourceUseCase:
         return RenameSourceUseCase(
             source_repo=SqlaSourceRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def delete_source_use_case(self, session: Session) -> DeleteSourceUseCase:
@@ -510,6 +506,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             lock=SqlaSourceOperationLock(session),
             media_root=self._media_root,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def delete_sources_use_case(self, session: Session) -> DeleteSourcesUseCase:
@@ -536,6 +533,7 @@ class Container:
     def create_collection_use_case(self, session: Session) -> CreateCollectionUseCase:
         return CreateCollectionUseCase(
             collection_repo=SqlaCollectionRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def list_collections_use_case(self, session: Session) -> ListCollectionsUseCase:
@@ -551,27 +549,34 @@ class Container:
     def rename_collection_use_case(self, session: Session) -> RenameCollectionUseCase:
         return RenameCollectionUseCase(
             collection_repo=SqlaCollectionRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def delete_collection_use_case(self, session: Session) -> DeleteCollectionUseCase:
         return DeleteCollectionUseCase(
             collection_repo=SqlaCollectionRepository(session),
             source_repo=SqlaSourceRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def move_collection_use_case(self, session: Session) -> MoveCollectionUseCase:
-        return MoveCollectionUseCase(collection_repo=SqlaCollectionRepository(session))
+        return MoveCollectionUseCase(
+            collection_repo=SqlaCollectionRepository(session),
+            unit_of_work=self._unit_of_work(session),
+        )
 
     def restore_collection_use_case(self, session: Session) -> RestoreCollectionUseCase:
         return RestoreCollectionUseCase(
             collection_repo=SqlaCollectionRepository(session),
             source_repo=SqlaSourceRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def place_sources_use_case(self, session: Session) -> PlaceSourcesUseCase:
         return PlaceSourcesUseCase(
             source_repo=SqlaSourceRepository(session),
             collection_repo=SqlaCollectionRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def process_source_use_case(self, session: Session) -> ProcessSourceUseCase:
@@ -644,6 +649,7 @@ class Container:
             generation_probe=self._generation_probe(session),
             process_source=self.process_source_use_case(session),
             lock=SqlaSourceOperationLock(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def _candidate_factory(self) -> CandidateFactory:
@@ -684,6 +690,7 @@ class Container:
             topic_target_repo=SqlaTopicTargetRepository(session),
             job_repo=SqlaJobRepository(session),
             lock=SqlaSourceOperationLock(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def generate_topic_targets_use_case(self, session: Session) -> GenerateTopicTargetsUseCase:
@@ -697,6 +704,7 @@ class Container:
             settings_repo=settings_repo,
             ai_service=self._ai_service(settings_repo),
             prompts_config=self._prompts_config,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def _ai_service(self, settings_repo: SqlaSettingsRepository) -> HttpAIService:
@@ -732,6 +740,7 @@ class Container:
             vocabulary=self._user_vocabulary(session),
             knowledge=self._user_knowledge(session),
             effects=self._decision_effects(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def decide_phrase_use_case(self, session: Session) -> DecidePhraseUseCase:
@@ -893,12 +902,14 @@ class Container:
     def manage_unknown_words_use_case(self, session: Session) -> ManageUnknownWordsUseCase:
         return ManageUnknownWordsUseCase(
             vocabulary=self._user_vocabulary(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def manage_known_words_use_case(self, session: Session) -> ManageKnownWordsUseCase:
         return ManageKnownWordsUseCase(
             vocabulary=self._user_vocabulary(session),
             effects=self._decision_effects(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def manage_settings_use_case(self, session: Session) -> ManageSettingsUseCase:
@@ -906,14 +917,15 @@ class Container:
             settings_repo=SqlaSettingsRepository(session),
             threshold_resolver=self._threshold_resolver(session),
             unit_of_work=self._unit_of_work(session),
-            rebuild_launcher=self._rebuild_launcher(session),
+            rebuild_launcher=self._rebuild_launcher(),
         )
 
-    def _rebuild_launcher(self, session: Session) -> BackgroundSourcesRebuildLauncher:
-        """Works on the database of the session that asks, in sessions of its own."""
+    def _rebuild_launcher(self) -> BackgroundSourcesRebuildLauncher:
+        """Works in sessions of its own, from the container's session factory: an API
+        override of `get_session_factory` does not reach it."""
+        work = self.session_work()
         return BackgroundSourcesRebuildLauncher(
-            session_factory=sessionmaker(bind=session.get_bind()),
-            scope_operation=self.scope_operation_use_case,
+            scope_operations=lambda: work.open(self.scope_operation_use_case),
         )
 
     def get_anki_status_use_case(self, session: Session) -> GetAnkiStatusUseCase:
@@ -933,6 +945,8 @@ class Container:
             scope_resolver=self._scope_resolver(session),
             vocabulary=self._user_vocabulary(session),
             effects=self._decision_effects(session),
+            word_states=SqlaWordStateRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def get_learning_words_use_case(self, session: Session) -> GetLearningWordsUseCase:
@@ -961,6 +975,7 @@ class Container:
             meaning_repo=SqlaCandidateMeaningRepository(session),
             ai_service=self._ai_service(SqlaSettingsRepository(session)),
             prompts_config=self._prompts_config,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def meaning_generation_use_case(self, session: Session) -> MeaningGenerationUseCase:
@@ -969,6 +984,7 @@ class Container:
             meaning_repo=SqlaCandidateMeaningRepository(session),
             ai_service=self._ai_service(SqlaSettingsRepository(session)),
             prompts_config=self._prompts_config,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def phrase_polish_use_case(self, session: Session) -> PhrasePolishUseCase:
@@ -985,6 +1001,7 @@ class Container:
             prompts_config=self._prompts_config,
             rewrite_phrase=self._rewrite_phrase(session),
             stamper=self._section_stamper(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def enqueue_phrase_polish_use_case(self, session: Session) -> EnqueuePhrasePolishUseCase:
@@ -997,6 +1014,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             job_repo=SqlaJobRepository(session),
             stamper=self._section_stamper(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def _job_phrases(self, session: Session) -> JobPhrases:
@@ -1035,6 +1053,7 @@ class Container:
             enrichment_reset=self._phrase_enrichment_reset(session),
             lock=SqlaSourceOperationLock(session),
             stamper=self._section_stamper(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def edit_card_phrase_use_case(self, session: Session) -> EditCardPhraseUseCase:
@@ -1044,6 +1063,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             rewrite_phrase=self._rewrite_phrase(session),
             lock=SqlaSourceOperationLock(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def _phrase_enrichment_reset(self, session: Session) -> PhraseEnrichmentReset:
@@ -1068,6 +1088,7 @@ class Container:
             frequency_provider=self._frequency_provider,
             index_repo=SqlaBootstrapIndexRepository(session),
             phrasal_verb_dictionary=self._phrasal_verb_dictionary,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def get_bootstrap_words_use_case(self, session: Session) -> GetBootstrapWordsUseCase:
@@ -1091,10 +1112,9 @@ class Container:
         return self._prompts_config
 
     def lazy_media_reconciler(self) -> LazyMediaReconciler:
-        from backend.infrastructure.api.dependencies import get_session_factory
         if self._lazy_media_reconciler is None:
             self._lazy_media_reconciler = LazyMediaReconciler(
-                session_factory=get_session_factory(),
+                work=self.session_work(),
                 media_root=self._media_root,
             )
         return self._lazy_media_reconciler
@@ -1110,6 +1130,7 @@ class Container:
             media_extractor=self._media_extractor,
             media_files=LocalMediaFiles(self._media_root),
             video_path_resolver=self._video_path_resolver,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def get_media_storage_stats_use_case(self, session: Session) -> GetMediaStorageStatsUseCase:
@@ -1129,6 +1150,7 @@ class Container:
             media_repo=SqlaCandidateMediaRepository(session),
             image_repo=SqlaCandidateMeaningImageRepository(session),
             media_root=self._media_root,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def regenerate_phrase_media_use_case(
@@ -1146,6 +1168,7 @@ class Container:
             media_extractor=self._media_extractor,
             media_files=LocalMediaFiles(self._media_root),
             video_path_resolver=self._video_path_resolver,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def download_video_use_case(self, session: Session) -> DownloadVideoUseCase:
@@ -1154,6 +1177,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             video_downloader=self._video_downloader,
             video_path_resolver=self._video_path_resolver,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def cleanup_youtube_video_use_case(self, session: Session) -> CleanupYoutubeVideoUseCase:
@@ -1163,6 +1187,7 @@ class Container:
             media_repo=SqlaCandidateMediaRepository(session),
             job_repo=SqlaJobRepository(session),
             video_path_resolver=self._video_path_resolver,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def candidate_meaning_repository(self, session: Session) -> SqlaCandidateMeaningRepository:
@@ -1205,6 +1230,7 @@ class Container:
             pronunciation_source=self._pronunciation_source,
             file_downloader=self._file_downloader,
             media_root=self._media_root,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def search_target_images_use_case(self, session: Session) -> SearchTargetImagesUseCase:
@@ -1224,6 +1250,7 @@ class Container:
             image_sources=self._target_image_sources,
             file_downloader=self._image_downloader,
             picture_placer=self._meaning_image_placer(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def paste_target_image_use_case(self, session: Session) -> PasteTargetImageUseCase:
@@ -1231,6 +1258,7 @@ class Container:
         return PasteTargetImageUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             picture_placer=self._meaning_image_placer(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def _meaning_image_placer(self, session: Session) -> MeaningImagePlacer:
@@ -1249,6 +1277,7 @@ class Container:
             tts_generator=self.tts_generator,
             settings_repo=SqlaSettingsRepository(session),
             media_files=LocalMediaFiles(self._media_root),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def _generation_targets(self, session: Session) -> list[GenerationTarget]:
@@ -1288,12 +1317,14 @@ class Container:
             candidate_sorter=self._candidate_sorter(session),
             targets=self._generation_targets(session),
             lock=SqlaSourceOperationLock(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def cancel_generation_use_case(self, session: Session) -> CancelGenerationUseCase:
         from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
         return CancelGenerationUseCase(
             job_repo=SqlaJobRepository(session), scope_resolver=self._scope_resolver(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def get_queue_snapshot_use_case(self, session: Session) -> GetQueueSnapshotUseCase:
@@ -1306,7 +1337,10 @@ class Container:
 
     def manage_queue_use_case(self, session: Session) -> ManageQueueUseCase:
         from backend.application.use_cases.manage_queue import ManageQueueUseCase
-        return ManageQueueUseCase(job_repo=SqlaJobRepository(session))
+        return ManageQueueUseCase(
+            job_repo=SqlaJobRepository(session),
+            unit_of_work=self._unit_of_work(session),
+        )
 
     def request_video_download_use_case(
         self, session: Session,
@@ -1317,10 +1351,12 @@ class Container:
         return RequestVideoDownloadUseCase(
             scope_resolver=self._scope_resolver(session),
             job_repo=SqlaJobRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def enqueue_phrase_tts_use_case(self, session: Session) -> EnqueuePhraseTTSUseCase:
         from backend.application.use_cases.enqueue_phrase_tts import EnqueuePhraseTTSUseCase
         return EnqueuePhraseTTSUseCase(
             cards=self._requested_cards(session), job_repo=SqlaJobRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )

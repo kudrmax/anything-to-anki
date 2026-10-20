@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from backend.infrastructure.adapters.local_media_files import DRAFT_MARKER
@@ -15,6 +16,8 @@ from backend.infrastructure.persistence.models import (
     CandidateMediaModel,
     CandidateTTSModel,
 )
+from backend.infrastructure.persistence.session_work import SessionWork
+from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 from sqlalchemy import select, text
 
@@ -133,7 +136,8 @@ async def test_a_missing_file_clears_only_the_rows_pointing_at_it(tmp_path: Path
         session.add(CandidateMediaModel(phrase_id=OTHER_PHRASE, screenshot_path=str(gone)))
         session.commit()
 
-    await LazyMediaReconciler(factory, str(tmp_path / "media")).schedule(SOURCE, gone.name)
+    work = SessionWork(factory, lambda session: SqlaUnitOfWork(session, MagicMock()))
+    await LazyMediaReconciler(work, str(tmp_path / "media")).schedule(SOURCE, gone.name)
     await asyncio.sleep(0.2)
 
     with factory() as session:

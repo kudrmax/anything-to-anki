@@ -19,7 +19,10 @@ logger = logging.getLogger(__name__)
 
 
 class DeleteSourcesUseCase:
-    """Deletes the chosen sources; the ones that can't go (processing, built-in) are reported."""
+    """Deletes the chosen sources; the ones that can't go (processing, built-in) are reported.
+
+    Each source is deleted in a write of its own and its media go right after: a failure
+    later in the batch leaves the sources already deleted deleted, as their files are."""
 
     def __init__(self, delete_source: DeleteSourceUseCase) -> None:
         self._delete_source = delete_source

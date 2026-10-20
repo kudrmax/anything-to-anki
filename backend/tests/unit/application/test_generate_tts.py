@@ -33,6 +33,7 @@ def deps(tmp_path: Path) -> dict:
         "tts_generator": tts_generator,
         "settings_repo": settings_repo,
         "media_files": LocalMediaFiles(str(tmp_path)),
+        "unit_of_work": MagicMock(),
     }
 
 

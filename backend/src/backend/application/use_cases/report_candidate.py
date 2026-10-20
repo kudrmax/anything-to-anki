@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.phrase import Phrase
 
 # The reason under which the user picks the words of the phrase they don't know.
@@ -56,7 +57,9 @@ class ReportCandidateUseCase:
         vocabulary: UserVocabulary,
         knowledge: UserKnowledgeReader,
         effects: DecisionEffects,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._effects = effects
         self._candidate_repo = candidate_repo
         self._occurrences = occurrence_repo
@@ -74,6 +77,13 @@ class ReportCandidateUseCase:
                 raise UnknownReportReasonError(reason)
         if not chosen and not comment_text and not request.unknown_words:
             raise EmptyReportCommentError()
+        with self._unit_of_work.write():
+            return self._report(phrase_id, request, chosen, comment_text)
+
+    def _report(
+        self, phrase_id: int, request: ReportCandidateRequest, chosen: tuple[str, ...],
+        comment_text: str,
+    ) -> CardReportDTO:
         occ = self._occurrences.get(phrase_id)
         word = self._candidate_repo.get_by_id(occ.candidate_id) if occ is not None else None
         if occ is None or word is None or word.id is None:

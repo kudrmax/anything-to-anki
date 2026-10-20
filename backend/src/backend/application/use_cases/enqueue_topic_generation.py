@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.topic_target_repository import TopicTargetRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +35,19 @@ class EnqueueTopicGenerationUseCase:
         topic_target_repo: TopicTargetRepository,
         job_repo: JobRepository,
         lock: SourceOperationLock,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._source_repo = source_repo
         self._topic_target_repo = topic_target_repo
         self._job_repo = job_repo
         self._lock = lock
 
     def execute(self, source_id: int) -> None:
+        with self._unit_of_work.write():
+            self._enqueue(source_id)
+
+    def _enqueue(self, source_id: int) -> None:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)

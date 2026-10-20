@@ -8,12 +8,11 @@ from backend.application.dto.card_report_dtos import (  # noqa: TC001
     CardReportDTO,
     ReportReasonDTO,
 )
-from backend.infrastructure.api.dependencies import get_container, get_db_session
+from backend.infrastructure.api.dependencies import use_case
+from backend.infrastructure.container import Container
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
-    from backend.infrastructure.container import Container
+    from backend.application.use_cases.report_candidate import ReportCandidateUseCase
 
 # Under /api: a plain /card-reports could collide with a frontend route.
 router = APIRouter(prefix="/api/card-reports", tags=["card-reports"])
@@ -21,15 +20,17 @@ router = APIRouter(prefix="/api/card-reports", tags=["card-reports"])
 
 @router.get("")
 def list_card_reports(
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    reports: ReportCandidateUseCase = Depends(  # noqa: B008
+        use_case(Container.report_candidate_use_case),  # noqa: B008
+    ),
 ) -> list[CardReportDTO]:
-    return container.report_candidate_use_case(session).list_all()
+    return reports.list_all()
 
 
 @router.get("/reasons")
 def list_report_reasons(
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    reports: ReportCandidateUseCase = Depends(  # noqa: B008
+        use_case(Container.report_candidate_use_case),  # noqa: B008
+    ),
 ) -> list[ReportReasonDTO]:
-    return container.report_candidate_use_case(session).reasons()
+    return reports.reasons()

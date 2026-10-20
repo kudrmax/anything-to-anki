@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from functools import cache
 from typing import TYPE_CHECKING
 
 from sqlalchemy import create_engine, event
@@ -120,6 +121,13 @@ def create_session_factory(db_url: str | None = None) -> sessionmaker[Session]:
     event.listen(engine, "connect", _enable_sqlite_foreign_keys)
     event.listen(engine, "connect", _wait_for_locks)
     return sessionmaker(bind=engine)
+
+
+@cache
+def app_session_factory() -> sessionmaker[Session]:
+    """The process's one session factory, on the app's database: the API and the worker
+    build all their sessions from it."""
+    return create_session_factory()
 
 
 def release_source_operations(session_factory: sessionmaker[Session]) -> None:

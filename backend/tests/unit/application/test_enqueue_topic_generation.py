@@ -49,6 +49,7 @@ class TestEnqueueTopicGeneration:
             topic_target_repo=self.topic_target_repo,
             job_repo=self.job_repo,
             lock=self.lock,
+            unit_of_work=MagicMock(),
         )
 
     def test_a_topic_being_refreshed_is_refused(self) -> None:

@@ -95,6 +95,7 @@ class _Setup:
             media_extractor=self.extractor,
             media_files=LocalMediaFiles(str(self.media_root)),
             video_path_resolver=resolver,
+            unit_of_work=MagicMock(),
         )
         self.video = str(video)
 

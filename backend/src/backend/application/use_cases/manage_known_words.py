@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
     from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.user_vocabulary import UserVocabulary
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 
 class ManageKnownWordsUseCase:
@@ -20,7 +21,9 @@ class ManageKnownWordsUseCase:
         self,
         vocabulary: UserVocabulary,
         effects: DecisionEffects,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._vocabulary = vocabulary
         self._effects = effects
 
@@ -50,21 +53,26 @@ class ManageKnownWordsUseCase:
         it never gave."""
         kind, _, value = removal_key.partition(_SEPARATOR)
         removals: dict[str, Callable[[str], None]] = {
-            _ENTRY: self._delete_entry, _TIMER: self.delete_timer_known,
+            _ENTRY: self._delete_entry, _TIMER: self._delete_timer_known,
         }
         removal = removals.get(kind)
         if removal is None or not value:
             raise KnownWordNotFoundError(removal_key)
-        removal(value)
+        with self._unit_of_work.write():
+            removal(value)
 
     def _delete_entry(self, known_word_id: str) -> None:
         if not known_word_id.isdecimal():
             raise KnownWordNotFoundError(known_word_id)
-        self.delete(int(known_word_id))
+        self._delete(int(known_word_id))
 
     def delete(self, known_word_id: int) -> None:
         """An entry edit, unless it is the lemma's last: then the word leaves Known as any
         removal does (§2.7), and its cards that read Known turn new in every source."""
+        with self._unit_of_work.write():
+            self._delete(known_word_id)
+
+    def _delete(self, known_word_id: int) -> None:
         entries = self._vocabulary.known_words()
         entry = next((e for e in entries if e.id == known_word_id), None)
         if entry is None or any(
@@ -78,6 +86,10 @@ class ManageKnownWordsUseCase:
         """Decided (c): the word leaves Known as any removal does — its cards that read
         Known turn new in every source, and their notes stay in Anki. Nothing happens to a
         word not Known by its timer."""
+        with self._unit_of_work.write():
+            self._delete_timer_known(lemma)
+
+    def _delete_timer_known(self, lemma: str) -> None:
         before = self._vocabulary.of(lemma)
         if not before.timer_known:
             return
@@ -85,8 +97,9 @@ class ManageKnownWordsUseCase:
 
     def add_bulk(self, lemmas: list[str]) -> None:
         """Add multiple words as known (pos=None, meaning known for any POS)."""
-        for lemma in lemmas:
-            self._vocabulary.mark_known(lemma, None)
+        with self._unit_of_work.write():
+            for lemma in lemmas:
+                self._vocabulary.mark_known(lemma, None)
 
 
 _ENTRY, _TIMER, _SEPARATOR = "entry", "timer", ":"

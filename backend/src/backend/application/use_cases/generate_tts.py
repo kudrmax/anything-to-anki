@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.media_files import MediaFiles
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.tts_generator import TTSGenerator
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.phrase_ref import PhraseRef
 
 
@@ -42,12 +43,14 @@ class GenerateTTSUseCase:
         tts_generator: TTSGenerator,
         settings_repo: SettingsRepository,
         media_files: MediaFiles,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._job_phrases = job_phrases
         self._tts_repo = tts_repo
         self._tts_generator = tts_generator
         self._settings_repo = settings_repo
         self._media_files = media_files
+        self._unit_of_work = unit_of_work
 
     def execute_one(self, phrase: PhraseRef) -> None:
         card = self._job_phrases.card(phrase)
@@ -69,11 +72,12 @@ class GenerateTTSUseCase:
             self._media_files.keep(speech)
         finally:
             self._media_files.discard(speech)
-        self._tts_repo.upsert_for_phrase(card.phrase_id, CandidateTTS(
-            candidate_id=card.word_id,
-            audio_path=speech.final_path,
-            generated_at=datetime.now(tz=UTC),
-        ))
+        with self._unit_of_work.write():
+            self._tts_repo.upsert_for_phrase(card.phrase_id, CandidateTTS(
+                candidate_id=card.word_id,
+                audio_path=speech.final_path,
+                generated_at=datetime.now(tz=UTC),
+            ))
 
         logger.info(
             "generate_tts: done (phrase=%d, voice=%s, speed=%.1f)",

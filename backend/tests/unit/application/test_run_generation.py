@@ -221,6 +221,7 @@ class _Setup:
         self.run = RunGenerationUseCase(
             scope_resolver=resolver, cards=generation_cards,
             job_repo=self.job_repo, candidate_sorter=sorter, targets=targets, lock=self.lock,
+            unit_of_work=MagicMock(),
         )
         self.status = GetGenerationStatusUseCase(
             scope_resolver=resolver, cards=generation_cards,
@@ -626,6 +627,7 @@ def test_cancel_drops_queued_and_running_jobs_of_the_kind() -> None:
     source_repo.get_by_id.return_value = _source()
     cancelled = CancelGenerationUseCase(
         job_repo, SourceScopeResolver(source_repo, MagicMock(), added_order()),
+        MagicMock(),
     ).execute(SCOPE, GenerationKind.TTS)
 
     assert cancelled == 3

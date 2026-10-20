@@ -194,12 +194,6 @@ class _RecordingUnitOfWork(UnitOfWork):
     def __init__(self) -> None:
         self.open = False
 
-    def commit(self) -> None:
-        pass
-
-    def rollback(self) -> None:
-        pass
-
     @contextmanager
     def write(self) -> Iterator[None]:
         self.open = True

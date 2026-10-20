@@ -31,11 +31,20 @@ class RewritePhrase:
 
     def of_phrase(self, occurrence: Occurrence, word: WordFacts, text: str) -> Phrase:
         """The new text of one phrase of `word`; the phrase earns its section anew."""
+        phrase = self.read(word, text)
+        self.store(occurrence, word, phrase)
+        return phrase
+
+    def read(self, word: WordFacts, text: str) -> Phrase:
+        """`text` read as a phrase of `word`, without storing it: the slow part, kept out of
+        a write by callers that rewrite many phrases."""
+        return self._phrase_reader.read_for(text, word.lemma)
+
+    def store(self, occurrence: Occurrence, word: WordFacts, phrase: Phrase) -> None:
+        """Stores `phrase`, read by `read`, as the phrase's new text."""
         assert occurrence.id is not None
-        phrase = self._phrase_reader.read_for(text, word.lemma)
         self._occurrence_repo.write_text(
             occurrence.id, occurrence.source_phrase, occurrence.phrase_position,
             earned_section=self._stamper.earned(phrase, word),
             polished=phrase,
         )
-        return phrase

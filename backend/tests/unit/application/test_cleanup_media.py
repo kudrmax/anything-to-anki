@@ -57,6 +57,7 @@ class TestCleanupMedia:
             media_repo=media_repo,
             image_repo=MagicMock(),
             media_root=str(media_root),
+            unit_of_work=MagicMock(),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.ALL)
 
@@ -88,6 +89,7 @@ class TestCleanupMedia:
             media_repo=media_repo,
             image_repo=MagicMock(),
             media_root=str(media_root),
+            unit_of_work=MagicMock(),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.IMAGES)
 
@@ -118,6 +120,7 @@ class TestCleanupMedia:
             media_repo=media_repo,
             image_repo=MagicMock(),
             media_root=str(media_root),
+            unit_of_work=MagicMock(),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.AUDIO)
 
@@ -143,6 +146,7 @@ class TestCleanupMedia:
             media_repo=media_repo,
             image_repo=MagicMock(),
             media_root=str(media_root),
+            unit_of_work=MagicMock(),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.ALL)
 
@@ -168,6 +172,7 @@ class TestCleanupMedia:
             media_repo=media_repo,
             image_repo=MagicMock(),
             media_root=str(media_root),
+            unit_of_work=MagicMock(),
         )
         uc.execute(source_id=1, kind=CleanupMediaKind.ALL)
 
@@ -188,6 +193,7 @@ class TestCleanupMeaningImages:
             media_repo=MagicMock(),
             image_repo=image_repo,
             media_root=str(media_root),
+            unit_of_work=MagicMock(),
         )
 
     def test_images_removes_the_meaning_image_too(self, tmp_path: Path) -> None:

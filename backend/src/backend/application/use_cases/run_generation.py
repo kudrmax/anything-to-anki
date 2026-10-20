@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from backend.domain.exceptions import DomainError
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.generation_kind import GenerationKind
     from backend.domain.value_objects.generation_scope import GenerationScope
     from backend.domain.value_objects.source_scope import SourceScope
@@ -52,7 +53,9 @@ class RunGenerationUseCase:
         candidate_sorter: CandidateSorter,
         targets: list[GenerationTarget],
         lock: SourceOperationLock,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._scope_resolver = scope_resolver
         self._cards = cards
         self._job_repo = job_repo
@@ -68,6 +71,16 @@ class RunGenerationUseCase:
         sort_order: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
     ) -> int:
         """Returns how many cards were queued."""
+        with self._unit_of_work.write():
+            return self._run(scope, kind, cards, sort_order)
+
+    def _run(
+        self,
+        scope: SourceScope,
+        kind: GenerationKind,
+        cards: GenerationScope,
+        sort_order: CandidateSortOrder,
+    ) -> int:
         sources = self._scope_resolver.reviewable_sources(scope)
         chosen: list[tuple[GenerationTarget, GenerationCard]] = []
         skipped: list[DomainError] = []

@@ -117,6 +117,7 @@ def _meaning_use_case(session: Session, ai_service: MagicMock) -> MeaningGenerat
         meaning_repo=SqlaCandidateMeaningRepository(session),
         ai_service=ai_service,
         prompts_config=CONFIG,
+        unit_of_work=MagicMock(),
     )
 
 
@@ -251,6 +252,7 @@ def _set_boundary(session: Session) -> None:
     SetPhraseBoundaryUseCase(
         SqlaOccurrenceRepository(session), SqlaCandidateRepository(session),
         SqlaDocumentRepository(session), _reader(), free_lock(), _stamper(session),
+        MagicMock(),
     ).execute(PRIMARY, SelectionDTO(
         start_block=0, start_line=0, start_char=0,
         end_block=0, end_line=0, end_char=len(PHRASE_TEXT),
@@ -262,6 +264,7 @@ def _edit(session: Session) -> None:
     EditCardPhraseUseCase(
         occurrences, SqlaCandidateRepository(session),
         RewritePhrase(_reader(), occurrences, _stamper(session)), free_lock(),
+        MagicMock(),
     ).execute(PRIMARY, PHRASE_TEXT)
 
 
@@ -280,6 +283,7 @@ def _revert_polish(session: Session) -> None:
     RevertPhrasePolishUseCase(
         SqlaOccurrenceRepository(session), SqlaCandidateRepository(session),
         MagicMock(), free_lock(), _stamper(session),
+        MagicMock(),
     ).execute(PRIMARY, reverted=True)
 
 
@@ -289,6 +293,7 @@ def _enqueue_polish(session: Session) -> None:
     EnqueuePhrasePolishUseCase(
         RequestedCards(candidates, occurrences, free_lock()), occurrences,
         SqlaSourceRepository(session), SqlaJobRepository(session), _stamper(session),
+        MagicMock(),
     ).execute(PRIMARY)
 
 
@@ -443,6 +448,7 @@ def _run_queued_polish(factory: sessionmaker[Session], ai_service: MagicMock) ->
             prompts_config=POLISH_CONFIG,
             rewrite_phrase=RewritePhrase(_reader(), occurrences, _stamper(session)),
             stamper=_stamper(session),
+            unit_of_work=MagicMock(),
         ).execute_batch([PhraseRef(PRIMARY, polish.phrase_revision)])
         session.commit()
 
@@ -557,4 +563,5 @@ def _tts_use_case(
         tts_generator=generator,
         settings_repo=settings,
         media_files=LocalMediaFiles(str(tmp_path / "media")),
+        unit_of_work=MagicMock(),
     )

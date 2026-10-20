@@ -68,6 +68,7 @@ class TestPronunciationPipeline:
                 pronunciation_source=pron_source,
                 file_downloader=MagicMock(),
                 media_root=str(tmp_path),
+                unit_of_work=MagicMock(),
             )
 
             use_case.execute_one(1)
@@ -106,6 +107,7 @@ class TestPronunciationPipeline:
                 pronunciation_source=pron_source,
                 file_downloader=MagicMock(),
                 media_root=str(tmp_path),
+                unit_of_work=MagicMock(),
             )
 
             use_case.execute_one(1)

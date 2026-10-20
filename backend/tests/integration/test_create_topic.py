@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.create_topic import CreateTopicUseCase
@@ -15,7 +16,8 @@ pytestmark = pytest.mark.integration
 
 
 def test_topic_keeps_its_query(db_session: Session) -> None:
-    topic = CreateTopicUseCase(SqlaSourceRepository(db_session)).execute("job interviews")
+    use_case = CreateTopicUseCase(SqlaSourceRepository(db_session), MagicMock())
+    topic = use_case.execute("job interviews")
 
     assert topic.id is not None
     stored = SqlaSourceRepository(db_session).get_by_id(topic.id)
@@ -27,4 +29,4 @@ def test_topic_keeps_its_query(db_session: Session) -> None:
 
 def test_empty_topic(db_session: Session) -> None:
     with pytest.raises(InvalidSourceInputError):
-        CreateTopicUseCase(SqlaSourceRepository(db_session)).execute("  ")
+        CreateTopicUseCase(SqlaSourceRepository(db_session), MagicMock()).execute("  ")

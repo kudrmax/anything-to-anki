@@ -37,6 +37,8 @@ from backend.domain.value_objects.source_order import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from backend.application.utils.frequent_word_threshold_resolver import (
         FrequentWordThresholdResolver,
     )
@@ -113,7 +115,10 @@ class ManageSettingsUseCase:
         return SettingsDTO(**values)  # type: ignore[arg-type]
 
     def update_settings(self, request: UpdateSettingsRequest) -> SettingsDTO:
-        before = self._rebuild_trigger_values()
+        self._save(lambda: self._write_settings(request))
+        return self.get_settings()
+
+    def _write_settings(self, request: UpdateSettingsRequest) -> None:
         for key in _SETTING_KEYS:
             value = getattr(request, key, None)
             if value is not None:
@@ -126,8 +131,6 @@ class ManageSettingsUseCase:
                 else:
                     str_value = str(value)
                 self._settings_repo.set(key, str_value)
-        self._rebuild_if_changed(before)
-        return self.get_settings()
 
     def frequent_word_threshold_options(self) -> list[FrequentWordThresholdDTO]:
         auto_zipf = self._threshold_resolver.auto_zipf()
@@ -142,19 +145,21 @@ class ManageSettingsUseCase:
 
     # kept for backward-compatibility with existing routes
     def update_cefr_level(self, level: str) -> None:
-        before = self._rebuild_trigger_values()
-        self._settings_repo.set("cefr_level", level)
-        self._rebuild_if_changed(before)
+        self._save(lambda: self._settings_repo.set("cefr_level", level))
+
+    def _save(self, write_settings: Callable[[], None]) -> None:
+        """Writes in one write transaction; sources are rebuilt after it is committed if a
+        setting they depend on changed."""
+        with self._unit_of_work.write():
+            before = self._rebuild_trigger_values()
+            write_settings()
+            changed = self._rebuild_trigger_values() != before
+        if changed:
+            self._rebuild_launcher.rebuild_all()
 
     def _rebuild_trigger_values(self) -> dict[str, str]:
         return {
             key: self._settings_repo.get(key, _SETTING_KEYS[key]) or _SETTING_KEYS[key]
             for key in _REBUILD_TRIGGER_KEYS
         }
-
-    def _rebuild_if_changed(self, before: dict[str, str]) -> None:
-        if self._rebuild_trigger_values() == before:
-            return
-        self._unit_of_work.commit()
-        self._rebuild_launcher.rebuild_all()
 

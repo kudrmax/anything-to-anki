@@ -20,12 +20,16 @@ from backend.domain.exceptions import (
     CollectionNameExistsError,
     CollectionNotFoundError,
 )
-from backend.infrastructure.api.dependencies import get_container, get_db_session
+from backend.infrastructure.api.dependencies import use_case
+from backend.infrastructure.container import Container
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
-    from backend.infrastructure.container import Container
+    from backend.application.use_cases.create_collection import CreateCollectionUseCase
+    from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
+    from backend.application.use_cases.list_collections import ListCollectionsUseCase
+    from backend.application.use_cases.move_collection import MoveCollectionUseCase
+    from backend.application.use_cases.rename_collection import RenameCollectionUseCase
+    from backend.application.use_cases.restore_collection import RestoreCollectionUseCase
 
 logger = logging.getLogger(__name__)
 
@@ -47,23 +51,24 @@ def _http_error(error: Exception) -> HTTPException:
 
 @router.get("")
 def list_collections(
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    collections: ListCollectionsUseCase = Depends(  # noqa: B008
+        use_case(Container.list_collections_use_case),  # noqa: B008
+    ),
 ) -> CollectionTreeDTO:
-    return container.list_collections_use_case(session).execute()
+    return collections.execute()
 
 
 @router.post("", status_code=201)
 def create_collection(
     request: CreateCollectionRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    create: CreateCollectionUseCase = Depends(  # noqa: B008
+        use_case(Container.create_collection_use_case),  # noqa: B008
+    ),
 ) -> CollectionDTO:
     try:
-        result = container.create_collection_use_case(session).execute(
+        result = create.execute(
             request.name, request.parent_id,
         )
-        session.commit()
         return result
     except _HANDLED as e:
         raise _http_error(e) from e
@@ -72,12 +77,12 @@ def create_collection(
 def rename_collection(
     collection_id: int,
     request: RenameCollectionRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    rename: RenameCollectionUseCase = Depends(  # noqa: B008
+        use_case(Container.rename_collection_use_case),  # noqa: B008
+    ),
 ) -> RenamedCollectionDTO:
     try:
-        result = container.rename_collection_use_case(session).execute(collection_id, request.name)
-        session.commit()
+        result = rename.execute(collection_id, request.name)
         return result
     except _HANDLED as e:
         raise _http_error(e) from e
@@ -86,14 +91,14 @@ def rename_collection(
 def move_collection(
     collection_id: int,
     request: MoveCollectionRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    move: MoveCollectionUseCase = Depends(  # noqa: B008
+        use_case(Container.move_collection_use_case),  # noqa: B008
+    ),
 ) -> MovedCollectionDTO:
     try:
-        result = container.move_collection_use_case(session).execute(
+        result = move.execute(
             collection_id, request.parent_id, request.position,
         )
-        session.commit()
         return result
     except _HANDLED as e:
         raise _http_error(e) from e
@@ -101,12 +106,12 @@ def move_collection(
 @router.delete("/{collection_id}")
 def delete_collection(
     collection_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    delete: DeleteCollectionUseCase = Depends(  # noqa: B008
+        use_case(Container.delete_collection_use_case),  # noqa: B008
+    ),
 ) -> DeletedCollectionDTO:
     try:
-        result = container.delete_collection_use_case(session).execute(collection_id)
-        session.commit()
+        result = delete.execute(collection_id)
         return result
     except _HANDLED as e:
         raise _http_error(e) from e
@@ -114,12 +119,12 @@ def delete_collection(
 @router.post("/{collection_id}/restore")
 def restore_collection(
     collection_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    restore: RestoreCollectionUseCase = Depends(  # noqa: B008
+        use_case(Container.restore_collection_use_case),  # noqa: B008
+    ),
 ) -> CollectionDTO:
     try:
-        result = container.restore_collection_use_case(session).execute(collection_id)
-        session.commit()
+        result = restore.execute(collection_id)
         return result
     except _HANDLED as e:
         raise _http_error(e) from e

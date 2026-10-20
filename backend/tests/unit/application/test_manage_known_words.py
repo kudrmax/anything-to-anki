@@ -26,6 +26,7 @@ class TestManageKnownWordsUseCase:
         self.vocabulary = user_vocabulary(self.known_word_repo, **vocabulary)  # type: ignore[arg-type]
         return ManageKnownWordsUseCase(
             vocabulary=self.vocabulary, effects=self.effects,
+            unit_of_work=MagicMock(),
         )
 
     def test_list_all(self) -> None:
@@ -114,6 +115,7 @@ class TestManageKnownWordsUseCase:
         use_case = ManageKnownWordsUseCase(
             vocabulary=UserVocabulary(self.known_word_repo, unknown_word_repo, MagicMock()),
             effects=self.effects,
+            unit_of_work=MagicMock(),
         )
         use_case.add_bulk(["nuance"])
         unknown_word_repo.remove_by_lemma.assert_called_once_with("nuance")
