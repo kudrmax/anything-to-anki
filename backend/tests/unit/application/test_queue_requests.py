@@ -186,23 +186,27 @@ class TestEnqueuePhraseTTS:
 
 @pytest.mark.unit
 class TestEnqueuePhraseMeaning:
-    def test_queues_the_meaning_of_the_phrase(self) -> None:
-        job_repo = MagicMock()
+    def test_queues_a_new_meaning_in_place_of_the_old_one(self) -> None:
+        meaning_repo, job_repo = MagicMock(), MagicMock()
 
-        EnqueuePhraseMeaningUseCase(_requested(_shown_phrase()), job_repo).execute(7)
+        EnqueuePhraseMeaningUseCase(_requested(_shown_phrase()), meaning_repo, job_repo).execute(7)
 
+        meaning_repo.delete_by_phrase_id.assert_called_once_with(7)
         [job] = job_repo.enqueue.call_args.args[0]
         assert (job.job_type, job.candidate_id, job.phrase_id, job.phrase_revision) == (
             JobType.MEANING, 3, 7, 2,
         )
         assert job.follow_up is None
 
-    def test_queues_a_follow_up_with_its_question(self) -> None:
-        job_repo = MagicMock()
+    def test_queues_a_follow_up_with_its_question_keeping_the_meaning(self) -> None:
+        meaning_repo, job_repo = MagicMock(), MagicMock()
         follow_up = MeaningFollowUp("free_question", "Is it formal?")
 
-        EnqueuePhraseMeaningUseCase(_requested(_shown_phrase()), job_repo).execute(7, follow_up)
+        EnqueuePhraseMeaningUseCase(_requested(_shown_phrase()), meaning_repo, job_repo).execute(
+            7, follow_up,
+        )
 
+        meaning_repo.delete_by_phrase_id.assert_not_called()
         [job] = job_repo.enqueue.call_args.args[0]
         assert (job.job_type, job.follow_up) == (JobType.MEANING_FOLLOW_UP, follow_up)
 
@@ -212,12 +216,12 @@ class TestEnqueuePhraseMeaning:
     def test_a_follow_up_no_ai_call_can_answer_is_refused(
         self, follow_up: MeaningFollowUp,
     ) -> None:
-        job_repo = MagicMock()
+        meaning_repo, job_repo = MagicMock(), MagicMock()
+        use_case = EnqueuePhraseMeaningUseCase(_requested(_shown_phrase()), meaning_repo, job_repo)
 
         with pytest.raises(ValueError):
-            EnqueuePhraseMeaningUseCase(_requested(_shown_phrase()), job_repo).execute(
-                7, follow_up,
-            )
+            use_case.execute(7, follow_up)
+        meaning_repo.delete_by_phrase_id.assert_not_called()
         job_repo.enqueue.assert_not_called()
 
     def test_busy_source(self) -> None:
@@ -225,7 +229,7 @@ class TestEnqueuePhraseMeaning:
         cards = _requested(_shown_phrase(), busy_with=SourceOperationKind.UPDATE)
 
         with pytest.raises(SourceOperationBusyError):
-            EnqueuePhraseMeaningUseCase(cards, job_repo).execute(7)
+            EnqueuePhraseMeaningUseCase(cards, MagicMock(), job_repo).execute(7)
         job_repo.enqueue.assert_not_called()
 
 

@@ -1325,7 +1325,9 @@ class Container:
             EnqueuePhraseMeaningUseCase,
         )
         return EnqueuePhraseMeaningUseCase(
-            cards=self._requested_cards(session), job_repo=SqlaJobRepository(session),
+            cards=self._requested_cards(session),
+            meaning_repo=SqlaCandidateMeaningRepository(session),
+            job_repo=SqlaJobRepository(session),
         )
 
     def enqueue_phrase_tts_use_case(self, session: Session) -> EnqueuePhraseTTSUseCase:
