@@ -12,6 +12,7 @@ from backend.application.dto.add_source_dtos import (
     CreateTopicRequest,
     DescribeInputRequest,
     InputDescriptionDTO,
+    NamingRequired,
     QuestionsRequired,
     SourcesCreated,
 )
@@ -74,13 +75,13 @@ def add_source(
     response: Response,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> QuestionsRequired | SourcesCreated:
+) -> QuestionsRequired | NamingRequired | SourcesCreated:
     """Pasted text, a file path or a link. Questions come back until every one is answered."""
     try:
         result = container.add_source_use_case(session).execute(
-            typed_input(request.text, request.subtitles_path),
+            [typed_input(request.text, request.subtitles_path)],
             request.title,
-            Answers(request.answers),
+            [Answers(request.answers)],
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -97,7 +98,7 @@ def add_source(
         UnsupportedUrlError,
     ) as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    if isinstance(result, QuestionsRequired):
+    if isinstance(result, QuestionsRequired | NamingRequired):
         response.status_code = 200
         return result
     session.commit()

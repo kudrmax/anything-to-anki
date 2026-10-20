@@ -404,7 +404,7 @@ class TestBookFileSourceAPI:
         assert question["options"][0]["details"] is None
         assert client.get("/sources").json() == []
 
-    def test_split_book_becomes_a_collection_of_chapters(
+    def test_split_book_asks_how_to_name_chapters(
         self, client: TestClient, tmp_path: Path,
     ) -> None:
         resp = client.post(
@@ -412,12 +412,10 @@ class TestBookFileSourceAPI:
             json={"text": str(self._book(tmp_path)), "answers": {"book.split": "split"}},
         )
 
-        assert resp.status_code == 201
-        assert len(resp.json()["source_ids"]) == 2
-        sources = client.get("/sources").json()
-        assert [s["title"] for s in sources] == ["Dune ch1", "Dune ch2"]
-        assert {tuple(s["collection_path"]) for s in sources} == {("Dune",)}
-        assert {s["kind"] for s in sources} == {"book"}
+        assert resp.status_code == 200
+        assert resp.json()["heading"] == "Add «Dune»"
+        assert resp.json()["default_collection"] == {"existing_id": None, "new_name": "Dune"}
+        assert client.get("/sources").json() == []
 
     def test_path_copied_from_a_shell_is_accepted(
         self, client: TestClient, tmp_path: Path,

@@ -54,6 +54,14 @@ class SourceGroupWriter:
             return CollectionChoice(existing_id=existing.id)
         return CollectionChoice(new_name=name.strip())
 
+    def name_of(self, choice: CollectionChoice) -> str | None:
+        if choice.new_name is not None:
+            return choice.new_name.strip()
+        if choice.existing_id is None:
+            return None
+        collection = self._collection_repo.get_by_id(choice.existing_id)
+        return collection.name if collection else None
+
     def _collection_id(self, choice: CollectionChoice) -> int | None:
         if choice.new_name is not None:
             choice = self.resolve(choice.new_name)

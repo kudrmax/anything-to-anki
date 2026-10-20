@@ -122,3 +122,17 @@ class TestResolve:
     def test_unknown_name_resolves_to_new(self) -> None:
         group, _, _ = _setup()
         assert group.resolve("Dune") == CollectionChoice(new_name="Dune")
+
+
+class TestNameOf:
+    def test_existing_collection_is_named_by_its_name(self) -> None:
+        group, _, _ = _setup(Collection(id=4, name="Dune"))
+        assert group.name_of(CollectionChoice(existing_id=4)) == "Dune"
+
+    def test_new_collection_is_named_by_the_typed_name(self) -> None:
+        group, _, _ = _setup()
+        assert group.name_of(CollectionChoice(new_name=" Dune ")) == "Dune"
+
+    def test_no_collection_has_no_name(self) -> None:
+        group, _, _ = _setup()
+        assert group.name_of(CollectionChoice()) is None

@@ -45,18 +45,26 @@ class QuestionOptionDTO(BaseModel):
 
 
 class QuestionDTO(BaseModel):
+    """A question about one input; the label names it when several are added at once."""
+
     id: str
     prompt: str
     options: list[QuestionOptionDTO]
     default: str
+    input_index: int = 0
+    input_label: str | None = None
 
     @staticmethod
-    def from_question(question: Question) -> QuestionDTO:
+    def from_question(
+        question: Question, input_index: int = 0, input_label: str | None = None,
+    ) -> QuestionDTO:
         return QuestionDTO(
             id=question.id,
             prompt=question.prompt,
             options=[QuestionOptionDTO.from_option(option) for option in question.options],
             default=question.default,
+            input_index=input_index,
+            input_label=input_label,
         )
 
 
@@ -66,8 +74,38 @@ class QuestionsRequired(BaseModel):
     questions: list[QuestionDTO]
 
 
+class CollectionChoiceDTO(BaseModel):
+    """An existing collection, a new one by name; neither — no collection."""
+
+    existing_id: int | None = None
+    new_name: str | None = None
+
+
+class NamingItemDTO(BaseModel):
+    """A source about to be made: where it comes from and what it is called when added alone."""
+
+    label: str
+    own_title: str
+    words: int
+
+
+class NamingVariableDTO(BaseModel):
+    token: str
+    label: str
+
+
+class NamingRequired(BaseModel):
+    """The input becomes several sources; the user picks their collection and titles."""
+
+    heading: str
+    items: list[NamingItemDTO]
+    default_collection: CollectionChoiceDTO | None
+    default_rule: str
+    variables: list[NamingVariableDTO]
+
+
 class SourcesCreated(BaseModel):
-    """Sources made from one input; a split book's chapters are gathered in a collection."""
+    """Sources made from one add; several are gathered in the chosen collection."""
 
     source_ids: list[int]
     collection_id: int | None = None
