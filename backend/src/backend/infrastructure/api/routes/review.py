@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from backend.application.dto.document_dtos import SourceDocumentDTO  # noqa: TC001
 from backend.application.dto.source_dtos import CardDTO, ReviewDTO  # noqa: TC001
 from backend.domain.exceptions import (
     CollectionNotFoundError,
@@ -62,3 +63,14 @@ def get_review_candidates(
 ) -> list[CardDTO]:
     with _scope_errors():
         return container.get_candidates_use_case(session).execute(review_scope(scope), sort)
+
+
+@router.get("/documents")
+def get_review_documents(
+    scope: str = "all",
+    session: Session = Depends(get_db_session),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
+) -> list[SourceDocumentDTO]:
+    """The texts of the set's sources in the set's order, with the targets to mark."""
+    with _scope_errors():
+        return container.get_review_documents_use_case(session).execute(review_scope(scope))

@@ -26,7 +26,6 @@ from backend.application.dto.collection_dtos import (  # noqa: TC001
     SourceIdsRequest,
     StartedSourcesDTO,
 )
-from backend.application.dto.document_dtos import SourceDocumentDTO  # noqa: TC001
 from backend.application.dto.rebuild_dtos import (  # noqa: TC001
     RebuildRequest,
     SourceOperationDTO,
@@ -379,19 +378,6 @@ def add_manual_candidate(
         raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidPhraseError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@router.get("/{source_id}/document")
-def get_source_document(
-    source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> SourceDocumentDTO:
-    """The text of the source as its screen shows it, with the targets to mark."""
-    try:
-        return container.get_source_document_use_case(session).execute(source_id)
-    except SourceHasNoDocumentError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/{source_id}/rebuild/preview", status_code=202)

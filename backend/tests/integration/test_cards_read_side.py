@@ -348,7 +348,10 @@ class TestPhraseLevelRoutes:
 
 class TestDocument:
     def test_marks_are_the_shown_phrases(self, client: TestClient, bench: Bench) -> None:
-        highlights = client.get(f"/sources/{SOURCE}/document").json()["highlights"]
+        [document] = client.get(
+            "/review/documents", params={"scope": f"source-{SOURCE}"},
+        ).json()
+        highlights = document["highlights"]
         assert sorted(h["phrase_id"] for h in highlights) == sorted(
             [GLARE_PHRASE, bench.second_glare, SPARK_PHRASE],
         )

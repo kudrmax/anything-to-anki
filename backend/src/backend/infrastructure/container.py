@@ -34,7 +34,7 @@ from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
 from backend.application.use_cases.get_review import GetReviewUseCase
-from backend.application.use_cases.get_source_document import GetSourceDocumentUseCase
+from backend.application.use_cases.get_review_documents import GetReviewDocumentsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.list_collections import ListCollectionsUseCase
@@ -422,8 +422,9 @@ class Container:
             stamper=self._section_stamper(session),
         )
 
-    def get_source_document_use_case(self, session: Session) -> GetSourceDocumentUseCase:
-        return GetSourceDocumentUseCase(
+    def get_review_documents_use_case(self, session: Session) -> GetReviewDocumentsUseCase:
+        return GetReviewDocumentsUseCase(
+            scope_resolver=self._scope_resolver(session),
             document_repo=SqlaDocumentRepository(session),
             card_query=SqlaCardQuery(session),
         )

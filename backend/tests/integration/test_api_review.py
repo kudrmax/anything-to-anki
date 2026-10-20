@@ -84,8 +84,15 @@ def test_review_scope_errors(client: TestClient) -> None:
     assert client.get("/review", params={"scope": "source-99"}).status_code == 404
     assert client.get("/review", params={"scope": "99"}).status_code == 404
     assert client.get("/review/candidates", params={"scope": "unsorted"}).status_code == 400
+    assert client.get("/review/documents", params={"scope": "unsorted"}).status_code == 400
+    assert client.get("/review/documents", params={"scope": "source-99"}).status_code == 404
 
 
 def test_old_source_detail_is_gone(client: TestClient) -> None:
     assert client.get(f"/sources/{PILOT}").status_code == 405
     assert client.get(f"/sources/{PILOT}/candidates").status_code == 404
+    assert client.get(f"/sources/{PILOT}/document").status_code == 404
+
+
+def test_sources_without_a_document_have_no_text(client: TestClient) -> None:
+    assert client.get("/review/documents", params={"scope": _show(client)}).json() == []

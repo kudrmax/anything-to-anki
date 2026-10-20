@@ -151,8 +151,12 @@ class TestSourcesAPI:
 
     def test_source_document_with_marks(self, client: TestClient) -> None:
         source_id = client.post("/sources/add", json=TEXT_REQUEST).json()["source_ids"][0]
-        document = client.get(f"/sources/{source_id}/document").json()
+        [document] = client.get(
+            "/review/documents", params={"scope": f"source-{source_id}"},
+        ).json()
         assert document == {
+            "source_id": source_id,
+            "title": "Hello world",
             "blocks": [{
                 "type": "paragraph", "lines": [{"text": "Hello world"}], "mode": "flow",
                 "level": None, "ordered": None, "depth": None,
@@ -418,7 +422,10 @@ class TestCreateFileSource:
         assert resp.status_code == 201
         source = client.get("/sources").json()[0]
         assert (source["kind"], source["title"]) == ("text", "digest")
-        blocks = client.get(f"/sources/{source['id']}/document").json()["blocks"]
+        [document] = client.get(
+            "/review/documents", params={"scope": f"source-{source['id']}"},
+        ).json()
+        blocks = document["blocks"]
         assert [(b["type"], b["lines"][0]["text"]) for b in blocks] == [
             ("heading", "Preface"), ("paragraph", "In short: a cautious scientist."),
         ]
@@ -461,6 +468,10 @@ class TestSavedPhrasesAPI:
         detail = client.get("/review", params={"scope": f"source-{saved_source['id']}"}).json()
         [card] = detail["candidates"]
         assert card["source"]["can_polish_phrases"] is False
+        documents = client.get(
+            "/review/documents", params={"scope": f"source-{saved_source['id']}"},
+        ).json()
+        assert documents == []
 
     def test_second_phrase_reuses_the_same_source(self, client: TestClient) -> None:
         for text in ("It was a daunting task.", "Keep it concise."):
