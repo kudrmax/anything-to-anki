@@ -8,7 +8,10 @@ Revises: 0054
 - Two or more decision cards (learn/cloze/known) of one lower-case lemma across sources:
   the card with an active binding wins, else the one whose word was studied later, else
   the lower phrase id. Every other one becomes `none`; its word's stored status follows
-  (`pending`), and its studied_at goes when no card of the word is marked any more.
+  (`pending`), its studied_at goes when no card of the word is marked any more, and its
+  active binding is released (an active binding belongs to the decision card only, A1/A2).
+  The lemma's mark follows the winner: a Learn or Cloze winner takes a Known mark off (else
+  it would read Known by the list, Q15); a Known winner keeps or gets the Known mark (AK).
 - An Unknown mark beside a Learn or Cloze decision or an active binding of the lemma (its
   timer running or due): "учу" wins, the mark goes.
 
@@ -39,6 +42,7 @@ NEW_TABLE = "anki_synced_cards_0055"
 NO_CHOICE = "none"
 NEW_STATUS = "pending"
 UNKNOWN = "unknown"
+KNOWN = "known"
 BY_BINDING = "binding"
 BY_STUDIED_AT = "studied_at"
 BY_ID = "id"
@@ -51,6 +55,7 @@ COLUMNS = (
 class _Decision(NamedTuple):
     phrase_id: int
     word_id: int
+    pos: str | None
     choice: str
     studied_at: str | None
     bound: bool
@@ -59,7 +64,7 @@ class _Decision(NamedTuple):
 def upgrade() -> None:
     bind = op.get_bind()
     log: list[str] = []
-    _one_decision_per_lemma(bind, log)
+    _one_decision_per_lemma(bind, log, _now())
     _learn_beats_unknown(bind, log)
     log.append(_summary(bind, log))
     _choice_only_on_orphans()
@@ -71,28 +76,37 @@ def downgrade() -> None:
     raise NotImplementedError(msg)
 
 
-def _one_decision_per_lemma(bind: Connection, log: list[str]) -> None:
+def _now() -> str:
+    return datetime.now(tz=UTC).replace(tzinfo=None).isoformat(sep=" ")
+
+
+def _one_decision_per_lemma(bind: Connection, log: list[str], now: str) -> None:
     by_lemma: dict[str, list[_Decision]] = defaultdict(list)
-    for lemma, phrase_id, word_id, choice, studied_at, bound in bind.execute(sa.text(
-        "SELECT lower(c.lemma), p.id, c.id, p.choice, c.studied_at,"
+    for lemma, phrase_id, word_id, pos, choice, studied_at, bound in bind.execute(sa.text(
+        "SELECT lower(c.lemma), p.id, c.id, c.pos, p.choice, c.studied_at,"
         f" EXISTS (SELECT 1 FROM {TABLE} a"
         "  WHERE a.phrase_id = p.id AND a.released_at IS NULL)"
         " FROM phrases p JOIN candidates c ON c.id = p.candidate_id"
         " WHERE p.choice IN ('learn', 'cloze', 'known')"
     )):
         studied = None if studied_at is None else str(studied_at)
-        by_lemma[str(lemma)].append(_Decision(phrase_id, word_id, choice, studied, bool(bound)))
+        by_lemma[str(lemma)].append(
+            _Decision(phrase_id, word_id, pos, choice, studied, bool(bound)),
+        )
     for lemma, decisions in sorted(by_lemma.items()):
         if len(decisions) < 2:  # noqa: PLR2004 — one decision is no conflict
             continue
         winner, *losers = _ranked(decisions)
         for loser in losers:
             _drop(bind, loser)
-            bound = " dropped_bound=yes" if loser.bound else ""
+            released = "".join(
+                f" released_binding={binding_id}" for binding_id in _release(bind, loser, now)
+            )
             log.append(
                 f"decision-conflict lemma={lemma} kept={winner.phrase_id}({winner.choice})"
-                f" dropped={loser.phrase_id}({loser.choice}) by={_why(winner, loser)}{bound}",
+                f" dropped={loser.phrase_id}({loser.choice}) by={_why(winner, loser)}{released}",
             )
+        _mark_follows(bind, lemma, winner, now, log)
 
 
 def _ranked(decisions: list[_Decision]) -> list[_Decision]:
@@ -129,6 +143,52 @@ def _drop(bind: Connection, loser: _Decision) -> None:
     )
 
 
+def _release(bind: Connection, loser: _Decision, now: str) -> list[int]:
+    active = f"FROM {TABLE} WHERE phrase_id = :p AND released_at IS NULL"
+    ids = [int(i) for (i,) in bind.execute(
+        sa.text(f"SELECT id {active} ORDER BY id"), {"p": loser.phrase_id},  # noqa: S608
+    )]
+    if ids:
+        bind.execute(
+            sa.text(f"UPDATE {TABLE} SET released_at = :now"  # noqa: S608
+                    " WHERE phrase_id = :p AND released_at IS NULL"),
+            {"now": now, "p": loser.phrase_id},
+        )
+    return ids
+
+
+def _mark_follows(
+    bind: Connection, lemma: str, winner: _Decision, now: str, log: list[str],
+) -> None:
+    mark = bind.execute(
+        sa.text("SELECT mark FROM word_marks WHERE lemma = :l"), {"l": lemma},
+    ).scalar_one_or_none()
+    kept = f"{winner.phrase_id}({winner.choice})"
+    if winner.choice != KNOWN:
+        if mark == KNOWN:
+            bind.execute(sa.text("DELETE FROM known_pos WHERE lemma = :l"), {"l": lemma})
+            bind.execute(sa.text("DELETE FROM word_marks WHERE lemma = :l"), {"l": lemma})
+            log.append(f"known-removed lemma={lemma} kept={kept}")
+        return
+    if mark == KNOWN:
+        return
+    if mark is None:
+        bind.execute(
+            sa.text("INSERT INTO word_marks (lemma, mark, created_at) VALUES (:l, :k, :now)"),
+            {"l": lemma, "k": KNOWN, "now": now},
+        )
+    else:
+        bind.execute(
+            sa.text("UPDATE word_marks SET mark = :k, created_at = :now WHERE lemma = :l"),
+            {"l": lemma, "k": KNOWN, "now": now},
+        )
+    bind.execute(
+        sa.text("INSERT INTO known_pos (lemma, pos) VALUES (:l, :p)"),
+        {"l": lemma, "p": winner.pos},
+    )
+    log.append(f"known-added lemma={lemma} kept={kept} was={mark or 'none'}")
+
+
 def _learn_beats_unknown(bind: Connection, log: list[str]) -> None:
     rows = bind.execute(sa.text(
         "SELECT m.lemma,"
@@ -151,10 +211,14 @@ def _summary(bind: Connection, log: list[str]) -> str:
         f"SELECT count(phrase_id), count(*) - count(phrase_id) FROM {TABLE}"  # noqa: S608
     )).one()
     conflicts = sum(line.startswith("decision-conflict") for line in log)
+    released = sum(line.count(" released_binding=") for line in log)
+    known_removed = sum(line.startswith("known-removed") for line in log)
+    known_added = sum(line.startswith("known-added") for line in log)
     unknown = sum(line.startswith("unknown-removed") for line in log)
     return (
-        f"summary decision-conflicts={conflicts} unknown-removed={unknown}"
-        f" choice-cleared={live} orphans-kept={orphans}"
+        f"summary decision-conflicts={conflicts} bindings-released={released}"
+        f" known-removed={known_removed} known-added={known_added}"
+        f" unknown-removed={unknown} choice-cleared={live} orphans-kept={orphans}"
     )
 
 

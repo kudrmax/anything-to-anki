@@ -32,8 +32,11 @@ LIVE_WORD = 1                   # glare: Learn in Anki, plus an old released bin
 BOUND_LOSER, BOUND_WINNER = 10, 11      # bask: the bound Known wins over a later Learn
 EARLY_WORD, LATE_WORD = 20, 21          # cower: studied later wins
 LOW_WORD, HIGH_WORD = 30, 31            # Dwell/dwell: same studied_at, the lower id wins
+LURK_LOSER, LURK_WINNER = 50, 51        # lurk: both bound, Unknown-marked; Known wins
 UNKNOWN_LEARN = 40                      # fret: Unknown beside a Learn
 LIVE_NOTE, RELEASED_NOTE, BOUND_NOTE, ORPHAN_NOTE, UNKNOWN_ORPHAN_NOTE = 1, 2, 3, 4, 5
+LURK_LOSER_NOTE, LURK_WINNER_NOTE = 6, 7
+LURK_LOSER_BINDING = 5                  # the row id: the fifth binding inserted
 
 
 def _alembic_config(db_url: str) -> Config:
@@ -70,6 +73,13 @@ def _binding(
     })
 
 
+def _known(conn: Connection, lemma: str) -> None:
+    conn.execute(text(
+        "INSERT INTO word_marks (lemma, mark, created_at) VALUES (:l, 'known', :at)"
+    ), {"l": lemma, "at": MARKED_AT})
+    conn.execute(text("INSERT INTO known_pos (lemma, pos) VALUES (:l, 'VERB')"), {"l": lemma})
+
+
 def _unknown(conn: Connection, lemma: str) -> None:
     conn.execute(text(
         "INSERT INTO word_marks (lemma, mark, created_at) VALUES (:l, 'unknown', :at)"
@@ -92,12 +102,20 @@ def migrated(tmp_path: Path) -> Engine:
         _word(conn, BOUND_LOSER, "bask", "learn", studied_at=LATE)
         _word(conn, BOUND_WINNER, "bask", "known", source_id=THERE, studied_at=EARLY)
         _binding(conn, BOUND_NOTE, "bask", "known", word_id=BOUND_WINNER)
+        _known(conn, "bask")
 
         _word(conn, EARLY_WORD, "cower", "learn", studied_at=EARLY)
         _word(conn, LATE_WORD, "cower", "known", source_id=THERE, studied_at=LATE)
 
         _word(conn, HIGH_WORD, "dwell", "cloze", source_id=THERE, studied_at=EARLY)
         _word(conn, LOW_WORD, "Dwell", "learn", studied_at=EARLY)
+        _known(conn, "dwell")
+
+        _word(conn, LURK_LOSER, "lurk", "learn", studied_at=EARLY)
+        _word(conn, LURK_WINNER, "lurk", "known", source_id=THERE, studied_at=LATE)
+        _binding(conn, LURK_LOSER_NOTE, "lurk", "learn", word_id=LURK_LOSER)
+        _binding(conn, LURK_WINNER_NOTE, "lurk", "known", word_id=LURK_WINNER)
+        _unknown(conn, "lurk")
 
         _word(conn, UNKNOWN_LEARN, "fret", "learn")
         _unknown(conn, "fret")
@@ -117,7 +135,18 @@ def test_only_orphans_keep_their_card_choice(migrated: Engine) -> None:
     assert _rows(migrated, "SELECT anki_note_id, card_choice FROM anki_synced_cards") == {
         LIVE_NOTE: (None,), RELEASED_NOTE: (None,), BOUND_NOTE: (None,),
         ORPHAN_NOTE: ("known",), UNKNOWN_ORPHAN_NOTE: ("learn",),
+        LURK_LOSER_NOTE: (None,), LURK_WINNER_NOTE: (None,),
     }
+
+
+def test_the_losing_cards_binding_is_released_the_winners_stays(migrated: Engine) -> None:
+    released = _rows(
+        migrated,
+        "SELECT anki_note_id, released_at IS NOT NULL FROM anki_synced_cards"
+        " WHERE lemma = 'lurk'",
+    )
+
+    assert released == {LURK_LOSER_NOTE: (1,), LURK_WINNER_NOTE: (0,)}
 
 
 def test_the_table_keeps_its_indexes_and_takes_bindings_without_a_choice(
@@ -158,14 +187,20 @@ def test_one_decision_per_lemma_stays(migrated: Engine) -> None:
     assert words[EARLY_WORD] == ("none", "pending", None)
     assert words[LOW_WORD] == ("learn", "learn", EARLY)
     assert words[HIGH_WORD] == ("none", "pending", None)
+    assert words[LURK_WINNER] == ("known", "known", LATE)
+    assert words[LURK_LOSER] == ("none", "pending", None)
     assert words[LIVE_WORD][0] == "learn"
 
 
-def test_learn_and_an_active_binding_take_the_unknown_mark_off(migrated: Engine) -> None:
+def test_the_marks_follow_the_winning_decision_and_learn(migrated: Engine) -> None:
+    """A Learn winner loses Known (Q15), a Known winner keeps or gets it (AK), and Learn or
+    an active binding takes Unknown off."""
     with migrated.connect() as conn:
-        marks = {str(lemma) for (lemma,) in conn.execute(text("SELECT lemma FROM word_marks"))}
+        marks = dict(conn.execute(text("SELECT lemma, mark FROM word_marks")).tuples().all())
+        pos = set(conn.execute(text("SELECT lemma, pos FROM known_pos")).tuples().all())
 
-    assert marks == {"hush"}
+    assert marks == {"hush": "unknown", "bask": "known", "cower": "known", "lurk": "known"}
+    assert pos == {("bask", "VERB"), ("cower", "NOUN"), ("lurk", "NOUN")}
 
 
 def test_every_change_is_logged(migrated: Engine, tmp_path: Path) -> None:
@@ -179,8 +214,15 @@ def test_every_change_is_logged(migrated: Engine, tmp_path: Path) -> None:
         f" dropped={phrase_id_of(BOUND_LOSER)}(learn) by=binding",
         f"decision-conflict lemma=cower kept={phrase_id_of(LATE_WORD)}(known)"
         f" dropped={phrase_id_of(EARLY_WORD)}(learn) by=studied_at",
+        f"known-added lemma=cower kept={phrase_id_of(LATE_WORD)}(known) was=none",
         f"decision-conflict lemma=dwell kept={low}(learn) dropped={high}(cloze) by=id",
+        f"known-removed lemma=dwell kept={low}(learn)",
+        f"decision-conflict lemma=lurk kept={phrase_id_of(LURK_WINNER)}(known)"
+        f" dropped={phrase_id_of(LURK_LOSER)}(learn) by=studied_at"
+        f" released_binding={LURK_LOSER_BINDING}",
+        f"known-added lemma=lurk kept={phrase_id_of(LURK_WINNER)}(known) was=unknown",
         "unknown-removed lemma=fret by=learn",
         "unknown-removed lemma=gaze by=binding",
-        "summary decision-conflicts=3 unknown-removed=2 choice-cleared=3 orphans-kept=2",
+        "summary decision-conflicts=4 bindings-released=1 known-removed=1 known-added=2"
+        " unknown-removed=2 choice-cleared=5 orphans-kept=2",
     ]
