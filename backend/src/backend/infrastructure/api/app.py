@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 import traceback
 from collections.abc import AsyncGenerator  # noqa: TC003
 from contextlib import asynccontextmanager
@@ -15,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from backend.infrastructure.api.client_build import StaleClientMiddleware
-from backend.infrastructure.api.dependencies import get_session_factory
+from backend.infrastructure.api.dependencies import get_container, get_session_factory
 from backend.infrastructure.api.routes import (
     anki,
     bootstrap,
@@ -63,7 +64,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
     media_root = os.environ.get("MEDIA_ROOT", os.path.join(data_dir, "media"))
     reconcile_media_files(session_factory, media_root)
+    _rebuild_card_states()
     yield
+
+
+def _rebuild_card_states() -> None:
+    """The stored card state is computed anew before the first request: the rules or the
+    tables may have changed since the last run."""
+    started = time.perf_counter()
+    get_container().rebuild_card_states()
+    _log.info("Card states rebuilt", seconds=round(time.perf_counter() - started, 2))
 
 
 app = FastAPI(title="AnythingToAnki API", version="0.2.0", lifespan=lifespan)

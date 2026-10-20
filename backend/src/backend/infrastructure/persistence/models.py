@@ -14,6 +14,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
     or_,
     text,
 )
@@ -70,7 +71,7 @@ from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.utc_datetime import UTCDateTime
 
 if TYPE_CHECKING:
-    from sqlalchemy import ColumnElement
+    from sqlalchemy import ColumnElement, Connection, Table
 
     from backend.domain.entities.job import Job
 
@@ -1221,3 +1222,101 @@ class AIUsageModel(Base):
             duration_ms=self.duration_ms,
             succeeded=self.succeeded,
         )
+
+
+# The projection's one revision counter row (migration 0056 seeds it the same way).
+PROJECTION_META_ID = 1
+FIRST_PROJECTION_REVISION = 0
+
+
+class CardStateModel(Base):
+    """A shown card as the review reads it, derived by the projector; a removed card stays
+    as a tombstone."""
+
+    __tablename__ = "card_states"
+
+    phrase_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    source_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    word_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    lemma: Mapped[str] = mapped_column(Text, nullable=False)
+    is_done: Mapped[bool] = mapped_column(nullable=False)
+    wants_generation: Mapped[bool] = mapped_column(nullable=False)
+    sections: Mapped[str] = mapped_column(Text, nullable=False)
+    new_counts: Mapped[str] = mapped_column(Text, nullable=False)
+    changes_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    removed: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="0")
+
+    __table_args__ = (
+        Index("ix_card_states_source_removed_done", "source_id", "removed", "is_done"),
+        Index("ix_card_states_source_revision", "source_id", "revision"),
+        Index("ix_card_states_lemma", "lemma"),
+        Index("ix_card_states_word_id", "word_id"),
+        Index(
+            "ix_card_states_changes_at", "changes_at",
+            sqlite_where=text("changes_at IS NOT NULL"),
+        ),
+    )
+
+
+class WordStateModel(Base):
+    """A word of a source with its decision status, derived by the projector."""
+
+    __tablename__ = "word_states"
+
+    word_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    source_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    lemma: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+
+    __table_args__ = (
+        Index("ix_word_states_source_id", "source_id"),
+        Index("ix_word_states_lemma", "lemma"),
+    )
+
+
+class PhraseWordModel(Base):
+    """A word of a shown phrase besides its target, with its newness, derived by the
+    projector."""
+
+    __tablename__ = "phrase_words"
+
+    lemma: Mapped[str] = mapped_column(Text, nullable=False)
+    phrase_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    position: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    zipf: Mapped[float] = mapped_column(Float, nullable=False)
+    content: Mapped[bool] = mapped_column(nullable=False)
+    level: Mapped[str] = mapped_column(Text, nullable=False)
+    newness: Mapped[str] = mapped_column(Text, nullable=False)
+
+    __table_args__ = (
+        Index("ix_phrase_words_lemma", "lemma"),
+        {"sqlite_with_rowid": False},
+    )
+
+
+class ProjectionMetaModel(Base):
+    """The projection's revision counter: one row."""
+
+    __tablename__ = "projection_meta"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(f"id = {PROJECTION_META_ID}", name="ck_projection_meta_one_row"),
+    )
+
+
+def _seed_projection_meta(target: Table, connection: Connection, **_kw: object) -> None:
+    """A table made from the models, not by the migrations, gets the row 0056 seeds."""
+    connection.execute(
+        target.insert().values(id=PROJECTION_META_ID, revision=FIRST_PROJECTION_REVISION),
+    )
+
+
+event.listen(
+    ProjectionMetaModel.metadata.tables[ProjectionMetaModel.__tablename__],
+    "after_create",
+    _seed_projection_meta,
+)

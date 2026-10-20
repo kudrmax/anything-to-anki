@@ -622,7 +622,11 @@ def test_new_tables_exist(db_url: str) -> None:
     names = set(inspect(create_engine(db_url)).get_table_names())
     assert {"phrases", "document_parses", "source_operations"} <= names
     assert "_card_phrase" not in names
-    assert "phrase_words" not in names
+    # 0049's write-only phrase_words is gone; the name is the card state projection's (0056).
+    phrase_word_columns = {
+        c["name"] for c in inspect(create_engine(db_url)).get_columns("phrase_words")
+    }
+    assert "newness" in phrase_word_columns
     candidate_columns = {
         c["name"] for c in inspect(create_engine(db_url)).get_columns("candidates")
     }

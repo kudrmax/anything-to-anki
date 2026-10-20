@@ -1,0 +1,120 @@
+"""The projection's rows computed the way the review computes card state today: the
+reference the stored projection is checked against."""
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from backend.domain.services.candidate_sections import card_section, new_words
+from backend.domain.services.card_state_rules import changes_at
+from backend.domain.value_objects.by_step import NewCountsByStep, SectionsByStep
+from backend.domain.value_objects.card_choice import DecisionStatus
+from backend.domain.value_objects.card_state_rows import (
+    CardStateRow,
+    CardStates,
+    PhraseWordRow,
+    WordStateRow,
+)
+from backend.domain.value_objects.frequent_word_threshold import (
+    THRESHOLD_STEPS,
+    FrequentWordThreshold,
+)
+from backend.domain.value_objects.user_knowledge import KnowledgeBase, UserKnowledge, newness
+
+if TYPE_CHECKING:
+    from backend.application.utils.review_cards import ReviewCards
+    from backend.application.utils.user_knowledge_reader import UserKnowledgeReader
+    from backend.application.utils.user_vocabulary import UserVocabulary
+    from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.value_objects.review_card import ReviewCard
+
+# A threshold's key names it in the settings; a threshold made for one step needs none.
+STEP_THRESHOLD_KEY = "step"
+
+
+class LiveCardStates:
+    """Every row of the projection from the review's own code path: the review cards with
+    the request's knowledge snapshot, `card_section` and the card view per threshold step,
+    and each word's stored decision status."""
+
+    def __init__(
+        self,
+        source_repo: SourceRepository,
+        review_cards: ReviewCards,
+        candidate_repo: CandidateRepository,
+        knowledge: UserKnowledgeReader,
+        vocabulary: UserVocabulary,
+    ) -> None:
+        self._source_repo = source_repo
+        self._review_cards = review_cards
+        self._candidate_repo = candidate_repo
+        self._knowledge = knowledge
+        self._vocabulary = vocabulary
+
+    def compute(self) -> CardStates:
+        source_ids = [s.id for s in self._source_repo.list_all() if s.id is not None]
+        base = self._knowledge.base()
+        steps = _Steps(base)
+        cards: list[CardStateRow] = []
+        phrase_words: list[PhraseWordRow] = []
+        for card in self._review_cards.of_sources(source_ids):
+            cards.append(self._card_row(card, steps))
+            phrase_words.extend(_phrase_words(card, base))
+        words = [
+            WordStateRow(
+                word_id=word.id, source_id=word.source_id, lemma=word.lemma.lower(),
+                status=DecisionStatus(word.status.value),
+            )
+            for source_id in source_ids
+            for word in self._candidate_repo.get_by_source(source_id)
+            if word.id is not None
+        ]
+        return CardStates(tuple(cards), tuple(words), tuple(phrase_words))
+
+    def _card_row(self, card: ReviewCard, steps: _Steps) -> CardStateRow:
+        return CardStateRow(
+            phrase_id=card.phrase_id,
+            source_id=card.word.source_id,
+            word_id=card.word_id,
+            lemma=card.lemma.lower(),
+            is_done=card.is_done,
+            wants_generation=card.view.wants_generation,
+            sections=SectionsByStep(tuple(
+                card_section(card, knowledge, threshold)
+                for knowledge, threshold in steps.each
+            )),
+            new_counts=NewCountsByStep(tuple(
+                len(new_words(card.phrase, knowledge)) for knowledge, _ in steps.each
+            )),
+            changes_at=changes_at(self._vocabulary.of(card.lemma), self._vocabulary.scope.now),
+        )
+
+
+class _Steps:
+    """What the user knows at each threshold step, as the review reads it at that step."""
+
+    def __init__(self, base: KnowledgeBase) -> None:
+        self.each: tuple[tuple[UserKnowledge, FrequentWordThreshold], ...] = tuple(
+            (
+                UserKnowledge(base.vocabulary, base.user_level, step),
+                FrequentWordThreshold(STEP_THRESHOLD_KEY, step, ()),
+            )
+            for step in THRESHOLD_STEPS
+        )
+
+
+def _phrase_words(card: ReviewCard, base: KnowledgeBase) -> list[PhraseWordRow]:
+    target = set(card.phrase.target)
+    return [
+        PhraseWordRow(
+            lemma=word.lemma.lower(),
+            phrase_id=card.phrase_id,
+            position=position,
+            zipf=word.zipf,
+            content=word.content,
+            level=word.level,
+            newness=newness(word, base.vocabulary, base.user_level),
+        )
+        for position, word in enumerate(card.phrase.words)
+        if position not in target
+    ]
