@@ -207,13 +207,13 @@ class TestGetSourcesUseCase:
 
     def test_a_busy_source_offers_its_operation_but_it_cant_start(self) -> None:
         self.source_repo.list_all.return_value = [_text(1)]
-        self.lock.operations.return_value = {1: HeldOperation(SourceOperationKind.REBUILD)}
+        self.lock.operations.return_value = {1: HeldOperation(SourceOperationKind.UPDATE)}
         [dto] = self.use_case.list_all()
-        assert dto.busy_with is SourceOperationKind.REBUILD
-        assert dto.available_operations == [SourceOperationKind.REBUILD]
+        assert dto.busy_with is SourceOperationKind.UPDATE
+        assert dto.available_operations == [SourceOperationKind.UPDATE, SourceOperationKind.RECUT]
         assert dto.can_start_operation is False
-        assert dto.operation_hint == "Wait until the rebuild finishes"
-        assert dto.progress_caption == "Rebuilding…"
+        assert dto.operation_hint == "Wait until the update finishes"
+        assert dto.progress_caption == "Updating…"
 
     def test_a_topic_lists_both_operations(self) -> None:
         self.source_repo.list_all.return_value = [Source(
@@ -223,14 +223,14 @@ class TestGetSourcesUseCase:
         self.lock.operations.return_value = {}
         [dto] = self.use_case.list_all()
         assert dto.available_operations == [
-            SourceOperationKind.REFRESH, SourceOperationKind.REBUILD,
+            SourceOperationKind.REFRESH, SourceOperationKind.UPDATE,
         ]
 
     def test_a_free_source_can_start_its_operation(self) -> None:
         self.source_repo.list_all.return_value = [_text(1)]
         self.lock.operations.return_value = {}
         [dto] = self.use_case.list_all()
-        assert dto.available_operations == [SourceOperationKind.REBUILD]
+        assert dto.available_operations == [SourceOperationKind.UPDATE, SourceOperationKind.RECUT]
         assert dto.can_start_operation is True
         assert dto.operation_hint is None
 

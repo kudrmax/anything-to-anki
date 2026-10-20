@@ -618,12 +618,14 @@ class Container:
             occurrence_repo=SqlaOccurrenceRepository(session),
             job_repo=SqlaJobRepository(session),
             media_repo=SqlaCandidateMediaRepository(session),
+            media_files=LocalMediaFiles(self._media_root),
             settings_repo=settings_repo,
             vocabulary=self._user_vocabulary(session),
             threshold_resolver=self._threshold_resolver(session),
             stamper=self._section_stamper(session),
             analyze_text_use_case=self.analyze_text_use_case(),
             unit_of_work=self._unit_of_work(session),
+            weight_unknown=self._fragment_selection_config.scoring.weight_unknown,
         )
 
     def process_sources_use_case(self, session: Session) -> ProcessSourcesUseCase:

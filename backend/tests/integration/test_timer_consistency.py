@@ -230,7 +230,7 @@ def test_deleting_a_word_known_by_its_timer_waits_for_a_busy_source(
     client: TestClient, factory: sessionmaker[Session],
 ) -> None:
     with factory() as session:
-        SqlaSourceOperationLock(session).acquire(THERE, SourceOperationKind.REBUILD)
+        SqlaSourceOperationLock(session).acquire(THERE, SourceOperationKind.UPDATE)
         session.commit()
 
     response = client.delete("/known-words/timer:glare")

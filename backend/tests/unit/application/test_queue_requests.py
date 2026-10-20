@@ -174,7 +174,7 @@ class TestEnqueuePhraseTTS:
 
     def test_busy_source(self) -> None:
         job_repo = MagicMock()
-        cards = _requested(_shown_phrase(), busy_with=SourceOperationKind.REBUILD)
+        cards = _requested(_shown_phrase(), busy_with=SourceOperationKind.UPDATE)
 
         with pytest.raises(SourceOperationBusyError):
             EnqueuePhraseTTSUseCase(cards, job_repo).execute(7)

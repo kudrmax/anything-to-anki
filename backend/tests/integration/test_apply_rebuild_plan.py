@@ -7,19 +7,29 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.candidate_meaning import CandidateMeaning
+from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.occurrence import OccurrenceKey
-from backend.domain.services.phrase_selection import SelectionChange
-from backend.domain.services.rebuild_plan import OccurrenceInsert, RebuildPlan, plan_rebuild
+from backend.domain.services.phrase_selection import SelectionChange, SelectionScore
+from backend.domain.services.rebuild_plan import (
+    OccurrenceInsert,
+    RebuildPlan,
+    RebuildRules,
+    plan_rebuild,
+)
 from backend.domain.value_objects.built_analysis import WordKey
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_origin_kind import ShownBy
+from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import PhraseModel
 from backend.infrastructure.persistence.phrase_writes import SQL_IN_CHUNK
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
+)
+from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
+    SqlaCandidateTTSRepository,
 )
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
@@ -50,19 +60,23 @@ def repo(db_session: Session) -> SqlaOccurrenceRepository:
     return SqlaOccurrenceRepository(db_session)
 
 
+UPDATE = RebuildMode.UPDATE
+RECUT = RebuildMode.RECUT
+
+
 def _plan(
-    repo: SqlaOccurrenceRepository, analysed: list[BuiltWord], *, include_open: bool = False,
+    repo: SqlaOccurrenceRepository, analysed: list[BuiltWord], mode: RebuildMode = UPDATE,
 ) -> RebuildPlan:
     return plan_rebuild(
-        SOURCE, repo.projection(SOURCE), repo.word_rows(SOURCE), analysed, include_open,
-        READY_RULE,
+        SOURCE, repo.projection(SOURCE), repo.word_rows(SOURCE), analysed,
+        RebuildRules(mode=mode, sections=READY_RULE, score=SelectionScore(None, 1)),
     )
 
 
 def _rebuild(
-    repo: SqlaOccurrenceRepository, analysed: list[BuiltWord], *, include_open: bool = False,
+    repo: SqlaOccurrenceRepository, analysed: list[BuiltWord], mode: RebuildMode = UPDATE,
 ) -> RebuildPlan:
-    plan = _plan(repo, analysed, include_open=include_open)
+    plan = _plan(repo, analysed, mode)
     repo.apply_plan(plan)
     return plan
 
@@ -87,8 +101,8 @@ def test_a_first_build_creates_words_and_phrases_and_a_second_does_nothing(
     repo: SqlaOccurrenceRepository, db_session: Session,
 ) -> None:
     analysed = [
-        built("glare", occ(0, 0.5), occ(1, 0.1, text=CHANGED)),
-        built("linger", occ(2, 0.3, text="They glared and left.")),
+        built("glare", occ(0, 50.0), occ(1, 10.0, text=CHANGED)),
+        built("linger", occ(2, 30.0, text="They glared and left.")),
     ]
 
     plan = _rebuild(repo, analysed)
@@ -107,44 +121,58 @@ def test_a_first_build_creates_words_and_phrases_and_a_second_does_nothing(
     assert repo.word_rows(OTHER_SOURCE) == []
 
 
-def test_an_untouched_phrase_keeps_its_id_and_takes_the_new_text(
+def test_a_recut_phrase_keeps_its_id_and_takes_the_new_text(
     repo: SqlaOccurrenceRepository, db_session: Session,
 ) -> None:
-    _rebuild(repo, [built("glare", occ(0, 0.5))])
+    _rebuild(repo, [built("glare", occ(0, 50.0))])
     [before] = _phrases(db_session).values()
     before_id, before_revision = before.id, before.revision
+    changed = [built("glare", occ(0, 20.0, text=CHANGED))]
 
-    _rebuild(repo, [built("glare", occ(0, 0.2, text=CHANGED))])
+    assert _plan(repo, changed).is_empty
+    _rebuild(repo, changed, RECUT)
 
     [after] = _phrases(db_session).values()
     assert after.id == before_id
-    assert (after.revision, after.fragment_score) == (before_revision + 1, 0.2)
+    assert (after.revision, after.fragment_score) == (before_revision + 1, 20.0)
     assert _words_of(db_session, after.id) == {"she", "glared", "back"}
-    assert _plan(repo, [built("glare", occ(0, 0.2, text=CHANGED))]).is_empty
+    assert _plan(repo, changed, RECUT).is_empty
 
 
-def test_include_open_resets_the_results_of_a_phrase_whose_text_changed(
+def test_a_recut_drops_polish_and_audio_of_the_old_text_and_keeps_the_meaning(
     repo: SqlaOccurrenceRepository, db_session: Session,
 ) -> None:
-    _rebuild(repo, [built("glare", occ(0, 0.5))])
+    _rebuild(repo, [built("glare", occ(0, 50.0))])
     [phrase] = _phrases(db_session).values()
     _meaning(db_session, phrase.id, phrase.candidate_id)
-    changed = [built("glare", occ(0, 0.5, text=CHANGED))]
+    SqlaCandidateTTSRepository(db_session).upsert_for_phrase(phrase.id, CandidateTTS(
+        candidate_id=phrase.candidate_id, audio_path="/media/1/p1_tts.m4a", generated_at=None,
+    ))
+    db_session.execute(
+        text("UPDATE phrases SET polished_phrase = source_phrase WHERE id = :id"),
+        {"id": phrase.id},
+    )
+    db_session.expire_all()
+    changed = [built("glare", occ(0, 50.0, text=CHANGED))]
 
-    assert _plan(repo, changed).is_empty
-    plan = _rebuild(repo, changed, include_open=True)
+    plan = _plan(repo, changed, RECUT)
+    applied = repo.apply_plan(plan)
 
-    assert plan.counts.cards_text_reset == 1
+    assert plan.counts.cards_recut_lost_text_generation == 1
+    assert applied.dropped_files == ["/media/1/p1_tts.m4a"]
     stored = repo.get(phrase.id)
     assert stored is not None
-    assert (stored.meaning, stored.revision, stored.source_phrase.text) == (None, 1, CHANGED)
-    assert _plan(repo, changed, include_open=True).is_empty
+    assert (stored.revision, stored.source_phrase.text) == (1, CHANGED)
+    assert stored.meaning is not None
+    assert stored.polished_phrase is None
+    assert SqlaCandidateTTSRepository(db_session).get_by_phrase_id(phrase.id) is None
+    assert _plan(repo, changed, RECUT).is_empty
 
 
 def test_a_lost_word_goes_with_its_phrases_but_a_decided_one_stays(
     repo: SqlaOccurrenceRepository, db_session: Session,
 ) -> None:
-    _rebuild(repo, [built("glare", occ(0, 0.5)), built("linger", occ(1, 0.5))])
+    _rebuild(repo, [built("glare", occ(0, 50.0)), built("linger", occ(1, 50.0))])
     words = {w.lemma: w.id for w in repo.word_rows(SOURCE)}
     linger_phrase = next(
         p.id for p in _phrases(db_session).values() if p.candidate_id == words["linger"]
@@ -167,15 +195,13 @@ def test_a_lost_word_goes_with_its_phrases_but_a_decided_one_stays(
 def test_the_selection_moves_and_the_old_phrase_keeps_its_results(
     repo: SqlaOccurrenceRepository, db_session: Session,
 ) -> None:
-    _rebuild(repo, [built("glare", occ(0, 0.5))])
+    _rebuild(repo, [built("glare", occ(0, 50.0))])
     [old] = _phrases(db_session).values()
     _meaning(db_session, old.id, old.candidate_id)
-    analysed = [built("glare", occ(0, 0.5), occ(3, 0.1))]
+    analysed = [built("glare", occ(0, 50.0), occ(3, 10.0))]
 
     _rebuild(repo, analysed)
-    assert [p.id for p in _phrases(db_session).values() if p.shown_by] == [old.id]
 
-    _rebuild(repo, analysed, include_open=True)
     phrases = _phrases(db_session)
     [shown] = [p for p in phrases.values() if p.shown_by == ShownBy.SELECTION]
     assert shown.line == 3
@@ -186,11 +212,11 @@ def test_the_selection_moves_and_the_old_phrase_keeps_its_results(
 
 
 def test_word_data_follows_the_analysis(repo: SqlaOccurrenceRepository) -> None:
-    _rebuild(repo, [built("glare", occ(0, 0.5))])
+    _rebuild(repo, [built("glare", occ(0, 50.0))])
     usage = UsageDistribution({"formal": 0.5, "neutral": 0.5})
     levels = breakdown(CEFRLevel.C1, {CEFRLevel.B2: 0.123456, CEFRLevel.C1: 0.876544})
     analysed = [replace(
-        built("glare", occ(0, 0.5), occ(1, 0.6), pos="NOUN", zipf=4.25),
+        built("glare", occ(0, 50.0), occ(1, 60.0), pos="NOUN", zipf=4.25),
         usage_distribution=usage, cefr_breakdown=levels, cefr_level=levels.final_level.name,
     )]
 
@@ -211,9 +237,9 @@ def test_a_word_with_a_stored_cefr_breakdown_gets_the_new_one(
 ) -> None:
     before = breakdown(CEFRLevel.B2, {CEFRLevel.B2: 1.0})
     after = breakdown(CEFRLevel.C1, {CEFRLevel.C1: 1.0})
-    _rebuild(repo, [replace(built("glare", occ(0, 0.5)), cefr_breakdown=before)])
+    _rebuild(repo, [replace(built("glare", occ(0, 50.0)), cefr_breakdown=before)])
 
-    _rebuild(repo, [replace(built("glare", occ(0, 0.5)), cefr_breakdown=after)])
+    _rebuild(repo, [replace(built("glare", occ(0, 50.0)), cefr_breakdown=after)])
 
     [stored] = repo.word_rows(SOURCE)
     assert stored.data.cefr_breakdown is not None
@@ -223,25 +249,25 @@ def test_a_word_with_a_stored_cefr_breakdown_gets_the_new_one(
 def test_an_insert_at_a_taken_key_keeps_the_stored_phrase_and_its_id(
     repo: SqlaOccurrenceRepository, db_session: Session,
 ) -> None:
-    _rebuild(repo, [built("glare", occ(0, 0.5))])
+    _rebuild(repo, [built("glare", occ(0, 50.0))])
     [phrase] = _phrases(db_session).values()
     phrase_id = phrase.id
 
     repo.apply_plan(RebuildPlan(source_id=SOURCE, occ_to_insert=(OccurrenceInsert(
         word=WordKey.of("glare", is_phrasal_verb=False),
-        occurrence=occ(0, 0.3, text=CHANGED), shown=False,
+        occurrence=occ(0, 30.0, text=CHANGED), shown=False,
         earned_section=CandidateSection.READY,
     ),)))
 
     [after] = _phrases(db_session).values()
-    assert (after.id, after.fragment_score) == (phrase_id, 0.5)
+    assert (after.id, after.fragment_score) == (phrase_id, 50.0)
     assert _words_of(db_session, phrase_id) == {"he", "glared", "at", "me"}
 
 
 def test_selection_changes_never_touch_a_mark_the_user_put(
     repo: SqlaOccurrenceRepository, db_session: Session,
 ) -> None:
-    _rebuild(repo, [built("glare", occ(0, 0.5), occ(1, 0.6))])
+    _rebuild(repo, [built("glare", occ(0, 50.0), occ(1, 60.0))])
     phrases = _phrases(db_session)
     shown = next(p.id for p in phrases.values() if p.shown_by is not None)
     hidden = next(p.id for p in phrases.values() if p.shown_by is None)
@@ -258,14 +284,14 @@ def test_a_book_sized_word_is_written_in_chunks(
     repo: SqlaOccurrenceRepository, db_session: Session,
 ) -> None:
     many = SQL_IN_CHUNK + 100
-    analysed = [built("glare", *(occ(line, 0.5) for line in range(many)))]
+    analysed = [built("glare", *(occ(line, 50.0) for line in range(many)))]
 
     _rebuild(repo, analysed)
-    _rebuild(repo, [built("glare", *(occ(line, 0.4) for line in range(many)))])
+    _rebuild(repo, [built("glare", *(occ(line, 40.0) for line in range(many)))])
 
     phrases = _phrases(db_session)
     assert len(phrases) == many
-    assert {p.fragment_score for p in phrases.values()} == {0.4}
+    assert {p.fragment_score for p in phrases.values()} == {40.0}
     assert _rebuild(repo, []).words_to_delete != ()
     assert _phrases(db_session) == {}
 
@@ -273,15 +299,15 @@ def test_a_book_sized_word_is_written_in_chunks(
 def test_a_phrase_found_again_where_its_key_moved_takes_the_key_with_its_results(
     repo: SqlaOccurrenceRepository, db_session: Session,
 ) -> None:
-    _rebuild(repo, [built("glare", occ(0, 0.5))])
+    _rebuild(repo, [built("glare", occ(0, 50.0))])
     [before] = _phrases(db_session).values()
     _meaning(db_session, before.id, before.candidate_id)
-    moved = replace(occ(0, 0.5), key=OccurrenceKey(block=0, line=0, char=3))
+    moved = replace(occ(0, 50.0), key=OccurrenceKey(block=0, line=0, char=3))
 
-    for include_open in (False, True):
-        _rebuild(repo, [built("glare", moved)], include_open=include_open)
+    for mode in (UPDATE, RECUT):
+        _rebuild(repo, [built("glare", moved)], mode)
 
         [after] = _phrases(db_session).values()
         assert (after.id, after.block, after.line, after.char) == (before.id, 0, 0, 3)
         assert SqlaCandidateMeaningRepository(db_session).get_by_phrase_id(after.id) is not None
-    assert _plan(repo, [built("glare", moved)], include_open=True).is_empty
+    assert _plan(repo, [built("glare", moved)], RECUT).is_empty

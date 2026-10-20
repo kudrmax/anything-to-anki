@@ -44,6 +44,7 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
 from tests.candidate_sorter_support import section_stamper, threshold_resolver
+from tests.media_files_support import WEIGHT_UNKNOWN, RemovedMediaFiles
 from tests.migration_support import upgrade_to_head_with_sections
 from tests.vocabulary_support import user_vocabulary
 
@@ -155,12 +156,14 @@ def _rebuilder(session: Session) -> SourceRebuilder:
         occurrence_repo=occurrences,
         job_repo=SqlaJobRepository(session),
         media_repo=SqlaCandidateMediaRepository(session),
+        media_files=RemovedMediaFiles(),
         settings_repo=settings,
         vocabulary=vocabulary,
         threshold_resolver=threshold_resolver(settings),
         stamper=section_stamper(settings),
         analyze_text_use_case=Container().analyze_text_use_case(),
         unit_of_work=SqlaUnitOfWork(session, vocabulary.scope),
+        weight_unknown=WEIGHT_UNKNOWN,
     )
 
 

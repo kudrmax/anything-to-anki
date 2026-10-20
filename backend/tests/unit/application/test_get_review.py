@@ -113,7 +113,7 @@ class TestGetReviewUseCase:
 
     def test_busy_when_any_source_is_held(self) -> None:
         self._collection()
-        self.lock.operations.return_value = {2: HeldOperation(kind=SourceOperationKind.REBUILD)}
+        self.lock.operations.return_value = {2: HeldOperation(kind=SourceOperationKind.UPDATE)}
         review = self.use_case.execute(SourceScope.collection(COLLECTION))
         assert review.busy is True
 
@@ -182,7 +182,7 @@ class TestGetReviewUseCase:
 
     def test_card_carries_its_source(self) -> None:
         self._one_source(_text(1))
-        self.lock.operations.return_value = {1: HeldOperation(kind=SourceOperationKind.REBUILD)}
+        self.lock.operations.return_value = {1: HeldOperation(kind=SourceOperationKind.UPDATE)}
         self.words = {1: [word(5, "glare", source_id=1)]}
         self.occurrence_repo.shown_by_word.return_value = {5: [occurrence(5, 5)]}
         review = self.use_case.execute(SourceScope.source(1))

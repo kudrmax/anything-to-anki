@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.application.use_cases.fix_sections import FixSectionsUseCase
+from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.infrastructure.persistence.database import create_session_factory
 from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
@@ -108,7 +109,7 @@ def test_a_second_run_changes_nothing(bench: Bench) -> None:
     second = _fix(bench).execute()
 
     assert second.phrases_stamped == 0
-    assert bench.rebuild().preview(SOURCE).without_open.nothing_to_update
+    assert bench.rebuild().preview(SOURCE, RebuildMode.UPDATE).counts.nothing_to_update
     bench.session.expire_all()
     assert bench.session.execute(
         text("SELECT id, earned_section FROM phrases ORDER BY id"),
@@ -148,7 +149,7 @@ def _seed_sources_without_text(db_url: str) -> None:
                 {"id": source_id, "role": role},
             )
             insert_word(session, word_id, source_id=source_id, lemma=f"lemma{word_id}")
-            SqlaSourceOperationLock(session).acquire(source_id, SourceOperationKind.REBUILD)
+            SqlaSourceOperationLock(session).acquire(source_id, SourceOperationKind.UPDATE)
         session.execute(text("UPDATE phrases SET earned_section = NULL"))
         session.commit()
 

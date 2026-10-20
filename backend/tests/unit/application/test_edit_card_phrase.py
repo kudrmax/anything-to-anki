@@ -130,7 +130,7 @@ def test_missing_phrase() -> None:
 @pytest.mark.unit
 def test_refused_while_the_source_is_busy() -> None:
     lock = MagicMock()
-    lock.held.return_value = SourceOperationKind.REBUILD
+    lock.held.return_value = SourceOperationKind.UPDATE
     use_case, occurrences = _use_case(_phrase(), lock)
 
     with pytest.raises(SourceOperationBusyError):

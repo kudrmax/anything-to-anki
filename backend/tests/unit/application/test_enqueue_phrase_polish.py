@@ -79,7 +79,7 @@ def test_polish_again_drops_old_polish_and_queues_the_phrase() -> None:
 
 @pytest.mark.unit
 def test_busy_source_is_refused() -> None:
-    use_case, occurrence_repo, job_repo = _use_case(busy_with=SourceOperationKind.REBUILD)
+    use_case, occurrence_repo, job_repo = _use_case(busy_with=SourceOperationKind.UPDATE)
 
     with pytest.raises(SourceOperationBusyError):
         use_case.execute(PHRASE_ID)

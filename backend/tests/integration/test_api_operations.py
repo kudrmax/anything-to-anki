@@ -1,5 +1,5 @@
-"""Rebuild, its preview and Refresh of a set of sources: one source, a collection, Unsorted
-or all of them, through one endpoint that takes the set's scope token."""
+"""Update, Re-cut, their preview and Refresh of a set of sources: one source, a collection,
+Unsorted or all of them, through endpoints that take the set's scope token."""
 from __future__ import annotations
 
 import asyncio
@@ -86,8 +86,13 @@ def _show(client: TestClient) -> str:
     return str(show["id"])
 
 
-def _rebuild(client: TestClient, scope: str) -> int:
-    response = client.post("/api/operations/rebuild", params={"scope": scope}, json={})
+def _rebuild(client: TestClient, scope: str, operation: str = "update") -> int:
+    response = client.post(f"/api/operations/{operation}", params={"scope": scope})
+    return response.status_code
+
+
+def _preview(client: TestClient, scope: str, of: str = "update") -> int:
+    response = client.post("/api/operations/preview", params={"scope": scope, "of": of})
     return response.status_code
 
 
@@ -108,21 +113,19 @@ def _topic(factory: sessionmaker[Session]) -> None:
         session.commit()
 
 
-def test_a_source_is_rebuilt_in_the_background(
-    client: TestClient, spawned: list[object],
+@pytest.mark.parametrize("operation", ["update", "recut"])
+def test_a_source_is_updated_or_recut_in_the_background(
+    client: TestClient, spawned: list[object], operation: str,
 ) -> None:
-    started = client.post(
-        "/api/operations/rebuild", params={"scope": f"source-{PILOT}"},
-        json={"include_open": True},
-    )
+    started = client.post(f"/api/operations/{operation}", params={"scope": f"source-{PILOT}"})
 
     assert started.status_code == 202
-    operation = started.json()
-    assert (operation["kind"], operation["state"]) == ("rebuild", "running")
+    running = started.json()
+    assert (running["kind"], running["state"]) == (operation, "running")
     assert len(spawned) == 1
     state = client.get("/api/operations", params={"scope": f"source-{PILOT}"})
     assert state.status_code == 200
-    assert state.json()["operation_id"] == operation["operation_id"]
+    assert state.json()["operation_id"] == running["operation_id"]
 
 
 def test_a_collection_previews_its_rebuild_in_the_background(
@@ -130,7 +133,7 @@ def test_a_collection_previews_its_rebuild_in_the_background(
 ) -> None:
     show = _show(client)
 
-    started = client.post("/api/operations/rebuild/preview", params={"scope": show})
+    started = client.post("/api/operations/preview", params={"scope": show, "of": "recut"})
 
     assert started.status_code == 202
     assert (started.json()["kind"], started.json()["state"]) == ("preview", "running")
@@ -163,9 +166,7 @@ def test_a_set_whose_every_source_is_busy_is_409(
     _hold(factory, PILOT, FINALE)
 
     assert _rebuild(client, show) == 409
-    assert client.post(
-        "/api/operations/rebuild/preview", params={"scope": f"source-{PILOT}"},
-    ).status_code == 409
+    assert _preview(client, f"source-{PILOT}") == 409
     assert spawned == []
 
 
@@ -176,6 +177,20 @@ def test_a_set_without_a_source_to_rebuild_is_400(
 
     assert _rebuild(client, str(empty)) == 400
     assert spawned == []
+
+
+def test_a_topic_alone_is_updated_but_not_recut(
+    client: TestClient, factory: sessionmaker[Session], spawned: list[object],
+) -> None:
+    _topic(factory)
+    topic = f"source-{TOPIC}"
+
+    assert (_rebuild(client, topic, "recut"), _preview(client, topic, "recut")) == (400, 400)
+    assert (_rebuild(client, topic), _preview(client, topic)) == (202, 202)
+
+
+def test_a_preview_of_an_unknown_mode_is_422(client: TestClient) -> None:
+    assert _preview(client, f"source-{PILOT}", "rebuild") == 422
 
 
 def test_refresh_needs_a_topic_in_the_set(
@@ -207,7 +222,7 @@ def test_an_operation_that_fails_to_start_running_ends_in_error(
     client: TestClient, factory: sessionmaker[Session], operations: SourceOperationRegistry,
 ) -> None:
     token = f"source-{PILOT}"
-    operation = operations.started(token, SourceOperationKind.REBUILD)
+    operation = operations.started(token, SourceOperationKind.UPDATE)
 
     def broken(_session: Session) -> Callable[[], None]:
         raise RuntimeError("could not build the use case")

@@ -59,7 +59,7 @@ def test_a_free_source_can_be_deleted() -> None:
 
 def test_a_busy_or_built_in_source_cannot_be_deleted() -> None:
     assert not can_delete(Source(id=1, status=SourceStatus.NEW), SourceOperationKind.PROCESS)
-    assert not can_delete(Source(id=1, status=SourceStatus.DONE), SourceOperationKind.REBUILD)
+    assert not can_delete(Source(id=1, status=SourceStatus.DONE), SourceOperationKind.UPDATE)
     saved_phrases = Source.saved_phrases()
     saved_phrases.id = 2
     assert not can_delete(saved_phrases, None)
@@ -85,7 +85,7 @@ def test_review_fraction(
     (ReviewStatus.PARTIALLY_REVIEWED, 4, DecisionProgress(decided=1, total=4), 1, None,
      "1 of 4 decided"),
     (ReviewStatus.REVIEWED, 4, DecisionProgress(decided=4, total=4), 2, None, "2 to learn"),
-    (ReviewStatus.DONE, 4, DecisionProgress(), 0, SourceOperationKind.REBUILD, "Rebuilding…"),
+    (ReviewStatus.DONE, 4, DecisionProgress(), 0, SourceOperationKind.UPDATE, "Updating…"),
     (ReviewStatus.DONE, 4, DecisionProgress(), 0, SourceOperationKind.REFRESH, "Refreshing…"),
 ])
 def test_progress_caption(

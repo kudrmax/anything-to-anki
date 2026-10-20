@@ -46,7 +46,7 @@ def test_a_source_held_by_an_operation_is_not_pending() -> None:
 @pytest.mark.parametrize(("busy_with", "shown"), [
     (None, "new"),
     (SourceOperationKind.PROCESS, "processing"),
-    (SourceOperationKind.REBUILD, "new"),
+    (SourceOperationKind.UPDATE, "new"),
 ])
 def test_a_source_shows_processing_only_while_it_is_processed(
     busy_with: SourceOperationKind | None, shown: str,
@@ -59,7 +59,7 @@ def test_a_source_shows_processing_only_while_it_is_processed(
     (ReviewStatus.NEW, [None, SourceOperationKind.PROCESS], SourceOperationKind.PROCESS),
     (ReviewStatus.ERROR, [SourceOperationKind.PROCESS], SourceOperationKind.PROCESS),
     (ReviewStatus.DONE, [SourceOperationKind.PROCESS], None),
-    (ReviewStatus.NEW, [SourceOperationKind.REBUILD], None),
+    (ReviewStatus.NEW, [SourceOperationKind.UPDATE], None),
     (ReviewStatus.NEW, [], None),
 ])
 def test_a_set_is_processed_while_a_source_is_and_none_is_ready(

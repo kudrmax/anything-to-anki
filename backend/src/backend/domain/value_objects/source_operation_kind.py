@@ -7,6 +7,7 @@ class SourceOperationKind(StrEnum):
     """A long operation that holds a source: no other one may run on it meanwhile."""
 
     PROCESS = "process"
-    REBUILD = "rebuild"
+    UPDATE = "update"
+    RECUT = "recut"
     PREVIEW = "preview"
     REFRESH = "refresh"

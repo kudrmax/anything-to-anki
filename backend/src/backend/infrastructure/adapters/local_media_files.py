@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import re
 import uuid
+from typing import TYPE_CHECKING
 
 from backend.application.utils.media_names import PHRASE_FILE_PREFIX
 from backend.domain.ports.media_files import MediaFiles
 from backend.domain.value_objects.media_file_draft import MediaFileDraft
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+logger = logging.getLogger(__name__)
 
 DRAFT_MARKER = ".part-"
 DRAFT_ID_LENGTH = 8
@@ -44,3 +51,12 @@ class LocalMediaFiles(MediaFiles):
         # The app's own draft: never a file anyone else made or points at.
         with contextlib.suppress(FileNotFoundError):
             os.remove(draft.path)
+
+    def remove(self, paths: Sequence[str]) -> None:
+        root = os.path.realpath(self._media_root)
+        for path in paths:
+            if os.path.commonpath([root, os.path.realpath(path)]) != root:
+                logger.warning("media: not removing %s, outside the media folder", path)
+                continue
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(path)

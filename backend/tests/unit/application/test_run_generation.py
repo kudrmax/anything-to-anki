@@ -480,7 +480,7 @@ class TestCardsNobodyDecidesOn:
 @pytest.mark.unit
 class TestBusySource:
     def test_generation_is_refused_while_the_source_is_rebuilt(self) -> None:
-        setup = _Setup([_one(1)], busy_with=SourceOperationKind.REBUILD)
+        setup = _Setup([_one(1)], busy_with=SourceOperationKind.UPDATE)
 
         with pytest.raises(SourceOperationBusyError):
             setup.run.execute(SCOPE, GenerationKind.MEANING, GenerationScope.MISSING)

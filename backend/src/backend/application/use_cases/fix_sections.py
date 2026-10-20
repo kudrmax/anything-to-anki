@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from backend.application.dto.fix_sections_dtos import FixSectionsReportDTO
 from backend.domain.services.rebuild_plan import SectionChange
 from backend.domain.services.source_operations import available_operations
+from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 if TYPE_CHECKING:
@@ -20,8 +21,9 @@ logger = logging.getLogger(__name__)
 
 class FixSectionsUseCase:
     """Brings the data from before the stored sections up to date: gives every phrase without
-    a section the one it earns now, then rebuilds each source that can be rebuilt (open
-    cards are kept) so the sections of its phrases follow what the user knows."""
+    a section the one it earns now, then updates each source that can be updated (no phrase
+    text changes; cards of words no longer new go) so the sections of its phrases follow
+    what the user knows."""
 
     def __init__(
         self,
@@ -61,10 +63,10 @@ class FixSectionsUseCase:
         for source in self._source_repo.list_all():
             if source.id is None:
                 continue
-            if SourceOperationKind.REBUILD not in available_operations(source):
+            if SourceOperationKind.UPDATE not in available_operations(source):
                 continue
             try:
-                self._rebuild_source.execute(source.id, include_open=False)
+                self._rebuild_source.execute(source.id, RebuildMode.UPDATE)
             except Exception:
                 logger.exception("fix sections: rebuild of source %d failed", source.id)
                 self._unit_of_work.rollback()

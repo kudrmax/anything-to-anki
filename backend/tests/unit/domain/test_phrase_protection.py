@@ -5,47 +5,40 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.services.card_view import is_protected, keeps_word
-from backend.domain.services.phrase_protection import is_touched, is_untouchable
+from backend.domain.services.phrase_protection import is_untouchable
 from backend.domain.value_objects.card_choice import CardChoice, CardState, WordState
 from backend.domain.value_objects.user_work import NO_USER_WORK, UserWork
 
-from tests.rebuild_support import COLLECTED, EXAMPLE, EXPORTED, MANUAL, SELECTION, USER, row
+from tests.rebuild_support import (
+    COLLECTED,
+    EXAMPLE,
+    EXPORTED,
+    MANUAL,
+    MEANING,
+    SELECTION,
+    USER,
+    row,
+)
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.occurrence_row import OccurrenceRow
 
 
-def test_a_plain_auto_phrase_is_neither_touched_nor_untouchable() -> None:
-    plain = row(id=1, score=0.3)
-    assert not is_touched(plain, word_decided=False)
-    assert not is_untouchable(plain)
+def test_a_plain_auto_phrase_is_not_untouchable() -> None:
+    assert not is_untouchable(row(id=1, score=30.0))
 
 
-def test_a_shown_mark_alone_touches_nothing() -> None:
-    shown = row(id=1, shown=SELECTION)
-    assert not is_touched(shown, word_decided=False)
-    assert not is_untouchable(shown)
+def test_a_shown_mark_alone_does_not_protect() -> None:
+    assert not is_untouchable(row(id=1, shown=SELECTION))
 
 
-def test_a_shown_phrase_of_a_decided_word_is_touched_but_changeable() -> None:
-    shown = row(id=1, shown=SELECTION)
-    assert is_touched(shown, word_decided=True)
-    assert not is_untouchable(shown)
-
-
-def test_a_hidden_phrase_of_a_decided_word_is_not_touched() -> None:
-    assert not is_touched(row(id=1), word_decided=True)
-
-
-@pytest.mark.parametrize("touched", [
-    row(id=1, has_results=True),
+@pytest.mark.parametrize("open_card", [
+    row(id=1, generation=MEANING),
+    row(id=1, shows_polish=True),
     row(id=1, has_job=True),
 ])
-def test_results_and_a_job_touch_a_phrase_without_freezing_its_text(
-    touched: OccurrenceRow,
-) -> None:
-    assert is_touched(touched, word_decided=False)
-    assert not is_untouchable(touched)
+def test_what_is_made_for_a_card_does_not_protect_it(open_card: OccurrenceRow) -> None:
+    assert not is_untouchable(open_card)
 
 
 @pytest.mark.parametrize("untouchable", [
@@ -58,9 +51,8 @@ def test_results_and_a_job_touch_a_phrase_without_freezing_its_text(
     row(id=1, origin=EXAMPLE),
     row(id=1, origin=COLLECTED),
 ])
-def test_untouchable_phrases_are_touched_too(untouchable: OccurrenceRow) -> None:
+def test_the_users_choice_and_work_protect_a_phrase(untouchable: OccurrenceRow) -> None:
     assert is_untouchable(untouchable)
-    assert is_touched(untouchable, word_decided=False)
 
 
 # ── one definition: the card view's `is_protected` with the user's work ────────
@@ -99,7 +91,7 @@ def test_an_open_card_without_the_users_work_is_not_protected() -> None:
     (row(id=1, origin=MANUAL), USER_WORK["added"]),
     (row(id=1, origin=EXAMPLE), USER_WORK["added"]),
     (row(id=1, origin=COLLECTED), USER_WORK["added"]),
-    (row(id=1, has_results=True, has_job=True, shown=SELECTION), NO_USER_WORK),
+    (row(id=1, generation=MEANING, has_job=True, shown=SELECTION), NO_USER_WORK),
 ])
 def test_a_row_reports_the_users_work_on_it(built: OccurrenceRow, work: UserWork) -> None:
     assert built.user_work == work

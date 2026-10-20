@@ -165,7 +165,7 @@ class TestKnownRemoval:
     def test_the_removal_waits_for_a_busy_source(self) -> None:
         bench, acting, _ = self._bench()
         bench.lock.held.side_effect = lambda source_id: (
-            SourceOperationKind.REBUILD if source_id == 2 else None  # noqa: PLR2004
+            SourceOperationKind.UPDATE if source_id == 2 else None  # noqa: PLR2004
         )
 
         with pytest.raises(SourceOperationBusyError):

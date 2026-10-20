@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
-    from backend.domain.services.rebuild_plan import RebuildPlan, SectionChange
+    from backend.domain.services.rebuild_plan import AppliedPlan, RebuildPlan, SectionChange
     from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.occurrence_row import OccurrenceRow
@@ -89,10 +89,10 @@ class OccurrenceRepository(ABC):
         """Every word of the source, light."""
 
     @abstractmethod
-    def apply_plan(self, plan: RebuildPlan) -> list[int]:
+    def apply_plan(self, plan: RebuildPlan) -> AppliedPlan:
         """Write a rebuild plan in the caller's transaction: words, phrases, their words
-        and the selection marks. Returns the ids of the inserted phrases, in the order of
-        `plan.occ_to_insert`."""
+        and the selection marks. A phrase cut again drops what was made of its old text;
+        its queued jobs follow its new revision and its running ones are cancelled."""
 
     @abstractmethod
     def unsectioned(self) -> list[UnsectionedPhrase]:

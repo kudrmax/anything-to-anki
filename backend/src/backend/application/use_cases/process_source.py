@@ -10,6 +10,7 @@ from backend.domain.exceptions import (
     TopicTargetsMissingError,
 )
 from backend.domain.value_objects.processing_stage import ProcessingStage
+from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
@@ -90,7 +91,7 @@ class ProcessSourceUseCase:
                 self._process_topic(source)
                 return
             self._notify_stage(source_id, ProcessingStage.ANALYZING_TEXT)
-            plan = self._rebuilder.apply(self._rebuilder.analyse(source_id), include_open=False)
+            plan = self._rebuilder.apply(self._rebuilder.analyse(source_id), RebuildMode.UPDATE)
             logger.info(
                 "process_source: done (source_id=%d, words_created=%d, phrases_created=%d)",
                 source_id, len(plan.words_to_create), len(plan.occ_to_insert),

@@ -165,15 +165,15 @@ class TestGenerationOnASet:
     def test_busy_source_is_skipped_in_a_collection(
         self, client: TestClient, db_session: Session,
     ) -> None:
-        _hold(db_session, 1, "rebuild")
+        _hold(db_session, 1, "update")
         response = client.post(
             "/api/review/generation/meaning", params={"scope": "7", "cards": "missing"},
         )
         assert response.json() == {"enqueued": 1}
 
     def test_all_sources_busy_is_409(self, client: TestClient, db_session: Session) -> None:
-        _hold(db_session, 1, "rebuild")
-        _hold(db_session, 2, "rebuild")
+        _hold(db_session, 1, "update")
+        _hold(db_session, 2, "update")
         response = client.post(
             "/api/review/generation/meaning", params={"scope": "7", "cards": "missing"},
         )
@@ -258,7 +258,7 @@ class TestGenerationApi:
     def test_a_source_being_rebuilt_is_409_and_queues_nothing(
         self, client: TestClient, db_session: Session,
     ) -> None:
-        _hold(db_session, 1, "rebuild")
+        _hold(db_session, 1, "update")
 
         response = client.post("/api/review/generation/meaning?scope=source-1&cards=missing")
         assert response.status_code == 409
@@ -283,7 +283,7 @@ class TestGenerationApi:
     ) -> None:
         db_session.execute(text(
             "INSERT INTO source_operations (source_id, kind, started_at)"
-            " VALUES (1, 'rebuild', '2026-01-01 00:00:00')"
+            " VALUES (1, 'update', '2026-01-01 00:00:00')"
         ))
         db_session.commit()
 

@@ -407,20 +407,20 @@ class TestBusySource:
     def test_a_source_being_rebuilt_keeps_its_status_and_cant_start_another(
         self, client: TestClient, bench: Bench, session: Session,
     ) -> None:
-        SqlaSourceOperationLock(session).acquire(SOURCE, SourceOperationKind.REBUILD)
+        SqlaSourceOperationLock(session).acquire(SOURCE, SourceOperationKind.UPDATE)
         session.commit()
         [summary] = client.get("/sources").json()
         assert summary["status"] == "done"
-        assert summary["busy_with"] == "rebuild"
+        assert summary["busy_with"] == "update"
         assert summary["processing_stage"] is None
-        assert summary["available_operations"] == ["rebuild"]
+        assert summary["available_operations"] == ["update", "recut"]
         assert summary["can_start_operation"] is False
         assert summary["operation_hint"]
 
     def test_a_free_source_offers_its_operation(self, client: TestClient, bench: Bench) -> None:
         [summary] = client.get("/sources").json()
         assert summary["busy_with"] is None
-        assert summary["available_operations"] == ["rebuild"]
+        assert summary["available_operations"] == ["update", "recut"]
         assert summary["can_start_operation"] is True
         assert summary["operation_hint"] is None
 

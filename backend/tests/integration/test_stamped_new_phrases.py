@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import pytest
 from backend.domain.exceptions import PhraseSectionMissingError
 from backend.domain.value_objects.candidate_section import CandidateSection
+from backend.domain.value_objects.rebuild_mode import RebuildMode
 from sqlalchemy import text
 
 from tests.source_rebuild_support import SOURCE, Bench, at, word
@@ -38,7 +39,7 @@ def test_rebuild_stamps_the_phrases_it_adds(bench: Bench) -> None:
         word("zephyr", at(1, text="a zephyr quill", new=("quill",))),
     ]
 
-    bench.rebuild().execute(SOURCE, include_open=False)
+    bench.rebuild().execute(SOURCE, RebuildMode.UPDATE)
 
     assert bench.phrase_on("zephyr", 1).earned_section == CandidateSection.EXTRA.value
 
