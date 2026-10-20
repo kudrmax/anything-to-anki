@@ -739,7 +739,6 @@ class Container:
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
             document_repo=SqlaDocumentRepository(session),
             report_repo=SqlaCardReportRepository(session),
-            vocabulary=self._user_vocabulary(session),
             knowledge=self._user_knowledge(session),
             effects=self._decision_effects(session),
             unit_of_work=self._unit_of_work(session),

@@ -51,7 +51,7 @@ class KnowledgeSnapshot:
             yield lemma, self.of(lemma)
 
     def known_lemmas(self) -> frozenset[str]:
-        """Known by the list or by the timer, never when in Unknown."""
+        """Known by the list or by the timer."""
         return frozenset(lemma for lemma in self._lemmas if self.of(lemma).is_known)
 
     def vocabulary(self) -> Vocabulary:

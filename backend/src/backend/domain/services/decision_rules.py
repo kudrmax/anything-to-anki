@@ -1,8 +1,9 @@
 """The decision tables: what a press, a move, an export and a Known removal do to a word.
 
 Every condition is in a rule key, and every possible key has exactly one row. Effects are a
-function of the status change; a row adds only its own card effects (RELEASE, and MARK_KNOWN
-on M3k when the lemma was Known only by its timer).
+function of the status change and of whether the lemma is in Unknown; a row adds only its own
+card effects (RELEASE, and MARK_KNOWN on M3k when the lemma was Known only by its timer).
+Marking a lemma Unknown has its own table (`unknown_mark`).
 """
 from __future__ import annotations
 
@@ -34,6 +35,7 @@ from backend.domain.value_objects.card_choice import (
     reads_known,
     status_of,
 )
+from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.learning_timer import timer_due
 from backend.domain.value_objects.word_status import WordStatus
 
@@ -41,7 +43,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
     from datetime import datetime
 
-    from backend.domain.value_objects.elsewhere import ElsewhereStatus
     from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
 
 
@@ -52,6 +53,7 @@ class Effect(StrEnum):
     FORGET_CALIBRATION = "forget_calibration"
     BIND = "bind"
     RELEASE = "release"
+    FORGET_UNKNOWN = "forget_unknown"
 
 
 _NO_EFFECTS: frozenset[Effect] = frozenset()
@@ -105,10 +107,13 @@ _RELEASE_EFFECTS: Mapping[bool, frozenset[Effect]] = MappingProxyType(
 
 @dataclass(frozen=True)
 class StatusChange:
+    """`unknown`: the lemma was in Unknown when the status changed."""
+
     word_id: int
     before: WordStatus
     after: WordStatus
     actor: Actor
+    unknown: bool
 
 
 @dataclass(frozen=True)
@@ -155,6 +160,7 @@ def _change(
 ) -> StatusChange:
     return StatusChange(
         before.word_id, status_of(before, lemma, now), status_of(after, lemma, now), actor,
+        lemma.unknown,
     )
 
 
@@ -366,6 +372,7 @@ def press(
         released=target.release,
         status=StatusChange(
             word.word_id, status_of(word, lemma, now), chosen_status(after), Actor.USER,
+            lemma.unknown,
         ),
         row_effects=_RELEASE_EFFECTS[target.release],
     )
@@ -631,13 +638,56 @@ _STATUS_EFFECTS: Mapping[tuple[WordStatus, WordStatus, Actor], frozenset[Effect]
         (_KNOWN, _NEW, Actor.REVOKE): frozenset({Effect.FORGET_CALIBRATION}),
     })
 )
-EFFECTS: Mapping[tuple[WordStatus, WordStatus, Actor], frozenset[Effect]] = MappingProxyType(
-    {
+_CHANGE_EFFECTS: Mapping[tuple[WordStatus, WordStatus, Actor], frozenset[Effect]] = (
+    MappingProxyType({
         **{(status, status, Actor.USER): _NO_EFFECTS for status in WordStatus},
         **_STATUS_EFFECTS,
-    },
+    })
 )
+_UNKNOWN_EFFECTS: Mapping[tuple[WordStatus, Actor], frozenset[Effect]] = MappingProxyType({
+    (_LEARN, Actor.USER): frozenset({Effect.FORGET_UNKNOWN}),
+})
+"""A word is never Unknown and decided Learn at once: the user's Learn or Cloze takes the
+lemma out of Unknown. Known does it by MARK_KNOWN."""
+EFFECTS: Mapping[tuple[WordStatus, WordStatus, Actor, bool], frozenset[Effect]] = (
+    MappingProxyType({
+        **{(*change, False): fx for change, fx in _CHANGE_EFFECTS.items()},
+        **{
+            (before, after, actor, True): fx | _UNKNOWN_EFFECTS.get((after, actor), _NO_EFFECTS)
+            for (before, after, actor), fx in _CHANGE_EFFECTS.items()
+        },
+    })
+)
+"""(before, after, actor, the lemma in Unknown) → the effects."""
 
 
 def effects(change: StatusChange) -> frozenset[Effect]:
-    return rule(EFFECTS, (change.before, change.after, change.actor))
+    return rule(EFFECTS, (change.before, change.after, change.actor, change.unknown))
+
+
+# --- marking Unknown (spec §1) --------------------------------------------------------------
+
+
+class UnknownMark(StrEnum):
+    MARK = "mark"
+    MARK_AND_REMOVE_KNOWN = "mark_and_remove_known"
+    IGNORE = "ignore"
+
+    @property
+    def removes_known(self) -> bool:
+        return self is UnknownMark.MARK_AND_REMOVE_KNOWN
+
+
+UNKNOWN_MARK_RULES: Mapping[ElsewhereStatus | None, UnknownMark] = MappingProxyType({
+    None: UnknownMark.MARK,
+    ElsewhereStatus.LEARN: UnknownMark.IGNORE,
+    ElsewhereStatus.LEARNING: UnknownMark.IGNORE,
+    ElsewhereStatus.KNOWN: UnknownMark.MARK_AND_REMOVE_KNOWN,
+})
+"""What the lemma stands as → what marking it Unknown does. A Learn or a note in Anki
+already says "I don't know it", so the mark adds nothing and never touches the decision;
+a Known lemma goes Unknown through the Known removal (§2.7)."""
+
+
+def unknown_mark(lemma: LemmaKnowledge) -> UnknownMark:
+    return rule(UNKNOWN_MARK_RULES, lemma.elsewhere)

@@ -207,9 +207,8 @@ def reads_known(card: CardState, lemma: LemmaKnowledge, now: datetime) -> bool:
     return (
         kind is not None
         and (binding is None or binding.note_kind is kind)
-        and not lemma.unknown
         and (
-            lemma.known_marked
+            lemma.listed_known
             or (binding is not None and timer_due(binding.learning_since, now))
         )
     )

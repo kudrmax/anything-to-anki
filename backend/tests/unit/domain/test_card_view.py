@@ -208,7 +208,6 @@ STATES: dict[str, State] = {
     # Q15: Learn, then the lemma was put in Known before the export.
     "learn_then_listed": State(_word(_card(L)), known_marked=True),
     "known_in_anki": State(_word(_card(K, NoteKind.LEARN)), known_marked=True),
-    "in_anki_unknown": State(_word(_card(L, NoteKind.LEARN, DUE)), unknown=True),
     "other_open": State(_word(_card(N), CardState(SIBLING, L))),
     "other_skip": State(_word(_card(S), CardState(SIBLING, K)), known_marked=True),
 }
@@ -231,7 +230,6 @@ class TestPerState:
         "learning": {Press.LEARN}, "learning_cloze": {Press.CLOZE},
         "known_by_timer": {Press.KNOWN}, "known_by_list": {Press.KNOWN},
         "learn_then_listed": {Press.KNOWN}, "known_in_anki": {Press.KNOWN},
-        "in_anki_unknown": {Press.LEARN},
         "other_open": {Press.LEARN},
         "other_skip": {Press.KNOWN},
     }))
@@ -241,7 +239,7 @@ class TestPerState:
     @pytest.mark.parametrize(("state", "expected"), _per_state({
         name: name in {"open_new", "open_skip"} or name in {
             "learn", "cloze", "known", "learning", "learning_cloze", "known_by_timer",
-            "known_by_list", "learn_then_listed", "known_in_anki", "in_anki_unknown",
+            "known_by_list", "learn_then_listed", "known_in_anki",
         } for name in STATES
     }))
     def test_buttons_on(self, state: str, expected: bool) -> None:
@@ -263,7 +261,6 @@ class TestPerState:
         "known_by_list": Shown(_KNOWN, False, Where.HERE),
         "learn_then_listed": Shown(_KNOWN, False, Where.HERE),
         "known_in_anki": Shown(_KNOWN, False, Where.HERE),
-        "in_anki_unknown": Shown(_LEARNING, False, Where.HERE),
         "other_open": Shown(_LEARN, False, Where.OTHER_CARD),
         "other_skip": Shown(_KNOWN, True, Where.OTHER_CARD),
     }))
@@ -310,7 +307,7 @@ class TestPerState:
     @pytest.mark.parametrize(("state", "expected"), _per_state({
         name: name in {
             "learn", "cloze", "learning", "learning_cloze", "known_by_timer",
-            "known_by_list", "learn_then_listed", "in_anki_unknown", "other_open",
+            "known_by_list", "learn_then_listed", "other_open",
         } for name in STATES
     }))
     def test_chosen_to_learn(self, state: str, expected: bool) -> None:

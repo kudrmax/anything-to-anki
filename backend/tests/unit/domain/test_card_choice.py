@@ -144,9 +144,10 @@ class TestReadsKnown:
         assert older_row_of_the_note.any_due is True
         assert reads_known(card, older_row_of_the_note, NOW) is False
 
-    def test_unknown_masks_the_timer_and_the_list(self) -> None:
-        card = _bound(CardChoice.LEARN, NoteKind.LEARN, DUE)
-        knowledge = _knowledge(known_marked=True, unknown=True, active_since=(DUE,))
+    def test_a_lemma_in_both_lists_is_not_read_known_by_the_list(self) -> None:
+        """Stage 4's migration removes such conflicts; till then Unknown wins the list."""
+        card = CardState(1, CardChoice.LEARN)
+        knowledge = _knowledge(known_marked=True, unknown=True)
         assert reads_known(card, knowledge, NOW) is False
 
     @pytest.mark.parametrize(
@@ -179,11 +180,6 @@ class TestStatusOf:
     def test_learning_on_day_29_is_learning(self) -> None:
         word = _word(_bound(CardChoice.LEARN, NoteKind.LEARN, FRESH))
         assert status_of(word, _knowledge(active_since=(FRESH,)), NOW) is WordStatus.LEARNING
-
-    def test_learning_in_unknown_never_turns_known(self) -> None:
-        word = _word(_bound(CardChoice.LEARN, NoteKind.LEARN, DUE))
-        knowledge = _knowledge(unknown=True, active_since=(DUE,))
-        assert status_of(word, knowledge, NOW) is WordStatus.LEARNING
 
     def test_learn_before_export_stays_learn(self) -> None:
         word = _word(CardState(1, CardChoice.LEARN))

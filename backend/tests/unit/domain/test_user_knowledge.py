@@ -49,7 +49,7 @@ class TestIsNew:
 
 
 class TestLearning:
-    """Priority: Unknown > Known > learning ("учу")."""
+    """Known > learning ("учу"); a learned word is never Unknown (spec §1)."""
 
     def test_a_learning_word_is_new_and_not_known(self) -> None:
         learning = Vocabulary.of(known=set(), unknown=set(), learning={"gull"})
@@ -63,10 +63,11 @@ class TestLearning:
         assert both.is_learning("gull") is False
         assert _knowledge(both).is_new(_word("gull")) is False
 
-    def test_unknown_is_stronger_than_learning(self) -> None:
-        both = Vocabulary.of(known=set(), unknown={"gull"}, learning={"gull"})
+    def test_a_word_in_both_lists_is_unknown(self) -> None:
+        """Stage 4's migration removes such conflicts; till then Unknown wins the list."""
+        both = Vocabulary.of(known={"gull"}, unknown={"gull"})
         assert both.is_unknown("gull") is True
-        assert both.is_learning("gull") is False
+        assert both.is_known("gull") is False
 
     def test_known_or_learning_is_no_new_candidate(self) -> None:
         vocabulary = Vocabulary.of(known={"gull"}, unknown=set(), learning={"Tern"})

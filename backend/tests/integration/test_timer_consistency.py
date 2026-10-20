@@ -1,6 +1,6 @@
 """One `now` for every reader: 30 days after its export a word is Known on its card, in
 other sources, in the sections of other phrases, in the Known list and in the stats, at the
-same moment and with nothing written. A word in Unknown is never Known by its timer."""
+same moment and with nothing written."""
 from __future__ import annotations
 
 from collections.abc import Generator  # noqa: TC003
@@ -48,8 +48,8 @@ pytestmark = pytest.mark.integration
 Json = Any
 
 HERE, THERE, BOARD = 1, 2, 3
-GLARE, SPARK = 1, 2                 # Learn in HERE, exported at EXPORTED
-GLARE_THERE, SPARK_THERE, DRIFT = 3, 4, 5
+GLARE = 1                           # Learn in HERE, exported at EXPORTED
+GLARE_THERE, DRIFT = 3, 5
 ECHO, BLIND = 6, 7                  # in BOARD: ECHO skipped, BLIND's phrase shows glare
 EXPORTED = datetime(2026, 9, 1, 12, tzinfo=UTC)
 DAY_30 = EXPORTED + LEARNING_KNOWN_AFTER
@@ -110,12 +110,9 @@ def _seed(session: Session) -> None:
     since = EXPORTED.replace(tzinfo=None).isoformat(sep=" ")
     insert_source(session, HERE)
     insert_source(session, THERE)
-    for word_id, lemma in ((GLARE, "glare"), (SPARK, "spark")):
-        insert_word(session, word_id, source_id=HERE, lemma=lemma, status="learn")
-        bind(session, word_id, phrase_id_of(word_id), since=since)
-    SqlaUnknownWordRepository(session, SessionChangeRecorder(session)).add("spark")
+    insert_word(session, GLARE, source_id=HERE, lemma="glare", status="learn")
+    bind(session, GLARE, phrase_id_of(GLARE), since=since)
     insert_word(session, GLARE_THERE, source_id=THERE, lemma="glare")
-    insert_word(session, SPARK_THERE, source_id=THERE, lemma="spark")
     insert_word(session, DRIFT, source_id=THERE, lemma="drift")
     # Only the target is new once glare is known: Ready; while glare is learning: Extra.
     SqlaOccurrenceRepository(session, SessionChangeRecorder(session)).write_text(
@@ -192,15 +189,6 @@ def test_at_day_29_every_reader_sees_the_word_learning(
     assert [(w["lemma"], w["known_on"][:10]) for w in learning["in_anki"]] == [
         ("glare", DAY_30.date().isoformat()),
     ]
-
-
-def test_a_word_in_unknown_is_never_known_by_its_timer(client: TestClient) -> None:
-    own = _card(client, HERE, SPARK)
-    assert own["shown"]["status"] == "learning"
-    assert _pressed(own) == ["learn"]
-    assert _card(client, THERE, SPARK_THERE)["shown"]["where"] == "nowhere"
-    assert "spark" not in {w["lemma"] for w in _known_list(client)}
-    assert _known_count(client) == 1
 
 
 @pytest.mark.parametrize("lemma", ["glare", "Glare"])

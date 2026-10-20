@@ -1,5 +1,5 @@
 """The decision tables: every possible key has exactly one row, and every row keeps the
-invariants A1, A2, AK and AR.
+invariants A1, A2, AK, AR and AU.
 
 Worlds are generated: a word with the acted card and maybe a sibling, other sources of the
 lemma, orphaned bindings, and the lemma's lists. Every key is derived from a world, never
@@ -27,6 +27,7 @@ from backend.domain.services.decision_rules import (
     PRESS_RULES,
     REMOVAL_ROWS,
     REMOVAL_RULES,
+    UNKNOWN_MARK_RULES,
     BindingRef,
     BindKey,
     Effect,
@@ -35,6 +36,7 @@ from backend.domain.services.decision_rules import (
     RemovalKey,
     StatusChange,
     Target,
+    UnknownMark,
     WordOutcome,
     bind_key,
     effects,
@@ -50,6 +52,7 @@ from backend.domain.services.decision_rules import (
     press,
     press_key,
     removal_key,
+    unknown_mark,
 )
 from backend.domain.value_objects.card_choice import (
     CHOICE_OF_PRESS,
@@ -67,7 +70,9 @@ from backend.domain.value_objects.card_choice import (
     export_kind,
     status_of,
 )
+from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.learning_timer import timer_due
+from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.decision_worlds import (
@@ -79,6 +84,7 @@ from tests.decision_worlds import (
     NOW,
     World,
     holds_ak,
+    holds_au,
     single,
     well_formed,
     worlds,
@@ -99,6 +105,7 @@ CHANGED: frozenset[Effect] = frozenset()
 SAME: frozenset[Effect] = frozenset()
 MK, RK = Effect.MARK_KNOWN, Effect.REMOVE_KNOWN
 CAL, FORGET, REL = Effect.CALIBRATE, Effect.FORGET_CALIBRATION, Effect.RELEASE
+FU = Effect.FORGET_UNKNOWN
 
 
 def _changed(*extra: Effect) -> frozenset[Effect]:
@@ -146,6 +153,8 @@ def _settle(world: World, outcome: WordOutcome) -> World:
     after = world.replacing(outcome.word)
     if Effect.MARK_KNOWN in outcome.effects:
         after = replace(after, known_marked=True, unknown=False)
+    if FU in outcome.effects:
+        after = replace(after, unknown=False)
     if Effect.REMOVE_KNOWN in outcome.effects:
         after = _cascade_besides(after, outcome.word.word_id)
     return after
@@ -164,6 +173,7 @@ def _assert_invariants(before: World, outcome: WordOutcome) -> None:
     )
     assert all(well_formed(word) for word in after.words), "A1/A2"
     assert holds_ak(after), "AK"
+    assert holds_au(after), "AU"
     if Effect.REMOVE_KNOWN in outcome.effects:
         _assert_ar(after)
 
@@ -246,34 +256,41 @@ class Expected:
     release: bool = False
     status: tuple[WordStatus, WordStatus] | None = None   # None: unchanged
     effects: frozenset[Effect] = SAME
+    on_unknown: frozenset[Effect] = SAME     # added when the lemma is in Unknown
+
+
+# Spec §1: a Learn or Cloze the user chooses takes the lemma out of Unknown.
+_FORGETS_UNKNOWN = frozenset({FU})
 
 
 PRESS_EXPECTED: dict[str, Expected] = {
-    "P1": Expected(L, status=(NEW, LEARN), effects=_changed(CAL)),
-    "P2": Expected(C, status=(NEW, LEARN), effects=_changed(CAL)),
+    "P1": Expected(L, status=(NEW, LEARN), effects=_changed(CAL), on_unknown=_FORGETS_UNKNOWN),
+    "P2": Expected(C, status=(NEW, LEARN), effects=_changed(CAL), on_unknown=_FORGETS_UNKNOWN),
     "P3": Expected(K, status=(NEW, KNOWN), effects=_changed(MK, CAL)),
     "P4": Expected(S),
     "P5": Expected(N),
     "P6": Expected(Refusal.DECIDED_ELSEWHERE),
     "P9": Expected(N, status=(LEARN, NEW), effects=_changed(FORGET)),
-    "P10": Expected(PRESSED),
+    "P10": Expected(PRESSED, on_unknown=_FORGETS_UNKNOWN),
     "P11": Expected(K, status=(LEARN, KNOWN), effects=_changed(MK, CAL)),
     "P12": Expected(S, status=(LEARN, NEW), effects=_changed(FORGET)),
     "P13": Expected(N, status=(KNOWN, NEW), effects=_changed(RK, FORGET)),
-    "P14": Expected(PRESSED, status=(KNOWN, LEARN), effects=_changed(RK, CAL)),
+    "P14": Expected(
+        PRESSED, status=(KNOWN, LEARN), effects=_changed(RK, CAL), on_unknown=_FORGETS_UNKNOWN,
+    ),
     "P15": Expected(S, status=(KNOWN, NEW), effects=_changed(RK, FORGET)),
     "P16": Expected(K, status=(LEARNING, KNOWN), effects=_changed(MK, CAL)),
     "P17": Expected(N, True, (LEARNING, NEW), _changed(FORGET, REL)),
-    "P18": Expected(PRESSED, True, (LEARNING, LEARN), _changed(REL)),
+    "P18": Expected(PRESSED, True, (LEARNING, LEARN), _changed(REL), _FORGETS_UNKNOWN),
     "P19": Expected(S, True, (LEARNING, NEW), _changed(FORGET, REL)),
     "P20": Expected(N, True, (KNOWN, NEW), _changed(RK, FORGET, REL)),
     "P21": Expected(S, True, (KNOWN, NEW), _changed(RK, FORGET, REL)),
-    "P22": Expected(PRESSED, True, (KNOWN, LEARN), _changed(RK, CAL, REL)),
+    "P22": Expected(PRESSED, True, (KNOWN, LEARN), _changed(RK, CAL, REL), _FORGETS_UNKNOWN),
     "P23": Expected(N, True, (KNOWN, NEW), _changed(RK, FORGET, REL)),
-    "P24": Expected(PRESSED, True, (KNOWN, LEARN), _changed(RK, CAL, REL)),
+    "P24": Expected(PRESSED, True, (KNOWN, LEARN), _changed(RK, CAL, REL), _FORGETS_UNKNOWN),
     "P24s": Expected(S, True, (KNOWN, NEW), _changed(RK, FORGET, REL)),
     "P23u": Expected(N, False, (KNOWN, NEW), _changed(RK, FORGET)),
-    "P24u": Expected(PRESSED, False, (KNOWN, LEARN), _changed(RK, CAL)),
+    "P24u": Expected(PRESSED, False, (KNOWN, LEARN), _changed(RK, CAL), _FORGETS_UNKNOWN),
     "P24su": Expected(S, False, (KNOWN, NEW), _changed(RK, FORGET)),
     "P25": Expected(Refusal.NOT_DECISION_CARD),
     "P27": Expected(Refusal.NOT_DECISION_CARD),
@@ -326,11 +343,99 @@ class TestPressRows:
             assert status.before is status.after
         else:
             assert (status.before, status.after) == expected.status
-        assert outcome.effects == expected.effects
+        unknown = world.knowledge().unknown
+        assert status.unknown is unknown
+        assert outcome.effects == expected.effects | (expected.on_unknown if unknown else SAME)
         assert [c for c in outcome.word.cards if c.card_id != ACTED] == [
             c for c in world.word.cards if c.card_id != ACTED
         ]
         _assert_invariants(world, outcome)
+
+
+@pytest.mark.unit
+class TestPressOnAnUnknownLemma:
+    """Spec §1: a word is never Unknown and decided Learn at once."""
+
+    @pytest.mark.parametrize(("button", "row"), [(Press.LEARN, "P1"), (Press.CLOZE, "P2")])
+    def test_learn_or_cloze_decides_and_forgets_unknown(self, button: Press, row: str) -> None:
+        cases = [(w, b) for w, b in _press_cases()[row] if w.unknown and b is button]
+        assert cases
+        for world, _ in cases:
+            outcome = _press(world, button)
+            assert outcome.word.card(ACTED).choice is CHOICE_OF_PRESS[button]
+            assert outcome.effects == _changed(CAL, FU)
+            assert _settle(world, outcome).unknown is False
+
+    def test_known_marks_known_as_before(self) -> None:
+        cases = [w for w, b in _press_cases()["P3"] if w.unknown and b is Press.KNOWN]
+        assert cases
+        for world in cases:
+            outcome = _press(world, Press.KNOWN)
+            assert outcome.effects == _changed(MK, CAL)
+            assert _settle(world, outcome).unknown is False
+
+    def test_skip_leaves_the_mark(self) -> None:
+        cases = [w for w, b in _press_cases()["P4"] if w.unknown]
+        assert cases
+        for world in cases:
+            assert FU not in _press(world, Press.SKIP).effects
+
+    def test_replace_with_example_on_a_learn_from_before_the_rule_forgets_unknown(
+        self,
+    ) -> None:
+        """Data from before spec §1 may hold a Learn and Unknown at once (Stage 4 migrates
+        it); moving the Learn is the user's Learn again."""
+        world = World(single(1, L), (), (), False, True)
+        outcome = move(world.word, world.word.cards[0].card_id, NEW_CARD, world.knowledge(), NOW)
+        assert outcome.row == "M1"
+        assert outcome.effects == _same(FU)
+
+    def test_undo_of_learn_does_not_bring_unknown_back(self) -> None:
+        world = World(single(1, N), (), (), False, True)
+        acted = world.word.cards[0].card_id
+        learned = press(world.word, acted, Press.LEARN, world.knowledge(), None, NOW)
+        settled = _settle(world, learned)
+        undone = press(learned.word, acted, Press.LEARN, settled.knowledge(), None, NOW)
+        assert undone.row == "P9"
+        assert undone.status.after is NEW
+        assert undone.effects == _changed(FORGET)
+        assert _settle(settled, undone).unknown is False
+
+
+@pytest.mark.unit
+class TestUnknownMark:
+    def test_the_table_is_total_over_what_a_lemma_stands_as(self) -> None:
+        assert set(UNKNOWN_MARK_RULES) == {None, *ElsewhereStatus}
+
+    @pytest.mark.parametrize(
+        ("known_marked", "unknown", "learn_anywhere", "active_since", "expected"),
+        [
+            pytest.param(False, False, False, (), UnknownMark.MARK, id="none"),
+            pytest.param(False, False, True, (), UnknownMark.IGNORE, id="learn"),
+            pytest.param(False, False, False, (FRESH,), UnknownMark.IGNORE, id="learning"),
+            pytest.param(False, False, True, (FRESH,), UnknownMark.IGNORE, id="learn-learning"),
+            pytest.param(
+                True, False, False, (), UnknownMark.MARK_AND_REMOVE_KNOWN, id="known-by-list",
+            ),
+            pytest.param(
+                False, False, False, (DUE,), UnknownMark.MARK_AND_REMOVE_KNOWN,
+                id="known-by-timer",
+            ),
+            pytest.param(False, True, False, (), UnknownMark.MARK, id="already-unknown"),
+        ],
+    )
+    def test_the_mark_by_lemma_state(
+        self, known_marked: bool, unknown: bool, learn_anywhere: bool,
+        active_since: tuple[datetime, ...], expected: UnknownMark,
+    ) -> None:
+        lemma = LemmaKnowledge.at(
+            NOW, known_marked=known_marked, unknown=unknown, learn_anywhere=learn_anywhere,
+            active_since=active_since,
+        )
+        assert unknown_mark(lemma) is expected
+
+    def test_only_a_known_lemma_removes_known(self) -> None:
+        assert {m for m in UnknownMark if m.removes_known} == {UnknownMark.MARK_AND_REMOVE_KNOWN}
 
 
 @pytest.mark.unit
@@ -384,7 +489,7 @@ class TestKnownRemovalAfterAPress:
         assert set(revoked) == read_known
         assert read_known >= ({2, 3, 4, 5} if known_marked else {4}), "Q15: 5 reads Known"
         for word_id, outcome_of in revoked.items():
-            assert outcome_of.status == StatusChange(word_id, KNOWN, NEW, Actor.REVOKE)
+            assert outcome_of.status == StatusChange(word_id, KNOWN, NEW, Actor.REVOKE, False)
             assert outcome_of.word.decision_card is None
             assert all(card.binding is None for card in outcome_of.word.cards)
         assert removal.released_orphans == (501,)
@@ -528,8 +633,8 @@ class TestBindRows:
             assert card.choice is before.choice
             assert card.binding == Binding(export_kind(before) or NoteKind.LEARN, NOW)
             assert export_kind(before) is not None
-            assert not world.known_marked or world.unknown, "a listed Learn is not exported"
-            assert outcome.status == StatusChange(1, LEARN, LEARNING, Actor.EXPORT)
+            assert not world.known_marked, "a listed Learn is not exported"
+            assert outcome.status == StatusChange(1, LEARN, LEARNING, Actor.EXPORT, False)
             assert outcome.effects == _changed(Effect.BIND)
             assert outcome.released is False
             _assert_invariants(world, outcome)
@@ -586,7 +691,9 @@ class TestRemovalRows:
                 assert outcome.word.card(card.card_id).binding is None
                 assert outcome.released is release
                 assert (card.binding is not None) is release
-                assert outcome.status == StatusChange(before.word_id, KNOWN, NEW, Actor.REVOKE)
+                assert outcome.status == StatusChange(
+                    before.word_id, KNOWN, NEW, Actor.REVOKE, False,
+                )
                 assert outcome.effects == _changed(FORGET, *((REL,) if release else ()))
         assert seen
 
@@ -646,7 +753,7 @@ class TestRemovalRows:
 # --- effects --------------------------------------------------------------------------------
 
 
-def _produced_changes() -> set[tuple[WordStatus, WordStatus, Actor]]:
+def _produced_changes() -> set[tuple[WordStatus, WordStatus, Actor, bool]]:
     outcomes: list[WordOutcome] = []
     for world in worlds():
         for button in Press:
@@ -658,16 +765,32 @@ def _produced_changes() -> set[tuple[WordStatus, WordStatus, Actor]]:
         outcomes.extend(
             on_known_removed(world.knowledge(), world.words, world.orphans, NOW).words,
         )
-    return {(o.status.before, o.status.after, o.status.actor) for o in outcomes}
+    return {
+        (o.status.before, o.status.after, o.status.actor, o.status.unknown) for o in outcomes
+    }
 
 
 @pytest.mark.unit
 class TestEffects:
     def test_effects_are_total_over_every_produced_change(self) -> None:
-        assert _produced_changes() == set(EFFECTS)
+        produced = _produced_changes()
+        changes = {key[:3] for key in EFFECTS}
+        assert produced <= set(EFFECTS)
+        assert {key[:3] for key in produced} == changes
+        both = {(*change, unknown) for change in changes for unknown in (False, True)}
+        assert set(EFFECTS) == both, "every change has a row in Unknown and one without"
+
+    def test_only_a_learn_the_user_chooses_forgets_unknown(self) -> None:
+        forgetting = {key for key, fx in EFFECTS.items() if FU in fx}
+        assert forgetting == {
+            key for key in EFFECTS if key[1] is LEARN and key[2] is Actor.USER and key[3]
+        }
+        for (before, after, actor, unknown), fx in EFFECTS.items():
+            if unknown:
+                assert fx - {FU} == EFFECTS[before, after, actor, False]
 
     def test_every_status_change_refreshes_the_source_and_the_lemma(self) -> None:
-        for (before, after, _), table_effects in EFFECTS.items():
+        for (before, after, _, _), table_effects in EFFECTS.items():
             expected = CHANGED if before is not after else SAME
             assert table_effects >= expected
 
@@ -691,8 +814,26 @@ class TestEffects:
     def test_the_table(
         self, before: WordStatus, after: WordStatus, actor: Actor, expected: frozenset[Effect],
     ) -> None:
-        assert effects(StatusChange(1, before, after, actor)) == expected
+        assert effects(StatusChange(1, before, after, actor, False)) == expected
+
+    @pytest.mark.parametrize(
+        ("before", "after", "actor", "expected"),
+        [
+            (NEW, LEARN, Actor.USER, _changed(CAL, FU)),
+            (KNOWN, LEARN, Actor.USER, _changed(RK, CAL, FU)),
+            (LEARNING, LEARN, Actor.USER, _changed(FU)),
+            (LEARN, LEARN, Actor.USER, _same(FU)),
+            (NEW, KNOWN, Actor.USER, _changed(MK, CAL)),
+            (NEW, NEW, Actor.USER, SAME),
+            (LEARN, NEW, Actor.USER, _changed(FORGET)),
+            (LEARN, LEARNING, Actor.EXPORT, _changed(Effect.BIND)),
+        ],
+    )
+    def test_the_table_with_the_lemma_in_unknown(
+        self, before: WordStatus, after: WordStatus, actor: Actor, expected: frozenset[Effect],
+    ) -> None:
+        assert effects(StatusChange(1, before, after, actor, True)) == expected
 
     def test_a_change_missing_from_the_table_is_a_bug(self) -> None:
         with pytest.raises(NoDecisionRuleError):
-            effects(StatusChange(1, NEW, LEARNING, Actor.USER))
+            effects(StatusChange(1, NEW, LEARNING, Actor.USER, False))

@@ -269,12 +269,9 @@ class TestAnalyzeTextKnownWords:
         candidates = _run(tokens, {"divorce": CEFRLevel.B2}, learning=frozenset({"divorce"}))
         assert candidates == []
 
-    def test_word_learned_elsewhere_but_marked_unknown_is_a_candidate(self) -> None:
+    def test_word_marked_unknown_is_a_candidate(self) -> None:
         tokens = [_make_token(0, "divorced", "divorce", pos="VERB", tag="VBN")]
-        candidates = _run(
-            tokens, {"divorce": CEFRLevel.B2},
-            learning=frozenset({"divorce"}), unknown=frozenset({"divorce"}),
-        )
+        candidates = _run(tokens, {"divorce": CEFRLevel.B2}, unknown=frozenset({"divorce"}))
         assert [c.lemma for c in candidates] == ["divorce"]
 
     def test_known_phrasal_verb_is_not_a_candidate(self) -> None:
