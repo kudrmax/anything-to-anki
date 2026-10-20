@@ -444,3 +444,10 @@ class InvalidEarnedSectionError(DomainError):
     def __init__(self, section: object) -> None:
         super().__init__(f"A phrase cannot earn the section {section!r}")
         self.section = section
+
+
+class NestedWriteError(DomainError):
+    """Raised when a write transaction is opened inside another one of the same unit of work."""
+
+    def __init__(self) -> None:
+        super().__init__("A write transaction is already open: write() cannot be nested")

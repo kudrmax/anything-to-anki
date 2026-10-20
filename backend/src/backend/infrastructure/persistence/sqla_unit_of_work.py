@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
+from backend.domain.exceptions import NestedWriteError
 from backend.domain.ports.unit_of_work import UnitOfWork
 
 if TYPE_CHECKING:
@@ -24,6 +25,7 @@ class SqlaUnitOfWork(UnitOfWork):
     def __init__(self, session: Session, knowledge: KnowledgeScope) -> None:
         self._session = session
         self._knowledge = knowledge
+        self._write_open = False
 
     def commit(self) -> None:
         self._session.commit()
@@ -33,12 +35,17 @@ class SqlaUnitOfWork(UnitOfWork):
 
     @contextmanager
     def write(self) -> Iterator[None]:
+        if self._write_open:
+            raise NestedWriteError
         self._session.commit()
         self._session.connection().exec_driver_sql(BEGIN_IMMEDIATE)
-        self._knowledge.invalidate()
+        self._write_open = True
         try:
+            self._knowledge.invalidate()
             yield
+            self._session.commit()
         except BaseException:
             self._session.rollback()
             raise
-        self._session.commit()
+        finally:
+            self._write_open = False
