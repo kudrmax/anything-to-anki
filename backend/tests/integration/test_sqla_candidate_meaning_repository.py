@@ -6,6 +6,7 @@ import pytest
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import dump_phrase
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -30,12 +31,12 @@ class TestSqlaCandidateMeaningRepository:
 
     def test_get_returns_none_when_no_row(self) -> None:
         with self._Session() as s:
-            repo = SqlaCandidateMeaningRepository(s)
+            repo = SqlaCandidateMeaningRepository(s, SessionChangeRecorder(s))
             assert repo.get_by_phrase_id(phrase_id_of(1)) is None
 
     def test_upsert_inserts_new_row(self) -> None:
         with self._Session() as s:
-            repo = SqlaCandidateMeaningRepository(s)
+            repo = SqlaCandidateMeaningRepository(s, SessionChangeRecorder(s))
             entity = CandidateMeaning(
                 candidate_id=1,
                 meaning="hello",
@@ -55,7 +56,7 @@ class TestSqlaCandidateMeaningRepository:
 
     def test_upsert_updates_existing_row(self) -> None:
         with self._Session() as s:
-            repo = SqlaCandidateMeaningRepository(s)
+            repo = SqlaCandidateMeaningRepository(s, SessionChangeRecorder(s))
             repo.upsert_for_phrase(phrase_id_of(1), CandidateMeaning(
                 candidate_id=1, meaning="v1", translation=None, synonyms=None, examples=None,
                 ipa=None, generated_at=None,
@@ -75,7 +76,7 @@ class TestSqlaCandidateMeaningRepository:
         with self._Session() as s:
             insert_word(s, 2, lemma="y", phrase_text="ctx")
             s.commit()
-            repo = SqlaCandidateMeaningRepository(s)
+            repo = SqlaCandidateMeaningRepository(s, SessionChangeRecorder(s))
             repo.upsert_for_phrase(phrase_id_of(1), CandidateMeaning(
                 candidate_id=1, meaning="m1", translation=None, synonyms=None, examples=None,
                 ipa=None, generated_at=None,
@@ -92,12 +93,12 @@ class TestSqlaCandidateMeaningRepository:
 
     def test_get_by_phrase_ids_empty_list(self) -> None:
         with self._Session() as s:
-            repo = SqlaCandidateMeaningRepository(s)
+            repo = SqlaCandidateMeaningRepository(s, SessionChangeRecorder(s))
             assert repo.get_by_phrase_ids([]) == {}
 
     def test_persists_translation_and_synonyms(self) -> None:
         with self._Session() as s:
-            repo = SqlaCandidateMeaningRepository(s)
+            repo = SqlaCandidateMeaningRepository(s, SessionChangeRecorder(s))
             repo.upsert_for_phrase(phrase_id_of(1), CandidateMeaning(
                 candidate_id=1,
                 meaning="explain in detail",
@@ -116,7 +117,7 @@ class TestSqlaCandidateMeaningRepository:
 
     def test_upsert_updates_translation_and_synonyms(self) -> None:
         with self._Session() as s:
-            repo = SqlaCandidateMeaningRepository(s)
+            repo = SqlaCandidateMeaningRepository(s, SessionChangeRecorder(s))
             repo.upsert_for_phrase(phrase_id_of(1), CandidateMeaning(
                 candidate_id=1, meaning="test", translation="тест", synonyms="check",
                 examples=None, ipa=None, generated_at=None,

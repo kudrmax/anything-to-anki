@@ -9,6 +9,7 @@ from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import (
     CandidatePronunciationModel,
 )
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_pronunciation_repository import (
     SqlaCandidatePronunciationRepository,
 )
@@ -43,7 +44,7 @@ def _insert_candidate(session: Session, candidate_id: int, source_id: int = 1) -
 
 
 def _word_pronunciation(session: Session, word_id: int) -> CandidatePronunciation | None:
-    word = SqlaCandidateRepository(session).get_by_id(word_id)
+    word = SqlaCandidateRepository(session, SessionChangeRecorder(session)).get_by_id(word_id)
     assert word is not None
     return word.pronunciation
 
@@ -75,7 +76,7 @@ class TestTheWordCarriesItsPronunciation:
 class TestUpsert:
     def test_creates_new(self, session: Session) -> None:
         _insert_candidate(session, 1)
-        repo = SqlaCandidatePronunciationRepository(session)
+        repo = SqlaCandidatePronunciationRepository(session, SessionChangeRecorder(session))
 
         entity = CandidatePronunciation(
             candidate_id=1,
@@ -100,7 +101,7 @@ class TestUpsert:
         ))
         session.flush()
 
-        repo = SqlaCandidatePronunciationRepository(session)
+        repo = SqlaCandidatePronunciationRepository(session, SessionChangeRecorder(session))
         entity = CandidatePronunciation(
             candidate_id=1,
             us_audio_path="/new.mp3",
@@ -127,7 +128,7 @@ class TestRowHoldingOnlyTheIpa:
         _insert_candidate(session, 1)
         session.add(CandidatePronunciationModel(candidate_id=1, ipa="/ɡleə/"))
         session.flush()
-        repo = SqlaCandidatePronunciationRepository(session)
+        repo = SqlaCandidatePronunciationRepository(session, SessionChangeRecorder(session))
 
         repo.upsert(CandidatePronunciation(
             candidate_id=1, us_audio_path="/us.mp3", uk_audio_path=None, generated_at=None,

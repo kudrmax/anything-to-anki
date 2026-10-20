@@ -6,6 +6,7 @@ import pytest
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import dump_phrase
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
@@ -37,12 +38,12 @@ class TestSqlaCandidateMediaRepository:
 
     def test_get_returns_none_when_no_row(self) -> None:
         with self._Session() as s:
-            repo = SqlaCandidateMediaRepository(s)
+            repo = SqlaCandidateMediaRepository(s, SessionChangeRecorder(s))
             assert repo.get_by_phrase_id(phrase_id_of(1)) is None
 
     def test_upsert_inserts_new_row(self) -> None:
         with self._Session() as s:
-            repo = SqlaCandidateMediaRepository(s)
+            repo = SqlaCandidateMediaRepository(s, SessionChangeRecorder(s))
             entity = CandidateMedia(
                 candidate_id=1,
                 screenshot_path="/m/1.webp",
@@ -61,7 +62,7 @@ class TestSqlaCandidateMediaRepository:
 
     def test_upsert_updates_existing_row(self) -> None:
         with self._Session() as s:
-            repo = SqlaCandidateMediaRepository(s)
+            repo = SqlaCandidateMediaRepository(s, SessionChangeRecorder(s))
             repo.upsert_for_phrase(phrase_id_of(1), CandidateMedia(
                 candidate_id=1, screenshot_path="/old.webp", audio_path=None,
                 start_ms=0, end_ms=10, generated_at=None,
@@ -78,7 +79,7 @@ class TestSqlaCandidateMediaRepository:
 
     def test_clear_paths_only_screenshot(self) -> None:
         with self._Session() as s:
-            repo = SqlaCandidateMediaRepository(s)
+            repo = SqlaCandidateMediaRepository(s, SessionChangeRecorder(s))
             repo.upsert_for_phrase(phrase_id_of(1), CandidateMedia(
                 candidate_id=1,
                 screenshot_path="/s.webp",
@@ -98,7 +99,7 @@ class TestSqlaCandidateMediaRepository:
 
     def test_clear_paths_no_op_when_no_row(self) -> None:
         with self._Session() as s:
-            repo = SqlaCandidateMediaRepository(s)
+            repo = SqlaCandidateMediaRepository(s, SessionChangeRecorder(s))
             # Should not raise
             repo.clear_phrase_paths(phrase_id_of(1), clear_screenshot=True, clear_audio=True)
             s.commit()
@@ -107,7 +108,7 @@ class TestSqlaCandidateMediaRepository:
         with self._Session() as s:
             _insert_candidate(s, 2)
             s.commit()
-            repo = SqlaCandidateMediaRepository(s)
+            repo = SqlaCandidateMediaRepository(s, SessionChangeRecorder(s))
             repo.upsert_for_phrase(phrase_id_of(1), CandidateMedia(
                 candidate_id=1, screenshot_path="/1.webp", audio_path=None,
                 start_ms=0, end_ms=10, generated_at=None,
@@ -124,5 +125,5 @@ class TestSqlaCandidateMediaRepository:
 
     def test_get_by_phrase_ids_empty_list(self) -> None:
         with self._Session() as s:
-            repo = SqlaCandidateMediaRepository(s)
+            repo = SqlaCandidateMediaRepository(s, SessionChangeRecorder(s))
             assert repo.get_by_phrase_ids([]) == {}

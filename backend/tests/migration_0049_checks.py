@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from backend.application.utils.export_queue import ExportQueue
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
@@ -177,7 +178,8 @@ def app_export_queue(db_path: Path) -> frozenset[int]:
         with Session(engine) as session:
             decisions = Decisions(session)
             queue = ExportQueue(
-                SqlaCandidateRepository(session), SqlaOccurrenceRepository(session),
+                SqlaCandidateRepository(session, SessionChangeRecorder(session)),
+                SqlaOccurrenceRepository(session, SessionChangeRecorder(session)),
                 decisions.word_states, decisions.vocabulary,
             )
             return frozenset(card.word_id for card in queue.for_all().pending)

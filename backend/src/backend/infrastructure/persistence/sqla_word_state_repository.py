@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import and_, func, select, update
 
 from backend.domain.ports.word_state_repository import WordStateRepository
+from backend.domain.value_objects.card_change import DecisionChanged
 from backend.domain.value_objects.card_choice import (
     Binding,
     CardChoice,
@@ -27,13 +28,16 @@ if TYPE_CHECKING:
     from sqlalchemy import ColumnElement
     from sqlalchemy.orm import Session
 
+    from backend.domain.ports.change_recorder import ChangeRecorder
+
 
 class SqlaWordStateRepository(WordStateRepository):
     """Words as the decision tables see them: one query over words, their phrases and the
     phrases' active bindings."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
+        self._recorder = recorder
         self._after_save: Callable[[], None] = self._expire
 
     def _expire(self) -> None:
@@ -93,6 +97,7 @@ class SqlaWordStateRepository(WordStateRepository):
             .execution_options(synchronize_session=False)
         )
         self._session.flush()
+        self._recorder.record(DecisionChanged(word.lemma))
         self._after_save()
 
     def _read(self, where: ColumnElement[bool]) -> dict[int, WordState]:

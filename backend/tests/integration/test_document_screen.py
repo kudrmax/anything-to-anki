@@ -28,6 +28,7 @@ from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.models import CollectionModel, SourceModel
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_collection_repository import (
@@ -81,7 +82,9 @@ def _candidate(source_id: int, lemma: str, target: str) -> CardSeed:
 def _screen(session: Session) -> GetReviewDocumentsUseCase:
     return GetReviewDocumentsUseCase(
         SourceScopeResolver(
-            SqlaSourceRepository(session), SqlaCollectionRepository(session), added_order(),
+            SqlaSourceRepository(session, SessionChangeRecorder(session)),
+            SqlaCollectionRepository(session),
+            added_order(),
         ),
         SqlaDocumentRepository(session), SqlaCardQuery(session),
     )
@@ -153,7 +156,9 @@ def test_selected_phrase_replaces_the_old_one(db_session: Session, source_id: in
     ))
 
     assert text == "relentless pursuit of happiness."
-    updated = SqlaOccurrenceRepository(db_session).get(candidate.phrase_id)
+    updated = SqlaOccurrenceRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).get(candidate.phrase_id)
     assert updated is not None
     assert updated.source_phrase.text == text
     assert updated.source_phrase.target_text() == "pursuit"
@@ -173,16 +178,19 @@ def test_an_example_put_in_the_document_gets_its_key(db_session: Session, source
         start_block=1, start_line=0, start_char=14, end_block=1, end_line=1, end_char=13,
     ))
 
-    updated = SqlaOccurrenceRepository(db_session).get(candidate.phrase_id)
+    updated = SqlaOccurrenceRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).get(candidate.phrase_id)
     assert updated is not None
     assert updated.key == OccurrenceKey(block=1, line=0, char=PHRASE.index("pursuit"))
 
 
 def _set_boundary(db_session: Session) -> SetPhraseBoundaryUseCase:
     return SetPhraseBoundaryUseCase(
-        SqlaOccurrenceRepository(db_session), SqlaCandidateRepository(db_session),
+        SqlaOccurrenceRepository(db_session, SessionChangeRecorder(db_session)),
+        SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session)),
         SqlaDocumentRepository(db_session), Container().phrase_reader, free_lock(),
-        section_stamper(SqlaSettingsRepository(db_session)),
+        section_stamper(SqlaSettingsRepository(db_session, SessionChangeRecorder(db_session))),
         MagicMock(),
     )
 

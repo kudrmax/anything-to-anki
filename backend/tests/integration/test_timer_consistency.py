@@ -16,6 +16,7 @@ from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.container import KNOWLEDGE_SCOPE_KEY
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
@@ -84,8 +85,8 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
 def _scope(session: Session, clock: Clock) -> KnowledgeScope:
     return KnowledgeScope(
         clock=clock,
-        known_word_repo=SqlaKnownWordRepository(session),
-        unknown_word_repo=SqlaUnknownWordRepository(session),
+        known_word_repo=SqlaKnownWordRepository(session, SessionChangeRecorder(session)),
+        unknown_word_repo=SqlaUnknownWordRepository(session, SessionChangeRecorder(session)),
         learning_query=SqlaLearningQuery(session),
     )
 
@@ -112,12 +113,12 @@ def _seed(session: Session) -> None:
     for word_id, lemma in ((GLARE, "glare"), (SPARK, "spark")):
         insert_word(session, word_id, source_id=HERE, lemma=lemma, status="learn")
         bind(session, word_id, phrase_id_of(word_id), since=since)
-    SqlaUnknownWordRepository(session).add("spark")
+    SqlaUnknownWordRepository(session, SessionChangeRecorder(session)).add("spark")
     insert_word(session, GLARE_THERE, source_id=THERE, lemma="glare")
     insert_word(session, SPARK_THERE, source_id=THERE, lemma="spark")
     insert_word(session, DRIFT, source_id=THERE, lemma="drift")
     # Only the target is new once glare is known: Ready; while glare is learning: Extra.
-    SqlaOccurrenceRepository(session).write_text(
+    SqlaOccurrenceRepository(session, SessionChangeRecorder(session)).write_text(
         phrase_id_of(DRIFT),
         phrase("The glare drifts.", "drift", new=("glare", "drifts"),
                lemmas={"drifts": "drift"}),
@@ -126,7 +127,7 @@ def _seed(session: Session) -> None:
     insert_source(session, BOARD)
     insert_word(session, ECHO, source_id=BOARD, lemma="echo", status="skip")
     insert_word(session, BLIND, source_id=BOARD, lemma="blind")
-    occurrences = SqlaOccurrenceRepository(session)
+    occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
     occurrences.write_text(
         phrase_id_of(ECHO), phrase("The echo fades.", "echo", new=("echo",)), None,
         earned_section=CandidateSection.READY,

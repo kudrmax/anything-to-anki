@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import CardChoice
 from backend.infrastructure.persistence.models import dump_phrase
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from sqlalchemy import text
 
 from tests.decision_support import NOW
@@ -194,8 +195,8 @@ def store_card(
     )
 
     _offset_phrase_ids(session)
-    words = SqlaCandidateRepository(session)
-    occurrences = SqlaOccurrenceRepository(session)
+    words = SqlaCandidateRepository(session, SessionChangeRecorder(session))
+    occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
     key = WordKey.of(word.lemma, word.is_phrasal_verb)
     word_id = next(
         (w.id for w in occurrences.word_rows(word.source_id) if w.key == key), None,
@@ -222,7 +223,7 @@ def store_card(
         shown_by=ShownBy.SELECTION if origin is OccurrenceOrigin.AUTO else ShownBy.USER,
         choice=choice,
     ))
-    states = SqlaWordStateRepository(session)
+    states = SqlaWordStateRepository(session, SessionChangeRecorder(session))
     state = states.of_word(word_id)
     assert state is not None
     states.save(state)

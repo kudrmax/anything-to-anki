@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import pytest
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.word_status import WordStatus
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
@@ -96,7 +97,7 @@ def _rows_for(session: Session, table: str, column: str, row_id: int) -> int:
 
 def test_deleting_candidates_removes_their_enrichment(db_session: Session) -> None:
     insert_source(db_session, SOURCE_ID)
-    repo = SqlaCandidateRepository(db_session)
+    repo = SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session))
     candidate_id = _create_candidate(repo, "advance")
     phrase_id = _phrase_of(db_session, candidate_id)
     _enrich(db_session, candidate_id, phrase_id)
@@ -117,7 +118,7 @@ def test_deleting_candidates_removes_their_enrichment(db_session: Session) -> No
 
 def test_candidate_ids_are_never_reused(db_session: Session) -> None:
     insert_source(db_session, SOURCE_ID)
-    repo = SqlaCandidateRepository(db_session)
+    repo = SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session))
     deleted_id = _create_candidate(repo, "advance")
     repo.delete_by_source(SOURCE_ID)
 

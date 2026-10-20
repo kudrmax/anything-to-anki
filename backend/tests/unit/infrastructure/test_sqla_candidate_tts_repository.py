@@ -9,6 +9,7 @@ from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import (
     CandidateTTSModel,
 )
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
 )
@@ -45,7 +46,7 @@ def _insert_candidate(session: Session, candidate_id: int, source_id: int = 1) -
 class TestUpsert:
     def test_creates_new_record(self, session: Session) -> None:
         _insert_candidate(session, 1)
-        repo = SqlaCandidateTTSRepository(session)
+        repo = SqlaCandidateTTSRepository(session, SessionChangeRecorder(session))
 
         entity = CandidateTTS(
             candidate_id=1,
@@ -71,7 +72,7 @@ class TestUpsert:
         ))
         session.flush()
 
-        repo = SqlaCandidateTTSRepository(session)
+        repo = SqlaCandidateTTSRepository(session, SessionChangeRecorder(session))
         entity = CandidateTTS(
             candidate_id=1,
             audio_path="/new.m4a",
@@ -90,7 +91,7 @@ class TestUpsert:
 @pytest.mark.unit
 class TestGetByPhraseId:
     def test_returns_none_for_missing(self, session: Session) -> None:
-        repo = SqlaCandidateTTSRepository(session)
+        repo = SqlaCandidateTTSRepository(session, SessionChangeRecorder(session))
         assert repo.get_by_phrase_id(phrase_id_of(999)) is None
 
     def test_returns_entity_for_existing(self, session: Session) -> None:
@@ -103,7 +104,7 @@ class TestGetByPhraseId:
         ))
         session.flush()
 
-        repo = SqlaCandidateTTSRepository(session)
+        repo = SqlaCandidateTTSRepository(session, SessionChangeRecorder(session))
         result = repo.get_by_phrase_id(phrase_id_of(1))
 
         assert result is not None
@@ -118,7 +119,7 @@ class TestGetByPhraseId:
 @pytest.mark.unit
 class TestGetByPhraseIds:
     def test_empty_ids_returns_empty(self, session: Session) -> None:
-        repo = SqlaCandidateTTSRepository(session)
+        repo = SqlaCandidateTTSRepository(session, SessionChangeRecorder(session))
         assert repo.get_by_phrase_ids([]) == {}
 
     def test_returns_matching_entries(self, session: Session) -> None:
@@ -133,7 +134,7 @@ class TestGetByPhraseIds:
             ))
         session.flush()
 
-        repo = SqlaCandidateTTSRepository(session)
+        repo = SqlaCandidateTTSRepository(session, SessionChangeRecorder(session))
         result = repo.get_by_phrase_ids([phrase_id_of(1), phrase_id_of(2), phrase_id_of(3)])
 
         assert set(result.keys()) == {phrase_id_of(1), phrase_id_of(3)}

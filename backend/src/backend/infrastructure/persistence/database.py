@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
+
 if TYPE_CHECKING:
     import sqlite3
 
@@ -204,8 +206,8 @@ def reconcile_media_files(session_factory: sessionmaker[Session], media_root: st
 
     session = session_factory()
     try:
-        source_repo = SqlaSourceRepository(session)
-        candidate_repo = SqlaCandidateRepository(session)
+        source_repo = SqlaSourceRepository(session, SessionChangeRecorder(session))
+        candidate_repo = SqlaCandidateRepository(session, SessionChangeRecorder(session))
         referenced = _referenced_media_paths(session)
         file_pattern = re.compile(r"^(p?)(\d+)_(screenshot|audio|tts)\.")
 

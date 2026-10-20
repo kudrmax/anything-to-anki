@@ -18,6 +18,7 @@ from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.dependencies import get_session_factory
 from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.database import run_alembic_migrations
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 
@@ -177,7 +178,7 @@ class TestRebuildWithTheRealAnalysis:
         container = Container()
         session = get_session_factory()()
         try:
-            source = SqlaSourceRepository(session).create(Source(
+            source = SqlaSourceRepository(session, SessionChangeRecorder(session)).create(Source(
                 status=SourceStatus.NEW, format=Format.PLAIN, kind=Kind.TEXT, title="rebuild",
             ))
             assert source.id is not None

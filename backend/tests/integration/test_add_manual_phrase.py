@@ -22,6 +22,7 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.word_status import WordStatus
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
@@ -89,7 +90,9 @@ class Manual:
             frequency_provider=frequency,
             phrasal_verb_detector=detector,
             phrase_reader=reader,
-            stamper=section_stamper(SqlaSettingsRepository(bench.session)),
+            stamper=section_stamper(SqlaSettingsRepository(
+                bench.session, SessionChangeRecorder(bench.session),
+            )),
             lock=free_lock(),
             card_views=MagicMock(),
             decide_phrase=decisions.decide_phrase(),
@@ -219,7 +222,9 @@ def test_a_skipped_phrase_of_a_decided_word_is_shown_and_stays_done(
     if decided == "on_another_card":
         bench.decide_learn("glare", bench.phrase_on("glare", 0).id)
     else:
-        SqlaKnownWordRepository(bench.session).add("glare", None)
+        SqlaKnownWordRepository(
+            bench.session, SessionChangeRecorder(bench.session),
+        ).add("glare", None)
         bench.session.commit()
 
     Manual(bench).add(GLARE_LINE, 1)

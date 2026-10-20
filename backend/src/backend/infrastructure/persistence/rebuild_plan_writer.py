@@ -8,6 +8,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.domain.services.rebuild_plan import AppliedPlan
 from backend.domain.value_objects.built_analysis import WordKey
+from backend.domain.value_objects.card_change import PhraseChanged, WordsChanged
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
     from sqlalchemy import Table
     from sqlalchemy.orm import Session
 
+    from backend.domain.ports.change_recorder import ChangeRecorder
     from backend.domain.services.phrase_selection import SelectionChange
     from backend.domain.services.rebuild_plan import (
         NewWord,
@@ -47,26 +49,45 @@ AUTO_ONLY = "origin = 'auto'"
 
 
 class RebuildPlanWriter:
-    """Applies a plan with bulk statements; flushes, never commits."""
+    """Applies a plan with bulk statements; flushes, never commits. Records what it
+    changed: the words of the plan's source and every phrase it wrote."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
+        self._recorder = recorder
 
     def apply(self, plan: RebuildPlan) -> AppliedPlan:
         dropped = [u.occurrence_id for u in plan.occ_to_update_text if u.drop_text_generation]
         dropped_files = files_of(self._session, [*plan.occ_to_delete, *dropped])
         self._delete_phrases(plan.occ_to_delete)
         self._rekey(plan.occ_to_rekey)
-        self._delete_words(plan.words_to_delete)
-        self._update_words(plan.words_to_update)
-        self._create_words(plan.source_id, plan.words_to_create)
+        lemmas = {
+            *self._delete_words(plan.words_to_delete),
+            *self._update_words(plan.words_to_update),
+            *self._create_words(plan.source_id, plan.words_to_create),
+        }
         self._rewrite(plan.occ_to_update_text)
         self._rescore(plan.occ_to_update_score)
         inserted = self._insert(plan.occ_to_insert, self._word_ids(plan.source_id))
         self._select(plan.selection_changes)
         self.restamp(plan.section_changes)
         self._session.flush()
+        if lemmas:
+            self._recorder.record(WordsChanged(plan.source_id, frozenset(lemmas)))
+        self._record_phrases([
+            *plan.occ_to_delete,
+            *(r.occurrence_id for r in plan.occ_to_rekey),
+            *(u.occurrence_id for u in plan.occ_to_update_text),
+            *(u.occurrence_id for u in plan.occ_to_update_score),
+            *inserted,
+            *(i for change in plan.selection_changes for i in change.clear_selection),
+            *(c.set_selection for c in plan.selection_changes if c.set_selection is not None),
+        ])
         return AppliedPlan(inserted=inserted, dropped_files=dropped_files)
+
+    def _record_phrases(self, phrase_ids: Sequence[int]) -> None:
+        for phrase_id in phrase_ids:
+            self._recorder.record(PhraseChanged(phrase_id))
 
     def _delete_phrases(self, ids: Sequence[int]) -> None:
         for chunk in chunks(ids):
@@ -83,24 +104,33 @@ class RebuildPlanWriter:
                 ],
             )
 
-    def _delete_words(self, ids: Sequence[int]) -> None:
+    def _delete_words(self, ids: Sequence[int]) -> list[str]:
+        """Returns the lemmas of the deleted words."""
+        lemmas: list[str] = []
         for chunk in chunks(ids):
             for word in self._session.scalars(
                 select(StoredCandidateModel).where(StoredCandidateModel.id.in_(chunk))
             ):
+                lemmas.append(word.lemma)
                 self._session.delete(word)
         self._session.flush()
+        return lemmas
 
-    def _update_words(self, updates: Sequence[WordUpdate]) -> None:
+    def _update_words(self, updates: Sequence[WordUpdate]) -> list[str]:
+        """Returns the lemmas of the updated words."""
         data = {u.word_id: u.data for u in updates}
+        lemmas: list[str] = []
         for chunk in chunks(list(data)):
             for word in self._session.scalars(
                 select(StoredCandidateModel).where(StoredCandidateModel.id.in_(chunk))
             ):
                 word.write_data(data[word.id])
+                lemmas.append(word.lemma)
         self._session.flush()
+        return lemmas
 
-    def _create_words(self, source_id: int, new: Sequence[NewWord]) -> None:
+    def _create_words(self, source_id: int, new: Sequence[NewWord]) -> list[str]:
+        """Returns the lemmas of the created words."""
         for planned in new:
             word = StoredCandidateModel(
                 source_id=source_id,
@@ -111,6 +141,7 @@ class RebuildPlanWriter:
             word.write_data(planned.data)
             self._session.add(word)
         self._session.flush()
+        return [planned.lemma for planned in new]
 
     def _word_ids(self, source_id: int) -> dict[WordKey, int]:
         rows = self._session.execute(
@@ -165,6 +196,7 @@ class RebuildPlanWriter:
                     for c in changes
                 ],
             )
+            self._record_phrases([c.occurrence_id for c in changes])
 
     def _insert(
         self, inserts: Sequence[OccurrenceInsert], word_ids: dict[WordKey, int],

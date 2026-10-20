@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 
 from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
+from backend.domain.value_objects.card_change import CardContentChanged, WordContentChanged
 from backend.infrastructure.persistence.models import (
     CandidateMeaningModel,
     CandidatePronunciationModel,
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.candidate_meaning import CandidateMeaning
+    from backend.domain.ports.change_recorder import ChangeRecorder
 
 
 class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
@@ -24,8 +26,9 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
     Meanings belong to phrases; the IPA belongs to the word (its pronunciation row).
     """
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
+        self._recorder = recorder
         self._ipa = PhraseResultsReader(session)
 
     def get_by_phrase_id(self, phrase_id: int) -> CandidateMeaning | None:
@@ -58,12 +61,16 @@ class SqlaCandidateMeaningRepository(CandidateMeaningRepository):
         if meaning.ipa is not None:
             self._set_ipa(meaning.candidate_id, meaning.ipa)
         self._session.flush()
+        self._recorder.record(CardContentChanged(phrase_id))
+        if meaning.ipa is not None:
+            self._recorder.record(WordContentChanged(meaning.candidate_id))
 
     def delete_by_phrase_id(self, phrase_id: int) -> None:
         model = self._session.get(CandidateMeaningModel, phrase_id)
         if model is not None:
             self._session.delete(model)
             self._session.flush()
+            self._recorder.record(CardContentChanged(phrase_id))
 
     def _set_ipa(self, word_id: int, ipa: str) -> None:
         pronunciation = self._session.get(CandidatePronunciationModel, word_id)

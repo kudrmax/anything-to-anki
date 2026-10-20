@@ -15,6 +15,7 @@ from backend.domain.value_objects.card_choice import (
     NoteKind,
     decision_status,
 )
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
 )
@@ -46,7 +47,7 @@ def repo(db_session: Session, source_id: int) -> SqlaWordStateRepository:
         ),
         {"id": SECOND, "first": FIRST},
     )
-    return SqlaWordStateRepository(db_session)
+    return SqlaWordStateRepository(db_session, SessionChangeRecorder(db_session))
 
 
 def _status(session: Session) -> str:

@@ -24,6 +24,7 @@ from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.word_status import WordStatus
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
@@ -59,8 +60,8 @@ class Bench:
     def __init__(self, session: Session) -> None:
         self.session = session
         insert_word(session, WORD, lemma=LEMMA, pos="VERB", phrase_text="He glared at me.")
-        self.occurrences = SqlaOccurrenceRepository(session)
-        self.clozes = SqlaCandidateClozeRepository(session)
+        self.occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
+        self.clozes = SqlaCandidateClozeRepository(session, SessionChangeRecorder(session))
         self.second = self._add_phrase("She glared back.")
         self.decisions = Decisions(session)
 
@@ -458,7 +459,9 @@ def test_a_refusal_with_no_reason_in_the_table_is_a_rule_gap(
 
 
 def _studied_at(bench: Bench) -> datetime | None:
-    return SqlaCandidateRepository(bench.session).last_studied([1]).get(1)
+    return SqlaCandidateRepository(
+        bench.session, SessionChangeRecorder(bench.session),
+    ).last_studied([1]).get(1)
 
 
 @pytest.mark.parametrize("button", list(Press))

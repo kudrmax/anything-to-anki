@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sqlalchemy import select
+
 from backend.domain.ports.source_repository import SourceRepository
-from backend.infrastructure.persistence.models import SourceModel
+from backend.domain.value_objects.card_change import SourceDeleted
+from backend.infrastructure.persistence.models import SourceModel, StoredCandidateModel
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -11,6 +14,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.source import Source
+    from backend.domain.ports.change_recorder import ChangeRecorder
     from backend.domain.value_objects.source_role import SourceRole
     from backend.domain.value_objects.source_status import SourceStatus
 
@@ -18,8 +22,9 @@ if TYPE_CHECKING:
 class SqlaSourceRepository(SourceRepository):
     """SQLAlchemy implementation of SourceRepository."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
+        self._recorder = recorder
 
     def create(self, source: Source) -> Source:
         model = SourceModel.from_entity(source)
@@ -74,9 +79,16 @@ class SqlaSourceRepository(SourceRepository):
 
     def delete(self, source_id: int) -> None:
         model = self._session.get(SourceModel, source_id)
-        if model is not None:
-            self._session.delete(model)
-            self._session.flush()
+        if model is None:
+            return
+        # The database cascade removes the source's words and phrases with it.
+        lemmas = frozenset(self._session.scalars(
+            select(StoredCandidateModel.lemma).where(StoredCandidateModel.source_id == source_id)
+        ))
+        self._session.delete(model)
+        self._session.flush()
+        if lemmas:
+            self._recorder.record(SourceDeleted(source_id, lemmas))
 
     def get_title_map(self, source_ids: list[int]) -> dict[int, str]:
         if not source_ids:

@@ -22,6 +22,7 @@ from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
 from backend.infrastructure.persistence.models import SourceModel
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
@@ -99,7 +100,7 @@ class Bench:
         )
         insert_word(session, GLARE, lemma="glare", phrase_text="He glared at me.")
         insert_word(session, SPARK, lemma="spark", phrase_text="A spark flew.")
-        self.occurrences = SqlaOccurrenceRepository(session)
+        self.occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
         self.occurrences.write_text(
             GLARE_PHRASE, phrase("He glared at me.", "glared"), _at("He glared at me."),
             earned_section=CandidateSection.READY,
@@ -257,7 +258,7 @@ class TestDecisionsOnCards:
     def test_a_word_known_elsewhere_is_reviewed_and_counts_as_reviewed(
         self, client: TestClient, bench: Bench, session: Session,
     ) -> None:
-        SqlaKnownWordRepository(session).add("spark", None)
+        SqlaKnownWordRepository(session, SessionChangeRecorder(session)).add("spark", None)
         session.commit()
         card = _card(client, SPARK_PHRASE)
         assert card["shown"]["where"] == "other_source"  # type: ignore[index]
@@ -434,7 +435,7 @@ class TestCleanupMedia:
     ) -> None:
         from pathlib import Path
         root = Path(str(tmp_path))
-        media = SqlaCandidateMediaRepository(session)
+        media = SqlaCandidateMediaRepository(session, SessionChangeRecorder(session))
         for phrase_id in (GLARE_PHRASE, bench.second_glare):
             shot = root / f"p{phrase_id}_screenshot.webp"
             shot.write_bytes(b"x")

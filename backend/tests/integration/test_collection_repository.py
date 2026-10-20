@@ -9,6 +9,7 @@ from backend.domain.entities.source import Source
 from backend.domain.value_objects.source_eviction import SourceEviction
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_collection_repository import SqlaCollectionRepository
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from sqlalchemy import create_engine
@@ -61,7 +62,7 @@ class TestSqlaCollectionRepository:
 
     def test_evictions_are_taken_once(self, session: Session) -> None:
         repo = SqlaCollectionRepository(session)
-        sources = SqlaSourceRepository(session)
+        sources = SqlaSourceRepository(session, SessionChangeRecorder(session))
         top = repo.create(Collection(name="Friends"))
         assert top.id is not None
         source = sources.create(
@@ -77,7 +78,7 @@ class TestSqlaCollectionRepository:
 @pytest.mark.integration
 def test_set_collections(session: Session) -> None:
     collections = SqlaCollectionRepository(session)
-    sources = SqlaSourceRepository(session)
+    sources = SqlaSourceRepository(session, SessionChangeRecorder(session))
     top = collections.create(Collection(name="IELTS"))
     a = sources.create(Source(status=SourceStatus.NEW, title="a"))
     b = sources.create(Source(status=SourceStatus.NEW, title="b", collection_id=top.id))

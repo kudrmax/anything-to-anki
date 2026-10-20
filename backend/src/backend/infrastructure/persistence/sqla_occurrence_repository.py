@@ -8,6 +8,7 @@ from sqlalchemy import CursorResult, exists, or_, select, update
 
 from backend.domain.entities.occurrence import shown_phrase
 from backend.domain.ports.occurrence_repository import OccurrenceRepository
+from backend.domain.value_objects.card_change import PhraseChanged
 from backend.domain.value_objects.card_choice import (
     Binding,
     CardChoice,
@@ -51,6 +52,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
     from backend.domain.entities.candidate_tts import CandidateTTS
     from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
+    from backend.domain.ports.change_recorder import ChangeRecorder
     from backend.domain.services.rebuild_plan import AppliedPlan, RebuildPlan, SectionChange
     from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.document_position import DocumentPosition
@@ -128,10 +130,11 @@ class PhraseResultsReader:
 class SqlaOccurrenceRepository(OccurrenceRepository):
     """SQLAlchemy implementation of OccurrenceRepository."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
+        self._recorder = recorder
         self._results = PhraseResultsReader(session)
-        self._plans = RebuildPlanWriter(session)
+        self._plans = RebuildPlanWriter(session, recorder)
 
     def by_source(self, source_id: int) -> list[Occurrence]:
         return self._occurrences(self._of_source(source_id))
@@ -227,6 +230,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         model = PhraseModel.from_entity(occurrence)
         self._session.add(model)
         self._session.flush()
+        self._recorder.record(PhraseChanged(model.id))
         return model.to_entity()
 
     def write_text(
@@ -255,6 +259,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         if edited_by_user:
             model.edited_by_user = True
         self._session.flush()
+        self._recorder.record(PhraseChanged(occurrence_id))
 
     def holds_revision(self, occurrence_id: int, revision: int) -> bool:
         # A write, not a read: it takes the database's write lock, so no Rebuild can change
@@ -281,6 +286,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             )
         )
         self._session.flush()
+        self._recorder.record(PhraseChanged(occurrence_id))
 
     def set_shown(self, ids: list[int], shown_by: ShownBy | None) -> None:
         if not ids:
@@ -291,6 +297,8 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             .values(shown_by=shown_by.value if shown_by is not None else None)
         )
         self._session.flush()
+        for occurrence_id in ids:
+            self._recorder.record(PhraseChanged(occurrence_id))
 
     def set_replaces_selection(self, occurrence_id: int, replaces: bool) -> None:
         self._session.execute(
@@ -299,6 +307,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             .values(replaces_selection=replaces)
         )
         self._session.flush()
+        self._recorder.record(PhraseChanged(occurrence_id))
 
     def word_rows(self, source_id: int) -> list[WordRow]:
         words = self._session.scalars(
