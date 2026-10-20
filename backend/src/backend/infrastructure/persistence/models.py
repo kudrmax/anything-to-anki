@@ -385,6 +385,8 @@ class StoredCandidateModel(Base):
     usage_distribution_json: Mapped[str | None] = mapped_column(
         "usage_distribution", Text, nullable=True
     )
+    # When a card of the word was last marked in review; None while none is.
+    studied_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     cefr_breakdown: Mapped[CEFRBreakdownModel | None] = relationship(
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
     )

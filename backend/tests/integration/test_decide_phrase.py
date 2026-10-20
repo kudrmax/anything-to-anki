@@ -2,7 +2,7 @@
 status, the Anki binding and the known words they leave."""
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
@@ -27,6 +27,7 @@ from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
+from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
@@ -454,3 +455,46 @@ def test_a_refusal_with_no_reason_in_the_table_is_a_rule_gap(
 
     with pytest.raises(NoDecisionRuleError):
         bench.press(FIRST, LEARN)
+
+
+def _studied_at(bench: Bench) -> datetime | None:
+    return SqlaCandidateRepository(bench.session).last_studied([1]).get(1)
+
+
+@pytest.mark.parametrize("button", list(Press))
+def test_every_press_stamps_when_the_word_was_last_marked(bench: Bench, button: Press) -> None:
+    assert _studied_at(bench) is None
+
+    bench.press(FIRST, button)
+
+    assert _studied_at(bench) == NOW
+
+
+def test_a_later_press_moves_the_mark_to_its_time(bench: Bench) -> None:
+    bench.press(FIRST, LEARN)
+    bench.later(days=2)
+
+    bench.press(FIRST, KNOWN)
+
+    assert _studied_at(bench) == NOW + timedelta(days=2)
+
+
+def test_undoing_the_last_mark_clears_it(bench: Bench) -> None:
+    bench.press(FIRST, LEARN)
+    bench.later(days=1)
+
+    bench.press(FIRST, LEARN)
+
+    assert bench.choice(FIRST) is CardChoice.NONE
+    assert _studied_at(bench) is None
+
+
+def test_a_mark_left_on_another_card_keeps_the_word_studied(bench: Bench) -> None:
+    bench.press(bench.second, SKIP)
+    bench.press(FIRST, SKIP)
+    bench.later(days=1)
+
+    bench.press(FIRST, SKIP)
+
+    assert bench.choice(bench.second) is CardChoice.SKIP
+    assert _studied_at(bench) == NOW + timedelta(days=1)

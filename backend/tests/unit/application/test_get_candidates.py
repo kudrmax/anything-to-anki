@@ -20,6 +20,7 @@ from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.candidate_sorter_support import candidate_sorter
 from tests.card_support import PhraseWordStates, occurrence, word
+from tests.source_order_support import added_order
 from tests.vocabulary_support import user_vocabulary
 
 SOURCE_ID = 10  # the source of `word`
@@ -53,7 +54,7 @@ class TestGetCandidatesUseCase:
                 candidate_sorter=candidate_sorter(self.settings_repo),
                 job_repo=self.job_repo,
                 report_repo=self.report_repo,
-                scope_resolver=SourceScopeResolver(self.source_repo, MagicMock()),
+                scope_resolver=SourceScopeResolver(self.source_repo, MagicMock(), added_order()),
                 source_repo=self.source_repo,
             ),
         )

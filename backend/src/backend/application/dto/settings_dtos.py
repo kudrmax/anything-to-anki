@@ -7,6 +7,7 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.chapter_title_template import ChapterTitleTemplate
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
+from backend.domain.value_objects.source_order import SourceGrouping, SourceSort  # noqa: TC001
 
 # A custom hint is written per card, so it can't be the default.
 CLOZE_DEFAULT_HINTS: frozenset[str] = frozenset(
@@ -44,6 +45,8 @@ class SettingsDTO(BaseModel):
     images_per_source: int
     cloze_default_hint: str
     book_chapter_title_template: str
+    source_grouping: SourceGrouping
+    source_sort: SourceSort
 
 
 class UpdateSettingsRequest(BaseModel):
@@ -76,6 +79,8 @@ class UpdateSettingsRequest(BaseModel):
     images_per_source: int | None = None
     cloze_default_hint: str | None = None
     book_chapter_title_template: str | None = None
+    source_grouping: SourceGrouping | None = None
+    source_sort: SourceSort | None = None
 
     @field_validator("cefr_level")
     @classmethod

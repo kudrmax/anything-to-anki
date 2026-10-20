@@ -19,9 +19,11 @@ import { RebuildDialog } from './RebuildDialog'
 import { ScopeHeader } from './ScopeHeader'
 import { ScopePicker } from './ScopePicker'
 import { SelectionBar } from './SelectionBar'
+import { SourceOrderBar } from './SourceOrderBar'
 import { SourceRow } from './SourceRow'
 import { useCollections } from './useCollections'
 import { useSourceBoard } from './useSourceBoard'
+import { useSourceOrder } from './useSourceOrder'
 import css from './sources.module.css'
 
 const STAGE_LABEL: Record<SourceStage, string> = {
@@ -84,6 +86,7 @@ export function SourcesScreen() {
   useLayoutEffect(() => {
     boardReload.current = board.reload
   })
+  const sourceOrder = useSourceOrder({ onChanged: () => void boardReload.current(), onError })
 
   const tree = collections.tree
   const reloadBoard = useCallback(() => void boardReload.current(), [])
@@ -282,16 +285,23 @@ export function SourcesScreen() {
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => { if (e.key === 'Escape') setQuery('') }}
           />
+          {sourceOrder.order && tree && tree.all.total > 0 && (
+            <SourceOrderBar
+              order={sourceOrder.order}
+              onGrouping={grouping => void sourceOrder.setGrouping(grouping)}
+              onSort={sort => void sourceOrder.setSort(sort)}
+            />
+          )}
           <div className={board.stale ? `${css.listArea} ${css.stale}` : css.listArea} aria-busy={board.stale}>
           {empty}
           {groups.length > 0 && (
             <div role="listbox" aria-multiselectable="true" aria-labelledby={listLabel}>
               <span id={listLabel} hidden>{title}</span>
               {groups.map(group => {
-                const headingId = `${listLabel}-${group.stage}`
+                const headingId = `${listLabel}-${group.stage ?? 'all'}`
                 return (
-                  <section key={group.stage} className={css.group} role="group" aria-labelledby={headingId}>
-                    <h2 id={headingId} className={css.groupTitle}>{STAGE_LABEL[group.stage]}<span>{group.sources.length}</span></h2>
+                  <section key={group.stage ?? 'all'} className={css.group} role="group" aria-labelledby={group.stage ? headingId : listLabel}>
+                    {group.stage && <h2 id={headingId} className={css.groupTitle}>{STAGE_LABEL[group.stage]}<span>{group.sources.length}</span></h2>}
                     {group.sources.map((source, index) => (
                       <SourceRow
                         key={source.id}

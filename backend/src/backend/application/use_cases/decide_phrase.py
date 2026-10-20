@@ -8,7 +8,7 @@ from backend.application.utils.source_free import ensure_source_free
 from backend.domain.exceptions import ActionRefusedError, PhraseNotFoundError
 from backend.domain.services.card_view import card_view, open_elsewhere
 from backend.domain.services.decision_rules import press, rule
-from backend.domain.value_objects.card_choice import Refusal
+from backend.domain.value_objects.card_choice import Refusal, studied_at
 from backend.domain.value_objects.word_status import WordStatus
 
 if TYPE_CHECKING:
@@ -31,6 +31,8 @@ if TYPE_CHECKING:
 
 class DecidePhraseUseCase:
     """A press of Learn, Cloze, Known or Skip on a card (a phrase of a word).
+
+    Every press stamps the word with when it was last marked, cleared once no card of it is.
 
     The rules are the press table (`decision_rules.press`); what follows a row — the known
     words, calibration, the Anki binding, the Known removal in every source and the review
@@ -95,6 +97,7 @@ class DecidePhraseUseCase:
                 rule(_REASONS, (refused.refusal, view.shown.status)),
             ) from None
         self._effects.apply(state, outcome, word)
+        self._candidates.set_studied_at(state.word_id, studied_at(outcome.word, now))
 
     def _view(
         self, word: StoredCandidate, state: WordState, occurrence_id: int,

@@ -30,6 +30,7 @@ from backend.domain.value_objects.word_status import WordStatus
 
 from tests.decision_support import NOW
 from tests.phrase_support import phrase
+from tests.source_order_support import added_order
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterable
@@ -169,7 +170,7 @@ def card_views(session: Session) -> CardViews:
         job_repo=SqlaJobRepository(session),
         report_repo=SqlaCardReportRepository(session),
         scope_resolver=SourceScopeResolver(
-            SqlaSourceRepository(session), SqlaCollectionRepository(session),
+            SqlaSourceRepository(session), SqlaCollectionRepository(session), added_order(),
         ),
         source_repo=SqlaSourceRepository(session),
     )

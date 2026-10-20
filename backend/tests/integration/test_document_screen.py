@@ -42,6 +42,7 @@ from backend.infrastructure.persistence.sqla_source_repository import SqlaSource
 from tests.candidate_sorter_support import section_stamper
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase, shown_lemmas
+from tests.source_order_support import added_order
 from tests.word_support import CardSeed, store_cards
 
 if TYPE_CHECKING:
@@ -78,7 +79,9 @@ def _candidate(source_id: int, lemma: str, target: str) -> CardSeed:
 
 def _screen(session: Session) -> GetReviewDocumentsUseCase:
     return GetReviewDocumentsUseCase(
-        SourceScopeResolver(SqlaSourceRepository(session), SqlaCollectionRepository(session)),
+        SourceScopeResolver(
+            SqlaSourceRepository(session), SqlaCollectionRepository(session), added_order(),
+        ),
         SqlaDocumentRepository(session), SqlaCardQuery(session),
     )
 

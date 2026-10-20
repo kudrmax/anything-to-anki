@@ -17,10 +17,10 @@ from backend.domain.services.source_actions import (
 )
 from backend.domain.services.source_operations import operations_offer
 from backend.domain.services.source_review_status import derive_review_status
-from backend.domain.services.source_stage import is_pending, shown_status, stage_of
+from backend.domain.services.source_stage import is_pending, shown_status, source_stage
 from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.source_scope import SourceScope
-from backend.domain.value_objects.source_stage import STAGE_ORDER
+from backend.domain.value_objects.source_stage import SourceStage
 
 if TYPE_CHECKING:
     from backend.application.utils.review_progress import ReviewProgress
@@ -59,19 +59,23 @@ class GetSourcesUseCase:
         return self._summaries(self._source_repo.list_all())
 
     def board(self, scope: SourceScope, query: str = "") -> SourceBoardDTO:
+        """The scope's sources in the user's order, split into its groups. The stages the
+        summaries read decide the groups, so the cards are read once."""
         key = query.strip().casefold()
-        sources = [
-            s for s in self._scope_resolver.sources(scope)
-            if not key or key in (s.title or "").casefold()
-        ]
-        summaries = self._summaries(sources)
-        groups = [
-            SourceGroupDTO(stage=stage.value, sources=[s for s in summaries if s.stage == stage])
-            for stage in STAGE_ORDER
-        ]
+        sources = [s for s in self._scope_resolver.members(scope) if _matches(s, key)]
+        summaries = {summary.id: summary for summary in self._summaries(sources)}
+        groups = self._scope_resolver.arrange(
+            sources, {i: SourceStage(summary.stage) for i, summary in summaries.items()},
+        )
         return SourceBoardDTO(
             title=self._scope_resolver.title(scope),
-            groups=[g for g in groups if g.sources],
+            groups=[
+                SourceGroupDTO(
+                    stage=group.stage.value if group.stage is not None else None,
+                    sources=[summaries[s.id] for s in group.sources if s.id is not None],
+                )
+                for group in groups
+            ],
         )
 
     def _summaries(self, sources: list[Source]) -> list[SourceDTO]:
@@ -115,7 +119,9 @@ class GetSourcesUseCase:
             id=source.id,
             title=source.title or "",
             status=shown_status(status, busy_with),
-            stage=stage_of(status, awaiting_generation=generation.awaiting).value,
+            stage=source_stage(
+                source.status, progress, awaiting_generation=generation.awaiting,
+            ).value,
             kind=source.kind.value if source.kind else None,
             role=source.role.value,
             has_video=source.has_video,
@@ -149,6 +155,10 @@ class GetSourcesUseCase:
                 status, len(cards), progress, learn_count, busy_with,
             ),
         )
+
+
+def _matches(source: Source, key: str) -> bool:
+    return not key or key in (source.title or "").casefold()
 
 
 def _stage(operation: HeldOperation | None) -> str | None:

@@ -44,7 +44,7 @@ class ProcessSourcesUseCase:
     def pending_in(self, scope: SourceScope) -> list[int]:
         busy = self._lock.operations()
         return [
-            s.id for s in reversed(self._scope_resolver.sources(scope))
+            s.id for s in self._scope_resolver.oldest_added_first(scope)
             if s.id is not None
             and is_pending(
                 s.status,

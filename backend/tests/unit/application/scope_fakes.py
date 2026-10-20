@@ -6,6 +6,7 @@ from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.source import Source
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.source_order_support import added_order
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.source_fakes import InMemorySourceRepository
 
@@ -15,7 +16,9 @@ _CREATED = datetime(2026, 1, 1, tzinfo=UTC)
 
 def empty_scope_resolver() -> SourceScopeResolver:
     """Resolver over no sources and no collections, for tests that never narrow by scope."""
-    return SourceScopeResolver(InMemorySourceRepository([]), InMemoryCollectionRepository())
+    return SourceScopeResolver(
+        InMemorySourceRepository([]), InMemoryCollectionRepository(), added_order(),
+    )
 
 
 def sources_scope_resolver(*source_ids: int) -> SourceScopeResolver:
@@ -25,4 +28,6 @@ def sources_scope_resolver(*source_ids: int) -> SourceScopeResolver:
         Source(id=source_id, status=SourceStatus.DONE, created_at=_CREATED)
         for source_id in source_ids
     ]
-    return SourceScopeResolver(InMemorySourceRepository(sources), InMemoryCollectionRepository())
+    return SourceScopeResolver(
+        InMemorySourceRepository(sources), InMemoryCollectionRepository(), added_order(),
+    )

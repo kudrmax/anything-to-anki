@@ -75,6 +75,7 @@ from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.rewrite_phrase import RewritePhrase
 from backend.application.utils.section_stamper import SectionStamper
+from backend.application.utils.source_ordering import SourceOrdering
 from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.application.utils.topic_generation import TopicGenerationProbe
@@ -806,6 +807,12 @@ class Container:
         return SourceScopeResolver(
             source_repo=SqlaSourceRepository(session),
             collection_repo=SqlaCollectionRepository(session),
+            ordering=SourceOrdering(
+                settings_repo=SqlaSettingsRepository(session),
+                review_progress=self._review_progress(session),
+                generation_probe=self._generation_probe(session),
+                candidate_repo=SqlaCandidateRepository(session),
+            ),
         )
 
     def _review_progress(self, session: Session) -> ReviewProgress:

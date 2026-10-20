@@ -11,6 +11,8 @@ from backend.application.constants import (
     DEFAULT_USAGE_GROUP_ORDER,
     FREQUENT_WORD_THRESHOLD_SETTING,
     IMAGES_PER_SOURCE_SETTING,
+    SOURCE_GROUPING_SETTING,
+    SOURCE_SORT_SETTING,
 )
 from backend.application.dto.settings_dtos import (
     FrequentWordThresholdDTO,
@@ -27,6 +29,7 @@ from backend.domain.value_objects.frequent_word_threshold import (
     DEFAULT_FREQUENT_WORD_THRESHOLD,
     FREQUENT_WORD_THRESHOLDS,
 )
+from backend.domain.value_objects.source_order import DEFAULT_SOURCE_GROUPING, DEFAULT_SOURCE_SORT
 
 if TYPE_CHECKING:
     from backend.application.utils.frequent_word_threshold_resolver import (
@@ -57,6 +60,8 @@ _SETTING_KEYS: dict[str, str] = {
     IMAGES_PER_SOURCE_SETTING: str(DEFAULT_IMAGES_PER_SOURCE),
     CLOZE_DEFAULT_HINT_SETTING: DEFAULT_CLOZE_HINT,
     BOOK_CHAPTER_TITLE_SETTING: DEFAULT_CHAPTER_TITLE_TEMPLATE,
+    SOURCE_GROUPING_SETTING: DEFAULT_SOURCE_GROUPING.value,
+    SOURCE_SORT_SETTING: DEFAULT_SOURCE_SORT.value,
 }
 
 _REBUILD_TRIGGER_KEYS: tuple[str, ...] = ("cefr_level", FREQUENT_WORD_THRESHOLD_SETTING)

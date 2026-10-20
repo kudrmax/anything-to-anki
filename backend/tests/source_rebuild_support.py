@@ -58,6 +58,7 @@ from tests.candidate_sorter_support import (
     threshold_resolver,
 )
 from tests.phrase_support import phrase
+from tests.source_order_support import added_order
 from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
@@ -177,7 +178,7 @@ class Bench:
         """Rebuild and its preview over a set of the bench's sources; nothing to refresh."""
         return ScopeOperationUseCase(
             scope_resolver=SourceScopeResolver(
-                self.sources, SqlaCollectionRepository(self.session),
+                self.sources, SqlaCollectionRepository(self.session), added_order(),
             ),
             rebuild_source=rebuild or self.rebuild(),
             refresh_topic=MagicMock(),

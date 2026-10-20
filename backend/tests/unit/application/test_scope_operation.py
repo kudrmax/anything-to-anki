@@ -24,6 +24,7 @@ from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
+from tests.source_order_support import added_order
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.source_fakes import InMemorySourceRepository
 
@@ -63,6 +64,7 @@ class TestScopeOperationUseCase:
         self.use_case = ScopeOperationUseCase(
             scope_resolver=SourceScopeResolver(
                 InMemorySourceRepository(self.sources), InMemoryCollectionRepository(),
+                added_order(),
             ),
             rebuild_source=self.rebuild,
             refresh_topic=self.refresh,

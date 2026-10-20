@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
@@ -7,6 +8,7 @@ import pytest
 from backend.application.use_cases.get_review import GetReviewUseCase
 from backend.application.utils.card_views import CardViews
 from backend.application.utils.review_cards import ReviewCards
+from backend.application.utils.source_ordering import SourceOrdering
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
@@ -18,12 +20,14 @@ from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.held_operation import HeldOperation
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
+from backend.domain.value_objects.source_order import SourceGrouping, SourceSort
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.candidate_sorter_support import candidate_sorter
 from tests.card_support import PhraseWordStates, occurrence, word
+from tests.source_order_support import order_settings
 from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
@@ -62,7 +66,13 @@ class TestGetReviewUseCase:
         self.card_query.learn_counts.return_value = {}
         self.lock = MagicMock()
         self.lock.operations.return_value = {}
-        resolver = SourceScopeResolver(self.source_repo, self.collection_repo)
+        self.order_settings = order_settings(SourceGrouping.NONE, SourceSort.ADDED)
+        resolver = SourceScopeResolver(
+            self.source_repo, self.collection_repo,
+            SourceOrdering(
+                self.order_settings, MagicMock(), MagicMock(), self.candidate_repo,
+            ),
+        )
         self.use_case = GetReviewUseCase(
             card_views=CardViews(
                 review_cards=ReviewCards(
@@ -91,8 +101,14 @@ class TestGetReviewUseCase:
 
     def _collection(self) -> None:
         self.source_repo.list_all.return_value = [
-            _text(2, SourceStatus.ERROR, collection_id=COLLECTION, title="Episode 2"),
-            _text(1, collection_id=COLLECTION, title="Pilot"),
+            _text(
+                2, SourceStatus.ERROR, collection_id=COLLECTION, title="Episode 2",
+                created_at=datetime(2026, 1, 2, tzinfo=UTC),
+            ),
+            _text(
+                1, collection_id=COLLECTION, title="Pilot",
+                created_at=datetime(2026, 1, 1, tzinfo=UTC),
+            ),
         ]
         self.words = {1: [word(5, "glare", source_id=1)]}
         shown = {5: [occurrence(5, 5)]}
@@ -110,6 +126,39 @@ class TestGetReviewUseCase:
         assert review.learn_count == 3
         assert (review.progress.decided, review.progress.total) == (0, 1)
         self.card_query.learn_counts.assert_called_once_with([2, 1])
+
+    def test_a_collection_review_follows_its_sources_in_the_users_order(self) -> None:
+        self.source_repo.list_all.return_value = [
+            _text(
+                2, collection_id=COLLECTION, title="Zulu",
+                created_at=datetime(2026, 1, 2, tzinfo=UTC),
+            ),
+            _text(
+                1, collection_id=COLLECTION, title="Alpha",
+                created_at=datetime(2026, 1, 1, tzinfo=UTC),
+            ),
+        ]
+        self.words = {
+            1: [word(5, "glare", source_id=1)], 2: [word(6, "quill", source_id=2)],
+        }
+        self.occurrence_repo.shown_by_word.return_value = {
+            5: [occurrence(5, 5)], 6: [occurrence(6, 6)],
+        }
+        self.candidate_repo.last_studied.return_value = {
+            1: datetime(2026, 2, 1, 12, 0, tzinfo=UTC),
+        }
+        by = {
+            SourceSort.ADDED: [2, 1],
+            SourceSort.NAME: [1, 2],
+            SourceSort.LAST_STUDIED: [1, 2],
+        }
+        for sort, expected in by.items():
+            self.order_settings.set("source_sort", sort.value)
+            review = self.use_case.execute(
+                SourceScope.collection(COLLECTION),
+                sort_order=CandidateSortOrder.CHRONOLOGICAL,
+            )
+            assert [c.source.id for c in review.candidates] == expected, sort
 
     def test_busy_when_any_source_is_held(self) -> None:
         self._collection()

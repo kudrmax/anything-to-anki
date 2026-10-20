@@ -24,6 +24,12 @@
 .side { display: var(--desktop-display); align-content: start; gap: var(--s7); }
 .main { min-width: 0; }
 .search { margin-bottom: var(--s7); }
+.search:has(+ .orderBar) { margin-bottom: var(--s4); }
+/* группировка и сортировка: тихая строка над списком */
+.orderBar { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s6); margin-bottom: var(--s7); }
+.orderTrigger { display: inline-flex; align-items: center; gap: var(--s2); font-size: var(--fs-s); color: var(--tx3); transition: color var(--t); }
+.orderTrigger:hover { color: var(--tx2); }
+.orderValue { color: var(--tx2); }
 .emptyStart { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s5); }
 .phoneOnly { display: var(--phone-display); }
 .phoneAdd { margin-bottom: var(--s6); }

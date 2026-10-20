@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from backend.domain.services.source_review_status import REVIEWABLE
+from backend.domain.services.source_review_status import REVIEWABLE, derive_review_status
 from backend.domain.value_objects.review_status import ReviewStatus
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_stage import SourceStage
@@ -11,6 +11,8 @@ from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
+
+    from backend.domain.value_objects.decision_progress import DecisionProgress
 
 _STAGE_BY_STATUS: dict[ReviewStatus, SourceStage] = {
     ReviewStatus.PARTIALLY_REVIEWED: SourceStage.IN_PROGRESS,
@@ -27,6 +29,15 @@ def stage_of(status: ReviewStatus, *, awaiting_generation: bool) -> SourceStage:
     if awaiting_generation:
         return SourceStage.PREPARING
     return _STAGE_BY_STATUS.get(status, SourceStage.PREPARING)
+
+
+def source_stage(
+    status: SourceStatus, progress: DecisionProgress, *, awaiting_generation: bool,
+) -> SourceStage:
+    """The stage of a source from its processing status and how far its review got."""
+    return stage_of(
+        derive_review_status(status, progress), awaiting_generation=awaiting_generation,
+    )
 
 
 PROCESSING = "processing"

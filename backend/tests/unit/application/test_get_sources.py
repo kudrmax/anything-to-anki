@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.utils.review_progress import ReviewProgress
+from backend.application.utils.source_ordering import SourceOrdering
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.application.utils.topic_generation import TopicGenerationProbe
 from backend.domain.entities.collection import Collection
@@ -15,6 +17,7 @@ from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.held_operation import HeldOperation
 from backend.domain.value_objects.review_card import CardRow
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
+from backend.domain.value_objects.source_order import SourceGrouping, SourceSort
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
@@ -22,6 +25,12 @@ from backend.domain.value_objects.word_status import WordStatus
 
 from tests.candidate_sorter_support import candidate_sorter
 from tests.phrase_support import phrase
+from tests.source_order_support import InMemorySettingsRepository
+
+
+def _day(day: int) -> datetime:
+    return datetime(2026, 1, day, tzinfo=UTC)
+
 
 CLOZE_BUTTON = 1  # Learn, Cloze, Known, Skip
 
@@ -68,11 +77,17 @@ class TestGetSourcesUseCase:
         elsewhere = MagicMock()
         elsewhere.of_lemmas.side_effect = lambda lemmas: dict.fromkeys(lemmas)
         sorter = candidate_sorter(self.settings_repo)
+        self.order_settings = InMemorySettingsRepository()
+        probe = TopicGenerationProbe(self.job_repo, self.topic_target_repo)
+        progress = ReviewProgress(self.card_query, sorter, elsewhere)
         self.use_case = GetSourcesUseCase(
             source_repo=self.source_repo,
-            scope_resolver=SourceScopeResolver(self.source_repo, self.collection_repo),
-            generation_probe=TopicGenerationProbe(self.job_repo, self.topic_target_repo),
-            review_progress=ReviewProgress(self.card_query, sorter, elsewhere),
+            scope_resolver=SourceScopeResolver(
+                self.source_repo, self.collection_repo,
+                SourceOrdering(self.order_settings, progress, probe, self.candidate_repo),
+            ),
+            generation_probe=probe,
+            review_progress=progress,
             card_query=self.card_query,
             lock=self.lock,
         )
@@ -108,6 +123,35 @@ class TestGetSourcesUseCase:
 
         found = self.use_case.board(SourceScope.all(), query="SONO")
         assert [s.title for g in found.groups for s in g.sources] == ["Sonogram"]
+
+    def test_the_board_follows_the_users_sort_inside_each_stage(self) -> None:
+        self.source_repo.list_all.return_value = [
+            Source(id=1, title="beta", status=SourceStatus.DONE, created_at=_day(1)),
+            Source(id=2, title="Alpha", status=SourceStatus.DONE, created_at=_day(2)),
+            Source(id=3, title="gamma", status=SourceStatus.NEW, created_at=_day(3)),
+        ]
+        self.card_query.shown_cards.return_value = {1: [_row(1, 1)], 2: [_row(2, 2)]}
+        self.order_settings.set("source_sort", SourceSort.NAME.value)
+
+        board = self.use_case.board(SourceScope.all())
+
+        assert [(g.stage, [s.title for s in g.sources]) for g in board.groups] == [
+            ("preparing", ["gamma"]),
+            ("ready", ["Alpha", "beta"]),
+        ]
+
+    def test_an_ungrouped_board_is_one_group_without_a_stage(self) -> None:
+        self.source_repo.list_all.return_value = [
+            Source(id=1, title="beta", status=SourceStatus.DONE, created_at=_day(1)),
+            Source(id=2, title="gamma", status=SourceStatus.NEW, created_at=_day(2)),
+        ]
+        self.order_settings.set("source_grouping", SourceGrouping.NONE.value)
+
+        board = self.use_case.board(SourceScope.all(), query="A")
+
+        assert [(g.stage, [s.title for s in g.sources]) for g in board.groups] == [
+            (None, ["gamma", "beta"]),
+        ]
 
     def test_the_board_reads_all_its_sources_at_once(self) -> None:
         self.source_repo.list_all.return_value = [_text(1), _text(2), _text(3)]
