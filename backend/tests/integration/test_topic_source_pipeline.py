@@ -91,6 +91,7 @@ def _add_source(
             source.id,
             Document((Paragraph(lines=(Line(text),), mode=ParagraphMode.FLOW),)),
         )
+    session.commit()
     return source.id
 
 
@@ -124,6 +125,7 @@ def _add_topic(session: Session) -> int:
         TopicTarget(source_id=topic_id, position=i, phrase=target, example=example)
         for i, (target, example) in enumerate(examples)
     ])
+    session.commit()
     return topic_id
 
 

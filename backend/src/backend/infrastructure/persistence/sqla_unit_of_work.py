@@ -60,5 +60,9 @@ class SqlaUnitOfWork(UnitOfWork):
             self._session.info[WRITE_OPEN_KEY] = False
 
     def _has_pending_work(self) -> bool:
+        """Changes not flushed yet, or already sent to SQLite: pysqlite opens a transaction
+        on the connection only for a write, so an open one there holds written rows."""
         session = self._session
-        return bool(session.new or session.dirty or session.deleted)
+        if session.new or session.dirty or session.deleted:
+            return True
+        return bool(session.connection().connection.dbapi_connection.in_transaction)

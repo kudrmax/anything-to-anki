@@ -37,4 +37,5 @@ def source_id(db_session: Session) -> int:
     """A persisted source that candidates in the test can belong to."""
     default_source_id = 1
     insert_source(db_session, default_source_id)
+    db_session.commit()
     return default_source_id

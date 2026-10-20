@@ -76,6 +76,7 @@ class Bench:
     def __init__(self, session: Session) -> None:
         self.session = session
         insert_word(session, WORD, lemma="run", pos="VERB", phrase_text="He ran to the store.")
+        session.commit()
         self.occurrences = SqlaOccurrenceRepository(session)
         reader = MagicMock()
         reader.read_for.side_effect = _read_for
@@ -113,7 +114,7 @@ class Bench:
                              {"s": status, "id": WORD})
         self.session.execute(text("UPDATE phrases SET choice = :c WHERE id = :id"),
                              {"c": choice, "id": phrase_id})
-        self.session.expire_all()
+        self.session.commit()
 
     def choice(self, phrase_id: int) -> str:
         return str(self.session.execute(
@@ -138,6 +139,7 @@ class Bench:
         SqlaCandidateTTSRepository(self.session).upsert_for_phrase(phrase_id, CandidateTTS(
             candidate_id=WORD, audio_path="/media/1/tts.mp3", generated_at=None,
         ))
+        self.session.commit()
 
     def export_queue(self) -> ExportQueue:
         decisions = self.decisions.request()
@@ -154,6 +156,7 @@ class Bench:
             earned_section=CandidateSection.READY, shown_by=ShownBy.USER,
         ))
         assert added.id is not None
+        self.session.commit()
         return added.id
 
 
@@ -257,6 +260,7 @@ def test_m1_the_decision_moves_to_the_example_with_its_kind(bench: Bench, choice
 def test_m2_a_skipped_card_keeps_its_skip_and_the_example_is_open(bench: Bench) -> None:
     bench.decide(CARD, "skip")
     bench.session.execute(text("UPDATE candidates SET status = 'pending'"))
+    bench.session.commit()
 
     example = bench.replace(CARD)
 
@@ -270,6 +274,7 @@ def test_m3a_a_known_card_in_anki_gives_its_known_to_the_example(bench: Bench) -
         "INSERT INTO known_words (lemma, pos, created_at) VALUES ('run', 'VERB', '2026-01-01')"
     ))
     bind(bench.session, WORD, CARD)
+    bench.session.commit()
 
     example = bench.replace(CARD)
 
@@ -284,6 +289,7 @@ def test_m3b_a_learning_card_gives_its_learn_to_the_example_back_in_the_queue(
 ) -> None:
     bench.decide(CARD, "learn")
     bind(bench.session, WORD, CARD)
+    bench.session.commit()
     assert bench.status() == "learning"
 
     example = bench.replace(CARD)

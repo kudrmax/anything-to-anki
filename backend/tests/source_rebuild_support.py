@@ -262,7 +262,7 @@ class Bench:
             text("UPDATE phrases SET choice = :choice WHERE id = :id"),
             {"choice": choice, "id": phrase_id},
         )
-        self.session.expire_all()
+        self.session.commit()
 
     def times(self, phrase_id: int) -> tuple[int | None, int | None] | None:
         media = self.media.get_by_phrase_id(phrase_id)
