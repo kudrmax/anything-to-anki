@@ -96,7 +96,7 @@ class TestGetExportCardsExecute:
             export_queue=self.cards.queue(),
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
-            scope_resolver=sources_scope_resolver(1, 99),
+            scope_resolver=sources_scope_resolver(1, 2, 99),
         )
 
     def test_returns_only_learn_candidates(self) -> None:
@@ -270,7 +270,7 @@ class TestGetExportCardsExecute:
             export_queue=self.cards.queue(),
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
-            scope_resolver=sources_scope_resolver(1, 99),
+            scope_resolver=sources_scope_resolver(1, 2, 99),
             media_base_url="/custom/media",
         )
         self.cards.put([
@@ -379,7 +379,7 @@ class TestGetExportCardsAllScope:
             export_queue=self.cards.queue(),
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
-            scope_resolver=sources_scope_resolver(1, 99),
+            scope_resolver=sources_scope_resolver(1, 2, 99),
         )
 
     def test_groups_by_source(self) -> None:
@@ -472,3 +472,40 @@ class TestGetExportCardsCollectionScope:
         result = self.use_case.execute(SourceScope.unsorted())
 
         assert [section.source_id for section in result.ready + result.incomplete] == [2]
+
+
+@pytest.mark.unit
+def test_sections_follow_the_order_of_the_set() -> None:
+    """The set orders its sources (newest first here), not their ids."""
+    cards = ExportCards()
+    cards.put([
+        _make_candidate("burnout", WordStatus.LEARN, source_id=1, candidate_id=1),
+        _make_candidate("pursuit", WordStatus.LEARN, source_id=2, candidate_id=2),
+        _make_candidate("relentless", WordStatus.LEARN, source_id=2, candidate_id=3),
+    ])
+    sources = [
+        Source(
+            id=1, status=SourceStatus.DONE, title="Older", collection_id=5,
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        ),
+        Source(
+            id=2, status=SourceStatus.DONE, title="Newer", collection_id=5,
+            created_at=datetime(2026, 2, 1, tzinfo=UTC),
+        ),
+    ]
+    resolver = SourceScopeResolver(
+        InMemorySourceRepository(sources),
+        InMemoryCollectionRepository([Collection(id=5, name="IELTS")]),
+    )
+    use_case = GetExportCardsUseCase(
+        export_queue=cards.queue(),
+        source_repo=InMemorySourceRepository(sources),
+        cloze_builder=ClozeBuilder(),
+        scope_resolver=resolver,
+    )
+
+    for scope in (SourceScope.collection(5), SourceScope.all()):
+        result = use_case.execute(scope)
+        sections = result.ready + result.incomplete
+        assert [s.source_id for s in sections] == [2, 1]
+        assert [c.lemma for c in sections[0].cards] == ["pursuit", "relentless"]

@@ -7,7 +7,6 @@ from backend.application.dto.anki_dtos import CardPreviewDTO, ExportSectionDTO, 
 from backend.application.utils.highlight import highlight_all_forms, highlight_target, line_breaks
 from backend.domain.services.export_readiness import missing_parts
 from backend.domain.value_objects.export_group import ExportGroup
-from backend.domain.value_objects.source_scope import ScopeKind
 
 if TYPE_CHECKING:
     from backend.application.utils.export_queue import ExportBatch, ExportCard, ExportQueue
@@ -37,11 +36,9 @@ class GetExportCardsUseCase:
 
     def execute(self, scope: SourceScope) -> GlobalExportDTO:
         """The export of a set of sources: one source, a collection, Unsorted or all."""
-        if scope.kind is ScopeKind.ALL:
-            batch = self._export_queue.for_all()
-        else:
-            ids = {s.id for s in self._scope_resolver.sources(scope) if s.id is not None}
-            batch = self._export_queue.for_sources(ids)
+        batch = self._export_queue.for_sources(
+            [s.id for s in self._scope_resolver.sources(scope) if s.id is not None],
+        )
         return self._build(batch).model_copy(update={"title": self._scope_resolver.title(scope)})
 
     def _build(self, batch: ExportBatch) -> GlobalExportDTO:

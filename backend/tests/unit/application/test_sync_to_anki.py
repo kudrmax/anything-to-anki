@@ -94,7 +94,7 @@ class TestSyncToAnkiUseCase:
             self.anki_connector,
             self.settings_repo,
             self.template_renderer,
-            sources_scope_resolver(1, 99),
+            sources_scope_resolver(1, 2, 99),
         )
 
     def test_returns_zero_when_no_learn_candidates(self) -> None:
@@ -573,7 +573,7 @@ class TestSyncRefusesIncompleteNoteType:
             connector,
             settings_repo,
             MagicMock(),
-            sources_scope_resolver(1, 99),
+            sources_scope_resolver(1, 2, 99),
         )
         return use_case, connector
 
@@ -659,7 +659,7 @@ class TestSyncWhenAnkiIsOffline:
             self.anki_connector,
             settings_repo,
             renderer,
-            sources_scope_resolver(1, 99),
+            sources_scope_resolver(1, 2, 99),
         )
 
     def test_an_export_with_nothing_new_does_not_ask_anki(self) -> None:
@@ -714,7 +714,8 @@ class TestSyncInOneBatch:
         renderer = MagicMock()
         renderer.render_recognition.return_value = NoteTemplates("F", "B", "")
         use_case = cards.sync(
-            connector, settings, renderer, sources_scope_resolver(1, 99), user_vocabulary(known),
+            connector, settings, renderer, sources_scope_resolver(1, 2, 99),
+            user_vocabulary(known),
         )
 
         result = use_case.execute(SourceScope.all(), ExportGroup.READY)

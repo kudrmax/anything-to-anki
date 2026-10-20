@@ -18,7 +18,6 @@ from backend.application.utils.anki_note_types import (
 )
 from backend.domain.exceptions import AnkiNotAvailableError, AnkiNoteTypeIncompleteError
 from backend.domain.services.decision_rules import on_bind
-from backend.domain.value_objects.source_scope import ScopeKind
 
 logger = logging.getLogger(__name__)
 
@@ -95,11 +94,9 @@ class SyncToAnkiUseCase:
 
     def execute(self, scope: SourceScope, group: ExportGroup) -> SyncResultDTO:
         """Pushes the group of a set of sources: one source, a collection, Unsorted or all."""
-        if scope.kind is ScopeKind.ALL:
-            batch = self._export_queue.for_all()
-        else:
-            ids = {s.id for s in self._scope_resolver.sources(scope) if s.id is not None}
-            batch = self._export_queue.for_sources(ids)
+        batch = self._export_queue.for_sources(
+            [s.id for s in self._scope_resolver.sources(scope) if s.id is not None],
+        )
         return self._push(batch.in_group(group), group, f"scope={scope.token}")
 
     def _push(
