@@ -44,7 +44,9 @@ class CardViews:
     def listed(
         self, source_id: int, order: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
     ) -> CardListing:
-        arranged = self._candidate_sorter.arrange(self._review_cards.of_source(source_id), order)
+        arranged = self._candidate_sorter.arrange(
+            self._review_cards.of_source(source_id), order, source_order=[source_id],
+        )
         return CardListing(cards=self._dtos(arranged), progress=arranged.progress())
 
     def one(self, phrase_id: int) -> CardDTO:

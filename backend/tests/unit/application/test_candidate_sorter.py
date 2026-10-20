@@ -13,6 +13,7 @@ from tests.candidate_sorter_support import candidate_sorter
 from tests.card_support import card, occurrence, word
 from tests.phrase_support import phrase
 
+SOURCE_ID = 10
 SOURCE_TEXT = "The scythe was sharp. The feast was long. A scythe again."
 
 
@@ -39,7 +40,7 @@ class TestCandidateSorter:
         self.scythe = _make("scythe", 2.6, occurrences=2, fragment="A scythe again.", block=1)
 
     def _lemmas(self, order: CandidateSortOrder) -> list[str]:
-        result = self.sorter.arrange([self.scythe, self.feast], order)
+        result = self.sorter.arrange([self.scythe, self.feast], order, source_order=[SOURCE_ID])
         return [c.lemma for c in result.cards]
 
     def test_relevance_puts_more_common_word_first(self) -> None:
@@ -58,7 +59,7 @@ class TestCandidateSorter:
         )
         dirty = card(word(4, "ember"), occurrence(4, 4, phrase("an ember zephyr", "ember",
                                                                new=("zephyr",))))
-        arranged = self.sorter.arrange([learned, dirty, self.feast])
+        arranged = self.sorter.arrange([learned, dirty, self.feast], source_order=[SOURCE_ID])
         assert arranged.section(learned) is CandidateSection.REVIEWED
         assert arranged.section(dirty) is CandidateSection.EXTRA
         assert arranged.section(self.feast) is CandidateSection.READY
@@ -72,7 +73,7 @@ class TestCandidateSorter:
             occurrence(3, 3, phrase("an ember", "ember"), earned_section=CandidateSection.EXTRA),
         )
 
-        arranged = self.sorter.arrange([stamped, self.feast])
+        arranged = self.sorter.arrange([stamped, self.feast], source_order=[SOURCE_ID])
 
         assert arranged.section(stamped) is CandidateSection.EXTRA
         assert self.sorter.section(stamped) is CandidateSection.EXTRA
@@ -96,7 +97,8 @@ class TestCandidateSorter:
             occurrence(3, 3, phrase("an ember", "ember"), earned_section=CandidateSection.EXTRA),
         )
 
-        assert self.sorter.arrange([learned]).section(learned) is CandidateSection.REVIEWED
+        arranged = self.sorter.arrange([learned], source_order=[SOURCE_ID])
+        assert arranged.section(learned) is CandidateSection.REVIEWED
 
     def test_progress_is_reviewed_among_reviewed_and_open_ready(self) -> None:
         skipped_extra = card(
@@ -111,6 +113,7 @@ class TestCandidateSorter:
         )
         arranged = self.sorter.arrange(
             [skipped_extra, open_extra, known_elsewhere, self.feast, self.scythe],
+            source_order=[SOURCE_ID],
         )
         assert arranged.progress() == DecisionProgress(decided=2, total=4)
 

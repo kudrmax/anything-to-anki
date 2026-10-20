@@ -183,7 +183,7 @@ class _Setup:
         self.lock = MagicMock()
         self.lock.held.return_value = busy_with
         sorter = MagicMock()
-        sorter.arrange.side_effect = lambda cs, _order: ArrangedCards(
+        sorter.arrange.side_effect = lambda cs, _order, *, source_order: ArrangedCards(
             cards=_words_reversed(cs), sections={},
         )
         sorter.open_sections.side_effect = lambda cs: {

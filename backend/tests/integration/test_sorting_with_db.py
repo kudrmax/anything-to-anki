@@ -97,7 +97,7 @@ class TestSortingWithDb:
             _make_candidate(1, "first", 4.0, position=DocumentPosition(0, 1, 4, 1, 9)),
             _make_candidate(1, "second", 4.0, position=DocumentPosition(0, 2, 0, 2, 5)),
         ])
-        sorted_candidates = sort_chronologically(_cards(db_session))
+        sorted_candidates = sort_chronologically(_cards(db_session), [1])
         assert [c.lemma for c in sorted_candidates] == ["first", "second", "third"]
 
     def test_is_sweet_spot_computed_after_load(self, db_session: Session) -> None:

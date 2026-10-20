@@ -13,6 +13,8 @@ from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.review_card import ReviewCard
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from backend.application.utils.candidate_sorter import CandidateSorter
     from backend.application.utils.generation_targets import (
         GenerationCard,
@@ -79,7 +81,7 @@ class RunGenerationUseCase:
                 target.discard(card)
             chosen = self._as_now(source_id, chosen)
 
-        ordered = self._in_order(chosen, sort_order)
+        ordered = self._in_order(chosen, sort_order, [source_id])
         queued = len(self._job_repo.enqueue([target.job(c) for c in ordered]))
         logger.info(
             "run_generation: queued (source_id=%d, kind=%s, scope=%s, total=%d, sort_order=%s)",
@@ -94,7 +96,10 @@ class RunGenerationUseCase:
         return [card for card in self._cards.of_source(source_id) if card.phrase_id in ids]
 
     def _in_order(
-        self, cards: list[GenerationCard], sort_order: CandidateSortOrder,
+        self,
+        cards: list[GenerationCard],
+        sort_order: CandidateSortOrder,
+        source_order: Sequence[int],
     ) -> list[GenerationCard]:
         """Cards in the order the user picked, as the review list shows them: the cards of
         a word together."""
@@ -102,5 +107,6 @@ class RunGenerationUseCase:
         arranged = self._candidate_sorter.arrange(
             [ReviewCard(word=card.word, occurrence=card.phrase) for card in cards],
             sort_order,
+            source_order=source_order,
         )
         return [by_phrase[card.phrase_id] for card in arranged.cards]
