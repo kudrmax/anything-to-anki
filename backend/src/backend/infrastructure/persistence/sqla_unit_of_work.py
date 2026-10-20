@@ -65,4 +65,5 @@ class SqlaUnitOfWork(UnitOfWork):
         session = self._session
         if session.new or session.dirty or session.deleted:
             return True
-        return bool(session.connection().connection.dbapi_connection.in_transaction)
+        dbapi_connection = session.connection().connection.dbapi_connection
+        return dbapi_connection is not None and bool(dbapi_connection.in_transaction)
