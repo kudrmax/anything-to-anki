@@ -338,4 +338,4 @@ def test_a_set_whose_every_rebuildable_source_is_busy_cannot_start() -> None:
     ).collections[0].counts
     assert friends.available_operations == [SourceOperationKind.UPDATE, SourceOperationKind.RECUT]
     assert friends.can_start_operation is False
-    assert friends.operation_hint == "Wait until the rebuild finishes"
+    assert friends.operation_hint == "Wait until the word search finishes"

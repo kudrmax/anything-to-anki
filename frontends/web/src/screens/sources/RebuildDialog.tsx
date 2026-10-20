@@ -74,17 +74,17 @@ const Counts = ({ counts, outcome }: { counts: RebuildCounts; outcome: SetOutcom
 }
 
 const TITLE: Record<SetOperation, (title: string) => string> = {
-  update: title => `Rebuild “${title}”`,
-  recut: title => `Rebuild “${title}” with new phrases`,
+  update: title => `Find words again in “${title}”`,
+  recut: title => `Process “${title}” again`,
   refresh: title => `Refresh “${title}”`,
 }
 
 const ABOUT: Record<RebuildMode, string> = {
-  update: 'Takes into account the words you’ve learned and your level: adds cards for new words, removes cards whose word is no longer new to you, and moves cards to easier sentences. The phrases of your cards stay, with their Polish, Meaning and audio.',
-  recut: 'Same as Rebuild, and also cuts every phrase out of the text again — useful after the app changed how it picks phrases. A card whose phrase changes loses its Polish and audio; Meaning stays.',
+  update: 'Looks for words to learn again, by the words you know, your Unknown list, your level and the app’s current rules. Adds cards for new words, removes cards whose word is no longer new to you, and moves cards to easier sentences. The phrases of your cards stay, with their Polish, Meaning and audio.',
+  recut: 'Processes the text again, as when you added it: splits it into phrases again and finds the words to learn. Your decisions stay. A card whose phrase comes out different loses its Polish and audio; Meaning stays.',
 }
 
-/** Rebuild (с новыми фразами или без) с превью или Refresh темы: запуск, прогресс и итог. Что меняется, считает backend. */
+/** Find words again, Process again с превью или Refresh темы: запуск, прогресс и итог. Что меняется, считает backend. */
 export function RebuildDialog({ scope, title, operation, onFinished, onClose }: RebuildDialogProps) {
   const { run, preview, start } = useScopeOperation(scope)
   const oneSource = isSourceScope(scope)
@@ -111,7 +111,7 @@ export function RebuildDialog({ scope, title, operation, onFinished, onClose }: 
       return <>{close}<Button variant="fill" onClick={() => void start(() => api.previewRebuild(scope, operation))}>Preview</Button></>
     }
     if (counts.nothing_to_update) return close
-    return <>{close}<Button variant="fill" onClick={() => void start(() => api.rebuild(scope, operation))}>Rebuild</Button></>
+    return <>{close}<Button variant="fill" onClick={() => void start(() => api.rebuild(scope, operation))}>{operation === 'update' ? 'Find words again' : 'Process again'}</Button></>
   })()
 
   const body = (() => {

@@ -129,14 +129,14 @@ describe('ScopeHeader', () => {
     render([], a)
     expect(buttons()).not.toContain('Export')
     openMenu()
-    expect(menuLabels()).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Rebuild…', 'Delete'])
+    expect(menuLabels()).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Find words again…', 'Delete'])
   })
 
   it('offers All only Export and the operations, and runs them on the whole scope', () => {
     render([], null, { ...counts, available_operations: ['refresh', 'update'] })
     openMenu()
-    expect(menuLabels()).toEqual(['Export', 'Refresh…', 'Rebuild…'])
-    act(() => [...host.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(el => el.textContent === 'Rebuild…')!.click())
+    expect(menuLabels()).toEqual(['Export', 'Refresh…', 'Find words again…'])
+    act(() => [...host.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(el => el.textContent === 'Find words again…')!.click())
     expect(onOperation).toHaveBeenCalledWith('update')
   })
 

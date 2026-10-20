@@ -264,9 +264,9 @@ describe('SourcesScreen', () => {
     const preview = vi.spyOn(api, 'previewRebuild').mockReturnValue(new Promise(() => {}))
     await render('/?scope=11')
     act(() => button('Collection actions', host.querySelector('header')!).click())
-    act(() => button('Rebuild…', host.querySelector('header')!).click())
+    act(() => button('Find words again…', host.querySelector('header')!).click())
     const dialog = document.body.querySelector('[role="dialog"]')!
-    expect(dialog.textContent).toContain('Rebuild “Season 1”')
+    expect(dialog.textContent).toContain('Find words again in “Season 1”')
     act(() => button('Preview', dialog).click())
     expect(preview).toHaveBeenCalledWith(11, 'update')
   })

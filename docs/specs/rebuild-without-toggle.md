@@ -128,15 +128,15 @@ Rebuild с галочкой «Also unreviewed cards» смешивает две 
 **Frontend:**
 - `client.ts`: `update(scope)`, `recut(scope)`, `preview(scope, of)`; `types.ts`: `SourceOperationKind`, `SetOperation`, DTO.
 - В меню источника и набора — пункты по `available_operations`: **Refresh**, **Update**, **Re-cut phrases**.
-- В меню источника и набора — пункты по `available_operations`: **Refresh…**, **Rebuild…** (`update`), **Rebuild with new phrases…** (`recut`).
+- В меню источника и набора — пункты по `available_operations`: **Refresh…**, **Find words again…** (`update`), **Process again…** (`recut`).
 - `RebuildDialog` получает `operation`, галочки нет. Тексты:
 
-| Место | Rebuild | Rebuild with new phrases |
+| Место | Find words again | Process again |
 |---|---|---|
-| Заголовок | `Rebuild “X”` | `Rebuild “X” with new phrases` |
-| До превью | `Takes into account the words you’ve learned and your level: adds cards for new words, removes cards whose word is no longer new to you, and moves cards to easier sentences. The phrases of your cards stay, with their Polish, Meaning and audio.` | `Same as Rebuild, and also cuts every phrase out of the text again — useful after the app changed how it picks phrases. A card whose phrase changes loses its Polish and audio; Meaning stays.` |
-| Кнопка | `Rebuild` | `Rebuild` |
-| Пока идёт | `Rebuilding…` | `Rebuilding with new phrases…` |
+| Заголовок | `Find words again in “X”` | `Process “X” again` |
+| До превью | `Looks for words to learn again, by the words you know, your Unknown list, your level and the app’s current rules. Adds cards for new words, removes cards whose word is no longer new to you, and moves cards to easier sentences. The phrases of your cards stay, with their Polish, Meaning and audio.` | `Processes the text again, as when you added it: splits it into phrases again and finds the words to learn. Your decisions stay. A card whose phrase comes out different loses its Polish and audio; Meaning stays.` |
+| Кнопка | `Find words again` | `Process again` |
+| Пока идёт | `Finding words again…` | `Processing again…` |
 
 Строки превью и итога (нулевые не показываются, у одной карточки — единственное число):
 - `3 new words get cards`
@@ -150,7 +150,7 @@ Rebuild с галочкой «Also unreviewed cards» смешивает две 
 - План пуст: `Nothing to change: your cards already match the words you know.` и только Close.
 - Сноска при непустом превью: `The numbers are an estimate and may differ by a few cards.`
 
-Подписи backend: `Counting what will change…` (превью), подсказка занятого источника — `Wait until the rebuild finishes` / `Wait until the count of changes finishes`.
+Подписи backend: `Counting what will change…` (превью), подсказка занятого источника — `Wait until the word search finishes` / `Wait until the reprocessing finishes` / `Wait until the count of changes finishes`.
 
 ## Миграции
 

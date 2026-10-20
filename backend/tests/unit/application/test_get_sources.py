@@ -212,8 +212,8 @@ class TestGetSourcesUseCase:
         assert dto.busy_with is SourceOperationKind.UPDATE
         assert dto.available_operations == [SourceOperationKind.UPDATE, SourceOperationKind.RECUT]
         assert dto.can_start_operation is False
-        assert dto.operation_hint == "Wait until the rebuild finishes"
-        assert dto.progress_caption == "Rebuilding…"
+        assert dto.operation_hint == "Wait until the word search finishes"
+        assert dto.progress_caption == "Finding words again…"
 
     def test_a_topic_lists_both_operations(self) -> None:
         self.source_repo.list_all.return_value = [Source(

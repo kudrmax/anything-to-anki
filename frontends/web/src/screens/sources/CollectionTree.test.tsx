@@ -216,8 +216,8 @@ describe('CollectionTree', () => {
   it('offers a collection the actions of a source, in the same order', () => {
     openMenu('Top')
     const labels = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].map(el => el.textContent)
-    expect(labels).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Rebuild…', 'Delete'])
-    act(() => menuItem('Rebuild…').click())
+    expect(labels).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Find words again…', 'Delete'])
+    act(() => menuItem('Find words again…').click())
     expect(handlers.onOperation).toHaveBeenCalledWith(1, 'update')
   })
 

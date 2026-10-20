@@ -19,8 +19,8 @@ _REBUILDABLE_STATUSES = frozenset({SourceStatus.DONE, SourceStatus.ERROR})
 
 _BUSY_NAME: dict[SourceOperationKind, str] = {
     SourceOperationKind.PROCESS: "processing",
-    SourceOperationKind.UPDATE: "rebuild",
-    SourceOperationKind.RECUT: "rebuild",
+    SourceOperationKind.UPDATE: "word search",
+    SourceOperationKind.RECUT: "reprocessing",
     SourceOperationKind.PREVIEW: "count of changes",
     SourceOperationKind.REFRESH: "refresh",
 }
@@ -92,8 +92,8 @@ def operations_offer(
 
 _BUSY_CAPTION: dict[SourceOperationKind, str] = {
     SourceOperationKind.PROCESS: "Processing…",
-    SourceOperationKind.UPDATE: "Rebuilding…",
-    SourceOperationKind.RECUT: "Rebuilding with new phrases…",
+    SourceOperationKind.UPDATE: "Finding words again…",
+    SourceOperationKind.RECUT: "Processing again…",
     SourceOperationKind.PREVIEW: "Counting what will change…",
     SourceOperationKind.REFRESH: "Refreshing…",
 }
