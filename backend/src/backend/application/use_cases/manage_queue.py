@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.domain.ports.job_repository import JobRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.job_selection import JobSelection
 
 logger = logging.getLogger(__name__)
@@ -17,20 +18,24 @@ class ManageQueueUseCase:
     result when the work finishes.
     """
 
-    def __init__(self, job_repo: JobRepository) -> None:
+    def __init__(self, job_repo: JobRepository, unit_of_work: UnitOfWork) -> None:
+        self._unit_of_work = unit_of_work
         self._job_repo = job_repo
 
     def cancel(self, selection: JobSelection) -> int:
-        count = self._job_repo.cancel(selection)
+        with self._unit_of_work.write():
+            count = self._job_repo.cancel(selection)
         logger.info("queue: cancelled %d jobs (%s)", count, selection)
         return count
 
     def retry(self, selection: JobSelection) -> int:
-        count = self._job_repo.retry(selection)
+        with self._unit_of_work.write():
+            count = self._job_repo.retry(selection)
         logger.info("queue: retried %d jobs (%s)", count, selection)
         return count
 
     def dismiss(self, selection: JobSelection) -> int:
-        count = self._job_repo.dismiss(selection)
+        with self._unit_of_work.write():
+            count = self._job_repo.dismiss(selection)
         logger.info("queue: dismissed %d jobs (%s)", count, selection)
         return count

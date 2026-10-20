@@ -52,6 +52,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.format_detector import FormatDetector
     from backend.domain.ports.format_reader import FormatReader
     from backend.domain.ports.settings_repository import SettingsRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.collection_choice import CollectionChoice
     from backend.domain.value_objects.content import Content, Kind
     from backend.domain.value_objects.question import Question
@@ -111,7 +112,9 @@ class AddSourceUseCase:
         file_reader: FileReader,
         group_writer: SourceGroupWriter,
         settings_repo: SettingsRepository,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._detector = detector
         self._readers: dict[Format, FormatReader] = {reader.format: reader for reader in readers}
         self._handlers: dict[Kind, KindHandler] = {handler.kind: handler for handler in handlers}
@@ -143,7 +146,8 @@ class AddSourceUseCase:
             reads.sort(key=lambda read: natural_key(read.label))
         drafts = [draft for read in reads for draft in read.drafts]
         if len(drafts) == 1:
-            return self._group_writer.write_one(drafts[0], None)
+            with self._unit_of_work.write():
+                return self._group_writer.write_one(drafts[0], None)
         if naming is None:
             return self._naming_required(drafts, reads, batch)
         collection_name = self._group_writer.name_of(naming.collection)
@@ -153,7 +157,8 @@ class AddSourceUseCase:
             or naming.rule.render(collection_name, index + 1, draft.own_title or "", width)
             for index, draft in enumerate(drafts)
         ]
-        return self._group_writer.write_group(drafts, naming.collection, titles)
+        with self._unit_of_work.write():
+            return self._group_writer.write_group(drafts, naming.collection, titles)
 
     def _read_one(
         self,

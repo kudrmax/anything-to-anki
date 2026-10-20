@@ -3,7 +3,7 @@ Unsorted or all of them, through endpoints that take the set's scope token."""
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Coroutine, Generator  # noqa: TC003
+from collections.abc import Coroutine, Generator  # noqa: TC003
 
 import pytest
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
@@ -219,17 +219,15 @@ def test_a_set_with_no_operation_has_no_operation_state(client: TestClient) -> N
 
 
 def test_an_operation_that_fails_to_start_running_ends_in_error(
-    client: TestClient, factory: sessionmaker[Session], operations: SourceOperationRegistry,
+    client: TestClient, operations: SourceOperationRegistry,
 ) -> None:
     token = f"source-{PILOT}"
     operation = operations.started(token, SourceOperationKind.UPDATE)
 
-    def broken(_session: Session) -> Callable[[], None]:
+    def broken() -> None:
         raise RuntimeError("could not build the use case")
 
-    asyncio.run(operation_background(
-        operations, token, operation.operation_id, factory, broken,
-    ))
+    asyncio.run(operation_background(operations, token, operation.operation_id, broken))
 
     state = client.get("/api/operations", params={"scope": token}).json()
     assert (state["state"], state["error"]) == ("error", "could not build the use case")

@@ -484,6 +484,7 @@ class Container:
             file_reader=self._file_reader,
             group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(session)),
             settings_repo=SqlaSettingsRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def render_names_use_case(self) -> RenderNamesUseCase:
@@ -498,11 +499,15 @@ class Container:
         )
 
     def create_topic_use_case(self, session: Session) -> CreateTopicUseCase:
-        return CreateTopicUseCase(source_repo=SqlaSourceRepository(session))
+        return CreateTopicUseCase(
+            source_repo=SqlaSourceRepository(session),
+            unit_of_work=self._unit_of_work(session),
+        )
 
     def rename_source_use_case(self, session: Session) -> RenameSourceUseCase:
         return RenameSourceUseCase(
             source_repo=SqlaSourceRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def delete_source_use_case(self, session: Session) -> DeleteSourceUseCase:
@@ -511,6 +516,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             lock=SqlaSourceOperationLock(session),
             media_root=self._media_root,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def delete_sources_use_case(self, session: Session) -> DeleteSourcesUseCase:
@@ -537,6 +543,7 @@ class Container:
     def create_collection_use_case(self, session: Session) -> CreateCollectionUseCase:
         return CreateCollectionUseCase(
             collection_repo=SqlaCollectionRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def list_collections_use_case(self, session: Session) -> ListCollectionsUseCase:
@@ -552,27 +559,34 @@ class Container:
     def rename_collection_use_case(self, session: Session) -> RenameCollectionUseCase:
         return RenameCollectionUseCase(
             collection_repo=SqlaCollectionRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def delete_collection_use_case(self, session: Session) -> DeleteCollectionUseCase:
         return DeleteCollectionUseCase(
             collection_repo=SqlaCollectionRepository(session),
             source_repo=SqlaSourceRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def move_collection_use_case(self, session: Session) -> MoveCollectionUseCase:
-        return MoveCollectionUseCase(collection_repo=SqlaCollectionRepository(session))
+        return MoveCollectionUseCase(
+            collection_repo=SqlaCollectionRepository(session),
+            unit_of_work=self._unit_of_work(session),
+        )
 
     def restore_collection_use_case(self, session: Session) -> RestoreCollectionUseCase:
         return RestoreCollectionUseCase(
             collection_repo=SqlaCollectionRepository(session),
             source_repo=SqlaSourceRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def place_sources_use_case(self, session: Session) -> PlaceSourcesUseCase:
         return PlaceSourcesUseCase(
             source_repo=SqlaSourceRepository(session),
             collection_repo=SqlaCollectionRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def process_source_use_case(self, session: Session) -> ProcessSourceUseCase:
@@ -1078,6 +1092,7 @@ class Container:
             frequency_provider=self._frequency_provider,
             index_repo=SqlaBootstrapIndexRepository(session),
             phrasal_verb_dictionary=self._phrasal_verb_dictionary,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def get_bootstrap_words_use_case(self, session: Session) -> GetBootstrapWordsUseCase:
@@ -1139,6 +1154,7 @@ class Container:
             media_repo=SqlaCandidateMediaRepository(session),
             image_repo=SqlaCandidateMeaningImageRepository(session),
             media_root=self._media_root,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def regenerate_phrase_media_use_case(
@@ -1321,7 +1337,10 @@ class Container:
 
     def manage_queue_use_case(self, session: Session) -> ManageQueueUseCase:
         from backend.application.use_cases.manage_queue import ManageQueueUseCase
-        return ManageQueueUseCase(job_repo=SqlaJobRepository(session))
+        return ManageQueueUseCase(
+            job_repo=SqlaJobRepository(session),
+            unit_of_work=self._unit_of_work(session),
+        )
 
     def request_video_download_use_case(
         self, session: Session,

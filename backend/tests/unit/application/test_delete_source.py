@@ -37,6 +37,7 @@ class TestDeleteSourceUseCase:
             candidate_repo=self.candidate_repo,
             lock=self.lock,
             media_root="/tmp/nonexistent-media-root",
+            unit_of_work=MagicMock(),
         )
 
     def test_deletes_candidates_then_source(self) -> None:
@@ -100,6 +101,7 @@ class TestDeleteSourceUseCase:
             candidate_repo=candidate_repo,
             lock=_free_lock(),
             media_root=str(media_root),
+            unit_of_work=MagicMock(),
         )
 
         uc.execute(42)
@@ -122,6 +124,7 @@ class TestDeleteSourceUseCase:
             candidate_repo=candidate_repo,
             lock=_free_lock(),
             media_root=str(media_root),
+            unit_of_work=MagicMock(),
         )
 
         # Should not raise

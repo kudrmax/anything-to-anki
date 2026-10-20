@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 from backend.application.use_cases.create_collection import CreateCollectionUseCase
 from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
@@ -33,8 +35,8 @@ class TestRestoreCollection:
             Collection(id=3, name="IELTS", position=1),
         ])
         self.sources = InMemorySourceRepository([source(10, 1), source(11, 2)])
-        DeleteCollectionUseCase(self.collections, self.sources).execute(1)
-        self.restore = RestoreCollectionUseCase(self.collections, self.sources)
+        DeleteCollectionUseCase(self.collections, self.sources, MagicMock()).execute(1)
+        self.restore = RestoreCollectionUseCase(self.collections, self.sources, MagicMock())
 
     def test_puts_everything_back(self) -> None:
         restored = self.restore.execute(1)
@@ -51,7 +53,7 @@ class TestRestoreCollection:
         assert self.sources.items[10].collection_id == 1
 
     def test_restore_refuses_when_name_taken(self) -> None:
-        CreateCollectionUseCase(self.collections).execute("friends")
+        CreateCollectionUseCase(self.collections, MagicMock()).execute("friends")
         with pytest.raises(CollectionNameExistsError):
             self.restore.execute(1)
         assert self.collections.items[1].deleted_at is not None
@@ -73,16 +75,16 @@ class TestRestoreDeepSubtree:
             Collection(id=4, name="Pilot", parent_id=3),
         ])
         self.sources = InMemorySourceRepository([source(11, 2), source(12, 3), source(13, 4)])
-        self.restore = RestoreCollectionUseCase(self.collections, self.sources)
+        self.restore = RestoreCollectionUseCase(self.collections, self.sources, MagicMock())
 
     def test_every_level_and_its_sources_come_back(self) -> None:
-        DeleteCollectionUseCase(self.collections, self.sources).execute(2)
+        DeleteCollectionUseCase(self.collections, self.sources, MagicMock()).execute(2)
         self.restore.execute(2)
         assert all(self.collections.items[i].deleted_at is None for i in (2, 3, 4))
         assert [self.sources.items[i].collection_id for i in (11, 12, 13)] == [2, 3, 4]
 
     def test_descendant_deleted_earlier_stays_deleted(self) -> None:
-        delete = DeleteCollectionUseCase(self.collections, self.sources)
+        delete = DeleteCollectionUseCase(self.collections, self.sources, MagicMock())
         delete.execute(4)
         delete.execute(2)
         self.restore.execute(2)
@@ -90,12 +92,13 @@ class TestRestoreDeepSubtree:
         assert self.collections.items[4].deleted_at is not None
 
     def test_refuses_when_parent_got_too_deep_meanwhile(self) -> None:
-        DeleteCollectionUseCase(self.collections, self.sources).execute(2)
-        create = CreateCollectionUseCase(self.collections)
+        DeleteCollectionUseCase(self.collections, self.sources, MagicMock()).execute(2)
+        create = CreateCollectionUseCase(self.collections, MagicMock())
         a = create.execute("A")
         b = create.execute("B", a.id)
         c = create.execute("C", b.id)
-        MoveCollectionUseCase(self.collections).execute(1, c.id, 0)  # Shows now at depth 4
+        # Shows now at depth 4
+        MoveCollectionUseCase(self.collections, MagicMock()).execute(1, c.id, 0)
         with pytest.raises(CollectionMoveNotAllowedError, match="deeper than 5 levels"):
             self.restore.execute(2)  # 4 + Friends' 3 levels = 7
         assert self.collections.items[2].deleted_at is not None

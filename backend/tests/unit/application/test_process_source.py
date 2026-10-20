@@ -82,3 +82,19 @@ class TestProcessSourceStart:
             self.use_case.execute(999)
         self.lock.release.assert_called_once_with(999)
         self.rebuilder.analyse.assert_not_called()
+
+    def test_a_failure_shows_on_the_source(self) -> None:
+        self.use_case.fail(1, "Traceback", never_ran=False)
+
+        self.source_repo.update_status.assert_called_once_with(
+            1, SourceStatus.ERROR, error_message="Traceback",
+        )
+        self.lock.release.assert_not_called()
+
+    def test_a_failure_before_the_run_also_frees_the_source(self) -> None:
+        self.use_case.fail(1, "Traceback", never_ran=True)
+
+        self.lock.release.assert_called_once_with(1)
+        self.source_repo.update_status.assert_called_once_with(
+            1, SourceStatus.ERROR, error_message="Traceback",
+        )

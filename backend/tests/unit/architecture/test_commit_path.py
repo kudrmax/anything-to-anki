@@ -28,26 +28,13 @@ SESSION_ALLOWED = (PERSISTENCE_DIR, API_DEPENDENCIES, CONTAINER)
 # Files that offend today. Tasks 1.3-1.5 remove entries as they migrate; Task 1.6 empties both.
 PENDING_TRANSACTIONS: frozenset[str] = frozenset({
     "backend/src/backend/cli/build_dict_cache.py",
-    "backend/src/backend/infrastructure/api/background.py",
-    "backend/src/backend/infrastructure/api/routes/bootstrap.py",
-    "backend/src/backend/infrastructure/api/routes/collections.py",
-    "backend/src/backend/infrastructure/api/routes/queue.py",
-    "backend/src/backend/infrastructure/api/routes/settings.py",
-    "backend/src/backend/infrastructure/api/routes/sources.py",
     "backend/src/backend/infrastructure/container.py",
     "backend/src/backend/infrastructure/services/lazy_media_reconciler.py",
 })
 PENDING_SESSION_IMPORTS: frozenset[str] = frozenset({
-    "backend/src/backend/infrastructure/api/background.py",
     "backend/src/backend/infrastructure/api/background_rebuild_launcher.py",
     "backend/src/backend/infrastructure/api/routes/anki.py",
-    "backend/src/backend/infrastructure/api/routes/bootstrap.py",
     "backend/src/backend/infrastructure/api/routes/card_reports.py",
-    "backend/src/backend/infrastructure/api/routes/collections.py",
-    "backend/src/backend/infrastructure/api/routes/operations.py",
-    "backend/src/backend/infrastructure/api/routes/queue.py",
-    "backend/src/backend/infrastructure/api/routes/settings.py",
-    "backend/src/backend/infrastructure/api/routes/sources.py",
     "backend/src/backend/infrastructure/api/routes/stats.py",
     "backend/src/backend/infrastructure/api/routes/usage.py",
     "backend/src/backend/infrastructure/api/routes/vocabulary.py",

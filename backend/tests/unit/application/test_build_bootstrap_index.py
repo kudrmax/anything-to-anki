@@ -21,6 +21,7 @@ class TestBuildBootstrapIndexUseCase:
             frequency_provider=self.frequency_provider,
             index_repo=self.index_repo,
             phrasal_verb_dictionary=self.phrasal_verb_dictionary,
+            unit_of_work=MagicMock(),
         )
 
     def test_builds_index_from_corpus(self) -> None:

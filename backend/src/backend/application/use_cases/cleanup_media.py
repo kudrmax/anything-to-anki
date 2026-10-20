@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,9 @@ class CleanupMediaUseCase:
         media_repo: CandidateMediaRepository,
         image_repo: CandidateMeaningImageRepository,
         media_root: str,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._candidate_repo = candidate_repo
         self._occurrence_repo = occurrence_repo
         self._media_repo = media_repo
@@ -40,6 +43,10 @@ class CleanupMediaUseCase:
         self._media_root = media_root
 
     def execute(self, source_id: int, kind: CleanupMediaKind) -> None:
+        with self._unit_of_work.write():
+            self._clean(source_id, kind)
+
+    def _clean(self, source_id: int, kind: CleanupMediaKind) -> None:
         clear_screenshot = kind in (CleanupMediaKind.ALL, CleanupMediaKind.IMAGES)
         clear_audio = kind in (CleanupMediaKind.ALL, CleanupMediaKind.AUDIO)
         removed_shot = 0

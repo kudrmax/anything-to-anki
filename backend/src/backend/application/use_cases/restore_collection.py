@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.collection import Collection
     from backend.domain.ports.collection_repository import CollectionRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 
 class RestoreCollectionUseCase:
@@ -19,11 +20,17 @@ class RestoreCollectionUseCase:
 
     def __init__(
         self, collection_repo: CollectionRepository, source_repo: SourceRepository,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._collection_repo = collection_repo
         self._source_repo = source_repo
 
     def execute(self, collection_id: int) -> CollectionDTO:
+        with self._unit_of_work.write():
+            return self._restore(collection_id)
+
+    def _restore(self, collection_id: int) -> CollectionDTO:
         node = self._collection_repo.get_by_id(collection_id)
         if node is None or node.deleted_at is None:
             raise CollectionNotFoundError(collection_id)

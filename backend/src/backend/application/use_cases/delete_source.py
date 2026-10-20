@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +26,19 @@ class DeleteSourceUseCase:
         candidate_repo: CandidateRepository,
         lock: SourceOperationLock,
         media_root: str,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
         self._lock = lock
         self._media_root = media_root
 
     def execute(self, source_id: int) -> None:
+        with self._unit_of_work.write():
+            self._delete(source_id)
+
+    def _delete(self, source_id: int) -> None:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)

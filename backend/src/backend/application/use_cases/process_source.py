@@ -32,7 +32,7 @@ _ALLOWED_START_STATUSES = frozenset({SourceStatus.NEW, SourceStatus.ERROR})
 class ProcessSourceUseCase:
     """Processes a new source: a rebuild of a source with nothing in it yet.
 
-    `start` takes the source and must be committed before `execute`, which frees it
+    `start` takes the source in a write of its own before `execute`, which frees it
     whatever happens. The source's status stays its last outcome meanwhile: the lock is
     what shows it is being processed and keeps other operations off it.
     """
@@ -55,6 +55,10 @@ class ProcessSourceUseCase:
 
     def start(self, source_id: int) -> None:
         """Validate the source and take it. Call before launching the background task."""
+        with self._unit_of_work.write():
+            self._take(source_id)
+
+    def _take(self, source_id: int) -> None:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
@@ -100,6 +104,14 @@ class ProcessSourceUseCase:
             "process_source: done (source_id=%d, words_created=%d, phrases_created=%d)",
             source_id, len(plan.words_to_create), len(plan.occ_to_insert),
         )
+
+    def fail(self, source_id: int, error: str, *, never_ran: bool) -> None:
+        """The processing failed with `error`: the source shows it. A source whose
+        `execute` never ran is still taken by `start`, and is freed here."""
+        with self._unit_of_work.write():
+            if never_ran:
+                self._lock.release(source_id)
+            self._source_repo.update_status(source_id, SourceStatus.ERROR, error_message=error)
 
     def _release(self, source_id: int) -> None:
         with self._unit_of_work.write():

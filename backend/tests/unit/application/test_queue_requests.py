@@ -194,7 +194,7 @@ def test_manage_queue_applies_the_action_to_the_selection(action: str) -> None:
     getattr(job_repo, action).return_value = 4
     selection = JobSelection(job_type=JobType.MEANING, source_id=SOURCE_ID)
 
-    affected = getattr(ManageQueueUseCase(job_repo), action)(selection)
+    affected = getattr(ManageQueueUseCase(job_repo, MagicMock()), action)(selection)
 
     assert affected == 4
     getattr(job_repo, action).assert_called_once_with(selection)

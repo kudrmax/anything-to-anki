@@ -10,12 +10,13 @@ from backend.application.dto.settings_dtos import (  # noqa: TC001
     SettingsDTO,
     UpdateSettingsRequest,
 )
-from backend.infrastructure.api.dependencies import get_container, get_db_session
+from backend.infrastructure.api.dependencies import use_case
+from backend.infrastructure.container import Container
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
-    from backend.infrastructure.container import Container
+    from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
+    from backend.application.use_cases.get_media_storage_stats import GetMediaStorageStatsUseCase
+    from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 
 # NOTE: prefix is `/api/settings`, not `/settings`, because the frontend SPA
 # has a `/settings` route — when the user refreshes that page, the browser
@@ -27,40 +28,40 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 @router.get("")
 def get_settings(
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    settings: ManageSettingsUseCase = Depends(  # noqa: B008
+        use_case(Container.manage_settings_use_case),  # noqa: B008
+    ),
 ) -> SettingsDTO:
-    use_case = container.manage_settings_use_case(session)
-    return use_case.get_settings()
+    return settings.get_settings()
 
 
 @router.patch("")
 def update_settings(
     request: UpdateSettingsRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    settings: ManageSettingsUseCase = Depends(  # noqa: B008
+        use_case(Container.manage_settings_use_case),  # noqa: B008
+    ),
 ) -> SettingsDTO:
-    use_case = container.manage_settings_use_case(session)
-    result = use_case.update_settings(request)
-    session.commit()
+    result = settings.update_settings(request)
     return result
 
 
 @router.get("/frequent-word-thresholds")
 def get_frequent_word_thresholds(
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    settings: ManageSettingsUseCase = Depends(  # noqa: B008
+        use_case(Container.manage_settings_use_case),  # noqa: B008
+    ),
 ) -> list[FrequentWordThresholdDTO]:
-    return container.manage_settings_use_case(session).frequent_word_threshold_options()
+    return settings.frequent_word_threshold_options()
 
 
 @router.get("/media-stats")
 def get_media_stats(
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    media_stats: GetMediaStorageStatsUseCase = Depends(  # noqa: B008
+        use_case(Container.get_media_storage_stats_use_case),  # noqa: B008
+    ),
 ) -> list[dict[str, object]]:
-    use_case = container.get_media_storage_stats_use_case(session)
-    stats = use_case.execute()
+    stats = media_stats.execute()
     return [
         {
             "source_id": s.source_id,
@@ -77,8 +78,9 @@ def get_media_stats(
 @router.post("/media-cleanup", status_code=204)
 def cleanup_media(
     body: dict[str, object],
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    cleanup: CleanupMediaUseCase = Depends(  # noqa: B008
+        use_case(Container.cleanup_media_use_case),  # noqa: B008
+    ),
 ) -> None:
     source_id_raw = body.get("source_id")
     kind_raw = body.get("kind")
@@ -89,6 +91,4 @@ def cleanup_media(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid kind: {kind_raw}") from None
 
-    use_case = container.cleanup_media_use_case(session)
-    use_case.execute(source_id=source_id_raw, kind=kind)
-    session.commit()
+    cleanup.execute(source_id=source_id_raw, kind=kind)
