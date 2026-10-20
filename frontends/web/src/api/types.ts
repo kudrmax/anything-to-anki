@@ -20,6 +20,10 @@ export type Scope = 'all' | 'unsorted' | number
 export type SetScope = Scope | `source-${number}`
 export type SourceStage = 'in_progress' | 'preparing' | 'ready' | 'reviewed'
 
+/** Один на всё приложение выбор порядка источников: группировка и сортировка внутри групп. */
+export type SourceGrouping = 'stage' | 'none'
+export type SourceSort = 'added' | 'name' | 'last_studied'
+
 /** Решённые карточки среди Ready: одни и те же числа у источника, его ревью и коллекции. */
 export interface Progress {
   decided: number
@@ -411,7 +415,8 @@ export type MissingCardPart = 'meaning' | 'audio' | 'cloze'
 export type ExportGroup = 'ready' | 'incomplete'
 
 export interface SourceGroup {
-  stage: SourceStage
+  /** null, когда источники не группируются: один список без заголовка. */
+  stage: SourceStage | null
   sources: SourceSummary[]
 }
 
@@ -483,6 +488,8 @@ export interface Settings {
   cloze_default_hint: ClozeDefaultHint
   /** Как называется источник из главы книги, например «{{book_name}} ch{{n}}». */
   book_chapter_title_template: string
+  source_grouping: SourceGrouping
+  source_sort: SourceSort
 }
 
 export interface FrequentWordThresholdOption {

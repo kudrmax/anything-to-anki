@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import type { CollectionTree, InputDescription, Scope, ScopeCounts, SourceBoard, SourceSummary, Stats } from '@/api/types'
+import type { CollectionTree, InputDescription, Scope, ScopeCounts, Settings, SourceBoard, SourceSummary, Stats } from '@/api/types'
 import { SourcesScreen } from './SourcesScreen'
 
 const counts: ScopeCounts = {
@@ -55,6 +55,7 @@ describe('SourcesScreen', () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     vi.spyOn(api, 'getStats').mockResolvedValue({ learn_count: 0, known_word_count: 0, candidate_count: 0 } as Stats)
     vi.spyOn(api, 'getCollectionTree').mockResolvedValue(tree)
+    vi.spyOn(api, 'getSettings').mockResolvedValue({ source_grouping: 'stage', source_sort: 'added' } as Settings)
     vi.spyOn(api, 'getSourceBoard').mockImplementation((scope: Scope) =>
       scope === 999 ? Promise.reject(new Error('404: {"detail":"Collection not found"}')) : Promise.resolve(board))
     host = document.createElement('div')
@@ -145,6 +146,49 @@ describe('SourcesScreen', () => {
     expect(host.querySelector('[role="listbox"]')?.getAttribute('aria-multiselectable')).toBe('true')
     expect(button('Continue', row('Pilot')).className).toMatch(/fill/)
     expect(button('Continue', row('Second')).className).not.toMatch(/fill/)
+  })
+
+  it('shows the grouping and the sort the settings hold', async () => {
+    await render()
+    expect(button('Group: By status')).toBeDefined()
+    expect(button('Sort: Date added')).toBeDefined()
+  })
+
+  it('saves a new sort in the settings and reloads the board', async () => {
+    const update = vi.spyOn(api, 'updateSettings').mockResolvedValue({ source_grouping: 'stage', source_sort: 'name' } as Settings)
+    await render()
+    const loads = vi.mocked(api.getSourceBoard).mock.calls.length
+
+    act(() => button('Sort: Date added').click())
+    act(() => button('Name').click())
+    await settle()
+
+    expect(update).toHaveBeenCalledWith({ source_sort: 'name' })
+    expect(vi.mocked(api.getSourceBoard).mock.calls.length).toBe(loads + 1)
+    expect(button('Sort: Name')).toBeDefined()
+  })
+
+  it('saves a new grouping in the settings', async () => {
+    const update = vi.spyOn(api, 'updateSettings').mockResolvedValue({ source_grouping: 'none', source_sort: 'added' } as Settings)
+    await render()
+
+    act(() => button('Group: By status').click())
+    act(() => button('None').click())
+    await settle()
+
+    expect(update).toHaveBeenCalledWith({ source_grouping: 'none' })
+    expect(button('Group: None')).toBeDefined()
+  })
+
+  it('renders an ungrouped board as one list without a heading', async () => {
+    vi.mocked(api.getSourceBoard).mockResolvedValue({
+      title: 'All sources',
+      groups: [{ stage: null, sources: [source(3, 'Finale', 'reviewed'), source(1, 'Pilot', 'partially_reviewed')] }],
+    })
+    await render()
+    expect(host.querySelectorAll('h2')).toHaveLength(0)
+    expect(rows().map(r => r.textContent?.includes('Finale'))).toEqual([true, false])
+    expect(rows()).toHaveLength(2)
   })
 
   it('keeps one header layout for every scope: nothing moves when switching', async () => {
