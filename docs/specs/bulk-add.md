@@ -20,11 +20,11 @@
 - **Своё название** заготовки — ровно то, что источник получил бы при одиночном добавлении (`content.title` от читателя, как сейчас: метаданные или заголовок, иначе имя файла); у главы epub — заголовок главы, иначе `Chapter N`. Читатели не меняются.
 - **Подпись** заготовки — откуда она взялась, для левой колонки окна: имя файла с расширением; у главы epub — `chapter N`.
 - **Правило названий** (`NamingRule`) — свободный текст с переменными, каждая необязательна:
-  - `{collection}` — имя выбранной коллекции; без коллекции пусто;
-  - `{n}` — номер по порядку, с 1;
-  - `{title}` — своё название.
+  - `{{collection}}` — имя выбранной коллекции; без коллекции пусто;
+  - `{{n}}` — номер по порядку, с 1;
+  - `{{title}}` — своё название.
 
-  Примеры: `{collection} ch{n}`, `Atomic Habits ch{n}`, `{title}`. Лишние пробелы схлопываются, как сейчас в `ChapterTitleTemplate.render`.
+  Примеры: `{{collection}} ch{{n}}`, `Atomic Habits ch{{n}}`, `{{title}}`. Лишние пробелы схлопываются, как сейчас в `ChapterTitleTemplate.render`.
 - **Окно названий** — шаг добавления, когда заготовок две и больше.
 
 ## Окно названий
@@ -35,8 +35,8 @@
 Add 10 files                              (у epub: Add «Deep Work»)
 
 Collection   [ Atomic Habits          ▾ ]
-Name them    [ {collection} ch{n}         ]
-             {collection} — collection name, {n} — number in order, {title} — the file's own title
+Name them    [ ‹Collection› ch‹Number›    ]
+             + Collection   + Number   + Title from file
 
 File                                  →  Source
 Atomic_Habits_FINAL(2)_01_scan.txt    →  Atomic Habits ch1
@@ -49,9 +49,9 @@ chapter three (copy).md               →  Atomic Habits ch3
 - **Collection** — выбор из существующих коллекций (с путём, если коллекция вложенная), создание новой по введённому имени или «No collection». Новая коллекция создаётся на верхнем уровне в конце, как сейчас у epub.
   - У epub по умолчанию стоит коллекция с именем книги: существующая на верхнем уровне или новая (как сейчас `BookHandler._collection_id`).
   - У пачки по умолчанию «No collection».
-- **Name them** — правило названий. По умолчанию — правило из настроек. При вводе правые названия пересчитываются сразу.
+- **Name them** — правило названий. Переменные вставляются кнопками под полем (`+ Collection`, `+ Number`, `+ Title from file`) и показываются в поле плашками; скобки руками не пишутся. В API и настройке правило — строка с `{{collection}}`, `{{n}}`, `{{title}}`. По умолчанию — правило из настроек. При вводе правые названия пересчитываются сразу.
 - **Строку справа можно переписать руками.** Переписанная строка дальше не следует правилу.
-- **Порядок строк** — порядок, в котором источники встанут в списке и получат `{n}`:
+- **Порядок строк** — порядок, в котором источники встанут в списке и получат `{{n}}`:
   - пачка — по подписи, регистр не важен, числа по значению (`ch2` раньше `ch10`), как `_name_key` в `source_order.py`;
   - главы epub — порядок книги.
 - Все источники группы создаются с одним `created_at`, чтобы в списке «по дате» они шли в порядке окна (как сейчас у глав).
@@ -69,7 +69,7 @@ chapter three (copy).md               →  Atomic Habits ch3
 ## Модель
 
 **Домен:**
-- `NamingRule` (value object) вместо `ChapterTitleTemplate`: `pattern`, `render(collection: str | None, number: int, own_title: str) -> str`. Проверка как сейчас: правило без `{n}` и `{title}` дало бы всем одно название — `ValueError`.
+- `NamingRule` (value object) вместо `ChapterTitleTemplate`: `pattern`, `render(collection: str | None, number: int, own_title: str) -> str`. Проверка как сейчас: правило без `{{n}}` и `{{title}}` дало бы всем одно название — `ValueError`.
 - `CollectionChoice` (value object): ровно одно из `existing_id: int`, `new_name: str`; пустой выбор — «No collection».
 
 **Application:**
@@ -109,7 +109,7 @@ chapter three (copy).md               →  Atomic Habits ch3
 
 ## Настройка правила по умолчанию
 
-Настройка `book_chapter_title_template` (Settings) становится `naming_rule` — правилом по умолчанию в окне названий для любой группы, не только epub. Переменные переименовываются один в один: `{{book_name}}` → `{collection}`, `{{n}}` → `{n}`, `{{chapter_title}}` → `{title}`. Умолчание `{{book_name}} ch{{n}}` становится `{collection} ch{n}`, главы epub называются как сейчас. Сохранённое значение переносит Alembic-миграция данных.
+Настройка Settings → Books → Chapter titles (`book_chapter_title_template`) становится правилом по умолчанию в окне названий для любой группы, не только epub: ключ `naming_rule`, подпись `Default titles`, подсказка — переменные `{{collection}}`, `{{n}}`, `{{title}}`. Умолчание — `{{collection}} ch{{n}}` (решение Макса). Сохранённое значение переносит Alembic-миграция данных: `{{book_name}}` → `{{collection}}`, `{{chapter_title}}` → `{{title}}`, `{{n}}` без изменений.
 
 ## Вне задачи
 
