@@ -54,6 +54,17 @@ def test_name_ignores_case_and_ties_go_by_id() -> None:
     assert ordered(found, SourceOrder(FLAT, SourceSort.NAME)) == [(None, [3, 2, 4, 1])]
 
 
+def test_name_compares_numbers_by_value() -> None:
+    found = [
+        facts(1, added=_day(1), title="ch10"),
+        facts(2, added=_day(2), title="ch2"),
+        facts(3, added=_day(3), title="Ch1"),
+        facts(4, added=_day(4), title="ch"),
+        facts(5, added=_day(5), title="2 notes"),
+    ]
+    assert ordered(found, SourceOrder(FLAT, SourceSort.NAME)) == [(None, [5, 4, 3, 2, 1])]
+
+
 def test_last_studied_is_by_the_exact_time_newest_first() -> None:
     found = [
         facts(1, added=_day(1), studied=_day(10, 9, 0)),
