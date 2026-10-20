@@ -64,7 +64,7 @@ def _cards(session: Session) -> list[ReviewCard]:
     return ReviewCards(
         SqlaCandidateRepository(session), SqlaOccurrenceRepository(session),
         decisions.word_states, decisions.vocabulary,
-    ).of_source(1)
+    ).of_sources([1])
 
 
 @pytest.fixture(autouse=True)

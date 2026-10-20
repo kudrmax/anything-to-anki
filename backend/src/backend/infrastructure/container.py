@@ -808,6 +808,9 @@ class Container:
             candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
             report_repo=SqlaCardReportRepository(session),
+            scope_resolver=self._scope_resolver(session),
+            source_repo=SqlaSourceRepository(session),
+            lock=SqlaSourceOperationLock(session),
         )
 
     def _user_vocabulary(self, session: Session) -> UserVocabulary:

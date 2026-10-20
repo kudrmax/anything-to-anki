@@ -13,6 +13,7 @@ from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import Occurrence
+from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import (
     ActionRefusedError,
@@ -35,6 +36,7 @@ from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.candidate_sorter_support import candidate_sorter
@@ -94,6 +96,10 @@ class TestSaveCloze:
         self.decide.view.side_effect = lambda _id: card_view(
             self._context().word, PHRASE_ID, self._context().knowledge, None, NOW,
         )
+        source_repo = MagicMock()
+        source_repo.get_by_id.return_value = Source(id=5, status=SourceStatus.DONE)
+        lock = free_lock()
+        lock.operations.return_value = {}
         self.use_case = SaveClozeUseCase(
             occurrence_repo=self.occurrence_repo,
             candidate_repo=self.candidate_repo,
@@ -106,10 +112,13 @@ class TestSaveCloze:
                 candidate_sorter=candidate_sorter(settings),
                 job_repo=self.job_repo,
                 report_repo=self.report_repo,
+                scope_resolver=MagicMock(),
+                source_repo=source_repo,
+                lock=lock,
             ),
             decide_phrase=self.decide,
             builder=ClozeBuilder(),
-            lock=free_lock(),
+            lock=lock,
             unit_of_work=MagicMock(),
         )
 

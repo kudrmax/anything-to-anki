@@ -161,7 +161,7 @@ class GetSourcesUseCase:
         if source is None:
             raise SourceNotFoundError(source_id)
         assert source.id is not None
-        listing = self._card_views.listed(source.id, sort_order)
+        listing = self._card_views.listed(SourceScope.source(source.id), sort_order)
         initially_shown = (
             None if sort_order == CandidateSortOrder.CHRONOLOGICAL
             else INITIALLY_SHOWN_CANDIDATES

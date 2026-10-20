@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+from backend.domain.value_objects.source_scope import SourceScope
 
 if TYPE_CHECKING:
     from backend.application.dto.source_dtos import CardDTO
@@ -25,4 +26,4 @@ class GetCandidatesUseCase:
     ) -> list[CardDTO]:
         if self._source_repo.get_by_id(source_id) is None:
             raise SourceNotFoundError(source_id)
-        return self._card_views.listed(source_id, sort_order).cards
+        return self._card_views.listed(SourceScope.source(source_id), sort_order).cards

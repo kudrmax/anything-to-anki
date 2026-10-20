@@ -96,6 +96,9 @@ class TestGetSourcesUseCase:
                 candidate_sorter=sorter,
                 job_repo=self.job_repo,
                 report_repo=self.report_repo,
+                scope_resolver=SourceScopeResolver(self.source_repo, self.collection_repo),
+                source_repo=self.source_repo,
+                lock=self.lock,
             ),
             lock=self.lock,
         )
@@ -231,7 +234,7 @@ class TestGetSourcesUseCase:
     def test_the_detail_reads_the_review_status_from_its_progress(self) -> None:
         self.source_repo.get_by_id.return_value = _text(1)
         self.candidate_repo.get_by_source.return_value = [
-            word(1, "burnout", status=WordStatus.LEARN),
+            word(1, "burnout", status=WordStatus.LEARN, source_id=1),
         ]
         self.occurrence_repo.shown_by_word.return_value = {1: [occurrence(1, 1)]}
         assert self.use_case.get_by_id(1).status == "reviewed"
@@ -302,9 +305,9 @@ class TestGetSourcesUseCase:
         """Q11: a Learn card in Anki may still become a cloze (a new note)."""
         self.source_repo.get_by_id.return_value = _text(1)
         self.candidate_repo.get_by_source.return_value = [
-            word(1, "burnout", status=WordStatus.LEARNING),
-            word(2, "lizard", status=WordStatus.LEARN),
-            word(3, "gecko", status=WordStatus.LEARNING),
+            word(1, "burnout", status=WordStatus.LEARNING, source_id=1),
+            word(2, "lizard", status=WordStatus.LEARN, source_id=1),
+            word(3, "gecko", status=WordStatus.LEARNING, source_id=1),
         ]
         self.occurrence_repo.shown_by_word.return_value = {
             1: [occurrence(1, 1, exported=True, decision_kind=DecisionKind.CLOZE)],
@@ -323,3 +326,11 @@ class TestGetSourcesUseCase:
         self.source_repo.get_by_id.return_value = None
         with pytest.raises(SourceNotFoundError):
             self.use_case.get_by_id(999)
+
+    def test_card_carries_its_source(self) -> None:
+        self.source_repo.get_by_id.return_value = _text(1)
+        self.lock.operations.return_value = {1: HeldOperation(kind=SourceOperationKind.REBUILD)}
+        self.candidate_repo.get_by_source.return_value = [word(5, "glare", source_id=1)]
+        self.occurrence_repo.shown_by_word.return_value = {5: [occurrence(5, 5)]}
+        [card] = self.use_case.get_by_id(1).candidates
+        assert (card.source.id, card.source.busy_with) == (1, SourceOperationKind.REBUILD)

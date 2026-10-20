@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
     from backend.domain.entities.candidate_tts import CandidateTTS
     from backend.domain.entities.job import Job
+    from backend.domain.entities.source import Source
     from backend.domain.services.card_view import ButtonState, CardView, Shown
     from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.decision_progress import DecisionProgress
@@ -246,11 +247,32 @@ class CardStateDTO(BaseModel):
         return CardStateDTO(buttons=[ButtonDTO.of(b) for b in view.buttons])
 
 
+class CardSourceDTO(BaseModel):
+    """The source a card belongs to, with what its media, video player and actions need."""
+
+    id: int
+    has_video: bool
+    can_polish_phrases: bool
+    # The operation holding the card's source; the card waits while it runs.
+    busy_with: SourceOperationKind | None = None
+
+    @classmethod
+    def of(cls, source: Source, busy_with: SourceOperationKind | None) -> CardSourceDTO:
+        assert source.id is not None
+        return cls(
+            id=source.id,
+            has_video=source.has_video,
+            can_polish_phrases=source.can_polish_phrases,
+            busy_with=busy_with,
+        )
+
+
 class CardDTO(BaseModel):
     """A card of the review list: one shown phrase of a word."""
 
     phrase_id: int
     word_id: int
+    source: CardSourceDTO
     lemma: str
     pos: str
     cefr_level: str | None
@@ -338,6 +360,7 @@ class CardJobs:
 
 def card_to_dto(
     card: ReviewCard,
+    source: CardSourceDTO,
     jobs: CardJobs | None = None,
     *,
     reported: bool = False,
@@ -359,6 +382,7 @@ def card_to_dto(
     return CardDTO(
         phrase_id=phrase_id,
         word_id=word_id,
+        source=source,
         lemma=word.lemma,
         pos=word.pos,
         cefr_level=word.cefr_level,

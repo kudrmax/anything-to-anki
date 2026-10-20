@@ -6,6 +6,8 @@ from backend.domain.services.card_view import open_elsewhere
 from backend.domain.value_objects.review_card import CardContext, ReviewCard
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.entities.stored_candidate import StoredCandidate
@@ -32,7 +34,11 @@ class ReviewCards:
         self._word_states = word_states
         self._vocabulary = vocabulary
 
-    def of_source(self, source_id: int) -> list[ReviewCard]:
+    def of_sources(self, source_ids: Sequence[int]) -> list[ReviewCard]:
+        """The cards of the sources, source by source in the order given."""
+        return [card for source_id in source_ids for card in self._of_source(source_id)]
+
+    def _of_source(self, source_id: int) -> list[ReviewCard]:
         words = {w.id: w for w in self._candidate_repo.get_by_source(source_id)}
         shown = self._occurrence_repo.shown_by_word(source_id)
         states = self._word_states.of_source(source_id)
