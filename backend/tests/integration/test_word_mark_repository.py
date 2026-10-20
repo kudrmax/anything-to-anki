@@ -225,6 +225,15 @@ def test_the_schema_holds_one_mark_per_lemma(marks: Marks) -> None:
         ))
 
 
+def test_the_schema_holds_one_any_pos_row_per_lemma(marks: Marks) -> None:
+    marks.repo.mark_known("glare", None)
+
+    with pytest.raises(IntegrityError):
+        marks.session.execute(
+            text("INSERT INTO known_pos (lemma, pos) VALUES ('glare', NULL)"),
+        )
+
+
 def test_the_schema_takes_only_known_or_unknown(marks: Marks) -> None:
     with pytest.raises(IntegrityError):
         marks.session.execute(text(

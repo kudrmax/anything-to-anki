@@ -719,7 +719,10 @@ class KnownPosModel(Base):
     )
     pos: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    __table_args__ = (UniqueConstraint("lemma", "pos", name="uq_known_pos_lemma_pos"),)
+    __table_args__ = (
+        UniqueConstraint("lemma", "pos", name="uq_known_pos_lemma_pos"),
+        Index("uq_known_pos_any", "lemma", unique=True, sqlite_where=text("pos IS NULL")),
+    )
 
 
 class WordDecisionModel(Base):

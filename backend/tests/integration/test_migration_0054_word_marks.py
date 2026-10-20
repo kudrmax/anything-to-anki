@@ -107,17 +107,18 @@ def test_every_case_merge_conflict_and_absorbed_pos_is_logged(
     migrated: Engine, tmp_path: Path,
 ) -> None:
     del migrated
-    lines = (tmp_path / LOG_NAME).read_text(encoding="utf-8").splitlines()
+    header, *lines = (tmp_path / LOG_NAME).read_text(encoding="utf-8").splitlines()
 
+    assert header.startswith(f"# {REVISION_UNDER_TEST} run at 20")
     assert sorted(lines) == sorted([
         "case-merge lemma=abide spellings=Abide,abide",
         "pos-absorbed lemma=abide dropped=NOUN,VERB",
         "conflict lemma=bask known_at=2026-05-01 00:00:00"
         " unknown_at=2026-04-01 00:00:00 kept=known",
         "conflict lemma=cower known_at=2026-01-01 00:00:00"
-        " unknown_at=2026-06-01 00:00:00 kept=unknown",
+        " unknown_at=2026-06-01 00:00:00 kept=unknown dropped_pos=VERB",
         "conflict lemma=dwell known_at=2026-04-01 00:00:00"
-        " unknown_at=2026-04-01 00:00:00 kept=unknown",
+        " unknown_at=2026-04-01 00:00:00 kept=unknown dropped_pos=VERB",
         "case-merge lemma=glare spellings=Glare,glare",
     ])
 
@@ -181,3 +182,24 @@ def test_ids_survive_a_vacuum(migrated: Engine) -> None:
         conn.execution_options(isolation_level="AUTOCOMMIT").exec_driver_sql("VACUUM")
     with migrated.connect() as conn:
         assert set(conn.execute(text(query)).all()) == before
+
+
+def test_a_second_any_pos_row_of_a_lemma_is_refused(migrated: Engine) -> None:
+    with pytest.raises(IntegrityError, match="UNIQUE"), migrated.begin() as conn:
+        conn.execute(text("INSERT INTO known_pos (lemma, pos) VALUES ('abide', NULL)"))
+
+
+def test_each_run_starts_its_own_log_block(tmp_path: Path) -> None:
+    for run in range(2):
+        db_url = f"sqlite:///{tmp_path / f'app-{run}.db'}"
+        command.upgrade(_alembic_config(db_url), REVISION_BEFORE)
+        with create_engine(db_url).begin() as conn:
+            conn.execute(text(
+                "INSERT INTO known_words (lemma, pos, created_at)"
+                " VALUES ('Glare', 'VERB', '2026-01-01'), ('glare', 'NOUN', '2026-01-02')"
+            ))
+        command.upgrade(_alembic_config(db_url), REVISION_UNDER_TEST)
+
+    lines = (tmp_path / LOG_NAME).read_text(encoding="utf-8").splitlines()
+
+    assert [line.startswith("# ") for line in lines] == [True, False, True, False]

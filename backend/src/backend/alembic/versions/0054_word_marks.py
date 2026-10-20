@@ -7,12 +7,14 @@ Revises: 0052
 
 The two lists merge by lower(lemma); a merged mark is as old as its newest row. A lemma in
 both lists keeps the mark set later (Unknown on a tie). An empty pos means any part of speech
-and absorbs the others. Every case-merge, resolved conflict and absorbed pos goes to
-migration-0054.log beside the database file.
+and absorbs the others; a lemma has at most one such row. Every case-merge, resolved
+conflict (with the Known pos rows an Unknown win drops) and absorbed pos goes to
+migration-0054.log beside the database file, after a header line naming the run.
 """
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -30,6 +32,8 @@ depends_on = None
 KNOWN = "known"
 UNKNOWN = "unknown"
 LOG_NAME = "migration-0054.log"
+ANY_POS = "any"
+ANY_POS_INDEX = "uq_known_pos_any"
 
 
 class _Lemma:
@@ -81,6 +85,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["lemma"], ["word_marks.lemma"], ondelete="CASCADE"),
         sa.UniqueConstraint("lemma", "pos", name="uq_known_pos_lemma_pos"),
     )
+    op.create_index(
+        ANY_POS_INDEX, "known_pos", ["lemma"], unique=True, sqlite_where=sa.text("pos IS NULL"),
+    )
     if marks:
         bind.execute(
             sa.text(
@@ -127,9 +134,10 @@ def _resolve(lemma: str, rows: _Lemma, log: list[str]) -> _Mark:
         log.append(f"case-merge lemma={lemma} spellings={','.join(sorted(rows.spellings))}")
     if rows.known_at is not None and rows.unknown_at is not None:
         kept = KNOWN if rows.known_at > rows.unknown_at else UNKNOWN
+        dropped = "" if kept == KNOWN else f" dropped_pos={_pos_list(rows.pos)}"
         log.append(
             f"conflict lemma={lemma} known_at={rows.known_at}"
-            f" unknown_at={rows.unknown_at} kept={kept}",
+            f" unknown_at={rows.unknown_at} kept={kept}{dropped}",
         )
         return _mark(lemma, kept, rows, log)
     return _mark(lemma, KNOWN if rows.known_at is not None else UNKNOWN, rows, log)
@@ -152,5 +160,10 @@ def _write_log(bind: Connection, lines: list[str]) -> None:
     if not lines or not database or database == ":memory:":
         return
     path = Path(database).parent / LOG_NAME
+    header = f"# {revision} run at {datetime.now(tz=UTC).isoformat(timespec='seconds')}"
     with path.open("a", encoding="utf-8") as log:
-        log.writelines(f"{line}\n" for line in lines)
+        log.writelines(f"{line}\n" for line in (header, *lines))
+
+
+def _pos_list(pos: set[str | None]) -> str:
+    return ",".join(sorted(ANY_POS if p is None else p for p in pos))
