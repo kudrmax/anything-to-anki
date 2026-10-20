@@ -30,6 +30,7 @@ from backend.domain.value_objects.document import Document, Line, Paragraph, Par
 from backend.infrastructure.persistence.database import Base, create_session_factory
 from backend.infrastructure.persistence.models import PhraseModel
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
+from backend.infrastructure.persistence.sqla_anki_sync_repository import SqlaAnkiSyncRepository
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -161,6 +162,7 @@ class Bench:
             source_repo=self.sources,
             document_repo=SqlaDocumentRepository(self.session),
             occurrence_repo=self.occurrences,
+            anki_sync=SqlaAnkiSyncRepository(self.session, SessionChangeRecorder(self.session)),
             job_repo=self.jobs,
             media_repo=self.media,
             media_files=self.media_files,

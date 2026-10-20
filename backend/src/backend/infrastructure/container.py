@@ -503,6 +503,7 @@ class Container:
         return DeleteSourceUseCase(
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
             candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
+            anki_sync=SqlaAnkiSyncRepository(session, self._change_recorder(session)),
             lock=SqlaSourceOperationLock(session),
             media_root=self._media_root,
             unit_of_work=self._unit_of_work(session),
@@ -630,6 +631,7 @@ class Container:
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
             document_repo=SqlaDocumentRepository(session),
             occurrence_repo=SqlaOccurrenceRepository(session, self._change_recorder(session)),
+            anki_sync=SqlaAnkiSyncRepository(session, self._change_recorder(session)),
             job_repo=SqlaJobRepository(session),
             media_repo=SqlaCandidateMediaRepository(session, self._change_recorder(session)),
             media_files=LocalMediaFiles(self._media_root),

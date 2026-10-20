@@ -191,6 +191,12 @@ class ExportCards(WordStateRepository, AnkiSyncRepository):
     def release_rows(self, binding_ids: Iterable[int], at: datetime) -> None:
         raise AssertionError("an export releases nothing")
 
+    def orphan(self, phrase_ids: Iterable[int]) -> None:
+        raise AssertionError("an export deletes no card")
+
+    def orphan_source(self, source_id: int) -> None:
+        raise AssertionError("an export deletes no source")
+
     def orphans(self, lemma: str) -> list[BindingRef]:
         return []
 

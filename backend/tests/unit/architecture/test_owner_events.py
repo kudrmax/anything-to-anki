@@ -446,6 +446,25 @@ def _anki_release_rows(b: Bench) -> Expected:
     return {BindingChanged("stare")}
 
 
+def _anki_orphan(b: Bench) -> Expected:
+    first, second = b.word(1, "glare"), b.word(2, "stare")
+    bind(b.session, 1, first, note_id=901)
+    bind(b.session, 2, second, note_id=902)
+    b.ready()
+    b.anki.orphan([first])
+    return {BindingChanged("glare")}
+
+
+def _anki_orphan_source(b: Bench) -> Expected:
+    first = b.word(1, "glare")
+    other = b.word(2, "stare", source_id=OTHER_SOURCE)
+    bind(b.session, 1, first, note_id=901)
+    bind(b.session, 2, other, note_id=902)
+    b.ready()
+    b.anki.orphan_source(SOURCE)
+    return {BindingChanged("glare")}
+
+
 def _settings_set(b: Bench) -> Expected:
     b.ready()
     b.settings.set(LEVEL_KEY, "B2")
@@ -598,6 +617,8 @@ WRITE_CASES: dict[tuple[str, str], WriteCase] = {
     ("AnkiSyncRepository", "bind"): WriteCase(_anki_bind),
     ("AnkiSyncRepository", "release"): WriteCase(_anki_release),
     ("AnkiSyncRepository", "release_rows"): WriteCase(_anki_release_rows),
+    ("AnkiSyncRepository", "orphan"): WriteCase(_anki_orphan),
+    ("AnkiSyncRepository", "orphan_source"): WriteCase(_anki_orphan_source),
     ("SettingsRepository", "set"): WriteCase(_settings_set),
     ("CandidateMeaningRepository", "upsert_for_phrase"): WriteCase(_meaning_upsert),
     ("CandidateMeaningRepository", "delete_by_phrase_id"): WriteCase(_meaning_delete),

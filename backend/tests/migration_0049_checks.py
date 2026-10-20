@@ -40,6 +40,8 @@ TIMER_DAYS = 30
 KNOWN_REMOVED = "known removed after the export"
 NOT_DECIDED = "pending or skip"
 MERGE_LOSER = "merge loser"
+# From this revision on, a binding holds its card's choice only once the card is gone.
+CHOICE_ON_ORPHANS_ONLY = "0055"
 
 
 @dataclass(frozen=True)
@@ -200,6 +202,8 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
         )
     }
     choices = dict(conn.execute("SELECT id, choice FROM phrases").fetchall())
+    (version,) = conn.execute("SELECT version_num FROM alembic_version").fetchone()
+    orphans_only = version >= CHOICE_ON_ORPHANS_ONLY
     word_of_phrase = dict(conn.execute("SELECT id, candidate_id FROM phrases").fetchall())
     winners = before.winners()
 
@@ -262,9 +266,11 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
         winner = winners[card.group]
         assert phrase_id == phrase_of[card.id], old
         assert (note_kind == "cloze") is card.has_cloze, old
-        # the card's choice, so an orphan tells a Known card's binding from a Learn one's
+        # the card's choice, so an orphan tells a Known card's binding from a Learn one's;
+        # later, only once the card is gone
         decided = choices[phrase_id] in DECISION_CHOICES
-        assert card_choice == (choices[phrase_id] if decided else note_kind), old
+        copied = choices[phrase_id] if decided else note_kind
+        assert card_choice == (None if orphans_only else copied), old
         active = released_at is None
         should = card is winner and card.exported and choices[phrase_id] == "known"
         assert active is should, old

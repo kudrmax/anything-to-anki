@@ -78,19 +78,6 @@ class SqlaWordStateRepository(WordStateRepository):
                 .execution_options(synchronize_session=False)
             )
         self._session.execute(
-            update(AnkiSyncedCardModel)
-            .where(
-                AnkiSyncedCardModel.phrase_id.in_([card.card_id for card in word.cards]),
-                AnkiSyncedCardModel.released_at.is_(None),
-            )
-            .values(card_choice=(
-                select(PhraseModel.choice)
-                .where(PhraseModel.id == AnkiSyncedCardModel.phrase_id)
-                .scalar_subquery()
-            ))
-            .execution_options(synchronize_session=False)
-        )
-        self._session.execute(
             update(StoredCandidateModel)
             .where(StoredCandidateModel.id == word.word_id)
             .values(status=decision_status(word).value)
