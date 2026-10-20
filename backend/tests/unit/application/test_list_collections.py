@@ -17,12 +17,23 @@ from tests.unit.application.source_fakes import InMemorySourceRepository
 
 
 def _progress(by_source: dict[int, DecisionProgress] | None = None) -> MagicMock:
+    """Each source has as many cards as its progress counts, and that progress."""
+    found = by_source or {}
     progress = MagicMock()
-    progress.of_sources.side_effect = lambda source_ids: {
-        source_id: (by_source or {}).get(source_id, DecisionProgress())
-        for source_id in source_ids
+    progress.cards.side_effect = lambda source_ids: {
+        source_id: [MagicMock()] * found[source_id].total
+        for source_id in source_ids if source_id in found
+    }
+    progress.progress_of.side_effect = lambda cards: {
+        source_id: found[source_id] for source_id in cards
     }
     return progress
+
+
+def _card_query(learn_counts: dict[int, int] | None = None) -> MagicMock:
+    card_query = MagicMock()
+    card_query.learn_counts.return_value = learn_counts or {}
+    return card_query
 
 
 def _free() -> MagicMock:
@@ -49,6 +60,7 @@ def test_tree_with_subtree_counts_and_drag_hints() -> None:
         _progress({10: DecisionProgress(decided=2, total=2)}),
         probe,
         _free(),
+        _card_query(),
     )
 
     tree = use_case.execute()
@@ -80,6 +92,7 @@ def test_tree_of_full_depth() -> None:
         _progress(),
         probe,
         _free(),
+        _card_query(),
     ).execute()
 
     levels = []
@@ -118,6 +131,7 @@ def test_progress_sums_the_progress_of_sources_of_the_whole_subtree() -> None:
         }),
         probe,
         _free(),
+        _card_query(),
     ).execute()
 
     (books,) = tree.collections
@@ -143,6 +157,7 @@ def test_a_source_being_processed_is_not_pending() -> None:
         _progress(),
         probe,
         lock,
+        _card_query(),
     ).execute()
     assert tree.all.pending == 1
 
@@ -166,6 +181,67 @@ def test_a_source_counts_as_reviewed_by_its_progress_when_read() -> None:
         }),
         probe,
         _free(),
+        _card_query(),
     )
 
     assert use_case.execute().all.reviewed == 1
+
+
+def _use_case(
+    sources: list[Source], progress: dict[int, DecisionProgress],
+) -> ListCollectionsUseCase:
+    probe = MagicMock()
+    probe.of.return_value = TopicGeneration()
+    return ListCollectionsUseCase(
+        InMemoryCollectionRepository([Collection(id=1, name="Friends")]),
+        InMemorySourceRepository(sources),
+        _progress(progress),
+        probe,
+        _free(),
+        _card_query({10: 2}),
+    )
+
+
+@pytest.mark.unit
+def test_collection_carries_review_state() -> None:
+    tree = _use_case(
+        sources=[
+            Source(id=10, status=SourceStatus.DONE, collection_id=1),
+            Source(id=11, status=SourceStatus.ERROR, collection_id=1),
+            Source(id=12, status=SourceStatus.DONE, collection_id=None),
+        ],
+        progress={10: DecisionProgress(decided=1, total=4)},
+    ).execute()
+    friends = tree.collections[0].counts
+    assert (friends.status, friends.can_review) == ("partially_reviewed", True)
+    assert friends.review_fraction == 0.25
+    assert friends.progress_caption == "1 of 4 decided"
+    assert tree.unsorted.can_review is False
+    assert tree.all.can_review is True
+
+
+@pytest.mark.unit
+def test_a_set_reads_like_its_sources() -> None:
+    """Every source failed: the set failed; nothing processed: new; empty: new."""
+    failed = _use_case(
+        sources=[
+            Source(id=10, status=SourceStatus.ERROR, collection_id=1),
+            Source(id=11, status=SourceStatus.ERROR, collection_id=1),
+        ],
+        progress={},
+    ).execute().collections[0].counts
+    assert (failed.status, failed.can_review, failed.progress_caption) == (
+        "error", False, "Nothing to learn",
+    )
+    empty = _use_case(sources=[], progress={}).execute().collections[0].counts
+    assert (empty.status, empty.can_review, empty.review_fraction) == ("new", False, 0.0)
+
+
+@pytest.mark.unit
+def test_a_reviewed_set_counts_its_words_to_learn() -> None:
+    reviewed = _use_case(
+        sources=[Source(id=10, status=SourceStatus.DONE, collection_id=1)],
+        progress={10: DecisionProgress(decided=3, total=3)},
+    ).execute().collections[0].counts
+    assert (reviewed.status, reviewed.review_fraction) == ("reviewed", 1.0)
+    assert reviewed.progress_caption == "2 to learn"

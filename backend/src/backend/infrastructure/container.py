@@ -535,6 +535,7 @@ class Container:
             review_progress=self._review_progress(session),
             generation_probe=self._generation_probe(session),
             lock=SqlaSourceOperationLock(session),
+            card_query=SqlaCardQuery(session),
         )
 
     def rename_collection_use_case(self, session: Session) -> RenameCollectionUseCase:

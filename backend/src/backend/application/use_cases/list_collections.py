@@ -9,22 +9,31 @@ from backend.application.dto.collection_dtos import (
 )
 from backend.application.dto.source_dtos import ProgressDTO
 from backend.domain.services.collection_tree import CollectionTree
-from backend.domain.services.source_review_status import IS_REVIEWED, derive_review_status
+from backend.domain.services.source_actions import can_review, progress_caption, review_fraction
+from backend.domain.services.source_review_status import (
+    IS_REVIEWED,
+    derive_review_status,
+    stored_status_of_set,
+)
 from backend.domain.services.source_stage import is_pending
 from backend.domain.value_objects.decision_progress import DecisionProgress
+from backend.domain.value_objects.source_scope import SourceScope
 
 if TYPE_CHECKING:
     from backend.application.utils.review_progress import ReviewProgress
     from backend.application.utils.topic_generation import TopicGenerationProbe
     from backend.domain.entities.collection import Collection
     from backend.domain.entities.source import Source
+    from backend.domain.ports.card_query import CardQuery
     from backend.domain.ports.collection_repository import CollectionRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
 
 
 class ListCollectionsUseCase:
-    """The collection tree in manual order, each node counting its whole subtree."""
+    """The collection tree in manual order, each node counting its whole subtree and
+    reading as a set of sources under review: the same status, progress and caption a
+    source has, from the same functions."""
 
     def __init__(
         self,
@@ -33,8 +42,10 @@ class ListCollectionsUseCase:
         review_progress: ReviewProgress,
         generation_probe: TopicGenerationProbe,
         lock: SourceOperationLock,
+        card_query: CardQuery,
     ) -> None:
         self._lock = lock
+        self._card_query = card_query
         self._collection_repo = collection_repo
         self._source_repo = source_repo
         self._review_progress = review_progress
@@ -52,23 +63,41 @@ class ListCollectionsUseCase:
                 busy=s.id in busy,
             )
         }
-        progress = self._review_progress.of_sources([s.id for s in sources if s.id is not None])
+        ids = [s.id for s in sources if s.id is not None]
+        cards = self._review_progress.cards(ids)
+        progress = self._review_progress.progress_of(cards)
+        learn_counts = self._card_query.learn_counts(ids)
         reviewed = {
             s.id for s in sources
             if s.id is not None
-            and IS_REVIEWED[derive_review_status(s.status, progress[s.id])]
+            and IS_REVIEWED[derive_review_status(
+                s.status, progress.get(s.id, DecisionProgress()),
+            )]
         }
 
-        def counts(selected: list[Source]) -> ScopeCountsDTO:
+        def counts(scope: SourceScope, selected: list[Source]) -> ScopeCountsDTO:
+            selected_ids = [s.id for s in selected if s.id is not None]
             decisions = sum(
-                (progress.get(s.id, DecisionProgress()) for s in selected if s.id is not None),
-                DecisionProgress(),
+                (progress.get(i, DecisionProgress()) for i in selected_ids), DecisionProgress(),
+            )
+            status = derive_review_status(
+                stored_status_of_set(s.status for s in selected), decisions,
             )
             return ScopeCountsDTO(
                 total=len(selected),
-                reviewed=sum(1 for s in selected if s.id in reviewed),
-                pending=sum(1 for s in selected if s.id in pending),
+                reviewed=sum(1 for i in selected_ids if i in reviewed),
+                pending=sum(1 for i in selected_ids if i in pending),
                 progress=ProgressDTO.of(decisions),
+                status=status.value,
+                can_review=can_review(scope, status),
+                review_fraction=review_fraction(status, decisions),
+                progress_caption=progress_caption(
+                    status,
+                    sum(len(cards.get(i, [])) for i in selected_ids),
+                    decisions,
+                    sum(learn_counts.get(i, 0) for i in selected_ids),
+                    None,
+                ),
             )
 
         def node(collection: Collection) -> CollectionNodeDTO:
@@ -78,7 +107,10 @@ class ListCollectionsUseCase:
                 id=collection.id,
                 name=collection.name,
                 parent_id=collection.parent_id,
-                counts=counts([s for s in sources if s.collection_id in subtree]),
+                counts=counts(
+                    SourceScope.collection(collection.id),
+                    [s for s in sources if s.collection_id in subtree],
+                ),
                 depth=tree.depth(collection.id),
                 accepts_collections=tree.can_hold_children(collection.id),
                 move_targets=tree.move_targets(collection.id),
@@ -86,8 +118,10 @@ class ListCollectionsUseCase:
             )
 
         return CollectionTreeDTO(
-            all=counts(sources),
-            unsorted=counts([s for s in sources if s.collection_id is None]),
+            all=counts(SourceScope.all(), sources),
+            unsorted=counts(
+                SourceScope.unsorted(), [s for s in sources if s.collection_id is None],
+            ),
             max_depth=tree.max_depth,
             collections=[node(c) for c in tree.children(None)],
         )

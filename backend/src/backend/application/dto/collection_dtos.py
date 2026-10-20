@@ -57,6 +57,12 @@ class ScopeCountsDTO(BaseModel):
     pending: int
     # The progress of all the scope's sources summed, as each source shows it.
     progress: ProgressDTO
+    # The scope read as one set under review, as a source reads: its review status, whether
+    # it opens for review, how far the review got (0..1) and the line under the progress.
+    status: str
+    can_review: bool
+    review_fraction: float
+    progress_caption: str
 
 
 class CollectionNodeDTO(BaseModel):
