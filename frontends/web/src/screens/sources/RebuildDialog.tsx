@@ -26,15 +26,29 @@ function outcomeLines(outcome: SetOutcome): string[] {
   ].filter((line): line is string => Boolean(line))
 }
 
-/** Числа превью и итога: слова, удалённые и переехавшие карточки, заново нарезанные фразы. */
+/** Числа превью и итога — что пользователь увидит в своих карточках; нулевые строки не показываются. */
 function countLines(counts: RebuildCounts): string[] {
-  return [
-    `${plural(counts.words_added, 'new word', 'new words')}, ${plural(counts.words_removed, 'word removed', 'words removed')}`,
-    counts.cards_lost_generation > 0 && `${plural(counts.cards_lost_generation, 'removed card had', 'removed cards had')} Polish, Meaning or audio`,
-    counts.cards_moved > 0 && `${plural(counts.cards_moved, 'card moves', 'cards move')} to a simpler sentence — need ✨ there`,
-    counts.cards_recut > 0 && `${plural(counts.cards_recut, 'phrase gets', 'phrases get')} a new cut`,
-    counts.cards_recut_lost_text_generation > 0 && `${counts.cards_recut_lost_text_generation} of them lose Polish or audio`,
+  const lines = [
+    counts.words_added > 0 && (counts.words_added === 1 ? '1 new word gets a card' : `${counts.words_added} new words get cards`),
+    counts.words_removed > 0 && (counts.words_removed === 1
+      ? '1 card removed: its word is no longer new to you'
+      : `${counts.words_removed} cards removed: their words are no longer new to you`),
+    counts.cards_lost_generation > 0 && (counts.cards_lost_generation === 1
+      ? '1 removed card loses its Polish, Meaning and audio'
+      : `${counts.cards_lost_generation} removed cards lose their Polish, Meaning and audio`),
+    counts.cards_became_ready > 0 && (counts.cards_became_ready === 1
+      ? '1 card becomes ready: every other word in it is familiar now'
+      : `${counts.cards_became_ready} cards become ready: every other word in them is familiar now`),
+    counts.cards_left_ready > 0 && (counts.cards_left_ready === 1
+      ? '1 card is no longer ready: it has other new words again'
+      : `${counts.cards_left_ready} cards are no longer ready: they have other new words again`),
+    counts.cards_moved > 0 && (counts.cards_moved === 1
+      ? '1 card switches to an easier sentence; run ✨ for it again'
+      : `${counts.cards_moved} cards switch to easier sentences; run ✨ for them again`),
+    counts.cards_recut > 0 && `${plural(counts.cards_recut, 'card gets', 'cards get')} a different phrase`,
+    counts.cards_recut_lost_text_generation > 0 && `${counts.cards_recut_lost_text_generation} of them ${counts.cards_recut_lost_text_generation === 1 ? 'loses' : 'lose'} Polish and audio`,
   ].filter((line): line is string => Boolean(line))
+  return lines.length > 0 ? lines : [UNSEEN_CHANGES]
 }
 
 function refreshLines(refresh: TopicRefreshSummary): string[] {
@@ -45,31 +59,32 @@ const Lines = ({ lines }: { lines: string[] }) => (
   <ul className={css.operationLines}>{lines.map(line => <li key={line}>{line}</li>)}</ul>
 )
 
-const UP_TO_DATE = 'Already up to date'
+const NOTHING_TO_CHANGE = 'Nothing to change: your cards already match the words you know.'
+const UNSEEN_CHANGES = 'Your cards stay as they are; only behind-the-scenes data gets refreshed.'
 
 /** Что меняется; ничего не меняется — одна строка, а не список. */
 const Counts = ({ counts, outcome }: { counts: RebuildCounts; outcome: SetOutcome }) => {
   const notReached = outcomeLines(outcome)
   return (
     <>
-      {counts.nothing_to_update ? <Text>{UP_TO_DATE}</Text> : <Lines lines={countLines(counts)} />}
+      {counts.nothing_to_update ? <Text>{NOTHING_TO_CHANGE}</Text> : <Lines lines={countLines(counts)} />}
       {notReached.length > 0 && <Lines lines={notReached} />}
     </>
   )
 }
 
 const TITLE: Record<SetOperation, (title: string) => string> = {
-  update: title => `Update “${title}”`,
-  recut: title => `Re-cut phrases of “${title}”`,
+  update: title => `Rebuild “${title}”`,
+  recut: title => `Rebuild “${title}” with new phrases`,
   refresh: title => `Refresh “${title}”`,
 }
 
 const ABOUT: Record<RebuildMode, string> = {
-  update: 'Finds new words, removes words you no longer need and moves cards to simpler sentences. Phrase texts and their Polish, Meaning and audio stay.',
-  recut: 'Does what Update does and cuts every phrase again by the current logic. A phrase that changes loses its Polish, audio and video; Meaning stays.',
+  update: 'Takes into account the words you’ve learned and your level: adds cards for new words, removes cards whose word is no longer new to you, and moves cards to easier sentences. The phrases of your cards stay, with their Polish, Meaning and audio.',
+  recut: 'Same as Rebuild, and also cuts every phrase out of the text again — useful after the app changed how it picks phrases. A card whose phrase changes loses its Polish and audio; Meaning stays.',
 }
 
-/** Update, Re-cut с превью или Refresh темы: запуск, прогресс и итог. Что меняется, считает backend. */
+/** Rebuild (с новыми фразами или без) с превью или Refresh темы: запуск, прогресс и итог. Что меняется, считает backend. */
 export function RebuildDialog({ scope, title, operation, onFinished, onClose }: RebuildDialogProps) {
   const { run, preview, start } = useScopeOperation(scope)
   const oneSource = isSourceScope(scope)
@@ -96,7 +111,7 @@ export function RebuildDialog({ scope, title, operation, onFinished, onClose }: 
       return <>{close}<Button variant="fill" onClick={() => void start(() => api.previewRebuild(scope, operation))}>Preview</Button></>
     }
     if (counts.nothing_to_update) return close
-    return <>{close}<Button variant="fill" onClick={() => void start(() => api.rebuild(scope, operation))}>{operation === 'update' ? 'Update' : 'Re-cut'}</Button></>
+    return <>{close}<Button variant="fill" onClick={() => void start(() => api.rebuild(scope, operation))}>Rebuild</Button></>
   })()
 
   const body = (() => {
@@ -112,7 +127,7 @@ export function RebuildDialog({ scope, title, operation, onFinished, onClose }: 
     return (
       <>
         <Counts counts={counts} outcome={preview} />
-        {!counts.nothing_to_update && <Text tone="muted" size="s">The numbers may differ slightly from the result.</Text>}
+        {!counts.nothing_to_update && <Text tone="muted" size="s">The numbers are an estimate and may differ by a few cards.</Text>}
       </>
     )
   })()

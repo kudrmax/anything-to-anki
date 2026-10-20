@@ -19,9 +19,9 @@ _REBUILDABLE_STATUSES = frozenset({SourceStatus.DONE, SourceStatus.ERROR})
 
 _BUSY_NAME: dict[SourceOperationKind, str] = {
     SourceOperationKind.PROCESS: "processing",
-    SourceOperationKind.UPDATE: "update",
-    SourceOperationKind.RECUT: "re-cut",
-    SourceOperationKind.PREVIEW: "check",
+    SourceOperationKind.UPDATE: "rebuild",
+    SourceOperationKind.RECUT: "rebuild",
+    SourceOperationKind.PREVIEW: "count of changes",
     SourceOperationKind.REFRESH: "refresh",
 }
 
@@ -30,9 +30,9 @@ def available_operations(source: Source) -> tuple[SourceOperationKind, ...]:
     """What a processed source can be brought up to date with, in menu order. While another
     operation holds the source, they are still offered, but can't start (see `operation_hint`).
 
-    A source with its own text is updated or re-cut; a topic is refreshed from the other
-    sources, adding phrases only, and updated, which moves the sections of its phrases; the
-    saved phrases are only updated that way.
+    A source with its own text is rebuilt, its phrases kept or cut anew; a topic is
+    refreshed from the other sources, adding phrases only, and rebuilt, which moves the
+    sections of its phrases; the saved phrases are only rebuilt that way.
     """
     if source.role is SourceRole.CONTENT and source.status in _REBUILDABLE_STATUSES:
         return (SourceOperationKind.UPDATE, SourceOperationKind.RECUT)
@@ -92,9 +92,9 @@ def operations_offer(
 
 _BUSY_CAPTION: dict[SourceOperationKind, str] = {
     SourceOperationKind.PROCESS: "Processing…",
-    SourceOperationKind.UPDATE: "Updating…",
-    SourceOperationKind.RECUT: "Re-cutting phrases…",
-    SourceOperationKind.PREVIEW: "Checking what it changes…",
+    SourceOperationKind.UPDATE: "Rebuilding…",
+    SourceOperationKind.RECUT: "Rebuilding with new phrases…",
+    SourceOperationKind.PREVIEW: "Counting what will change…",
     SourceOperationKind.REFRESH: "Refreshing…",
 }
 

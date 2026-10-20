@@ -12,7 +12,7 @@ class TestSourceOperationRegistry:
         registry = SourceOperationRegistry()
         started = registry.started(SCOPE, SourceOperationKind.PREVIEW)
         assert started.state is OperationState.RUNNING
-        assert started.caption == "Checking what it changes…"
+        assert started.caption == "Counting what will change…"
 
     def test_a_failed_operation_keeps_its_error(self) -> None:
         registry = SourceOperationRegistry()

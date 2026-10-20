@@ -128,19 +128,29 @@ Rebuild с галочкой «Also unreviewed cards» смешивает две 
 **Frontend:**
 - `client.ts`: `update(scope)`, `recut(scope)`, `preview(scope, of)`; `types.ts`: `SourceOperationKind`, `SetOperation`, DTO.
 - В меню источника и набора — пункты по `available_operations`: **Refresh**, **Update**, **Re-cut phrases**.
-- `RebuildDialog` → `UpdateDialog` с `kind: 'update' | 'recut'`, без галочки. Тексты:
+- В меню источника и набора — пункты по `available_operations`: **Refresh…**, **Rebuild…** (`update`), **Rebuild with new phrases…** (`recut`).
+- `RebuildDialog` получает `operation`, галочки нет. Тексты:
 
-| Место | Update | Re-cut phrases |
+| Место | Rebuild | Rebuild with new phrases |
 |---|---|---|
-| Заголовок | `Update “X”` | `Re-cut phrases of “X”` |
-| До превью | `Finds new words, removes words you no longer need and moves cards to simpler sentences. Phrase texts and their Polish, Meaning and audio stay.` | `Does what Update does and cuts every phrase again by the current logic. A phrase that changes loses its Polish, audio and video; Meaning stays.` |
-| Превью и итог | `N new words, M words removed` | то же |
-| | `K removed cards had Polish, Meaning or audio` (если > 0) | то же |
-| | `N cards move to a simpler sentence — need ✨ there` (если > 0) | то же |
-| | — | `N phrases get a new cut, K of them lose Polish or audio` (если > 0) |
-| Пустой план | `Already up to date` + только Close | то же |
+| Заголовок | `Rebuild “X”` | `Rebuild “X” with new phrases` |
+| До превью | `Takes into account the words you’ve learned and your level: adds cards for new words, removes cards whose word is no longer new to you, and moves cards to easier sentences. The phrases of your cards stay, with their Polish, Meaning and audio.` | `Same as Rebuild, and also cuts every phrase out of the text again — useful after the app changed how it picks phrases. A card whose phrase changes loses its Polish and audio; Meaning stays.` |
+| Кнопка | `Rebuild` | `Rebuild` |
+| Пока идёт | `Rebuilding…` | `Rebuilding with new phrases…` |
 
-Сноска `The numbers may differ slightly from the result.` — только при непустом превью.
+Строки превью и итога (нулевые не показываются, у одной карточки — единственное число):
+- `3 new words get cards`
+- `2 cards removed: their words are no longer new to you`
+- `2 removed cards lose their Polish, Meaning and audio`
+- `3 cards become ready: every other word in them is familiar now` (`cards_became_ready`)
+- `2 cards are no longer ready: they have other new words again` (`cards_left_ready`)
+- `4 cards switch to easier sentences; run ✨ for them again`
+- `6 cards get a different phrase` / `5 of them lose Polish and audio`
+- План не пуст, но ни одной строки: `Your cards stay as they are; only behind-the-scenes data gets refreshed.`
+- План пуст: `Nothing to change: your cards already match the words you know.` и только Close.
+- Сноска при непустом превью: `The numbers are an estimate and may differ by a few cards.`
+
+Подписи backend: `Counting what will change…` (превью), подсказка занятого источника — `Wait until the rebuild finishes` / `Wait until the count of changes finishes`.
 
 ## Миграции
 

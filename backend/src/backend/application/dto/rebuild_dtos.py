@@ -20,8 +20,9 @@ class RebuildCountsDTO(BaseModel):
 
     `cards_lost_generation`: removed cards that had something made for them;
     `cards_moved`: cards that move to a phrase with nothing made for it yet;
-    `cards_recut`: phrases cut again; `cards_recut_lost_text_generation`: those of them that
-    lose their polish, audio or video; `nothing_to_update`: the rebuild would change nothing.
+    `cards_recut`: cards cut again; `cards_recut_lost_text_generation`: those of them that
+    lose their polish, audio or video; `cards_became_ready` and `cards_left_ready`: cards
+    moving into Ready or out of it; `nothing_to_update`: the rebuild would change nothing.
     """
 
     words_added: int
@@ -30,6 +31,8 @@ class RebuildCountsDTO(BaseModel):
     cards_moved: int
     cards_recut: int
     cards_recut_lost_text_generation: int
+    cards_became_ready: int
+    cards_left_ready: int
     nothing_to_update: bool
 
     @staticmethod
@@ -42,6 +45,8 @@ class RebuildCountsDTO(BaseModel):
             cards_moved=counts.cards_moved,
             cards_recut=counts.cards_recut,
             cards_recut_lost_text_generation=counts.cards_recut_lost_text_generation,
+            cards_became_ready=counts.cards_became_ready,
+            cards_left_ready=counts.cards_left_ready,
             nothing_to_update=plan.is_empty,
         )
 
@@ -57,6 +62,8 @@ class RebuildCountsDTO(BaseModel):
             cards_recut_lost_text_generation=sum(
                 c.cards_recut_lost_text_generation for c in counts
             ),
+            cards_became_ready=sum(c.cards_became_ready for c in counts),
+            cards_left_ready=sum(c.cards_left_ready for c in counts),
             nothing_to_update=all(c.nothing_to_update for c in counts),
         )
 

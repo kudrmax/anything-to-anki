@@ -85,7 +85,7 @@ def test_review_fraction(
     (ReviewStatus.PARTIALLY_REVIEWED, 4, DecisionProgress(decided=1, total=4), 1, None,
      "1 of 4 decided"),
     (ReviewStatus.REVIEWED, 4, DecisionProgress(decided=4, total=4), 2, None, "2 to learn"),
-    (ReviewStatus.DONE, 4, DecisionProgress(), 0, SourceOperationKind.UPDATE, "Updating…"),
+    (ReviewStatus.DONE, 4, DecisionProgress(), 0, SourceOperationKind.UPDATE, "Rebuilding…"),
     (ReviewStatus.DONE, 4, DecisionProgress(), 0, SourceOperationKind.REFRESH, "Refreshing…"),
 ])
 def test_progress_caption(

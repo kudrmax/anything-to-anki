@@ -125,11 +125,11 @@ describe('SourceRow', () => {
     const labels = [...host.querySelectorAll('[role="menuitem"]')].map(item => item.textContent ?? '')
     const refresh = labels.findIndex(label => label.startsWith('Refresh…'))
     expect(refresh).toBeGreaterThanOrEqual(0)
-    expect(labels.findIndex(label => label.startsWith('Update…'))).toBe(refresh + 1)
+    expect(labels.findIndex(label => label.startsWith('Rebuild…'))).toBe(refresh + 1)
     act(() => menuItem('Refresh…')?.click())
     expect(onOperation).toHaveBeenCalledWith(7, 'refresh')
     openMenu()
-    act(() => menuItem('Update…')?.click())
+    act(() => menuItem('Rebuild…')?.click())
     expect(onOperation).toHaveBeenCalledWith(7, 'update')
   })
 
@@ -137,21 +137,21 @@ describe('SourceRow', () => {
     render(false, false, { ...source, available_operations: ['update', 'recut'], can_export: true, can_delete: true })
     openMenu()
     const labels = [...host.querySelectorAll('[role="menuitem"]')].map(item => item.textContent)
-    expect(labels).toEqual(['Export', 'Rename', 'Move to…', 'Update…', 'Re-cut phrases…', 'Delete'])
-    act(() => menuItem('Re-cut phrases…')?.click())
+    expect(labels).toEqual(['Export', 'Rename', 'Move to…', 'Rebuild…', 'Rebuild with new phrases…', 'Delete'])
+    act(() => menuItem('Rebuild with new phrases…')?.click())
     expect(onOperation).toHaveBeenCalledWith(7, 'recut')
   })
 
   it('keeps the operation visible but unavailable with the backend hint while the source is busy', () => {
     render(false, false, {
       ...source, available_operations: ['update'], can_start_operation: false, busy_with: 'preview',
-      operation_hint: 'Wait until the check finishes', progress_caption: 'Checking what it changes…',
+      operation_hint: 'Wait until the count of changes finishes', progress_caption: 'Counting what will change…',
     })
-    expect(host.textContent).toContain('Checking what it changes…')
+    expect(host.textContent).toContain('Counting what will change…')
     openMenu()
-    const item = menuItem('Update…')
+    const item = menuItem('Rebuild…')
     expect(item?.disabled).toBe(true)
-    expect(item?.textContent).toContain('Wait until the check finishes')
+    expect(item?.textContent).toContain('Wait until the count of changes finishes')
   })
 
   it('shows the caption the backend wrote', () => {

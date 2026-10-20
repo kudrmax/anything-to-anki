@@ -9,11 +9,13 @@ const SOURCE: SetScope = 'source-7'
 const DONE_WELL = { skipped: 0, failed: 0 }
 const NOTHING: RebuildCounts = {
   words_added: 0, words_removed: 0, cards_lost_generation: 0, cards_moved: 0,
-  cards_recut: 0, cards_recut_lost_text_generation: 0, nothing_to_update: true,
+  cards_recut: 0, cards_recut_lost_text_generation: 0, cards_became_ready: 0, cards_left_ready: 0,
+  nothing_to_update: true,
 }
 const CHANGES: RebuildCounts = {
   words_added: 3, words_removed: 1, cards_lost_generation: 2, cards_moved: 4,
-  cards_recut: 0, cards_recut_lost_text_generation: 0, nothing_to_update: false,
+  cards_recut: 0, cards_recut_lost_text_generation: 0, cards_became_ready: 1, cards_left_ready: 2,
+  nothing_to_update: false,
 }
 const RECUT: RebuildCounts = { ...CHANGES, cards_recut: 6, cards_recut_lost_text_generation: 5 }
 const operation = (kind: SourceOperation['kind'], state: SourceOperation['state'], extra: Partial<SourceOperation> = {}): SourceOperation => ({
@@ -51,11 +53,11 @@ describe('RebuildDialog', () => {
     open()
     expect(preview).not.toHaveBeenCalled()
     expect(button('Preview')).toBeDefined()
-    expect(dialog().textContent).toContain('Update “Pilot”')
-    expect(dialog().textContent).toContain('Phrase texts and their Polish, Meaning and audio stay')
+    expect(dialog().textContent).toContain('Rebuild “Pilot”')
+    expect(dialog().textContent).toContain('The phrases of your cards stay, with their Polish, Meaning and audio')
   })
 
-  it('previews an update, applies it and says what changed', async () => {
+  it('previews a rebuild, applies it and says what changed', async () => {
     const preview = vi.spyOn(api, 'previewRebuild').mockResolvedValue(operation('preview', 'running'))
     const state = vi.spyOn(api, 'getOperation').mockResolvedValueOnce(operation('preview', 'running'))
     open()
@@ -68,38 +70,42 @@ describe('RebuildDialog', () => {
     state.mockResolvedValue(operation('preview', 'done', { preview: updatePreview(CHANGES) }))
     await poll()
     await poll()
-    expect(dialog().textContent).toContain('3 new words, 1 word removed')
-    expect(dialog().textContent).toContain('2 removed cards had Polish, Meaning or audio')
-    expect(dialog().textContent).toContain('4 cards move to a simpler sentence — need ✨ there')
-    expect(dialog().textContent).toContain('The numbers may differ slightly')
+    const text = dialog().textContent
+    expect(text).toContain('3 new words get cards')
+    expect(text).toContain('1 card removed: its word is no longer new to you')
+    expect(text).toContain('2 removed cards lose their Polish, Meaning and audio')
+    expect(text).toContain('1 card becomes ready: every other word in it is familiar now')
+    expect(text).toContain('2 cards are no longer ready: they have other new words again')
+    expect(text).toContain('4 cards switch to easier sentences; run ✨ for them again')
+    expect(text).toContain('The numbers are an estimate')
     expect(dialog().querySelector('[role="switch"]')).toBeNull()
 
     const rebuild = vi.spyOn(api, 'rebuild').mockResolvedValue(operation('update', 'running', { operation_id: 2 }))
     state.mockResolvedValue(operation('update', 'done', { operation_id: 2, summary: { mode: 'update', counts: CHANGES, ...DONE_WELL } }))
-    await press('Update')
+    await press('Rebuild')
     expect(rebuild).toHaveBeenCalledWith(SOURCE, 'update')
     await poll()
-    expect(dialog().textContent).toContain('3 new words, 1 word removed')
+    expect(dialog().textContent).toContain('3 new words get cards')
     expect(onFinished).toHaveBeenCalledTimes(1)
   })
 
-  it('previews and applies a re-cut, saying what the new cuts lose', async () => {
+  it('previews and applies a rebuild with new phrases, saying what they lose', async () => {
     const preview = vi.spyOn(api, 'previewRebuild').mockResolvedValue(operation('preview', 'running'))
     const state = vi.spyOn(api, 'getOperation').mockResolvedValue(
       operation('preview', 'done', { preview: { mode: 'recut', counts: RECUT, ...DONE_WELL } }),
     )
     open('recut')
-    expect(dialog().textContent).toContain('Re-cut phrases of “Pilot”')
-    expect(dialog().textContent).toContain('A phrase that changes loses its Polish, audio and video; Meaning stays')
+    expect(dialog().textContent).toContain('Rebuild “Pilot” with new phrases')
+    expect(dialog().textContent).toContain('A card whose phrase changes loses its Polish and audio; Meaning stays')
     await press('Preview')
     await poll()
     expect(preview).toHaveBeenCalledWith(SOURCE, 'recut')
-    expect(dialog().textContent).toContain('6 phrases get a new cut')
-    expect(dialog().textContent).toContain('5 of them lose Polish or audio')
+    expect(dialog().textContent).toContain('6 cards get a different phrase')
+    expect(dialog().textContent).toContain('5 of them lose Polish and audio')
 
     const rebuild = vi.spyOn(api, 'rebuild').mockResolvedValue(operation('recut', 'running', { operation_id: 2 }))
     state.mockResolvedValue(operation('recut', 'done', { operation_id: 2, summary: { mode: 'recut', counts: RECUT, ...DONE_WELL } }))
-    await press('Re-cut')
+    await press('Rebuild')
     expect(rebuild).toHaveBeenCalledWith(SOURCE, 'recut')
   })
 
@@ -131,27 +137,38 @@ describe('RebuildDialog', () => {
     return state
   }
 
-  it('says the source is up to date and offers only Close when nothing changes', async () => {
+  it('says there is nothing to change and offers only Close', async () => {
     await previewed(updatePreview(NOTHING))
-    expect(dialog().textContent).toContain('Already up to date')
-    expect(dialog().textContent).not.toContain('The numbers may differ slightly')
-    expect(button('Update')).toBeUndefined()
+    expect(dialog().textContent).toContain('Nothing to change: your cards already match the words you know.')
+    expect(dialog().textContent).not.toContain('The numbers are an estimate')
+    expect(button('Rebuild')).toBeUndefined()
     expect(button('Close')).toBeDefined()
   })
 
-  it('offers Update when the preview has changes but no new words', async () => {
-    const SECTIONS_ONLY: RebuildCounts = { ...NOTHING, nothing_to_update: false }
-    await previewed(updatePreview(SECTIONS_ONLY))
-    expect(button('Update')).toBeDefined()
-    expect(dialog().textContent).toContain('0 new words, 0 words removed')
-    expect(dialog().textContent).not.toContain('Already up to date')
+  it('shows only the changes a card will show, and says so when there are none', async () => {
+    const UNSEEN: RebuildCounts = { ...NOTHING, nothing_to_update: false }
+    await previewed(updatePreview(UNSEEN))
+    expect(button('Rebuild')).toBeDefined()
+    expect(dialog().textContent).toContain('Your cards stay as they are; only behind-the-scenes data gets refreshed.')
+    expect(dialog().textContent).not.toContain('0 ')
   })
 
-  it('shows the error when the applied update fails', async () => {
+  it('speaks of one card in the singular', async () => {
+    await previewed(updatePreview({
+      ...NOTHING, nothing_to_update: false, words_added: 1, cards_lost_generation: 1, cards_moved: 1, cards_left_ready: 1,
+    }))
+    const text = dialog().textContent
+    expect(text).toContain('1 new word gets a card')
+    expect(text).toContain('1 removed card loses its Polish, Meaning and audio')
+    expect(text).toContain('1 card switches to an easier sentence; run ✨ for it again')
+    expect(text).toContain('1 card is no longer ready: it has other new words again')
+  })
+
+  it('shows the error when the applied rebuild fails', async () => {
     const state = await previewed(updatePreview(CHANGES))
     vi.spyOn(api, 'rebuild').mockResolvedValue(operation('update', 'running', { operation_id: 2 }))
     state.mockResolvedValue(operation('update', 'error', { operation_id: 2, error: 'UNIQUE constraint failed' }))
-    await press('Update')
+    await press('Rebuild')
     await poll()
     expect(dialog().querySelector('[role="alert"]')?.textContent).toContain('UNIQUE constraint failed')
     expect(onFinished).not.toHaveBeenCalled()

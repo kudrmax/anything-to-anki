@@ -37,7 +37,8 @@ _CREATED = datetime(2026, 1, 1, tzinfo=UTC)
 def _counts(added: int, *, nothing: bool = False) -> RebuildCountsDTO:
     return RebuildCountsDTO(
         words_added=added, words_removed=1, cards_lost_generation=0, cards_moved=2,
-        cards_recut=0, cards_recut_lost_text_generation=0, nothing_to_update=nothing,
+        cards_recut=0, cards_recut_lost_text_generation=0, cards_became_ready=0,
+        cards_left_ready=0, nothing_to_update=nothing,
     )
 
 

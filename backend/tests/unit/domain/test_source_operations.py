@@ -55,7 +55,7 @@ def test_a_source_offers_what_it_has_as_a_set_of_one() -> None:
         (UPDATE, RECUT), can_start=True, hint=None,
     )
     assert operations_offer([done], {1: RECUT}) == OperationsOffer(
-        (UPDATE, RECUT), can_start=False, hint="Wait until the re-cut finishes",
+        (UPDATE, RECUT), can_start=False, hint="Wait until the rebuild finishes",
     )
 
 
@@ -80,7 +80,7 @@ def test_a_set_starts_while_one_offering_source_is_free() -> None:
 
     assert operations_offer([first, second, new], {1: UPDATE}).can_start is True
     blocked = operations_offer([first, second, new], {1: UPDATE, 2: UPDATE})
-    assert (blocked.can_start, blocked.hint) == (False, "Wait until the update finishes")
+    assert (blocked.can_start, blocked.hint) == (False, "Wait until the rebuild finishes")
 
 
 def test_an_empty_set_offers_nothing() -> None:

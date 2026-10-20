@@ -878,7 +878,7 @@ def test_a_rebuild_that_only_moves_sections_is_not_empty() -> None:
     result = plan([stale], [word()], [built("glare", occ(1))])
 
     assert not result.is_empty
-    assert result.counts == RebuildCounts()
+    assert result.counts == RebuildCounts(cards_became_ready=1)
 
 
 def test_restamping_uses_the_updated_word_data() -> None:
@@ -891,3 +891,31 @@ def test_restamping_uses_the_updated_word_data() -> None:
     )
 
     assert result.section_changes == (SectionChange(1, CandidateSection.PROBABLY_KNOWN),)
+
+
+def test_a_hidden_phrase_cut_again_is_no_card_in_the_counts() -> None:
+    hidden = row(id=1, score=50.0, generation=MEANING)
+    analysed = [built("glare", occ(1, 50.0, text="She glared back."))]
+
+    result = plan([hidden], [word()], analysed, mode=RECUT)
+
+    assert len(result.occ_to_update_text) == 1
+    assert result.counts.cards_recut == 0
+
+
+def test_cards_moving_into_ready_and_out_of_it_are_counted() -> None:
+    into = row(id=1, shown=SELECTION, section=EXTRA)
+    out = row(id=2, candidate_id=2, shown=SELECTION, section=READY, text=TEXTS[1])
+    hidden = row(id=3, candidate_id=2, line=4, section=EXTRA, text=TEXTS[2])
+    rule = SectionRule(knowledge=None, frequent_threshold=FrequentWordThreshold("x", 5.0, ()))
+    analysed = [
+        built("glare", occ(1)),
+        built("linger", occ(2, text=TEXTS[1]), occ(4, text=TEXTS[2]), zipf=6.0),
+    ]
+
+    result = plan_rebuild(
+        SOURCE, [into, out, hidden], [word(), word(2, "linger", zipf=6.0)], analysed,
+        rules(sections=rule),
+    )
+
+    assert (result.counts.cards_became_ready, result.counts.cards_left_ready) == (1, 1)

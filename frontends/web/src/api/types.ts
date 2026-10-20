@@ -92,7 +92,7 @@ export interface SourcePlacement {
 
 export type SetOperation = 'update' | 'recut' | 'refresh'
 
-/** Update раскладывает карточки по знанию, Re-cut ещё и режет фразы заново. */
+/** Rebuild раскладывает карточки по знанию; с новыми фразами — ещё и режет фразы заново. */
 export type RebuildMode = 'update' | 'recut'
 
 /** Что предлагает меню «…» источника или набора: одни поля у обоих; решает backend. */
@@ -586,6 +586,9 @@ export interface RebuildCounts {
   cards_recut: number
   /** Из них потерявшие Polish, озвучку или видео. */
   cards_recut_lost_text_generation: number
+  /** Карточки, попавшие в ready или ушедшие из него. */
+  cards_became_ready: number
+  cards_left_ready: number
   nothing_to_update: boolean
 }
 

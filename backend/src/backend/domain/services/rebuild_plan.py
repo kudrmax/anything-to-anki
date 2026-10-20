@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from backend.domain.services.card_view import is_decided, keeps_section, keeps_word
+from backend.domain.services.card_view import is_decided, is_ready, keeps_section, keeps_word
 from backend.domain.services.phrase_protection import is_untouchable
 from backend.domain.services.phrase_selection import SelectionChange, select_phrases
 from backend.domain.value_objects.card_choice import CardChoice, WordState
@@ -97,8 +97,9 @@ class RebuildCounts:
 
     `cards_lost_generation`: shown phrases deleted with something made for them;
     `cards_moved`: words whose card moved to a phrase with nothing made for it yet;
-    `cards_recut`: phrases cut again; `cards_recut_lost_text_generation`: those of them that
-    lose what was made of their old text.
+    `cards_recut`: shown phrases cut again; `cards_recut_lost_text_generation`: those of
+    them that lose what was made of their old text; `cards_became_ready` and
+    `cards_left_ready`: shown phrases whose section moves into Ready or out of it.
     """
 
     words_added: int = 0
@@ -107,6 +108,8 @@ class RebuildCounts:
     cards_moved: int = 0
     cards_recut: int = 0
     cards_recut_lost_text_generation: int = 0
+    cards_became_ready: int = 0
+    cards_left_ready: int = 0
 
 
 @dataclass(frozen=True)
@@ -257,6 +260,8 @@ class _Planner:
         self._moved = 0
         self._recut = 0
         self._recut_lost = 0
+        self._became_ready = 0
+        self._left_ready = 0
 
     def plan(self) -> RebuildPlan:
         return RebuildPlan(
@@ -278,6 +283,8 @@ class _Planner:
                 cards_moved=self._moved,
                 cards_recut=self._recut,
                 cards_recut_lost_text_generation=self._recut_lost,
+                cards_became_ready=self._became_ready,
+                cards_left_ready=self._left_ready,
             ),
         )
 
@@ -297,11 +304,10 @@ class _Planner:
                 if (kept := self._phrase(o, _analysed_at(o, analysed), facts, b is None))
                 is not None
             ]
-        self._sections.extend(
-            _restamped(
-                [o for o in after if o.id not in self._rewritten], facts, self._rules.sections,
-            ),
-        )
+        restamped = [o for o in after if o.id not in self._rewritten]
+        changes = _restamped(restamped, facts, self._rules.sections)
+        self._count_regrouped(restamped, changes)
+        self._sections.extend(changes)
         fresh = _fresh_places(rows, after, analysed)
         if not keeps_word(state, {o.id: o.user_work for o in rows}) and not after and not fresh:
             self._word_deletes.append(w.id)
@@ -348,9 +354,10 @@ class _Planner:
             return self._rescore(o, analysed.fragment_score)
         if not self._recuts:
             return o
-        self._recut += 1
-        if o.generation.of_text:
-            self._recut_lost += 1
+        if o.is_shown:
+            self._recut += 1
+            if o.generation.of_text:
+                self._recut_lost += 1
         return self._rewrite(o, analysed, facts, recut=True)
 
     @property
@@ -454,6 +461,16 @@ class _Planner:
         chosen = next((o for o in after if o.id == change.set_selection), None)
         if had_selection and chosen is not None and not chosen.generation.any:
             self._moved += 1
+
+    def _count_regrouped(self, rows: list[OccurrenceRow], changes: list[SectionChange]) -> None:
+        before = {o.id: o.earned_section for o in rows if o.is_shown}
+        for change in changes:
+            if change.occurrence_id not in before:
+                continue
+            if is_ready(change.earned_section):
+                self._became_ready += 1
+            elif is_ready(before[change.occurrence_id]):
+                self._left_ready += 1
 
     def _placeholder(self) -> int:
         """An id for a phrase not stored yet; stored ids are positive."""
