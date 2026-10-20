@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterator  # noqa: TC003
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path  # noqa: TC003
 from unittest.mock import MagicMock
@@ -213,3 +215,24 @@ def test_speech_for_a_phrase_changed_while_speaking_is_dropped(deps: dict) -> No
     GenerateTTSUseCase(**deps).execute_one(PhraseRef(phrase_id_of(1), 0))
 
     deps["tts_repo"].upsert_for_phrase.assert_not_called()
+
+
+@pytest.mark.unit
+def test_the_phrase_is_checked_inside_the_write_that_stores_the_speech(deps: dict) -> None:
+    journal: list[str] = []
+    deps["job_phrases"].card.return_value = _make_candidate()
+    deps["job_phrases"].holds.side_effect = lambda _card: journal.append("holds") or True
+    deps["settings_repo"].get.return_value = None
+
+    @contextmanager
+    def write() -> Iterator[None]:
+        journal.append("write")
+        yield
+        journal.append("commit")
+
+    deps["unit_of_work"].write = write
+
+    GenerateTTSUseCase(**deps).execute_one(PhraseRef(phrase_id_of(1), 0))
+
+    assert journal == ["write", "holds", "commit"]
+    deps["tts_repo"].upsert_for_phrase.assert_called_once()
