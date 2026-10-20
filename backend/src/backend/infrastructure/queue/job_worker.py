@@ -152,6 +152,12 @@ class JobWorker:
                     return set(c.meaning_generation_use_case(session).execute_batch(
                         run.phrases, run.still_wanted,
                     ))
+                case JobType.MEANING_FOLLOW_UP:
+                    assert head.follow_up is not None
+                    for phrase in run.phrases:
+                        c.meaning_follow_up_use_case(session).execute_follow_up(
+                            phrase.phrase_id, head.follow_up,
+                        )
                 case JobType.POLISH:
                     return set(c.phrase_polish_use_case(session).execute_batch(
                         run.phrases, run.still_wanted,

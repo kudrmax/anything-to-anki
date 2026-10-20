@@ -8,6 +8,7 @@ from backend.domain.value_objects.job_status import JobStatus
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.job_type import JobType
+    from backend.domain.value_objects.meaning_follow_up import MeaningFollowUp
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,8 @@ class Job:
     # The phrase a phrase-level job works on, and the revision of its text it expects.
     phrase_id: int | None = None
     phrase_revision: int | None = None
+    # The question a MEANING_FOLLOW_UP job asks.
+    follow_up: MeaningFollowUp | None = None
 
     @classmethod
     def queued(
@@ -40,6 +43,7 @@ class Job:
         *,
         phrase_id: int | None = None,
         phrase_revision: int | None = None,
+        follow_up: MeaningFollowUp | None = None,
     ) -> Job:
         return cls(
             id=None,
@@ -52,4 +56,5 @@ class Job:
             started_at=None,
             phrase_id=phrase_id,
             phrase_revision=phrase_revision,
+            follow_up=follow_up,
         )

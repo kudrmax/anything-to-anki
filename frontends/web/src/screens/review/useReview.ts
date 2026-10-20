@@ -220,14 +220,14 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
   const generate = useCallback((candidateId: number, action?: FollowUpAction, text?: string) =>
     withBusy(setGeneratingIds, candidateId, async () => {
       try {
-        const res = await api.generateMeaning(candidateId, action, text)
-        // Карточку с новым значением и тем, что она теперь предлагает, отдаёт backend.
+        await api.generateMeaning(candidateId, action, text)
+        // Задача в очереди: карточка показывает её статус, опрос подхватывает результат.
         await loadCandidates()
-        showToast(`Tokens used: ${res.tokens_used}`)
+        await loadGeneration()
       } catch (e) {
         showToast(e instanceof Error ? e.message : action ? 'Follow-up failed' : 'Generation failed')
       }
-    }), [showToast, loadCandidates])
+    }), [showToast, loadCandidates, loadGeneration])
 
   const replaceWithExample = useCallback(async (candidateId: number, exampleText: string) => {
     try {

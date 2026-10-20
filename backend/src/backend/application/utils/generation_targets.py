@@ -10,6 +10,7 @@ from backend.domain.value_objects.card_generation_state import CardGenerationSta
 from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_kind import GenerationKind
 from backend.domain.value_objects.job_status import JobStatus
+from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.review_card import CardContext, ReviewCard
 
 if TYPE_CHECKING:
@@ -259,6 +260,12 @@ class MeaningTarget(GenerationTarget):
 
     def discard(self, card: GenerationCard) -> None:
         self._meaning_repo.delete_by_phrase_id(card.phrase_id)
+
+    def job_of(self, jobs: CardJobs, card: GenerationCard) -> Job | None:
+        """A follow-up about the meaning is the meaning being made too."""
+        return super().job_of(jobs, card) or jobs.by_phrase.get(card.phrase_id, {}).get(
+            JobType.MEANING_FOLLOW_UP.value,
+        )
 
 
 class InPlaceGenerationTarget(GenerationTarget):

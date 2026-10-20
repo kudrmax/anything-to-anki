@@ -550,16 +550,6 @@ export interface NoteTypeCheck {
   fix: 'create' | 'add_fields' | null
 }
 
-export interface GenerateMeaningResult {
-  candidate_id: number
-  meaning: string
-  translation: string
-  synonyms: string
-  examples: string
-  ipa: string | null
-  tokens_used: number
-}
-
 export type GenerationKind = 'polish' | 'meaning' | 'media' | 'pronunciation' | 'tts'
 
 /** missing — cards nothing was made for yet; failed — cards whose last attempt failed; all — every card, replacing results; ready_* — the same, only cards in Ready. */

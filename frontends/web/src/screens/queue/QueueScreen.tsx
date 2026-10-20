@@ -10,6 +10,7 @@ import css from './queue.module.css'
 const JOB_LABEL: Record<string, string> = {
   polish: 'Polish phrase',
   meaning: 'Meaning',
+  meaning_follow_up: 'Meaning follow-up',
   media: 'Media',
   pronunciation: 'Pronunciation',
   video_download: 'Video download',

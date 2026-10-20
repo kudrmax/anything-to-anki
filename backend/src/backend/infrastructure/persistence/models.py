@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -57,6 +58,7 @@ from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.frequency_band import FrequencyBand
+from backend.domain.value_objects.meaning_follow_up import MeaningFollowUp
 from backend.domain.value_objects.phrase import Phrase, Word
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
@@ -1093,6 +1095,8 @@ class JobModel(Base):
         index=True,
     )
     phrase_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # What a job needs besides its target, as JSON: the question of a meaning follow-up.
+    params: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="queued", index=True,
     )
@@ -1116,6 +1120,7 @@ class JobModel(Base):
             error=self.error,
             created_at=self.created_at,
             started_at=self.started_at,
+            follow_up=MeaningFollowUp(**json.loads(self.params)) if self.params else None,
         )
 
     @staticmethod
@@ -1131,6 +1136,7 @@ class JobModel(Base):
             error=entity.error,
             created_at=entity.created_at,
             started_at=entity.started_at,
+            params=json.dumps(asdict(entity.follow_up)) if entity.follow_up else None,
         )
 
 

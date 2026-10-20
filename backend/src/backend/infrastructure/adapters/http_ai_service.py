@@ -50,12 +50,6 @@ class HttpAIService(AIService):
         self._model = model
         self._usage_recorder = usage_recorder
 
-    def generate_meaning(self, system_prompt: str, user_prompt: str) -> GenerationResult:
-        return self._post(
-            "generate-meaning", AIFeature.MEANING_SINGLE, system_prompt, user_prompt,
-            SINGLE_TIMEOUT_SECONDS, self._parse_meaning,
-        )
-
     def generate_follow_up(self, system_prompt: str, user_prompt: str) -> GenerationResult:
         return self._post(
             "generate-meaning", AIFeature.MEANING_FOLLOW_UP, system_prompt, user_prompt,

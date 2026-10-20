@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
-from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO
 from backend.domain.exceptions import PhraseNotFoundError, SourceOperationBusyError
+from backend.domain.value_objects.meaning_follow_up import MeaningFollowUp
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import (
     get_container,
@@ -95,20 +95,26 @@ class TestGenerationOfAPhrase:
 
         assert client.post(path).status_code == status
 
-    def test_meaning_is_made_for_the_phrase(self, client: TestClient) -> None:
-        use_case = _get_mock_container().generate_meaning_use_case.return_value
-        use_case.execute.return_value = GenerateMeaningResponseDTO(
-            candidate_id=1, meaning="m", translation="t", synonyms="s", examples="e",
-            ipa=None, tokens_used=1,
-        )
+    def test_meaning_is_queued_for_the_phrase(self, client: TestClient) -> None:
+        use_case = _get_mock_container().enqueue_phrase_meaning_use_case.return_value
 
         response = client.post("/phrases/7/generate-meaning")
 
-        assert response.status_code == 200
-        use_case.execute.assert_called_once_with(7)
+        assert response.status_code == 202
+        use_case.execute.assert_called_once_with(7, None)
+
+    def test_a_follow_up_is_queued_with_its_question(self, client: TestClient) -> None:
+        use_case = _get_mock_container().enqueue_phrase_meaning_use_case.return_value
+
+        response = client.post(
+            "/phrases/7/generate-meaning", json={"action": "free_question", "text": "Why?"},
+        )
+
+        assert response.status_code == 202
+        use_case.execute.assert_called_once_with(7, MeaningFollowUp("free_question", "Why?"))
 
     def test_meaning_of_a_busy_source_is_refused(self, client: TestClient) -> None:
-        use_case = _get_mock_container().generate_meaning_use_case.return_value
+        use_case = _get_mock_container().enqueue_phrase_meaning_use_case.return_value
         use_case.execute.side_effect = BUSY
 
         assert client.post("/phrases/7/generate-meaning").status_code == 409

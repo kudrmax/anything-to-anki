@@ -13,6 +13,7 @@ from backend.domain.exceptions import AIUnavailableError, PermanentAIError
 from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import PHRASE_JOB_TYPES, JobType
+from backend.domain.value_objects.meaning_follow_up import MeaningFollowUp
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import JobModel
@@ -46,6 +47,7 @@ class _Container:
         self.pronunciation = MagicMock()
         self.video = MagicMock()
         self.topic = MagicMock()
+        self.follow_up = MagicMock()
         self.cleanup = MagicMock()
         self.tts = MagicMock()
         self.meaning.execute_batch.return_value = []
@@ -65,6 +67,9 @@ class _Container:
 
     def meaning_generation_use_case(self, session: Session) -> MagicMock:
         return self._bound(self.meaning, session)
+
+    def meaning_follow_up_use_case(self, session: Session) -> MagicMock:
+        return self._bound(self.follow_up, session)
 
     def phrase_polish_use_case(self, session: Session) -> MagicMock:
         return self._bound(self.polish, session)
@@ -395,6 +400,24 @@ class TestCancel:
 
 
 NOT_LOGGED_IN = "Not logged in · Please run /login"
+
+
+@pytest.mark.integration
+class TestMeaningFollowUp:
+    async def test_the_worker_asks_the_question_the_job_was_queued_with(
+        self, container: _Container,
+    ) -> None:
+        follow_up = MeaningFollowUp("free_question", "Is it formal?")
+        with container.session_scope() as session:
+            SqlaJobRepository(session).enqueue([Job.queued(
+                JobType.MEANING_FOLLOW_UP, SOURCE_ID, 1,
+                phrase_id=phrase_id_of(1), phrase_revision=0, follow_up=follow_up,
+            )])
+
+        await _drain(JobWorker(container))  # type: ignore[arg-type]
+
+        container.follow_up.execute_follow_up.assert_called_once_with(phrase_id_of(1), follow_up)
+        assert _jobs(container) == []
 
 
 @pytest.mark.integration

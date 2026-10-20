@@ -88,7 +88,7 @@ def _err_raising_response(exc: BaseException) -> MagicMock:
 
 
 @pytest.mark.unit
-class TestGenerateMeaning:
+class TestGenerateFollowUp:
     def test_happy_path_returns_parsed_result(self) -> None:
         svc = HttpAIService(
             url="http://proxy:8766", model="claude-sonnet-4-5", usage_recorder=FakeUsageRecorder(),
@@ -101,7 +101,7 @@ class TestGenerateMeaning:
             "usage": {"input_tokens": 30, "output_tokens": 12},
         }
         with patch(_MODULE, return_value=_ok_response(payload)) as post:
-            result = svc.generate_meaning("system", "user")
+            result = svc.generate_follow_up("system", "user")
 
         assert result.meaning == "to delay"
         assert result.translation == "откладывать"
@@ -133,7 +133,7 @@ class TestGenerateMeaning:
                 }
             ),
         ) as post:
-            svc.generate_meaning("s", "u")
+            svc.generate_follow_up("s", "u")
         assert post.call_args.args[0] == "http://proxy/generate-meaning"
 
     def test_missing_ipa_defaults_to_none(self) -> None:
@@ -149,7 +149,7 @@ class TestGenerateMeaning:
                 }
             ),
         ):
-            result = svc.generate_meaning("s", "u")
+            result = svc.generate_follow_up("s", "u")
         assert result.ipa is None
 
     def test_missing_usage_defaults_to_zero(self) -> None:
@@ -165,7 +165,7 @@ class TestGenerateMeaning:
                 }
             ),
         ):
-            result = svc.generate_meaning("s", "u")
+            result = svc.generate_follow_up("s", "u")
         assert result.tokens_used == 0
 
     def test_connect_error_means_the_ai_is_unavailable(self) -> None:
@@ -173,7 +173,7 @@ class TestGenerateMeaning:
         with patch(
             _MODULE, side_effect=httpx.ConnectError("refused")
         ), pytest.raises(AIUnavailableError) as exc:
-            svc.generate_meaning("s", "u")
+            svc.generate_follow_up("s", "u")
         msg = str(exc.value)
         assert "Cannot connect to AI proxy" in msg
         assert "ai_proxy.py" in msg
@@ -184,7 +184,7 @@ class TestGenerateMeaning:
             _MODULE,
             return_value=_err_raising_response(_http_status_error(500, "boom")),
         ), pytest.raises(AIServiceError) as exc:
-            svc.generate_meaning("s", "u")
+            svc.generate_follow_up("s", "u")
         assert "AI proxy error" in str(exc.value)
         assert "boom" in str(exc.value)
 
@@ -193,7 +193,7 @@ class TestGenerateMeaning:
         with patch(_MODULE, side_effect=ValueError("oops")), pytest.raises(
             AIServiceError
         ) as exc:
-            svc.generate_meaning("s", "u")
+            svc.generate_follow_up("s", "u")
         assert "oops" in str(exc.value)
 
 
@@ -333,17 +333,17 @@ class TestUsageRecording:
     def test_tokens_used_counts_cached_tokens_too(self) -> None:
         svc = _service("http://x")
         with patch(_MODULE, return_value=_ok_response(_MEANING_PAYLOAD)):
-            result = svc.generate_meaning("s", "u")
+            result = svc.generate_follow_up("s", "u")
         assert result.tokens_used == 4330
 
     def test_successful_call_is_recorded(self) -> None:
         recorder = FakeUsageRecorder()
         svc = _service("http://x", model="claude-x", usage_recorder=recorder)
         with patch(_MODULE, return_value=_ok_response(_MEANING_PAYLOAD)):
-            svc.generate_meaning("s", "u")
+            svc.generate_follow_up("s", "u")
 
         [record] = recorder.records
-        assert record.feature is AIFeature.MEANING_SINGLE
+        assert record.feature is AIFeature.MEANING_FOLLOW_UP
         assert record.model == "claude-x"
         assert record.usage == TokenUsage(10, 20, 300, 4000)
         assert record.item_count == 1
@@ -356,7 +356,7 @@ class TestUsageRecording:
         svc = _service("http://x", model="sonnet", usage_recorder=recorder)
         payload = {**_MEANING_PAYLOAD, "usage": {"input_tokens": 1, "model": "claude-sonnet-5-5"}}
         with patch(_MODULE, return_value=_ok_response(payload)) as post:
-            svc.generate_meaning("s", "u")
+            svc.generate_follow_up("s", "u")
 
         assert post.call_args.kwargs["json"]["model"] == "sonnet"
         assert recorder.records[0].model == "claude-sonnet-5-5"
@@ -431,5 +431,5 @@ class TestUsageRecording:
     def test_failing_recorder_does_not_lose_the_result(self) -> None:
         svc = _service("http://x", usage_recorder=BrokenUsageRecorder())
         with patch(_MODULE, return_value=_ok_response(_MEANING_PAYLOAD)):
-            result = svc.generate_meaning("s", "u")
+            result = svc.generate_follow_up("s", "u")
         assert result.meaning == "m"

@@ -86,8 +86,9 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   const isEditing = review.editing?.candidateId === id
   const hasMeaning = Boolean(candidate.meaning?.meaning)
   const polishing = candidate.polish_status === 'queued' || candidate.polish_status === 'running'
+  const meaningQueued = candidate.meaning?.status === 'queued' || candidate.meaning?.status === 'running'
   const busy = {
-    meaning: review.busy.generating.has(id),
+    meaning: review.busy.generating.has(id) || meaningQueued,
     media: review.busy.media.has(id),
     tts: review.busy.tts.has(id),
     image: review.busy.image.has(id),

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
+from backend.application.use_cases.enqueue_phrase_meaning import EnqueuePhraseMeaningUseCase
 from backend.application.use_cases.enqueue_phrase_tts import EnqueuePhraseTTSUseCase
 from backend.application.use_cases.manage_queue import ManageQueueUseCase
 from backend.application.use_cases.request_video_download import RequestVideoDownloadUseCase
@@ -24,6 +25,7 @@ from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_type import JobType
+from backend.domain.value_objects.meaning_follow_up import MeaningFollowUp
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
@@ -179,6 +181,51 @@ class TestEnqueuePhraseTTS:
 
         with pytest.raises(SourceOperationBusyError):
             EnqueuePhraseTTSUseCase(cards, job_repo).execute(7)
+        job_repo.enqueue.assert_not_called()
+
+
+@pytest.mark.unit
+class TestEnqueuePhraseMeaning:
+    def test_queues_the_meaning_of_the_phrase(self) -> None:
+        job_repo = MagicMock()
+
+        EnqueuePhraseMeaningUseCase(_requested(_shown_phrase()), job_repo).execute(7)
+
+        [job] = job_repo.enqueue.call_args.args[0]
+        assert (job.job_type, job.candidate_id, job.phrase_id, job.phrase_revision) == (
+            JobType.MEANING, 3, 7, 2,
+        )
+        assert job.follow_up is None
+
+    def test_queues_a_follow_up_with_its_question(self) -> None:
+        job_repo = MagicMock()
+        follow_up = MeaningFollowUp("free_question", "Is it formal?")
+
+        EnqueuePhraseMeaningUseCase(_requested(_shown_phrase()), job_repo).execute(7, follow_up)
+
+        [job] = job_repo.enqueue.call_args.args[0]
+        assert (job.job_type, job.follow_up) == (JobType.MEANING_FOLLOW_UP, follow_up)
+
+    @pytest.mark.parametrize("follow_up", [
+        MeaningFollowUp("sing_a_song"), MeaningFollowUp("free_question"),
+    ])
+    def test_a_follow_up_no_ai_call_can_answer_is_refused(
+        self, follow_up: MeaningFollowUp,
+    ) -> None:
+        job_repo = MagicMock()
+
+        with pytest.raises(ValueError):
+            EnqueuePhraseMeaningUseCase(_requested(_shown_phrase()), job_repo).execute(
+                7, follow_up,
+            )
+        job_repo.enqueue.assert_not_called()
+
+    def test_busy_source(self) -> None:
+        job_repo = MagicMock()
+        cards = _requested(_shown_phrase(), busy_with=SourceOperationKind.UPDATE)
+
+        with pytest.raises(SourceOperationBusyError):
+            EnqueuePhraseMeaningUseCase(cards, job_repo).execute(7)
         job_repo.enqueue.assert_not_called()
 
 

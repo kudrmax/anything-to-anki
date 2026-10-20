@@ -232,7 +232,7 @@ def test_single_meaning_full_roundtrip(ai_service: HttpAIService) -> None:
         'Context: "I tend to procrastinate on important tasks."'
     )
 
-    result = ai_service.generate_meaning(system_prompt, user_prompt)
+    result = ai_service.generate_follow_up(system_prompt, user_prompt)
 
     # Type check — if JSON contract drifted, this would fail at parsing
     assert isinstance(result, GenerationResult)
@@ -307,7 +307,7 @@ def test_ai_proxy_returns_502_on_bad_model(ai_proxy_url: str) -> None:
 
     svc = _service(ai_proxy_url, "nonexistent-model-xyz-999")
     with pytest.raises(AIServiceError) as exc_info:
-        svc.generate_meaning("system", "user prompt")
+        svc.generate_follow_up("system", "user prompt")
 
     # The error should contain something useful, not just "500"
     assert len(str(exc_info.value)) > 20

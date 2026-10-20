@@ -24,6 +24,7 @@ PIPELINE_ORDER: tuple[JobType, ...] = (
     JobType.TOPIC_TARGETS,
     JobType.POLISH,
     JobType.MEANING,
+    JobType.MEANING_FOLLOW_UP,
     JobType.MEDIA,
     JobType.PRONUNCIATION,
     JobType.TTS,

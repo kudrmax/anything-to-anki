@@ -21,7 +21,6 @@ import type {
   ExportGroup,
   FollowUpAction,
   FrequentWordThresholdOption,
-  GenerateMeaningResult,
   GenerationKind,
   GenerationOverview,
   GenerationScope,
@@ -184,7 +183,7 @@ export const api = {
   deleteSource: (id: number) => reqVoid(`/sources/${id}`, { method: 'DELETE' }),
 
   generateMeaning: (phraseId: number, followUpAction?: FollowUpAction, followUpText?: string) =>
-    req<GenerateMeaningResult>(`/phrases/${phraseId}/generate-meaning`, {
+    req<{ status: string }>(`/phrases/${phraseId}/generate-meaning`, {
       method: 'POST',
       body: followUpAction
         ? JSON.stringify({ action: followUpAction, ...(followUpText ? { text: followUpText } : {}) })
