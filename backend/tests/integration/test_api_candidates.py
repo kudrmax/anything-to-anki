@@ -16,11 +16,11 @@ from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import SourceModel
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
-from backend.infrastructure.persistence.sqla_known_word_repository import (
-    SqlaKnownWordRepository,
-)
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
+)
+from backend.infrastructure.persistence.sqla_word_mark_repository import (
+    SqlaWordMarkRepository,
 )
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, text
@@ -158,7 +158,8 @@ class TestDecisionAPI:
 
     def test_learn_on_a_word_known_elsewhere_says_why(self, client: TestClient) -> None:
         session = next(app.dependency_overrides[get_db_session]())
-        SqlaKnownWordRepository(session, SessionChangeRecorder(session)).add("pursuit", "NOUN")
+        marks = SqlaWordMarkRepository(session, SessionChangeRecorder(session))
+        marks.mark_known("pursuit", "NOUN")
         session.commit()
 
         response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
@@ -235,7 +236,8 @@ class TestCardReportsAPI:
         insert_source(session, OTHER_SOURCE)
         insert_word(session, OTHER_WORD, source_id=OTHER_SOURCE, lemma="pursuit", status="known")
         bind(session, OTHER_WORD, phrase_id_of(OTHER_WORD))
-        SqlaKnownWordRepository(session, SessionChangeRecorder(session)).add("pursuit", "NOUN")
+        marks = SqlaWordMarkRepository(session, SessionChangeRecorder(session))
+        marks.mark_known("pursuit", "NOUN")
         session.commit()
 
         response = client.post(

@@ -20,15 +20,14 @@ FRESH = NOW - timedelta(days=1)
 class Bench:
     def __init__(self) -> None:
         self.clock = FixedClock()
-        self.known = MagicMock()
-        self.known.get_all_pairs.return_value = set()
-        self.unknown = MagicMock()
-        self.unknown.lemmas.return_value = set()
+        self.marks = MagicMock()
+        self.marks.known_lemmas.return_value = set()
+        self.marks.unknown_lemmas.return_value = set()
         self.learning = MagicMock()
         self.learning.awaiting_export.return_value = frozenset()
         self.learning.active_since.return_value = {}
-        self.scope = KnowledgeScope(self.clock, self.known, self.unknown, self.learning)
-        self.vocabulary = UserVocabulary(self.known, self.unknown, self.scope)
+        self.scope = KnowledgeScope(self.clock, self.marks, self.learning)
+        self.vocabulary = UserVocabulary(self.marks, self.scope)
 
 
 @pytest.fixture
@@ -51,7 +50,7 @@ def test_reads_share_one_snapshot(bench: Bench) -> None:
     bench.vocabulary.snapshot()
     bench.vocabulary.known_count()
 
-    bench.known.get_all_pairs.assert_called_once()
+    bench.marks.known_lemmas.assert_called_once()
     bench.learning.active_since.assert_called_once()
 
 
@@ -61,18 +60,18 @@ def test_reads_share_one_snapshot(bench: Bench) -> None:
         lambda v: v.mark_known("glare", "VERB"),
         lambda v: v.mark_unknown("glare"),
         lambda v: v.forget_every_pos("glare"),
-        lambda v: v.remove_known(1),
-        lambda v: v.remove_unknown(1),
+        lambda v: v.remove_known_entry("glare", "VERB"),
+        lambda v: v.forget_unknown("glare"),
     ],
 )
 def test_a_write_in_the_scope_rebuilds_the_snapshot(bench: Bench, write: object) -> None:
     assert not bench.vocabulary.is_known("glare")
-    bench.known.get_all_pairs.return_value = {("glare", "VERB")}
+    bench.marks.known_lemmas.return_value = {"glare"}
 
     write(bench.vocabulary)  # type: ignore[operator]
 
     assert bench.vocabulary.is_known("glare")
-    assert bench.known.get_all_pairs.call_count == 2  # noqa: PLR2004 — before and after
+    assert bench.marks.known_lemmas.call_count == 2  # noqa: PLR2004 — before and after
 
 
 def test_a_binding_write_is_seen_after_invalidate(bench: Bench) -> None:
@@ -85,7 +84,7 @@ def test_a_binding_write_is_seen_after_invalidate(bench: Bench) -> None:
 
 
 def test_known_count_counts_a_lemma_with_two_pos_once(bench: Bench) -> None:
-    bench.known.get_all_pairs.return_value = {("glare", "VERB"), ("Glare", "NOUN")}
+    bench.marks.known_lemmas.return_value = {"glare"}
 
     assert bench.vocabulary.known_count() == 1
 
@@ -93,7 +92,7 @@ def test_known_count_counts_a_lemma_with_two_pos_once(bench: Bench) -> None:
 def test_known_count_and_the_vocabulary_include_a_lemma_known_by_its_timer(
     bench: Bench,
 ) -> None:
-    bench.known.get_all_pairs.return_value = {("linger", None)}
+    bench.marks.known_lemmas.return_value = {"linger"}
     bench.learning.active_since.return_value = {"glare": (DUE,), "wander": (FRESH,)}
 
     assert bench.vocabulary.known_count() == 2  # noqa: PLR2004 — linger, glare
@@ -102,15 +101,6 @@ def test_known_count_and_the_vocabulary_include_a_lemma_known_by_its_timer(
     assert vocabulary.is_learning("wander")
     knowledge = bench.vocabulary.of("glare")
     assert (knowledge.timer_known, knowledge.known_marked) == (True, False)
-
-
-def test_unknown_wins_over_the_known_list(bench: Bench) -> None:
-    """Stage 4's migration removes such conflicts; till then Unknown wins the list."""
-    bench.known.get_all_pairs.return_value = {("glare", None)}
-    bench.unknown.lemmas.return_value = {"glare"}
-
-    assert not bench.vocabulary.is_known("glare")
-    assert bench.vocabulary.known_count() == 0
 
 
 def test_a_learn_waiting_for_export_is_learning(bench: Bench) -> None:

@@ -9,18 +9,15 @@ import pytest
 
 SOURCE_ROOT = Path(__file__).resolve().parents[3] / "src" / "backend"
 WORD_LIST_IMPORT = re.compile(
-    r"\b(known_word_repository|unknown_word_repository|"
-    r"sqla_known_word_repository|sqla_unknown_word_repository)\b",
+    r"\b(word_mark_repository|sqla_word_mark_repository)\b",
 )
 ALLOWED = {
     "application/utils/knowledge_scope.py",
     "application/utils/user_vocabulary.py",
     "domain/ports/__init__.py",
-    "domain/ports/known_word_repository.py",
-    "domain/ports/unknown_word_repository.py",
+    "domain/ports/word_mark_repository.py",
     "infrastructure/container.py",
-    "infrastructure/persistence/sqla_known_word_repository.py",
-    "infrastructure/persistence/sqla_unknown_word_repository.py",
+    "infrastructure/persistence/sqla_word_mark_repository.py",
 }
 
 

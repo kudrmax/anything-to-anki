@@ -426,7 +426,7 @@ def test_undoing_a_migrated_known_takes_the_lemma_out_of_known(db_url: str) -> N
     with Session(engine) as session:
         Decisions(session).decide_phrase().press(phrase_id, Press.KNOWN)
         session.commit()
-    assert _rows(db_url, "SELECT lemma FROM known_words WHERE lemma = 'ponder'") == []
+    assert _rows(db_url, "SELECT lemma FROM word_marks WHERE lemma = 'ponder'") == []
     assert _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_O) == [
         {"status": "pending"},
     ]
@@ -477,6 +477,7 @@ def test_running_job_and_report_point_at_the_phrase_of_their_card(db_url: str) -
 
 
 def test_every_export_record_survives_with_its_phrase(db_url: str) -> None:
+    """At head: a binding whose card lives holds no card choice (0055)."""
     synced = _rows(
         db_url, "SELECT candidate_id, phrase_id, anki_note_id, lemma, pos, note_kind,"
         " card_choice, released_at IS NOT NULL AS released FROM anki_synced_cards"
@@ -488,13 +489,13 @@ def test_every_export_record_survives_with_its_phrase(db_url: str) -> None:
     a = _phrase_of(db_url, CARD_A, LINE_0)
     assert synced == [
         {"candidate_id": CARD_A, "phrase_id": a["id"], "anki_note_id": NOTE_A,
-         "lemma": "glare", "pos": "VERB", "note_kind": "cloze", "card_choice": "cloze",
+         "lemma": "glare", "pos": "VERB", "note_kind": "cloze", "card_choice": None,
          "released": 1},
         {"candidate_id": CARD_H, "phrase_id": g["id"], "anki_note_id": NOTE_G,
-         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "card_choice": "learn",
+         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "card_choice": None,
          "released": 1},
         {"candidate_id": CARD_H, "phrase_id": h["id"], "anki_note_id": NOTE_H,
-         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "card_choice": "learn",
+         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "card_choice": None,
          "released": 1},
     ]
     assert (h["choice"], g["choice"]) == ("none", "none")
@@ -558,10 +559,12 @@ def test_a_stored_review_status_becomes_done_it_is_derived_on_read(db_url: str) 
 
 
 def test_known_words_keep_no_anki_progress_and_there_is_no_note_table(db_url: str) -> None:
+    """Known words live in word marks since 0054."""
     engine = inspect(create_engine(db_url))
-    assert {c["name"] for c in engine.get_columns("known_words")} == {
-        "id", "lemma", "pos", "created_at",
+    assert {c["name"] for c in engine.get_columns("word_marks")} == {
+        "id", "lemma", "mark", "created_at",
     }
+    assert {c["name"] for c in engine.get_columns("known_pos")} == {"id", "lemma", "pos"}
     assert "anki_notes" not in engine.get_table_names()
 
 
@@ -573,7 +576,7 @@ def test_a_binding_is_kept_with_no_card_or_word(db_url: str) -> None:
         "id", "candidate_id", "phrase_id", "anki_note_id", "lemma", "pos", "note_kind",
         "card_choice", "learning_since", "released_at",
     }
-    assert not columns["card_choice"]["nullable"]
+    assert columns["card_choice"]["nullable"], "NULL while the card lives (0055)"
     assert columns["candidate_id"]["nullable"] and columns["phrase_id"]["nullable"]
     keys = inspect(create_engine(db_url)).get_foreign_keys("anki_synced_cards")
     assert {(k["referred_table"], k["options"].get("ondelete")) for k in keys} == {

@@ -11,6 +11,7 @@ import pytest
 from backend.application.dto.card_report_dtos import ReportCandidateRequest
 from backend.application.use_cases.report_candidate import ReportCandidateUseCase
 from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_card_report_repository import (
@@ -20,12 +21,16 @@ from backend.infrastructure.persistence.sqla_document_repository import SqlaDocu
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
+from backend.infrastructure.persistence.sqla_source_operation_lock import (
+    SqlaSourceOperationLock,
+)
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from sqlalchemy import text
 
 from tests.decision_support import NOW, Decisions
 from tests.integration.conftest import insert_source
+from tests.word_marks_support import insert_known, known_rows, unknown_lemmas
 from tests.word_support import bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -72,13 +77,17 @@ class Bench:
         ), {"note": note_id}).scalar_one() == 1
 
     def list_known(self) -> None:
-        self.session.execute(text(
-            "INSERT INTO known_words (lemma, pos, created_at) VALUES (:l, NULL, '2026-01-01')"
-        ), {"l": LEMMA})
+        insert_known(self.session, LEMMA)
+
+    def lock(self, source_id: int) -> None:
+        """Another operation holds the source, as a rebuild of it would."""
+        assert SqlaSourceOperationLock(self.session).acquire(
+            source_id, SourceOperationKind.UPDATE,
+        )
 
     def report_unknown(self) -> None:
         self.session.commit()
-        decisions = Decisions(self.session)
+        decisions = Decisions(self.session, lock=SqlaSourceOperationLock(self.session))
         recorder = SessionChangeRecorder(self.session)
         knowledge = MagicMock()
         knowledge.current.return_value = None
@@ -97,12 +106,10 @@ class Bench:
         return self.session.execute(text(sql)).scalar_one()
 
     def unknown(self) -> set[str]:
-        return {str(lemma) for (lemma,) in self.session.execute(
-            text("SELECT lemma FROM unknown_words"),
-        )}
+        return unknown_lemmas(self.session)
 
     def known(self) -> int:
-        return int(str(self.scalar("SELECT count(*) FROM known_words")))
+        return len(known_rows(self.session))
 
     def status(self, word_id: int) -> str:
         return str(self.scalar(f"SELECT status FROM candidates WHERE id = {word_id}"))  # noqa: S608
@@ -142,6 +149,24 @@ def test_a_word_in_anki_stays_as_it_is(bench: Bench) -> None:
     assert (bench.status(OTHER_WORD), bench.choice(OTHER_WORD)) == ("learning", "learn")
     assert bench.active_bindings() == 1
     assert bench.unknown() == set()
+
+
+@pytest.mark.parametrize(("exported", "status"), [(False, "learn"), (True, "learning")])
+def test_a_learned_word_stays_as_it_is_while_another_source_of_it_is_busy(
+    bench: Bench, exported: bool, status: str,
+) -> None:
+    """Nothing is written for a learned word, so no lock is waited for nor refused."""
+    bench.other("learn")
+    if exported:
+        bind(bench.session, OTHER_WORD, phrase_id_of(OTHER_WORD), lemma=LEMMA)
+    bench.lock(OTHER_SOURCE)
+
+    bench.report_unknown()
+
+    assert (bench.status(OTHER_WORD), bench.choice(OTHER_WORD)) == (status, "learn")
+    assert bench.active_bindings() == int(exported)
+    assert bench.unknown() == set()
+    assert bench.known() == 0
 
 
 def test_a_known_word_goes_unknown_through_the_known_removal(bench: Bench) -> None:

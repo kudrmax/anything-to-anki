@@ -28,5 +28,15 @@ class AnkiSyncRepository(ABC):
         """Release active bindings by their own id: those whose card is gone."""
 
     @abstractmethod
+    def orphan(self, phrase_ids: Iterable[int]) -> None:
+        """Called before the cards go: each one's active binding keeps the choice its card
+        had, the one fact an orphan is ruled by. While the card lives, the choice is the
+        card's own."""
+
+    @abstractmethod
+    def orphan_source(self, source_id: int) -> None:
+        """`orphan` for every card of the source, called before the source goes."""
+
+    @abstractmethod
     def orphans(self, lemma: str) -> list[BindingRef]:
         """Active bindings of the lemma whose card or source is gone."""

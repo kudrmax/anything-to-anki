@@ -40,6 +40,7 @@ from tests.card_support import card_views
 from tests.decision_support import Decisions
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase, shown_lemmas
+from tests.word_marks_support import insert_known
 from tests.word_support import bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -279,9 +280,7 @@ def test_m2_a_skipped_card_keeps_its_skip_and_the_example_is_open(bench: Bench) 
 
 def test_m3a_a_known_card_in_anki_gives_its_known_to_the_example(bench: Bench) -> None:
     bench.decide(CARD, "known")
-    bench.session.execute(text(
-        "INSERT INTO known_words (lemma, pos, created_at) VALUES ('run', 'VERB', '2026-01-01')"
-    ))
+    insert_known(bench.session, "run", "VERB")
     bind(bench.session, WORD, CARD)
     bench.session.commit()
 

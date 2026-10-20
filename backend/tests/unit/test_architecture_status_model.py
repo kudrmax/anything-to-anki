@@ -43,6 +43,8 @@ ALLOWED = frozenset({
     "infrastructure/persistence/models.py",
     "infrastructure/persistence/sqla_word_state_repository.py",
     "alembic/versions/0049_words_and_phrases.py",
+    # Resolves the decision conflicts left from before P6 and empties the bindings' copy.
+    "alembic/versions/0055_binding_choice_fact.py",
 })
 # Migrations before 0049 are shipped history: they are never edited again.
 SHIPPED_MIGRATION = re.compile(r"alembic/versions/00(?:[0-3]\d|4[0-8])_")

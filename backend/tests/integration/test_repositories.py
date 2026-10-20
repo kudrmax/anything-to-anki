@@ -15,9 +15,6 @@ from backend.infrastructure.persistence.sqla_candidate_meaning_repository import
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
-from backend.infrastructure.persistence.sqla_known_word_repository import (
-    SqlaKnownWordRepository,
-)
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
 )
@@ -209,44 +206,6 @@ class TestCandidateRepository:
         assert repo.word_id(source_id, WordKey.of("glare", False)) == glare.id
         assert repo.word_id(source_id, WordKey.of("glare", True)) is None
         assert repo.word_id(source_id, WordKey.of("linger", False)) is None
-
-
-@pytest.mark.integration
-class TestKnownWordRepository:
-    def test_add_and_list(self, db_session: Session) -> None:
-        repo = SqlaKnownWordRepository(db_session, SessionChangeRecorder(db_session))
-        kw = repo.add("run", "VERB")
-        assert kw.id is not None
-        assert kw.lemma == "run"
-        words = repo.list_all()
-        assert len(words) == 1
-
-    def test_exists(self, db_session: Session) -> None:
-        repo = SqlaKnownWordRepository(db_session, SessionChangeRecorder(db_session))
-        repo.add("run", "VERB")
-        assert repo.exists("run", "VERB") is True
-        assert repo.exists("run", "NOUN") is False
-
-    def test_get_all_pairs(self, db_session: Session) -> None:
-        repo = SqlaKnownWordRepository(db_session, SessionChangeRecorder(db_session))
-        repo.add("run", "VERB")
-        repo.add("cat", "NOUN")
-        pairs = repo.get_all_pairs()
-        assert pairs == {("run", "VERB"), ("cat", "NOUN")}
-
-    def test_remove(self, db_session: Session) -> None:
-        repo = SqlaKnownWordRepository(db_session, SessionChangeRecorder(db_session))
-        kw = repo.add("run", "VERB")
-        assert kw.id is not None
-        repo.remove(kw.id)
-        assert repo.exists("run", "VERB") is False
-
-    def test_add_duplicate_ignored(self, db_session: Session) -> None:
-        repo = SqlaKnownWordRepository(db_session, SessionChangeRecorder(db_session))
-        kw1 = repo.add("run", "VERB")
-        kw2 = repo.add("run", "VERB")
-        assert kw1.id == kw2.id
-        assert len(repo.list_all()) == 1
 
 
 @pytest.mark.integration

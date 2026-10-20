@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    CheckConstraint,
     Float,
     ForeignKey,
     Index,
@@ -29,12 +30,10 @@ from backend.domain.entities.candidate_pronunciation import CandidatePronunciati
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.card_report import CardReport
 from backend.domain.entities.collection import Collection
-from backend.domain.entities.known_word import KnownWord
 from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.topic_target import TopicTarget
-from backend.domain.entities.unknown_word import UnknownWord
 from backend.domain.entities.word_decision import WordDecision
 from backend.domain.exceptions import PhraseSectionMissingError
 from backend.domain.services.card_view import CHOSEN_TO_LEARN
@@ -65,6 +64,7 @@ from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.token_usage import TokenUsage
 from backend.domain.value_objects.usage_distribution import UsageDistribution
+from backend.domain.value_objects.word_mark import WordMark
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.utc_datetime import UTCDateTime
@@ -687,42 +687,42 @@ class TopicTargetModel(Base):
         )
 
 
-class KnownWordModel(Base):
-    """SQLAlchemy model for known-word whitelist."""
+class WordMarkModel(Base):
+    """A lemma (lower-case) the user marked Known or Unknown: one mark per lemma."""
 
-    __tablename__ = "known_words"
+    __tablename__ = "word_marks"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    lemma: Mapped[str] = mapped_column(String(100), nullable=False)
-    pos: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lemma: Mapped[str] = mapped_column(Text, nullable=False)
+    mark: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
 
-    __table_args__ = (UniqueConstraint("lemma", "pos", name="uq_known_word_lemma_pos"),)
-
-    def to_entity(self) -> KnownWord:
-        return KnownWord(
-            id=self.id,
-            lemma=self.lemma,
-            pos=self.pos,
-            created_at=self.created_at,
-        )
-
-
-class UnknownWordModel(Base):
-    """SQLAlchemy model for the words the user said they don't know."""
-
-    __tablename__ = "unknown_words"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    lemma: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
-    created_at: Mapped[datetime] = mapped_column(
-        UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
+    __table_args__ = (
+        UniqueConstraint("lemma", name="uq_word_marks_lemma"),
+        CheckConstraint(
+            f"mark IN ('{WordMark.KNOWN}','{WordMark.UNKNOWN}')", name="ck_word_marks_mark",
+        ),
     )
 
-    def to_entity(self) -> UnknownWord:
-        return UnknownWord(id=self.id, lemma=self.lemma, created_at=self.created_at)
+
+class KnownPosModel(Base):
+    """A part of speech a Known lemma is known in; an empty pos means any and absorbs the
+    others."""
+
+    __tablename__ = "known_pos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lemma: Mapped[str] = mapped_column(
+        Text, ForeignKey("word_marks.lemma", ondelete="CASCADE"), nullable=False,
+    )
+    pos: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("lemma", "pos", name="uq_known_pos_lemma_pos"),
+        Index("uq_known_pos_any", "lemma", unique=True, sqlite_where=text("pos IS NULL")),
+    )
 
 
 class WordDecisionModel(Base):
@@ -832,9 +832,9 @@ class AnkiSyncedCardModel(Base):
     lemma: Mapped[str] = mapped_column(String(100), nullable=False)
     pos: Mapped[str | None] = mapped_column(String(10), nullable=True)
     note_kind: Mapped[str] = mapped_column(String(10), nullable=False)
-    # The choice of the bound card, kept by the card's writer: an orphan still tells a
-    # Known card's binding from a Learn one's.
-    card_choice: Mapped[str] = mapped_column(String(10), nullable=False)
+    # NULL while the card lives; written once, before the card or its source goes: an
+    # orphan still tells a Known card's binding from a Learn one's.
+    card_choice: Mapped[str | None] = mapped_column(String(10), nullable=True)
     learning_since: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     released_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 

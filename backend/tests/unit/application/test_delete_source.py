@@ -31,26 +31,30 @@ class TestDeleteSourceUseCase:
     def setup_method(self) -> None:
         self.source_repo = MagicMock()
         self.candidate_repo = MagicMock()
+        self.anki_sync = MagicMock()
         self.lock = _free_lock()
         self.use_case = DeleteSourceUseCase(
             source_repo=self.source_repo,
             candidate_repo=self.candidate_repo,
+            anki_sync=self.anki_sync,
             lock=self.lock,
             media_root="/tmp/nonexistent-media-root",
             unit_of_work=MagicMock(),
         )
 
-    def test_deletes_candidates_then_source(self) -> None:
+    def test_orphans_the_bindings_then_deletes_candidates_then_source(self) -> None:
         self.source_repo.get_by_id.return_value = Source(
             id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
             )
         manager = MagicMock()
+        manager.attach_mock(self.anki_sync.orphan_source, "orphan_source")
         manager.attach_mock(self.candidate_repo.delete_by_source, "delete_by_source")
         manager.attach_mock(self.source_repo.delete, "delete")
 
         self.use_case.execute(1)
 
         assert manager.mock_calls == [
+            call.orphan_source(1),
             call.delete_by_source(1),
             call.delete(1),
         ]
@@ -99,6 +103,7 @@ class TestDeleteSourceUseCase:
         uc = DeleteSourceUseCase(
             source_repo=source_repo,
             candidate_repo=candidate_repo,
+            anki_sync=MagicMock(),
             lock=_free_lock(),
             media_root=str(media_root),
             unit_of_work=MagicMock(),
@@ -122,6 +127,7 @@ class TestDeleteSourceUseCase:
         uc = DeleteSourceUseCase(
             source_repo=source_repo,
             candidate_repo=candidate_repo,
+            anki_sync=MagicMock(),
             lock=_free_lock(),
             media_root=str(media_root),
             unit_of_work=MagicMock(),

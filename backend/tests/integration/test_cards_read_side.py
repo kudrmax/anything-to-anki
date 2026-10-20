@@ -28,14 +28,14 @@ from backend.infrastructure.persistence.sqla_candidate_media_repository import (
 )
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
-from backend.infrastructure.persistence.sqla_known_word_repository import (
-    SqlaKnownWordRepository,
-)
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
 from backend.infrastructure.persistence.sqla_source_operation_lock import (
     SqlaSourceOperationLock,
+)
+from backend.infrastructure.persistence.sqla_word_mark_repository import (
+    SqlaWordMarkRepository,
 )
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, event
@@ -258,7 +258,7 @@ class TestDecisionsOnCards:
     def test_a_word_known_elsewhere_is_reviewed_and_counts_as_reviewed(
         self, client: TestClient, bench: Bench, session: Session,
     ) -> None:
-        SqlaKnownWordRepository(session, SessionChangeRecorder(session)).add("spark", None)
+        SqlaWordMarkRepository(session, SessionChangeRecorder(session)).mark_known("spark", None)
         session.commit()
         card = _card(client, SPARK_PHRASE)
         assert card["shown"]["where"] == "other_source"  # type: ignore[index]

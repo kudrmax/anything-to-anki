@@ -197,7 +197,7 @@ def test_a_card_of_a_word_known_elsewhere_stays_though_the_analysis_lost_it(
     card = bench.phrase_on("linger", 3)
     bench.give_meaning(card.id)
     known = MagicMock()
-    known.get_all_pairs.return_value = {("linger", None)}
+    known.known_lemmas.return_value = {"linger"}
     bench.vocabulary = user_vocabulary(known)
     bench.analysis = [word("glare", at(0))]
 

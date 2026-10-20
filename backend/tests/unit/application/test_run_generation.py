@@ -146,7 +146,7 @@ def _vocabulary_holding(elsewhere: dict[str, ElsewhereStatus]) -> UserVocabulary
         return {lemma for lemma, held in elsewhere.items() if held is status}
 
     known = MagicMock()
-    known.get_all_pairs.return_value = {(lemma, None) for lemma in held(ElsewhereStatus.KNOWN)}
+    known.known_lemmas.return_value = held(ElsewhereStatus.KNOWN)
     return user_vocabulary(
         known,
         learning_lemmas=held(ElsewhereStatus.LEARN),

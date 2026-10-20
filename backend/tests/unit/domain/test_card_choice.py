@@ -144,12 +144,6 @@ class TestReadsKnown:
         assert older_row_of_the_note.any_due is True
         assert reads_known(card, older_row_of_the_note, NOW) is False
 
-    def test_a_lemma_in_both_lists_is_not_read_known_by_the_list(self) -> None:
-        """Stage 4's migration removes such conflicts; till then Unknown wins the list."""
-        card = CardState(1, CardChoice.LEARN)
-        knowledge = _knowledge(known_marked=True, unknown=True)
-        assert reads_known(card, knowledge, NOW) is False
-
     @pytest.mark.parametrize(
         "card",
         [

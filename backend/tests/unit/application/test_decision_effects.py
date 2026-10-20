@@ -8,7 +8,7 @@ import pytest
 from backend.application.utils.decision_effects import DecisionEffects
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.word_decision import WordDecision
-from backend.domain.exceptions import SourceOperationBusyError
+from backend.domain.exceptions import KnownRemovalLeftKnownError, SourceOperationBusyError
 from backend.domain.services.decision_rules import BindingRef, on_bind, press
 from backend.domain.value_objects.anki_binding import AnkiBinding
 from backend.domain.value_objects.card_choice import (
@@ -52,7 +52,7 @@ def _facts(*, phrasal: bool = False) -> StoredCandidate:
 class Bench:
     def __init__(self, *, known: set[tuple[str, str | None]] | None = None) -> None:
         self.known = MagicMock()
-        self.known.get_all_pairs.return_value = known or set()
+        self.known.known_lemmas.return_value = {lemma for lemma, _ in known or set()}
         self.vocabulary = user_vocabulary(self.known)
         self.words = MagicMock()
         self.words.of_lemma.return_value = []
@@ -78,7 +78,7 @@ def test_known_saves_marks_known_and_calibrates() -> None:
     bench.press(word, Press.KNOWN)
 
     bench.words.save.assert_called_once_with(word.with_cards(CardState(CARD, CardChoice.KNOWN)))
-    bench.known.add.assert_called_once_with(LEMMA, "VERB")
+    bench.known.mark_known.assert_called_once_with(LEMMA, "VERB")
     bench.decisions.record.assert_called_once_with(
         WordDecision(lemma=LEMMA, zipf_frequency=3.0, is_known=True),
     )
@@ -91,7 +91,7 @@ def test_a_choice_only_change_saves_the_choice_and_nothing_else() -> None:
 
     bench.words.save.assert_called_once()
     bench.decisions.record.assert_not_called()
-    bench.known.add.assert_not_called()
+    bench.known.mark_known.assert_not_called()
 
 
 def test_a_phrasal_verb_is_not_calibrated() -> None:
@@ -152,7 +152,7 @@ class TestKnownRemoval:
 
         bench.press(acting, Press.KNOWN)
 
-        bench.known.remove_every_pos.assert_called_once_with(LEMMA)
+        bench.known.remove_known.assert_called_once_with(LEMMA)
         saved = [c.args[0] for c in bench.words.save.call_args_list]
         assert saved == [
             acting.with_cards(CardState(CARD, CardChoice.NONE)),
@@ -171,7 +171,7 @@ class TestKnownRemoval:
         with pytest.raises(SourceOperationBusyError):
             bench.press(acting, Press.KNOWN)
 
-        bench.known.remove_every_pos.assert_not_called()
+        bench.known.remove_known.assert_not_called()
 
     def test_a_removal_from_a_report_reaches_every_word(self) -> None:
         bench, acting, other = self._bench()
@@ -181,3 +181,24 @@ class TestKnownRemoval:
 
         saved = {c.args[0].word_id for c in bench.words.save.call_args_list}
         assert saved == {acting.word_id, other.word_id}
+
+
+def test_marking_unknown_a_lemma_the_known_removal_left_known_is_a_rule_gap() -> None:
+    """The Known list keeps the lemma whatever the removal does: no mark is written over a
+    Known lemma, and the error names it."""
+    bench = Bench(known={(LEMMA, "VERB")})
+
+    with pytest.raises(KnownRemovalLeftKnownError, match=LEMMA):
+        bench.effects.mark_unknown(LEMMA)
+
+    bench.known.remove_known.assert_called_once_with(LEMMA)
+    bench.known.mark_unknown.assert_not_called()
+
+
+def test_marking_unknown_a_known_lemma_marks_it_once_known_is_gone() -> None:
+    bench = Bench(known={(LEMMA, "VERB")})
+    bench.known.remove_known.side_effect = lambda _: bench.known.known_lemmas.return_value.clear()
+
+    bench.effects.mark_unknown(LEMMA)
+
+    bench.known.mark_unknown.assert_called_once_with(LEMMA)

@@ -106,19 +106,18 @@ def bind(
     released_at: str | None = None,
 ) -> None:
     """A binding of the phrase to an Anki note, exported a day before the tests' moment
-    unless `since` says otherwise; active unless `released_at`. It records the phrase's
-    decision, or the kind it was exported as; the word's status follows
-    a binding of its Learn decision, as an export makes it."""
+    unless `since` says otherwise; active unless `released_at`. Its card lives, so it holds
+    no card choice; the word's status follows a binding of its Learn decision, as an export
+    makes it."""
     if since is None:
         since = (NOW - timedelta(days=1)).replace(tzinfo=None).isoformat(sep=" ")
     db.execute(
         text(
             "INSERT INTO anki_synced_cards (candidate_id, phrase_id, anki_note_id, lemma, pos,"
-            " note_kind, card_choice, learning_since, released_at)"
+            " note_kind, learning_since, released_at)"
             " VALUES (:word, :phrase, :note, COALESCE(:lemma,"
             " (SELECT lemma FROM candidates WHERE id = :word)), 'NOUN', :kind,"
-            " COALESCE((SELECT choice FROM phrases WHERE id = :phrase"
-            " AND choice IN ('learn', 'cloze', 'known')), :kind), :since, :released)"
+            " :since, :released)"
         ),
         {
             "word": word_id, "phrase": phrase_id, "note": note_id, "lemma": lemma,

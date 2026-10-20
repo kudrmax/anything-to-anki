@@ -17,9 +17,6 @@ from backend.infrastructure.api.dependencies import get_db_session, get_session_
 from backend.infrastructure.container import KNOWLEDGE_SCOPE_KEY
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
-from backend.infrastructure.persistence.sqla_known_word_repository import (
-    SqlaKnownWordRepository,
-)
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
@@ -27,8 +24,8 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 from backend.infrastructure.persistence.sqla_source_operation_lock import (
     SqlaSourceOperationLock,
 )
-from backend.infrastructure.persistence.sqla_unknown_word_repository import (
-    SqlaUnknownWordRepository,
+from backend.infrastructure.persistence.sqla_word_mark_repository import (
+    SqlaWordMarkRepository,
 )
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, event, text
@@ -85,8 +82,7 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
 def _scope(session: Session, clock: Clock) -> KnowledgeScope:
     return KnowledgeScope(
         clock=clock,
-        known_word_repo=SqlaKnownWordRepository(session, SessionChangeRecorder(session)),
-        unknown_word_repo=SqlaUnknownWordRepository(session, SessionChangeRecorder(session)),
+        word_mark_repo=SqlaWordMarkRepository(session, SessionChangeRecorder(session)),
         learning_query=SqlaLearningQuery(session),
     )
 

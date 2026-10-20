@@ -32,6 +32,7 @@ from sqlalchemy import text
 from tests.decision_support import NOW, Decisions
 from tests.integration.conftest import insert_source
 from tests.unit.application.scope_fakes import sources_scope_resolver
+from tests.word_marks_support import insert_known
 from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -247,9 +248,7 @@ def test_a_cloze_without_markup_is_incomplete(bench: Bench) -> None:
 def test_a_learn_put_in_known_after_it_leaves_the_queue(bench: Bench) -> None:
     """Q15: the later action wins."""
     bench.press(CARD, Press.LEARN)
-    bench.session.execute(text(
-        "INSERT INTO known_words (lemma, pos, created_at) VALUES ('glare', 'VERB', '2026-01-01')"
-    ))
+    insert_known(bench.session, "glare", "VERB")
     bench.later(days=0)
 
     bench.export()

@@ -11,7 +11,6 @@ from backend.domain.value_objects.source_operation_kind import SourceOperationKi
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
-from backend.infrastructure.persistence.models import KnownWordModel
 from backend.infrastructure.persistence.sqla_source_operation_lock import (
     SqlaSourceOperationLock,
 )
@@ -20,6 +19,7 @@ from sqlalchemy import StaticPool, create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.integration.conftest import insert_source
+from tests.word_marks_support import insert_known
 from tests.word_support import bind, insert_word, phrase_id_of
 
 pytestmark = pytest.mark.integration
@@ -64,9 +64,8 @@ def _seed(session: Session) -> None:
     insert_source(session, HERE)
     insert_source(session, THERE)
     insert_source(session, ELSEWHERE)
-    session.add(KnownWordModel(lemma="glare", pos="NOUN"))
-    session.add(KnownWordModel(lemma="spark", pos="NOUN"))
-    session.add(KnownWordModel(lemma="spark", pos="VERB"))
+    insert_known(session, "glare", "NOUN")
+    insert_known(session, "spark", "NOUN", "VERB")
     session.flush()
     insert_word(session, CHOSEN, source_id=HERE, lemma="glare", status="known")
     insert_word(session, BOUND, source_id=ELSEWHERE, lemma="glare", status="learn")

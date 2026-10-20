@@ -27,9 +27,7 @@ class TestGetStatsUseCase:
         """Learning: words in Anki. Known: each lemma once, by the list or by the timer."""
         self.candidate_repo.count_learning_in_anki.return_value = 12
         self.candidate_repo.count_all.return_value = 120
-        self.known_word_repo.get_all_pairs.return_value = {
-            ("glare", "VERB"), ("glare", "NOUN"), ("linger", None),
-        }
+        self.known_word_repo.known_lemmas.return_value = {"glare", "linger"}
         result = self.use_case.execute()
         assert result.learning_count == 12
         assert result.candidate_count == 120

@@ -9,6 +9,7 @@ from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.services.source_actions import ensure_deletable
 
 if TYPE_CHECKING:
+    from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
@@ -24,6 +25,7 @@ class DeleteSourceUseCase:
         self,
         source_repo: SourceRepository,
         candidate_repo: CandidateRepository,
+        anki_sync: AnkiSyncRepository,
         lock: SourceOperationLock,
         media_root: str,
         unit_of_work: UnitOfWork,
@@ -31,6 +33,7 @@ class DeleteSourceUseCase:
         self._unit_of_work = unit_of_work
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
+        self._anki_sync = anki_sync
         self._lock = lock
         self._media_root = media_root
 
@@ -49,5 +52,6 @@ class DeleteSourceUseCase:
         if source is None:
             raise SourceNotFoundError(source_id)
         ensure_deletable(source, self._lock.held(source_id))
+        self._anki_sync.orphan_source(source_id)
         self._candidate_repo.delete_by_source(source_id)
         self._source_repo.delete(source_id)

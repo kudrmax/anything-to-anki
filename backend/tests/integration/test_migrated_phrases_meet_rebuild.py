@@ -30,6 +30,7 @@ from backend.infrastructure.persistence.database import run_alembic_migrations
 from backend.infrastructure.persistence.document_json import dump_document
 from backend.infrastructure.persistence.models import PhraseModel, dump_phrase, dump_position
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
+from backend.infrastructure.persistence.sqla_anki_sync_repository import SqlaAnkiSyncRepository
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
@@ -155,6 +156,7 @@ def _rebuilder(session: Session) -> SourceRebuilder:
         source_repo=sources,
         document_repo=SqlaDocumentRepository(session),
         occurrence_repo=occurrences,
+        anki_sync=SqlaAnkiSyncRepository(session, SessionChangeRecorder(session)),
         job_repo=SqlaJobRepository(session),
         media_repo=SqlaCandidateMediaRepository(session, SessionChangeRecorder(session)),
         media_files=RemovedMediaFiles(),

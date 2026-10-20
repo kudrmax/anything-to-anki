@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     )
     from backend.application.utils.section_stamper import SectionStamper
     from backend.application.utils.user_vocabulary import UserVocabulary
+    from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.job_repository import JobRepository
@@ -66,6 +67,7 @@ class SourceRebuilder:
         source_repo: SourceRepository,
         document_repo: DocumentRepository,
         occurrence_repo: OccurrenceRepository,
+        anki_sync: AnkiSyncRepository,
         job_repo: JobRepository,
         media_repo: CandidateMediaRepository,
         media_files: MediaFiles,
@@ -80,6 +82,7 @@ class SourceRebuilder:
         self._source_repo = source_repo
         self._document_repo = document_repo
         self._occurrence_repo = occurrence_repo
+        self._anki_sync = anki_sync
         self._job_repo = job_repo
         self._media_repo = media_repo
         self._media_files = media_files
@@ -160,6 +163,8 @@ class SourceRebuilder:
             if source is None:
                 raise SourceNotFoundError(source_id)
             plan = self.plan(analysed, mode)
+            # A word goes only with its last phrase, so the phrases cover the words too.
+            self._anki_sync.orphan(plan.occ_to_delete)
             applied = self._occurrence_repo.apply_plan(plan)
             self._job_repo.cancel_for_phrases(list(plan.occ_to_delete))
             self._time(analysed.document, plan, applied.inserted)

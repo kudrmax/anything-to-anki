@@ -29,11 +29,10 @@ from backend.domain.ports.candidate_pronunciation_repository import (
 )
 from backend.domain.ports.candidate_repository import CandidateRepository
 from backend.domain.ports.candidate_tts_repository import CandidateTTSRepository
-from backend.domain.ports.known_word_repository import KnownWordRepository
 from backend.domain.ports.occurrence_repository import OccurrenceRepository
 from backend.domain.ports.settings_repository import SettingsRepository
 from backend.domain.ports.source_repository import SourceRepository
-from backend.domain.ports.unknown_word_repository import UnknownWordRepository
+from backend.domain.ports.word_mark_repository import WordMarkRepository
 from backend.domain.ports.word_state_repository import WordStateRepository
 from backend.domain.services.phrase_selection import SelectionChange
 from backend.domain.services.rebuild_plan import (
@@ -87,15 +86,12 @@ from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCan
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
 )
-from backend.infrastructure.persistence.sqla_known_word_repository import SqlaKnownWordRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
 from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
-from backend.infrastructure.persistence.sqla_unknown_word_repository import (
-    SqlaUnknownWordRepository,
-)
+from backend.infrastructure.persistence.sqla_word_mark_repository import SqlaWordMarkRepository
 from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
 )
@@ -116,8 +112,7 @@ OWNER_PORTS: tuple[type, ...] = (
     OccurrenceRepository,
     CandidateRepository,
     SourceRepository,
-    KnownWordRepository,
-    UnknownWordRepository,
+    WordMarkRepository,
     AnkiSyncRepository,
     SettingsRepository,
     CandidateMeaningRepository,
@@ -164,13 +159,12 @@ READ_ONLY: frozenset[tuple[str, str]] = frozenset({
     ("SourceRepository", "list_all"),
     ("SourceRepository", "get_first_by_role"),
     ("SourceRepository", "get_title_map"),
-    ("KnownWordRepository", "list_all"),
-    ("KnownWordRepository", "exists"),
-    ("KnownWordRepository", "get_all_pairs"),
-    ("KnownWordRepository", "count"),
-    ("UnknownWordRepository", "list_all"),
-    ("UnknownWordRepository", "lemmas"),
-    ("UnknownWordRepository", "count"),
+    ("WordMarkRepository", "known_entries"),
+    ("WordMarkRepository", "unknown_entries"),
+    ("WordMarkRepository", "known_lemmas"),
+    ("WordMarkRepository", "unknown_lemmas"),
+    ("WordMarkRepository", "known_count"),
+    ("WordMarkRepository", "unknown_count"),
     ("AnkiSyncRepository", "orphans"),
     ("SettingsRepository", "get"),
     ("CandidateMeaningRepository", "get_by_phrase_id"),
@@ -194,8 +188,7 @@ class Bench:
         self.occurrences = SqlaOccurrenceRepository(session, self.recorder)
         self.words = SqlaCandidateRepository(session, self.recorder)
         self.sources = SqlaSourceRepository(session, self.recorder)
-        self.known = SqlaKnownWordRepository(session, self.recorder)
-        self.unknown = SqlaUnknownWordRepository(session, self.recorder)
+        self.marks = SqlaWordMarkRepository(session, self.recorder)
         self.anki = SqlaAnkiSyncRepository(session, self.recorder)
         self.settings = SqlaSettingsRepository(session, self.recorder)
         self.meanings = SqlaCandidateMeaningRepository(session, self.recorder)
@@ -387,53 +380,38 @@ def _source_set_collections(b: Bench) -> Expected:
     return set()
 
 
-def _known_add(b: Bench) -> Expected:
+def _mark_known(b: Bench) -> Expected:
     b.ready()
-    b.known.add("Glare", "VERB")
+    b.marks.mark_known("Glare", "VERB")
     return {MarkChanged("glare")}
 
 
-def _known_remove(b: Bench) -> Expected:
-    known = b.known.add("Glare", "VERB")
-    assert known.id is not None
+def _mark_unknown(b: Bench) -> Expected:
     b.ready()
-    b.known.remove(known.id)
+    b.marks.mark_unknown("Glare")
     return {MarkChanged("glare")}
 
 
-def _known_remove_by_lemma(b: Bench) -> Expected:
-    b.known.add("glare", "VERB")
+def _remove_known_entry(b: Bench) -> Expected:
+    b.marks.mark_known("glare", "VERB")
+    b.marks.mark_known("glare", "NOUN")
     b.ready()
-    b.known.remove_by_lemma("glare", "VERB")
+    b.marks.remove_known_entry("glare", "VERB")
     return {MarkChanged("glare")}
 
 
-def _known_remove_every_pos(b: Bench) -> Expected:
-    b.known.add("glare", "VERB")
-    b.known.add("glare", "NOUN")
+def _remove_known(b: Bench) -> Expected:
+    b.marks.mark_known("glare", "VERB")
+    b.marks.mark_known("glare", "NOUN")
     b.ready()
-    b.known.remove_every_pos("Glare")
+    b.marks.remove_known("Glare")
     return {MarkChanged("glare")}
 
 
-def _unknown_add(b: Bench) -> Expected:
+def _remove_unknown(b: Bench) -> Expected:
+    b.marks.mark_unknown("glare")
     b.ready()
-    b.unknown.add("Glare")
-    return {MarkChanged("glare")}
-
-
-def _unknown_remove(b: Bench) -> Expected:
-    unknown = b.unknown.add("glare")
-    assert unknown.id is not None
-    b.ready()
-    b.unknown.remove(unknown.id)
-    return {MarkChanged("glare")}
-
-
-def _unknown_remove_by_lemma(b: Bench) -> Expected:
-    b.unknown.add("glare")
-    b.ready()
-    b.unknown.remove_by_lemma("Glare")
+    b.marks.remove_unknown("Glare")
     return {MarkChanged("glare")}
 
 
@@ -466,6 +444,25 @@ def _anki_release_rows(b: Bench) -> Expected:
     b.ready()
     b.anki.release_rows([binding_id], NOW)
     return {BindingChanged("stare")}
+
+
+def _anki_orphan(b: Bench) -> Expected:
+    first, second = b.word(1, "glare"), b.word(2, "stare")
+    bind(b.session, 1, first, note_id=901)
+    bind(b.session, 2, second, note_id=902)
+    b.ready()
+    b.anki.orphan([first])
+    return {BindingChanged("glare")}
+
+
+def _anki_orphan_source(b: Bench) -> Expected:
+    first = b.word(1, "glare")
+    other = b.word(2, "stare", source_id=OTHER_SOURCE)
+    bind(b.session, 1, first, note_id=901)
+    bind(b.session, 2, other, note_id=902)
+    b.ready()
+    b.anki.orphan_source(SOURCE)
+    return {BindingChanged("glare")}
 
 
 def _settings_set(b: Bench) -> Expected:
@@ -612,16 +609,16 @@ WRITE_CASES: dict[tuple[str, str], WriteCase] = {
     ("SourceRepository", "update_title"): WriteCase(_source_update_title),
     ("SourceRepository", "update_video_path"): WriteCase(_source_update_video_path),
     ("SourceRepository", "set_collections"): WriteCase(_source_set_collections),
-    ("KnownWordRepository", "add"): WriteCase(_known_add),
-    ("KnownWordRepository", "remove"): WriteCase(_known_remove),
-    ("KnownWordRepository", "remove_by_lemma"): WriteCase(_known_remove_by_lemma),
-    ("KnownWordRepository", "remove_every_pos"): WriteCase(_known_remove_every_pos),
-    ("UnknownWordRepository", "add"): WriteCase(_unknown_add),
-    ("UnknownWordRepository", "remove"): WriteCase(_unknown_remove),
-    ("UnknownWordRepository", "remove_by_lemma"): WriteCase(_unknown_remove_by_lemma),
+    ("WordMarkRepository", "mark_known"): WriteCase(_mark_known),
+    ("WordMarkRepository", "mark_unknown"): WriteCase(_mark_unknown),
+    ("WordMarkRepository", "remove_known_entry"): WriteCase(_remove_known_entry),
+    ("WordMarkRepository", "remove_known"): WriteCase(_remove_known),
+    ("WordMarkRepository", "remove_unknown"): WriteCase(_remove_unknown),
     ("AnkiSyncRepository", "bind"): WriteCase(_anki_bind),
     ("AnkiSyncRepository", "release"): WriteCase(_anki_release),
     ("AnkiSyncRepository", "release_rows"): WriteCase(_anki_release_rows),
+    ("AnkiSyncRepository", "orphan"): WriteCase(_anki_orphan),
+    ("AnkiSyncRepository", "orphan_source"): WriteCase(_anki_orphan_source),
     ("SettingsRepository", "set"): WriteCase(_settings_set),
     ("CandidateMeaningRepository", "upsert_for_phrase"): WriteCase(_meaning_upsert),
     ("CandidateMeaningRepository", "delete_by_phrase_id"): WriteCase(_meaning_delete),
@@ -694,8 +691,9 @@ def test_a_setting_other_than_the_level_records_nothing(bench: Bench) -> None:
 
 
 def test_a_remove_that_finds_nothing_records_nothing(bench: Bench) -> None:
-    bench.known.remove_by_lemma("glare", None)
-    bench.unknown.remove_by_lemma("glare")
+    bench.marks.remove_known_entry("glare", None)
+    bench.marks.remove_known("glare")
+    bench.marks.remove_unknown("glare")
 
     assert bench.recorder.drain() == ()
 
