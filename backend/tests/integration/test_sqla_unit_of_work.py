@@ -2,12 +2,15 @@ from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import backend.infrastructure.persistence.models  # noqa: F401  registers every table on Base
 import pytest
 from backend.domain.exceptions import NestedWriteError
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from sqlalchemy import Engine, create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
+
+from tests.integration.conftest import insert_source
 
 SOURCE_ID = 1
 
@@ -30,13 +33,11 @@ def unit_of_work(engine: Engine) -> Iterator[SqlaUnitOfWork]:
 
 
 def _add_source(unit_of_work: SqlaUnitOfWork) -> None:
-    unit_of_work._session.execute(
-        text(
-            "INSERT INTO sources (id, title, status, created_at)"
-            " VALUES (:id, 'title', 'done', '2026-01-01 00:00:00')"
-        ),
-        {"id": SOURCE_ID},
-    )
+    insert_source(unit_of_work._session, SOURCE_ID)
+
+
+def _count_in_open_transaction(unit_of_work: SqlaUnitOfWork) -> int:
+    return unit_of_work._session.execute(text("SELECT COUNT(*) FROM sources")).scalar_one()
 
 
 def _source_count(engine: Engine) -> int:
@@ -71,7 +72,7 @@ def test_nested_write_does_not_commit_the_outer_work(
         _add_source(unit_of_work)
         with pytest.raises(NestedWriteError), unit_of_work.write():
             pass
-        assert _source_count_without_lock(unit_of_work) == 1
+        assert _count_in_open_transaction(unit_of_work) == 1
         raise RuntimeError
 
     assert _source_count(engine) == 0
@@ -98,7 +99,3 @@ def test_write_after_nested_error_still_works(
         _add_source(unit_of_work)
 
     assert _source_count(engine) == 1
-
-
-def _source_count_without_lock(unit_of_work: SqlaUnitOfWork) -> int:
-    return unit_of_work._session.execute(text("SELECT COUNT(*) FROM sources")).scalar_one()
