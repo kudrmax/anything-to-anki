@@ -34,9 +34,9 @@
 .definition b, .context b, .examples b { font-weight: var(--fw-m); color: var(--tx); }
 .retold b { font-weight: var(--fw-m); }
 .retold .target { color: var(--ac); }
-.cardFoot { grid-column: 1 / -1; order: var(--card-foot-order); display: flex; align-items: center; gap: var(--s4); padding: var(--card-foot-pad); border-top: var(--card-foot-bw) solid var(--line); }
+.cardFoot { grid-column: 1 / -1; order: var(--card-foot-order); display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); padding: var(--card-foot-pad); border-top: var(--card-foot-bw) solid var(--line); }
 .footDecisions { display: var(--desktop-flex); align-items: center; gap: var(--s3); }
-.footHint { font-size: var(--fs-xs); color: var(--tx3); white-space: nowrap; }
+.footRest { flex: 1 1 auto; display: flex; align-items: center; gap: var(--s4); }
 .facts { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; justify-content: var(--facts-justify); align-items: center; gap: var(--s3); font-size: var(--fs-s); color: var(--tx3); }
 /* телефон: справка свёрнута в строку Details под тем, по чему решаешь; на десктопе её нет — справка всегда видна */
 .detailsToggle { display: var(--phone-flex); order: var(--details-toggle-order); align-items: center; justify-content: space-between; margin-top: auto; padding: var(--s4) var(--card-pad); font-size: var(--fs-m); color: var(--tx3); }
@@ -54,13 +54,16 @@
 /* без списка карточка занимает высоту окна и сжимается под неё; со списком окно прокручивается */
 .body { display: flex; flex-direction: column; flex: 1; min-height: 100%; }
 /* Отступы карточки отделяют её от строк списка; без списка строки скрыты, но в DOM остаются — :first-child не спасает. */
-.focus .queue > .card { flex: 1 1 auto; margin: 0; }
+.focus .queue > .cardBlock { flex: 1 1 auto; margin: 0; }
 /* Со списком окно прокручивается само: справка видна целиком, а не обрезается по высоте левой колонки. */
 .body:not(.focus) .cardRight { contain: none; overflow-y: visible; mask-image: none; }
 .queue { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .queue > .queueItem, .queue > .sectionToggle { display: var(--queue-row-display); }
-.queue > .card { order: var(--current-card-order); margin: var(--wide-lead) 0; scroll-margin-bottom: var(--dock-reserve); }
-.queue > .card:first-child { margin-top: 0; }
+.queue > .cardBlock { order: var(--current-card-order); margin: var(--wide-lead) 0; scroll-margin-bottom: var(--dock-reserve); }
+.queue > .cardBlock:first-child { margin-top: 0; }
+.cardBlock { display: flex; flex-direction: column; flex: var(--card-flex); min-height: var(--card-min-h); }
+.cardBlock > .card { flex: 1 1 auto; }
+.keysHint { display: var(--desktop-flex); justify-content: flex-end; margin-top: var(--s3); font-size: var(--fs-xs); color: var(--tx3); }
 .queueItem { display: flex; align-items: center; gap: var(--s3); min-width: 0; padding: var(--s4) var(--card-pad); text-align: left; font-size: var(--fs-b); color: var(--tx3); transition: background var(--t), color var(--t); }
 .queueItem + .queueItem { border-top: var(--bw) solid var(--line-soft); }
 .queueItem:hover { background: var(--hover); color: var(--tx2); }
@@ -117,7 +120,7 @@
 /* шапка */
 .export { box-shadow: inset 0 0 0 var(--bw) var(--line); background: none; color: var(--tx2); }
 .exportCount { color: var(--ac); font-variant-numeric: tabular-nums; }
-.iconTrigger { width: var(--h); height: var(--h); justify-content: center; border-radius: var(--rc); color: var(--tx3); }
+.iconTrigger { position: relative; width: var(--h); height: var(--h); justify-content: center; border-radius: var(--rc); color: var(--tx3); }
 .iconTrigger:hover:not(:disabled) { background: var(--soft); }
 .headerTools { display: flex; align-items: center; gap: var(--s2); }
 .stepper { display: flex; align-items: center; gap: var(--s1); margin-right: var(--s3); }
@@ -190,3 +193,4 @@
 /* телефон: прогресс — полоса на всю ширину под строкой шапки */
 .phoneProgress { display: var(--phone-flex); flex-basis: 100%; order: 1; margin-top: var(--s2); }
 .phoneProgress > * { flex: 1; }
+.iconTrigger:hover:not(:disabled) kbd { background: var(--soft); }

@@ -11,6 +11,7 @@ from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
+from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.job import Job
 from backend.domain.services.card_view import Command, ShownTone, Where
 from backend.domain.value_objects.card_choice import Binding, CardChoice, NoteKind, Press, Refusal
@@ -378,3 +379,31 @@ class TestMeaningAction:
             synonyms=None, examples=None, ipa=None, generated_at=NOW,
         )
         assert card_to_dto(_make_candidate(meaning=meaning), CARD_SOURCE).meaning_action is None
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("clip", "tts", "us", "expected"),
+    [
+        ("/clip.m4a", "/tts.m4a", "/us.mp3", "/clip.m4a"),
+        (None, "/tts.m4a", "/us.mp3", "/tts.m4a"),
+        (None, None, "/us.mp3", "/us.mp3"),
+        (None, None, None, None),
+    ],
+)
+def test_card_plays_clip_then_phrase_then_word(
+    clip: str | None, tts: str | None, us: str | None, expected: str | None,
+) -> None:
+    media = CandidateMedia(
+        candidate_id=1, screenshot_path=None, audio_path=clip,
+        start_ms=None, end_ms=None, generated_at=NOW,
+    )
+    pronunciation = CandidatePronunciation(
+        candidate_id=1, us_audio_path=us, uk_audio_path="/uk.mp3", generated_at=NOW,
+    )
+    phrase_tts = CandidateTTS(candidate_id=1, audio_path=tts, generated_at=NOW)
+    the_card = card(
+        word(1, pronunciation=pronunciation),
+        occurrence(1, 1, media=media, tts=phrase_tts),
+    )
+    assert card_to_dto(the_card, CARD_SOURCE).audio_path == expected

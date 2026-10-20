@@ -89,6 +89,17 @@ class ReviewCard:
         return self.occurrence.phrase
 
     @property
+    def main_audio_path(self) -> str | None:
+        """The audio the card plays: the clip from the video, else the phrase read aloud,
+        else the word's US pronunciation."""
+        occ, pronunciation = self.occurrence, self.word.pronunciation
+        return (
+            (occ.media.audio_path if occ.media else None)
+            or (occ.tts.audio_path if occ.tts else None)
+            or (pronunciation.us_audio_path if pronunciation else None)
+        )
+
+    @property
     def earned_section(self) -> CandidateSection:
         return self.occurrence.earned_section
 

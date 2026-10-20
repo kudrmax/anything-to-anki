@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Check, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { ButtonCommand, CardButton, DecisionButton, FollowUpAction, StoredCandidate } from '@/api/types'
+import { KEY_LABEL, OVERLAY, toolKey, type ToolAction } from '@/lib/hotkeys'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { phraseWordTexts } from '@/lib/text/phraseParts'
 import { toggled } from '@/lib/text/words'
-import { Button, Field, Icon, IconButton, Menu, Spinner, Text, WordPicker, type MenuItem, type MenuPage } from '@/ui'
+import { Button, Field, Icon, IconButton, Menu, Spinner, Text, WordPicker, Kbd, type MenuHandle, type MenuItem, type MenuPage } from '@/ui'
 import { ImagePicker } from './ImagePicker'
 import { PolishComparison } from './PolishComparison'
 import type { Review } from './useReview'
@@ -20,10 +21,10 @@ const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string; icon: LucideIc
 const UNKNOWN_WORDS_HINT = 'Tap the words you don\'t know'
 
 const BUTTON_LOOK: Record<DecisionButton, { label: string; kbd: string; primary: boolean }> = {
-  learn: { label: 'Learn', kbd: '1', primary: true },
-  cloze: { label: 'Cloze', kbd: '2', primary: false },
-  known: { label: 'Know', kbd: '3', primary: false },
-  skip: { label: 'Skip', kbd: '4', primary: false },
+  learn: { label: 'Learn', kbd: KEY_LABEL.learn, primary: true },
+  cloze: { label: 'Cloze', kbd: KEY_LABEL.cloze, primary: false },
+  known: { label: 'Know', kbd: KEY_LABEL.known, primary: false },
+  skip: { label: 'Skip', kbd: KEY_LABEL.skip, primary: false },
 }
 
 const OPENS_EDITOR: Record<ButtonCommand, boolean> = { edit_cloze: true, decide: false }
@@ -34,7 +35,7 @@ interface PhraseActionsProps {
 }
 
 /**
- * Решения по фразе: Learn 1 · Cloze 2 · Know 3 · Skip 4. Что делает кнопка и какая нажата, решает backend.
+ * Решения по фразе: Learn L · Cloze C · Know K · Skip S. Что делает кнопка и какая нажата, решает backend.
  * Learn залит всегда — это основное действие; нажатая кнопка отмечена галочкой.
  */
 export function DecisionButtons({ candidate, review }: PhraseActionsProps) {
@@ -206,24 +207,53 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   ]
   const regenerating = busy.meaning || busy.media || busy.tts || polishing
 
-  const menuTrigger = (icon: LucideIcon, label: string, isBusy: boolean, className?: string) => (
+  const editMenu = useRef<MenuHandle>(null)
+  const regenerateMenu = useRef<MenuHandle>(null)
+  const reportMenu = useRef<MenuHandle>(null)
+  const markingCloze = review.clozeEditingId === id
+  const imageBusy = busy.image
+  useEffect(() => {
+    const menus = { edit: editMenu, regenerate: regenerateMenu, report: reportMenu }
+    const isOpen = (tool: ToolAction) => (tool === 'image' ? pickingImage : Boolean(menus[tool].current?.isOpen()))
+    const toggle = (tool: ToolAction) => {
+      if (tool === 'image') setPickingImage(open => !open && !imageBusy)
+      else if (isOpen(tool)) menus[tool].current?.close()
+      else menus[tool].current?.open()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      const tool = toolKey(e)
+      // В разметке cloze инструменты карточки не открываются.
+      if (!tool || markingCloze) return
+      // Пока открыто меню или окно, клавиша закрывает только открытое ею же.
+      if (document.querySelector(OVERLAY) && !isOpen(tool)) return
+      e.preventDefault()
+      toggle(tool)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [markingCloze, imageBusy, pickingImage])
+
+  const menuTrigger = (icon: LucideIcon, label: string, action: ToolAction, isBusy: boolean, className?: string) => (
     <Button variant="link" className={[css.iconTrigger, className].filter(Boolean).join(' ')} title={label} aria-label={label}>
       {isBusy ? <Spinner /> : <Icon as={icon} />}
+      <Kbd corner>{KEY_LABEL[action]}</Kbd>
     </Button>
   )
 
   return (
     <div className={css.tools}>
       {isEditing && <IconButton icon={X} label="Cancel editing" active onClick={review.cancelEditing} />}
-      <IconButton icon={ImagePlus} label="Choose a picture of the word" busy={busy.image} onClick={() => setPickingImage(true)} />
-      <Menu items={editItems} trigger={menuTrigger(Pencil, 'Edit phrase', false)} />
-      <Menu items={regenerateItems} trigger={menuTrigger(RefreshCw, 'Regenerate', regenerating)} />
+      <IconButton icon={ImagePlus} label="Choose a picture of the word" kbd={KEY_LABEL.image} busy={busy.image} onClick={() => setPickingImage(true)} />
+      <Menu ref={editMenu} items={editItems} trigger={menuTrigger(Pencil, 'Edit phrase', 'edit', false)} />
+      <Menu ref={regenerateMenu} items={regenerateItems} trigger={menuTrigger(RefreshCw, 'Regenerate', 'regenerate', regenerating)} />
       <Menu
+        ref={reportMenu}
         items={report.items}
         footer={report.footer}
         trigger={menuTrigger(
           Flag,
           candidate.reported ? 'Reported — report another problem' : 'Report a problem with this card',
+          'report',
           false,
           candidate.reported ? css.reported : undefined,
         )}

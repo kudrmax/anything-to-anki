@@ -74,7 +74,7 @@ describe('DecisionButtons', () => {
     expect(button('Learn').title).toBe('')
     expect(button('Learn').disabled).toBe(true)
     expect(button('Skip').disabled).toBe(false)
-    expect(host.textContent).toBe('Learn1Cloze2Know3Skip4')
+    expect(host.textContent).toBe('LearnLClozeCKnowKSkipS')
   })
 
   it('shows a card of a word decided elsewhere with its status pressed and every button off', () => {

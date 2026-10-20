@@ -306,6 +306,8 @@ class CardDTO(BaseModel):
     meaning_image_path: str | None = None
     pronunciation: CandidatePronunciationDTO | None = None
     tts: CandidateTTSDTO | None = None
+    # The audio the card plays on its own and on the audio key.
+    audio_path: str | None = None
     cefr_breakdown: CEFRBreakdownDTO | None = None
     usage_distribution: dict[str, float] | None = None
     frequency_band: str | None = None
@@ -408,6 +410,7 @@ def card_to_dto(
             word.pronunciation, jobs.of_word(word_id, JobType.PRONUNCIATION),
         ),
         tts=_tts_dto(occ.tts, jobs.of_phrase(phrase_id, JobType.TTS)),
+        audio_path=card.main_audio_path,
         cefr_breakdown=(
             breakdown_to_dto(word.cefr_breakdown) if word.cefr_breakdown is not None else None
         ),

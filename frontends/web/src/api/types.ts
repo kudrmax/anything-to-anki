@@ -348,6 +348,8 @@ export interface StoredCandidate {
   meaning_image_path: string | null
   pronunciation: CandidatePronunciation | null
   tts: CandidateTTS | null
+  /** Аудио, которое карточка играет сама и по клавише; выбирает backend. */
+  audio_path: string | null
   cefr_breakdown?: CEFRBreakdown | null
   frequency_band: string | null
   usage_distribution: Record<string, number> | null
