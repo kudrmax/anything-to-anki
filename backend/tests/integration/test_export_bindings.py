@@ -15,6 +15,7 @@ from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.card_choice import Press
 from backend.domain.value_objects.export_group import ExportGroup
+from backend.domain.value_objects.source_scope import SourceScope
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -29,7 +30,7 @@ from sqlalchemy import text
 
 from tests.decision_support import NOW, Decisions
 from tests.integration.conftest import insert_source
-from tests.unit.application.scope_fakes import empty_scope_resolver
+from tests.unit.application.scope_fakes import sources_scope_resolver
 from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -111,10 +112,10 @@ class Bench:
             settings_repo=settings,
             template_renderer=renderer,
             cloze_builder=ClozeBuilder(),
-            scope_resolver=empty_scope_resolver(),
+            scope_resolver=sources_scope_resolver(source_id),
             vocabulary=self.decisions.vocabulary,
             effects=self.decisions.effects(),
-        ).execute(source_id, group)
+        ).execute(SourceScope.source(source_id), group)
 
     def status(self, word_id: int = WORD) -> str:
         return str(self.session.execute(
@@ -150,7 +151,7 @@ def test_export_makes_the_word_learning_and_starts_its_timer_now(bench: Bench) -
     assert bench.rows() == [(CARD, NOTE, "learn", _stored(NOW), 1)]
     lemma = bench.session.execute(text("SELECT lemma, pos FROM anki_synced_cards")).one()
     assert tuple(lemma) == (LEMMA, "VERB")
-    assert bench.queue().for_source(SOURCE).pending == []
+    assert bench.queue().for_sources([SOURCE]).pending == []
 
 
 def test_re_export_after_a_removal_binds_the_same_note_with_a_new_timer(bench: Bench) -> None:
@@ -211,7 +212,7 @@ def test_two_sources_bind_one_note(bench: Bench) -> None:
 def test_a_cloze_without_markup_is_incomplete(bench: Bench) -> None:
     bench.press(CARD, Press.CLOZE)
 
-    batch = bench.queue().for_source(SOURCE)
+    batch = bench.queue().for_sources([SOURCE])
 
     assert batch.in_group(ExportGroup.READY) == []
     [card] = batch.in_group(ExportGroup.INCOMPLETE)
@@ -228,7 +229,7 @@ def test_a_learn_put_in_known_after_it_leaves_the_queue(bench: Bench) -> None:
 
     bench.export()
 
-    assert bench.queue().for_source(SOURCE).pending == []
+    assert bench.queue().for_sources([SOURCE]).pending == []
     bench.connector.add_notes.assert_not_called()
     assert bench.rows() == []
 

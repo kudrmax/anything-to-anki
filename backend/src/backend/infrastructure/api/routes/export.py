@@ -10,6 +10,7 @@ from backend.domain.exceptions import (
     AnkiNoteTypeIncompleteError,
     AnkiSyncError,
     CollectionNotFoundError,
+    SourceNotFoundError,
 )
 from backend.domain.value_objects.export_group import ExportGroup  # noqa: TC001
 from backend.infrastructure.api.dependencies import get_container, get_db_session
@@ -31,19 +32,9 @@ def get_scope_export_cards(
 ) -> GlobalExportDTO:
     use_case = container.get_export_cards_use_case(session)
     try:
-        return use_case.execute_scope(parse_scope(scope))
-    except CollectionNotFoundError as exc:
+        return use_case.execute(parse_scope(scope))
+    except (CollectionNotFoundError, SourceNotFoundError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@router.get("/export/cards/{source_id}")
-def get_source_export_cards(
-    source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> GlobalExportDTO:
-    use_case = container.get_export_cards_use_case(session)
-    return use_case.execute(source_id)
 
 
 @router.post("/export/sync-to-anki")
@@ -56,31 +47,11 @@ def sync_scope_to_anki(
     parsed_scope = parse_scope(scope)
     use_case = container.sync_to_anki_use_case(session)
     try:
-        result = use_case.execute_scope(parsed_scope, group)
+        result = use_case.execute(parsed_scope, group)
         session.commit()
         return result
-    except CollectionNotFoundError as exc:
+    except (CollectionNotFoundError, SourceNotFoundError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except AnkiNotAvailableError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except AnkiNoteTypeIncompleteError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except AnkiSyncError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@router.post("/export/sync-to-anki/{source_id}")
-def sync_source_to_anki(
-    source_id: int,
-    group: ExportGroup,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> SyncResultDTO:
-    use_case = container.sync_to_anki_use_case(session)
-    try:
-        result = use_case.execute(source_id, group)
-        session.commit()
-        return result
     except AnkiNotAvailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except AnkiNoteTypeIncompleteError as exc:

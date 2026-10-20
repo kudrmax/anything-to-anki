@@ -145,18 +145,11 @@ export const api = {
 
   getAnkiStatus: () => req<AnkiStatus>('/anki/status'),
 
-  getExportCards: (sourceId?: number, scope: Scope = 'all') =>
-    req<GlobalExport>(
-      sourceId != null ? `/export/cards/${sourceId}` : `/export/cards?${new URLSearchParams({ scope: String(scope) })}`,
-    ),
+  getExportCards: (scope: SetScope = 'all') =>
+    req<GlobalExport>(`/export/cards?${new URLSearchParams({ scope: String(scope) })}`),
 
-  syncToAnki: (group: ExportGroup, sourceId?: number, scope: Scope = 'all') =>
-    req<SyncResult>(
-      sourceId != null
-        ? `/export/sync-to-anki/${sourceId}?${new URLSearchParams({ group })}`
-        : `/export/sync-to-anki?${new URLSearchParams({ group, scope: String(scope) })}`,
-      { method: 'POST' },
-    ),
+  syncToAnki: (group: ExportGroup, scope: SetScope = 'all') =>
+    req<SyncResult>(`/export/sync-to-anki?${new URLSearchParams({ group, scope: String(scope) })}`, { method: 'POST' }),
 
   getSettings: () => req<Settings>('/api/settings'),
 

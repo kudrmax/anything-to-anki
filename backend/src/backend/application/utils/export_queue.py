@@ -99,9 +99,6 @@ class ExportQueue:
         self._word_states = word_states
         self._vocabulary = vocabulary
 
-    def for_source(self, source_id: int) -> ExportBatch:
-        return self._split(self._candidate_repo.chosen_to_learn([source_id]))
-
     def for_all(self) -> ExportBatch:
         return self._split(self._chosen(None))
 

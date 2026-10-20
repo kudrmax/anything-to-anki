@@ -35,10 +35,8 @@ class GetExportCardsUseCase:
         self._scope_resolver = scope_resolver
         self._media_base_url = media_base_url
 
-    def execute(self, source_id: int) -> GlobalExportDTO:
-        return self._build(self._export_queue.for_source(source_id))
-
-    def execute_scope(self, scope: SourceScope) -> GlobalExportDTO:
+    def execute(self, scope: SourceScope) -> GlobalExportDTO:
+        """The export of a set of sources: one source, a collection, Unsorted or all."""
         if scope.kind is ScopeKind.ALL:
             batch = self._export_queue.for_all()
         else:

@@ -138,9 +138,11 @@ export function SourcesScreen() {
   const longPress = (id: number) => setSelection(clickSelect(visibleSelection, order, id, { toggle: true, range: false }))
   const dragIds = (id: number) => (visibleSelection.ids.has(id) ? selectedIds : [id])
 
-  const review = (id: number) => navigate(reviewPath(sourceScope(id)), { state: backTo(`/${scopeQuery(scope)}`) })
-  const exportSource = (id: number) => navigate(`/sources/${id}/export`)
-  const exportScope = () => navigate(`${EXPORT_PATH}${scopeQuery(scope)}`)
+  // Ревью и экспорт возвращают на открытую область.
+  const backHere = backTo(`/${scopeQuery(scope)}`)
+  const review = (id: number) => navigate(reviewPath(sourceScope(id)), { state: backHere })
+  const exportSource = (id: number) => navigate(`${EXPORT_PATH}${scopeQuery(sourceScope(id))}`, { state: backHere })
+  const exportScope = () => navigate(`${EXPORT_PATH}${scopeQuery(scope)}`, { state: backHere })
 
   const processAll = async () => {
     setProcessingAll(true)
@@ -266,7 +268,7 @@ export function SourcesScreen() {
             node={node}
             processing={processingAll}
             onProcessAll={() => void processAll()}
-            onReview={() => navigate(reviewPath(scope), { state: backTo(`/${scopeQuery(scope)}`) })}
+            onReview={() => navigate(reviewPath(scope), { state: backHere })}
             onExport={exportScope}
             onRename={() => node && setNaming({ kind: 'rename', node })}
             onNewSubcollection={() => node && setNaming({ kind: 'create', parent: node })}

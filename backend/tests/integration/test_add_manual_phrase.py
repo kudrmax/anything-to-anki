@@ -293,7 +293,7 @@ def test_learn_on_a_manual_card_closes_the_word_and_exports_one_phrase(bench: Be
     queue = ExportQueue(
         bench.candidates, bench.occurrences, decisions.word_states, decisions.vocabulary,
     )
-    [card] = queue.for_source(SOURCE).pending
+    [card] = queue.for_sources([SOURCE]).pending
     assert card.phrase.id == manual.id
 
 

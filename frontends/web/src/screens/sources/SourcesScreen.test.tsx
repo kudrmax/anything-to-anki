@@ -249,6 +249,13 @@ describe('SourcesScreen', () => {
     expect(seen.state).toEqual({ back: '/?scope=11' })
   })
 
+  it('exports the open collection and comes back to it', async () => {
+    await render('/?scope=11')
+    act(() => button('Export', host.querySelector('header')!).click())
+    expect(seen.location).toBe('/export?scope=11')
+    expect(seen.state).toEqual({ back: '/?scope=11' })
+  })
+
   it('opens the review of the open collection from its header', async () => {
     const reviewable = { ...counts, status: 'partially_reviewed' as const, can_review: true }
     vi.mocked(api.getCollectionTree).mockResolvedValue({

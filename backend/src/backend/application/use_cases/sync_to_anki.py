@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 
 _DEFAULT_DECK: str = "Default"
 
+
 @dataclass(frozen=True)
 class _NoteTarget:
     """Note type a card goes to and the field that holds its lemma (to find duplicates by)."""
@@ -92,18 +93,14 @@ class SyncToAnkiUseCase:
         self._cloze_builder = cloze_builder
         self._scope_resolver = scope_resolver
 
-    def execute(self, source_id: int, group: ExportGroup) -> SyncResultDTO:
-        pending = self._export_queue.for_source(source_id).in_group(group)
-        return self._push(pending, group, f"source_id={source_id}")
-
-    def execute_scope(self, scope: SourceScope, group: ExportGroup) -> SyncResultDTO:
+    def execute(self, scope: SourceScope, group: ExportGroup) -> SyncResultDTO:
+        """Pushes the group of a set of sources: one source, a collection, Unsorted or all."""
         if scope.kind is ScopeKind.ALL:
             batch = self._export_queue.for_all()
         else:
             ids = {s.id for s in self._scope_resolver.sources(scope) if s.id is not None}
             batch = self._export_queue.for_sources(ids)
-        label = f"scope={scope.kind}:{scope.collection_id}"
-        return self._push(batch.in_group(group), group, label)
+        return self._push(batch.in_group(group), group, f"scope={scope.token}")
 
     def _push(
         self, pending: list[ExportCard], group: ExportGroup, label: str,

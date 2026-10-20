@@ -23,7 +23,7 @@ from backend.domain.value_objects.word_status import WordStatus
 from tests.export_support import ExportCards, export_card, in_anki, with_phrase, with_word
 from tests.phrase_support import phrase
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
-from tests.unit.application.scope_fakes import empty_scope_resolver
+from tests.unit.application.scope_fakes import sources_scope_resolver
 from tests.unit.application.source_fakes import InMemorySourceRepository
 from tests.vocabulary_support import user_vocabulary
 from tests.word_support import phrase_id_of
@@ -93,14 +93,14 @@ class TestSyncToAnkiUseCase:
             self.anki_connector,
             self.settings_repo,
             self.template_renderer,
-            empty_scope_resolver(),
+            sources_scope_resolver(1, 99),
         )
 
     def test_returns_zero_when_no_learn_candidates(self) -> None:
         self.cards.put([
             _make_candidate(1, "word", WordStatus.NEW),
         ])
-        result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
+        result = self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
         assert result.total == 0
         assert result.added == 0
         self.anki_connector.add_notes.assert_not_called()
@@ -111,7 +111,7 @@ class TestSyncToAnkiUseCase:
         ])
         self.anki_connector.is_available.return_value = False
         with pytest.raises(AnkiNotAvailableError):
-            self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+            self.use_case.execute(SourceScope.source(1), group=ExportGroup.INCOMPLETE)
 
     def test_adds_new_cards(self) -> None:
         self.cards.put([
@@ -121,7 +121,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
+        result = self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         assert result.total == 2
         assert result.added == 2
@@ -139,7 +139,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [99999]
 
-        result = self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+        result = self.use_case.execute(SourceScope.source(1), group=ExportGroup.INCOMPLETE)
 
         assert result.total == 1
         assert result.added == 1
@@ -155,7 +155,7 @@ class TestSyncToAnkiUseCase:
             in_anki(_make_candidate(1, "burnout", WordStatus.LEARN)),
         ])
 
-        result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
+        result = self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         assert result.total == 0
         assert result.added == 0
@@ -170,7 +170,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+        self.use_case.execute(SourceScope.source(1), group=ExportGroup.INCOMPLETE)
 
         assert [(b.word_id, b.phrase_id, b.note_id) for b in self.cards.bindings] == [
             (1, phrase_id_of(1), 12345),
@@ -186,7 +186,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.add_notes.return_value = [None]
         self.anki_connector.find_notes_by_target.return_value = [99999]
 
-        result = self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+        result = self.use_case.execute(SourceScope.source(1), group=ExportGroup.INCOMPLETE)
 
         assert result.added == 0
         assert result.skipped == 1
@@ -205,7 +205,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.add_notes.return_value = [None]
         self.anki_connector.find_notes_by_target.return_value = []
 
-        result = self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+        result = self.use_case.execute(SourceScope.source(1), group=ExportGroup.INCOMPLETE)
 
         assert result.added == 0
         assert result.errors == 1
@@ -222,7 +222,7 @@ class TestSyncToAnkiUseCase:
         )
         self.anki_connector.find_notes_by_target.return_value = [99999]
 
-        result = self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+        result = self.use_case.execute(SourceScope.source(1), group=ExportGroup.INCOMPLETE)
 
         assert result.added == 0
         assert result.skipped == 1
@@ -240,7 +240,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.side_effect = RuntimeError("some unexpected error")
 
-        result = self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+        result = self.use_case.execute(SourceScope.source(1), group=ExportGroup.INCOMPLETE)
 
         assert result.added == 0
         assert result.errors == 1
@@ -254,7 +254,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        self.use_case.execute(source_id=1, group=ExportGroup.READY)
+        self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         call_args = self.anki_connector.add_notes.call_args
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
@@ -267,7 +267,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+        self.use_case.execute(SourceScope.source(1), group=ExportGroup.INCOMPLETE)
 
         call_args = self.anki_connector.add_notes.call_args
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
@@ -280,7 +280,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+        self.use_case.execute(SourceScope.source(1), group=ExportGroup.INCOMPLETE)
 
         call_args = self.anki_connector.add_notes.call_args
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
@@ -304,7 +304,7 @@ class TestSyncToAnkiUseCase:
 
         exists_path = "backend.application.utils.anki_note_builders.os.path.exists"
         with patch(exists_path, return_value=True):
-            self.use_case.execute(source_id=1, group=ExportGroup.READY)
+            self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         call_args = self.anki_connector.add_notes.call_args
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
@@ -329,7 +329,7 @@ class TestSyncToAnkiUseCase:
 
         exists_path = "backend.application.utils.anki_note_builders.os.path.exists"
         with patch(exists_path, return_value=True):
-            self.use_case.execute(source_id=1, group=ExportGroup.READY)
+            self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         note = self.anki_connector.add_notes.call_args.kwargs["notes"][0]
         assert note["Image"] == '<img src="1_screenshot.webp">'
@@ -346,7 +346,7 @@ class TestSyncToAnkiUseCase:
 
         exists_path = "backend.application.utils.anki_note_builders.os.path.exists"
         with patch(exists_path, return_value=True):
-            self.use_case.execute(source_id=1, group=ExportGroup.READY)
+            self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         note = self.anki_connector.add_notes.call_args.kwargs["notes"][0]
         assert "Image" not in note
@@ -360,7 +360,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        self.use_case.execute(source_id=1, group=ExportGroup.READY)
+        self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         call_args = self.anki_connector.add_notes.call_args
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
@@ -377,7 +377,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        result = self.use_case.execute_scope(SourceScope.all(), ExportGroup.INCOMPLETE)
+        result = self.use_case.execute(SourceScope.all(), ExportGroup.INCOMPLETE)
 
         assert result.total == 2
         assert result.added == 2
@@ -391,7 +391,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        result = self.use_case.execute_scope(SourceScope.all(), ExportGroup.INCOMPLETE)
+        result = self.use_case.execute(SourceScope.all(), ExportGroup.INCOMPLETE)
 
         assert result.total == 1
         assert result.added == 1
@@ -410,20 +410,20 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        ready = self.use_case.execute(source_id=1, group=ExportGroup.READY)
+        ready = self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
         notes = [c.kwargs["notes"][0]["Target"] for c in self._added_note_calls()]
         assert ready.total == 1
         assert notes == ["ready"]
 
         self.anki_connector.add_notes.reset_mock()
-        incomplete = self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+        incomplete = self.use_case.execute(SourceScope.source(1), group=ExportGroup.INCOMPLETE)
         notes = [c.kwargs["notes"][0]["Target"] for c in self._added_note_calls()]
         assert incomplete.total == 2
         assert notes == ["no_meaning", "no_audio"]
 
     def test_all_scope_empty_when_no_learn(self) -> None:
         self.cards.put([])
-        result = self.use_case.execute_scope(SourceScope.all(), ExportGroup.READY)
+        result = self.use_case.execute(SourceScope.all(), ExportGroup.READY)
         assert result.total == 0
         assert result.added == 0
 
@@ -439,7 +439,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        self.use_case.execute(source_id=1, group=ExportGroup.READY)
+        self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         call_args = self.anki_connector.add_notes.call_args
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
@@ -454,7 +454,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        self.use_case.execute(source_id=1, group=ExportGroup.READY)
+        self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         call_args = self.anki_connector.add_notes.call_args
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
@@ -475,7 +475,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        self.use_case.execute(source_id=1, group=ExportGroup.READY)
+        self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         call_args = self.anki_connector.add_notes.call_args
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
@@ -500,7 +500,7 @@ class TestSyncToAnkiUseCase:
         self.anki_connector.is_available.return_value = True
         self.anki_connector.add_notes.return_value = [12345]
 
-        self.use_case.execute(source_id=1, group=ExportGroup.READY)
+        self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         call_args = self.anki_connector.add_notes.call_args
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
@@ -546,7 +546,7 @@ class TestSyncToAnkiUseCase:
 
         exists_path = "backend.application.utils.anki_note_builders.os.path.exists"
         with patch(exists_path, return_value=False):
-            self.use_case.execute(source_id=1, group=ExportGroup.READY)
+            self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         call_args = self.anki_connector.add_notes.call_args
         note = call_args.kwargs.get("notes") or call_args[1].get("notes") or call_args[0][2]
@@ -572,7 +572,7 @@ class TestSyncRefusesIncompleteNoteType:
             connector,
             settings_repo,
             MagicMock(),
-            empty_scope_resolver(),
+            sources_scope_resolver(1, 99),
         )
         return use_case, connector
 
@@ -580,7 +580,7 @@ class TestSyncRefusesIncompleteNoteType:
         use_case, connector = self._use_case(["Sentence", "Target", "Meaning"])
 
         with pytest.raises(AnkiNoteTypeIncompleteError) as error:
-            use_case.execute(source_id=1, group=ExportGroup.READY)
+            use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         assert error.value.note_type == "Main"
         assert "AudioTTS" in error.value.missing_fields
@@ -591,7 +591,7 @@ class TestSyncRefusesIncompleteNoteType:
         use_case, connector = self._use_case(None)
 
         with pytest.raises(AnkiNoteTypeIncompleteError, match="is not in Anki"):
-            use_case.execute(source_id=1, group=ExportGroup.READY)
+            use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
         connector.add_notes.assert_not_called()
 
 
@@ -623,7 +623,7 @@ class TestSyncCollectionScope:
             ),
         )
 
-        result = use_case.execute_scope(SourceScope.collection(5), ExportGroup.READY)
+        result = use_case.execute(SourceScope.collection(5), ExportGroup.READY)
 
         pushed = [c.kwargs["notes"][0]["Target"] for c in connector.add_notes.call_args_list]
         assert result.total == 1
@@ -647,13 +647,13 @@ class TestSyncWhenAnkiIsOffline:
             self.anki_connector,
             settings_repo,
             renderer,
-            empty_scope_resolver(),
+            sources_scope_resolver(1, 99),
         )
 
     def test_an_export_with_nothing_new_does_not_ask_anki(self) -> None:
         self.anki_connector.is_available.return_value = False
 
-        result = self.use_case.execute(source_id=1, group=ExportGroup.READY)
+        result = self.use_case.execute(SourceScope.source(1), group=ExportGroup.READY)
 
         assert result.total == 0
         self.anki_connector.is_available.assert_not_called()
@@ -665,14 +665,14 @@ class TestSyncWhenAnkiIsOffline:
         ])
 
         with pytest.raises(AnkiNotAvailableError):
-            self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+            self.use_case.execute(SourceScope.source(1), group=ExportGroup.INCOMPLETE)
 
     def test_an_exported_word_records_its_note(self) -> None:
         self.cards.put([
             _make_candidate(1, "burnout", WordStatus.LEARN),
         ])
 
-        result = self.use_case.execute(source_id=1, group=ExportGroup.INCOMPLETE)
+        result = self.use_case.execute(SourceScope.source(1), group=ExportGroup.INCOMPLETE)
 
         assert result.added == 1
         assert self.cards.bound_notes() == [(12345, "burnout", "NOUN")]
@@ -702,10 +702,10 @@ class TestSyncInOneBatch:
         renderer = MagicMock()
         renderer.render_recognition.return_value = NoteTemplates("F", "B", "")
         use_case = cards.sync(
-            connector, settings, renderer, empty_scope_resolver(), user_vocabulary(known),
+            connector, settings, renderer, sources_scope_resolver(1, 99), user_vocabulary(known),
         )
 
-        result = use_case.execute_scope(SourceScope.all(), ExportGroup.READY)
+        result = use_case.execute(SourceScope.all(), ExportGroup.READY)
 
         assert result.added == self.CARDS
         assert len(cards.bindings) == self.CARDS

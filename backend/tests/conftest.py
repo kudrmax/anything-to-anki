@@ -11,6 +11,9 @@ import pytest
 TEST_DATA_DIR = tempfile.mkdtemp(prefix="anything-to-anki-tests-")
 os.environ["DATA_DIR"] = TEST_DATA_DIR
 os.environ["MEDIA_ROOT"] = os.path.join(TEST_DATA_DIR, "media")
+# The app serves the web build, when there is one, for every GET no API route takes; tests
+# must see the API alone, whether or not the web app was built in this copy.
+os.environ["FRONTEND_DIST"] = os.path.join(TEST_DATA_DIR, "no-web-build")
 
 _ANKI_CONNECT_POST = "backend.infrastructure.adapters.anki_connect_connector.httpx.post"
 

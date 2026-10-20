@@ -20,7 +20,6 @@ export function App() {
           <Route path="/calibrate" element={<ErrorBoundary><CalibrateScreen /></ErrorBoundary>} />
           <Route path="/queue" element={<ErrorBoundary><QueueScreen /></ErrorBoundary>} />
           <Route path="/usage" element={<ErrorBoundary><UsageScreen /></ErrorBoundary>} />
-          <Route path="/sources/:id/export" element={<ErrorBoundary><ExportScreen /></ErrorBoundary>} />
           <Route path="/export" element={<ErrorBoundary><ExportScreen /></ErrorBoundary>} />
           <Route path="/review" element={<ErrorBoundary><ReviewScreen /></ErrorBoundary>} />
           <Route path="/" element={<ErrorBoundary><SourcesScreen /></ErrorBoundary>} />

@@ -35,10 +35,10 @@ describe('ExportScreen scope', () => {
     vi.restoreAllMocks()
   })
 
-  const open = async () => {
+  const open = async (entry: string | { pathname: string; search: string; state: unknown } = `/export?scope=${SCOPE_ID}`) => {
     await act(async () => {
       root.render(
-        <MemoryRouter initialEntries={[`/export?scope=${SCOPE_ID}`]}>
+        <MemoryRouter initialEntries={[entry]}>
           <Routes><Route path="/export" element={<ExportScreen />} /></Routes>
         </MemoryRouter>,
       )
@@ -48,7 +48,7 @@ describe('ExportScreen scope', () => {
   it('loads the scope and shows its title', async () => {
     const cards = vi.spyOn(api, 'getExportCards').mockResolvedValue(EXPORT)
     await open()
-    expect(cards).toHaveBeenCalledWith(undefined, SCOPE_ID)
+    expect(cards).toHaveBeenCalledWith(SCOPE_ID)
     expect(container.querySelector('h1')?.textContent).toBe('Friends')
   })
 
@@ -58,7 +58,23 @@ describe('ExportScreen scope', () => {
     await open()
     const button = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('Add to Anki'))
     await act(async () => { button?.click() })
-    expect(sync).toHaveBeenCalledWith('ready', undefined, SCOPE_ID)
+    expect(sync).toHaveBeenCalledWith('ready', SCOPE_ID)
+  })
+
+  it('exports a single source through its scope', async () => {
+    const cards = vi.spyOn(api, 'getExportCards').mockResolvedValue(EXPORT)
+    await open('/export?scope=source-7')
+    expect(cards).toHaveBeenCalledWith('source-7')
+  })
+
+  it('goes back only where the opening screen asked', async () => {
+    vi.spyOn(api, 'getExportCards').mockResolvedValue(EXPORT)
+    await open()
+    expect(container.querySelector('[aria-label="Back"]')).toBeNull()
+    act(() => root.unmount())
+    root = createRoot(container)
+    await open({ pathname: '/export', search: '?scope=source-7', state: { back: '/review?scope=source-7' } })
+    expect(container.querySelector('[aria-label="Back"]')).not.toBeNull()
   })
 
   it('shows the empty state when everything is in Anki', async () => {

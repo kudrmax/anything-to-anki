@@ -164,6 +164,6 @@ def test_a_decision_phrase_waits_for_export_though_another_phrase_was_exported(
         SqlaCandidateRepository(bench.session), SqlaOccurrenceRepository(bench.session),
         decisions.word_states, decisions.vocabulary,
     )
-    batch = queue.for_source(1)
+    batch = queue.for_sources([1])
     assert [card.phrase_id for card in batch.pending] == [phrase_id_of(1)]
     assert batch.exported_count == 0
