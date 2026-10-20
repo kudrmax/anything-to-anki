@@ -269,4 +269,16 @@ describe('AddSourceForm', () => {
 
     expect(addSource).toHaveBeenLastCalledWith(BATCH_TEXT, '', '', [], { collection: null, rule: 'Part {{n}}', titles: {} })
   })
+
+  it('names the file without subtitles when several are added', async () => {
+    vi.spyOn(api, 'addSource').mockRejectedValue(
+      new Error('422: {"detail":{"error":"subtitles_not_available","message":"b.mkv: No subtitles"}}'),
+    )
+    await render()
+    await paste(BATCH_TEXT)
+    await described()
+    await act(async () => addButton()!.click())
+
+    expect(text()).toContain('b.mkv: No subtitles')
+  })
 })

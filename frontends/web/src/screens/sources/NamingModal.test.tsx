@@ -107,4 +107,46 @@ describe('NamingModal', () => {
 
     expect(rows()).toEqual(['ch1', 'ch2'])
   })
+
+  it('explains a bad rule in words', async () => {
+    renderNames.mockRejectedValue(new Error('422: {"detail":{"message":"Titles must contain {{n}} or {{title}}"}}'))
+    await render()
+
+    expect(body().textContent).toContain('Titles must contain {{n}} or {{title}}')
+    expect(body().textContent).not.toContain('detail')
+  })
+
+  it('takes a typed name as a new collection without picking it', async () => {
+    await render()
+    await act(async () => { collectionField().focus(); setValue(collectionField(), 'Dune') })
+    await act(async () => button('Add').click())
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ collection: { existing_id: null, new_name: 'Dune' } }))
+  })
+
+  it('takes a typed existing name as that collection', async () => {
+    await render()
+    await act(async () => { collectionField().focus(); setValue(collectionField(), 'atomic habits') })
+    await act(async () => button('Add').click())
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ collection: { existing_id: 1, new_name: null } }))
+  })
+
+  it('takes a cleared field as no collection', async () => {
+    await act(async () => root.render(
+      <NamingModal required={{ ...REQUIRED, default_collection: { existing_id: 2, new_name: null } }} tree={tree} onCancel={() => {}} onConfirm={onConfirm} />,
+    ))
+    await act(async () => { collectionField().focus(); setValue(collectionField(), '') })
+    await act(async () => button('Add').click())
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ collection: null }))
+  })
+
+  it('closes the collection list on Escape in the field', async () => {
+    await render()
+    await act(async () => { collectionField().focus(); setValue(collectionField(), 'Atom') })
+    await act(async () => { collectionField().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+
+    expect(options()).toEqual([])
+  })
 })

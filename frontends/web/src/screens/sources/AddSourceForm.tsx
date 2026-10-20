@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
 import type { CollectionTree, InputDescription, InputKind, Naming, NamingRequired, Question } from '@/api/types'
 import { Plus } from 'lucide-react'
+import { messageOf } from '@/lib/apiError'
 import { nativeHost } from '@/lib/nativeHost'
 import { PATH_SEPARATOR, withDroppedPaths } from '@/lib/text/sourceInput'
 import { phraseWords, pickedIndices, toggled } from '@/lib/text/words'
@@ -35,8 +36,6 @@ interface AddSourceFormProps {
   onReload: () => Promise<void>
   onToast: (message: string) => void
 }
-
-const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
 export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
   // Режим, который пользователь переключил руками; пока его нет — режим, предложенный backend.
@@ -139,9 +138,9 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
     try {
       await action()
     } catch (e) {
-      const message = messageOf(e)
-      if (message.includes(NO_SUBTITLES_ERROR)) onToast('Subtitles are not available for this video')
-      else setError(message)
+      const raw = e instanceof Error ? e.message : String(e)
+      if (raw.includes(NO_SUBTITLES_ERROR) && !several) onToast('Subtitles are not available for this video')
+      else setError(messageOf(e))
     } finally {
       setAdding(false)
     }

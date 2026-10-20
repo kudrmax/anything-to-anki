@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react'
 import { ArrowRight, Undo2 } from 'lucide-react'
 import { api } from '@/api/client'
 import type { CollectionChoice, CollectionNode, CollectionTree, Naming, NamingRequired } from '@/api/types'
+import { messageOf } from '@/lib/apiError'
 import { Button, Field, Icon, Label, Modal, Text } from '@/ui'
 import { RuleField } from './RuleField'
 import css from './NamingModal.module.css'
@@ -26,8 +27,6 @@ interface Existing {
 function flatten(nodes: CollectionNode[], path: string[] = []): Existing[] {
   return nodes.flatMap(node => [{ id: node.id, name: node.name, path }, ...flatten(node.children, [...path, node.name])])
 }
-
-const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
 /** Окно названий: коллекция и правило для всех источников одного добавления, строку можно переписать руками. */
 export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModalProps) {
@@ -57,6 +56,7 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
     }
   }, [rule, collectionName, required.items])
 
+  const listRef = useRef<HTMLDivElement>(null)
   const query = search.trim().toLowerCase()
   const matches = existing.filter(e => e.name.toLowerCase().includes(query))
   const canCreate = query !== '' && !existing.some(e => e.path.length === 0 && e.name.toLowerCase() === query)
@@ -65,6 +65,26 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
     setCollection(choice)
     setSearch(nameOf(choice) ?? (choice?.new_name ?? ''))
     setPicking(false)
+  }
+
+  /** Набранное без выбора из списка: пусто — без коллекции, имя существующей — она, иначе новая. */
+  const type = (value: string) => {
+    setSearch(value)
+    setPicking(true)
+    const typed = value.trim()
+    const same = existing.find(e => e.path.length === 0 && e.name.toLowerCase() === typed.toLowerCase())
+    setCollection(!typed ? null : same ? { existing_id: same.id, new_name: null } : { existing_id: null, new_name: typed })
+  }
+
+  const closeOnBlur = (e: FocusEvent) => {
+    if (!listRef.current?.contains(e.relatedTarget as Node | null)) setPicking(false)
+  }
+
+  const closeOnEscape = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && picking) {
+      e.stopPropagation()
+      setPicking(false)
+    }
   }
 
   const confirm = () => onConfirm({ collection, rule, titles: edits })
@@ -89,10 +109,12 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
           placeholder={NO_COLLECTION}
           value={search}
           onFocus={() => setPicking(true)}
-          onChange={e => { setSearch(e.target.value); setPicking(true) }}
+          onBlur={closeOnBlur}
+          onKeyDown={closeOnEscape}
+          onChange={e => type(e.target.value)}
         />
         {picking && (
-          <div className={css.options} role="listbox" aria-label="Collection">
+          <div ref={listRef} className={css.options} role="listbox" aria-label="Collection">
             <button type="button" role="option" aria-selected={collection === null} className={css.option} onClick={() => pick(null)}>{NO_COLLECTION}</button>
             {matches.map(e => (
               <button key={e.id} type="button" role="option" aria-selected={collection?.existing_id === e.id} className={css.option} onClick={() => pick({ existing_id: e.id, new_name: null })}>
