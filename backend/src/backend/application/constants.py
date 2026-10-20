@@ -35,3 +35,4 @@ BOOK_CHAPTER_TITLE_SETTING: str = "book_chapter_title_template"
 # How the sources list is grouped and sorted: one choice for every set of sources.
 SOURCE_GROUPING_SETTING: str = "source_grouping"
 SOURCE_SORT_SETTING: str = "source_sort"
+SOURCE_SORT_DIRECTION_SETTING: str = "source_sort_direction"

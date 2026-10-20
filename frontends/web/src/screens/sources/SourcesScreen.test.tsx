@@ -55,7 +55,7 @@ describe('SourcesScreen', () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     vi.spyOn(api, 'getStats').mockResolvedValue({ learn_count: 0, known_word_count: 0, candidate_count: 0 } as Stats)
     vi.spyOn(api, 'getCollectionTree').mockResolvedValue(tree)
-    vi.spyOn(api, 'getSettings').mockResolvedValue({ source_grouping: 'stage', source_sort: 'added' } as Settings)
+    vi.spyOn(api, 'getSettings').mockResolvedValue({ source_grouping: 'stage', source_sort: 'added', source_sort_direction: 'forward' } as Settings)
     vi.spyOn(api, 'getSourceBoard').mockImplementation((scope: Scope) =>
       scope === 999 ? Promise.reject(new Error('404: {"detail":"Collection not found"}')) : Promise.resolve(board))
     host = document.createElement('div')
@@ -148,36 +148,61 @@ describe('SourcesScreen', () => {
     expect(button('Continue', row('Second')).className).not.toMatch(/fill/)
   })
 
-  it('shows the grouping and the sort the settings hold', async () => {
+  const openView = (name: 'Group' | 'Sort') => {
+    act(() => button('Actions').click())
+    const entry = [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+      .find(el => el.textContent?.startsWith(name))!
+    act(() => entry.click())
+    return entry
+  }
+
+  it('keeps the grouping and the sort in the actions menu, showing what the settings hold', async () => {
     await render()
-    expect(button('Group: By status')).toBeDefined()
-    expect(button('Sort: Date added')).toBeDefined()
+    expect(button('Group: By status')).toBeUndefined()
+    act(() => button('Actions').click())
+    const entries = [...document.body.querySelectorAll('[role="menuitem"]')].map(el => el.textContent)
+    expect(entries).toContain('GroupBy status')
+    expect(entries).toContain('SortDate added')
   })
 
   it('saves a new sort in the settings and reloads the board', async () => {
-    const update = vi.spyOn(api, 'updateSettings').mockResolvedValue({ source_grouping: 'stage', source_sort: 'name' } as Settings)
+    const update = vi.spyOn(api, 'updateSettings').mockResolvedValue({ source_grouping: 'stage', source_sort: 'name', source_sort_direction: 'forward' } as Settings)
     await render()
     const loads = vi.mocked(api.getSourceBoard).mock.calls.length
 
-    act(() => button('Sort: Date added').click())
+    openView('Sort')
     act(() => button('Name').click())
     await settle()
 
     expect(update).toHaveBeenCalledWith({ source_sort: 'name' })
     expect(vi.mocked(api.getSourceBoard).mock.calls.length).toBe(loads + 1)
-    expect(button('Sort: Name')).toBeDefined()
+    expect(openView('Sort').textContent).toBe('SortName')
+  })
+
+  it('reverses the sort, naming the direction after the sort', async () => {
+    const update = vi.spyOn(api, 'updateSettings').mockResolvedValue({ source_grouping: 'stage', source_sort: 'added', source_sort_direction: 'reverse' } as Settings)
+    await render()
+
+    openView('Sort')
+    act(() => button('Oldest first').click())
+    await settle()
+
+    expect(update).toHaveBeenCalledWith({ source_sort_direction: 'reverse' })
+    openView('Sort')
+    expect(button('Oldest first').querySelector('svg')).not.toBeNull()
+    expect(button('Newest first').querySelector('svg')).toBeNull()
   })
 
   it('saves a new grouping in the settings', async () => {
-    const update = vi.spyOn(api, 'updateSettings').mockResolvedValue({ source_grouping: 'none', source_sort: 'added' } as Settings)
+    const update = vi.spyOn(api, 'updateSettings').mockResolvedValue({ source_grouping: 'none', source_sort: 'added', source_sort_direction: 'forward' } as Settings)
     await render()
 
-    act(() => button('Group: By status').click())
+    openView('Group')
     act(() => button('None').click())
     await settle()
 
     expect(update).toHaveBeenCalledWith({ source_grouping: 'none' })
-    expect(button('Group: None')).toBeDefined()
+    expect(openView('Group').textContent).toBe('GroupNone')
   })
 
   it('renders an ungrouped board as one list without a heading', async () => {

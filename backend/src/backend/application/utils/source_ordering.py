@@ -2,15 +2,21 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.application.constants import SOURCE_GROUPING_SETTING, SOURCE_SORT_SETTING
+from backend.application.constants import (
+    SOURCE_GROUPING_SETTING,
+    SOURCE_SORT_DIRECTION_SETTING,
+    SOURCE_SORT_SETTING,
+)
 from backend.domain.services.source_order import SourceFacts, arrange
 from backend.domain.services.source_stage import source_stage
 from backend.domain.value_objects.source_order import (
     DEFAULT_SOURCE_GROUPING,
     DEFAULT_SOURCE_SORT,
+    DEFAULT_SOURCE_SORT_DIRECTION,
     SourceGrouping,
     SourceOrder,
     SourceSort,
+    SourceSortDirection,
 )
 
 if TYPE_CHECKING:
@@ -49,6 +55,9 @@ class SourceOrdering:
                 self._settings.get(SOURCE_GROUPING_SETTING) or DEFAULT_SOURCE_GROUPING,
             ),
             sort=SourceSort(self._settings.get(SOURCE_SORT_SETTING) or DEFAULT_SOURCE_SORT),
+            direction=SourceSortDirection(
+                self._settings.get(SOURCE_SORT_DIRECTION_SETTING) or DEFAULT_SOURCE_SORT_DIRECTION,
+            ),
         )
 
     def arrange(

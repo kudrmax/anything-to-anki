@@ -27,6 +27,8 @@ interface ScopeHeaderProps {
   onNewSubcollection: () => void
   onMoveTo: () => void
   onDelete: () => void
+  /** Группировка и сортировка списка: в том же меню, отдельной группой. */
+  viewItems: MenuItem[]
 }
 
 /** Длиннее этого путь сворачивает середину: «первый › … › родитель › текущая». */
@@ -52,10 +54,10 @@ function Crumbs({ ancestors, onOpen }: { ancestors: CollectionNode[]; onOpen: (i
 }
 
 /** Высота и места кнопок не зависят от области и глубины: при переключении ничего не прыгает. */
-export function ScopeHeader({ title, ancestors, counts, node, processing, onOpenAncestor, onProcessAll, onReview, onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onDelete }: ScopeHeaderProps) {
+export function ScopeHeader({ title, ancestors, counts, node, processing, onOpenAncestor, onProcessAll, onReview, onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onDelete, viewItems }: ScopeHeaderProps) {
   const menuItems: MenuItem[] = (() => {
-    if (node) return collectionMenuItems(node, { onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onDelete })
-    return counts ? scopeMenuItems(counts, { onExport, onOperation }) : []
+    if (node) return collectionMenuItems(node, { onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onDelete, viewItems })
+    return counts ? scopeMenuItems(counts, { onExport, onOperation, viewItems }) : []
   })()
   return (
     <header className={css.scopeHeader}>

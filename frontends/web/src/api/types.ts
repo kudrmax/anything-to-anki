@@ -23,6 +23,7 @@ export type SourceStage = 'in_progress' | 'preparing' | 'ready' | 'reviewed'
 /** Один на всё приложение выбор порядка источников: группировка и сортировка внутри групп. */
 export type SourceGrouping = 'stage' | 'none'
 export type SourceSort = 'added' | 'name' | 'last_studied'
+export type SourceSortDirection = 'forward' | 'reverse'
 
 /** Решённые карточки среди Ready: одни и те же числа у источника, его ревью и коллекции. */
 export interface Progress {
@@ -490,6 +491,7 @@ export interface Settings {
   book_chapter_title_template: string
   source_grouping: SourceGrouping
   source_sort: SourceSort
+  source_sort_direction: SourceSortDirection
 }
 
 export interface FrequentWordThresholdOption {

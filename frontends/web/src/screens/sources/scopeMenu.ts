@@ -10,6 +10,8 @@ export interface ScopeMenuHandlers {
   onNewSubcollection?: () => void
   onMoveTo?: () => void
   onDelete?: () => void
+  /** Вид списка (группировка, сортировка): отдельной группой перед Delete. */
+  viewItems?: MenuItem[]
 }
 
 const OPERATION_LABEL: Record<SetOperation, string> = {
@@ -19,7 +21,7 @@ const OPERATION_LABEL: Record<SetOperation, string> = {
 
 /** Одно меню «…» для источника и набора: в строке источника, в шапке области и в дереве. */
 export function scopeMenuItems(offer: SetOffer, handlers: ScopeMenuHandlers): MenuItem[] {
-  const { onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onDelete } = handlers
+  const { onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onDelete, viewItems = [] } = handlers
   return [
     ...(offer.can_export ? [{ label: 'Export', icon: Upload, onSelect: onExport }] : []),
     ...(onRename ? [{ label: 'Rename', icon: Pencil, onSelect: onRename }] : []),
@@ -32,12 +34,13 @@ export function scopeMenuItems(offer: SetOffer, handlers: ScopeMenuHandlers): Me
       hint: offer.operation_hint ?? undefined,
       onSelect: () => onOperation(operation),
     })),
+    ...viewItems.map((item, index) => (index === 0 ? { ...item, separated: true } : item)),
     ...(onDelete ? [{ label: 'Delete', icon: Trash2, danger: true, separated: true, onSelect: onDelete }] : []),
   ]
 }
 
 /** Меню коллекции одно и в дереве, и в шапке: подколлекция — только там, где она поместится. */
-export function collectionMenuItems(node: CollectionNode, handlers: Required<ScopeMenuHandlers>): MenuItem[] {
+export function collectionMenuItems(node: CollectionNode, handlers: Required<Omit<ScopeMenuHandlers, 'viewItems'>> & Pick<ScopeMenuHandlers, 'viewItems'>): MenuItem[] {
   return scopeMenuItems(node.counts, {
     ...handlers,
     onNewSubcollection: node.accepts_collections ? handlers.onNewSubcollection : undefined,

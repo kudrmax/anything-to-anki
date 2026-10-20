@@ -41,7 +41,7 @@ describe('ScopeHeader', () => {
     <ScopeHeader
       title={current?.name ?? 'All sources'} ancestors={ancestors} counts={shown} node={current} processing={processing}
       onOpenAncestor={onOpenAncestor} onProcessAll={noop} onReview={onReview} onExport={noop} onOperation={onOperation}
-      onRename={noop} onNewSubcollection={noop} onMoveTo={noop} onDelete={noop}
+      onRename={noop} onNewSubcollection={noop} onMoveTo={noop} onDelete={noop} viewItems={[]}
     />,
   ))
   const title = () => host.querySelector('h1')!

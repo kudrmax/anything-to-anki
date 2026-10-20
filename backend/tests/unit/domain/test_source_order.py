@@ -5,7 +5,12 @@ from datetime import UTC, datetime
 import pytest
 from backend.domain.entities.source import Source
 from backend.domain.services.source_order import SourceFacts, arrange, oldest_added_first
-from backend.domain.value_objects.source_order import SourceGrouping, SourceOrder, SourceSort
+from backend.domain.value_objects.source_order import (
+    SourceGrouping,
+    SourceOrder,
+    SourceSort,
+    SourceSortDirection,
+)
 from backend.domain.value_objects.source_stage import SourceStage
 from backend.domain.value_objects.source_status import SourceStatus
 
@@ -124,3 +129,30 @@ def test_oldest_added_first_is_the_added_order_reversed() -> None:
         facts(2, added=_day(2)).source,
     ]
     assert [s.id for s in oldest_added_first(sources)] == [3, 2, 1]
+
+
+REVERSE = SourceSortDirection.REVERSE
+
+
+def test_reverse_flips_names_and_dates() -> None:
+    found = [
+        facts(1, added=_day(1), title="ch2"),
+        facts(2, added=_day(2), title="ch10"),
+        facts(3, added=_day(3), title="ch1"),
+    ]
+    assert ordered(found, SourceOrder(FLAT, SourceSort.NAME, REVERSE)) == [(None, [2, 1, 3])]
+    assert ordered(found, SourceOrder(FLAT, SourceSort.ADDED, REVERSE)) == [(None, [1, 2, 3])]
+
+
+def test_reverse_last_studied_keeps_the_never_studied_last() -> None:
+    found = [
+        facts(1, added=_day(1), studied=_day(10, 9, 0)),
+        facts(2, added=_day(2)),
+        facts(3, added=_day(3), studied=_day(10, 9, 5)),
+    ]
+    order = SourceOrder(FLAT, SourceSort.LAST_STUDIED, REVERSE)
+    assert ordered(found, order) == [(None, [1, 3, 2])]
+
+
+def test_the_default_direction_is_forward() -> None:
+    assert SourceOrder().direction is SourceSortDirection.FORWARD

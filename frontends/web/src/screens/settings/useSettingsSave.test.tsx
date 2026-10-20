@@ -15,7 +15,7 @@ vi.mock('@/api/client', () => ({
 }))
 
 const LOADED = {
-  ai_model: 'sonnet', usage_group_order: ['a', 'b'], source_grouping: 'stage', source_sort: 'added',
+  ai_model: 'sonnet', usage_group_order: ['a', 'b'], source_grouping: 'stage', source_sort: 'added', source_sort_direction: 'reverse',
 }
 
 describe('useSettings save', () => {
