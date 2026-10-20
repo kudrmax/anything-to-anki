@@ -3,13 +3,14 @@ import { Brackets, Check, ChevronDown, ChevronUp, Target, Volume2 } from 'lucide
 import type { CandidateCloze, DecisionButton, EnrichmentStatus, PhraseOrigin, StoredCandidate } from '@/api/types'
 import { CLOZE_HINT_LABEL } from '@/lib/clozeHints'
 import { FREQ_BAND_LABEL, isDivider, meaningParts, mediaUrl, nonEmptyLines, primaryUsageGroup } from '@/lib/text/meaning'
-import { Button, Chip, Icon, MediaThumb, Spinner, Text } from '@/ui'
+import { KEY_LABEL } from '@/lib/hotkeys'
+import { Button, Chip, Icon, Kbd, MediaThumb, Spinner, Text } from '@/ui'
 import { targetText } from '@/lib/text/phraseParts'
 import { CardPhrase } from './CardPhrase'
 import { CefrTooltip } from './CefrTooltip'
 import { ClozePanel } from './ClozePanel'
 import { DecisionButtons, PhraseTools } from './PhraseActions'
-import type { Review } from './useReview'
+import { audioUrlForCandidate, type Review } from './useReview'
 import { useClozeEditor } from './useClozeEditor'
 import { usePhraseEditor } from './usePhraseEditor'
 import phrase from '@/ui/phrase.module.css'
@@ -22,8 +23,7 @@ interface PhraseCardProps {
 
 const GENERATED_PHRASE = 'generated phrase'
 /** Цифры решений видны на кнопках, здесь — только неочевидные клавиши. */
-const KEYS_HINT = '←→ · A · ⌘V'
-const KEYS_HINT_TITLE = '←→ ↑↓ — phrases · Space — learn · A — audio · ⌘V — paste a picture'
+const KEYS_HINT = '←→ phrases · Space learn · ⌘V paste a picture'
 
 /** Подпись нажатой кнопки рядом с фразой; какая нажата, решает backend. */
 const DECIDED_LABEL: Record<DecisionButton, string> = { learn: 'Learn', cloze: 'Cloze', known: 'Known', skip: 'Skipped' }
@@ -88,9 +88,11 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   const frequency = candidate.frequency_band ? FREQ_BAND_LABEL[candidate.frequency_band]?.toLowerCase() : null
   const facts = [frequency, usage].filter((fact): fact is string => Boolean(fact))
 
+  // Клавиша аудио играет основное аудио карточки: она подписана на его чипе.
+  const keyAudioUrl = audioUrlForCandidate(candidate)
   const audioChip = (label: string, url: string | null, title: string) => url && (
     <Chip small on={player.playingUrl === url} title={title} onClick={() => player.toggle(url)}>
-      <Icon as={Volume2} size="s" />{label}
+      <Icon as={Volume2} size="s" />{label}{url === keyAudioUrl && <Kbd>{KEY_LABEL.audio}</Kbd>}
     </Chip>
   )
 
@@ -186,7 +188,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
         {/* Десктоп: решения — в нижней полосе карточки; на телефоне они в панели под карточкой. */}
         <div className={css.footDecisions}>
           <DecisionButtons candidate={candidate} review={review} />
-          <span className={css.footHint} title={KEYS_HINT_TITLE}>{KEYS_HINT}</span>
+          <span className={css.footHint}>{KEYS_HINT}</span>
         </div>
         <div className={css.facts}>
           {candidate.cloze && (

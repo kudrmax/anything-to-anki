@@ -118,6 +118,7 @@
 .exportCount { color: var(--ac); font-variant-numeric: tabular-nums; }
 .iconTrigger { width: var(--h); height: var(--h); justify-content: center; border-radius: var(--rc); color: var(--tx3); }
 .iconTrigger:hover:not(:disabled) { background: var(--soft); }
+.toolTrigger { width: auto; gap: var(--s3); padding: 0 var(--s3); }
 .headerTools { display: flex; align-items: center; gap: var(--s2); }
 .stepper { display: flex; align-items: center; gap: var(--s1); margin-right: var(--s3); }
 .position { padding-inline: var(--s3); font-size: var(--fs-s); color: var(--tx3); font-variant-numeric: tabular-nums; }

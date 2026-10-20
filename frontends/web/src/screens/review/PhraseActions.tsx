@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Check, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { ButtonCommand, CardButton, DecisionButton, FollowUpAction, StoredCandidate } from '@/api/types'
-import { allowedInClozeMarkup, isToolAction, KEY_LABEL, reviewAction, withKey, type ToolAction } from '@/lib/hotkeys'
+import { KEY_LABEL, OVERLAY, toolKey, type ToolAction } from '@/lib/hotkeys'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { phraseWordTexts } from '@/lib/text/phraseParts'
 import { toggled } from '@/lib/text/words'
@@ -213,25 +213,28 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   const markingCloze = review.clozeEditingId === id
   const imageBusy = busy.image
   useEffect(() => {
-    const open: Record<ToolAction, () => void> = {
-      image: () => { if (!imageBusy) setPickingImage(true) },
-      edit: () => editMenu.current?.open(),
-      regenerate: () => regenerateMenu.current?.open(),
-      report: () => reportMenu.current?.open(),
+    const menus = { edit: editMenu, regenerate: regenerateMenu, report: reportMenu }
+    const isOpen = (tool: ToolAction) => (tool === 'image' ? pickingImage : Boolean(menus[tool].current?.isOpen()))
+    const toggle = (tool: ToolAction) => {
+      if (tool === 'image') setPickingImage(open => !open && !imageBusy)
+      else if (isOpen(tool)) menus[tool].current?.close()
+      else menus[tool].current?.open()
     }
     const onKey = (e: KeyboardEvent) => {
-      const action = reviewAction(e)
-      if (!action || !isToolAction(action)) return
-      if (markingCloze && !allowedInClozeMarkup(action)) return
+      const tool = toolKey(e)
+      // В разметке cloze инструменты карточки не открываются.
+      if (!tool || markingCloze) return
+      // Пока открыто меню или окно, клавиша закрывает только открытое ею же.
+      if (document.querySelector(OVERLAY) && !isOpen(tool)) return
       e.preventDefault()
-      open[action]()
+      toggle(tool)
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [markingCloze, imageBusy])
+  }, [markingCloze, imageBusy, pickingImage])
 
   const menuTrigger = (icon: LucideIcon, label: string, action: ToolAction, isBusy: boolean, className?: string) => (
-    <Button variant="link" className={[css.iconTrigger, className].filter(Boolean).join(' ')} title={withKey(label, action)} aria-label={label}>
+    <Button variant="link" className={[css.iconTrigger, css.toolTrigger, className].filter(Boolean).join(' ')} title={label} aria-label={label} kbd={KEY_LABEL[action]}>
       {isBusy ? <Spinner /> : <Icon as={icon} />}
     </Button>
   )
@@ -239,7 +242,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   return (
     <div className={css.tools}>
       {isEditing && <IconButton icon={X} label="Cancel editing" active onClick={review.cancelEditing} />}
-      <IconButton icon={ImagePlus} label="Choose a picture of the word" title={withKey('Choose a picture of the word', 'image')} busy={busy.image} onClick={() => setPickingImage(true)} />
+      <IconButton icon={ImagePlus} label="Choose a picture of the word" kbd={KEY_LABEL.image} busy={busy.image} onClick={() => setPickingImage(true)} />
       <Menu ref={editMenu} items={editItems} trigger={menuTrigger(Pencil, 'Edit phrase', 'edit', false)} />
       <Menu ref={regenerateMenu} items={regenerateItems} trigger={menuTrigger(RefreshCw, 'Regenerate', 'regenerate', regenerating)} />
       <Menu

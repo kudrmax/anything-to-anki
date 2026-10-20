@@ -35,6 +35,8 @@ export interface MenuPage {
 /** Открыть меню не кликом, а, например, с клавиатуры. */
 export interface MenuHandle {
   open: () => void
+  close: () => void
+  isOpen: () => boolean
 }
 
 interface MenuProps {
@@ -51,7 +53,13 @@ interface MenuProps {
 export function Menu({ ref, trigger, items, footer, emptyText, align = 'end', openOn = 'click' }: MenuProps) {
   const [open, setOpen] = useState(false)
   const [pageLabel, setPageLabel] = useState<string | null>(null)
-  useImperativeHandle(ref, () => ({ open: () => { setPageLabel(null); setOpen(true) } }), [])
+  const openRef = useRef(open)
+  useEffect(() => { openRef.current = open }, [open])
+  useImperativeHandle(ref, () => ({
+    open: () => { setPageLabel(null); setOpen(true) },
+    close: () => setOpen(false),
+    isOpen: () => openRef.current,
+  }), [])
   const rootRef = useRef<HTMLSpanElement>(null)
 
   // Не удлиняем страницу: если снизу не хватает места, а сверху хватает — открываемся вверх.
