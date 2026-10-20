@@ -148,15 +148,11 @@ SERVICE_ERRORS: frozenset[str] = frozenset(
 class AIUnavailableError(RuntimeError):
     """The AI can answer no request now: no login, a blocked country, a spent limit."""
 
-    def __init__(self, message: str, *, vpn_required: bool = False) -> None:
-        super().__init__(message)
-        self.vpn_required = vpn_required
-
 
 def _ensure_country_allowed(country: str | None) -> None:
     if country is not None and country in BLOCKED_COUNTRIES:
         logger.error("Blocked country detected: %s. Turn on VPN.", country)
-        raise AIUnavailableError(f"Blocked country: {country}. Turn on VPN.", vpn_required=True)
+        raise AIUnavailableError(f"Blocked country: {country}. Turn on VPN.")
 
 
 class UsageInfo(BaseModel):
@@ -287,16 +283,9 @@ async def _call_ai(
         raise HTTPException(status_code=502, detail=f"AI call failed: {e}") from e
 
 
-class UnavailableDetail(BaseModel):
-    """What a 503 says: why the AI answers nothing, and whether a VPN fixes it."""
-
-    message: str
-    vpn_required: bool
-
-
 def _unavailable_response(error: AIUnavailableError) -> HTTPException:
-    detail = UnavailableDetail(message=str(error), vpn_required=error.vpn_required)
-    return HTTPException(status_code=503, detail=detail.model_dump())
+    """A 503 whose detail says why the AI answers nothing, ready to show to the user."""
+    return HTTPException(status_code=503, detail=str(error))
 
 
 class GenerateResponse(BaseModel):

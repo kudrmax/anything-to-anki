@@ -72,7 +72,7 @@ class _NoUsageRecorder(AIUsageRecorder):
 
 
 class _NoOutageRecorder(AIOutageRecorder):
-    def unavailable(self, reason: str, vpn_required: bool) -> None:
+    def unavailable(self, reason: str) -> None:
         pass
 
     def answered(self) -> None:

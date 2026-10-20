@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
-    Boolean,
     Float,
     ForeignKey,
     Index,
@@ -648,8 +647,6 @@ class AIOutageModel(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
-    since: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
-    vpn_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
 
 class SourceOperationModel(Base):

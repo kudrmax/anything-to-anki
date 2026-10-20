@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime  # noqa: TC003 — pydantic needs it at runtime
-
 from pydantic import BaseModel
 
 
 class AIOutageDTO(BaseModel):
-    """The AI answers no request. ``vpn_required`` — a VPN brings it back;
-    ``queue_waits`` — AI work stands in the queue until then."""
+    """The AI answers no request. ``reason`` — why, as the AI proxy said it;
+    ``queue_waits`` — AI work stands in the queue until the AI is back."""
 
     reason: str
-    since: datetime
-    vpn_required: bool
     queue_waits: bool
 
 

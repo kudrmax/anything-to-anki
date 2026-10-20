@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import delete, insert
 
 from backend.domain.ports.ai_outage_repository import AIOutageRepository
-from backend.domain.value_objects.ai_outage import AIOutage
 from backend.infrastructure.persistence.models import AIOutageModel
 
 if TYPE_CHECKING:
@@ -21,22 +19,16 @@ class SqlaAIOutageRepository(AIOutageRepository):
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def get(self) -> AIOutage | None:
+    def reason(self) -> str | None:
         model = self._session.get(AIOutageModel, OUTAGE_ROW_ID)
-        if model is None:
-            return None
-        return AIOutage(reason=model.reason, since=model.since, vpn_required=model.vpn_required)
+        return model.reason if model is not None else None
 
-    def report(self, reason: str, vpn_required: bool) -> None:
+    def report(self, reason: str) -> None:
         model = self._session.get(AIOutageModel, OUTAGE_ROW_ID)
         if model is None:
-            self._session.execute(insert(AIOutageModel).values(
-                id=OUTAGE_ROW_ID, reason=reason, since=datetime.now(tz=UTC),
-                vpn_required=vpn_required,
-            ))
+            self._session.execute(insert(AIOutageModel).values(id=OUTAGE_ROW_ID, reason=reason))
         else:
             model.reason = reason
-            model.vpn_required = vpn_required
         self._session.flush()
 
     def clear(self) -> None:

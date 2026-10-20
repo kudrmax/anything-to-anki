@@ -4,7 +4,7 @@ Revision ID: 0053
 Revises: 0052
 
 At most one row: any AI call that finds the AI unavailable writes it, any call the AI
-answers removes it. `vpn_required` marks a blocked country.
+answers removes it. `reason` is what the AI proxy said, ready to show.
 """
 import sqlalchemy as sa
 from alembic import op
@@ -20,8 +20,6 @@ def upgrade() -> None:
         "ai_outage",
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=False),
         sa.Column("reason", sa.Text, nullable=False),
-        sa.Column("since", sa.DateTime(), nullable=False),
-        sa.Column("vpn_required", sa.Boolean, nullable=False),
     )
 
 

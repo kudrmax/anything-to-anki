@@ -16,9 +16,9 @@ class SessionAIOutageRecorder(AIOutageRecorder):
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
         self._session_factory = session_factory
 
-    def unavailable(self, reason: str, vpn_required: bool) -> None:
+    def unavailable(self, reason: str) -> None:
         with self._session_factory() as session, session.begin():
-            SqlaAIOutageRepository(session).report(reason, vpn_required)
+            SqlaAIOutageRepository(session).report(reason)
 
     def answered(self) -> None:
         with self._session_factory() as session, session.begin():

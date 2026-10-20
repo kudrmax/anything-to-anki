@@ -148,10 +148,6 @@ class AIUnavailableError(AIServiceError):
 
     Nothing is wrong with the request itself: the same one succeeds once the AI is back."""
 
-    def __init__(self, detail: str, *, vpn_required: bool = False) -> None:
-        super().__init__(detail)
-        self.vpn_required = vpn_required
-
 
 class GenerationAlreadyRunningError(DomainError):
     """Raised when trying to start generation while one is already running."""

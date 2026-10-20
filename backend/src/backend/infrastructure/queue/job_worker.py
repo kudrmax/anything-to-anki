@@ -145,7 +145,7 @@ class JobWorker:
             return
         self._next_ai_check = loop.time() + AI_RETRY_DELAY
         with self._container.session_scope() as session:
-            if SqlaAIOutageRepository(session).get() is None:
+            if SqlaAIOutageRepository(session).reason() is None:
                 return
         try:
             await asyncio.to_thread(self._container.check_ai_available)

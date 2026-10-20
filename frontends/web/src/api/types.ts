@@ -848,10 +848,8 @@ export interface QueueSnapshot {
 }
 
 export interface AIOutage {
+  /** Why, as the AI proxy said it: "Blocked country: RU. Turn on VPN.", "Not logged in · Please run /login". */
   reason: string
-  since: string
-  /** A VPN brings the AI back: the host is in a blocked country. */
-  vpn_required: boolean
   /** AI work stands in the queue until the AI is back. */
   queue_waits: boolean
 }

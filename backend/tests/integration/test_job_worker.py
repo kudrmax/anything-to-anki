@@ -458,7 +458,7 @@ class TestAIOutage:
     ) -> None:
         monkeypatch.setattr(job_worker, "AI_RETRY_DELAY", 3600)
         with container.session_scope() as session:
-            SqlaAIOutageRepository(session).report(NOT_LOGGED_IN, vpn_required=False)
+            SqlaAIOutageRepository(session).report(NOT_LOGGED_IN)
         container.check_ai_available.side_effect = AIUnavailableError(NOT_LOGGED_IN)
         worker = JobWorker(container)  # type: ignore[arg-type]
 

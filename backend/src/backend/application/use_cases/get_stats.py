@@ -42,7 +42,7 @@ class GetStatsUseCase:
         queue_active_count = self._count_active(summary.values())
         candidate_count = self._candidate_repo.count_all()
         known_word_count = self._vocabulary.known_count()
-        outage = self._ai_outage_repo.get()
+        outage_reason = self._ai_outage_repo.reason()
         return StatsDTO(
             learning_count=learning_count,
             export_pending_count=export_pending_count,
@@ -50,13 +50,11 @@ class GetStatsUseCase:
             candidate_count=candidate_count,
             known_word_count=known_word_count,
             ai_outage=AIOutageDTO(
-                reason=outage.reason,
-                since=outage.since,
-                vpn_required=outage.vpn_required,
+                reason=outage_reason,
                 queue_waits=self._count_active(
                     summary.get(job_type.value, {}) for job_type in AI_JOB_TYPES
                 ) > 0,
-            ) if outage is not None else None,
+            ) if outage_reason is not None else None,
         )
 
     @staticmethod

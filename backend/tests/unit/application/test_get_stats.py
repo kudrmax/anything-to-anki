@@ -17,7 +17,7 @@ class TestGetStatsUseCase:
         self.job_repo = MagicMock()
         self.job_repo.get_queue_summary.return_value = {}
         self.ai_outage_repo = MagicMock()
-        self.ai_outage_repo.get.return_value = None
+        self.ai_outage_repo.reason.return_value = None
         self.use_case = GetStatsUseCase(
             candidate_repo=self.candidate_repo,
             vocabulary=user_vocabulary(self.known_word_repo),
