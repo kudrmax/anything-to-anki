@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.word_decision import WordDecision
+from backend.domain.exceptions import KnownRemovalLeftKnownError
 from backend.domain.services.decision_rules import Effect, on_known_removed
 from backend.domain.value_objects.anki_binding import AnkiBinding
 from backend.domain.value_objects.word_status import WordStatus
@@ -94,11 +95,14 @@ class DecisionEffects:
     def mark_unknown(self, lemma: str) -> None:
         """The user said they don't know the lemma: marked as its rule says. A Known one
         loses Known first (§2.7), then is marked by the rule on what is left, so a Learn or
-        a note in Anki the removal kept is never beside the mark; a learned one stays."""
+        a note in Anki the removal kept is never beside the mark; a learned one stays. A
+        lemma the removal left Known is a rule gap: it raises."""
         before = self._vocabulary.of(lemma)
+        if not self._vocabulary.mark_unknown(lemma).removes_known:
+            return
+        self._cascade(lemma, before, None)
         if self._vocabulary.mark_unknown(lemma).removes_known:
-            self._cascade(lemma, before, None)
-            self._vocabulary.mark_unknown(lemma)
+            raise KnownRemovalLeftKnownError(lemma)
 
     @contextmanager
     def batch(self) -> Iterator[None]:

@@ -48,6 +48,15 @@ class KnownWordNotFoundError(DomainError):
         self.known_word_id = known_word_id
 
 
+class KnownRemovalLeftKnownError(DomainError):
+    """The Known removal ran before an Unknown mark and the lemma still reads Known: a rule
+    gap, not a state to mark over."""
+
+    def __init__(self, lemma: str) -> None:
+        super().__init__(f"Known removal left the lemma Known: {lemma}")
+        self.lemma = lemma
+
+
 class SourceIsProcessingError(DomainError):
     """Raised when trying to delete a source a long operation (processing, rebuild) holds."""
 

@@ -8,7 +8,7 @@ import pytest
 from backend.application.utils.decision_effects import DecisionEffects
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.word_decision import WordDecision
-from backend.domain.exceptions import SourceOperationBusyError
+from backend.domain.exceptions import KnownRemovalLeftKnownError, SourceOperationBusyError
 from backend.domain.services.decision_rules import BindingRef, on_bind, press
 from backend.domain.value_objects.anki_binding import AnkiBinding
 from backend.domain.value_objects.card_choice import (
@@ -181,3 +181,24 @@ class TestKnownRemoval:
 
         saved = {c.args[0].word_id for c in bench.words.save.call_args_list}
         assert saved == {acting.word_id, other.word_id}
+
+
+def test_marking_unknown_a_lemma_the_known_removal_left_known_is_a_rule_gap() -> None:
+    """The Known list keeps the lemma whatever the removal does: no mark is written over a
+    Known lemma, and the error names it."""
+    bench = Bench(known={(LEMMA, "VERB")})
+
+    with pytest.raises(KnownRemovalLeftKnownError, match=LEMMA):
+        bench.effects.mark_unknown(LEMMA)
+
+    bench.known.remove_known.assert_called_once_with(LEMMA)
+    bench.known.mark_unknown.assert_not_called()
+
+
+def test_marking_unknown_a_known_lemma_marks_it_once_known_is_gone() -> None:
+    bench = Bench(known={(LEMMA, "VERB")})
+    bench.known.remove_known.side_effect = lambda _: bench.known.known_lemmas.return_value.clear()
+
+    bench.effects.mark_unknown(LEMMA)
+
+    bench.known.mark_unknown.assert_called_once_with(LEMMA)
