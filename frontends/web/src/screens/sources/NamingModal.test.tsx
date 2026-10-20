@@ -10,7 +10,8 @@ const counts = { total: 1, reviewed: 0, pending: 1, progress: { decided: 0, tota
 const node = (id: number, name: string): CollectionNode => ({
   id, name, parent_id: null, counts, depth: 1, accepts_collections: true, move_targets: [null], children: [],
 })
-const tree: CollectionTree = { all: counts, unsorted: counts, max_depth: 4, collections: [node(1, 'Atomic Habits'), node(2, 'Podcasts')] }
+const friends: CollectionNode = { ...node(3, 'Friends'), children: [{ ...node(31, 'Season 1'), parent_id: 3, depth: 2 }] }
+const tree: CollectionTree = { all: counts, unsorted: counts, max_depth: 4, collections: [node(1, 'Atomic Habits'), node(2, 'Podcasts'), friends] }
 const REQUIRED: NamingRequired = {
   heading: 'Add 2 files',
   items: [
@@ -52,6 +53,16 @@ describe('NamingModal', () => {
   }
   const settled = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(RENDER_DELAY_MS) }) }
   const body = () => document.body
+  /** Клик в WebKit (macOS-приложение): кнопка не берёт фокус, поле теряет его до клика, если mousedown не отменён. */
+  const webkitClick = async (target: HTMLElement) => {
+    await act(async () => {
+      const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+      target.dispatchEvent(down)
+      if (!down.defaultPrevented) (document.activeElement as HTMLElement | null)?.blur()
+    })
+    await act(async () => { if (target.isConnected) target.click() })
+  }
+  const option = (label: string) => [...body().querySelectorAll<HTMLElement>('[role="option"]')].find(o => o.textContent === label)!
   const rows = () => [...body().querySelectorAll<HTMLInputElement>('[data-row] input')].map(input => input.value)
   const button = (label: string) => [...body().querySelectorAll('button')].find(b => b.textContent?.trim() === label)!
   const collectionField = () => body().querySelector<HTMLInputElement>('[role="combobox"]')!
@@ -171,5 +182,41 @@ describe('NamingModal', () => {
     await act(async () => body().querySelector<HTMLButtonElement>('[aria-label="Remove Number"]')!.click())
 
     expect(button('Add').disabled).toBe(true)
+  })
+
+  it('keeps a collection picked with a click in the macOS app', async () => {
+    await render()
+    await act(async () => { collectionField().focus() })
+    await webkitClick(option('Podcasts'))
+    await settled()
+    await act(async () => button('Add').click())
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ collection: { existing_id: 2, new_name: null } }))
+  })
+
+  it('keeps a nested collection picked after typing', async () => {
+    await render()
+    await act(async () => { collectionField().focus(); setValue(collectionField(), 'Season') })
+    await webkitClick(option('Friends / Season 1'))
+    await settled()
+    await act(async () => button('Add').click())
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ collection: { existing_id: 31, new_name: null } }))
+  })
+
+  it('takes a typed name of a nested collection as that collection', async () => {
+    await render()
+    await act(async () => { collectionField().focus(); setValue(collectionField(), 'season 1') })
+    await settled()
+    await act(async () => button('Add').click())
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ collection: { existing_id: 31, new_name: null } }))
+  })
+
+  it('does not offer to create a collection that exists deeper', async () => {
+    await render()
+    await act(async () => { collectionField().focus(); setValue(collectionField(), 'Season 1') })
+
+    expect(options()).toEqual(['No collection', 'Friends / Season 1'])
   })
 })
