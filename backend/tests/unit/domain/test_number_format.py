@@ -11,8 +11,8 @@ class TestNumberFormat:
     def test_fixed_digits_pad_whatever_the_count(self) -> None:
         assert NumberFormat(digits=2).width(6) == 2
 
-    def test_fixed_digits_never_cut_a_longer_number(self) -> None:
-        assert NumberFormat(digits=2).width(120) == 3
+    def test_one_digit_adds_no_zeros_to_a_long_list(self) -> None:
+        assert NumberFormat(digits=1).width(13) == 1
 
     def test_digits_start_at_one(self) -> None:
         with pytest.raises(ValueError, match="at least 1"):

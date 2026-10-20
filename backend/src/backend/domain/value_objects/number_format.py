@@ -16,4 +16,5 @@ class NumberFormat:
             raise ValueError(msg)
 
     def width(self, total: int) -> int:
-        return max(self.digits or len(str(total)), len(str(total)))
+        """Zeros pad a number up to this; a longer number is written whole."""
+        return self.digits or len(str(total))

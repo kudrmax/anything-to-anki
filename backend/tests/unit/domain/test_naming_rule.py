@@ -23,3 +23,6 @@ class TestNamingRule:
 
     def test_number_is_padded_to_the_digits(self) -> None:
         assert NamingRule("ch{{n}}").render(None, 5, "x", digits=2) == "ch05"
+
+    def test_a_longer_number_is_not_cut(self) -> None:
+        assert NamingRule("ch{{n}}").render(None, 120, "x", digits=2) == "ch120"

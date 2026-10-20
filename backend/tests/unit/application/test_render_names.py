@@ -24,3 +24,7 @@ class TestRenderNames:
     def test_fixed_digits_pad_a_short_list(self) -> None:
         names = RenderNamesUseCase().execute("ch{{n}}", None, ["a", "b"], digits=3)
         assert names == ["ch001", "ch002"]
+
+    def test_plain_numbers_have_no_zeros_in_a_long_list(self) -> None:
+        names = RenderNamesUseCase().execute("ch{{n}}", None, ["t"] * 13, digits=1)
+        assert (names[3], names[12]) == ("ch4", "ch13")
