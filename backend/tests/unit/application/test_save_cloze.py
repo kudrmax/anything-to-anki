@@ -99,7 +99,6 @@ class TestSaveCloze:
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = Source(id=5, status=SourceStatus.DONE)
         lock = free_lock()
-        lock.operations.return_value = {}
         self.use_case = SaveClozeUseCase(
             occurrence_repo=self.occurrence_repo,
             candidate_repo=self.candidate_repo,
@@ -114,7 +113,6 @@ class TestSaveCloze:
                 report_repo=self.report_repo,
                 scope_resolver=MagicMock(),
                 source_repo=source_repo,
-                lock=lock,
             ),
             decide_phrase=self.decide,
             builder=ClozeBuilder(),

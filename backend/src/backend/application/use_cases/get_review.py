@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from backend.application.utils.card_views import CardViews
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.domain.ports.card_query import CardQuery
+    from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.value_objects.source_scope import SourceScope
 
 
@@ -26,10 +27,12 @@ class GetReviewUseCase:
         card_views: CardViews,
         scope_resolver: SourceScopeResolver,
         card_query: CardQuery,
+        lock: SourceOperationLock,
     ) -> None:
         self._card_views = card_views
         self._scope_resolver = scope_resolver
         self._card_query = card_query
+        self._lock = lock
 
     def execute(
         self,
@@ -38,6 +41,7 @@ class GetReviewUseCase:
     ) -> ReviewDTO:
         listing = self._card_views.listed(scope, sort_order)
         ids = [s.id for s in listing.sources if s.id is not None]
+        operations = self._lock.operations()
         return ReviewDTO(
             scope=scope.token,
             title=self._scope_resolver.title(scope),
@@ -51,5 +55,5 @@ class GetReviewUseCase:
                 None if sort_order == CandidateSortOrder.CHRONOLOGICAL
                 else INITIALLY_SHOWN_CANDIDATES
             ),
-            busy=any(source_id in listing.operations for source_id in ids),
+            busy=any(source_id in operations for source_id in ids),
         )

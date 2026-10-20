@@ -353,8 +353,6 @@ export interface CardSource {
   id: number
   has_video: boolean
   can_polish_phrases: boolean
-  /** Операция, которая держит источник карточки; карточка ждёт её. */
-  busy_with: SourceOperationKind | null
 }
 
 /** Ревью набора источников: один источник, коллекция или все. Статус, прогресс и занятость — по набору. */

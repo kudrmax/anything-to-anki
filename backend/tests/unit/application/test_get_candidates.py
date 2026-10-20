@@ -38,8 +38,6 @@ class TestGetCandidatesUseCase:
         self.job_repo.get_jobs_for_candidates.return_value = {}
         self.report_repo = MagicMock()
         self.report_repo.reported_phrase_ids.return_value = set()
-        self.lock = MagicMock()
-        self.lock.operations.return_value = {}
         self.use_case = GetCandidatesUseCase(
             card_views=CardViews(
                 review_cards=ReviewCards(
@@ -57,7 +55,6 @@ class TestGetCandidatesUseCase:
                 report_repo=self.report_repo,
                 scope_resolver=SourceScopeResolver(self.source_repo, MagicMock()),
                 source_repo=self.source_repo,
-                lock=self.lock,
             ),
         )
         self.source_repo.get_by_id.return_value = Source(id=SOURCE_ID, status=SourceStatus.DONE)

@@ -255,17 +255,14 @@ class CardSourceDTO(BaseModel):
     id: int
     has_video: bool
     can_polish_phrases: bool
-    # The operation holding the card's source; the card waits while it runs.
-    busy_with: SourceOperationKind | None = None
 
     @classmethod
-    def of(cls, source: Source, busy_with: SourceOperationKind | None) -> CardSourceDTO:
+    def of(cls, source: Source) -> CardSourceDTO:
         assert source.id is not None
         return cls(
             id=source.id,
             has_video=source.has_video,
             can_polish_phrases=source.can_polish_phrases,
-            busy_with=busy_with,
         )
 
 

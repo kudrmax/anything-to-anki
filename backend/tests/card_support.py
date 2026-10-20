@@ -151,9 +151,6 @@ def card_views(session: Session) -> CardViews:
     from backend.infrastructure.persistence.sqla_settings_repository import (
         SqlaSettingsRepository,
     )
-    from backend.infrastructure.persistence.sqla_source_operation_lock import (
-        SqlaSourceOperationLock,
-    )
     from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
     from backend.infrastructure.persistence.sqla_word_state_repository import (
         SqlaWordStateRepository,
@@ -175,7 +172,6 @@ def card_views(session: Session) -> CardViews:
             SqlaSourceRepository(session), SqlaCollectionRepository(session),
         ),
         source_repo=SqlaSourceRepository(session),
-        lock=SqlaSourceOperationLock(session),
     )
 
 

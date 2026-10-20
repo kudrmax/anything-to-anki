@@ -80,10 +80,10 @@ class TestGetReviewUseCase:
                 report_repo=self.report_repo,
                 scope_resolver=resolver,
                 source_repo=self.source_repo,
-                lock=self.lock,
             ),
             scope_resolver=resolver,
             card_query=self.card_query,
+            lock=self.lock,
         )
 
     def _one_source(self, source: Source) -> None:
@@ -116,17 +116,6 @@ class TestGetReviewUseCase:
         self.lock.operations.return_value = {2: HeldOperation(kind=SourceOperationKind.REBUILD)}
         review = self.use_case.execute(SourceScope.collection(COLLECTION))
         assert review.busy is True
-        assert review.candidates[0].source.busy_with is None
-
-    def test_busy_and_cards_read_one_snapshot_of_operations(self) -> None:
-        self._collection()
-        self.lock.operations.side_effect = [
-            {1: HeldOperation(kind=SourceOperationKind.REBUILD)}, {},
-        ]
-        review = self.use_case.execute(SourceScope.collection(COLLECTION))
-        assert review.busy is True
-        assert review.candidates[0].source.busy_with == SourceOperationKind.REBUILD
-        assert self.lock.operations.call_count == 1
 
     def test_free_set_is_not_busy(self) -> None:
         self._collection()
@@ -198,5 +187,5 @@ class TestGetReviewUseCase:
         self.occurrence_repo.shown_by_word.return_value = {5: [occurrence(5, 5)]}
         review = self.use_case.execute(SourceScope.source(1))
         [card] = review.candidates
-        assert (card.source.id, card.source.busy_with) == (1, SourceOperationKind.REBUILD)
+        assert card.source.id == 1
         assert review.busy is True

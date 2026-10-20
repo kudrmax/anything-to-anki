@@ -520,6 +520,7 @@ class Container:
             card_views=self._card_views(session),
             scope_resolver=self._scope_resolver(session),
             card_query=SqlaCardQuery(session),
+            lock=SqlaSourceOperationLock(session),
         )
 
     def create_collection_use_case(self, session: Session) -> CreateCollectionUseCase:
@@ -818,7 +819,6 @@ class Container:
             report_repo=SqlaCardReportRepository(session),
             scope_resolver=self._scope_resolver(session),
             source_repo=SqlaSourceRepository(session),
-            lock=SqlaSourceOperationLock(session),
         )
 
     def _user_vocabulary(self, session: Session) -> UserVocabulary:
