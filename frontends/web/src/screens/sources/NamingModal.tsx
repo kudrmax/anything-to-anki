@@ -40,21 +40,25 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
   const [rule, setRule] = useState(required.default_rule)
   const [rendered, setRendered] = useState<string[]>([])
   const [ruleError, setRuleError] = useState<string | null>(null)
+  // Для какого правила и коллекции пришёл последний ответ: пока не для текущих — проверка идёт.
+  const [checkedFor, setCheckedFor] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<number, string>>({})
   const collectionName = nameOf(collection)
+  const checkKey = `${rule}\n${collectionName ?? ''}`
+  const checking = checkedFor !== checkKey
 
   useEffect(() => {
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
       api.renderNames(rule, collectionName, required.items.map(item => item.own_title), controller.signal)
-        .then(names => { setRendered(names); setRuleError(null) })
-        .catch(e => { if (!controller.signal.aborted) setRuleError(messageOf(e)) })
+        .then(names => { setRendered(names); setRuleError(null); setCheckedFor(checkKey) })
+        .catch(e => { if (!controller.signal.aborted) { setRuleError(messageOf(e)); setCheckedFor(checkKey) } })
     }, RENDER_DELAY_MS)
     return () => {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [rule, collectionName, required.items])
+  }, [rule, collectionName, checkKey, required.items])
 
   const listRef = useRef<HTMLDivElement>(null)
   const query = search.trim().toLowerCase()
@@ -87,7 +91,14 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
     }
   }
 
-  const confirm = () => onConfirm({ collection, rule, titles: edits })
+  const backToRule = (index: number) =>
+    setEdits(prev => Object.fromEntries(Object.entries(prev).filter(([row]) => Number(row) !== index)))
+
+  const confirm = () => onConfirm({
+    collection,
+    rule,
+    titles: Object.fromEntries(Object.entries(edits).filter(([, title]) => title.trim() !== '')),
+  })
 
   return (
     <Modal
@@ -97,7 +108,7 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
       footer={
         <>
           <Button variant="link" onClick={onCancel}>Cancel</Button>
-          <Button variant="fill" disabled={ruleError !== null} onClick={confirm}>Add</Button>
+          <Button variant="fill" disabled={checking || ruleError !== null} onClick={confirm}>Add</Button>
         </>
       }
     >
@@ -147,9 +158,10 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
                 value={edits[index] ?? rendered[index] ?? ''}
                 aria-label={`Title of ${item.label}`}
                 onChange={e => setEdits(prev => ({ ...prev, [index]: e.target.value }))}
+                onBlur={() => { if (edits[index]?.trim() === '') backToRule(index) }}
               />
               {edited ? (
-                <button type="button" className={css.reset} aria-label="Back to the rule" onClick={() => setEdits(prev => Object.fromEntries(Object.entries(prev).filter(([row]) => Number(row) !== index)))}>
+                <button type="button" className={css.reset} aria-label="Back to the rule" onClick={() => backToRule(index)}>
                   <Icon as={Undo2} size="s" />
                 </button>
               ) : <span />}

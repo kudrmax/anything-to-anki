@@ -202,6 +202,7 @@ from backend.infrastructure.persistence.sqla_word_decision_repository import (
 from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
 )
+from backend.infrastructure.readers.caching_reader import CachingFormatReader
 from backend.infrastructure.readers.epub_format_reader import EpubFormatReader
 from backend.infrastructure.readers.html_reader import HtmlReader
 from backend.infrastructure.readers.markdown_reader import MarkdownReader
@@ -345,14 +346,19 @@ class Container:
         self._video_path_resolver = VideoPathResolverImpl(data_dir=data_dir)
         youtube_fetcher = self._url_fetchers[0]
         self._format_detector = RegexFormatDetector(youtube_fetcher)
-        self._format_readers: tuple[FormatReader, ...] = (
-            PlainReader(self._file_reader),
-            MarkdownReader(self._file_reader),
-            HtmlReader(self._file_reader),
-            EpubFormatReader(),
-            SrtReader(self._file_reader),
-            VideoFileReader(self._file_reader, self._subtitle_extractor, self._subtitle_extractor),
-            YouTubeReader(youtube_fetcher),
+        self._format_readers: tuple[FormatReader, ...] = tuple(
+            CachingFormatReader(reader)
+            for reader in (
+                PlainReader(self._file_reader),
+                MarkdownReader(self._file_reader),
+                HtmlReader(self._file_reader),
+                EpubFormatReader(),
+                SrtReader(self._file_reader),
+                VideoFileReader(
+                    self._file_reader, self._subtitle_extractor, self._subtitle_extractor,
+                ),
+                YouTubeReader(youtube_fetcher),
+            )
         )
         self._document_normalizer = DocumentNormalizer(self._text_cleaner, self._text_normalizer)
 

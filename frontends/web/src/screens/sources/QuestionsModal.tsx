@@ -12,13 +12,15 @@ interface QuestionsModalProps {
 
 const MODAL_TITLE = 'Add source'
 
-const keyOf = (question: Question) => `${question.input_index}:${question.id}`
+const keyOf = (question: Question) => `${question.input_indexes.join(',')}:${question.id}`
 
 /** Ответы, разложенные по вводам: у двух книг в пачке один и тот же вопрос. */
 function byInput(questions: Question[], chosen: Record<string, string>): Record<string, string>[] {
   const answers: Record<string, string>[] = []
   for (const question of questions) {
-    answers[question.input_index] = { ...answers[question.input_index], [question.id]: chosen[keyOf(question)] }
+    for (const index of question.input_indexes) {
+      answers[index] = { ...answers[index], [question.id]: chosen[keyOf(question)] }
+    }
   }
   return Array.from(answers, given => given ?? {})
 }

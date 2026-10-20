@@ -45,7 +45,7 @@ describe('RuleField', () => {
 
     act(() => button('+ Title from file').click())
 
-    expect(onChange).toHaveBeenCalledWith('{{collection}} ch{{n}}{{title}}')
+    expect(onChange).toHaveBeenCalledWith('{{collection}} ch{{n}} {{title}}')
   })
 
   it('removes a chip', () => {
@@ -66,5 +66,13 @@ describe('RuleField', () => {
     })
 
     expect(onChange).toHaveBeenCalledWith('{{collection}} part {{n}}')
+  })
+
+  it('appends to an empty rule without a space', () => {
+    render('')
+
+    act(() => button('+ Number').click())
+
+    expect(onChange).toHaveBeenCalledWith('{{n}}')
   })
 })

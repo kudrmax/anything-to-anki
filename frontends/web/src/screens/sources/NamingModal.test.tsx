@@ -50,6 +50,7 @@ describe('NamingModal', () => {
     await act(async () => root.render(<NamingModal required={REQUIRED} tree={tree} onCancel={() => {}} onConfirm={onConfirm} />))
     await act(async () => { await vi.advanceTimersByTimeAsync(RENDER_DELAY_MS) })
   }
+  const settled = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(RENDER_DELAY_MS) }) }
   const body = () => document.body
   const rows = () => [...body().querySelectorAll<HTMLInputElement>('[data-row] input')].map(input => input.value)
   const button = (label: string) => [...body().querySelectorAll('button')].find(b => b.textContent?.trim() === label)!
@@ -91,6 +92,7 @@ describe('NamingModal', () => {
     await act(async () => { collectionField().focus(); setValue(collectionField(), 'Dune') })
     await act(async () => button('Create «Dune»').click())
     await act(async () => setValue(body().querySelectorAll<HTMLInputElement>('[data-row] input')[1], 'Intro'))
+    await settled()
     await act(async () => button('Add').click())
 
     expect(onConfirm).toHaveBeenCalledWith({
@@ -119,6 +121,7 @@ describe('NamingModal', () => {
   it('takes a typed name as a new collection without picking it', async () => {
     await render()
     await act(async () => { collectionField().focus(); setValue(collectionField(), 'Dune') })
+    await settled()
     await act(async () => button('Add').click())
 
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ collection: { existing_id: null, new_name: 'Dune' } }))
@@ -127,6 +130,7 @@ describe('NamingModal', () => {
   it('takes a typed existing name as that collection', async () => {
     await render()
     await act(async () => { collectionField().focus(); setValue(collectionField(), 'atomic habits') })
+    await settled()
     await act(async () => button('Add').click())
 
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ collection: { existing_id: 1, new_name: null } }))
@@ -137,6 +141,7 @@ describe('NamingModal', () => {
       <NamingModal required={{ ...REQUIRED, default_collection: { existing_id: 2, new_name: null } }} tree={tree} onCancel={() => {}} onConfirm={onConfirm} />,
     ))
     await act(async () => { collectionField().focus(); setValue(collectionField(), '') })
+    await settled()
     await act(async () => button('Add').click())
 
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ collection: null }))
@@ -148,5 +153,23 @@ describe('NamingModal', () => {
     await act(async () => { collectionField().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
 
     expect(options()).toEqual([])
+  })
+
+  it('takes a blank row back to the rule', async () => {
+    await render()
+    await act(async () => setValue(body().querySelectorAll<HTMLInputElement>('[data-row] input')[0], '   '))
+    await act(async () => body().querySelectorAll<HTMLInputElement>('[data-row] input')[0].dispatchEvent(new FocusEvent('focusout', { bubbles: true })))
+    await settled()
+    await act(async () => button('Add').click())
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ titles: {} }))
+    expect(rows()).toEqual(['ch1', 'ch2'])
+  })
+
+  it('waits for the rule check before adding', async () => {
+    await render()
+    await act(async () => body().querySelector<HTMLButtonElement>('[aria-label="Remove Number"]')!.click())
+
+    expect(button('Add').disabled).toBe(true)
   })
 })

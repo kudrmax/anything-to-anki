@@ -695,8 +695,8 @@ export interface Question {
   prompt: string
   options: QuestionOption[]
   default: string
-  /** Какому вводу задан вопрос; подпись есть, когда вводов несколько. */
-  input_index: number
+  /** Каким вводам задан вопрос, ответ идёт каждому; подпись — когда вопрос про один ввод из нескольких. */
+  input_indexes: number[]
   input_label: string | null
 }
 

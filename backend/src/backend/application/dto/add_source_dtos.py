@@ -45,13 +45,14 @@ class QuestionOptionDTO(BaseModel):
 
 
 class QuestionDTO(BaseModel):
-    """A question about one input; the label names it when several are added at once."""
+    """A question about the inputs it lists; one answer goes to each of them. The label names
+    the input when several are added at once and the question is about one of them."""
 
     id: str
     prompt: str
     options: list[QuestionOptionDTO]
     default: str
-    input_index: int = 0
+    input_indexes: list[int] = [0]
     input_label: str | None = None
 
     @staticmethod
@@ -63,8 +64,14 @@ class QuestionDTO(BaseModel):
             prompt=question.prompt,
             options=[QuestionOptionDTO.from_option(option) for option in question.options],
             default=question.default,
-            input_index=input_index,
+            input_indexes=[input_index],
             input_label=input_label,
+        )
+
+    def same_as(self, other: QuestionDTO) -> bool:
+        """Asks the same thing with the same choices, whichever input it is about."""
+        return (self.id, self.prompt, self.default, self.options) == (
+            other.id, other.prompt, other.default, other.options,
         )
 
 

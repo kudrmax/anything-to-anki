@@ -18,8 +18,8 @@ const VIDEO_LINK: InputDescription = { ...NOTHING, kind: 'source', format: 'yout
 const TEXT: InputDescription = { ...NOTHING, kind: 'source', format: 'plain', label: 'Text' }
 const BATCH: InputDescription = { ...NOTHING, kind: 'source', label: '2 files', several: true }
 const EMPTY_TREE = { collections: [] } as unknown as CollectionTree
-const ASK_KIND = (index: number, label: string): Question => ({
-  id: 'text.kind', prompt: 'Add as', default: 'text', input_index: index, input_label: label,
+const ASK_KIND = (indexes: number[], label: string | null): Question => ({
+  id: 'text.kind', prompt: 'Add as', default: 'text', input_indexes: indexes, input_label: label,
   options: [{ id: 'text', label: 'Text', details: null }, { id: 'song', label: 'Song', details: null }],
 })
 const NAMING: NamingRequired = {
@@ -237,9 +237,22 @@ describe('AddSourceForm', () => {
     expect(host.querySelector('input[placeholder="Title (optional)"]')).toBeNull()
   })
 
+  it('asks a question shared by the files once and sends its answer to each', async () => {
+    const addSource = vi.spyOn(api, 'addSource')
+      .mockResolvedValueOnce({ questions: [ASK_KIND([0, 1], null)] })
+      .mockResolvedValueOnce({ source_ids: [1, 2], collection_id: null })
+    await render()
+    await paste(BATCH_TEXT)
+    await described()
+    await act(async () => addButton()!.click())
+    await act(async () => [...document.body.querySelectorAll('button')].find(b => b.textContent === 'Confirm')!.click())
+
+    expect(addSource).toHaveBeenLastCalledWith(BATCH_TEXT, '', '', [{ 'text.kind': 'text' }, { 'text.kind': 'text' }], undefined)
+  })
+
   it('asks each file its questions, naming the file, and sends answers per file', async () => {
     const addSource = vi.spyOn(api, 'addSource')
-      .mockResolvedValueOnce({ questions: [ASK_KIND(0, '1.txt'), ASK_KIND(1, '2.txt')] })
+      .mockResolvedValueOnce({ questions: [ASK_KIND([0], '1.txt'), ASK_KIND([1], '2.txt')] })
       .mockResolvedValueOnce({ source_ids: [1, 2], collection_id: null })
     await render()
     await paste(BATCH_TEXT)
@@ -265,6 +278,7 @@ describe('AddSourceForm', () => {
     await act(async () => addButton()!.click())
 
     expect(document.body.textContent).toContain('Add 2 files')
+    await described()
     await act(async () => [...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(b => b.textContent === 'Add')!.click())
 
     expect(addSource).toHaveBeenLastCalledWith(BATCH_TEXT, '', '', [], { collection: null, rule: 'Part {{n}}', titles: {} })

@@ -121,11 +121,15 @@ class AddSourceUseCase:
         naming: Naming | None = None,
     ) -> QuestionsRequired | NamingRequired | SourcesCreated:
         batch = len(inputs) > 1
+        if len(answers) > len(inputs):
+            msg = f"Got more answers than inputs: {len(answers)} for {len(inputs)}"
+            raise InvalidAnswerError(msg)
+        labels = _labels(inputs)
         reads = [
-            self._read_one(index, source_input, None if batch else title, answers, batch)
-            for index, source_input in enumerate(inputs)
+            self._read_one(index, source_input, label, None if batch else title, answers, batch)
+            for index, (source_input, label) in enumerate(zip(inputs, labels, strict=True))
         ]
-        pending = [question for read in reads for question in read.pending]
+        pending = _shared([question for read in reads for question in read.pending])
         if pending:
             return QuestionsRequired(questions=pending)
         if batch:
@@ -137,7 +141,7 @@ class AddSourceUseCase:
             return self._naming_required(drafts, reads, batch)
         collection_name = self._group_writer.name_of(naming.collection)
         titles = [
-            naming.titles.get(index)
+            naming.titles.get(index, "").strip()
             or naming.rule.render(collection_name, index + 1, draft.own_title or "")
             for index, draft in enumerate(drafts)
         ]
@@ -147,11 +151,11 @@ class AddSourceUseCase:
         self,
         index: int,
         source_input: SourceInput,
+        label: str,
         title: str | None,
         answers: Sequence[Answers],
         batch: bool,
     ) -> _Read:
-        label = _label(source_input)
         given = answers[index] if index < len(answers) else Answers()
         try:
             return self._read(index, source_input, label, title, given, batch)
@@ -263,10 +267,33 @@ def _reject_unasked(asked: list[Question], answers: Answers) -> None:
         raise InvalidAnswerError(msg)
 
 
-def _label(source_input: SourceInput) -> str:
+def _shared(questions: Sequence[QuestionDTO]) -> list[QuestionDTO]:
+    """The same question about several inputs is asked once; its answer goes to each."""
+    shared: list[QuestionDTO] = []
+    for question in questions:
+        same = next((q for q in shared if q.same_as(question)), None)
+        if same is None:
+            shared.append(question.model_copy())
+            continue
+        same.input_indexes = [*same.input_indexes, *question.input_indexes]
+        same.input_label = None
+    return shared
+
+
+def _labels(inputs: Sequence[SourceInput]) -> list[str]:
+    """Each input's name; files of the same name are told apart by their folder."""
+    names = [_label(source_input) for source_input in inputs]
+    return [
+        _label(source_input, with_folder=True) if names.count(name) > 1 else name
+        for source_input, name in zip(inputs, names, strict=True)
+    ]
+
+
+def _label(source_input: SourceInput, *, with_folder: bool = False) -> str:
     match source_input:
         case LocalFile():
-            return PurePath(normalize_typed_path(source_input.path)).name
+            path = PurePath(normalize_typed_path(source_input.path))
+            return f"{path.parent.name}/{path.name}" if with_folder else path.name
         case Url():
             return source_input.url
         case PastedText():

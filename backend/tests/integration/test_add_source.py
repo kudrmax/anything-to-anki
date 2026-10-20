@@ -404,15 +404,56 @@ def _files(tmp_path: Path, *names: str) -> list[SourceInput]:
 
 
 class TestBatch:
-    def test_asks_each_file_its_own_questions(
+    def test_the_same_question_is_asked_once_for_the_batch(
         self, add_source: AddSourceUseCase, tmp_path: Path,
     ) -> None:
         result = add_source.execute(_files(tmp_path, "a.txt", "b.txt"))
 
         assert isinstance(result, QuestionsRequired)
-        assert [(q.id, q.input_index, q.input_label) for q in result.questions] == [
-            ("text.kind", 0, "a.txt"), ("text.kind", 1, "b.txt"),
+        assert [(q.id, q.input_indexes, q.input_label) for q in result.questions] == [
+            ("text.kind", [0, 1], None),
         ]
+
+    def test_different_questions_name_their_file(
+        self, add_source: AddSourceUseCase, tmp_path: Path,
+    ) -> None:
+        inputs = [*_files(tmp_path, "a.txt"), LocalFile(_book(tmp_path, 2))]
+
+        result = add_source.execute(inputs)
+
+        assert isinstance(result, QuestionsRequired)
+        assert [(q.id, q.input_indexes, q.input_label) for q in result.questions] == [
+            ("text.kind", [0], "a.txt"), ("book.split", [1], "flourish.epub"),
+        ]
+
+    def test_more_answers_than_inputs_are_rejected(
+        self, add_source: AddSourceUseCase, tmp_path: Path,
+    ) -> None:
+        with pytest.raises(InvalidAnswerError, match="more answers"):
+            add_source.execute(_files(tmp_path, "a.txt", "b.txt"), answers=[TEXT, TEXT, TEXT])
+
+    def test_same_file_names_are_told_apart_by_their_folder(
+        self, add_source: AddSourceUseCase, tmp_path: Path,
+    ) -> None:
+        (tmp_path / "one").mkdir()
+        (tmp_path / "two").mkdir()
+        inputs = _files(tmp_path, "one/notes.md", "two/notes.md")
+
+        naming = _naming(add_source.execute(inputs, answers=[TEXT, TEXT]))
+
+        assert [i.label for i in naming.items] == ["one/notes.md", "two/notes.md"]
+
+    def test_blank_hand_edited_row_takes_the_rule(
+        self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
+    ) -> None:
+        naming = Naming(CollectionChoice(), NamingRule("Part {{n}}"), {0: "  ", 1: " Intro "})
+
+        created = _created(add_source.execute(
+            _files(tmp_path, "a.txt", "b.txt"), answers=[TEXT, TEXT], naming=naming,
+        ))
+
+        sources = [SqlaSourceRepository(db_session).get_by_id(i) for i in created.source_ids]
+        assert [s.title for s in sources if s] == ["Part 1", "Intro"]
 
     def test_several_sources_ask_how_to_name_them(
         self, add_source: AddSourceUseCase, tmp_path: Path,
@@ -474,7 +515,7 @@ class TestBatch:
 
         naming = _naming(add_source.execute(inputs, answers=[SPLIT, whole]))
 
-        assert [i.label for i in naming.items] == ["chapter 1", "chapter 2", "flourish.epub"]
+        assert [i.label for i in naming.items] == ["chapter 1", "chapter 2", "two/flourish.epub"]
 
     def test_a_bad_file_fails_the_whole_batch_naming_it(
         self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,

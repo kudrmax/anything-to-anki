@@ -129,6 +129,10 @@ class TestNameOf:
         group, _, _ = _setup(Collection(id=4, name="Dune"))
         assert group.name_of(CollectionChoice(existing_id=4)) == "Dune"
 
+    def test_new_name_of_an_existing_collection_takes_its_name(self) -> None:
+        group, _, _ = _setup(Collection(id=4, name="Atomic Habits"))
+        assert group.name_of(CollectionChoice(new_name="atomic habits")) == "Atomic Habits"
+
     def test_new_collection_is_named_by_the_typed_name(self) -> None:
         group, _, _ = _setup()
         assert group.name_of(CollectionChoice(new_name=" Dune ")) == "Dune"

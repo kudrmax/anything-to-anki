@@ -31,6 +31,9 @@ function partsOf(rule: string, variables: NamingVariable[]): Part[] {
   return parts
 }
 
+/** Новая переменная встаёт в конец через пробел, чтобы не слиться с предыдущим словом. */
+const appended = (rule: string, token: string): string => (rule === '' || rule.endsWith(' ') ? rule + token : `${rule} ${token}`)
+
 const ruleOf = (parts: Part[]): string => parts.map(part => ('text' in part ? part.text : part.variable.token)).join('')
 
 /** Правило названий: переменные — плашками, вставляются кнопками; скобки руками не пишутся. */
@@ -65,7 +68,7 @@ export function RuleField({ value, variables, onChange }: RuleFieldProps) {
       </div>
       <div className={css.add}>
         {variables.map(variable => (
-          <Chip key={variable.token} small onClick={() => onChange(value + variable.token)}>+ {variable.label}</Chip>
+          <Chip key={variable.token} small onClick={() => onChange(appended(value, variable.token))}>+ {variable.label}</Chip>
         ))}
       </div>
     </div>
