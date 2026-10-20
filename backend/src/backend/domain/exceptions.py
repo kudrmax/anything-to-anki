@@ -401,3 +401,19 @@ class PhraseChangedError(DomainError):
     def __init__(self, phrase_id: int) -> None:
         super().__init__(f"Phrase {phrase_id} changed meanwhile, try again")
         self.phrase_id = phrase_id
+
+
+class PhraseSectionMissingError(DomainError):
+    """Raised when a stored phrase has no section: the fix script has not run yet."""
+
+    def __init__(self, phrase_id: int) -> None:
+        super().__init__(f"Phrase {phrase_id} has no section: run `make fix-sections`")
+        self.phrase_id = phrase_id
+
+
+class InvalidEarnedSectionError(DomainError):
+    """Raised when a phrase is given a section it cannot earn."""
+
+    def __init__(self, section: object) -> None:
+        super().__init__(f"A phrase cannot earn the section {section!r}")
+        self.section = section

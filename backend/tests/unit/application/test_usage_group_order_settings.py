@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import pytest
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
@@ -20,7 +22,9 @@ class FakeSettingsRepo:
 class TestUsageGroupOrderSettings:
     def test_default_order(self) -> None:
         repo = FakeSettingsRepo()
-        uc = ManageSettingsUseCase(repo, threshold_resolver(repo))  # type: ignore[arg-type]
+        uc = ManageSettingsUseCase(
+            repo, threshold_resolver(repo), MagicMock(), MagicMock(),  # type: ignore[arg-type]
+        )
         settings = uc.get_settings()
         assert settings.usage_group_order == [
             "neutral", "informal", "formal", "specialized",
@@ -29,7 +33,9 @@ class TestUsageGroupOrderSettings:
 
     def test_update_order(self) -> None:
         repo = FakeSettingsRepo()
-        uc = ManageSettingsUseCase(repo, threshold_resolver(repo))  # type: ignore[arg-type]
+        uc = ManageSettingsUseCase(
+            repo, threshold_resolver(repo), MagicMock(), MagicMock(),  # type: ignore[arg-type]
+        )
         new_order = ["informal", "neutral", "formal", "specialized",
                      "connotation", "old-fashioned", "offensive", "other"]
         uc.update_settings(UpdateSettingsRequest(usage_group_order=new_order))
@@ -38,7 +44,9 @@ class TestUsageGroupOrderSettings:
 
     def test_round_trip_preserves_order(self) -> None:
         repo = FakeSettingsRepo()
-        uc = ManageSettingsUseCase(repo, threshold_resolver(repo))  # type: ignore[arg-type]
+        uc = ManageSettingsUseCase(
+            repo, threshold_resolver(repo), MagicMock(), MagicMock(),  # type: ignore[arg-type]
+        )
         order = ["offensive", "other", "neutral", "informal",
                  "formal", "specialized", "connotation", "old-fashioned"]
         uc.update_settings(UpdateSettingsRequest(usage_group_order=order))

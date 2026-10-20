@@ -13,6 +13,7 @@ from backend.infrastructure.persistence.models import (
     PhraseModel,
     StoredCandidateModel,
     cefr_level_of,
+    earned_section_of,
     load_phrase,
     load_position,
 )
@@ -46,6 +47,7 @@ class SqlaCardQuery(CardQuery):
                     PhraseModel.source_phrase,
                     PhraseModel.polished_phrase,
                     PhraseModel.polish_reverted,
+                    PhraseModel.earned_section,
                 )
                 .join(PhraseModel, PhraseModel.candidate_id == StoredCandidateModel.id)
                 .where(
@@ -56,7 +58,7 @@ class SqlaCardQuery(CardQuery):
             ).all()
             for (
                 source_id, word_id, lemma, pos, zipf, status, phrase_id, skipped,
-                source_phrase, polished, reverted,
+                source_phrase, polished, reverted, earned,
             ) in rows:
                 found.setdefault(source_id, []).append(CardRow(
                     source_id=source_id,
@@ -70,6 +72,7 @@ class SqlaCardQuery(CardQuery):
                     phrase=_required(
                         polished if polished is not None and not reverted else source_phrase,
                     ),
+                    earned_section=earned_section_of(earned, phrase_id),
                 ))
         return found
 

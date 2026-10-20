@@ -23,6 +23,7 @@ from backend.domain.exceptions import (
 )
 from backend.domain.services.card_view import card_view
 from backend.domain.services.cloze_builder import ClozeBuilder
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import (
     Binding,
     CardChoice,
@@ -65,7 +66,7 @@ def _phrase(synonyms: str = "quit, stop") -> Occurrence:
     return Occurrence(
         id=PHRASE_ID, candidate_id=1, origin=OccurrenceOrigin.AUTO,
         source_phrase=phrase(GIVE_UP, "gave up"), phrase_position=None, key=None,
-        fragment_score=None, shown_by=ShownBy.SELECTION,
+        fragment_score=None, earned_section=CandidateSection.READY, shown_by=ShownBy.SELECTION,
         meaning=CandidateMeaning(
             candidate_id=1, meaning="To stop.", translation="бросить",
             synonyms=synonyms, examples=None, ipa=None, generated_at=None,

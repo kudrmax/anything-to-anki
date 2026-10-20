@@ -13,6 +13,7 @@ from backend.infrastructure.persistence.models import SourceModel, dump_phrase
 from sqlalchemy import text
 
 from tests.phrase_support import phrase
+from tests.word_support import TEST_SECTION
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -53,12 +54,13 @@ def _seed_book(session: Session) -> None:
             "phrase": dump_phrase(phrase(TEXT.format(lemma=lemma), lemma, new=["zephyr"])),
             "shown": "selection" if phrase_id <= BOOK_WORDS else None,
             "choice": "learn" if word_id % 10 == 0 and phrase_id <= BOOK_WORDS else "none",
+            "section": TEST_SECTION,
         })
     session.execute(
         text(
             "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, choice,"
-            " created_at)"
-            " VALUES (:id, :word, :phrase, 'auto', :shown, :choice, '2026-01-01')"
+            " created_at, earned_section)"
+            " VALUES (:id, :word, :phrase, 'auto', :shown, :choice, '2026-01-01', :section)"
         ),
         rows,
     )

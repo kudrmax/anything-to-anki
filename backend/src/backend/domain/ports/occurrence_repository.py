@@ -4,12 +4,16 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
-    from backend.domain.services.rebuild_plan import RebuildPlan
+    from backend.domain.services.rebuild_plan import RebuildPlan, SectionChange
+    from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.occurrence_row import OccurrenceRow
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.phrase_origin_kind import ShownBy
+    from backend.domain.value_objects.unsectioned_phrase import UnsectionedPhrase
     from backend.domain.value_objects.word_row import WordRow
 
 
@@ -46,6 +50,7 @@ class OccurrenceRepository(ABC):
         phrase: Phrase,
         position: DocumentPosition | None,
         *,
+        earned_section: CandidateSection,
         polished: Phrase | None = None,
         polish_reverted: bool = False,
         edited_by_user: bool = False,
@@ -55,7 +60,9 @@ class OccurrenceRepository(ABC):
         When the text the phrase shows changes, its revision goes up: a running job was made
         for the old text and ends without writing, while its queued jobs follow the new text
         (a queued polish still skips a phrase that has a polished text by then).
-        `edited_by_user` marks the phrase as cut by the user; the mark is never taken off."""
+        `earned_section` is the section of the phrase the card shows after the write; it is
+        always stored. `edited_by_user` marks the phrase as cut by the user; the mark is never
+        taken off."""
 
     @abstractmethod
     def holds_revision(self, occurrence_id: int, revision: int) -> bool:
@@ -74,10 +81,6 @@ class OccurrenceRepository(ABC):
         """Mark a phrase the user put in place of the word's selection card."""
 
     @abstractmethod
-    def reset_results(self, occurrence_id: int) -> None:
-        """Drop everything made for the phrase: polish, meaning, media, tts, cloze."""
-
-    @abstractmethod
     def shown_by_word(self, source_id: int) -> dict[int, list[Occurrence]]:
         """Shown phrases of the source with their results, by word id."""
 
@@ -90,3 +93,10 @@ class OccurrenceRepository(ABC):
         """Write a rebuild plan in the caller's transaction: words, phrases, their words
         and the selection marks. Returns the ids of the inserted phrases, in the order of
         `plan.occ_to_insert`."""
+
+    @abstractmethod
+    def unsectioned(self) -> list[UnsectionedPhrase]:
+        """Every phrase with no earned section, read without the section the entity needs."""
+
+    @abstractmethod
+    def set_earned_sections(self, changes: Sequence[SectionChange]) -> None: ...

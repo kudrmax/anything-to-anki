@@ -13,7 +13,7 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     SourceOperationBusyError,
 )
-from backend.domain.services.source_operations import available_operation
+from backend.domain.services.source_operations import available_operations
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 if TYPE_CHECKING:
@@ -48,7 +48,7 @@ class RebuildSourceUseCase:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
-        if available_operation(source) is not SourceOperationKind.REBUILD:
+        if SourceOperationKind.REBUILD not in available_operations(source):
             raise RebuildNotSupportedError(source_id)
         if not self._lock.acquire(source_id, kind):
             raise SourceOperationBusyError(source_id, self._lock.held(source_id))
@@ -66,8 +66,11 @@ class RebuildSourceUseCase:
     def run(self, source_id: int, include_open: bool) -> RebuildSummaryDTO:
         try:
             analysed = self._rebuilder.analyse(source_id)
+            has_text = analysed.words is not None
             plan = self._rebuilder.apply(analysed, include_open)
-            return RebuildSummaryDTO(include_open=include_open, counts=RebuildCountsDTO.of(plan))
+            return RebuildSummaryDTO(
+                include_open=include_open and has_text, counts=RebuildCountsDTO.of(plan),
+            )
         finally:
             self._release(source_id)
 
@@ -75,8 +78,11 @@ class RebuildSourceUseCase:
         """The analysis and both plans; nothing is written."""
         try:
             analysed = self._rebuilder.analyse(source_id)
+            without_open = RebuildCountsDTO.of(self._rebuilder.plan(analysed, False))
+            if analysed.words is None:
+                return RebuildPreviewDTO(without_open=without_open, with_open=None)
             return RebuildPreviewDTO(
-                without_open=RebuildCountsDTO.of(self._rebuilder.plan(analysed, False)),
+                without_open=without_open,
                 with_open=RebuildCountsDTO.of(self._rebuilder.plan(analysed, True)),
             )
         finally:

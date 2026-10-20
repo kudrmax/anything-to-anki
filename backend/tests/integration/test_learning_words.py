@@ -23,7 +23,7 @@ from sqlalchemy import text
 
 from tests.decision_support import NOW, Decisions
 from tests.phrase_support import phrase
-from tests.word_support import CREATED_AT, bind, insert_word, phrase_id_of
+from tests.word_support import CREATED_AT, TEST_SECTION, bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -150,11 +150,11 @@ def test_a_decision_phrase_waits_for_export_though_another_phrase_was_exported(
     bench.session.execute(
         text(
             "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, choice,"
-            " created_at)"
-            " VALUES (:id, 1, :phrase, 'manual', 'user', 'none', :created_at)"
+            " created_at, earned_section)"
+            " VALUES (:id, 1, :phrase, 'manual', 'user', 'none', :created_at, :section)"
         ),
         {"id": OTHER_PHRASE, "phrase": dump_phrase(phrase("We linger.", "linger")),
-         "created_at": CREATED_AT},
+         "created_at": CREATED_AT, "section": TEST_SECTION},
     )
     bind(bench.session, 1, OTHER_PHRASE, note_id=NOTE, released_at=CREATED_AT)
 

@@ -13,6 +13,7 @@ from backend.domain.exceptions import (
     TargetNotInPhraseError,
 )
 from backend.domain.services.phrase_building import target_by_lemma
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 from tests.card_support import occurrence, word
@@ -51,7 +52,9 @@ def _use_case(
     candidates.get_by_id.return_value = word(1, "stale")
     reader = MagicMock()
     reader.read_for.side_effect = _read_for
-    rewrite = RewritePhrase(phrase_reader=reader, occurrence_repo=occurrences)
+    stamper = MagicMock()
+    stamper.earned.return_value = CandidateSection.EXTRA
+    rewrite = RewritePhrase(phrase_reader=reader, occurrence_repo=occurrences, stamper=stamper)
     use_case = EditCardPhraseUseCase(
         occurrence_repo=occurrences, candidate_repo=candidates, rewrite_phrase=rewrite,
         lock=lock or free_lock(),
@@ -76,6 +79,8 @@ def test_edit_puts_the_text_on_the_card_phrase() -> None:
     use_case.execute(PHRASE_ID, "  The air was stale.  ")
 
     assert _written(occurrences) == [(PHRASE_ID, "The air was stale.", "stale", False)]
+    stored = occurrences.write_text.call_args.kwargs["earned_section"]
+    assert stored is CandidateSection.EXTRA, "the edited text is stamped"
 
 
 @pytest.mark.unit

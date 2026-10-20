@@ -5,8 +5,10 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from backend.domain.entities.occurrence import OccurrenceKey
+from backend.domain.services.candidate_sections import SectionRule
 from backend.domain.services.cefr_level_resolver import resolve_cefr_level
 from backend.domain.value_objects.built_analysis import BuiltOccurrence, BuiltWord, WordData
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import Binding, CardChoice, NoteKind
 from backend.domain.value_objects.cefr_breakdown import (
     CAMBRIDGE,
@@ -38,6 +40,8 @@ COLLECTED = OccurrenceOrigin.COLLECTED
 DEFAULT_TEXT = "He glared at me."
 EXPORTED = Binding(NoteKind.LEARN, datetime(2026, 1, 1, tzinfo=UTC))
 WORD_ID = 1
+# Every other word of a phrase is known: a new phrase earns Ready.
+READY_RULE = SectionRule(knowledge=None, frequent_threshold=None)
 
 
 def key_at(line: int) -> OccurrenceKey:
@@ -75,9 +79,11 @@ def row(
     shows_polish: bool = False,
     replaces: bool = False,
     choice: CardChoice | None = None,
+    section: CandidateSection = CandidateSection.READY,
 ) -> OccurrenceRow:
     """A phrase row; its key is at `line` (the id unless given). `is_decision` makes it a
-    Learn decision, `choice` any other, `exported` puts it in Anki."""
+    Learn decision, `choice` any other, `exported` puts it in Anki;
+    `section` is the section stored on it."""
     at = id if line is None else line
     if choice is None:
         choice = (
@@ -102,6 +108,8 @@ def row(
         phrase_hash=OccurrenceRow.hash_phrase(
             text_phrase(text, variant=variant), position_at(at, text),
         ),
+        shown_phrase=text_phrase(text, variant=variant),
+        earned_section=section,
     )
 
 

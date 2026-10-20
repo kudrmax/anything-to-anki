@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import CursorResult, exists, or_, select, update
 
+from backend.domain.entities.occurrence import shown_phrase
 from backend.domain.ports.occurrence_repository import OccurrenceRepository
 from backend.domain.value_objects.card_choice import (
     Binding,
@@ -15,6 +16,7 @@ from backend.domain.value_objects.card_choice import (
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.unsectioned_phrase import UnsectionedPhrase
 from backend.domain.value_objects.word_row import WordRow
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
@@ -27,17 +29,18 @@ from backend.infrastructure.persistence.models import (
     JobModel,
     PhraseModel,
     StoredCandidateModel,
+    _required_phrase,
     dump_phrase,
     dump_position,
+    earned_section_of,
     load_phrase,
     load_position,
-)
-from backend.infrastructure.persistence.phrase_writes import (
-    drop_results,
 )
 from backend.infrastructure.persistence.rebuild_plan_writer import RebuildPlanWriter
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from sqlalchemy import ColumnElement
     from sqlalchemy.orm import Session
 
@@ -46,7 +49,8 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
     from backend.domain.entities.candidate_tts import CandidateTTS
     from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
-    from backend.domain.services.rebuild_plan import RebuildPlan
+    from backend.domain.services.rebuild_plan import RebuildPlan, SectionChange
+    from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
 
@@ -182,6 +186,12 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 phrase_hash=OccurrenceRow.hash_phrase(
                     _required(phrase.source_phrase), load_position(phrase.phrase_position),
                 ),
+                shown_phrase=shown_phrase(
+                    _required(phrase.source_phrase),
+                    load_phrase(phrase.polished_phrase),
+                    phrase.polish_reverted,
+                ),
+                earned_section=earned_section_of(phrase.earned_section, phrase.id),
             )
             for phrase, results, kind, since, active in rows
         ]
@@ -216,6 +226,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         phrase: Phrase,
         position: DocumentPosition | None,
         *,
+        earned_section: CandidateSection,
         polished: Phrase | None = None,
         polish_reverted: bool = False,
         edited_by_user: bool = False,
@@ -228,6 +239,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         model.phrase_position = dump_position(position)
         model.polished_phrase = dump_phrase(polished)
         model.polish_reverted = polish_reverted
+        model.earned_section = earned_section.value
         if _text_of(model.shown_text) != shown_before:
             model.revision += 1
             self._queued_jobs_follow(occurrence_id, model.revision)
@@ -291,14 +303,6 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         )
         self._session.flush()
 
-    def reset_results(self, occurrence_id: int) -> None:
-        drop_results(self._session, [occurrence_id])
-        phrase = self._session.get(PhraseModel, occurrence_id)
-        if phrase is not None:
-            phrase.polished_phrase = None
-            phrase.polish_reverted = False
-        self._session.flush()
-
     def word_rows(self, source_id: int) -> list[WordRow]:
         words = self._session.scalars(
             select(StoredCandidateModel)
@@ -318,6 +322,33 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
 
     def apply_plan(self, plan: RebuildPlan) -> list[int]:
         return self._plans.apply(plan)
+
+    def unsectioned(self) -> list[UnsectionedPhrase]:
+        rows = self._session.execute(
+            select(PhraseModel, StoredCandidateModel)
+            .join(StoredCandidateModel, StoredCandidateModel.id == PhraseModel.candidate_id)
+            .where(PhraseModel.earned_section.is_(None))
+            .order_by(PhraseModel.id)
+        ).unique()
+        result: list[UnsectionedPhrase] = []
+        for phrase, word in rows:
+            data = word.word_data()
+            result.append(UnsectionedPhrase(
+                id=phrase.id,
+                lemma=word.lemma,
+                pos=data.pos,
+                zipf_frequency=data.zipf_frequency,
+                phrase=shown_phrase(
+                    _required_phrase(phrase.source_phrase),
+                    load_phrase(phrase.polished_phrase),
+                    phrase.polish_reverted,
+                ),
+            ))
+        return result
+
+    def set_earned_sections(self, changes: Sequence[SectionChange]) -> None:
+        self._plans.restamp(changes)
+        self._session.flush()
 
     def shown_by_word(self, source_id: int) -> dict[int, list[Occurrence]]:
         by_word: dict[int, list[Occurrence]] = {}

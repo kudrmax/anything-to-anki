@@ -11,6 +11,7 @@ from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.services.phrase_selection import SelectionChange
 from backend.domain.services.rebuild_plan import OccurrenceInsert, RebuildPlan, plan_rebuild
 from backend.domain.value_objects.built_analysis import WordKey
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_origin_kind import ShownBy
 from backend.domain.value_objects.usage_distribution import UsageDistribution
@@ -27,7 +28,7 @@ from sqlalchemy import select, text
 
 from tests.integration.conftest import insert_source
 from tests.phrase_support import shown_lemmas
-from tests.rebuild_support import breakdown, built, occ
+from tests.rebuild_support import READY_RULE, breakdown, built, occ
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.built_analysis import BuiltWord
@@ -54,6 +55,7 @@ def _plan(
 ) -> RebuildPlan:
     return plan_rebuild(
         SOURCE, repo.projection(SOURCE), repo.word_rows(SOURCE), analysed, include_open,
+        READY_RULE,
     )
 
 
@@ -228,6 +230,7 @@ def test_an_insert_at_a_taken_key_keeps_the_stored_phrase_and_its_id(
     repo.apply_plan(RebuildPlan(source_id=SOURCE, occ_to_insert=(OccurrenceInsert(
         word=WordKey.of("glare", is_phrasal_verb=False),
         occurrence=occ(0, 0.3, text=CHANGED), shown=False,
+        earned_section=CandidateSection.READY,
     ),)))
 
     [after] = _phrases(db_session).values()

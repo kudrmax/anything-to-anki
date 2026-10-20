@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
@@ -29,7 +30,7 @@ class TestUsageSortingPipeline:
         """Settings roundtrip for usage_group_order."""
         settings_repo = SqlaSettingsRepository(db_session)
         settings_uc = ManageSettingsUseCase(
-            settings_repo, threshold_resolver(settings_repo),
+            settings_repo, threshold_resolver(settings_repo), MagicMock(), MagicMock(),
         )
         custom_order = [
             "informal",

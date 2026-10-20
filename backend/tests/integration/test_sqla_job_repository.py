@@ -768,8 +768,9 @@ def _add_phrase(session: Session, phrase_id: int, word_id: int) -> None:
     """Another shown phrase of the word."""
     session.execute(text(
         "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, choice,"
-        " created_at)"
-        " SELECT :id, candidate_id, source_phrase, 'manual', 'user', 'none', created_at"
+        " created_at, earned_section)"
+        " SELECT :id, candidate_id, source_phrase, 'manual', 'user', 'none', created_at,"
+        " earned_section"
         " FROM phrases WHERE id = :first"
     ), {"id": phrase_id, "first": phrase_id_of(word_id)})
 

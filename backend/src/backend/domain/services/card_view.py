@@ -301,10 +301,29 @@ def section(card: Done, open_section: CandidateSection) -> CandidateSection:
     return CandidateSection.REVIEWED if card.is_done else open_section
 
 
-def wants_ready_generation(wants_generation: bool, earned: CandidateSection) -> bool:
+def shown_section(current: CandidateSection, earned: CandidateSection) -> CandidateSection:
+    """Where an open card stands: Ready only when both the section its phrase has now and the
+    one it earned are Ready; otherwise the earned one when the current is Ready, else the
+    current."""
+    if current is CandidateSection.READY and earned is not CandidateSection.READY:
+        return earned
+    return current
+
+
+def is_earnable(section: CandidateSection) -> bool:
+    """A phrase earns Ready, Extra or Probably known; Reviewed is where a done card stands."""
+    return section is not CandidateSection.REVIEWED
+
+
+def keeps_section(card: CardState) -> bool:
+    """A chosen or exported phrase keeps the section it has; a rebuild does not re-stamp it."""
+    return card.choice is not CardChoice.NONE or in_anki(card)
+
+
+def wants_ready_generation(wants_generation: bool, section: CandidateSection) -> bool:
     """✨ for ready phrases makes the card's missing parts: the card wants generation and
-    its phrase earns Ready (only the target is new), decided or not."""
-    return wants_generation and earned is CandidateSection.READY
+    it is shown in Ready (only the target is new), decided or not."""
+    return wants_generation and section is CandidateSection.READY
 
 
 def progress(sections: Iterable[CandidateSection]) -> DecisionProgress:

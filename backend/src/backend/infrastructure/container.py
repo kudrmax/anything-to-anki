@@ -8,6 +8,8 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sqlalchemy.orm import sessionmaker
+
 from backend.application.source_intake.book_handler import BookHandler
 from backend.application.source_intake.document_normalizer import DocumentNormalizer
 from backend.application.source_intake.single_source_handler import SingleSourceHandler
@@ -24,6 +26,7 @@ from backend.application.use_cases.delete_collection import DeleteCollectionUseC
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.application.use_cases.delete_sources import DeleteSourcesUseCase
 from backend.application.use_cases.describe_input import DescribeInputUseCase
+from backend.application.use_cases.fix_sections import FixSectionsUseCase
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
@@ -69,6 +72,7 @@ from backend.application.utils.phrase_reader import PhraseReader
 from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.rewrite_phrase import RewritePhrase
+from backend.application.utils.section_stamper import SectionStamper
 from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.application.utils.topic_generation import TopicGenerationProbe
@@ -123,6 +127,10 @@ from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
 )
 from backend.infrastructure.adapters.yandex_image_source import YandexImageSource
+from backend.infrastructure.api.background_rebuild_launcher import (
+    BackgroundSourcesRebuildLauncher,
+)
+from backend.infrastructure.api.source_operations import OPERATIONS
 from backend.infrastructure.config.prompts_loader import PromptsLoader
 from backend.infrastructure.persistence.sqla_anki_sync_repository import (
     SqlaAnkiSyncRepository,
@@ -200,7 +208,7 @@ from backend.infrastructure.readers.youtube_reader import YouTubeReader
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session, sessionmaker
+    from sqlalchemy.orm import Session
 
     from backend.application.use_cases.apply_target_image import ApplyTargetImageUseCase
     from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
@@ -255,7 +263,7 @@ KNOWLEDGE_SCOPE_KEY = "knowledge_scope"
 class Container:
     """Dependency injection container. Single point of assembly for all dependencies."""
 
-    def __init__(self) -> None:
+    def __init__(self, session_factory: sessionmaker[Session] | None = None) -> None:
 
         from backend.infrastructure.adapters.ffmpeg_media_extractor import FfmpegMediaExtractor
         from backend.infrastructure.adapters.ffmpeg_subtitle_extractor import (
@@ -358,7 +366,7 @@ class Container:
         self._anki_template_renderer = AnkiTemplateRenderer(templates_dir)
         self._clock = SystemClock()
         # Session factory — lazy-loaded to avoid circular import with api.dependencies
-        self._session_factory: sessionmaker[Session] | None = None
+        self._session_factory: sessionmaker[Session] | None = session_factory
 
     def _get_session_factory(self) -> sessionmaker[Session]:
         """Lazy-load the session factory to avoid circular imports."""
@@ -396,6 +404,7 @@ class Container:
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
             phrase_reader=self._phrase_reader,
+            stamper=self._section_stamper(session),
             lock=SqlaSourceOperationLock(session),
             card_views=self._card_views(session),
             decide_phrase=self.decide_phrase_use_case(session),
@@ -409,6 +418,7 @@ class Container:
             document_repo=SqlaDocumentRepository(session),
             phrase_reader=self._phrase_reader,
             lock=SqlaSourceOperationLock(session),
+            stamper=self._section_stamper(session),
         )
 
     def get_source_document_use_case(self, session: Session) -> GetSourceDocumentUseCase:
@@ -420,11 +430,8 @@ class Container:
     def add_saved_phrase_use_case(self, session: Session) -> AddSavedPhraseUseCase:
         return AddSavedPhraseUseCase(
             source_repo=SqlaSourceRepository(session),
-            candidate_repo=SqlaCandidateRepository(session),
-            text_analyzer=self._text_analyzer,
-            cefr_classifier=self._cefr_classifier,
-            frequency_provider=self._frequency_provider,
-            phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
+            collected_phrases=self._collected_phrases(session),
+            candidate_factory=self._candidate_factory(),
             phrase_reader=self._phrase_reader,
             occurrence_repo=SqlaOccurrenceRepository(session),
             card_views=self._card_views(session),
@@ -557,6 +564,15 @@ class Container:
             topic_phrase_collector=self._topic_phrase_collector(session),
         )
 
+    def fix_sections_use_case(self, session: Session) -> FixSectionsUseCase:
+        return FixSectionsUseCase(
+            source_repo=SqlaSourceRepository(session),
+            occurrence_repo=SqlaOccurrenceRepository(session),
+            stamper=self._section_stamper(session),
+            rebuild_source=self.rebuild_source_use_case(session),
+            unit_of_work=self._unit_of_work(session),
+        )
+
     def rebuild_source_use_case(self, session: Session) -> RebuildSourceUseCase:
         return RebuildSourceUseCase(
             source_repo=SqlaSourceRepository(session),
@@ -586,6 +602,7 @@ class Container:
             settings_repo=settings_repo,
             vocabulary=self._user_vocabulary(session),
             threshold_resolver=self._threshold_resolver(session),
+            stamper=self._section_stamper(session),
             analyze_text_use_case=self.analyze_text_use_case(),
             unit_of_work=self._unit_of_work(session),
         )
@@ -610,6 +627,7 @@ class Container:
         return CollectedPhrases(
             candidate_repo=SqlaCandidateRepository(session),
             occurrence_repo=SqlaOccurrenceRepository(session),
+            stamper=self._section_stamper(session),
         )
 
     def _topic_phrase_collector(self, session: Session) -> TopicPhraseCollector:
@@ -731,6 +749,7 @@ class Container:
             occurrence_repo=SqlaOccurrenceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
             phrase_reader=self._phrase_reader,
+            stamper=self._section_stamper(session),
             job_repo=SqlaJobRepository(session),
             lock=SqlaSourceOperationLock(session),
             card_views=self._card_views(session),
@@ -744,6 +763,12 @@ class Container:
         return FrequentWordThresholdResolver(
             settings_repo=SqlaSettingsRepository(session),
             decision_repo=SqlaWordDecisionRepository(session),
+        )
+
+    def _section_stamper(self, session: Session) -> SectionStamper:
+        return SectionStamper(
+            knowledge=self._user_knowledge(session),
+            threshold_resolver=self._threshold_resolver(session),
         )
 
     def _candidate_sorter(self, session: Session) -> CandidateSorter:
@@ -824,6 +849,7 @@ class Container:
         return RewritePhrase(
             phrase_reader=self._phrase_reader,
             occurrence_repo=SqlaOccurrenceRepository(session),
+            stamper=self._section_stamper(session),
         )
 
     def manage_unknown_words_use_case(self, session: Session) -> ManageUnknownWordsUseCase:
@@ -841,6 +867,16 @@ class Container:
         return ManageSettingsUseCase(
             settings_repo=SqlaSettingsRepository(session),
             threshold_resolver=self._threshold_resolver(session),
+            unit_of_work=self._unit_of_work(session),
+            rebuild_launcher=self._rebuild_launcher(session),
+        )
+
+    def _rebuild_launcher(self, session: Session) -> BackgroundSourcesRebuildLauncher:
+        """Works on the database of the session that asks, in sessions of its own."""
+        return BackgroundSourcesRebuildLauncher(
+            session_factory=sessionmaker(bind=session.get_bind()),
+            rebuild_use_case=self.rebuild_source_use_case,
+            operations=OPERATIONS,
         )
 
     def get_anki_status_use_case(self, session: Session) -> GetAnkiStatusUseCase:
@@ -911,6 +947,7 @@ class Container:
             ai_service=self._ai_service(settings_repo),
             prompts_config=self._prompts_config,
             rewrite_phrase=self._rewrite_phrase(session),
+            stamper=self._section_stamper(session),
         )
 
     def enqueue_phrase_polish_use_case(self, session: Session) -> EnqueuePhrasePolishUseCase:
@@ -922,6 +959,7 @@ class Container:
             occurrence_repo=SqlaOccurrenceRepository(session),
             source_repo=SqlaSourceRepository(session),
             job_repo=SqlaJobRepository(session),
+            stamper=self._section_stamper(session),
         )
 
     def _job_phrases(self, session: Session) -> JobPhrases:
@@ -959,6 +997,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             enrichment_reset=self._phrase_enrichment_reset(session),
             lock=SqlaSourceOperationLock(session),
+            stamper=self._section_stamper(session),
         )
 
     def edit_card_phrase_use_case(self, session: Session) -> EditCardPhraseUseCase:
@@ -1184,7 +1223,7 @@ class Container:
             TTSTarget,
         )
         return [
-            PolishTarget(SqlaOccurrenceRepository(session)),
+            PolishTarget(SqlaOccurrenceRepository(session), self._section_stamper(session)),
             MeaningTarget(SqlaCandidateMeaningRepository(session)),
             MediaTarget(),
             PronunciationTarget(),

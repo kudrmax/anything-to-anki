@@ -8,6 +8,7 @@ import pytest
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import Occurrence
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.job_type import JobType
@@ -100,9 +101,11 @@ class Bench:
         self.occurrences = SqlaOccurrenceRepository(session)
         self.occurrences.write_text(
             GLARE_PHRASE, phrase("He glared at me.", "glared"), _at("He glared at me."),
+            earned_section=CandidateSection.READY,
         )
         self.occurrences.write_text(
             SPARK_PHRASE, phrase("A spark flew.", "spark"), _at("A spark flew."),
+            earned_section=CandidateSection.READY,
         )
         self.second_glare = self.add(GLARE, "She glared back.", "glared", ShownBy.USER)
         self.hidden_spark = self.add(SPARK, "A spark flew.", "spark", None)
@@ -116,7 +119,9 @@ class Bench:
         added = self.occurrences.add(Occurrence(
             candidate_id=word_id, origin=origin, source_phrase=phrase(text, target),
             phrase_position=_at(text) if text in TEXT else None, key=None,
-            fragment_score=None, shown_by=shown_by, collected_from=collected_from,
+            fragment_score=None,
+            earned_section=CandidateSection.READY, shown_by=shown_by,
+            collected_from=collected_from,
         ))
         assert added.id is not None
         return added.id
@@ -401,14 +406,14 @@ class TestBusySource:
         assert summary["status"] == "done"
         assert summary["busy_with"] == "rebuild"
         assert summary["processing_stage"] is None
-        assert summary["available_operation"] == "rebuild"
+        assert summary["available_operations"] == ["rebuild"]
         assert summary["can_start_operation"] is False
         assert summary["operation_hint"]
 
     def test_a_free_source_offers_its_operation(self, client: TestClient, bench: Bench) -> None:
         [summary] = client.get("/sources").json()
         assert summary["busy_with"] is None
-        assert summary["available_operation"] == "rebuild"
+        assert summary["available_operations"] == ["rebuild"]
         assert summary["can_start_operation"] is True
         assert summary["operation_hint"] is None
 

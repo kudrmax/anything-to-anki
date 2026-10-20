@@ -14,6 +14,7 @@ from backend.domain.services.document_layout import DocumentLayout
 if TYPE_CHECKING:
     from backend.application.dto.candidate_dtos import SelectionDTO
     from backend.application.utils.phrase_reader import PhraseReader
+    from backend.application.utils.section_stamper import SectionStamper
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.document_repository import DocumentRepository
@@ -42,12 +43,14 @@ class SetPhraseBoundaryUseCase:
         document_repo: DocumentRepository,
         phrase_reader: PhraseReader,
         lock: SourceOperationLock,
+        stamper: SectionStamper,
     ) -> None:
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
         self._document_repo = document_repo
         self._phrase_reader = phrase_reader
         self._lock = lock
+        self._stamper = stamper
 
     def execute(self, occurrence_id: int, selection: SelectionDTO) -> str:
         occ = self._occurrences.get(occurrence_id)
@@ -68,7 +71,8 @@ class SetPhraseBoundaryUseCase:
                 text, self._target_in(layout, occ, layout.span(position)),
             )
         self._occurrences.write_text(
-            occurrence_id, phrase, position, edited_by_user=True,
+            occurrence_id, phrase, position,
+            earned_section=self._stamper.earned(phrase, word), edited_by_user=True,
         )
         if occ.key is None or occ.phrase_position is None:
             self._occurrences.set_key(occurrence_id, layout.target_key(position, phrase))

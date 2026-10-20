@@ -9,6 +9,7 @@ from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.services.export_readiness import export_group, missing_parts
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.export_group import ExportGroup
@@ -30,7 +31,7 @@ def _decision(
     return Occurrence(
         id=1, candidate_id=1, origin=OccurrenceOrigin.AUTO,
         source_phrase=phrase(TEXT, "tense"), phrase_position=None, key=None,
-        fragment_score=None,
+        fragment_score=None, earned_section=CandidateSection.READY,
         choice=CardChoice.CLOZE if kind is DecisionKind.CLOZE else CardChoice.LEARN,
         meaning=CandidateMeaning(
             candidate_id=1, meaning=meaning, translation=None, synonyms=None,

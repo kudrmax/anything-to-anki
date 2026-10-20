@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.services.card_view import CardView
+    from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.card_choice import WordState
     from backend.domain.value_objects.elsewhere import ElsewhereStatus
     from backend.domain.value_objects.frequency_band import FrequencyBand
@@ -88,6 +89,10 @@ class ReviewCard:
         return self.occurrence.phrase
 
     @property
+    def earned_section(self) -> CandidateSection:
+        return self.occurrence.earned_section
+
+    @property
     def skipped(self) -> bool:
         return is_skipped(self.occurrence.card_state)
 
@@ -109,6 +114,7 @@ class CardRow:
     word_status: WordStatus
     skipped: bool
     phrase: Phrase
+    earned_section: CandidateSection
     elsewhere: ElsewhereStatus | None = None
 
     @property

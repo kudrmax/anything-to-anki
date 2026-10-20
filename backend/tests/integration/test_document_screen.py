@@ -29,7 +29,9 @@ from backend.infrastructure.persistence.sqla_document_repository import SqlaDocu
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
+from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 
+from tests.candidate_sorter_support import section_stamper
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase, shown_lemmas
 from tests.word_support import CardSeed, store_cards
@@ -126,6 +128,7 @@ def _set_boundary(db_session: Session) -> SetPhraseBoundaryUseCase:
     return SetPhraseBoundaryUseCase(
         SqlaOccurrenceRepository(db_session), SqlaCandidateRepository(db_session),
         SqlaDocumentRepository(db_session), Container().phrase_reader, free_lock(),
+        section_stamper(SqlaSettingsRepository(db_session)),
     )
 
 

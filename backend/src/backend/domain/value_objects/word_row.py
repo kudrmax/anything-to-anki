@@ -23,3 +23,11 @@ class WordRow:
     @property
     def key(self) -> WordKey:
         return WordKey.of(self.lemma, self.is_phrasal_verb)
+
+    @property
+    def pos(self) -> str:
+        return self.data.pos
+
+    @property
+    def zipf_frequency(self) -> float:
+        return self.data.zipf_frequency

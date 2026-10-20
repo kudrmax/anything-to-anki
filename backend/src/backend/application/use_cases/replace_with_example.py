@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from backend.application.utils.card_views import CardViews
     from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.phrase_reader import PhraseReader
+    from backend.application.utils.section_stamper import SectionStamper
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.job_repository import JobRepository
@@ -46,6 +47,7 @@ class ReplaceWithExampleUseCase:
         occurrence_repo: OccurrenceRepository,
         candidate_repo: CandidateRepository,
         phrase_reader: PhraseReader,
+        stamper: SectionStamper,
         job_repo: JobRepository,
         lock: SourceOperationLock,
         card_views: CardViews,
@@ -63,6 +65,7 @@ class ReplaceWithExampleUseCase:
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
         self._phrase_reader = phrase_reader
+        self._stamper = stamper
         self._job_repo = job_repo
 
     def execute(self, occurrence_id: int, example_text: str) -> CardDTO:
@@ -99,6 +102,7 @@ class ReplaceWithExampleUseCase:
             phrase_position=None,
             key=None,
             fragment_score=None,
+            earned_section=self._stamper.earned(phrase, word),
             shown_by=ShownBy.USER,
             replaces_selection=_stands_for_selection(replaced),
         ))

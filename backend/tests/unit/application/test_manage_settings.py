@@ -14,6 +14,8 @@ class TestManageSettingsUseCase:
         self.use_case = ManageSettingsUseCase(
             settings_repo=self.settings_repo,
             threshold_resolver=threshold_resolver(self.settings_repo),
+            unit_of_work=MagicMock(),
+            rebuild_launcher=MagicMock(),
         )
 
     def test_get_settings(self) -> None:

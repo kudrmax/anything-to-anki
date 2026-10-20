@@ -18,7 +18,7 @@ from backend.domain.services.source_actions import (
     progress_caption,
     review_fraction,
 )
-from backend.domain.services.source_operations import available_operation, operation_hint
+from backend.domain.services.source_operations import available_operations, operation_hint
 from backend.domain.services.source_review_status import derive_review_status
 from backend.domain.services.source_stage import shown_status, stage_of
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
@@ -139,7 +139,7 @@ class GetSourcesUseCase:
             generation_status=generation.status,
             generation_error=generation.error,
             is_permanent=source.is_permanent,
-            available_operation=available_operation(source),
+            available_operations=list(available_operations(source)),
             can_start_operation=busy_with is None,
             busy_with=busy_with,
             operation_hint=operation_hint(busy_with),

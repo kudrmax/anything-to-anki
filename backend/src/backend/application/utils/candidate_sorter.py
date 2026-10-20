@@ -9,7 +9,7 @@ from backend.application.constants import (
     USAGE_GROUP_ORDER_SETTING,
 )
 from backend.domain.services import candidate_sorting
-from backend.domain.services.candidate_sections import card_section, section_of
+from backend.domain.services.candidate_sections import card_section, open_section
 from backend.domain.services.card_view import progress
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
@@ -43,7 +43,8 @@ class ArrangedCards:
 
 
 class CandidateSorter:
-    """Puts cards in the order the user picked and into sections, by what the user knows now.
+    """Puts cards in the order the user picked and into sections, by what the user knows now,
+    with Ready only for cards that also earned it.
 
     Text order has no sections in its order but Reviewed: done cards go below open ones. A
     done card is in Reviewed in every order.
@@ -88,11 +89,11 @@ class CandidateSorter:
         """The section of one card, by what the user knows now."""
         return card_section(card, self._knowledge.current(), self._threshold_resolver.resolve())
 
-    def earned_sections(self, cards: list[ReviewCard]) -> dict[int, CandidateSection]:
-        """The section each card's phrase earns, done or not (by phrase id)."""
+    def open_sections(self, cards: list[ReviewCard]) -> dict[int, CandidateSection]:
+        """The section each card stands in were it open (by phrase id)."""
         knowledge = self._knowledge.current()
         threshold = self._threshold_resolver.resolve()
-        return {c.phrase_id: section_of(c, knowledge, threshold) for c in cards}
+        return {c.phrase_id: open_section(c, knowledge, threshold) for c in cards}
 
     def progress(
         self, cards_by_source: Mapping[int, Sequence[ShownCardFacts]],

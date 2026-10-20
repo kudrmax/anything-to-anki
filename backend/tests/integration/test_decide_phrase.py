@@ -17,6 +17,7 @@ from backend.domain.exceptions import (
     PhraseNotFoundError,
     SourceOperationBusyError,
 )
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import CardChoice, Press, Refusal
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
@@ -66,7 +67,7 @@ class Bench:
         added = self.occurrences.add(Occurrence(
             candidate_id=WORD, origin=OccurrenceOrigin.MANUAL,
             source_phrase=phrase(text_, "glared"), phrase_position=None, key=None,
-            fragment_score=None, shown_by=ShownBy.USER,
+            fragment_score=None, earned_section=CandidateSection.READY, shown_by=ShownBy.USER,
         ))
         assert added.id is not None
         return added.id

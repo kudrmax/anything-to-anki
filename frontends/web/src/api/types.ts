@@ -105,7 +105,7 @@ export interface SourceSummary {
   generation_status: GenerationStatus | null
   generation_error: string | null
   /** Как привести источник в актуальное состояние; решает backend. */
-  available_operation: 'rebuild' | 'refresh' | null
+  available_operations: ('rebuild' | 'refresh')[]
   /** false — источник занят другой операцией: пункт виден, но недоступен. */
   can_start_operation: boolean
   /** Операция, которой занят источник; другую сейчас не начать. */
@@ -570,7 +570,8 @@ export interface RebuildCounts {
 /** Превью Rebuild: без галочки «Also unreviewed cards» и с ней. */
 export interface RebuildPreview {
   without_open: RebuildCounts
-  with_open: RebuildCounts
+  /** null — у источника нет своего текста: галочки нет. */
+  with_open: RebuildCounts | null
 }
 
 export interface RebuildSummary {

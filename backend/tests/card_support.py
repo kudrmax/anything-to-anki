@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.ports.word_state_repository import WordStateRepository
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import (
     Binding,
     CardChoice,
@@ -67,7 +68,8 @@ def occurrence(
     made = Occurrence(
         id=phrase_id, candidate_id=word_id, origin=OccurrenceOrigin.AUTO,
         source_phrase=text or phrase("a test", "test"), phrase_position=None, key=None,
-        fragment_score=None, shown_by=ShownBy.SELECTION, choice=choice,
+        fragment_score=None,
+        earned_section=CandidateSection.READY, shown_by=ShownBy.SELECTION, choice=choice,
         binding=Binding(kind, NOW - timedelta(days=1)) if exported else None,
     )
     return replace(made, **changes)  # type: ignore[arg-type]

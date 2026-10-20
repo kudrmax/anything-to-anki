@@ -66,6 +66,38 @@ class TestCandidateSorter:
         assert self.sorter.section(learned) is CandidateSection.REVIEWED
         assert self.sorter.section(dirty) is CandidateSection.EXTRA
 
+    def test_an_open_card_that_is_ready_now_but_earned_extra_stays_in_extra(self) -> None:
+        stamped = card(
+            word(3, "ember"),
+            occurrence(3, 3, phrase("an ember", "ember"), earned_section=CandidateSection.EXTRA),
+        )
+
+        arranged = self.sorter.arrange([stamped, self.feast])
+
+        assert arranged.section(stamped) is CandidateSection.EXTRA
+        assert self.sorter.section(stamped) is CandidateSection.EXTRA
+        assert arranged.progress() == DecisionProgress(decided=0, total=1)
+        assert [c.lemma for c in arranged.cards] == ["feast", "ember"]
+
+    def test_an_open_card_that_earned_ready_leaves_ready_when_its_phrase_is_not(self) -> None:
+        dirty = card(
+            word(3, "ember"),
+            occurrence(
+                3, 3, phrase("an ember zephyr", "ember", new=("zephyr",)),
+                earned_section=CandidateSection.READY,
+            ),
+        )
+
+        assert self.sorter.section(dirty) is CandidateSection.EXTRA
+
+    def test_a_done_card_is_reviewed_whatever_it_earned(self) -> None:
+        learned = card(
+            word(3, "ember", status=WordStatus.LEARN),
+            occurrence(3, 3, phrase("an ember", "ember"), earned_section=CandidateSection.EXTRA),
+        )
+
+        assert self.sorter.arrange([learned]).section(learned) is CandidateSection.REVIEWED
+
     def test_progress_is_reviewed_among_reviewed_and_open_ready(self) -> None:
         skipped_extra = card(
             word(3, "ember"),
@@ -87,6 +119,7 @@ class TestCandidateSorter:
             _row(1, "gallows", "the gallows stood", elsewhere=ElsewhereStatus.LEARNING),
             _row(2, "ember", "an ember zephyr", new=("zephyr",), skipped=True),
             _row(3, "cinder", "a cinder quill", new=("quill",)),
+            _row(6, "ember", "an ember", CandidateSection.EXTRA),
             _row(4, "concept", "a concept here", zipf=4.77),
             _row(5, "feast", "the feast"),
         ]
@@ -94,11 +127,12 @@ class TestCandidateSorter:
 
 
 def _row(
-    word_id: int, lemma: str, text: str, *, new: tuple[str, ...] = (), zipf: float = 3.0,
+    word_id: int, lemma: str, text: str, earned: CandidateSection = CandidateSection.READY,
+    *, new: tuple[str, ...] = (), zipf: float = 3.0,
     skipped: bool = False, elsewhere: ElsewhereStatus | None = None,
 ) -> CardRow:
     return CardRow(
         source_id=7, word_id=word_id, phrase_id=word_id, lemma=lemma, pos="NOUN",
         zipf_frequency=zipf, word_status=WordStatus.NEW, skipped=skipped,
-        phrase=phrase(text, lemma, new=new), elsewhere=elsewhere,
+        phrase=phrase(text, lemma, new=new), earned_section=earned, elsewhere=elsewhere,
     )

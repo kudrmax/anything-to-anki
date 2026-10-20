@@ -12,10 +12,13 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.dto.source_dtos import card_to_dto
 from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
+from backend.application.utils.candidate_factory import CandidateFactory
+from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.domain.entities.source import Source
 from backend.domain.entities.token_data import TokenData
 from backend.domain.exceptions import InvalidPhraseError, TargetNotInPhraseError
 from backend.domain.value_objects.built_analysis import WordKey
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import Press
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -23,6 +26,7 @@ from backend.domain.value_objects.phrase_origin_kind import DecisionKind, Occurr
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.word_status import WordStatus
 
+from tests.candidate_sorter_support import section_stamper
 from tests.card_support import card, occurrence, word
 from tests.phrase_support import phrase
 
@@ -91,11 +95,15 @@ class _Setup:
         reader.read_picked.side_effect = _read_picked
         self.use_case = AddSavedPhraseUseCase(
             source_repo=self.source_repo,
-            candidate_repo=self.candidate_repo,
-            text_analyzer=text_analyzer,
-            cefr_classifier=cefr,
-            frequency_provider=frequency,
-            phrasal_verb_detector=detector,
+            collected_phrases=CollectedPhrases(
+                self.candidate_repo, self.occurrence_repo, section_stamper(MagicMock()),
+            ),
+            candidate_factory=CandidateFactory(
+                text_analyzer=text_analyzer,
+                cefr_classifier=cefr,
+                frequency_provider=frequency,
+                phrasal_verb_detector=detector,
+            ),
             phrase_reader=reader,
             occurrence_repo=self.occurrence_repo,
             card_views=self.card_views,
@@ -167,3 +175,11 @@ def test_another_phrase_of_a_saved_word_is_no_press() -> None:
 
     setup.candidate_repo.add_word.assert_not_called()
     setup.decide_phrase.press_unless_done.assert_not_called()
+
+
+def test_a_saved_phrase_is_stamped() -> None:
+    setup = _Setup(existing=_saved_phrases())
+
+    setup.use_case.execute(PHRASE, [1])
+
+    assert setup.saved_phrase().earned_section is CandidateSection.READY

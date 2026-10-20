@@ -13,6 +13,7 @@ from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import SourceNotFoundError
 from backend.domain.services.card_view import Command
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
@@ -40,6 +41,7 @@ def _row(
         source_id=source_id, word_id=phrase_id, phrase_id=phrase_id, lemma=f"word{phrase_id}",
         pos="NOUN", zipf_frequency=4.0, word_status=status, skipped=False,
         phrase=phrase(f"a word{phrase_id}", f"word{phrase_id}"),
+        earned_section=CandidateSection.READY,
     )
 
 
@@ -239,16 +241,27 @@ class TestGetSourcesUseCase:
         self.lock.operations.return_value = {1: HeldOperation(SourceOperationKind.REBUILD)}
         [dto] = self.use_case.list_all()
         assert dto.busy_with is SourceOperationKind.REBUILD
-        assert dto.available_operation is SourceOperationKind.REBUILD
+        assert dto.available_operations == [SourceOperationKind.REBUILD]
         assert dto.can_start_operation is False
         assert dto.operation_hint == "Wait until the rebuild finishes"
         assert dto.progress_caption == "Rebuilding…"
+
+    def test_a_topic_lists_both_operations(self) -> None:
+        self.source_repo.list_all.return_value = [Source(
+            id=5, status=SourceStatus.DONE, role=SourceRole.TOPIC, topic_query="salary talk",
+        )]
+        self.topic_target_repo.has_targets.return_value = True
+        self.lock.operations.return_value = {}
+        [dto] = self.use_case.list_all()
+        assert dto.available_operations == [
+            SourceOperationKind.REFRESH, SourceOperationKind.REBUILD,
+        ]
 
     def test_a_free_source_can_start_its_operation(self) -> None:
         self.source_repo.list_all.return_value = [_text(1)]
         self.lock.operations.return_value = {}
         [dto] = self.use_case.list_all()
-        assert dto.available_operation is SourceOperationKind.REBUILD
+        assert dto.available_operations == [SourceOperationKind.REBUILD]
         assert dto.can_start_operation is True
         assert dto.operation_hint is None
 

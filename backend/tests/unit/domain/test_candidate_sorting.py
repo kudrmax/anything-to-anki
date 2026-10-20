@@ -73,6 +73,7 @@ def _make(
         occurrence=Occurrence(
             id=card_id, candidate_id=card_id, origin=OccurrenceOrigin.AUTO,
             source_phrase=text, phrase_position=position, key=None, fragment_score=None,
+            earned_section=CandidateSection.READY,
             shown_by=ShownBy.SELECTION,
         ),
     )
@@ -452,6 +453,16 @@ class TestSections:
         extra = _make("scythe", 2.6, unknowns=1)
         frequent = _make("concept", 4.77)
         assert self._lemmas([decided, frequent, extra]) == ["scythe", "concept", "feast"]
+
+    def test_a_card_ready_now_but_earned_extra_sorts_with_extra(self) -> None:
+        stamped = _make("feast", 3.95)
+        stamped = replace(
+            stamped,
+            occurrence=replace(stamped.occurrence, earned_section=CandidateSection.EXTRA),
+        )
+        extra = _make("scythe", 2.6, unknowns=1)
+        ready = _make("gallows", 2.4)
+        assert self._lemmas([stamped, extra, ready]) == ["gallows", "feast", "scythe"]
 
     def test_done_cards_go_to_reviewed_by_key_words_too(self) -> None:
         skipped = _skipped(_make("feast", 3.95, occurrences=5))

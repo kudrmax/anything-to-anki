@@ -10,6 +10,7 @@ from backend.domain.value_objects.user_work import UserWork
 
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import OccurrenceKey
+    from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.card_choice import Binding, CardChoice
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
@@ -23,7 +24,8 @@ class OccurrenceRow:
     the source phrase with the facts about its words and its place (see `hash_phrase`).
     `shows_polish`: the card shows the polished phrase, not the source one.
     `replaces_selection`: the phrase took the place of the word's selection card.
-    `binding`: the card's active binding to an Anki note.
+    `binding`: the card's active binding to an Anki note. `shown_phrase`: the phrase the card
+    shows. `earned_section`: the section stored on the phrase.
     """
 
     id: int
@@ -41,6 +43,8 @@ class OccurrenceRow:
     fragment_score: float | None
     shows_polish: bool
     phrase_hash: str
+    shown_phrase: Phrase
+    earned_section: CandidateSection
     replaces_selection: bool = False
 
     @property

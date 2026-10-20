@@ -31,6 +31,7 @@ if TYPE_CHECKING:
         OccurrenceScoreUpdate,
         OccurrenceTextUpdate,
         RebuildPlan,
+        SectionChange,
         WordUpdate,
     )
 
@@ -55,6 +56,7 @@ class RebuildPlanWriter:
         self._rescore(plan.occ_to_update_score)
         inserted = self._insert(plan.occ_to_insert, self._word_ids(plan.source_id))
         self._select(plan.selection_changes)
+        self.restamp(plan.section_changes)
         self._session.flush()
         return inserted
 
@@ -123,6 +125,7 @@ class RebuildPlanWriter:
                 phrase.source_phrase = _dumped(planned)
                 phrase.phrase_position = dump_position(planned.phrase_position)
                 phrase.fragment_score = planned.fragment_score
+                phrase.earned_section = planned.earned_section.value
                 if planned.bump_revision:
                     phrase.revision += 1
                 if planned.reset_results:
@@ -137,6 +140,16 @@ class RebuildPlanWriter:
             self._session.execute(
                 update(PhraseModel),
                 [{"id": u.occurrence_id, "fragment_score": u.fragment_score} for u in updates],
+            )
+
+    def restamp(self, changes: Sequence[SectionChange]) -> None:
+        if changes:
+            self._session.execute(
+                update(PhraseModel),
+                [
+                    {"id": c.occurrence_id, "earned_section": c.earned_section.value}
+                    for c in changes
+                ],
             )
 
     def _insert(
@@ -189,6 +202,7 @@ def _new_row(planned: OccurrenceInsert, word_id: int) -> dict[str, object]:
         "fragment_score": occurrence.fragment_score,
         "origin": OccurrenceOrigin.AUTO.value,
         "shown_by": ShownBy.SELECTION.value if planned.shown else None,
+        "earned_section": planned.earned_section.value,
     }
 
 

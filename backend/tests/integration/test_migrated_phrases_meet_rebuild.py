@@ -43,7 +43,8 @@ from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
-from tests.candidate_sorter_support import threshold_resolver
+from tests.candidate_sorter_support import section_stamper, threshold_resolver
+from tests.migration_support import upgrade_to_head_with_sections
 from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
@@ -139,6 +140,7 @@ def migrated(tmp_path_factory: pytest.TempPathFactory) -> tuple[str, list[WordDT
     with create_engine(url).begin() as conn:
         _seed_cards(conn, words)
     command.upgrade(cfg, "0049")
+    upgrade_to_head_with_sections(cfg, url)
     return url, words
 
 
@@ -156,6 +158,7 @@ def _rebuilder(session: Session) -> SourceRebuilder:
         settings_repo=settings,
         vocabulary=vocabulary,
         threshold_resolver=threshold_resolver(settings),
+        stamper=section_stamper(settings),
         analyze_text_use_case=Container().analyze_text_use_case(),
         unit_of_work=SqlaUnitOfWork(session, vocabulary.scope),
     )

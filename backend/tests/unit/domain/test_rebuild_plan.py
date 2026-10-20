@@ -7,22 +7,35 @@ from dataclasses import dataclass, field, replace
 
 import pytest
 from backend.domain.entities.occurrence import OccurrenceKey
+from backend.domain.services.candidate_sections import SectionRule
 from backend.domain.services.phrase_protection import is_touched, is_untouchable
 from backend.domain.services.phrase_selection import is_frozen, select_phrases
-from backend.domain.services.rebuild_plan import OccurrenceRekey, RebuildPlan, plan_rebuild
+from backend.domain.services.rebuild_plan import (
+    OccurrenceRekey,
+    RebuildCounts,
+    RebuildPlan,
+    SectionChange,
+    plan_rebuild,
+)
 from backend.domain.value_objects.built_analysis import BuiltOccurrence, BuiltWord, WordKey
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.user_knowledge import UserKnowledge
+from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY
 from backend.domain.value_objects.word_row import WordRow
 from backend.domain.value_objects.word_status import WordStatus
 
+from tests.phrase_support import phrase
 from tests.rebuild_support import (
     AUTO,
     COLLECTED,
     EXAMPLE,
     MANUAL,
+    READY_RULE,
     SELECTION,
     USER,
     breakdown,
@@ -54,7 +67,7 @@ def plan(
     *,
     include_open: bool = False,
 ) -> RebuildPlan:
-    return plan_rebuild(SOURCE, existing, words, analysed, include_open)
+    return plan_rebuild(SOURCE, existing, words, analysed, include_open, READY_RULE)
 
 
 # ── an in-memory store that applies a plan the way the repository does ─────────
@@ -95,6 +108,14 @@ class Store:
                 revision=old.revision + (1 if text_update.bump_revision else 0),
                 has_results=False if reset else old.has_results,
                 shows_polish=False if reset else old.shows_polish,
+                earned_section=text_update.earned_section,
+                shown_phrase=old.shown_phrase if old.shows_polish and not reset
+                else text_update.phrase,
+            )
+        for section_change in plan.section_changes:
+            self.rows[section_change.occurrence_id] = replace(
+                self.rows[section_change.occurrence_id],
+                earned_section=section_change.earned_section,
             )
         for score in plan.occ_to_update_score:
             self.rows[score.occurrence_id] = replace(
@@ -113,6 +134,7 @@ class Store:
                 text_hash=OccurrenceRow.hash_text(o.phrase.text),
                 fragment_score=o.fragment_score, shows_polish=False, replaces_selection=False,
                 phrase_hash=OccurrenceRow.hash_phrase(o.phrase, o.phrase_position),
+                shown_phrase=o.phrase, earned_section=insert.earned_section,
             )
         for change in plan.selection_changes:
             for cleared in change.clear_selection:
@@ -127,6 +149,7 @@ class Store:
     def plan(self, analysed: list[BuiltWord], include_open: bool) -> RebuildPlan:
         return plan_rebuild(
             SOURCE, list(self.rows.values()), list(self.words.values()), analysed, include_open,
+            READY_RULE,
         )
 
 
@@ -203,7 +226,9 @@ def test_rebuilding_twice_gives_an_empty_plan(seed: int, include_open: bool) -> 
 
     store.apply(store.plan(analysed, include_open))
 
-    assert store.plan(analysed, include_open).is_empty
+    again = store.plan(analysed, include_open)
+    assert again.is_empty
+    assert not again.section_changes
 
 
 @pytest.mark.parametrize(("seed", "include_open"), CASES)
@@ -213,7 +238,7 @@ def test_untouchable_phrases_are_never_deleted_nor_changed(
     rows, words, analysed = random_source(seed)
     untouchable = {r.id for r in rows if is_untouchable(r)}
 
-    result = plan_rebuild(SOURCE, rows, words, analysed, include_open)
+    result = plan_rebuild(SOURCE, rows, words, analysed, include_open, READY_RULE)
 
     changed = (
         set(result.occ_to_delete)
@@ -232,7 +257,7 @@ def test_without_include_open_touched_phrases_stay_and_keep_their_text(seed: int
     touched = {r.id for r in rows if is_touched(r, r.candidate_id in decided)}
     text_of = {r.id: r.text_hash for r in rows}
 
-    result = plan_rebuild(SOURCE, rows, words, analysed, include_open=False)
+    result = plan_rebuild(SOURCE, rows, words, analysed, False, READY_RULE)
 
     assert not set(result.occ_to_delete) & touched
     for update in result.occ_to_update_text:
@@ -245,7 +270,7 @@ def test_without_include_open_touched_phrases_stay_and_keep_their_text(seed: int
 def test_decided_words_are_never_removed(seed: int, include_open: bool) -> None:
     rows, words, analysed = random_source(seed)
 
-    result = plan_rebuild(SOURCE, rows, words, analysed, include_open)
+    result = plan_rebuild(SOURCE, rows, words, analysed, include_open, READY_RULE)
 
     assert not set(result.words_to_delete) & {w.id for w in words if _decided(w)}
 
@@ -405,6 +430,25 @@ def test_changed_text_of_an_untouched_phrase_is_rewritten() -> None:
     assert update.phrase == text_phrase("She glared back.")
     assert update.phrase_position == position_at(1, "She glared back.")
     assert not update.reset_results
+
+
+def test_a_rewritten_phrase_carries_the_section_of_its_new_text() -> None:
+    untouched = row(id=1, score=0.5, shown=SELECTION)
+    new_text = "She glared quill"
+    analysed = BuiltOccurrence(
+        phrase=phrase(new_text, "glared", new=("quill",)),
+        phrase_position=position_at(1, new_text),
+        key=key_at(1),
+        fragment_score=0.5,
+    )
+    rule = SectionRule(UserKnowledge(EMPTY_VOCABULARY, CEFRLevel.B1, None), None)
+
+    result = plan_rebuild(
+        SOURCE, [untouched], [word()], [built("glare", analysed)], False, rule,
+    )
+
+    [update] = result.occ_to_update_text
+    assert update.earned_section is CandidateSection.EXTRA
 
 
 def test_include_open_never_changes_the_decision_phrase_nor_the_exported_one() -> None:
@@ -661,3 +705,59 @@ def test_the_cards_choice_decides_the_word_not_its_stored_status() -> None:
 
     assert result.words_to_delete == (2,)
     assert result.occ_to_delete == (2,)
+
+
+# ── sections are re-stamped ───────────────────────────────────────────────────
+
+EXTRA = CandidateSection.EXTRA
+READY = CandidateSection.READY
+
+
+def test_rebuild_restamps_an_open_phrase_whose_section_changed() -> None:
+    stale = row(id=1, shown=SELECTION, section=EXTRA)
+
+    result = plan([stale], [word()], [built("glare", occ(1))])
+
+    assert result.section_changes == (SectionChange(1, READY),)
+
+
+def test_rebuild_restamps_manual_and_example_phrases() -> None:
+    rows = [
+        row(id=1, origin=MANUAL, shown=USER, section=EXTRA),
+        row(id=2, origin=EXAMPLE, shown=USER, section=EXTRA),
+    ]
+
+    result = plan(rows, [word()], [])
+
+    assert result.section_changes == (SectionChange(1, READY), SectionChange(2, READY))
+
+
+@pytest.mark.parametrize("kept", [
+    row(id=1, shown=USER, skipped=True, section=EXTRA),
+    row(id=1, shown=USER, is_decision=True, section=EXTRA),
+    row(id=1, shown=USER, exported=True, section=EXTRA),
+], ids=["skipped", "decision", "exported"])
+def test_rebuild_keeps_the_section_of_a_chosen_or_exported_phrase(kept: OccurrenceRow) -> None:
+    result = plan([kept], [word()], [built("glare", occ(1))])
+
+    assert not result.section_changes
+
+
+def test_a_rebuild_that_only_moves_sections_is_not_empty() -> None:
+    stale = row(id=1, shown=SELECTION, has_results=True, section=EXTRA)
+
+    result = plan([stale], [word()], [built("glare", occ(1))])
+
+    assert not result.is_empty
+    assert result.counts == RebuildCounts()
+
+
+def test_restamping_uses_the_updated_word_data() -> None:
+    open_phrase = row(id=1, shown=SELECTION)
+    rule = SectionRule(knowledge=None, frequent_threshold=FrequentWordThreshold("x", 5.0, ()))
+
+    result = plan_rebuild(
+        SOURCE, [open_phrase], [word(zipf=3.0)], [built("glare", occ(1), zipf=6.0)], False, rule,
+    )
+
+    assert result.section_changes == (SectionChange(1, CandidateSection.PROBABLY_KNOWN),)

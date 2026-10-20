@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from tests.decision_support import Decisions
 from tests.migration_0049_checks import Before, app_export_queue, check_upgraded, read_before
+from tests.migration_support import upgrade_to_head_with_sections
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
@@ -379,6 +380,7 @@ def migrated(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> Migrated:
     started = datetime.now(tz=UTC).replace(tzinfo=None)
     command.upgrade(cfg, REVISION_UNDER_TEST)
     finished = datetime.now(tz=UTC).replace(tzinfo=None)
+    upgrade_to_head_with_sections(cfg, url)
     return Migrated(url, path, before, started, finished, dropped_decisions(caplog))
 
 

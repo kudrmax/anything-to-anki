@@ -110,6 +110,22 @@ describe('RebuildDialog', () => {
     expect(button('Rebuild')).toBeUndefined()
   })
 
+  it('hides Also unreviewed cards when the preview has no with_open', async () => {
+    await previewed({ without_open: CHANGES, with_open: null })
+    expect(dialog().textContent).not.toContain('Also unreviewed cards')
+    expect(dialog().querySelector('[role="switch"]')).toBeNull()
+    const rebuild = vi.spyOn(api, 'rebuildSource').mockResolvedValue(operation('rebuild', 'running', { operation_id: 2 }))
+    await press('Rebuild')
+    expect(rebuild).toHaveBeenCalledWith(SOURCE, false)
+  })
+
+  it('offers Rebuild when the preview has changes but no new words', async () => {
+    const SECTIONS_ONLY: RebuildCounts = { ...NOTHING, nothing_to_update: false }
+    await previewed({ without_open: SECTIONS_ONLY, with_open: null })
+    expect(button('Rebuild')).toBeDefined()
+    expect(dialog().textContent).not.toContain('Nothing to update')
+  })
+
   it('shows the error when the applied rebuild fails', async () => {
     const state = await previewed({ without_open: CHANGES, with_open: CHANGES })
     vi.spyOn(api, 'rebuildSource').mockResolvedValue(operation('rebuild', 'running', { operation_id: 2 }))

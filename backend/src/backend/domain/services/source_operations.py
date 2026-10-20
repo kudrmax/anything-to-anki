@@ -20,18 +20,21 @@ _BUSY_NAME: dict[SourceOperationKind, str] = {
 }
 
 
-def available_operation(source: Source) -> SourceOperationKind | None:
-    """What a processed source can be brought up to date with. While another operation
-    holds the source, it is still offered, but can't start (see `operation_hint`).
+def available_operations(source: Source) -> tuple[SourceOperationKind, ...]:
+    """What a processed source can be brought up to date with, in menu order. While another
+    operation holds the source, they are still offered, but can't start (see `operation_hint`).
 
     A source with its own text is rebuilt; a topic is refreshed from the other sources,
-    adding phrases only; the saved phrases have nothing to update.
+    adding phrases only, and rebuilt, which moves the sections of its phrases; the saved
+    phrases are only rebuilt that way.
     """
     if source.role is SourceRole.CONTENT and source.status in _REBUILDABLE_STATUSES:
-        return SourceOperationKind.REBUILD
+        return (SourceOperationKind.REBUILD,)
     if source.role is SourceRole.TOPIC and source.status is SourceStatus.DONE:
-        return SourceOperationKind.REFRESH
-    return None
+        return (SourceOperationKind.REFRESH, SourceOperationKind.REBUILD)
+    if source.role is SourceRole.SAVED_PHRASES:
+        return (SourceOperationKind.REBUILD,)
+    return ()
 
 
 def operation_hint(busy_with: SourceOperationKind | None) -> str | None:

@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 import pytest
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_tts import CandidateTTS
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
@@ -51,8 +52,8 @@ class TestPhrasePolishPersistence:
             occ = occurrences.get(PHRASE_ID)
             assert occ is not None
             occurrences.write_text(
-                PHRASE_ID, occ.source_phrase, occ.phrase_position, polished=polished,
-                polish_reverted=True,
+                PHRASE_ID, occ.source_phrase, occ.phrase_position,
+                earned_section=CandidateSection.READY, polished=polished, polish_reverted=True,
             )
             s.commit()
         with self._Session() as s:
@@ -69,10 +70,14 @@ class TestPhrasePolishPersistence:
             assert occ is not None
             occurrences.write_text(
                 PHRASE_ID, occ.source_phrase, occ.phrase_position,
+                earned_section=CandidateSection.READY,
                 polished=phrase("The stale air.", "stale"), polish_reverted=True,
             )
             new_phrase = phrase("The air around us was stale", "stale")
-            occurrences.write_text(PHRASE_ID, new_phrase, DocumentPosition(0, 0, 0, 0, 27))
+            occurrences.write_text(
+                PHRASE_ID, new_phrase, DocumentPosition(0, 0, 0, 0, 27),
+                earned_section=CandidateSection.READY,
+            )
             s.commit()
             occ = occurrences.get(PHRASE_ID)
             assert occ is not None

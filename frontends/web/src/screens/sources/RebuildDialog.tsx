@@ -5,7 +5,7 @@ import { Banner, Button, DividerRow, Modal, Spinner, Switch, Text } from '@/ui'
 import { useSourceOperation } from './useSourceOperation'
 import css from './sources.module.css'
 
-type Operation = NonNullable<SourceSummary['available_operation']>
+type Operation = SourceSummary['available_operations'][number]
 
 interface RebuildDialogProps {
   sourceId: number
@@ -61,7 +61,9 @@ export function RebuildDialog({ sourceId, title, operation, onFinished, onClose 
     onFinished()
   }, [finished, onFinished])
 
-  const counts = preview && (includeOpen ? preview.with_open : preview.without_open)
+  const withOpen = preview?.with_open ?? null
+  const alsoOpen = withOpen !== null && includeOpen
+  const counts = preview && (alsoOpen && withOpen ? withOpen : preview.without_open)
   const running = run.phase === 'running'
   const close = <Button variant="link" onClick={onClose}>{finished || running ? 'Close' : 'Cancel'}</Button>
 
@@ -74,7 +76,7 @@ export function RebuildDialog({ sourceId, title, operation, onFinished, onClose 
       return <>{close}<Button variant="fill" onClick={() => void start(() => api.previewRebuild(sourceId))}>Preview</Button></>
     }
     if (counts.nothing_to_update) return close
-    return <>{close}<Button variant="fill" onClick={() => void start(() => api.rebuildSource(sourceId, includeOpen))}>Rebuild</Button></>
+    return <>{close}<Button variant="fill" onClick={() => void start(() => api.rebuildSource(sourceId, alsoOpen))}>Rebuild</Button></>
   })()
 
   const body = (() => {
@@ -91,9 +93,11 @@ export function RebuildDialog({ sourceId, title, operation, onFinished, onClose 
     return (
       <>
         {counts.nothing_to_update ? <Text>Nothing to update</Text> : <Lines lines={previewLines(counts)} />}
-        <DividerRow last label={ALSO_UNREVIEWED} hint="Cards with generation may also get a better phrase; the old phrase keeps its results.">
-          <Switch checked={includeOpen} onChange={setIncludeOpen} label={ALSO_UNREVIEWED} />
-        </DividerRow>
+        {withOpen && (
+          <DividerRow last label={ALSO_UNREVIEWED} hint="Cards with generation may also get a better phrase; the old phrase keeps its results.">
+            <Switch checked={includeOpen} onChange={setIncludeOpen} label={ALSO_UNREVIEWED} />
+          </DividerRow>
+        )}
         <Text tone="muted" size="s">The numbers may differ slightly from the result.</Text>
       </>
     )

@@ -58,3 +58,6 @@ class SourceOperationRegistry:
             current = self._last.get(source_id)
             if current is not None and current.operation_id == operation_id:
                 self._last[source_id] = current.model_copy(update=changes)
+
+
+OPERATIONS = SourceOperationRegistry()

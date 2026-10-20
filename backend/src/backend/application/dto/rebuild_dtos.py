@@ -49,10 +49,11 @@ class RebuildCountsDTO(BaseModel):
 
 
 class RebuildPreviewDTO(BaseModel):
-    """A rebuild as it would go, without and with «Also unreviewed cards»."""
+    """A rebuild as it would go, without and with «Also unreviewed cards»; a source without
+    text of its own has no such switch, so no `with_open`."""
 
     without_open: RebuildCountsDTO
-    with_open: RebuildCountsDTO
+    with_open: RebuildCountsDTO | None
 
 
 class RebuildSummaryDTO(BaseModel):

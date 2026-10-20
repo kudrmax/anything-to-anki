@@ -6,9 +6,10 @@ different sections.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
-from backend.domain.services.card_view import section
+from backend.domain.services.card_view import section, shown_section
 from backend.domain.value_objects.candidate_section import CandidateSection
 
 if TYPE_CHECKING:
@@ -50,6 +51,11 @@ class ShownCardFacts(CardFacts, Protocol):
     @property
     def is_done(self) -> bool: ...
 
+    @property
+    def earned_section(self) -> CandidateSection:
+        """The section the card's phrase earned when it was added or its text last changed."""
+        ...
+
 
 def new_words(phrase: Phrase, knowledge: UserKnowledge | None) -> list[str]:
     """Words of the phrase besides the target that are new to the user, once each.
@@ -76,13 +82,53 @@ def section_of(
     return CandidateSection.READY
 
 
+def open_section(
+    card: ShownCardFacts,
+    knowledge: UserKnowledge | None,
+    frequent_threshold: FrequentWordThreshold | None,
+) -> CandidateSection:
+    """Where the card stands, done or not: Ready only if the phrase is Ready now and earned it."""
+    return shown_section(section_of(card, knowledge, frequent_threshold), card.earned_section)
+
+
 def card_section(
     card: ShownCardFacts,
     knowledge: UserKnowledge | None,
     frequent_threshold: FrequentWordThreshold | None,
 ) -> CandidateSection:
-    """Where the card stands: Reviewed once done, else the section its phrase earns."""
-    return section(card, section_of(card, knowledge, frequent_threshold))
+    """Where the card stands: Reviewed once done, else its open section."""
+    return section(card, open_section(card, knowledge, frequent_threshold))
+
+
+@dataclass(frozen=True)
+class _PhraseOfWord:
+    """A word shown in a phrase: what `section_of` reads of a card."""
+
+    word: WordFacts
+    phrase: Phrase
+
+    @property
+    def lemma(self) -> str:
+        return self.word.lemma
+
+    @property
+    def pos(self) -> str:
+        return self.word.pos
+
+    @property
+    def zipf_frequency(self) -> float:
+        return self.word.zipf_frequency
+
+
+@dataclass(frozen=True)
+class SectionRule:
+    """What the user knows at one moment, to tell the section a phrase earns."""
+
+    knowledge: UserKnowledge | None
+    frequent_threshold: FrequentWordThreshold | None
+
+    def earned(self, phrase: Phrase, word: WordFacts) -> CandidateSection:
+        return section_of(_PhraseOfWord(word, phrase), self.knowledge, self.frequent_threshold)
 
 
 def is_probably_known(

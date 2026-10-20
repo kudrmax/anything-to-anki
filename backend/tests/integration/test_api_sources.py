@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
 from tests.unit.infrastructure.epub.epub_builder import EpubBuilder, TocLink, page, prose
+from tests.word_support import TEST_SECTION
 
 
 @pytest.fixture()
@@ -277,12 +278,12 @@ class TestSourcesAPI:
         [row] = [s for s in client.get("/sources").json() if s["id"] == topic_id]
         started = client.post(f"/sources/{topic_id}/refresh")
 
-        assert row["available_operation"] == "refresh"
+        assert row["available_operations"] == ["refresh", "rebuild"]
         assert started.status_code == 202
         assert (started.json()["kind"], started.json()["state"]) == ("refresh", "running")
         assert len(spawned) == 1
         assert client.post(f"/sources/{topic_id}/refresh").status_code == 409
-        assert client.post(f"/sources/{topic_id}/rebuild", json={}).status_code == 400
+        assert client.post(f"/sources/{topic_id}/rebuild", json={}).status_code == 409
 
     def test_a_content_source_offers_rebuild_and_cannot_be_refreshed(
         self, client: TestClient, db_session: Session,
@@ -293,7 +294,7 @@ class TestSourcesAPI:
         db_session.commit()
         [done] = [s for s in client.get("/sources").json() if s["id"] == source_id]
 
-        assert (new["available_operation"], done["available_operation"]) == (None, "rebuild")
+        assert (new["available_operations"], done["available_operations"]) == ([], ["rebuild"])
         assert client.post(f"/sources/{source_id}/refresh").status_code == 400
 
     def test_an_operation_that_never_runs_frees_its_source(
@@ -377,6 +378,7 @@ class TestSourcesAPI:
             source_phrase=dump_phrase(phrase("I'm gonna do it", "gonna")),
             origin="auto",
             shown_by="selection",
+            earned_section=TEST_SECTION,
         ))
         db_session.commit()
 
@@ -476,8 +478,8 @@ class TestSavedPhrasesAPI:
         )
         assert response.status_code == 400
 
-    def test_saved_phrases_source_cannot_be_deleted_or_rebuilt(
-        self, client: TestClient,
+    def test_saved_phrases_source_cannot_be_deleted_but_can_be_rebuilt(
+        self, client: TestClient, spawned: list[object],
     ) -> None:
         client.post(
             "/sources/saved-phrases",
@@ -485,9 +487,10 @@ class TestSavedPhrasesAPI:
         )
         source_id = client.get("/sources").json()[0]["id"]
 
+        [saved] = client.get("/sources").json()
         assert client.delete(f"/sources/{source_id}").status_code == 409
-        assert client.post(f"/sources/{source_id}/rebuild", json={}).status_code == 400
-        assert client.post(f"/sources/{source_id}/rebuild/preview").status_code == 400
+        assert saved["available_operations"] == ["rebuild"]
+        assert client.post(f"/sources/{source_id}/rebuild/preview").status_code == 202
 
 
 @pytest.mark.integration

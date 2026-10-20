@@ -18,10 +18,10 @@ from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.topic_target import TopicTarget
 from backend.domain.exceptions import (
-    RebuildNotSupportedError,
     RefreshNotSupportedError,
     TopicTargetsMissingError,
 )
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.phrase_origin import PhraseOrigin
@@ -30,6 +30,7 @@ from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.container import Container
+from backend.infrastructure.persistence.phrase_writes import drop_results
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -43,12 +44,14 @@ from backend.infrastructure.persistence.sqla_known_word_repository import (
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
+from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from backend.infrastructure.persistence.sqla_topic_target_repository import (
     SqlaTopicTargetRepository,
 )
 from sqlalchemy import text
 
+from tests.candidate_sorter_support import section_stamper
 from tests.phrase_support import phrase
 from tests.word_support import store_card
 
@@ -288,6 +291,19 @@ def test_refreshing_keeps_decisions_and_results(
     assert word.status is WordStatus.LEARN
 
 
+def test_topic_and_refresh_phrases_are_stamped(
+    db_session: Session, container: Container,
+) -> None:
+    topic_id = _processed_topic(db_session, container)
+    _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
+    db_session.commit()
+    container.refresh_topic_use_case(db_session).execute(topic_id)
+
+    stored = SqlaOccurrenceRepository(db_session).by_source(topic_id)
+    assert len(stored) > 1
+    assert all(o.earned_section is CandidateSection.READY for o in stored)
+
+
 def test_a_real_phrase_added_beside_a_generated_one_is_never_replaced(
     db_session: Session, container: Container,
 ) -> None:
@@ -301,7 +317,7 @@ def test_a_real_phrase_added_beside_a_generated_one_is_never_replaced(
     _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
     db_session.commit()
     container.refresh_topic_use_case(db_session).execute(topic_id)
-    occurrences.reset_results(generated.id)
+    drop_results(db_session, [generated.id])
     db_session.commit()
     _add_source(db_session, "Reply", Kind.TEXT, ANOTHER_ARTICLE)
     db_session.commit()
@@ -345,7 +361,9 @@ def _refresh_use_case(
         source_repo=SqlaSourceRepository(db_session),
         occurrence_repo=SqlaOccurrenceRepository(db_session),
         collected_phrases=CollectedPhrases(
-            SqlaCandidateRepository(db_session), SqlaOccurrenceRepository(db_session),
+            SqlaCandidateRepository(db_session),
+            SqlaOccurrenceRepository(db_session),
+            section_stamper(SqlaSettingsRepository(db_session)),
         ),
         lock=use_case._lock,
         unit_of_work=use_case._unit_of_work,
@@ -366,11 +384,9 @@ def test_a_second_refresh_adds_nothing(db_session: Session, container: Container
     assert [o.id for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)] == before
 
 
-def test_a_topic_is_refreshed_not_rebuilt(db_session: Session, container: Container) -> None:
-    topic_id = _processed_topic(db_session, container)
+def test_only_a_topic_is_refreshed(db_session: Session, container: Container) -> None:
+    _processed_topic(db_session, container)
 
-    with pytest.raises(RebuildNotSupportedError):
-        container.rebuild_source_use_case(db_session).execute(topic_id, include_open=False)
     with pytest.raises(RefreshNotSupportedError):
         container.refresh_topic_use_case(db_session).execute(
             _add_source(db_session, "Novel", Kind.TEXT, NOVEL_TEXT),
@@ -386,3 +402,19 @@ def test_topic_cannot_be_processed_before_targets_exist(
     )
     with pytest.raises(TopicTargetsMissingError):
         container.process_source_use_case(db_session).start(topic_id)
+
+
+def test_refresh_does_not_restamp(db_session: Session, container: Container) -> None:
+    topic_id = _processed_topic(db_session, container)
+    db_session.execute(text("UPDATE phrases SET earned_section = 'extra'"))
+    db_session.commit()
+    stale = {o.id for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)}
+
+    _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
+    db_session.commit()
+    container.refresh_topic_use_case(db_session).execute(topic_id)
+
+    sections = {
+        o.id: o.earned_section for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)
+    }
+    assert {sections[i] for i in stale} == {CandidateSection.EXTRA}

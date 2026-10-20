@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from backend.application.utils.job_phrases import JobPhrases
     from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
     from backend.application.utils.rewrite_phrase import RewritePhrase
+    from backend.application.utils.section_stamper import SectionStamper
     from backend.domain.entities.source import Source
     from backend.domain.ports.ai_service import AIService
     from backend.domain.ports.document_repository import DocumentRepository
@@ -50,6 +51,7 @@ class PhrasePolishUseCase:
         ai_service: AIService,
         prompts_config: PromptsConfig,
         rewrite_phrase: RewritePhrase,
+        stamper: SectionStamper,
     ) -> None:
         self._job_phrases = job_phrases
         self._occurrence_repo = occurrence_repo
@@ -60,6 +62,7 @@ class PhrasePolishUseCase:
         self._ai_service = ai_service
         self._prompts_config = prompts_config
         self._rewrite_phrase = rewrite_phrase
+        self._stamper = stamper
 
     def execute_batch(
         self,
@@ -142,7 +145,7 @@ class PhrasePolishUseCase:
         the target is discarded: the source phrase stays, marked as polished."""
         text = " ".join(_BOLD_MARKERS.sub(r"\1", answer).split()).strip(_WRAPPING_QUOTES)
         try:
-            return self._rewrite_phrase.of_phrase(card.phrase, card.word.lemma, text).text
+            return self._rewrite_phrase.of_phrase(card.phrase, card.word, text).text
         except TargetNotInPhraseError:
             logger.warning(
                 "PhrasePolish: answer lost the target, keeping the source phrase "
@@ -151,6 +154,7 @@ class PhrasePolishUseCase:
             )
             source = card.phrase.source_phrase
             self._occurrence_repo.write_text(
-                card.phrase_id, source, card.phrase.phrase_position, polished=source,
+                card.phrase_id, source, card.phrase.phrase_position,
+                earned_section=self._stamper.earned(source, card.word), polished=source,
             )
             return source.text

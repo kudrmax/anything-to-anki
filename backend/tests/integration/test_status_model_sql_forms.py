@@ -70,8 +70,8 @@ def _second_phrase(session: Session, word_id: int) -> int:
     session.execute(
         text(
             "INSERT INTO phrases (id, candidate_id, source_phrase, origin, shown_by, choice,"
-            " created_at) SELECT :id, candidate_id, source_phrase, 'manual', 'user', 'none',"
-            " created_at FROM phrases WHERE id = :first"
+            " created_at, earned_section) SELECT :id, candidate_id, source_phrase, 'manual',"
+            " 'user', 'none', created_at, earned_section FROM phrases WHERE id = :first"
         ),
         {"id": phrase_id, "first": phrase_id_of(word_id)},
     )

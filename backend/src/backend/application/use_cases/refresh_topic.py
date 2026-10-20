@@ -9,7 +9,7 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     SourceOperationBusyError,
 )
-from backend.domain.services.source_operations import available_operation
+from backend.domain.services.source_operations import available_operations
 from backend.domain.value_objects.built_analysis import WordKey
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
@@ -56,7 +56,7 @@ class RefreshTopicUseCase:
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
-        if available_operation(source) is not SourceOperationKind.REFRESH:
+        if SourceOperationKind.REFRESH not in available_operations(source):
             raise RefreshNotSupportedError(source_id)
         if not self._lock.acquire(source_id, SourceOperationKind.REFRESH):
             raise SourceOperationBusyError(source_id, self._lock.held(source_id))
