@@ -23,6 +23,7 @@ from backend.domain.services.source_review_status import derive_review_status
 from backend.domain.services.source_stage import shown_status, stage_of
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.decision_progress import DecisionProgress
+from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_stage import STAGE_ORDER
 
 if TYPE_CHECKING:
@@ -37,7 +38,6 @@ if TYPE_CHECKING:
     from backend.domain.services.collection_tree import CollectionTree
     from backend.domain.value_objects.held_operation import HeldOperation
     from backend.domain.value_objects.review_card import CardRow
-    from backend.domain.value_objects.source_scope import SourceScope
 
 
 class GetSourcesUseCase:
@@ -143,7 +143,7 @@ class GetSourcesUseCase:
             can_start_operation=busy_with is None,
             busy_with=busy_with,
             operation_hint=operation_hint(busy_with),
-            can_review=can_review(status),
+            can_review=can_review(SourceScope.source(source.id), status),
             can_export=can_export(status, learn_count),
             can_delete=can_delete(source, busy_with),
             review_fraction=review_fraction(status, progress),

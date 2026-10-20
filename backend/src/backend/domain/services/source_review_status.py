@@ -9,7 +9,7 @@ from backend.domain.value_objects.review_status import ReviewStatus
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterable, Mapping
 
     from backend.domain.value_objects.decision_progress import DecisionProgress
 
@@ -42,3 +42,14 @@ def derive_review_status(stored: SourceStatus, progress: DecisionProgress) -> Re
     """What a source reads as now: a processed source is reviewed when every card that
     counts is done, not started while none is, partially reviewed in between."""
     return _REVIEW_STATUS[(stored, reach(progress))]
+
+
+def stored_status_of_set(statuses: Iterable[SourceStatus]) -> SourceStatus:
+    """A set is processed once any of its sources is, failed when every source failed,
+    new otherwise; an empty set is new."""
+    seen = list(statuses)
+    if SourceStatus.DONE in seen:
+        return SourceStatus.DONE
+    if seen and all(stored is SourceStatus.ERROR for stored in seen):
+        return SourceStatus.ERROR
+    return SourceStatus.NEW

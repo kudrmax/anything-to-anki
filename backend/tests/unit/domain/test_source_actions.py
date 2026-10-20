@@ -13,6 +13,7 @@ from backend.domain.services.source_actions import (
 from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.review_status import ReviewStatus
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
+from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
 pytestmark = pytest.mark.unit
@@ -26,7 +27,7 @@ pytestmark = pytest.mark.unit
     (ReviewStatus.REVIEWED, True),
 ])
 def test_a_processed_source_can_be_reviewed(status: ReviewStatus, reviewable: bool) -> None:
-    assert can_review(status) is reviewable
+    assert can_review(SourceScope.source(1), status) is reviewable
 
 
 @pytest.mark.parametrize(("status", "learn_count", "exportable"), [
@@ -44,6 +45,12 @@ def test_a_processed_source_with_a_word_to_learn_can_be_exported(
 ) -> None:
     """Decisions alone are not enough: all-Known or all-Skip leaves nothing to export."""
     assert can_export(status, learn_count) is exportable
+
+
+def test_unsorted_is_never_reviewable() -> None:
+    assert can_review(SourceScope.unsorted(), ReviewStatus.DONE) is False
+    assert can_review(SourceScope.collection(1), ReviewStatus.DONE) is True
+    assert can_review(SourceScope.source(1), ReviewStatus.NEW) is False
 
 
 def test_a_free_source_can_be_deleted() -> None:

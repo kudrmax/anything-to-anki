@@ -207,6 +207,14 @@ class CollectionNotFoundError(DomainError):
         self.collection_id = collection_id
 
 
+class ScopeNotReviewableError(DomainError):
+    """Raised when a set of sources that is not for review is opened for review."""
+
+    def __init__(self, kind: str) -> None:
+        super().__init__(f"Scope is not for review: {kind}")
+        self.kind = kind
+
+
 class CollectionNameExistsError(DomainError):
     """Raised when a sibling collection already has this name."""
 
