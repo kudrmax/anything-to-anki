@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 # Why a source of a set sits a run out: busy, no use for the kind, or held back.
 _SKIPPED = (SourceOperationBusyError, GenerationNotSupportedError, GenerationBlockedError)
 
+
 class RunGenerationUseCase:
     """Queues one kind of generation for the cards of a set of sources that fall into the
     chosen cards. A source that can't run it now is skipped; the set fails only when none

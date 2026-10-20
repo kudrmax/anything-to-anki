@@ -61,10 +61,19 @@ def _resolver(sources: list[Source], collection: int | None = None) -> SourceSco
     return SourceScopeResolver(source_repo, collection_repo)
 
 
+def _jobs(downloading: frozenset[int] = frozenset()) -> MagicMock:
+    job_repo = MagicMock()
+    job_repo.has_active_jobs_for_source.side_effect = (
+        lambda source_id, job_types: source_id in downloading
+        and job_types == frozenset({JobType.VIDEO_DOWNLOAD})
+    )
+    return job_repo
+
+
 @pytest.mark.unit
 class TestRequestVideoDownload:
     def test_queues_one_source_level_job(self) -> None:
-        job_repo = MagicMock()
+        job_repo = _jobs()
         use_case = RequestVideoDownloadUseCase(_resolver([_youtube_source()]), job_repo)
 
         assert use_case.execute(SourceScope.source(SOURCE_ID)) == 1
@@ -80,7 +89,7 @@ class TestRequestVideoDownload:
             ),
             Source(id=3, status=SourceStatus.DONE, collection_id=7),
         ]
-        job_repo = MagicMock()
+        job_repo = _jobs()
         use_case = RequestVideoDownloadUseCase(_resolver(sources, collection=7), job_repo)
 
         assert use_case.execute(SourceScope.collection(7)) == 1
@@ -88,15 +97,36 @@ class TestRequestVideoDownload:
         [[job]] = job_repo.enqueue.call_args.args
         assert job.source_id == 1
 
+    def test_skips_a_source_whose_download_is_already_queued(self) -> None:
+        sources = [
+            Source(id=1, status=SourceStatus.DONE, source_url="u1", collection_id=7),
+            Source(id=2, status=SourceStatus.DONE, source_url="u2", collection_id=7),
+        ]
+        job_repo = _jobs(downloading=frozenset({1}))
+        use_case = RequestVideoDownloadUseCase(_resolver(sources, collection=7), job_repo)
+
+        assert use_case.execute(SourceScope.collection(7)) == 1
+
+        [[job]] = job_repo.enqueue.call_args.args
+        assert job.source_id == 2
+
+    def test_a_second_request_queues_nothing(self) -> None:
+        job_repo = _jobs(downloading=frozenset({SOURCE_ID}))
+        use_case = RequestVideoDownloadUseCase(_resolver([_youtube_source()]), job_repo)
+
+        assert use_case.execute(SourceScope.source(SOURCE_ID)) == 0
+
+        job_repo.enqueue.assert_not_called()
+
     def test_nothing_to_download_keeps_the_single_source_error(self) -> None:
         use_case = RequestVideoDownloadUseCase(
-            _resolver([Source(id=3, status=SourceStatus.DONE)]), MagicMock(),
+            _resolver([Source(id=3, status=SourceStatus.DONE)]), _jobs(),
         )
         with pytest.raises(SourceHasNoUrlError):
             use_case.execute(SourceScope.source(3))
 
     def test_unknown_source(self) -> None:
-        job_repo = MagicMock()
+        job_repo = _jobs()
         with pytest.raises(SourceNotFoundError):
             RequestVideoDownloadUseCase(_resolver([]), job_repo).execute(SourceScope.source(9))
         job_repo.enqueue.assert_not_called()
@@ -104,7 +134,7 @@ class TestRequestVideoDownload:
     def test_rejects_already_downloaded_video(self) -> None:
         source = _youtube_source()
         source.video_path = "existing.mp4"
-        job_repo = MagicMock()
+        job_repo = _jobs()
 
         with pytest.raises(VideoAlreadyDownloadedError):
             RequestVideoDownloadUseCase(_resolver([source]), job_repo).execute(

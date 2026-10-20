@@ -27,12 +27,13 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class CardListing:
-    """The cards of a set of sources in review order, how far the user got with them, and
-    the sources in the set's order."""
+    """The cards of a set of sources in review order, how far the user got with them, the
+    sources in the set's order and the operations holding sources when the cards were read."""
 
     cards: list[CardDTO]
     progress: DecisionProgress
     sources: list[Source]
+    operations: Mapping[int, HeldOperation]
 
 
 class CardViews:
@@ -65,10 +66,12 @@ class CardViews:
         arranged = self._candidate_sorter.arrange(
             self._review_cards.of_sources(source_ids), order, source_order=source_ids,
         )
+        operations = self._lock.operations()
         return CardListing(
-            cards=self._dtos(arranged, self._source_dtos(sources)),
+            cards=self._dtos(arranged, _source_dtos(sources, operations)),
             progress=arranged.progress(),
             sources=sources,
+            operations=operations,
         )
 
     def one(self, phrase_id: int) -> CardDTO:
@@ -87,10 +90,6 @@ class CardViews:
             reported=phrase_id in reported,
             section=self._candidate_sorter.section(card),
         )
-
-    def _source_dtos(self, sources: list[Source]) -> dict[int, CardSourceDTO]:
-        operations = self._lock.operations()
-        return {s.id: _source_dto(s, operations) for s in sources if s.id is not None}
 
     def _dtos(
         self, arranged: ArrangedCards, sources: dict[int, CardSourceDTO],
@@ -118,3 +117,9 @@ def _source_dto(source: Source, operations: Mapping[int, HeldOperation]) -> Card
     assert source.id is not None
     operation = operations.get(source.id)
     return CardSourceDTO.of(source, operation.kind if operation is not None else None)
+
+
+def _source_dtos(
+    sources: list[Source], operations: Mapping[int, HeldOperation],
+) -> dict[int, CardSourceDTO]:
+    return {s.id: _source_dto(s, operations) for s in sources if s.id is not None}

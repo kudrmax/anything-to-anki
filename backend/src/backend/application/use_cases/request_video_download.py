@@ -15,12 +15,13 @@ if TYPE_CHECKING:
 
 # Why a source of a set has no video to download: no link, or the file is here already.
 _SKIPPED = (SourceHasNoUrlError, VideoAlreadyDownloadedError)
+_VIDEO_DOWNLOAD = frozenset({JobType.VIDEO_DOWNLOAD})
 
 
 class RequestVideoDownloadUseCase:
     """Queues the download of the video of every source of a set that has a link and no
-    file yet, once each. A set with nothing to download fails with its first source's
-    reason."""
+    file yet, once each; a source whose download is already queued or running is left as
+    is. A set with nothing to download fails with its first source's reason."""
 
     def __init__(self, scope_resolver: SourceScopeResolver, job_repo: JobRepository) -> None:
         self._scope_resolver = scope_resolver
@@ -32,9 +33,12 @@ class RequestVideoDownloadUseCase:
         skipped: list[DomainError] = []
         for source in self._scope_resolver.reviewable_sources(scope):
             try:
-                jobs.append(_download(source))
+                job = _download(source)
             except _SKIPPED as e:
                 skipped.append(e)
+                continue
+            if not self._job_repo.has_active_jobs_for_source(job.source_id, _VIDEO_DOWNLOAD):
+                jobs.append(job)
         if not jobs and skipped:
             raise skipped[0]
         if jobs:
