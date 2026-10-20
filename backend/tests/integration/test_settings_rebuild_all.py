@@ -11,7 +11,6 @@ from backend.infrastructure.api.background_rebuild_launcher import (
     BackgroundSourcesRebuildLauncher,
     RebuildPasses,
 )
-from backend.infrastructure.api.source_operations import SourceOperationRegistry
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from sqlalchemy import StaticPool, create_engine, text
@@ -64,8 +63,7 @@ def _two_processed_sources(bench: Bench) -> None:
 def _launcher(bench: Bench) -> BackgroundSourcesRebuildLauncher:
     return BackgroundSourcesRebuildLauncher(
         session_factory=lambda: bench.session,  # type: ignore[arg-type,return-value]
-        rebuild_use_case=lambda _session: bench.rebuild(),
-        operations=SourceOperationRegistry(),
+        scope_operation=lambda _session: bench.scope_operation(),
         spawn=lambda work: work(),
         passes=RebuildPasses(),
     )
@@ -117,8 +115,7 @@ def test_no_source_is_locked_before_its_turn(bench: Bench) -> None:
     inner.run = run  # type: ignore[method-assign,assignment]
     launcher = BackgroundSourcesRebuildLauncher(
         session_factory=lambda: bench.session,  # type: ignore[arg-type,return-value]
-        rebuild_use_case=lambda _session: inner,
-        operations=SourceOperationRegistry(),
+        scope_operation=lambda _session: bench.scope_operation(inner),
         spawn=lambda work: work(),
         passes=RebuildPasses(),
     )
@@ -142,7 +139,7 @@ def test_the_patch_does_not_wait_for_the_rebuild(
         started.set()
         release.wait(timeout=10)
 
-    monkeypatch.setattr(BackgroundSourcesRebuildLauncher, "_rebuild_each", blocked)
+    monkeypatch.setattr(BackgroundSourcesRebuildLauncher, "_rebuild_pass", blocked)
 
     def override_session():  # type: ignore[no-untyped-def]  # noqa: ANN202
         with factory() as session:
@@ -184,10 +181,9 @@ def test_calls_close_together_never_overlap_and_a_full_pass_follows(
         if not overlaps[-1]:
             inside.release()
 
-    monkeypatch.setattr(BackgroundSourcesRebuildLauncher, "_rebuild_each", one_pass)
+    monkeypatch.setattr(BackgroundSourcesRebuildLauncher, "_rebuild_pass", one_pass)
     launcher = BackgroundSourcesRebuildLauncher(
-        session_factory=MagicMock(), rebuild_use_case=MagicMock(),
-        operations=SourceOperationRegistry(), passes=RebuildPasses(),
+        session_factory=MagicMock(), scope_operation=MagicMock(), passes=RebuildPasses(),
     )
 
     launcher.rebuild_all()
